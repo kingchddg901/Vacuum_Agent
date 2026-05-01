@@ -3,10 +3,10 @@
   "name": "Eufy Vacuum Manager",
   "codeowners": ["@kingchddg90"],
   "config_flow": true,
-  "documentation": "https://github.com/your-repo/eufy-vacuum-manager",
+  "documentation": "https://github.com/kingchddg901/eufy-vacuum-manager",
   "integration_type": "service",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/your-repo/eufy-vacuum-manager/issues",
+  "issue_tracker": "https://github.com/kingchddg901/eufy-vacuum-manager/issues",
   "requirements": [],
   "version": "0.9.0"
 }
