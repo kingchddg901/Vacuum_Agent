@@ -66,6 +66,12 @@ This integration would not exist without [eufy-clean](https://github.com/jeppese
 
 Full documentation: https://github.com/kingchddg901/eufy-vacuum-manager
 
+## Licence
+
+MIT — you are free to fork and adapt this work without attribution to this repository.
+
+One condition: this project is a top-level addition built on [eufy-clean](https://github.com/jeppesens/eufy-clean). Any fork or derivative work must maintain acknowledgement of that dependency. See [LICENSE](LICENSE) for full terms.
+
 ## Issues
 
 Please report bugs and feature requests at: https://github.com/kingchddg901/eufy-vacuum-manager/issues
