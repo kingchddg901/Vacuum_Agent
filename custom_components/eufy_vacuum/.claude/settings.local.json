@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -r \"HTTPServer\\\\|bottle\\\\|flask\\\\|django\\\\|aiohttp\\\\|uvicorn\\\\|uvloop\" . --include=*.py)"
-    ]
-  }
-}

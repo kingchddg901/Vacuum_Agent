@@ -29,3 +29,6 @@ desktop.ini
 
 # Staging / dev artifacts
 mapping_staging/
+
+# Claude Code settings
+.claude/
