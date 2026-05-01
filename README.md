@@ -32,7 +32,7 @@ The stock Eufy integration exposes basic start/stop/pause and a few entity state
 
 1. In Home Assistant, open **HACS** and go to **Integrations**.
 2. Click the three-dot menu (top right) and choose **Custom repositories**.
-3. Add `[GitHub repo URL]` as an **Integration** type repository.
+3. Add `https://github.com/kingchddg901/eufy-vacuum-manager` as an **Integration** type repository.
 4. Search for **Eufy Vacuum Manager** in HACS and install it.
 5. Restart Home Assistant.
 6. Go to **Settings → Devices & Services → Add Integration** and search for **Eufy Vacuum Manager** to complete setup.
@@ -60,8 +60,8 @@ The stock Eufy integration exposes basic start/stop/pause and a few entity state
 
 ## Documentation
 
-Full documentation: [GitHub repo URL]
+Full documentation: https://github.com/kingchddg901/eufy-vacuum-manager
 
 ## Issues
 
-Please report bugs and feature requests at: [GitHub repo URL]/issues
+Please report bugs and feature requests at: https://github.com/kingchddg901/eufy-vacuum-manager/issues
