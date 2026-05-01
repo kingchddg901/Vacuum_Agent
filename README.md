@@ -4,7 +4,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 
 ## What it does
 
-The stock Eufy integration exposes basic start/stop/pause and a few entity states. This integration goes further:
+[eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) exposes basic start/stop/pause and a few entity states. This integration goes further:
 
 - **Room-level control** — select individual rooms by name and send targeted clean jobs, rather than cleaning the whole floor.
 - **Queue management** — build, inspect, and reorder a cleaning queue before the job starts.
@@ -26,7 +26,7 @@ The stock Eufy integration exposes basic start/stop/pause and a few entity state
 ## Prerequisites
 
 - Home Assistant 2024.1.0 or later
-- Your Eufy vacuum must already be set up and working in Home Assistant via the standard Eufy integration (the one that provides the `vacuum.*` entity). This integration does not replace it — it builds on top of it.
+- Your Eufy vacuum must already be set up and working in Home Assistant via [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) (the integration that provides the `vacuum.*` entity). This integration does not replace it — it builds on top of it.
 
 ## Installation via HACS
 
