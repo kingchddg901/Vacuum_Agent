@@ -1,0 +1,1 @@
+"""Shared dataclass and TypedDict models for the Eufy Vacuum integration."""

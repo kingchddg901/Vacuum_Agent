@@ -1,0 +1,853 @@
+// CSS styles for the map view, map config editor, selection bar, nudge pad, vertex/room-assignment controls, and animal companion.
+
+export const mapStyles = `
+
+  /* =========================================================
+     VIEW TOGGLE STRIP
+     ========================================================= */
+
+  .evcc-rooms-view-toggle {
+    display:     flex;
+    gap:         4px;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .evcc-rooms-view-toggle-btn {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    width:           32px;
+    height:          32px;
+    padding:         0;
+    border-radius:   8px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:      transparent;
+    color:
+      var(--evcc-text-muted,
+      rgba(240, 242, 245, 0.48));
+    cursor:          pointer;
+    transition:      background 150ms ease,
+                     color 150ms ease,
+                     border-color 150ms ease;
+  }
+
+  .evcc-rooms-view-toggle-btn:hover {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    color:
+      var(--evcc-text-secondary,
+      rgba(240, 242, 245, 0.72));
+  }
+
+  .evcc-rooms-view-toggle-btn.active {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    color:       var(--evcc-text-primary, #f0f2f5);
+    border-color:
+      var(--evcc-border-strong,
+      rgba(255, 255, 255, 0.18));
+  }
+
+  /* =========================================================
+     MAP VIEW CONTAINER
+     ========================================================= */
+
+  .evcc-map-view {
+    display:        flex;
+    flex-direction: column;
+    flex:           1;
+    min-height:     0;
+  }
+
+  .evcc-map-container {
+    position:      relative;
+    width:         100%;
+    aspect-ratio:  1;
+    min-height:    240px;
+    overflow:      hidden;
+    border-radius: var(--evcc-radius-card, 12px);
+    background:    var(--evcc-surface-panel, #1c2127);
+    isolation:     isolate;
+  }
+
+  .evcc-map-layers {
+    position:         absolute;
+    inset:            0;
+    transform-origin: 0 0;
+    will-change:      transform;
+  }
+
+  .evcc-map-image {
+    display:            block;
+    width:              100%;
+    height:             100%;
+    object-fit:         contain;
+    user-select:        none;
+    -webkit-user-drag:  none;
+  }
+
+  .evcc-map-svg {
+    position:       absolute;
+    inset:          0;
+    width:          100%;
+    height:         100%;
+    pointer-events: none;
+  }
+
+  .evcc-map-debug-origin {
+    fill:           red;
+    stroke:         white;
+    stroke-width:   0.3;
+    pointer-events: none;
+  }
+
+  /* =========================================================
+     ANIMAL SVG COMPANION
+     =========================================================
+     Positioned absolutely in .evcc-map-layers (same space as
+     the labels and old presence dot).  The inner <animal-svg>
+     handles its own shadow DOM; we just control the host box.
+     ========================================================= */
+
+  .evcc-map-animal {
+    position:       absolute;
+    /* width + height set inline by renderer (respects user scale) */
+    transform:      translate(-50%, -50%);
+    cursor:         grab;
+    z-index:        10;
+    pointer-events: all;
+    touch-action:   none;   /* prevent scroll takeover during drag on touch */
+    /* Drop shadow so the animal reads on any map colour */
+    filter: drop-shadow(0 2px 6px rgba(0,0,0,0.65));
+    transition:     filter 400ms ease, opacity 400ms ease;
+  }
+
+  /* Actively being dragged */
+  .evcc-map-animal--dragging {
+    cursor:     grabbing;
+    transition: none;   /* suppress filter transition while moving */
+  }
+
+  /* Docked / charging — gentle luminance + alpha breath pulse */
+  .evcc-map-animal--pulse {
+    animation: evcc-animal-pulse 3.5s ease-in-out infinite;
+  }
+
+  @keyframes evcc-animal-pulse {
+    0%, 100% {
+      filter: drop-shadow(0 2px 6px rgba(0,0,0,0.65))
+              brightness(0.75) opacity(0.65);
+    }
+    45% {
+      filter: drop-shadow(0 2px 8px rgba(0,0,0,0.55))
+              brightness(1.05) opacity(1);
+    }
+  }
+
+  /* =========================================================
+     POLYGONS
+     ========================================================= */
+
+  .evcc-map-polygon {
+    fill:           transparent;
+    stroke:         none;
+    cursor:         pointer;
+    pointer-events: all;
+    transition:     fill-opacity 150ms ease;
+  }
+
+  .evcc-map-polygon--selected {
+    fill:         var(--seg-color);
+    fill-opacity: 0.25;
+  }
+
+  /* =========================================================
+     MAP LABELS (centroid overlays)
+     ========================================================= */
+
+  .evcc-map-label {
+    position:       absolute;
+    transform:      translate(-50%, -50%);
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    gap:            3px;
+    pointer-events: none;
+    z-index:        5;
+  }
+
+  .evcc-map-label-name {
+    font-size:   0.82rem;
+    font-weight: 700;
+    color:       rgba(240, 242, 245, 0.90);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.90), 0 0 8px rgba(0,0,0,0.65);
+    white-space: nowrap;
+    line-height: 1.2;
+    text-align:  center;
+  }
+
+  .evcc-map-label--selected .evcc-map-label-name {
+    color: #ffffff;
+  }
+
+  .evcc-map-label-order {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    width:           16px;
+    height:          16px;
+    border-radius:   50%;
+    background:      var(--evcc-accent, #3b82f6);
+    color:           #fff;
+    font-size:       0.58rem;
+    font-weight:     700;
+    line-height:     1;
+    box-shadow:      0 1px 4px rgba(0, 0, 0, 0.55);
+  }
+
+  /* =========================================================
+     MAP TOOLTIP
+     ========================================================= */
+
+  .evcc-map-tooltip {
+    position:       absolute;
+    display:        none;
+    flex-direction: column;
+    gap:            2px;
+    padding:        6px 10px;
+    background:     rgba(15, 18, 22, 0.88);
+    backdrop-filter: blur(6px);
+    border:         1px solid rgba(255, 255, 255, 0.12);
+    border-radius:  8px;
+    pointer-events: none;
+    max-width:      180px;
+    z-index:        10;
+  }
+
+  .evcc-map-tooltip--visible {
+    display: flex;
+  }
+
+  .evcc-map-tooltip-label {
+    font-size:   0.82rem;
+    font-weight: 600;
+    color:       #f0f2f5;
+    white-space: nowrap;
+  }
+
+  .evcc-map-tooltip-hint {
+    font-size: 0.72rem;
+    color:     rgba(240, 242, 245, 0.55);
+    white-space: nowrap;
+  }
+
+  /* =========================================================
+     UNAVAILABLE STATE
+     ========================================================= */
+
+  .evcc-map-unavailable {
+    display:         flex;
+    flex-direction:  column;
+    align-items:     center;
+    justify-content: center;
+    gap:             8px;
+    padding:         32px 20px;
+    color:
+      var(--evcc-text-secondary,
+      rgba(240, 242, 245, 0.72));
+    font-size:       0.88rem;
+    text-align:      center;
+  }
+
+  .evcc-map-unavailable-hint {
+    color:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    font-size: 0.80rem;
+  }
+
+  /* =========================================================
+     SELECTION BAR
+     ========================================================= */
+
+  .evcc-map-selection-bar {
+    display:     flex;
+    flex-wrap:   wrap;
+    gap:         8px;
+    padding:     10px 12px;
+    background:  var(--evcc-surface-panel, #1c2127);
+    border-top:
+      1px solid var(--evcc-border-subtle,
+      rgba(255, 255, 255, 0.08));
+    flex-shrink: 0;
+  }
+
+  .evcc-map-chip {
+    display:        flex;
+    flex-direction: row;
+    align-items:    center;
+    gap:            8px;
+    padding:        6px 12px;
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    border-radius: 8px;
+    cursor:        pointer;
+    user-select:   none;
+    min-width:     68px;
+    transition:    background 150ms ease, border-color 150ms ease;
+    touch-action:  none;
+  }
+
+  .evcc-map-chip:hover {
+    background:
+      var(--evcc-surface-panel, #1c2127);
+    border-color:
+      var(--evcc-border-strong,
+      rgba(255, 255, 255, 0.18));
+  }
+
+  .evcc-map-chip-order {
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    width:           18px;
+    height:          18px;
+    border-radius:   50%;
+    background:      var(--evcc-accent, #3b82f6);
+    color:           #fff;
+    font-size:       0.68rem;
+    font-weight:     700;
+    flex-shrink:     0;
+    line-height:     1;
+  }
+
+  .evcc-map-chip-body {
+    display:        flex;
+    flex-direction: column;
+    gap:            2px;
+    min-width:      0;
+  }
+
+  .evcc-map-chip-label {
+    font-size:     0.82rem;
+    font-weight:   600;
+    color:         var(--evcc-text-primary, #f0f2f5);
+    white-space:   nowrap;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+  }
+
+  .evcc-map-chip-settings {
+    font-size:   0.74rem;
+    color:       var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    white-space: nowrap;
+  }
+
+  /* =========================================================
+     MAP CONFIG VIEW
+     ========================================================= */
+
+  .evcc-map-config-view {
+    display:        flex;
+    flex-direction: column;
+    flex:           1;
+    min-height:     0;
+    gap:            0;
+  }
+
+  .evcc-map-config-body {
+    display:    flex;
+    flex:       1;
+    min-height: 0;
+  }
+
+  .evcc-map-config-side-panel {
+    display:        flex;
+    flex-direction: column;
+    width:          220px;
+    flex-shrink:    0;
+    overflow-y:     auto;
+    border-left:
+      1px solid var(--evcc-border-subtle,
+      rgba(255, 255, 255, 0.08));
+  }
+
+  .evcc-map-config-header {
+    display:         flex;
+    align-items:     center;
+    gap:             12px;
+    padding:         10px 12px 8px;
+    flex-shrink:     0;
+    border-bottom:
+      1px solid var(--evcc-border-subtle,
+      rgba(255, 255, 255, 0.08));
+  }
+
+  .evcc-map-config-back {
+    display:      flex;
+    align-items:  center;
+    gap:          6px;
+    padding:      4px 10px 4px 6px;
+    border-radius: 8px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:   transparent;
+    color:        var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:    0.82rem;
+    cursor:       pointer;
+    transition:   background 150ms ease, color 150ms ease;
+  }
+
+  .evcc-map-config-back:hover {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-map-config-title {
+    font-size:   0.88rem;
+    font-weight: 600;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-map-polygon--config {
+    cursor:         pointer;
+    pointer-events: all;
+    transition:     filter 120ms ease;
+  }
+
+  .evcc-map-polygon--config:hover {
+    filter: brightness(1.35);
+  }
+
+  .evcc-map-vertex-dot {
+    transition: r 120ms ease, filter 120ms ease;
+  }
+
+  .evcc-map-vertex-dot:hover {
+    filter: brightness(1.4);
+  }
+
+  .evcc-map-vertex-dot--selected {
+    filter: drop-shadow(0 0 1px rgba(255, 221, 0, 0.9));
+  }
+
+  /* =========================================================
+     CONFIG PANEL
+     ========================================================= */
+
+  .evcc-map-config-panel {
+    display:        flex;
+    flex-direction: column;
+    gap:            0;
+    flex-shrink:    0;
+    border-top:
+      1px solid var(--evcc-border-subtle,
+      rgba(255, 255, 255, 0.08));
+  }
+
+  .evcc-map-config-section {
+    display:        flex;
+    flex-direction: column;
+    gap:            10px;
+    padding:        14px 12px;
+    border-bottom:
+      1px solid var(--evcc-border-subtle,
+      rgba(255, 255, 255, 0.06));
+  }
+
+  .evcc-map-config-section--hint {
+    color:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    font-size: 0.82rem;
+    align-items: center;
+    padding: 12px;
+  }
+
+  .evcc-map-config-section-title {
+    font-size:      0.72rem;
+    font-weight:    600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color:          var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+  }
+
+  .evcc-map-config-section-title em {
+    font-style:     normal;
+    font-weight:    700;
+    color:          var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    text-transform: none;
+    letter-spacing: normal;
+  }
+
+  /* =========================================================
+     VARIANT ROWS
+     ========================================================= */
+
+  .evcc-map-variant-row {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+  }
+
+  .evcc-map-variant-info {
+    display:        flex;
+    flex-direction: column;
+    gap:            1px;
+    flex:           1;
+    min-width:      0;
+  }
+
+  .evcc-map-variant-label {
+    font-size:  0.82rem;
+    font-weight: 600;
+    color:      var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-map-variant-hint {
+    font-size: 0.72rem;
+    color:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    white-space:   nowrap;
+  }
+
+  .evcc-map-variant-status {
+    font-size:   0.74rem;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .evcc-map-variant-status--ok {
+    color: var(--evcc-sem-success, #22c55e);
+  }
+
+  .evcc-map-variant-status--missing {
+    color: var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+  }
+
+  .evcc-map-config-analyze-row {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+    padding-top:     4px;
+  }
+
+  .evcc-map-config-seg-count {
+    font-size: 0.80rem;
+    color:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+  }
+
+  .evcc-map-config-btn {
+    padding:       5px 12px;
+    border-radius: 8px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:    transparent;
+    color:         var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:     0.80rem;
+    cursor:        pointer;
+    white-space:   nowrap;
+    flex-shrink:   0;
+    transition:    background 150ms ease, color 150ms ease;
+  }
+
+  .evcc-map-config-btn:hover {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-map-config-btn--primary {
+    background:
+      color-mix(in srgb, var(--evcc-accent, #3b82f6) 18%, transparent);
+    color:
+      var(--evcc-accent, #3b82f6);
+    border-color:
+      color-mix(in srgb, var(--evcc-accent, #3b82f6) 40%, transparent);
+    font-weight: 600;
+  }
+
+  .evcc-map-config-btn--primary:hover {
+    background:
+      color-mix(in srgb, var(--evcc-accent, #3b82f6) 28%, transparent);
+    color: var(--evcc-accent, #3b82f6);
+  }
+
+  .evcc-map-config-btn:disabled,
+  .evcc-map-config-btn--busy {
+    opacity: 0.55;
+    cursor:  default;
+  }
+
+  .evcc-map-action-status {
+    font-size:   0.74rem;
+    font-weight: 500;
+    flex-shrink: 0;
+  }
+
+  .evcc-map-action-status--error {
+    color: var(--evcc-sem-error, #ef4444);
+  }
+
+  /* =========================================================
+     NUDGE PAD
+     ========================================================= */
+
+  .evcc-map-nudge-pad {
+    display:        flex;
+    flex-direction: column;
+    align-items:    center;
+    gap:            4px;
+    align-self:     flex-start;
+  }
+
+  .evcc-map-nudge-row {
+    display: flex;
+    gap:     4px;
+  }
+
+  .evcc-map-nudge-btn {
+    width:         36px;
+    height:        36px;
+    display:       flex;
+    align-items:   center;
+    justify-content: center;
+    border-radius: 8px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:    transparent;
+    color:         var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:     1rem;
+    cursor:        pointer;
+    transition:    background 120ms ease;
+  }
+
+  .evcc-map-nudge-btn:hover {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.08));
+  }
+
+  .evcc-map-nudge-btn:active {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.14));
+  }
+
+  .evcc-map-nudge-btn--reset {
+    color:        var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    border-color: transparent;
+    font-size:    0.9rem;
+  }
+
+  .evcc-map-config-adj-meta {
+    font-size: 0.74rem;
+    color:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+  }
+
+  /* =========================================================
+     EDGE ADJUST
+     ========================================================= */
+
+  .evcc-map-edge-grid {
+    display:        flex;
+    flex-direction: column;
+    gap:            4px;
+  }
+
+  .evcc-map-edge-row {
+    display:     flex;
+    align-items: center;
+    gap:         4px;
+  }
+
+  .evcc-map-edge-label {
+    font-size:  0.72rem;
+    color:      var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    width:      44px;
+    flex-shrink: 0;
+  }
+
+  .evcc-map-edge-val {
+    font-size:   0.72rem;
+    color:       var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    min-width:   28px;
+    text-align:  center;
+    flex-shrink: 0;
+  }
+
+  .evcc-map-nudge-btn--edge {
+    width:     28px;
+    height:    28px;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+
+  /* =========================================================
+     VERTEX ADJUST
+     ========================================================= */
+
+  .evcc-map-vertex-chips {
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       4px;
+  }
+
+  .evcc-map-vertex-chip {
+    min-width:     24px;
+    height:        24px;
+    padding:       0 6px;
+    border-radius: 6px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:    transparent;
+    color:         var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+    font-size:     0.70rem;
+    cursor:        pointer;
+    transition:    background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .evcc-map-vertex-chip:hover {
+    background:
+      var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    color: var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+  }
+
+  .evcc-map-vertex-chip--selected {
+    background:
+      color-mix(in srgb, var(--evcc-accent, #3b82f6) 20%, transparent);
+    color:        var(--evcc-accent, #3b82f6);
+    border-color:
+      color-mix(in srgb, var(--evcc-accent, #3b82f6) 45%, transparent);
+    font-weight:  600;
+  }
+
+  .evcc-map-vertex-chip--adjusted {
+    border-color:
+      color-mix(in srgb, var(--evcc-sem-success, #22c55e) 40%, transparent);
+  }
+
+  .evcc-map-vertex-chip--selected.evcc-map-vertex-chip--adjusted {
+    background:
+      color-mix(in srgb, var(--evcc-sem-success, #22c55e) 20%, transparent);
+    color:        var(--evcc-sem-success, #22c55e);
+    border-color:
+      color-mix(in srgb, var(--evcc-sem-success, #22c55e) 45%, transparent);
+  }
+
+  /* =========================================================
+     ROOM ASSIGNMENT CHIPS
+     ========================================================= */
+
+  .evcc-map-room-assign-chips {
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       6px;
+  }
+
+  .evcc-map-room-assign-chip {
+    padding:       5px 12px;
+    border-radius: 8px;
+    border:
+      1px solid var(--evcc-border-default,
+      rgba(255, 255, 255, 0.10));
+    background:    transparent;
+    color:         var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:     0.80rem;
+    cursor:        pointer;
+    transition:    background 120ms ease, color 120ms ease, border-color 120ms ease;
+  }
+
+  .evcc-map-room-assign-chip:hover:not(:disabled) {
+    background:
+      var(--evcc-surface-input,
+      rgba(255, 255, 255, 0.06));
+    color:        var(--evcc-text-primary, #f0f2f5);
+    border-color:
+      var(--evcc-border-strong,
+      rgba(255, 255, 255, 0.18));
+  }
+
+  .evcc-map-room-assign-chip--linked {
+    background:
+      color-mix(in srgb, var(--evcc-sem-success, #22c55e) 16%, transparent);
+    color:        var(--evcc-sem-success, #22c55e);
+    border-color:
+      color-mix(in srgb, var(--evcc-sem-success, #22c55e) 38%, transparent);
+    font-weight:  600;
+  }
+
+  .evcc-map-room-assign-chip--taken {
+    opacity: 0.35;
+    cursor:  default;
+  }
+
+  /* =========================================================
+     CONFIGURE BUTTON IN INLINE MAP VIEW
+     ========================================================= */
+
+  .evcc-rooms-view-toggle-btn--configure {
+    width:  auto;
+    padding: 0 10px;
+    gap:    6px;
+    font-size: 0.76rem;
+  }
+
+  /* =========================================================
+     ANIMAL SELECTOR IN MAP TOOLBAR
+     ========================================================= */
+
+  .evcc-rooms-animal-select {
+    height:        32px;
+    padding:       0 6px;
+    border-radius: 8px;
+    border:        1px solid var(--evcc-border-default, rgba(255,255,255,0.10));
+    background:    transparent;
+    color:         var(--evcc-text-secondary, rgba(240,242,245,0.72));
+    font-size:     0.76rem;
+    cursor:        pointer;
+    outline:       none;
+    flex-shrink:   0;
+    /* Native <select> appearance for simplicity — themed via border/bg */
+    -webkit-appearance: auto;
+    appearance:    auto;
+  }
+
+  .evcc-rooms-animal-select:hover {
+    border-color: var(--evcc-border-strong, rgba(255,255,255,0.18));
+    color:        var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-rooms-animal-select option {
+    background: var(--evcc-surface-panel, #1c2127);
+    color:      var(--evcc-text-primary, #f0f2f5);
+  }
+
+  /* =========================================================
+     ANIMAL SCALE SLIDER
+     ========================================================= */
+
+  .evcc-rooms-animal-scale {
+    width:       72px;
+    height:      32px;
+    flex-shrink: 0;
+    cursor:      pointer;
+    accent-color: var(--evcc-accent, #6366f1);
+    /* keep the range input vertically centred in the toolbar row */
+    align-self:  center;
+  }
+`;

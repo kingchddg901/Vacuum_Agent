@@ -1,0 +1,76 @@
+# 04 — Running a Clean
+
+## Starting a Clean
+
+To start a clean, enable at least one room and then press the **Start Cleaning** button in the action bar. The button is greyed out and disabled when a start is blocked (see [What Blocks a Start](#what-blocks-a-start) below).
+
+When the card detects that some rooms in your queue are blocked but others can still be cleaned, the button label changes to **Confirm Start** and the button pulses. This is called the preflight confirmation step. Before the job sends, a panel expands below the button listing:
+
+- The number of **blocked rooms** and the estimated time they would have added.
+- The number of **included rooms** that will still be cleaned.
+- A **Blocked Rooms** section with each blocked room's name and reason.
+- A **Modified Rooms** section if any rooms will run with adjusted settings.
+- A **Warnings** section for any other preflight notes.
+
+A **Cancel** button appears alongside the flashing confirm button so you can back out. Pressing **Confirm Start** proceeds with the reduced run. Pressing **Cancel** dismisses the preflight panel and returns the button to its normal state.
+
+---
+
+## What Blocks a Start
+
+The card shows a brief reason below the action bar when the Start button is disabled. The possible blocked reasons are:
+
+| Reason | What it means |
+|---|---|
+| `job_paused` | A tracked job is currently paused. Resume or cancel it before starting a new one. |
+| `onboarding_required` | One or more enabled rooms have not had their floor type confirmed yet. Set the floor type in each room's settings before starting. |
+| `all_selected_rooms_blocked` | Every room in the queue is individually blocked (for example, by access constraints). No rooms remain to clean. |
+| `no_target_map` | No map has been selected as the target. |
+| `map_mismatch` | The map you have selected does not match the map the vacuum is currently on. |
+| `no_rooms_selected` | No rooms are enabled in the queue. |
+| `invalid_payload` | The room-clean command could not be built — the payload is missing or invalid. |
+| `mid_job_service` | The dock is servicing the active job (for example, washing pads) and cannot start a new one. |
+| `active_job_running` | A room-clean job is already running. |
+| `vacuum_busy` | The vacuum is busy with another task and cannot accept a new room job. |
+
+Some conditions are **warnings** rather than hard blocks. When the dock is currently drying pads (`dock_drying`), the start button remains enabled but is styled with a warning colour, and a tooltip explains the situation. Similarly, if the planned job is estimated to use most or all of the clean water in the tank, a water warning appears but does not prevent the start.
+
+---
+
+## While a Job Is Running
+
+Once a job starts, the action bar updates to reflect the live state:
+
+- The primary button label changes to **Cancel Run** (with a cancel style).
+- A **Pause** button appears next to it.
+- The queue chips change colour to show which rooms are completed, which room is current, and which rooms are still remaining.
+- The current room's chip shows a live completion percentage (for example, `42%`) instead of a time estimate.
+- The room card for the current room shows a progress bar fill and a progress chip with percentage complete and estimated time remaining (for example, "42% complete" and "~3 min left").
+- An **Active Job** strip appears above the room grid. It shows a "Running" label with a pulse indicator, followed by chips for each room in the job. Each chip in the active job strip shows the job-order position number and the room name.
+
+---
+
+## Pausing a Job
+
+Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed (the job's status is `started`). After you press **Pause**:
+
+- The vacuum pauses.
+- The tracked job status changes to `paused`.
+- The **Pause** button is replaced by a **Resume** button.
+- The start button becomes disabled with the reason `job_paused` — you cannot start a new job while one is paused.
+
+---
+
+## Resuming a Job
+
+Press the **Resume** button to send a start command to the vacuum and resume the tracked job. The **Resume** button only appears when the job status is `paused`. After resuming, the job status returns to `started`, the **Pause** button reappears, and the card continues tracking progress where it left off. Paused time is accumulated separately so elapsed-time estimates remain accurate.
+
+---
+
+## Cancelling a Job
+
+Press the **Cancel Run** button to cancel the active or paused job.
+
+When you press **Cancel Run** the first time, the button label changes to **Confirm Cancel** and begins flashing. A **Cancel** button appears below it so you can change your mind. This two-step confirmation protects you from an accidental cancel.
+
+Press **Confirm Cancel** to proceed. The card sends a `return_to_base` command to the vacuum. It then waits up to 30 seconds for the vacuum to reach a docked or idle state before writing the final outcome. If the vacuum does not confirm within that window, the job is finalized as cancelled anyway so the tracked state is never left open. Once cancelled, the active job strip disappears and the action bar returns to its idle state.

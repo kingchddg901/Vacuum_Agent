@@ -1,0 +1,1 @@
+"""Map lifecycle management and storage helpers for the Eufy Vacuum integration."""

@@ -1,0 +1,1454 @@
+"""Service handlers for the Eufy Vacuum mapping module."""
+
+from __future__ import annotations
+
+import base64
+import logging
+import os
+from typing import Any
+
+import voluptuous as vol
+
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
+
+from ..const import (
+    DATA_RUNTIME,
+    DOMAIN,
+    SERVICE_ADJUST_MAP_SEGMENT,
+    SERVICE_ANALYZE_MAP_IMAGE,
+    SERVICE_GET_MAP_SEGMENTS,
+    SERVICE_UPLOAD_MAP_IMAGE,
+)
+from ..maps.map_manager import ensure_map_bucket
+from .manager import MappingManager
+from .tracker import EVENT_BOUNDARY_SAVED, EVENT_CALIBRATION_UPDATED
+
+_LOGGER = logging.getLogger(__name__)
+
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+
+# ---------------------------------------------------------------------------
+# Service names
+# ---------------------------------------------------------------------------
+
+SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
+SERVICE_ADD_CALIBRATION_POINT      = "add_calibration_point"
+SERVICE_COMPUTE_TRANSFORM          = "compute_transform"
+SERVICE_CLEAR_CALIBRATION          = "clear_calibration"
+SERVICE_START_ROOM_BOUNDARY_TRACE  = "start_room_boundary_trace"
+SERVICE_CLOSE_ROOM_BOUNDARY        = "close_room_boundary"
+SERVICE_CANCEL_ROOM_BOUNDARY_TRACE = "cancel_room_boundary_trace"
+SERVICE_GET_MAPPING_STATE          = "get_mapping_state"
+SERVICE_SAVE_MAPPING_PACKAGE       = "save_mapping_package"
+SERVICE_APPEND_MAPPING_TRACE_EVIDENCE = "append_mapping_trace_evidence"
+SERVICE_GET_MAPPING_PACKAGE        = "get_mapping_package"
+SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS = "get_image_segment_suggestions"
+SERVICE_TRANSLATE_IMAGE_SEGMENT    = "translate_image_segment"
+SERVICE_SET_DOCK_ANCHOR            = "set_dock_anchor"
+SERVICE_SET_DOCK_ROOM              = "set_dock_room"
+SERVICE_GET_ROOM_BOUNDS_SNAPSHOT      = "get_room_bounds_snapshot"
+SERVICE_CLEAR_ROOM_BOUNDS             = "clear_room_bounds"
+SERVICE_EXCLUDE_ROOM_JOB_BOUNDS       = "exclude_room_job_bounds"
+SERVICE_RESTORE_ROOM_JOB_BOUNDS       = "restore_room_job_bounds"
+SERVICE_REBUILD_ROOM_BOUNDS           = "rebuild_room_bounds_from_archive"
+
+# Trace capture (Phase 1)
+SERVICE_START_TRACE_CAPTURE  = "start_trace_capture"
+SERVICE_STOP_TRACE_CAPTURE   = "stop_trace_capture"
+SERVICE_CANCEL_TRACE_CAPTURE = "cancel_trace_capture"
+
+# Trace run review (Phase 2)
+SERVICE_REVIEW_TRACE_RUN = "review_trace_run"
+
+ALL_MAPPING_SERVICES = (
+    SERVICE_SAVE_MAP_IMAGE,
+    SERVICE_ADD_CALIBRATION_POINT,
+    SERVICE_COMPUTE_TRANSFORM,
+    SERVICE_CLEAR_CALIBRATION,
+    SERVICE_START_ROOM_BOUNDARY_TRACE,
+    SERVICE_CLOSE_ROOM_BOUNDARY,
+    SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
+    SERVICE_GET_MAPPING_STATE,
+    SERVICE_SAVE_MAPPING_PACKAGE,
+    SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
+    SERVICE_GET_MAPPING_PACKAGE,
+    SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+    SERVICE_TRANSLATE_IMAGE_SEGMENT,
+    SERVICE_SET_DOCK_ANCHOR,
+    SERVICE_SET_DOCK_ROOM,
+    SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
+    SERVICE_CLEAR_ROOM_BOUNDS,
+    SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
+    SERVICE_RESTORE_ROOM_JOB_BOUNDS,
+    SERVICE_REBUILD_ROOM_BOUNDS,
+    # Trace capture
+    SERVICE_START_TRACE_CAPTURE,
+    SERVICE_STOP_TRACE_CAPTURE,
+    SERVICE_CANCEL_TRACE_CAPTURE,
+    # Trace run review
+    SERVICE_REVIEW_TRACE_RUN,
+    # Image analysis
+    SERVICE_UPLOAD_MAP_IMAGE,
+    SERVICE_ANALYZE_MAP_IMAGE,
+    SERVICE_GET_MAP_SEGMENTS,
+    SERVICE_ADJUST_MAP_SEGMENT,
+)
+
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
+
+SAVE_MAP_IMAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("image_base64"): cv.string,
+        vol.Optional("image_width"): vol.Coerce(int),
+        vol.Optional("image_height"): vol.Coerce(int),
+        vol.Optional("variant", default="primary"): cv.string,
+    }
+)
+
+ADD_CALIBRATION_POINT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("pixel_x"): vol.Coerce(float),
+        vol.Required("pixel_y"): vol.Coerce(float),
+        vol.Required("vacuum_x"): vol.Coerce(float),
+        vol.Required("vacuum_y"): vol.Coerce(float),
+        vol.Optional("label", default="manual"): cv.string,
+        vol.Optional("is_calibration_room", default=False): cv.boolean,
+        vol.Optional("calibration_room_id"): vol.Any(None, cv.string),
+    }
+)
+
+COMPUTE_TRANSFORM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+CLEAR_CALIBRATION_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+START_ROOM_BOUNDARY_TRACE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+    }
+)
+
+CLOSE_ROOM_BOUNDARY_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+        vol.Optional("epsilon", default=5.0): vol.Coerce(float),
+    }
+)
+
+CANCEL_ROOM_BOUNDARY_TRACE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+    }
+)
+
+GET_MAPPING_STATE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+GET_ROOM_BOUNDS_SNAPSHOT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+CLEAR_ROOM_BOUNDS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+    }
+)
+
+EXCLUDE_ROOM_JOB_BOUNDS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+        vol.Required("job_index"): vol.Coerce(int),
+    }
+)
+
+RESTORE_ROOM_JOB_BOUNDS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+        vol.Required("job_index"): vol.Coerce(int),
+    }
+)
+
+REBUILD_ROOM_BOUNDS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+    }
+)
+
+SAVE_MAPPING_PACKAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("package"): dict,
+    }
+)
+
+APPEND_MAPPING_TRACE_EVIDENCE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("evidence"): dict,
+    }
+)
+
+GET_IMAGE_SEGMENT_SUGGESTIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("min_area_pixels", default=1200): vol.Coerce(int),
+        vol.Optional("simplify_epsilon"): vol.Coerce(float),
+        vol.Optional("max_segments"): vol.Coerce(int),
+    }
+)
+
+TRANSLATE_IMAGE_SEGMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("segment_id"): cv.string,
+        vol.Optional("delta_x", default=0): vol.Coerce(int),
+        vol.Optional("delta_y", default=0): vol.Coerce(int),
+        vol.Optional("edge_left", default=0): vol.Coerce(int),
+        vol.Optional("edge_right", default=0): vol.Coerce(int),
+        vol.Optional("edge_top", default=0): vol.Coerce(int),
+        vol.Optional("edge_bottom", default=0): vol.Coerce(int),
+        vol.Optional(
+            "vertex_moves",
+            default=[],
+        ): [
+            {
+                vol.Required("index"): vol.Coerce(int),
+                vol.Optional("delta_x", default=0): vol.Coerce(int),
+                vol.Optional("delta_y", default=0): vol.Coerce(int),
+            }
+        ],
+    }
+)
+
+SET_DOCK_ANCHOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("pixel_x"): vol.Coerce(float),
+        vol.Required("pixel_y"): vol.Coerce(float),
+        vol.Optional("vacuum_x"): vol.Coerce(float),
+        vol.Optional("vacuum_y"): vol.Coerce(float),
+        vol.Optional("exclusion_radius"): vol.Coerce(float),
+        vol.Optional("notes"): cv.string,
+    }
+)
+
+SET_DOCK_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+        vol.Optional("notes"): cv.string,
+    }
+)
+
+
+# Trace capture schemas (Phase 1)
+START_TRACE_CAPTURE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        # room_id is optional; room association is resolved in a later phase
+        vol.Optional("room_id"): vol.Any(None, cv.string),
+    }
+)
+
+STOP_TRACE_CAPTURE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+CANCEL_TRACE_CAPTURE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+
+# Trace run review schema (Phase 2)
+REVIEW_TRACE_RUN_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("run_id"): cv.string,
+        vol.Required("room_id"): cv.string,
+        # Optional; adjusts accept thresholds based on polygon trustworthiness.
+        # When absent, geometry-only thresholds apply.
+        vol.Optional("segment_metadata"): vol.Any(None, dict),
+    }
+)
+
+
+# Image analysis service schemas
+UPLOAD_MAP_IMAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("image_base64"): cv.string,
+        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light"]),
+        vol.Optional("image_width"): vol.Coerce(int),
+        vol.Optional("image_height"): vol.Coerce(int),
+    }
+)
+
+ANALYZE_MAP_IMAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("expected_room_count"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional("max_segments"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional("min_area_pixels"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional("simplify_epsilon"): vol.Coerce(float),
+        vol.Optional("force_reanalyze", default=False): cv.boolean,
+    }
+)
+
+GET_MAP_SEGMENTS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+    }
+)
+
+ADJUST_MAP_SEGMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("segment_id"): cv.string,
+        vol.Optional("delta_x", default=0): vol.Coerce(int),
+        vol.Optional("delta_y", default=0): vol.Coerce(int),
+        vol.Optional("edge_left", default=0): vol.Coerce(int),
+        vol.Optional("edge_right", default=0): vol.Coerce(int),
+        vol.Optional("edge_top", default=0): vol.Coerce(int),
+        vol.Optional("edge_bottom", default=0): vol.Coerce(int),
+        vol.Optional("vertex_moves", default=[]): [
+            {
+                vol.Required("index"): vol.Coerce(int),
+                vol.Optional("delta_x", default=0): vol.Coerce(int),
+                vol.Optional("delta_y", default=0): vol.Coerce(int),
+            }
+        ],
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _get_mapping_manager(hass: HomeAssistant) -> MappingManager:
+    manager = hass.data.get(DOMAIN, {}).get("mapping_manager")
+    if manager is None:
+        raise HomeAssistantError("Mapping manager not available")
+    return manager
+
+
+def _get_room_name(hass: HomeAssistant, vacuum_entity_id: str, map_id: str, room_id: str) -> str:
+    """Return room name from integration storage if available."""
+    try:
+        core = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if core is None:
+            return str(room_id)
+        result = core.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+        return str(result.get("rooms", {}).get(str(room_id), {}).get("name", room_id))
+    except Exception:
+        return str(room_id)
+
+
+# ---------------------------------------------------------------------------
+# Polygon math helpers
+# ---------------------------------------------------------------------------
+
+def _safe_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _bbox_from_polygon_pixel(polygon: list[list[int]]) -> dict[str, int] | None:
+    if not polygon:
+        return None
+    xs = [int(p[0]) for p in polygon]
+    ys = [int(p[1]) for p in polygon]
+    if not xs or not ys:
+        return None
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    return {
+        "x": min_x,
+        "y": min_y,
+        "width": max(1, max_x - min_x),
+        "height": max(1, max_y - min_y),
+    }
+
+
+def _adjust_polygon_pixel(
+    polygon: Any,
+    *,
+    offset_x: int,
+    offset_y: int,
+    edge_left: int,
+    edge_right: int,
+    edge_top: int,
+    edge_bottom: int,
+    vertex_moves: list[dict[str, int]] | None = None,
+) -> list[list[int]]:
+    """Return polygon adjusted by whole-shape translation, edge nudges, and vertex deltas."""
+    if not isinstance(polygon, list):
+        return []
+    parsed: list[list[int]] = []
+    for point in polygon:
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            continue
+        try:
+            parsed.append([int(round(float(point[0]))), int(round(float(point[1])))])
+        except Exception:
+            continue
+    if not parsed:
+        return []
+
+    xs = [p[0] for p in parsed]
+    ys = [p[1] for p in parsed]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    width = max(1, max_x - min_x)
+    height = max(1, max_y - min_y)
+    band_x = max(2, int(round(width * 0.1)))
+    band_y = max(2, int(round(height * 0.1)))
+
+    translated: list[list[int]] = []
+    for point in parsed:
+        x = point[0] + offset_x
+        y = point[1] + offset_y
+        if point[0] <= (min_x + band_x):
+            x += edge_left
+        if point[0] >= (max_x - band_x):
+            x += edge_right
+        if point[1] <= (min_y + band_y):
+            y += edge_top
+        if point[1] >= (max_y - band_y):
+            y += edge_bottom
+        translated.append([int(round(x)), int(round(y))])
+
+    if translated and isinstance(vertex_moves, list):
+        for move in vertex_moves:
+            if not isinstance(move, dict):
+                continue
+            idx = _safe_int(move.get("index"), -1)
+            if idx < 0 or idx >= len(translated):
+                continue
+            translated[idx][0] += _safe_int(move.get("delta_x"))
+            translated[idx][1] += _safe_int(move.get("delta_y"))
+
+    return translated
+
+
+def _apply_segment_adjustments(
+    segments: list[dict[str, Any]],
+    adjustments: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Apply stored per-segment adjustments to a list of raw segments."""
+    if not adjustments:
+        return segments
+    result: list[dict[str, Any]] = []
+    for seg in segments:
+        if not isinstance(seg, dict):
+            result.append(seg)
+            continue
+        seg_id = str(seg.get("segment_id") or "").strip()
+        adj = adjustments.get(seg_id)
+        if not seg_id or not isinstance(adj, dict):
+            result.append(seg)
+            continue
+
+        offset_x = _safe_int(adj.get("offset_x"))
+        offset_y = _safe_int(adj.get("offset_y"))
+        edge_left = _safe_int(adj.get("edge_left"))
+        edge_right = _safe_int(adj.get("edge_right"))
+        edge_top = _safe_int(adj.get("edge_top"))
+        edge_bottom = _safe_int(adj.get("edge_bottom"))
+        vertex_moves = adj.get("vertex_moves") if isinstance(adj.get("vertex_moves"), list) else []
+
+        if not any((offset_x, offset_y, edge_left, edge_right, edge_top, edge_bottom)) and not vertex_moves:
+            result.append(seg)
+            continue
+
+        updated = dict(seg)
+        polygon = _adjust_polygon_pixel(
+            updated.get("polygon_pixel"),
+            offset_x=offset_x,
+            offset_y=offset_y,
+            edge_left=edge_left,
+            edge_right=edge_right,
+            edge_top=edge_top,
+            edge_bottom=edge_bottom,
+            vertex_moves=vertex_moves,
+        )
+        if polygon:
+            updated["polygon_pixel"] = polygon
+            bbox = _bbox_from_polygon_pixel(polygon)
+            if bbox:
+                updated["bbox"] = bbox
+
+        center = updated.get("center_pixel")
+        if isinstance(center, (list, tuple)) and len(center) == 2:
+            try:
+                updated["center_pixel"] = [
+                    round(float(center[0]) + offset_x, 2),
+                    round(float(center[1]) + offset_y, 2),
+                ]
+            except Exception:
+                _LOGGER.exception("Failed to translate polygon center for %s", updated.get("id", "unknown"))
+
+        issues = list(updated.get("issues") or [])
+        if "translated_manual" not in issues:
+            issues.append("translated_manual")
+        if any((edge_left, edge_right, edge_top, edge_bottom)) and "edge_adjusted_manual" not in issues:
+            issues.append("edge_adjusted_manual")
+        if vertex_moves and "vertex_adjusted_manual" not in issues:
+            issues.append("vertex_adjusted_manual")
+        updated["issues"] = issues
+        updated["translation_offset"] = [offset_x, offset_y]
+        updated["edge_adjustment"] = {"left": edge_left, "right": edge_right, "top": edge_top, "bottom": edge_bottom}
+        updated["vertex_adjustment"] = vertex_moves
+        result.append(updated)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Image analysis handlers
+# ---------------------------------------------------------------------------
+
+async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    variant: str = call.data.get("variant", "default")
+    image_b64: str = call.data["image_base64"]
+    declared_width: int | None = call.data.get("image_width")
+    declared_height: int | None = call.data.get("image_height")
+
+    try:
+        image_bytes = base64.b64decode(image_b64)
+    except Exception:
+        return {"saved": False, "reason": "invalid_base64"}
+
+    if not image_bytes.startswith(_PNG_MAGIC):
+        try:
+            import io
+            from PIL import Image as _PILImageConv
+            with _PILImageConv.open(io.BytesIO(image_bytes)) as _img:
+                _buf = io.BytesIO()
+                _img.save(_buf, format="PNG")
+                image_bytes = _buf.getvalue()
+        except Exception:
+            return {"saved": False, "reason": "unsupported_format"}
+
+    object_id = vacuum_entity_id.split(".", 1)[1]
+    base_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps", object_id)
+    suffix = "" if variant == "default" else f"_{variant}"
+    file_path = os.path.join(base_dir, f"map_{map_id}{suffix}.png")
+    browser_url = f"/eufy_vacuum/maps/{object_id}/map_{map_id}{suffix}.png"
+
+    def _write_and_measure() -> dict:
+        os.makedirs(base_dir, exist_ok=True)
+        with open(file_path, "wb") as fh:
+            fh.write(image_bytes)
+        actual_width: int | None = None
+        actual_height: int | None = None
+        try:
+            from PIL import Image as _PILImage
+            with _PILImage.open(file_path) as img:
+                actual_width, actual_height = img.size
+        except Exception:
+            actual_width = declared_width
+            actual_height = declared_height
+        return {
+            "saved": True,
+            "path": file_path,
+            "browser_url": browser_url,
+            "variant": variant,
+            "size_bytes": len(image_bytes),
+            "declared_width": declared_width,
+            "declared_height": declared_height,
+            "actual_width": actual_width,
+            "actual_height": actual_height,
+        }
+
+    result = await hass.async_add_executor_job(_write_and_measure)
+
+    if result["saved"]:
+        manager = hass.data[DOMAIN][DATA_RUNTIME]
+        map_bucket = ensure_map_bucket(
+            data=manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        variants: dict = map_bucket.setdefault("image_variants", {})
+        variants[variant] = {
+            "variant": variant,
+            "path": file_path,
+            "browser_url": browser_url,
+            "width": result["actual_width"],
+            "height": result["actual_height"],
+        }
+        await manager.async_save()
+
+    _LOGGER.debug("upload_map_image: %s", result)
+    return result
+
+
+async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    expected_room_count = call.data.get("expected_room_count")
+    max_segments = call.data.get("max_segments")
+    min_area_pixels: int = call.data.get("min_area_pixels", 1200)
+    simplify_epsilon = call.data.get("simplify_epsilon")
+    force_reanalyze: bool = call.data.get("force_reanalyze", False)
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+
+    if not force_reanalyze and map_bucket.get("image_segments"):
+        _LOGGER.debug("analyze_map_image: returning cached for %s map %s", vacuum_entity_id, map_id)
+        return map_bucket["image_segments"]
+
+    # Prefer the variant recorded on upload; fall back to filesystem probe.
+    variants: dict = map_bucket.get("image_variants") or {}
+    object_id = vacuum_entity_id.split(".", 1)[1]
+    base_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps", object_id)
+
+    def _variant_path(v: str) -> str:
+        if v in variants and variants[v].get("path"):
+            return str(variants[v]["path"])
+        suffix = "" if v == "default" else f"_{v}"
+        return os.path.join(base_dir, f"map_{map_id}{suffix}.png")
+
+    # Dark as primary, light as assist; fall back to default if dark missing.
+    image_path: str | None = None
+    image_variant: str | None = None
+    for candidate in ("dark", "default"):
+        p = _variant_path(candidate)
+        if os.path.isfile(p):
+            image_path = p
+            image_variant = candidate
+            break
+
+    if not image_path:
+        return {
+            "available": False,
+            "reason": "image_not_found",
+            "message": f"No map image found in {base_dir}",
+            "segments": [],
+        }
+
+    light_p = _variant_path("light")
+    assist_path = light_p if os.path.isfile(light_p) else None
+
+    def _run() -> dict:
+        from .image_segments import detect_room_segments
+        return detect_room_segments(
+            image_path=image_path,
+            expected_room_count=expected_room_count,
+            max_segments=max_segments,
+            min_area_pixels=min_area_pixels,
+            simplify_epsilon=simplify_epsilon,
+            assist_image_path=assist_path,
+            image_variant=image_variant,
+            assist_variant="light" if assist_path else None,
+        )
+
+    result = await hass.async_add_executor_job(_run)
+    map_bucket["image_segments"] = result
+    await manager.async_save()
+
+    _LOGGER.debug(
+        "analyze_map_image: %s segments for %s map %s",
+        len(result.get("segments", [])), vacuum_entity_id, map_id,
+    )
+    return result
+
+
+async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+
+    raw = map_bucket.get("image_segments") or {}
+    adjustments: dict = map_bucket.get("image_segment_adjustments") or {}
+    raw_segments: list = raw.get("segments") or []
+
+    adjusted_segments = _apply_segment_adjustments(raw_segments, adjustments)
+
+    img_variants = map_bucket.get("image_variants") or {}
+    img_meta = (
+        img_variants.get("dark")
+        or img_variants.get("default")
+        or img_variants.get("light")
+        or {}
+    )
+    img_w = img_meta.get("width") or 1
+    img_h = img_meta.get("height") or 1
+    for seg in adjusted_segments:
+        px = seg.get("polygon_pixel")
+        if px and isinstance(px, list):
+            seg["polygon_pct"] = [
+                [round(x / img_w * 100, 4), round(y / img_h * 100, 4)]
+                for x, y in px
+            ]
+
+    return {
+        "vacuum_entity_id": vacuum_entity_id,
+        "map_id": map_id,
+        "available": bool(raw.get("available", False)),
+        "image": raw.get("image"),
+        "image_variants": map_bucket.get("image_variants") or {},
+        "summary": {
+            **(raw.get("summary") or {}),
+            "segment_count": len(adjusted_segments),
+            "adjusted_count": sum(
+                1 for s in adjusted_segments
+                if "translated_manual" in (s.get("issues") or [])
+                or "edge_adjusted_manual" in (s.get("issues") or [])
+                or "vertex_adjusted_manual" in (s.get("issues") or [])
+            ),
+        },
+        "segments": adjusted_segments,
+        "adjustments": adjustments,
+    }
+
+
+async def _handle_adjust_map_segment(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    segment_id: str = str(call.data["segment_id"]).strip()
+
+    if not segment_id:
+        return {"saved": False, "reason": "missing_segment_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+
+    segments = (map_bucket.get("image_segments") or {}).get("segments") or []
+    if not any(str(seg.get("segment_id") or "") == segment_id for seg in segments):
+        return {"saved": False, "reason": "segment_not_found", "segment_id": segment_id}
+
+    adjustments: dict = map_bucket.setdefault("image_segment_adjustments", {})
+    current = adjustments.get(segment_id, {})
+
+    offset_x = _safe_int(current.get("offset_x")) + _safe_int(call.data.get("delta_x"))
+    offset_y = _safe_int(current.get("offset_y")) + _safe_int(call.data.get("delta_y"))
+    edge_left = _safe_int(current.get("edge_left")) + _safe_int(call.data.get("edge_left"))
+    edge_right = _safe_int(current.get("edge_right")) + _safe_int(call.data.get("edge_right"))
+    edge_top = _safe_int(current.get("edge_top")) + _safe_int(call.data.get("edge_top"))
+    edge_bottom = _safe_int(current.get("edge_bottom")) + _safe_int(call.data.get("edge_bottom"))
+
+    existing_vertices: dict[int, dict] = {
+        _safe_int(v.get("index"), -1): v
+        for v in (current.get("vertex_moves") or [])
+        if isinstance(v, dict) and _safe_int(v.get("index"), -1) >= 0
+    }
+    for move in (call.data.get("vertex_moves") or []):
+        if not isinstance(move, dict):
+            continue
+        idx = _safe_int(move.get("index"), -1)
+        if idx < 0:
+            continue
+        prev = existing_vertices.get(idx, {"index": idx, "delta_x": 0, "delta_y": 0})
+        nx = _safe_int(prev.get("delta_x")) + _safe_int(move.get("delta_x"))
+        ny = _safe_int(prev.get("delta_y")) + _safe_int(move.get("delta_y"))
+        if nx or ny:
+            existing_vertices[idx] = {"index": idx, "delta_x": nx, "delta_y": ny}
+        else:
+            existing_vertices.pop(idx, None)
+
+    vertex_moves = [existing_vertices[i] for i in sorted(existing_vertices)]
+
+    if any((offset_x, offset_y, edge_left, edge_right, edge_top, edge_bottom)) or vertex_moves:
+        adjustments[segment_id] = {
+            "offset_x": offset_x,
+            "offset_y": offset_y,
+            "edge_left": edge_left,
+            "edge_right": edge_right,
+            "edge_top": edge_top,
+            "edge_bottom": edge_bottom,
+            "vertex_moves": vertex_moves,
+        }
+    else:
+        adjustments.pop(segment_id, None)
+
+    await manager.async_save()
+
+    _LOGGER.debug("adjust_map_segment: %s → %s", segment_id, adjustments.get(segment_id))
+    return {
+        "saved": True,
+        "segment_id": segment_id,
+        "adjustment": adjustments.get(segment_id),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
+
+async def async_register_mapping_services(hass: HomeAssistant) -> None:
+    """Register all mapping services."""
+
+    async def handle_save_map_image(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.save_map_image(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            image_base64=call.data["image_base64"],
+            image_width=call.data.get("image_width"),
+            image_height=call.data.get("image_height"),
+            variant=call.data.get("variant", "primary"),
+        )
+        _LOGGER.info("save_map_image: %s", result)
+        return result
+
+    async def handle_add_calibration_point(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.add_calibration_point(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            pixel_x=call.data["pixel_x"],
+            pixel_y=call.data["pixel_y"],
+            vacuum_x=call.data["vacuum_x"],
+            vacuum_y=call.data["vacuum_y"],
+            label=call.data.get("label", "manual"),
+            is_calibration_room=call.data.get("is_calibration_room", False),
+            calibration_room_id=call.data.get("calibration_room_id"),
+        )
+        _LOGGER.info("add_calibration_point: %s", result)
+
+        if result.get("transform_updated"):
+            state = mgr.get_mapping_state(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+            )
+            hass.bus.async_fire(
+                EVENT_CALIBRATION_UPDATED,
+                {
+                    "vacuum_entity_id": call.data["vacuum_entity_id"],
+                    "map_id": call.data["map_id"],
+                    "point_count": result["pair_count"],
+                    "transform_ready": result["transform_ready"],
+                    "residual_pixels": result.get("residual_pixels"),
+                },
+            )
+
+        return result
+
+    async def handle_compute_transform(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.compute_transform(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+        _LOGGER.info("compute_transform: %s", result)
+
+        if result.get("computed"):
+            hass.bus.async_fire(
+                EVENT_CALIBRATION_UPDATED,
+                {
+                    "vacuum_entity_id": call.data["vacuum_entity_id"],
+                    "map_id": call.data["map_id"],
+                    "point_count": result["pair_count"],
+                    "transform_ready": True,
+                    "residual_pixels": result.get("residual_pixels"),
+                },
+            )
+
+        return result
+
+    async def handle_clear_calibration(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.clear_calibration(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+        _LOGGER.info("clear_calibration: %s", result)
+        return result
+
+    async def handle_start_room_boundary_trace(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.start_room_boundary_trace(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+        )
+        _LOGGER.info("start_room_boundary_trace: %s", result)
+        return result
+
+    async def handle_close_room_boundary(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        map_id = call.data["map_id"]
+        room_id = call.data["room_id"]
+
+        result = mgr.close_room_boundary(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            room_id=room_id,
+            epsilon=call.data.get("epsilon", 5.0),
+        )
+        _LOGGER.info("close_room_boundary: %s", result)
+
+        if result.get("closed"):
+            room_name = _get_room_name(hass, vacuum_entity_id, map_id, room_id)
+            hass.bus.async_fire(
+                EVENT_BOUNDARY_SAVED,
+                {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "room_id": str(room_id),
+                    "room_name": room_name,
+                    "point_count": result["point_count_simplified"],
+                    "boundary_pixel": result.get("boundary_pixel", []),
+                },
+            )
+
+            if result.get("transform_updated"):
+                state = mgr.get_mapping_state(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id,
+                )
+                hass.bus.async_fire(
+                    EVENT_CALIBRATION_UPDATED,
+                    {
+                        "vacuum_entity_id": vacuum_entity_id,
+                        "map_id": str(map_id),
+                        "point_count": state["calibration"]["pair_count"],
+                        "transform_ready": state["calibration"]["transform_ready"],
+                        "residual_pixels": result.get("calibration_residual_pixels"),
+                    },
+                )
+
+        return result
+
+    async def handle_cancel_room_boundary_trace(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.cancel_room_boundary_trace(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+        )
+        _LOGGER.info("cancel_room_boundary_trace: %s", result)
+        return result
+
+    async def handle_get_mapping_state(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.get_mapping_state(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+        return result
+
+    async def handle_save_mapping_package(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.save_mapping_package(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            package=call.data["package"],
+        )
+        _LOGGER.info("save_mapping_package: %s", result)
+        return result
+
+    async def handle_append_mapping_trace_evidence(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.append_mapping_trace_evidence(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            evidence=call.data["evidence"],
+        )
+        _LOGGER.info("append_mapping_trace_evidence: %s", result)
+        return result
+
+    async def handle_get_mapping_package(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        return mgr.get_mapping_package(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+
+    async def handle_get_image_segment_suggestions(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        return await hass.async_add_executor_job(
+            lambda: mgr.get_image_segment_suggestions(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                min_area_pixels=call.data.get("min_area_pixels", 1200),
+                simplify_epsilon=call.data.get("simplify_epsilon"),
+                max_segments=call.data.get("max_segments"),
+            )
+        )
+
+    async def handle_translate_image_segment(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = await hass.async_add_executor_job(
+            lambda: mgr.translate_image_segment(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                segment_id=call.data["segment_id"],
+                delta_x=call.data.get("delta_x", 0),
+                delta_y=call.data.get("delta_y", 0),
+                edge_left=call.data.get("edge_left", 0),
+                edge_right=call.data.get("edge_right", 0),
+                edge_top=call.data.get("edge_top", 0),
+                edge_bottom=call.data.get("edge_bottom", 0),
+                vertex_moves=call.data.get("vertex_moves", []),
+            )
+        )
+        _LOGGER.info("translate_image_segment: %s", result)
+        return result
+
+    async def handle_set_dock_anchor(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.set_dock_anchor(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            pixel_x=call.data["pixel_x"],
+            pixel_y=call.data["pixel_y"],
+            vacuum_x=call.data.get("vacuum_x"),
+            vacuum_y=call.data.get("vacuum_y"),
+            exclusion_radius=call.data.get("exclusion_radius"),
+            notes=call.data.get("notes"),
+        )
+        _LOGGER.info("set_dock_anchor: %s", result)
+        return result
+
+    async def handle_set_dock_room(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.set_dock_room(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+            notes=call.data.get("notes"),
+        )
+        _LOGGER.info("set_dock_room: %s", result)
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_SAVE_MAP_IMAGE,
+        handle_save_map_image,
+        schema=SAVE_MAP_IMAGE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADD_CALIBRATION_POINT,
+        handle_add_calibration_point,
+        schema=ADD_CALIBRATION_POINT_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_COMPUTE_TRANSFORM,
+        handle_compute_transform,
+        schema=COMPUTE_TRANSFORM_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAR_CALIBRATION,
+        handle_clear_calibration,
+        schema=CLEAR_CALIBRATION_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_ROOM_BOUNDARY_TRACE,
+        handle_start_room_boundary_trace,
+        schema=START_ROOM_BOUNDARY_TRACE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLOSE_ROOM_BOUNDARY,
+        handle_close_room_boundary,
+        schema=CLOSE_ROOM_BOUNDARY_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
+        handle_cancel_room_boundary_trace,
+        schema=CANCEL_ROOM_BOUNDARY_TRACE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAPPING_STATE,
+        handle_get_mapping_state,
+        schema=GET_MAPPING_STATE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SAVE_MAPPING_PACKAGE,
+        handle_save_mapping_package,
+        schema=SAVE_MAPPING_PACKAGE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_APPEND_MAPPING_TRACE_EVIDENCE,
+        handle_append_mapping_trace_evidence,
+        schema=APPEND_MAPPING_TRACE_EVIDENCE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAPPING_PACKAGE,
+        handle_get_mapping_package,
+        schema=GET_MAPPING_STATE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+        handle_get_image_segment_suggestions,
+        schema=GET_IMAGE_SEGMENT_SUGGESTIONS_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_TRANSLATE_IMAGE_SEGMENT,
+        handle_translate_image_segment,
+        schema=TRANSLATE_IMAGE_SEGMENT_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_DOCK_ANCHOR,
+        handle_set_dock_anchor,
+        schema=SET_DOCK_ANCHOR_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_DOCK_ROOM,
+        handle_set_dock_room,
+        schema=SET_DOCK_ROOM_SCHEMA,
+        supports_response=True,
+    )
+
+
+    # ------------------------------------------------------------------
+    # Phase 1 — raw trace capture
+    # ------------------------------------------------------------------
+
+    async def handle_start_trace_capture(call: ServiceCall) -> dict[str, Any]:
+        """Start a raw trace capture session for the given vacuum/map pair.
+
+        room_id is optional — room association is resolved in a later phase.
+        A pre-existing session for this pair is discarded; the caller is
+        informed via previous_cancelled in the return payload.
+        """
+        mgr = _get_mapping_manager(hass)
+        result = mgr.start_trace_capture(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data.get("room_id"),
+        )
+        _LOGGER.info("start_trace_capture: %s", result)
+        return result
+
+    async def handle_stop_trace_capture(call: ServiceCall) -> dict[str, Any]:
+        """Finalise and persist the active TraceRun. Returns stopped=False if no session is active."""
+        mgr = _get_mapping_manager(hass)
+        result = mgr.stop_trace_capture(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+        _LOGGER.info("stop_trace_capture: %s", result)
+        return result
+
+    async def handle_cancel_trace_capture(call: ServiceCall) -> dict[str, Any]:
+        """Discard the active session without writing. Returns cancelled=False if no session is active."""
+        mgr = _get_mapping_manager(hass)
+        result = mgr.cancel_trace_capture(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+        )
+        _LOGGER.info("cancel_trace_capture: %s", result)
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_TRACE_CAPTURE,
+        handle_start_trace_capture,
+        schema=START_TRACE_CAPTURE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_STOP_TRACE_CAPTURE,
+        handle_stop_trace_capture,
+        schema=STOP_TRACE_CAPTURE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CANCEL_TRACE_CAPTURE,
+        handle_cancel_trace_capture,
+        schema=CANCEL_TRACE_CAPTURE_SCHEMA,
+        supports_response=True,
+    )
+
+
+    # ------------------------------------------------------------------
+    # Phase 2 — coarse trace run review
+    # ------------------------------------------------------------------
+
+    async def handle_review_trace_run(call: ServiceCall) -> dict[str, Any]:
+        """Evaluate a stored TraceRun against a room's vacuum polygon.
+
+        Returns a verdict (accepted / needs_refine / rejected / error) with
+        full diagnostics. When segment_metadata is supplied it must be the
+        segment dict from get_image_segment_suggestions for the assigned room;
+        it adjusts polygon trustworthiness thresholds. Does not persist.
+        """
+        mgr = _get_mapping_manager(hass)
+        result = await hass.async_add_executor_job(
+            lambda: mgr.review_trace_run_for_room(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                run_id=call.data["run_id"],
+                room_id=call.data["room_id"],
+                segment_metadata=call.data.get("segment_metadata"),
+            )
+        )
+        diag = result.get("diagnostics") or {}
+        _LOGGER.info(
+            "review_trace_run: %s verdict=%s inside_ratio=%s effective_accept=%s adjustments=%s",
+            call.data["run_id"],
+            result.get("verdict"),
+            diag.get("inside_ratio"),
+            diag.get("effective_accept_threshold"),
+            diag.get("metadata_adjustments"),
+        )
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_REVIEW_TRACE_RUN,
+        handle_review_trace_run,
+        schema=REVIEW_TRACE_RUN_SCHEMA,
+        supports_response=True,
+    )
+
+
+    # ------------------------------------------------------------------
+    # Image analysis services
+    # ------------------------------------------------------------------
+
+    async def upload_map_image(call: ServiceCall) -> dict:
+        return await _handle_upload_map_image(hass, call)
+
+    async def analyze_map_image(call: ServiceCall) -> dict:
+        return await _handle_analyze_map_image(hass, call)
+
+    async def get_map_segments(call: ServiceCall) -> dict:
+        return await _handle_get_map_segments(hass, call)
+
+    async def adjust_map_segment(call: ServiceCall) -> dict:
+        return await _handle_adjust_map_segment(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_UPLOAD_MAP_IMAGE, upload_map_image,
+        schema=UPLOAD_MAP_IMAGE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ANALYZE_MAP_IMAGE, analyze_map_image,
+        schema=ANALYZE_MAP_IMAGE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAP_SEGMENTS, get_map_segments,
+        schema=GET_MAP_SEGMENTS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_ADJUST_MAP_SEGMENT, adjust_map_segment,
+        schema=ADJUST_MAP_SEGMENT_SCHEMA, supports_response=True,
+    )
+
+
+    # ------------------------------------------------------------------
+    # Bounds review
+    # ------------------------------------------------------------------
+
+    async def handle_get_room_bounds_snapshot(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        map_id = call.data["map_id"]
+        result = mgr.get_room_bounds_snapshot(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        # Attach display name and archive flag from runtime room config.
+        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
+        try:
+            core = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+            if core is not None:
+                managed = core.get_managed_rooms(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                ).get("rooms", {})
+                for room_id, room_data in result.get("rooms", {}).items():
+                    room_data["name"] = managed.get(str(room_id), {}).get("name") or f"Room {room_id}"
+                    if tracker is not None:
+                        room_data["has_archive"] = tracker._find_raw_samples_path(vacuum_entity_id, str(room_id)) is not None
+                    else:
+                        room_data["has_archive"] = False
+        except Exception:
+            _LOGGER.debug("get_room_bounds_snapshot: could not enrich room names")
+        return result
+
+    async def handle_clear_room_bounds(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.clear_room_bounds(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+        )
+        _LOGGER.info("clear_room_bounds: %s", result)
+        return result
+
+    async def handle_exclude_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.exclude_room_job_bounds(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+            job_index=call.data["job_index"],
+        )
+        _LOGGER.info("exclude_room_job_bounds: %s", result)
+        if result.get("success") and result.get("job_id"):
+            tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
+            if tracker is not None:
+                tracker.update_raw_samples_exclusion(
+                    call.data["vacuum_entity_id"],
+                    call.data["room_id"],
+                    result["job_id"],
+                    excluded=True,
+                )
+        return result
+
+    async def handle_restore_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
+        mgr = _get_mapping_manager(hass)
+        result = mgr.restore_room_job_bounds(
+            vacuum_entity_id=call.data["vacuum_entity_id"],
+            map_id=call.data["map_id"],
+            room_id=call.data["room_id"],
+            job_index=call.data["job_index"],
+        )
+        _LOGGER.info("restore_room_job_bounds: %s", result)
+        if result.get("success") and result.get("job_id"):
+            tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
+            if tracker is not None:
+                tracker.update_raw_samples_exclusion(
+                    call.data["vacuum_entity_id"],
+                    call.data["room_id"],
+                    result["job_id"],
+                    excluded=False,
+                )
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_ROOM_BOUNDS_SNAPSHOT,
+        handle_get_room_bounds_snapshot,
+        schema=GET_ROOM_BOUNDS_SNAPSHOT_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAR_ROOM_BOUNDS,
+        handle_clear_room_bounds,
+        schema=CLEAR_ROOM_BOUNDS_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
+        handle_exclude_room_job_bounds,
+        schema=EXCLUDE_ROOM_JOB_BOUNDS_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RESTORE_ROOM_JOB_BOUNDS,
+        handle_restore_room_job_bounds,
+        schema=RESTORE_ROOM_JOB_BOUNDS_SCHEMA,
+        supports_response=True,
+    )
+
+    async def handle_rebuild_room_bounds(call: ServiceCall) -> dict[str, Any]:
+        tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
+        if tracker is None:
+            return {"success": False, "reason": "tracker_unavailable"}
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        map_id = call.data["map_id"]
+        room_id = call.data["room_id"]
+        result = await hass.async_add_executor_job(
+            lambda: tracker.rebuild_room_bounds_from_archive(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                room_id=room_id,
+            )
+        )
+        _LOGGER.info("rebuild_room_bounds_from_archive: %s", result)
+        return result
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_REBUILD_ROOM_BOUNDS,
+        handle_rebuild_room_bounds,
+        schema=REBUILD_ROOM_BOUNDS_SCHEMA,
+        supports_response=True,
+    )
+
+
+async def async_unregister_mapping_services(hass: HomeAssistant) -> None:
+    """Unregister all mapping services."""
+    for service in ALL_MAPPING_SERVICES:
+        if hass.services.has_service(DOMAIN, service):
+            hass.services.async_remove(DOMAIN, service)

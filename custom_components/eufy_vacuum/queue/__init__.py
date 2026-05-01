@@ -1,0 +1,1 @@
+"""Queue building and room-clean payload generation for the Eufy Vacuum integration."""

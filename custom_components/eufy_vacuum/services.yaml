@@ -1,0 +1,1854 @@
+# ============================================================
+# Eufy Vacuum Manager — Service Definitions
+# ============================================================
+#
+# Groups:
+#   Room management
+#   Queue & payload
+#   Profiles
+#   Onboarding
+#   Maintenance
+#   Learning
+#   Theme
+#
+
+# ============================================================
+# ROOM MANAGEMENT
+# ============================================================
+
+discover_rooms:
+  name: Discover rooms
+  description: >
+    Discover rooms from the underlying eufy-clean integration.
+    Results are written to discovery state only — no rooms are created.
+    Call save_managed_rooms to create room entities from discovery results.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+
+save_managed_rooms:
+  name: Save managed rooms
+  description: >
+    Create managed room configuration from selected discovery results.
+    This is the only path that creates room entities. Floor type and
+    carpet type must be supplied for each room at creation time.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    enabled_room_ids:
+      name: Enabled room IDs
+      description: List of room IDs to create as managed rooms.
+      required: true
+      selector:
+        object: {}
+    floor_types:
+      name: Floor types
+      description: >
+        Dict mapping room_id to floor type.
+        Valid values: hardwood, laminate, tile, marble, carpet.
+      required: false
+      selector:
+        object: {}
+    carpet_types:
+      name: Carpet types
+      description: >
+        Dict mapping room_id to carpet subtype for carpet rooms.
+        Valid values: low_pile, high_pile.
+      required: false
+      selector:
+        object: {}
+
+get_vacuum_maps:
+  name: Get vacuum maps
+  description: Return all known maps for a vacuum.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+update_room_fields:
+  name: Update room fields
+  description: >
+    Apply per-room field overrides without requiring a named profile.
+    Only supplied fields are changed — others stay unchanged.
+    Sets profile_name to "custom" to signal divergence from a preset.
+    Water-on-carpet enforcement is applied at payload time regardless
+    of what is stored here.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999
+          step: 1
+          mode: box
+    enabled:
+      name: Enabled
+      description: Enable or disable the room for queue and start payload generation.
+      required: false
+      selector:
+        boolean: {}
+    clean_mode:
+      name: Clean mode
+      required: false
+      selector:
+        text: {}
+    fan_speed:
+      name: Fan speed
+      required: false
+      selector:
+        text: {}
+    water_level:
+      name: Water level
+      required: false
+      selector:
+        text: {}
+    clean_intensity:
+      name: Clean intensity
+      required: false
+      selector:
+        text: {}
+    clean_passes:
+      name: Clean passes
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 2
+          step: 1
+          mode: box
+    edge_mopping:
+      name: Edge mopping
+      required: false
+      selector:
+        boolean: {}
+    is_dock_room:
+      name: Dock room
+      description: Mark this room as the dock/root room for the access graph.
+      required: false
+      selector:
+        boolean: {}
+    grants_access_to:
+      name: Grants access to
+      description: Downstream room IDs this room logically leads to.
+      required: false
+      selector:
+        object: {}
+    rules:
+      name: Room rules
+      description: Dynamic blocker and modifier rule definitions for this room.
+      required: false
+      selector:
+        object: {}
+
+get_room_access_editor:
+  name: Get room access editor
+  description: >
+    Return the backend-authored access graph editor payload for one room,
+    including editable outbound links, derived inbound links, stale links,
+    and room-specific graph issues.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999
+          step: 1
+          mode: box
+
+get_access_graph_health:
+  name: Get access graph health
+  description: >
+    Return whole-map access graph health, including missing room references
+    and formatted graph issues for sidebar rendering.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+# ============================================================
+# QUEUE & PAYLOAD
+# ============================================================
+
+build_queue:
+  name: Build queue
+  description: Build the cleaning queue from all enabled rooms in order.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+build_room_payload:
+  name: Build room payload
+  description: >
+    Resolve the full cleaning payload from the current queue.
+    Applies profile settings, carpet enforcement, and capability guards.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_queue_state:
+  name: Get queue state
+  description: Return the current queue state including room order.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_payload_state:
+  name: Get payload state
+  description: Return the current resolved payload including per-room settings.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+clear_queue:
+  name: Clear queue
+  description: Clear the current queue state.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_active_job:
+  name: Get active job
+  description: Return the current active job state including start time and battery.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_job_progress_snapshot:
+  name: Get job progress snapshot
+  description: >
+    Return the canonical backend-authored room-job progress state for the card,
+    including current room, completed rooms, remaining rooms, and live percent.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_job_control_state:
+  name: Get job control state
+  description: >
+    Return backend-authored button state and messages for start, pause, resume,
+    cancel, and clear actions.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_pause_timeout_settings:
+  name: Get pause timeout settings
+  description: >
+    Return the persisted default paused-job timeout for one vacuum. The card can
+    use this as the backend default when no per-job override is supplied.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+set_pause_timeout_settings:
+  name: Set pause timeout settings
+  description: >
+    Persist the default paused-job timeout for one vacuum. This default is used
+    when a start call does not provide pause_timeout_minutes_override.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    pause_timeout_minutes_default:
+      name: Default pause timeout (minutes)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          mode: box
+
+get_upkeep_snapshot:
+  name: Get upkeep snapshot
+  description: >
+    Return replacement items, maintenance items, dock events, dock counts, and
+    upkeep attention summaries for one vacuum.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+get_metrics_snapshot:
+  name: Get metrics snapshot
+  description: >
+    Return a metrics-focused payload for the card, including lifetime and
+    recent-window totals, room metrics, room-profile metrics, dock metrics,
+    and found profile candidates without the per-job review list.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    room_slug:
+      name: Room slug
+      description: Optional room filter for metrics and aggregates.
+      required: false
+      selector:
+        text: {}
+    profile_key:
+      name: Profile key
+      description: Optional observed room-profile filter.
+      required: false
+      selector:
+        text: {}
+    status:
+      name: Status
+      description: Optional job status filter such as completed or cancelled.
+      required: false
+      selector:
+        text: {}
+    used_for_learning:
+      name: Used for learning
+      description: Optional filter for only learned or excluded runs.
+      required: false
+      selector:
+        boolean: {}
+
+restore_learning_job:
+  name: Restore learning job
+  description: >
+    Restore one archived completed job back into learning and rebuild learned
+    stats without deleting the archived file.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    job_id:
+      name: Job ID
+      description: Archived completed job identifier.
+      required: true
+      selector:
+        text: {}
+    rebuild_csv:
+      name: Rebuild CSV
+      description: Also rebuild CSV exports after restoring the job.
+      required: false
+      selector:
+        boolean: {}
+
+get_dashboard_snapshot:
+  name: Get dashboard snapshot
+  description: >
+    Return one unified card-friendly payload containing job progress, job control,
+    start status, lifecycle, and upkeep for one vacuum/map.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_dock_action_status:
+  name: Get dock action status
+  description: >
+    Return gated availability and blocked reasons for wash mop, dry mop, and
+    empty dust actions.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+clear_active_job:
+  name: Clear active job
+  description: Clear the active job record.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_lifecycle_state:
+  name: Get lifecycle state
+  description: >
+    Return the current lifecycle state for a vacuum.
+    States include: ready, cleaning, dock_drying, cancelled, failed, etc.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+get_start_status:
+  name: Get start status
+  description: >
+    Check whether a cleaning job can be started.
+    Returns onboarding_required if any enabled room lacks a confirmed floor type.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+start_selected_rooms:
+  name: Start selected rooms
+  description: >
+    Send the resolved payload to the vacuum and start cleaning.
+    Honors room blockers, access dependencies, modifier rules, and reduced-run confirmation.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    confirm_reduced_run:
+      name: Confirm reduced run
+      required: false
+      selector:
+        boolean: {}
+    confirm_token:
+      name: Confirmation token
+      required: false
+      selector:
+        text: {}
+    path_block_action:
+      name: Path-block reaction
+      description: >
+        What to do if blocker rules change during the active run and remaining rooms become inaccessible.
+        event_only fires the path-blocked event only, pause_and_event pauses the job then fires the event,
+        and cancel_and_event cancels the job then fires the event.
+      required: false
+      selector:
+        select:
+          options:
+            - label: Event only
+              value: event_only
+            - label: Pause and event
+              value: pause_and_event
+            - label: Cancel and event
+              value: cancel_and_event
+    pause_timeout_minutes_override:
+      name: Pause timeout override (minutes)
+      description: >
+        Optional one-job override for how long this run may remain paused before it is auto-cancelled.
+        Set to 0 to disable auto-cancel for this job.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          mode: box
+
+start_run_profile:
+  name: Start run profile
+  description: >
+    Apply a saved run profile, rebuild the queue, and start it through the same protected start flow.
+    If the resolved run is reduced by blockers or access rules, the service returns
+    confirmation_required unless confirm_reduced_run is explicitly set to true or a valid
+    confirm_token is provided.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+    confirm_reduced_run:
+      name: Confirm reduced run
+      description: Explicitly allow a reduced run to start when the preflight would otherwise require confirmation.
+      required: false
+      selector:
+        boolean: {}
+    confirm_token:
+      name: Confirmation token
+      description: Retry token returned by a prior confirmation_required response.
+      required: false
+      selector:
+        text: {}
+    path_block_action:
+      name: Path-block reaction
+      description: >
+        What to do if blocker rules change during the active run and remaining rooms become inaccessible.
+        event_only fires the path-blocked event only, pause_and_event pauses the job then fires the event,
+        and cancel_and_event cancels the job then fires the event.
+      required: false
+      selector:
+        select:
+          options:
+            - label: Event only
+              value: event_only
+            - label: Pause and event
+              value: pause_and_event
+            - label: Cancel and event
+              value: cancel_and_event
+    pause_timeout_minutes_override:
+      name: Pause timeout override (minutes)
+      description: >
+        Optional one-job override for how long this run may remain paused before it is auto-cancelled.
+        Set to 0 to disable auto-cancel for this job.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 1440
+          step: 1
+          mode: box
+
+pause_active_job:
+  name: Pause active job
+  description: >
+    Pause the vacuum and mark the integration-owned active job as paused.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+resume_active_job:
+  name: Resume active job
+  description: >
+    Resume the vacuum and the integration-owned paused job.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+cancel_active_job:
+  name: Cancel active job
+  description: >
+    Return the vacuum to base, finalize the integration-owned job as cancelled,
+    and emit the job-finished event for the card.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+wash_mop:
+  name: Wash mop
+  description: >
+    Run the upstream dock wash action only when the dock state and vacuum state
+    make it valid to do so.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+dry_mop:
+  name: Dry mop
+  description: >
+    Run the upstream dock dry action only when the dock state and vacuum state
+    make it valid to do so.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+stop_dry_mop:
+  name: Stop dry mop
+  description: >
+    Run the upstream dock stop-dry action only when the dock is actively drying.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+empty_dust:
+  name: Empty dust
+  description: >
+    Run the upstream dock dust-empty action only when the dock state and vacuum
+    state make it valid to do so.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+# ============================================================
+# PROFILES
+# ============================================================
+
+get_room_profiles:
+  name: Get room profiles
+  description: Return all available built-in and user-defined room profiles.
+
+save_user_room_profile:
+  name: Save user room profile
+  description: Save a custom room profile to the profile library.
+  fields:
+    label:
+      name: Label
+      required: true
+      selector:
+        text: {}
+    clean_mode:
+      name: Clean mode
+      required: true
+      selector:
+        text: {}
+    fan_speed:
+      name: Fan speed
+      required: true
+      selector:
+        text: {}
+    water_level:
+      name: Water level
+      required: true
+      selector:
+        text: {}
+    clean_intensity:
+      name: Clean intensity
+      required: true
+      selector:
+        text: {}
+    clean_passes:
+      name: Clean passes
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 2
+          step: 1
+          mode: box
+    carpet:
+      name: Carpet
+      required: true
+      selector:
+        boolean: {}
+    edge_mopping:
+      name: Edge mopping
+      required: true
+      selector:
+        boolean: {}
+    profile_name:
+      name: Profile name
+      description: Optional stable backend key. Omit to keep the legacy user slot.
+      required: false
+      selector:
+        text: {}
+
+save_room_profile_from_room:
+  name: Save room profile from room
+  description: Save a new custom room profile from one room's current effective settings.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999
+          step: 1
+          mode: box
+    label:
+      name: Label
+      required: true
+      selector:
+        text: {}
+    profile_name:
+      name: Profile name
+      description: Optional stable backend key. Omit to create a new generated custom profile.
+      required: false
+      selector:
+        text: {}
+
+overwrite_room_profile:
+  name: Overwrite room profile
+  description: >
+    Overwrite one existing custom room profile from explicit cleaning settings.
+    Core built-in room profiles cannot be overwritten.
+  fields:
+    profile_name:
+      name: Existing profile name
+      required: true
+      selector:
+        text: {}
+    label:
+      name: Label
+      required: true
+      selector:
+        text: {}
+    clean_mode:
+      name: Clean mode
+      required: true
+      selector:
+        text: {}
+    fan_speed:
+      name: Fan speed
+      required: true
+      selector:
+        text: {}
+    water_level:
+      name: Water level
+      required: true
+      selector:
+        text: {}
+    clean_intensity:
+      name: Clean intensity
+      required: true
+      selector:
+        text: {}
+    clean_passes:
+      name: Clean passes
+      required: true
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    carpet:
+      name: Carpet
+      required: true
+      selector:
+        boolean: {}
+    edge_mopping:
+      name: Edge mopping
+      required: true
+      selector:
+        boolean: {}
+
+overwrite_room_profile_from_room:
+  name: Overwrite room profile from room
+  description: >
+    Overwrite one existing custom room profile from a room's current effective settings.
+    Core built-in room profiles cannot be overwritten.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 9999
+          step: 1
+          mode: box
+    profile_name:
+      name: Existing profile name
+      required: true
+      selector:
+        text: {}
+    label:
+      name: Label
+      description: Optional replacement label. When omitted, the existing profile label is kept.
+      required: false
+      selector:
+        text: {}
+
+rename_room_profile:
+  name: Rename room profile
+  description: >
+    Rename one existing custom room profile key and/or display label.
+    Core built-in room profiles cannot be renamed.
+  fields:
+    profile_name:
+      name: Existing profile name
+      required: true
+      selector:
+        text: {}
+    new_profile_name:
+      name: New profile name
+      description: Optional new custom profile key.
+      required: false
+      selector:
+        text: {}
+    label:
+      name: Label
+      description: Optional replacement display label.
+      required: false
+      selector:
+        text: {}
+
+delete_room_profile:
+  name: Delete room profile
+  description: >
+    Delete one existing custom room profile.
+    Core built-in room profiles cannot be deleted.
+  fields:
+    profile_name:
+      name: Existing profile name
+      required: true
+      selector:
+        text: {}
+
+apply_room_profile:
+  name: Apply room profile
+  description: Apply a named profile to one or more rooms on a map.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_ids:
+      name: Room IDs
+      description: List of room IDs to apply the profile to.
+      required: true
+      selector:
+        object: {}
+    profile_name:
+      name: Profile name
+      required: true
+      selector:
+        text: {}
+
+get_saved_run_profiles:
+  name: Get saved run profiles
+  description: Return saved reusable multi-room run profiles for one vacuum and map.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+
+save_run_profile:
+  name: Save run profile
+  description: Save the currently enabled rooms and their settings as a reusable named run profile.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: Profile name
+      required: true
+      selector:
+        text: {}
+    expose_as_button:
+      name: Expose as button
+      description: Mark this run profile for future Home Assistant button exposure.
+      required: false
+      selector:
+        boolean: {}
+
+apply_run_profile:
+  name: Apply run profile
+  description: Apply a saved run profile back onto room selection, order, and per-room settings.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+
+overwrite_run_profile:
+  name: Overwrite run profile
+  description: Overwrite an existing saved run profile using the currently enabled rooms and their current settings.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: New name
+      required: false
+      selector:
+        text: {}
+    expose_as_button:
+      name: Expose as button
+      required: false
+      selector:
+        boolean: {}
+
+rename_run_profile:
+  name: Rename run profile
+  description: Rename one saved run profile.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: New name
+      required: true
+      selector:
+        text: {}
+
+delete_run_profile:
+  name: Delete run profile
+  description: Delete one saved run profile from the library.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+
+get_vacuum_capabilities:
+  name: Get vacuum capabilities
+  description: Detect and return capability information for one vacuum.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    detected_model:
+      name: Detected model
+      required: false
+      selector:
+        text: {}
+    refresh:
+      name: Refresh
+      description: Force a fresh capability detection pass.
+      required: false
+      default: true
+      selector:
+        boolean: {}
+
+# ============================================================
+# MAINTENANCE
+# ============================================================
+
+reset_maintenance:
+  name: Reset maintenance
+  description: >
+    Reset the maintenance counter for a specific component after cleaning or replacement.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    component:
+      name: Component
+      description: >
+        The maintenance component to reset.
+        Valid values: brush, side_brush, filter, mop, sensor.
+      required: true
+      selector:
+        text: {}
+
+# ============================================================
+# LEARNING
+# ============================================================
+
+save_learning_snapshot:
+  name: Save learning snapshot
+  description: >
+    Manually save a learning snapshot for the current job state.
+    This is called automatically by start_selected_rooms — manual
+    use is only needed for edge cases.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    started_at:
+      name: Started at
+      description: Job start timestamp in YYYY-MM-DDTHH:MM:SS format.
+      required: true
+      selector:
+        text: {}
+    battery_start:
+      name: Battery start
+      description: Battery percent at job start.
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    job_id:
+      name: Job ID
+      description: Optional custom job ID.
+      required: false
+      selector:
+        text: {}
+
+finalize_learning_job:
+  name: Finalize learning job
+  description: >
+    Manually finalize a completed job and optionally rebuild learned stats.
+    This is called automatically when the vacuum returns to dock — manual
+    use is only needed for edge cases or historical corrections.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    battery_start:
+      name: Battery start
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    battery_end:
+      name: Battery end
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    started_at:
+      name: Started at
+      description: Job start timestamp in YYYY-MM-DDTHH:MM:SS format.
+      required: true
+      selector:
+        text: {}
+    ended_at:
+      name: Ended at
+      description: Optional end timestamp. Defaults to now.
+      required: false
+      selector:
+        text: {}
+    used_for_learning:
+      name: Used for learning
+      required: false
+      default: true
+      selector:
+        boolean: {}
+    rebuild_stats:
+      name: Rebuild stats
+      required: false
+      default: true
+      selector:
+        boolean: {}
+    rebuild_csv:
+      name: Rebuild CSV
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+rebuild_learning_stats:
+  name: Rebuild learning stats
+  description: >
+    Rebuild learned job and room stats from all completed job history.
+    Called automatically after finalize_learning_job — manual use forces
+    a full rebuild from scratch.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    rebuild_csv:
+      name: Rebuild CSV
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+run_learning_estimate:
+  name: Run learning estimate
+  description: >
+    Compute a full job estimate from learned room history and current queue state.
+    Returns per-room ETAs, confidence scores, overhead breakdown, and battery info.
+    Battery is informational only — low battery never blocks the job since the
+    vacuum recharges mid-job and resumes.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    current_battery:
+      name: Current battery
+      description: Current battery percent. Used for battery warning calculation.
+      required: false
+      default: 0.0
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+    charge_percent_per_minute:
+      name: Charge rate (% per minute)
+      required: false
+      default: 1.0
+      selector:
+        number:
+          min: 0.1
+          max: 10
+          step: 0.1
+          mode: box
+    reserve_battery_percent:
+      name: Reserve battery %
+      description: Minimum battery buffer to keep in reserve.
+      required: false
+      default: 5.0
+      selector:
+        number:
+          min: 0
+          max: 20
+          step: 1
+          mode: box
+    started_at:
+      name: Started at
+      description: >
+        ISO timestamp to use as ETA anchor. Leave blank to use now.
+      required: false
+      selector:
+        text: {}
+
+record_estimate_accuracy:
+  name: Record estimate accuracy
+  description: >
+    Record estimated vs actual minutes per room after a job completes.
+    Called automatically by finalize_learning_job — manual use is only
+    needed when supplying per-room actuals from an external source such
+    as another external source.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    room_actuals:
+      name: Room actuals
+      description: >
+        List of dicts, each with: slug, clean_mode, clean_passes,
+        is_carpet, clean_intensity, map_id, estimated_minutes,
+        actual_minutes. Optional: single_room (bool).
+      required: true
+      selector:
+        object: {}
+
+reanchor_learning_timeline:
+  name: Reanchor learning timeline
+  description: >
+    Recompute room ETAs using actual completed room durations mid-job.
+    Call when one or more rooms are confirmed complete from an external timing or review source.
+    Pass ALL completed rooms so far, not just the latest one.
+  fields:
+    original_estimate:
+      name: Original estimate
+      description: The full estimate payload from run_learning_estimate.
+      required: true
+      selector:
+        object: {}
+    completed_rooms:
+      name: Completed rooms
+      description: >
+        List of completed rooms. Each entry needs room_id or slug,
+        and actual_duration_minutes.
+      required: true
+      selector:
+        object: {}
+    reanchor_at:
+      name: Reanchor at
+      description: ISO timestamp to anchor remaining ETAs from. Defaults to now.
+      required: false
+      selector:
+        text: {}
+    current_battery:
+      name: Current battery
+      description: If supplied, updates battery warning for remaining rooms.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+
+get_next_room:
+  name: Get next room
+  description: >
+    Return the next incomplete room from a reanchored timeline.
+    Lightweight shortcut — returns only what the live job banner needs.
+    Returns empty dict when all rooms are complete.
+  fields:
+    reanchored_estimate:
+      name: Reanchored estimate
+      description: The latest payload from reanchor_learning_timeline.
+      required: true
+      selector:
+        object: {}
+
+exclude_learning_job:
+  name: Exclude learning job
+  description: >
+    Exclude one archived completed job from learned stats without deleting the
+    JSON record. Rebuilds learned stats immediately so bad runs stop affecting
+    future estimates.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    job_id:
+      name: Job ID
+      description: Completed job ID, for example job_2026-04-08T17-41-53.
+      required: true
+      selector:
+        text: {}
+    reason:
+      name: Exclusion reason
+      description: Optional reason stored on the archived job outcome.
+      required: false
+      default: manual_exclusion
+      selector:
+        text: {}
+    rebuild_csv:
+      name: Rebuild CSV
+      description: Also rebuild flat CSV exports after exclusion.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+# ============================================================
+# THEME
+# ============================================================
+
+get_theme_library:
+  name: Get theme library
+  description: Return the full theme library with tokens, colors, and alpha values.
+
+save_theme_as_new:
+  name: Save theme as new
+  description: >
+    Save a vacuum's current working draft as a new named theme in the library.
+    Clears draft_dirty on the vacuum.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    name:
+      name: Theme name
+      required: true
+      selector:
+        text: {}
+    set_as_default:
+      name: Set as global default
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+overwrite_theme:
+  name: Overwrite theme
+  description: >
+    Replace an existing library theme with a vacuum's current working draft.
+    Clears draft_dirty on the vacuum.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+
+rename_theme:
+  name: Rename theme
+  description: Update the display name of a library theme.
+  fields:
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: New name
+      required: true
+      selector:
+        text: {}
+
+delete_theme:
+  name: Delete theme
+  description: >
+    Remove a theme from the library.
+    Clears active_theme_id on any vacuum that was using it.
+  fields:
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+
+set_active_theme:
+  name: Set active theme
+  description: >
+    Point a vacuum at a library theme.
+    The working draft is cleared so preview resolves from the active theme
+    plus any future draft overrides.
+    Omit vacuum_entity_id to set the global default only without
+    changing any per-vacuum draft state.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      description: Leave blank to set global default only.
+      required: false
+      selector:
+        entity:
+          domain: vacuum
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+
+update_working_draft:
+  name: Update working draft
+  description: >
+    Patch-merge partial token, color, and/or alpha overrides into a vacuum's
+    working draft. Keys sent with null or an empty string are removed from the
+    draft. The theme sensor updates automatically.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    tokens:
+      name: Tokens
+      description: Dict mapping token names to values. This is the canonical theme bucket.
+      required: false
+      selector:
+        object: {}
+    colors:
+      name: Colors
+      description: Dict mapping color token names to values. Kept for compatibility.
+      required: false
+      selector:
+        object: {}
+    alpha:
+      name: Alpha
+      description: Dict mapping alpha token names to opacity values (0.0–1.0).
+      required: false
+      selector:
+        object: {}
+
+revert_draft:
+  name: Revert draft
+  description: >
+    Clear a vacuum's working draft overrides so preview resolves back to the
+    active theme.
+    Clears draft_dirty. The theme sensor updates automatically.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+
+export_theme:
+  name: Export theme
+  description: >
+    Return a theme as a portable JSON-safe payload with tokens, colors, and alpha.
+  fields:
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+
+import_theme:
+  name: Import theme
+  description: >
+    Import a theme from an exported payload. Handles name collisions by
+    appending "(imported)".
+  fields:
+    payload:
+      name: Payload
+      description: The full export payload dict from export_theme.
+      required: true
+      selector:
+        object: {}
+
+get_room_learning_estimates:
+  name: Get room learning estimates
+  description: >
+    Return per-room learning estimates for all rooms on a map based on each
+    room's current effective persisted settings. Queue-independent — queued
+    and unqueued rooms both receive estimates. Safe for frequent UI refreshes.
+    No side effects.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    current_battery:
+      name: Current battery
+      description: Optional current battery %. Informational only — never blocks.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 1
+          mode: box
+
+get_learning_history_snapshot:
+  name: Get learning history snapshot
+  description: >
+    Return a card-friendly snapshot of learned history, including recent jobs,
+    room aggregates, room profile aggregates, and learned room statistics.
+    Supports optional filtering by room, profile, job status, and learning use.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    room_slug:
+      name: Room slug
+      description: Optional room slug filter, for example kitchen.
+      required: false
+      selector:
+        text: {}
+    profile_key:
+      name: Profile key
+      description: Optional room profile signature from the learning index.
+      required: false
+      selector:
+        text: {}
+    status:
+      name: Job status
+      description: Optional filter such as completed, cancelled, failed, or interrupted.
+      required: false
+      selector:
+        text: {}
+    used_for_learning:
+      name: Used for learning
+      description: Optional filter for whether jobs were used in learned stats.
+      required: false
+      selector:
+        boolean: {}
+    limit:
+      name: Job limit
+      description: Maximum number of recent matching jobs to return.
+      required: false
+      default: 50
+      selector:
+        number:
+          min: 1
+          max: 500
+          step: 1
+          mode: box
+
+retry_missed_rooms:
+  name: Retry missed rooms
+  description: >
+    Re-queue only the rooms that were missed in the last incomplete run and
+    start cleaning immediately. Reads the stored incomplete run log to determine
+    which rooms were skipped, enables only those rooms, and starts the job.
+
+    Designed for automation use: pair with the eufy_vacuum_run_incomplete event
+    trigger so the vacuum automatically retries missed rooms after a cancelled
+    or interrupted run.
+
+    Returns started: true on success, or started: false with a reason field
+    when the incomplete run log is absent, empty, or the start is blocked.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      description: The vacuum to retry cleaning for.
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: >
+        The map to use. Defaults to the map_id stored in the incomplete run log,
+        so this can usually be omitted when triggered by eufy_vacuum_run_incomplete.
+      required: false
+      selector:
+        text: {}
+    confirm_reduced_run:
+      name: Confirm reduced run
+      description: >
+        Proceed even when blockers or access rules would normally require
+        confirmation. Defaults to true for automation use.
+      required: false
+      default: true
+      selector:
+        boolean: {}
+    path_block_action:
+      name: Path-block reaction
+      description: >
+        What to do if blocker rules change mid-run and remaining rooms become
+        inaccessible. event_only fires the path-blocked event only,
+        pause_and_event pauses then fires, cancel_and_event cancels then fires.
+      required: false
+      selector:
+        select:
+          options:
+            - label: Event only
+              value: event_only
+            - label: Pause and event
+              value: pause_and_event
+            - label: Cancel and event
+              value: cancel_and_event
+

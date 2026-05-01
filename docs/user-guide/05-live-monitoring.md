@@ -1,0 +1,79 @@
+# 05 — Live Monitoring
+
+While your vacuum is running, the card switches into a live monitoring mode. This page explains every piece of information shown during and immediately after a job.
+
+---
+
+## The live banner
+
+As soon as a job starts, a live banner appears at the top of the card. It updates automatically as the vacuum moves from room to room.
+
+### What the banner shows
+
+The banner always displays one of three states:
+
+- **Cleaning `<room name>`** — the room currently being cleaned, shown with a play symbol (▶). If an estimated completion time is available for that room, it appears below the room name (for example, "Done at 2:45 PM").
+- **All rooms complete** — shown when every queued room has been finished, with the subtitle "Returning to dock".
+- **Learning active / Waiting for next room update** — a brief transitional state shown when the vacuum is between rooms and the card is waiting for the next update from the integration.
+
+Each room entry in the banner also carries a **confidence chip** — a small label (High, Medium, or Low) that reflects how reliable the time estimate for that room is, based on how many past runs the integration has learned from.
+
+---
+
+## Live progress list
+
+Below the banner, a **Live Progress** list shows every room in the current job:
+
+| Symbol | Meaning |
+|--------|---------|
+| ✓ | Room is complete. The actual time taken is shown next to the name. |
+| ▶ | Room is currently being cleaned. Shows percentage done and estimated time remaining, or an ETA wall-clock time if a snapshot is available. The estimated total duration for the room is shown alongside a confidence chip. |
+| ○ | Room is queued but not yet started. An ETA wall-clock time is shown if one is available. |
+
+The list animates as rooms transition between states — you do not need to refresh the page.
+
+---
+
+## Battery warning
+
+If the integration determines that the vacuum may not have enough charge to finish all remaining rooms without stopping to recharge, a warning notice appears below the banner:
+
+> **May need to recharge to finish remaining rooms**
+
+This warning is based on the live or reanchored estimate. If the vacuum does recharge mid-job, cleaning continues automatically and the warning clears once the job progresses.
+
+---
+
+## Stall detection warning
+
+If the vacuum has been cleaning a single room for significantly longer than expected, the card shows a stall notice:
+
+> **Robot may be stuck in current room** *(X min elapsed, expected Y min)*
+
+The elapsed time and expected time are shown in parentheses when available. "Stuck" here means the room is taking much longer than the learned average — it does not always mean the vacuum is physically stuck.
+
+**What to do:**
+
+1. Check the vacuum's physical location if you can. The robot may have found an obstacle, a closed door, or a tangle it cannot clear on its own.
+2. If the vacuum is genuinely stuck, use the vacuum's physical controls or the Home Assistant vacuum entity controls to send it home or to pause it.
+3. If the room simply took longer than usual (furniture moved, etc.), no action is needed — the integration will update its estimates over time.
+
+---
+
+## Incomplete run banner
+
+When a job ends without cleaning all the rooms that were queued — because it was cancelled, interrupted, or failed — the card shows an **incomplete run banner** the next time you open the card (the banner is hidden while a job is actively running).
+
+### What the banner shows
+
+- A headline stating the outcome: "Last run cancelled", "Last run failed", or "Last run interrupted", along with the number of rooms that were missed.
+- A chip for each missed room by name.
+
+### Actions
+
+| Button | What it does |
+|--------|-------------|
+| **Queue missed rooms** | Re-adds all the missed rooms to the queue so you can start a new run immediately. |
+| **✕** | Dismisses the banner. The missed-room information is cleared from card memory. |
+
+The banner does not reappear unless a new incomplete run is recorded.

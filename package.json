@@ -1,0 +1,13 @@
+{
+  "name": "eufy-vacuum-command-center",
+  "version": "1.0.0",
+  "description": "Premium vacuum dashboard for Eufy vacuums via the eufy_vacuum integration.",
+  "scripts": {
+    "build": "esbuild src/all-cards.js --bundle --minify --format=esm --target=es2020 --outfile=dist/eufy-vacuum-command-center.js",
+    "build:dev": "esbuild src/all-cards.js --bundle --format=esm --sourcemap --outfile=dist/eufy-vacuum-command-center.js",
+    "watch": "esbuild src/all-cards.js --bundle --format=esm --sourcemap --outfile=dist/eufy-vacuum-command-center.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

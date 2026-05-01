@@ -1,0 +1,12 @@
+{
+  "domain": "eufy_vacuum",
+  "name": "Eufy Vacuum Manager",
+  "codeowners": ["@kingchddg90"],
+  "config_flow": true,
+  "documentation": "https://github.com/your-repo/eufy-vacuum-manager",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/your-repo/eufy-vacuum-manager/issues",
+  "requirements": [],
+  "version": "0.9.0"
+}

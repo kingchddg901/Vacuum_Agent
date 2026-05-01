@@ -1,0 +1,1 @@
+"""Core runtime package: orchestration, persistent storage, and capability detection."""

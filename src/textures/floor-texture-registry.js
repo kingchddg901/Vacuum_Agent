@@ -1,0 +1,240 @@
+/**
+ * ============================================================
+ * TEXTURES: FLOOR TEXTURE REGISTRY
+ * ============================================================
+ *
+ * PURPOSE
+ * -------
+ * Static mapping from resolved floor-type keys to their
+ * texture layer configuration.
+ *
+ * ARCHITECTURAL ROLE
+ * ------------------
+ * Each layer has an opacityToken pointing to a theme token and
+ * an opacityDefault used as the fallback when the token is
+ * unset.  Users tune layers via the theme editor; once a
+ * material is dialled in the defaults here can be updated to
+ * bake that look in for everyone.
+ *
+ * Layer DOM order = bottom → top (last entry renders on top).
+ *
+ * masks[] is kept for backward-compat with the SVG map renderer.
+ * baseTexture is kept for getPrimaryTextureUrl().
+ *
+ * ============================================================
+ */
+
+// Base path for all texture assets served from the HA www/ directory.
+const _T = "/eufy_vacuum/textures";
+
+/* === FLOOR TEXTURE REGISTRY === */
+
+export const FLOOR_TEXTURE_REGISTRY = {
+
+  tile: {
+    opacityDefault: 1,
+    layers: [
+      {
+        url:            `${_T}/tile/tile-mask.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-tile-base",
+        colorDefault:   "#D4AF37",
+        opacityToken:   "--evcc-floor-tile-face-opacity",
+        opacityDefault: 0.87,
+      },
+      {
+        url:            `${_T}/tile/grout-mask.png`,
+        role:           "grout",
+        colorToken:     "--evcc-floor-tile-grout",
+        colorDefault:   "#121212",
+        opacityToken:   "--evcc-floor-tile-grout-opacity",
+        opacityDefault: 0.95,
+      },
+      {
+        url:            `${_T}/tile/pure-tile-grout.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-tile-accent",
+        colorDefault:   "#f0f0f5",
+        opacityToken:   "--evcc-floor-tile-line-opacity",
+        opacityDefault: 0.39,
+      },
+    ],
+    masks: [
+      { url: `${_T}/tile/tile-mask.png`       },
+      { url: `${_T}/tile/grout-mask.png`      },
+      { url: `${_T}/tile/pure-tile-grout.png` },
+    ],
+    baseTexture: null,
+  },
+
+  wood: {
+    opacityDefault: 0.99,
+    layers: [
+      {
+        url:            `${_T}/wood/wood-directional-depth-mask.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-wood-base",
+        colorDefault:   "#7A4010cf",
+        opacityToken:   "--evcc-floor-wood-depth-opacity",
+        opacityDefault: 0.43,
+      },
+      {
+        url:            `${_T}/wood/wood-grain-mask.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-wood-base",
+        colorDefault:   "#7A4010cf",
+        opacityToken:   "--evcc-floor-wood-grain-opacity",
+        opacityDefault: 0.84,
+      },
+      {
+        url:            `${_T}/wood/wood-seam-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-wood-accent",
+        colorDefault:   "#e89754",
+        opacityToken:   "--evcc-floor-wood-seam-opacity",
+        opacityDefault: 0.78,
+      },
+    ],
+    masks: [
+      { url: `${_T}/wood/wood-grain-mask.png`             },
+      { url: `${_T}/wood/wood-seam-mask.png`              },
+      { url: `${_T}/wood/wood-directional-depth-mask.png` },
+    ],
+    baseTexture: null,
+  },
+
+  marble: {
+    opacityDefault: 0.9,
+    layers: [
+      {
+        url:            `${_T}/marble/marble-base-mask.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-marble-base",
+        colorDefault:   "#e9e8e8",
+        opacityToken:   "--evcc-floor-marble-base-opacity",
+        opacityDefault: 0.97,
+      },
+      {
+        url:            `${_T}/marble/marble-micro-texture-mask.png`,
+        role:           "micro",
+        colorToken:     "--evcc-floor-marble-micro",
+        colorDefault:   "#080707",
+        opacityToken:   "--evcc-floor-marble-micro-opacity",
+        opacityDefault: 1,
+      },
+      {
+        url:            `${_T}/marble/marble-vein-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-marble-accent",
+        colorDefault:   "#D4AF3773",
+        opacityToken:   "--evcc-floor-marble-vein-opacity",
+        opacityDefault: 0, // hidden by default; users opt in via theme editor
+      },
+    ],
+    masks: [
+      { url: `${_T}/marble/marble-vein-mask.png`          },
+      { url: `${_T}/marble/marble-micro-texture-mask.png` },
+      { url: `${_T}/marble/marble-base-mask.png`          },
+    ],
+    baseTexture: null,
+  },
+
+  concrete: {
+    opacityDefault: 1,
+    layers: [
+      {
+        url:            `${_T}/concrete/concrete-broad-mask.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-concrete-base",
+        colorDefault:   "#eceaea",
+        opacityToken:   "--evcc-floor-concrete-broad-opacity",
+        opacityDefault: 1,
+      },
+      {
+        url:            `${_T}/concrete/concrete-micro-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-concrete-accent",
+        colorDefault:   "#121111",
+        opacityToken:   "--evcc-floor-concrete-micro-opacity",
+        opacityDefault: 0.62,
+      },
+    ],
+    masks: [
+      { url: `${_T}/concrete/concrete-micro-mask.png` },
+      { url: `${_T}/concrete/concrete-broad-mask.png` },
+    ],
+    baseTexture: null,
+  },
+
+  carpet_low: {
+    opacityDefault: 0.8,
+    layers: [
+      {
+        url:            `${_T}/carpet/texture-floor-carpet-low.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-carpet-low-base",
+        colorDefault:   "#0d0c0c",
+        opacityToken:   "--evcc-floor-carpet-low-texture-opacity",
+        opacityDefault: 1,
+      },
+    ],
+    masks:       [],
+    baseTexture: `${_T}/carpet/texture-floor-carpet-low.png`,
+  },
+
+  carpet_high: {
+    opacityDefault: 1,
+    layers: [
+      {
+        url:            `${_T}/carpet/texture-floor-carpet-high.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-carpet-high-base",
+        colorDefault:   "#0a0a0a",
+        opacityToken:   "--evcc-floor-carpet-high-texture-opacity",
+        opacityDefault: 1,
+      },
+    ],
+    masks:       [],
+    baseTexture: `${_T}/carpet/texture-floor-carpet-high.png`,
+  },
+
+  granite_light: {
+    opacityDefault: 1,
+    layers: [
+      {
+        url:            `${_T}/granite/texture-floor-granite-light.png`,
+        role:           "base",
+        colorToken:     "--evcc-floor-granite-light-base",
+        colorDefault:   "#0a0a0a",
+        opacityToken:   "--evcc-floor-granite-light-texture-opacity",
+        opacityDefault: 1,
+      },
+    ],
+    masks:       [],
+    baseTexture: `${_T}/granite/texture-floor-granite-light.png`,
+  },
+
+  default: {
+    opacityDefault: 0.85,
+    layers:      [],
+    masks:       [],
+    baseTexture: null,
+  },
+};
+
+/**
+ * Returns the primary texture image URL for a resolved floor type key.
+ * Preference order: baseTexture → first layer → first mask → null.
+ * Used by the SVG map renderer to fill room polygons with a <pattern>.
+ *
+ * @param {string} floorType - Canonical floor type key (e.g. "tile", "wood").
+ * @returns {string|null} Absolute path to the primary texture PNG, or null if none.
+ */
+export function getPrimaryTextureUrl(floorType) {
+  const entry = FLOOR_TEXTURE_REGISTRY[floorType];
+  if (!entry) return null;
+  if (entry.baseTexture)   return entry.baseTexture;
+  if (entry.layers.length) return entry.layers[0].url;
+  if (entry.masks.length)  return entry.masks[0].url;
+  return null;
+}

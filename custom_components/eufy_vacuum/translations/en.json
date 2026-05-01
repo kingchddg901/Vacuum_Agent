@@ -1,0 +1,42 @@
+{
+  "title": "Eufy Vacuum Manager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Eufy Vacuum Manager",
+        "description": "{context}",
+        "data": {
+          "tested_model": "Tested model",
+          "notes": "Notes",
+          "vacuum_entity_id": "Vacuum",
+          "room_ids": "Rooms to create",
+          "floor_type": "Floor type",
+          "carpet_type": "Carpet type"
+        }
+      }
+    },
+    "error": {
+      "no_rooms_selected": "Please select at least one room to create."
+    },
+    "abort": {
+      "already_configured": "Eufy Vacuum Manager is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Eufy Vacuum Manager Settings",
+        "description": "To add or rebuild rooms, use Settings \u2192 Repairs.",
+        "data": {
+          "notes": "Notes"
+        }
+      }
+    }
+  },
+  "issues": {
+    "onboarding_required": {
+      "title": "Room setup required \u2014 {vacuum_name} Map {map_id}",
+      "description": "Rooms on map **{map_id}** for **{vacuum_name}** have not been set up yet. Click **Fix** to select which rooms to create and set their floor types."
+    }
+  }
+}

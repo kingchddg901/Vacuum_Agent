@@ -1,0 +1,1 @@
+"""Room discovery and managed room configuration for the Eufy Vacuum integration."""

@@ -1,0 +1,1 @@
+"""Job lifecycle detection and start-blocker helpers for the Eufy Vacuum integration."""

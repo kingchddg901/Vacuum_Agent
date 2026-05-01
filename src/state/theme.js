@@ -1,0 +1,592 @@
+/**
+ * ============================================================
+ * STATE: THEME EDITOR
+ * ============================================================
+ *
+ * PURPOSE
+ * -------
+ * Owns all card-side UI state for the theme editor.
+ *
+ * This file is intentionally limited to editor state and selector
+ * logic. It does not implement persistence, backend mutation, or
+ * token rendering. The integration remains the source of truth for
+ * saved theme state, while this file tracks how the editor is being
+ * viewed and filtered right now.
+ *
+ *
+ * ARCHITECTURAL ROLE
+ * ------------------
+ * Backend-owned theme state mirrored here:
+ * - active theme id
+ * - working draft
+ * - draft dirty flag
+ * - theme library
+ *
+ * Card-owned editor state owned here:
+ * - active theme sub-tab
+ * - global search query
+ * - group-local search queries
+ * - selected group filter
+ * - group open / closed state
+ *
+ *
+ * SOURCE OF TRUTH BOUNDARY
+ * ------------------------
+ * The resolved preview model is:
+ *
+ *   active theme tokens
+ *   + working draft overrides
+ *
+ * Reset behavior must remove draft override semantics rather than
+ * writing fallback values back into the editor state. This keeps the
+ * card aligned with the backend overlay model and avoids duplicating
+ * resolved values into draft state.
+ *
+ *
+ * DESIGN RULES
+ * ------------
+ * - No frontend theme persistence model
+ * - No preset override engine
+ * - No duplicated backend logic
+ * - Group visibility, filter selection, and search behavior live here
+ * - Renderer consumes selectors from here rather than rebuilding
+ *   filter rules ad hoc
+ *
+ * ============================================================
+ */
+
+import { THEME_GROUPS } from "../theme-tokens/index.js";
+
+/**
+ * Bake an alpha multiplier (0–1) into a CSS hex color string.
+ * Strips any existing alpha channel from the hex, then appends the new one.
+ * Returns the original value unchanged if it is not a valid 6- or 8-char hex.
+ */
+function _hexWithAlpha(colorHex, alpha) {
+  const trimmed = String(colorHex || "").trim();
+
+  let base6;
+  if (/^#[0-9a-fA-F]{8}$/.test(trimmed)) {
+    base6 = `#${trimmed.slice(1, 7)}`;
+  } else if (/^#[0-9a-fA-F]{6}$/.test(trimmed)) {
+    base6 = trimmed;
+  } else {
+    return trimmed;
+  }
+
+  if (alpha === null || alpha === undefined) {
+    return trimmed;
+  }
+
+  const clamped = Math.max(0, Math.min(1, Number(alpha)));
+  if (Number.isNaN(clamped)) return trimmed;
+  const alphaHex = Math.round(clamped * 255).toString(16).padStart(2, "0").toLowerCase();
+  return `${base6}${alphaHex}`;
+}
+
+export function applyThemeState(proto) {
+  proto._emptyThemeDraft = function () {
+    return {
+      tokens: {},
+      colors: {},
+      alpha: {},
+    };
+  };
+
+  proto._themeDraftHasOverrides = function (draft) {
+    return (
+      Object.keys(draft.tokens).length > 0 ||
+      Object.keys(draft.colors).length > 0 ||
+      Object.keys(draft.alpha).length > 0
+    );
+  };
+
+  proto._applyThemeDraftBucket = function (targetBucket, patchBucket) {
+    if (!patchBucket || typeof patchBucket !== "object") {
+      return;
+    }
+
+    Object.entries(patchBucket).forEach(([key, value]) => {
+      if (value === null || value === undefined || value === "") {
+        delete targetBucket[key];
+        return;
+      }
+
+      targetBucket[key] = value;
+    });
+  };
+
+  proto._normalizeThemeDraft = function (payload) {
+    const draft = this._emptyThemeDraft();
+
+    if (!payload || typeof payload !== "object") {
+      return draft;
+    }
+
+    this._applyThemeDraftBucket(draft.tokens, payload.tokens);
+    this._applyThemeDraftBucket(draft.colors, payload.colors);
+    this._applyThemeDraftBucket(draft.alpha, payload.alpha);
+
+    return draft;
+  };
+
+  proto.applyThemeDraftPatch = function (patch) {
+    const state = this._ensureThemeState();
+
+    this._applyThemeDraftBucket(state.workingDraft.tokens, patch?.tokens);
+    this._applyThemeDraftBucket(state.workingDraft.colors, patch?.colors);
+    this._applyThemeDraftBucket(state.workingDraft.alpha, patch?.alpha);
+
+    state.draftDirty = this._themeDraftHasOverrides(state.workingDraft);
+  };
+
+  /**
+   * Apply a successful theme activation locally so the editor can
+   * reflect selection immediately instead of waiting for the next
+   * Home Assistant sensor round-trip.
+   */
+  proto.applyThemeActivation = function (themeId, options = {}) {
+    const state = this._ensureThemeState();
+    const clearDraft = options.clearDraft !== false;
+
+    state.activeThemeId = themeId ?? null;
+
+    if (clearDraft) {
+      state.workingDraft = this._emptyThemeDraft();
+      state.draftDirty = false;
+    }
+  };
+
+  proto._ensureThemeState = function () {
+    if (!this._themeState) {
+      this._themeState = {
+        /* -----------------------------------------------------
+           BACKEND-MIRRORED THEME STATE
+           ----------------------------------------------------- */
+        library: {},
+        librarySummary: [],
+        defaultThemeId: null,
+
+        activeThemeId: null,
+        workingDraft: this._emptyThemeDraft(),
+        draftDirty: false,
+        editorMode: "live",
+
+        /* -----------------------------------------------------
+           CARD-OWNED EDITOR UI STATE
+           ----------------------------------------------------- */
+        selectedThemeId: null,
+        activeSubTab: "presets",
+        focusedGroup: "",
+
+        tokenSearchQuery: "",
+        selectedGroupFilter: "all",
+
+        groupOpen: {},
+        groupSearchQueryByName: {},
+
+        modifiedOnly: false,
+      };
+    }
+    return this._themeState;
+  };
+
+  /* =========================================================
+     BACKEND STATE INGESTION
+     ========================================================= */
+
+  /**
+   * Apply the current per-vacuum theme state mirrored from the
+   * backend theme sensor.
+   */
+  proto.setBackendThemeState = function (payload) {
+    const state = this._ensureThemeState();
+
+    state.activeThemeId = payload?.active_theme_id ?? null;
+    state.workingDraft = this._normalizeThemeDraft(payload?.working_draft);
+    state.draftDirty = payload?.draft_dirty ?? this._themeDraftHasOverrides(state.workingDraft);
+    state.editorMode = payload?.editor_mode ?? "live";
+  };
+
+  /**
+   * Apply the theme library returned by the backend theme service.
+   */
+  proto.setThemeLibrary = function (payload) {
+    const state = this._ensureThemeState();
+
+    state.library = payload?.library ?? {};
+    state.librarySummary = payload?.themes ?? [];
+    state.defaultThemeId = payload?.default_theme_id ?? null;
+  };
+
+  /* =========================================================
+     PREVIEW RESOLUTION
+     ========================================================= */
+
+  /**
+   * Build the current effective theme preview from:
+   * 1. active theme base
+   * 2. working draft overlay
+   *
+   * The returned sources map is used by the editor to determine
+   * whether a token is currently draft-owned.
+   */
+  proto.resolvedTheme = function () {
+    const state = this._ensureThemeState();
+
+    // `tokens` holds the final CSS-ready values for every key.
+    // `colorMap` and `alphaMap` are kept separate so color hex strings
+    // and alpha multipliers (0–1 numbers) never overwrite each other during
+    // the merge — they are combined with _hexWithAlpha() at the very end.
+    const tokens = {};
+    const sources = {};
+    const colorMap = {};
+    const alphaMap = {};
+
+    const activeTheme = state.library?.[state.activeThemeId] || null;
+
+    /* -------------------------------------------------------
+       1. BASE: ACTIVE THEME
+       ------------------------------------------------------- */
+    if (activeTheme) {
+      Object.entries(activeTheme.colors || {}).forEach(([k, v]) => {
+        colorMap[k] = v;
+        sources[k] = "theme";
+      });
+
+      Object.entries(activeTheme.alpha || {}).forEach(([k, v]) => {
+        alphaMap[k] = v;
+        if (!sources[k]) sources[k] = "theme";
+      });
+
+      Object.entries(activeTheme.tokens || {}).forEach(([k, v]) => {
+        tokens[k] = v;
+        sources[k] = "theme";
+      });
+    }
+
+    /* -------------------------------------------------------
+       2. OVERLAY: WORKING DRAFT
+       ------------------------------------------------------- */
+    Object.entries(state.workingDraft.colors).forEach(([k, v]) => {
+      colorMap[k] = v;
+      sources[k] = "draft";
+    });
+
+    Object.entries(state.workingDraft.alpha).forEach(([k, v]) => {
+      alphaMap[k] = v;
+      sources[k] = "draft";
+    });
+
+    Object.entries(state.workingDraft.tokens).forEach(([k, v]) => {
+      tokens[k] = v;
+      sources[k] = "draft";
+    });
+
+    /* -------------------------------------------------------
+       3. COMBINE COLOR + ALPHA
+       For any key that has a hex color, apply the corresponding
+       alpha (if any) to produce a single 8-char hex value.
+       This overwrites any pre-baked value from the tokens bucket
+       so that an alpha-only draft change is reflected correctly.
+       ------------------------------------------------------- */
+    Object.entries(colorMap).forEach(([k, color]) => {
+      const alpha = k in alphaMap ? alphaMap[k] : null;
+      tokens[k] = _hexWithAlpha(color, alpha);
+    });
+
+    return { tokens, sources };
+  };
+
+  /* =========================================================
+     UI STATE MUTATORS
+     ========================================================= */
+
+  proto.setThemeSubTab = function (tab) {
+    this._ensureThemeState().activeSubTab = tab;
+  };
+
+  proto.setThemeSearchQuery = function (query) {
+    this._ensureThemeState().tokenSearchQuery = String(query || "").toLowerCase();
+  };
+
+  proto.setThemeModifiedOnly = function (enabled) {
+    this._ensureThemeState().modifiedOnly = !!enabled;
+  };
+
+  proto.setSelectedTheme = function (themeId) {
+    this._ensureThemeState().selectedThemeId = themeId;
+  };
+
+  proto.setThemeFocusedGroup = function (group) {
+    const state = this._ensureThemeState();
+    const normalized = String(group || "").trim();
+    state.focusedGroup = THEME_GROUPS.includes(normalized) ? normalized : "";
+  };
+
+  proto.getThemeFocusedGroup = function () {
+    const group = String(this._ensureThemeState().focusedGroup || "").trim();
+    return THEME_GROUPS.includes(group) ? group : "";
+  };
+
+  proto.currentThemePreviewGroup = function () {
+    const state = this._ensureThemeState();
+    const activeFilter = String(state.selectedGroupFilter || "").trim();
+    const activeTab = String(state.activeSubTab || "presets").trim().toLowerCase();
+
+    if (THEME_GROUPS.includes(activeFilter)) {
+      return activeFilter;
+    }
+
+    const focusedGroup = this.getThemeFocusedGroup();
+    if (THEME_GROUPS.includes(focusedGroup)) {
+      return focusedGroup;
+    }
+
+    if (activeTab === "palette") {
+      return "Shared Foundations";
+    }
+
+    const firstOpenGroup = THEME_GROUPS.find((group) => this.isThemeGroupOpen(group));
+    if (firstOpenGroup) {
+      return firstOpenGroup;
+    }
+
+    return "Shared Foundations";
+  };
+
+  /**
+   * Global token-group filter used by the token editor chips.
+   *
+   * Supported values:
+   * - "all"
+   * - "modified"
+   * - exact group name
+   */
+  proto.setThemeGroupFilter = function (filterValue) {
+    const state = this._ensureThemeState();
+    state.selectedGroupFilter = String(filterValue || "all");
+  };
+
+  proto.toggleThemeGroup = function (group) {
+    const state = this._ensureThemeState();
+    state.groupOpen[group] = !this.isThemeGroupOpen(group);
+  };
+
+  /**
+   * Groups default open on first visit.
+   * After that, the remembered open state wins.
+   */
+  proto.isThemeGroupOpen = function (group) {
+    const state = this._ensureThemeState();
+
+    if (!(group in state.groupOpen)) {
+      return true;
+    }
+
+    return !!state.groupOpen[group];
+  };
+
+  proto.setThemeGroupSearchQuery = function (group, query) {
+    const state = this._ensureThemeState();
+    state.groupSearchQueryByName[group] = String(query || "").toLowerCase();
+  };
+
+  proto.getThemeGroupSearchQuery = function (group) {
+    const state = this._ensureThemeState();
+    return state.groupSearchQueryByName[group] || "";
+  };
+
+  /* =========================================================
+     SIMPLE SELECTORS
+     ========================================================= */
+
+  proto.getSelectedTheme = function () {
+    const state = this._ensureThemeState();
+    return state.library?.[state.selectedThemeId] || null;
+  };
+
+  proto.getActiveTheme = function () {
+    const state = this._ensureThemeState();
+    return state.library?.[state.activeThemeId] || null;
+  };
+
+  proto.getThemeGroupFilter = function () {
+    return this._ensureThemeState().selectedGroupFilter || "all";
+  };
+
+  /* =========================================================
+     TOKEN FILTERING / MATCHING
+     ========================================================= */
+
+  /**
+   * Determine whether a token matches the global search query.
+   *
+   * Search is future-safe:
+   * - label
+   * - key
+   * - current value
+   * - aliases (optional metadata)
+   * - usage (optional metadata)
+   * - affects (optional metadata)
+   *
+   * Optional metadata may be absent today. The selector treats
+   * missing fields as empty arrays so the registry schema can grow
+   * later without changing search logic.
+   */
+  proto.tokenMatchesGlobalThemeSearch = function (tokenDef, currentValue = "", query = "") {
+    const normalizedQuery = String(query || "").toLowerCase();
+    if (!normalizedQuery) return true;
+
+    const label = String(tokenDef?.label || "").toLowerCase();
+    const key = String(tokenDef?.key || "").toLowerCase();
+    const value = String(currentValue || "").toLowerCase();
+
+    const aliases = Array.isArray(tokenDef?.aliases)
+      ? tokenDef.aliases.map((entry) => String(entry || "").toLowerCase())
+      : [];
+
+    const usage = Array.isArray(tokenDef?.usage)
+      ? tokenDef.usage.map((entry) => String(entry || "").toLowerCase())
+      : [];
+
+    const affects = Array.isArray(tokenDef?.affects)
+      ? tokenDef.affects.map((entry) => String(entry || "").toLowerCase())
+      : [];
+
+    if (label.includes(normalizedQuery)) return true;
+    if (key.includes(normalizedQuery)) return true;
+    if (value.includes(normalizedQuery)) return true;
+    if (aliases.some((entry) => entry.includes(normalizedQuery))) return true;
+    if (usage.some((entry) => entry.includes(normalizedQuery))) return true;
+    if (affects.some((entry) => entry.includes(normalizedQuery))) return true;
+
+    return false;
+  };
+
+  /**
+   * Determine whether a token matches a group-local search query.
+   * This uses the same metadata-aware matching logic as global
+   * search, but the query is sourced from one expanded group.
+   */
+  proto.tokenMatchesThemeGroupSearch = function (tokenDef, currentValue = "", group) {
+    const localQuery = this.getThemeGroupSearchQuery(group);
+    return this.tokenMatchesGlobalThemeSearch(tokenDef, currentValue, localQuery);
+  };
+
+  /**
+   * Returns the token registry filtered by:
+   * - palette exclusion if provided
+   * - selected group filter
+   * - modified-only toggle
+   * - global search
+   *
+   * Group-local search is intentionally applied later per-group so
+   * each expanded section can narrow its own visible rows without
+   * affecting sibling groups.
+   */
+  proto.filteredThemeTokens = function (allTokensRegistry, options = {}) {
+    const state = this._ensureThemeState();
+    const { tokens, sources } = this.resolvedTheme();
+
+    const query = state.tokenSearchQuery;
+    const modifiedOnly = state.modifiedOnly;
+    const selectedGroupFilter = state.selectedGroupFilter || "all";
+    const excludeKeys = options.excludeKeys instanceof Set ? options.excludeKeys : new Set();
+
+    return allTokensRegistry.filter((tokenDef) => {
+      const key = tokenDef.key;
+      const value = tokens[key] || "";
+      const source = sources[key] || "ha";
+      const group = tokenDef.group || "";
+
+      /* -----------------------------------------------------
+         PALETTE EXCLUSION
+         ----------------------------------------------------- */
+      if (excludeKeys.has(key)) {
+        return false;
+      }
+
+      /* -----------------------------------------------------
+         MODIFIED FILTER
+         ----------------------------------------------------- */
+      if (modifiedOnly && source !== "draft") {
+        return false;
+      }
+
+      /* -----------------------------------------------------
+         GROUP FILTER
+         ----------------------------------------------------- */
+      if (selectedGroupFilter === "modified") {
+        if (source !== "draft") {
+          return false;
+        }
+      } else if (selectedGroupFilter !== "all" &&
+                 group !== selectedGroupFilter &&
+                 !group.startsWith(selectedGroupFilter + " — ")) {
+        return false;
+      }
+
+      /* -----------------------------------------------------
+         GLOBAL SEARCH
+         ----------------------------------------------------- */
+      if (!this.tokenMatchesGlobalThemeSearch(tokenDef, value, query)) {
+        return false;
+      }
+
+      return true;
+    });
+  };
+
+  /**
+   * Returns the filtered tokens for one specific group after
+   * applying the group-local search query.
+   */
+  proto.filteredThemeTokensForGroup = function (group, allTokensRegistry, options = {}) {
+    const { tokens } = this.resolvedTheme();
+
+    return this.filteredThemeTokens(allTokensRegistry, options).filter((tokenDef) => {
+      if (tokenDef.group !== group) {
+        return false;
+      }
+
+      const value = tokens[tokenDef.key] || "";
+      return this.tokenMatchesThemeGroupSearch(tokenDef, value, group);
+    });
+  };
+
+  /**
+   * Count visible total and draft-modified tokens for a group after
+   * all active filter rules are applied.
+   *
+   * This is used by group headers for:
+   *   Group Name (modified / total)
+   */
+  proto.themeGroupCounts = function (group, allTokensRegistry, options = {}) {
+    const { sources } = this.resolvedTheme();
+
+    const visibleGroupTokens = this.filteredThemeTokensForGroup(group, allTokensRegistry, options);
+
+    const total = visibleGroupTokens.length;
+    const modified = visibleGroupTokens.filter((tokenDef) => {
+      const source = sources[tokenDef.key] || "ha";
+      return source === "draft";
+    }).length;
+
+    return { modified, total };
+  };
+
+  /**
+   * Search should not feel broken when matches are hidden inside a
+   * collapsed group. If global search is active and a group has at
+   * least one visible match, the renderer can use this selector to
+   * force that group open.
+   */
+  proto.shouldForceThemeGroupOpenForSearch = function (group, allTokensRegistry, options = {}) {
+    const state = this._ensureThemeState();
+    if (!state.tokenSearchQuery) return false;
+
+    const counts = this.themeGroupCounts(group, allTokensRegistry, options);
+    return counts.total > 0;
+  };
+}
