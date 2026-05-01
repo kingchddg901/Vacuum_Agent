@@ -58,6 +58,10 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - Maintenance tracking — reset maintenance counters from the UI
 - Theme system — full theme editor with save/load/import/export
 
+## Acknowledgements
+
+This integration would not exist without [eufy-clean](https://github.com/jeppesens/eufy-clean) by jeppesens and its contributors. Their work reverse-engineering the Eufy protocol and maintaining the HA integration that bridges the vacuum to Home Assistant is the foundation everything here is built on. If you find this useful, go give their repo a star too.
+
 ## Documentation
 
 Full documentation: https://github.com/kingchddg901/eufy-vacuum-manager
