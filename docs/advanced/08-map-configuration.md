@@ -46,27 +46,29 @@ The quality of segment detection depends heavily on the map image you provide. F
 
 #### Preparation
 
-1. **Clear all floor types** — In the Eufy app, open Map Editor and remove all floor type assignments. This strips out texture and pattern overlays, leaving each room as a flat, solid colour for the segmentor to work with.
+1. Start and immediately cancel a vacuum only job to clear all trace lines on map.
 
-2. **Switch to 2D mode** — Ensure the map display is set to 2D. 3D mode skews the geometry and perspective, which distorts the polygon shapes the segmentor produces.
+2. **Clear all floor types** — In the Eufy app, open Map Editor and remove all floor type assignments. This strips out texture and pattern overlays, leaving each room as a flat, solid colour for the segmentor to work with.
 
-3. **Hide all UI overlays** — In the map display settings, turn off room names, furniture, virtual furniture, and obstacles. The capture should show nothing but raw room colour regions.
+3. **Switch to 2D mode** — Ensure the map display is set to 2D. 3D mode skews the geometry and perspective, which distorts the polygon shapes the segmentor produces.
+
+4. **Hide all UI overlays** — In the map display settings, turn off room names, furniture, virtual furniture, and obstacles. The capture should show nothing but raw room colour regions.
 
 #### Framing
 
-4. **Set your orientation** — Choose whichever map rotation fits cleanly within the app's viewable area. There is no required direction, but pick one and keep it consistent across all variants. Mismatched orientations between dark and light images will cause polygon misalignment.
+5. **Set your orientation** — Choose whichever map rotation fits cleanly within the app's viewable area. There is no required direction, but pick one and keep it consistent across all variants. Mismatched orientations between dark and light images will cause polygon misalignment.
 
-5. **Collapse all UI chrome** — Minimise panels, drawers, and toolbars as much as possible. The map should fill the visible area cleanly with no UI elements overlapping its edges or corners.
+6. **Collapse all UI chrome** — Minimise panels, drawers, and toolbars as much as possible. The map should fill the visible area cleanly with no UI elements overlapping its edges or corners.
 
 #### Capture
 
-6. **Take the screenshot.**
+7. **Take the screenshot.**
 
-7. **Crop tightly** — Crop the screenshot as close to the map boundary as possible, eliminating any remaining UI chrome. Do not clip any part of the map itself. Use the same crop boundary for both variants so their polygons align when overlaid.
+8. **Crop tightly** — Crop the screenshot as close to the map boundary as possible, eliminating any remaining UI chrome. Do not clip any part of the map itself. Use the same crop boundary for both variants so their polygons align when overlaid.
 
 #### Second variant
 
-8. **Switch colour mode and repeat** — Toggle the app to the opposite mode (light if you captured in dark, dark if you captured in light) and repeat steps 4–7 without changing orientation or crop boundary. This gives you your matched dark and light pair.
+9. **Switch colour mode and repeat** — Toggle the app to the opposite mode (light if you captured in dark, dark if you captured in light) and repeat steps 4–7 without changing orientation or crop boundary. This gives you your matched dark and light pair.
 
 #### Assigning the Default variant
 
