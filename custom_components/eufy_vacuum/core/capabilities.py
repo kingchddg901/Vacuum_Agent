@@ -329,12 +329,20 @@ def detect_capabilities(
     supports_mop_dry    = model_family in {"x10", "x8"} or _dry_mop_entity_present
     supports_empty_dust = model_family in {"x10", "x8", "l60", "l50"} or _empty_dust_entity_present
 
-    # Path control and edge mopping are payload fields sent to the vacuum, not button
-    # entities — there is nothing in the entity registry to probe as a fallback.
-    # These remain model-family-only.  A user on an unrecognised model that supports
-    # these features should add their model code to MODEL_CODE_FAMILIES.
-    supports_path_control = model_family in {"x10", "x8"}
+    # Path control: eufy-clean exposes select.*_cleaning_intensity with options
+    # ["Normal", "Narrow", "Quick"] on hardware that supports path types.  Probing
+    # that entity is a reliable fallback when the model code is unrecognised.
+    _cleaning_intensity_entity_present = (
+        _state_exists(hass, f"select.{object_id}_cleaning_intensity")
+        or _registry_entry_exists(hass, f"select.{object_id}_cleaning_intensity")
+    )
+    supports_path_control = model_family in {"x10", "x8"} or _cleaning_intensity_entity_present
+
     supports_water_control = supports_mop_features
+
+    # Edge mopping is a payload flag with no representative eufy-clean entity to probe —
+    # the edge_mop input_booleans in the registry belong to this integration, not
+    # eufy-clean.  Remains model-family-only.
     supports_edge_mopping = model_family in {"x10", "x8"}
     supports_passes = True
     supports_custom_room_config = True

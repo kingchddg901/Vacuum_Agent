@@ -208,7 +208,7 @@ needs these features must be added to `MODEL_CODE_FAMILIES`.
 |---|---|---|
 | `supports_mop_features` | Model family (`x10`, `x8`, `l60`, `l50`) **or** `water_level` entity present | Enables mop-related clean modes (`"mop"`, `"vacuum_mop"`) in the profile system and card UI |
 | `supports_water_control` | Alias for `supports_mop_features` | Gates the `water_level` field in the queue payload (added only for mop/vacuum_mop modes) |
-| `supports_path_control` | Model only — `x10` or `x8` | Gates the `path_type` field in the queue payload (added regardless of clean mode) |
+| `supports_path_control` | Model + entity fallback — `x10`/`x8` or `select.*_cleaning_intensity` present (eufy-clean exposes this with options `Normal`, `Narrow`, `Quick` on path-capable hardware) | Gates the `path_type` field in the queue payload (added regardless of clean mode) |
 | `supports_edge_mopping` | Model only — `x10` or `x8` | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes) |
 | `supports_passes` | Always `True` | Enables the `clean_times` field in the payload; reserved for future per-model restriction |
 | `supports_mop_wash` | Model + entity fallback — `x10`/`x8` or `button.*_wash_mop` / `button.*_mop_wash` present | Enables dock mop-wash service calls and dock event recording for `last_mop_wash` |
@@ -337,9 +337,11 @@ an unrecognised model that actually has the button still gets the capability
 set correctly rather than silently disabled. Use `_state_exists` or
 `_registry_entry_exists` from `capabilities.py` for this.
 
-For flags that gate payload fields sent to the vacuum (`supports_path_control`,
-`supports_edge_mopping`) there is no entity to probe — set these based on
-whatever model or feature identifier your integration exposes.
+For `supports_path_control`, eufy-clean exposes `select.*_cleaning_intensity`
+on path-capable hardware — probe that entity as a fallback. For
+`supports_edge_mopping` there is no representative eufy-clean entity (the
+edge_mop input_booleans belong to this integration, not the upstream one) — set
+it based on whatever model or feature identifier your target integration exposes.
 
 The `entities` sub-dict keys consumed elsewhere are: `task_status`,
 `dock_status`, `active_map`, `active_cleaning_target`, `robot_position_x`,
