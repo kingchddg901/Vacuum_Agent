@@ -300,13 +300,39 @@ def detect_capabilities(
     supports_robot_position = bool(robot_position_x_entity_id and robot_position_y_entity_id)
     robot_position_available = bool(robot_position_x_entity and robot_position_y_entity)
 
+    # Mop feature presence: model-family is the primary signal, but water_level entity
+    # existence is an entity-based fallback for unrecognised models that still expose
+    # a station water sensor via eufy-clean.
     supports_mop_features = model_family in {"x10", "x8", "l60", "l50"} or bool(
         water_level_registered or water_level_entity
     )
-    supports_mop_wash = model_family in {"x10", "x8"}
-    supports_mop_dry = model_family in {"x10", "x8"}
-    supports_empty_dust = model_family in {"x10", "x8", "l60", "l50"}
 
+    # Dock action buttons: model-family is the primary signal.  If the model resolves
+    # to "generic" (eufy-clean returned an unrecognised string or nothing), fall back
+    # to checking whether the upstream button entity actually exists in the registry or
+    # state machine.  This prevents a legitimate X10/X8 user from seeing dock actions
+    # disabled solely because the model code was not in MODEL_CODE_FAMILIES.
+    _wash_mop_entity_present = any(
+        _state_exists(hass, e) or _registry_entry_exists(hass, e)
+        for e in (f"button.{object_id}_wash_mop", f"button.{object_id}_mop_wash")
+    )
+    _dry_mop_entity_present = any(
+        _state_exists(hass, e) or _registry_entry_exists(hass, e)
+        for e in (f"button.{object_id}_dry_mop", f"button.{object_id}_mop_dry")
+    )
+    _empty_dust_entity_present = any(
+        _state_exists(hass, e) or _registry_entry_exists(hass, e)
+        for e in (f"button.{object_id}_empty_dust", f"button.{object_id}_empty_dust_bin")
+    )
+
+    supports_mop_wash   = model_family in {"x10", "x8"} or _wash_mop_entity_present
+    supports_mop_dry    = model_family in {"x10", "x8"} or _dry_mop_entity_present
+    supports_empty_dust = model_family in {"x10", "x8", "l60", "l50"} or _empty_dust_entity_present
+
+    # Path control and edge mopping are payload fields sent to the vacuum, not button
+    # entities — there is nothing in the entity registry to probe as a fallback.
+    # These remain model-family-only.  A user on an unrecognised model that supports
+    # these features should add their model code to MODEL_CODE_FAMILIES.
     supports_path_control = model_family in {"x10", "x8"}
     supports_water_control = supports_mop_features
     supports_edge_mopping = model_family in {"x10", "x8"}

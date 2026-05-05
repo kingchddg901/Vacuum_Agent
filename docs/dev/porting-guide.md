@@ -140,8 +140,20 @@ These are *internal* names produced by `evaluate_job_lifecycle()` in
 `core/capabilities.py :: detect_capabilities()` is also Eufy-specific. It
 derives entity names by appending well-known suffixes to `object_id`, detects
 model family from Eufy product codes (T2351, T2320, etc.) and name hints
-(x10, x8, l60, …), and sets capability flags like `supports_path_control` and
-`supports_edge_mopping` based on model family membership.
+(x10, x8, l60, …), and sets capability flags.
+
+Flags use one of two detection strategies:
+
+- **Entity presence** — check whether the upstream integration registered the
+  entity (state machine or registry). No model knowledge required.
+- **Model family** — infer from the product code or name hint. Used when the
+  capability corresponds to a payload field or behaviour that has no
+  representative entity to probe.
+
+Where model family is the primary signal, an entity-based fallback is applied
+wherever a corresponding button entity can be probed. This prevents a legitimate
+device from losing capabilities solely because its product code was not in
+`MODEL_CODE_FAMILIES`.
 
 #### MODEL_CODE_FAMILIES mapping
 
@@ -180,24 +192,33 @@ If neither matches, the family is `"generic"`.
 
 #### Capability flags
 
-Each flag is a `bool` in the returned capabilities dict. The detection logic
-and what each flag controls downstream are summarised below.
+Each flag is a `bool` in the returned capabilities dict. The table below shows
+how each flag is set and what it controls downstream.
 
-| Flag | How it is set | What it controls |
+Flags marked **model + entity fallback** use model family as the primary check
+and additionally probe for the presence of the corresponding upstream button
+entity in the HA registry. If the model resolves to `"generic"` but the button
+exists, the capability is still `True`.
+
+Flags marked **model only** have no representative entity to probe — they gate
+payload fields sent to the vacuum, not HA entities. An unrecognised model that
+needs these features must be added to `MODEL_CODE_FAMILIES`.
+
+| Flag | Detection | What it controls |
 |---|---|---|
-| `supports_mop_features` | `True` if `model_family` is `x10`, `x8`, `l60`, or `l50`, **or** if a `water_level` entity is registered | Enables mop-related clean modes (`"mop"`, `"vacuum_mop"`) in the profile system and card UI |
+| `supports_mop_features` | Model family (`x10`, `x8`, `l60`, `l50`) **or** `water_level` entity present | Enables mop-related clean modes (`"mop"`, `"vacuum_mop"`) in the profile system and card UI |
 | `supports_water_control` | Alias for `supports_mop_features` | Gates the `water_level` field in the queue payload (added only for mop/vacuum_mop modes) |
-| `supports_path_control` | `True` if `model_family` is `x10` or `x8` | Gates the `path_type` field in the queue payload (always added when `True`, regardless of clean mode) |
-| `supports_edge_mopping` | `True` if `model_family` is `x10` or `x8` | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes) |
+| `supports_path_control` | Model only — `x10` or `x8` | Gates the `path_type` field in the queue payload (added regardless of clean mode) |
+| `supports_edge_mopping` | Model only — `x10` or `x8` | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes) |
 | `supports_passes` | Always `True` | Enables the `clean_times` field in the payload; reserved for future per-model restriction |
-| `supports_mop_wash` | `True` if `model_family` is `x10` or `x8` | Enables dock mop-wash service calls and dock event recording for `last_mop_wash` |
-| `supports_mop_dry` | `True` if `model_family` is `x10` or `x8` | Enables dock mop-dry service calls |
-| `supports_empty_dust` | `True` if `model_family` is `x10`, `x8`, `l60`, or `l50` | Enables dock dust-empty service calls |
-| `supports_robot_position` | `True` if both position entities are registered | Enables trace-based room bounds derivation in the mapping subsystem |
-| `supports_station_water` | `True` if a `water_level` entity is registered | Used by the card to display station water level |
-| `supports_dock_status` | `True` if a dock status entity is registered | Used by lifecycle watcher to monitor dock state |
-| `supports_task_status` | `True` if a task status entity is registered | Required for the completion detection logic in `__init__.py` |
-| `supports_cleaning_stats` | `True` if `cleaning_area` or `cleaning_time` is registered | Enables area/time display in the card |
+| `supports_mop_wash` | Model + entity fallback — `x10`/`x8` or `button.*_wash_mop` / `button.*_mop_wash` present | Enables dock mop-wash service calls and dock event recording for `last_mop_wash` |
+| `supports_mop_dry` | Model + entity fallback — `x10`/`x8` or `button.*_dry_mop` / `button.*_mop_dry` present | Enables dock mop-dry service calls |
+| `supports_empty_dust` | Model + entity fallback — `x10`/`x8`/`l60`/`l50` or `button.*_empty_dust` / `button.*_empty_dust_bin` present | Enables dock dust-empty service calls |
+| `supports_robot_position` | Entity presence — both position entities registered | Enables trace-based room bounds derivation in the mapping subsystem |
+| `supports_station_water` | Entity presence — `water_level` entity registered | Used by the card to display station water level |
+| `supports_dock_status` | Entity presence — dock status entity registered | Used by lifecycle watcher to monitor dock state |
+| `supports_task_status` | Entity presence — task status entity registered | Required for the completion detection logic in `__init__.py` |
+| `supports_cleaning_stats` | Entity presence — `cleaning_area` or `cleaning_time` registered | Enables area/time display in the card |
 
 #### How capability flags gate the queue payload
 
@@ -308,6 +329,17 @@ Replace `core/capabilities.py :: detect_capabilities()` with a version that:
 3. Returns a dict with the same keys — particularly `supports_mop_features`,
    `supports_water_control`, `supports_path_control`, `supports_edge_mopping`,
    `supports_passes`, and the `entities` sub-dict.
+
+For flags that correspond to dock action buttons (`supports_mop_wash`,
+`supports_mop_dry`, `supports_empty_dust`), prefer probing entity registry
+presence over a hardcoded model name. If entity presence is the primary check,
+an unrecognised model that actually has the button still gets the capability
+set correctly rather than silently disabled. Use `_state_exists` or
+`_registry_entry_exists` from `capabilities.py` for this.
+
+For flags that gate payload fields sent to the vacuum (`supports_path_control`,
+`supports_edge_mopping`) there is no entity to probe — set these based on
+whatever model or feature identifier your integration exposes.
 
 The `entities` sub-dict keys consumed elsewhere are: `task_status`,
 `dock_status`, `active_map`, `active_cleaning_target`, `robot_position_x`,
