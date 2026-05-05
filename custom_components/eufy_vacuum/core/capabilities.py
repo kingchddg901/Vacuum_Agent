@@ -340,10 +340,12 @@ def detect_capabilities(
 
     supports_water_control = supports_mop_features
 
-    # Edge mopping is a payload flag with no representative eufy-clean entity to probe —
-    # the edge_mop input_booleans in the registry belong to this integration, not
-    # eufy-clean.  Remains model-family-only.
-    supports_edge_mopping = model_family in {"x10", "x8"}
+    # Edge mopping is always allowed.  eufy-clean passes the edge_mopping field
+    # straight through to set_room_custom without validating it — the firmware
+    # silently ignores it on hardware that does not support it.  The field only
+    # enters the payload when a room profile explicitly sets it to True, so there
+    # is no risk of forcing CUSTOMIZE mode on hardware that does not need it.
+    supports_edge_mopping = True
     supports_passes = True
     supports_custom_room_config = True
     supports_room_clean = True

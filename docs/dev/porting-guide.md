@@ -209,7 +209,7 @@ needs these features must be added to `MODEL_CODE_FAMILIES`.
 | `supports_mop_features` | Model family (`x10`, `x8`, `l60`, `l50`) **or** `water_level` entity present | Enables mop-related clean modes (`"mop"`, `"vacuum_mop"`) in the profile system and card UI |
 | `supports_water_control` | Alias for `supports_mop_features` | Gates the `water_level` field in the queue payload (added only for mop/vacuum_mop modes) |
 | `supports_path_control` | Model + entity fallback — `x10`/`x8` or `select.*_cleaning_intensity` present (eufy-clean exposes this with options `Normal`, `Narrow`, `Quick` on path-capable hardware) | Gates the `path_type` field in the queue payload (added regardless of clean mode) |
-| `supports_edge_mopping` | Model only — `x10` or `x8` | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes) |
+| `supports_edge_mopping` | Always `True` — eufy-clean passes the field through without validation; firmware ignores it on unsupported hardware | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes when explicitly set on a room profile) |
 | `supports_passes` | Always `True` | Enables the `clean_times` field in the payload; reserved for future per-model restriction |
 | `supports_mop_wash` | Model + entity fallback — `x10`/`x8` or `button.*_wash_mop` / `button.*_mop_wash` present | Enables dock mop-wash service calls and dock event recording for `last_mop_wash` |
 | `supports_mop_dry` | Model + entity fallback — `x10`/`x8` or `button.*_dry_mop` / `button.*_mop_dry` present | Enables dock mop-dry service calls |
@@ -338,10 +338,13 @@ set correctly rather than silently disabled. Use `_state_exists` or
 `_registry_entry_exists` from `capabilities.py` for this.
 
 For `supports_path_control`, eufy-clean exposes `select.*_cleaning_intensity`
-on path-capable hardware — probe that entity as a fallback. For
-`supports_edge_mopping` there is no representative eufy-clean entity (the
-edge_mop input_booleans belong to this integration, not the upstream one) — set
-it based on whatever model or feature identifier your target integration exposes.
+on path-capable hardware — probe that entity as a fallback.
+
+`supports_edge_mopping` is always `True` and requires no porting — eufy-clean
+passes the field through to the device without validating it, and the firmware
+ignores it on hardware that does not support edge mopping. For a different
+target ecosystem, verify whether the upstream integration behaves the same way
+before keeping it always-on.
 
 The `entities` sub-dict keys consumed elsewhere are: `task_status`,
 `dock_status`, `active_map`, `active_cleaning_target`, `robot_position_x`,
