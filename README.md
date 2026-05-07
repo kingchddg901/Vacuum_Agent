@@ -43,6 +43,27 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - The `eufy_vacuum` custom integration (services, events, data layer).
 - A Lovelace panel card served directly from the integration. No separate HACS frontend repository and no manual resource registration needed.
 
+Rooms Tab
+<img width="810" height="435" alt="image" src="https://github.com/user-attachments/assets/6588451c-8656-461d-a725-2768c3ed42ff" />
+Room Settings
+<img width="243" height="352" alt="image" src="https://github.com/user-attachments/assets/324c8edd-7188-4dbc-815b-6e936eaf7377" />
+Maintenance Tab 
+<img width="848" height="431" alt="image" src="https://github.com/user-attachments/assets/3801b206-381e-45f1-93b1-1d3323b28ee4" />
+Base Station Tab
+<img width="843" height="365" alt="image" src="https://github.com/user-attachments/assets/744f6408-50cf-47eb-bb8f-582bd3385593" />
+Metrics Tab
+<img width="846" height="434" alt="image" src="https://github.com/user-attachments/assets/83014786-ad61-409b-adb7-5971dcb11b30" />
+Learning Review Tab
+<img width="848" height="438" alt="image" src="https://github.com/user-attachments/assets/4c3754e1-4038-49d1-baf2-c5ea62d427a3" />
+Room Rules Tab
+<img width="842" height="368" alt="image" src="https://github.com/user-attachments/assets/78bfb254-eb0f-4f3b-833b-93d6a56de8f6" />
+Themes Tab
+<img width="844" height="425" alt="image" src="https://github.com/user-attachments/assets/4fad5545-3bb4-47d9-b3f3-ad384b43e85d" />
+Map Bounds Review Tab
+<img width="844" height="408" alt="image" src="https://github.com/user-attachments/assets/7189e808-d8a9-4685-af49-65559d3cc660" />
+Setup Tab
+<img width="831" height="440" alt="image" src="https://github.com/user-attachments/assets/dd205110-8137-436f-8c0a-70aaa1e16052" />
+
 ## Feature summary
 
 - Room selection and targeted clean jobs
