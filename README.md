@@ -16,6 +16,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - **Room rules** — attach per-room rules (e.g. mop-only, skip when occupied) that are applied automatically when a job is built.
 - **Learning system and ETA** — the integration records how long each room takes and uses that data to estimate job completion times. Estimates improve with each run.
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
+- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces ten sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Theme system** — a built-in theme editor for the panel card, with save/load/import/export support.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
@@ -72,6 +73,12 @@ Job and learning history, filtered by room, profile, status, or learning use.
 
 ![Metrics tab](docs/screenshots/metrics.png)
 
+### Metrics — Battery
+
+Cycle count, zone-aware charge rates (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and per-mode aggregates from single-bucket jobs. Pointer to the raw CSV / JSONL files for long-term review.
+
+![Metrics — Battery sub-tab](docs/screenshots/metrics-battery.png)
+
 ### Learning Review
 
 Inspect every recorded run, exclude outliers (test runs, false completions, bad room attribution), and see which profiles match the current settings.
@@ -122,6 +129,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Learning system — records per-room timing, improves ETA estimates over time
 - ETA display — estimated completion time shown in the panel
 - Stall detection — event fired when a room takes significantly longer than learned average
+- Battery health — cycle counter, zone-aware charge rates, per-job drain efficiency, baseline-relative health proxy
 - Automation events — job, room, stall, path-blocked, and incomplete-run events
 - Dock actions — wash mop, dry mop, empty dust bin (model-dependent)
 - Maintenance tracking — reset maintenance counters from the UI
@@ -130,9 +138,11 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 ## Documentation
 
 - [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
+- [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the ten sensors, charting, raw CSV/JSONL access
 - [Services reference](docs/advanced/03-services.md) — for use in automations
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
+- [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
 - [Developer docs](docs/dev/architecture-overview.md) — architecture, data model, internals
 
 ## Acknowledgements
