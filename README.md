@@ -2,6 +2,10 @@
 
 A custom Home Assistant integration that adds room-level control, queue management, a learning/ETA system, automation events, and a built-in Lovelace panel card to your Eufy vacuum. These capabilities are not available in the standard Eufy integration.
 
+![Eufy Vacuum Manager — per-room cards with learned ETA, profile, and floor texture](docs/screenshots/rooms-cards.png)
+
+*Each room remembers its own profile, learned timing, and floor type. Save the whole layout as a Run Profile and reapply it later from the UI or an automation.*
+
 ## What it does
 
 [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) exposes basic start/stop/pause and a few entity states. This integration goes further:
@@ -23,6 +27,8 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 | Eufy X10 Pro Omni | Tested |
 | Other Eufy models | Untested — may work, not supported |
 
+If you run this on another model, please [open an issue](https://github.com/kingchddg901/eufy-vacuum-manager/issues) with the model name and what worked or didn't — the table grows from there.
+
 ## Prerequisites
 
 - Home Assistant 2024.1.0 or later
@@ -43,26 +49,68 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - The `eufy_vacuum` custom integration (services, events, data layer).
 - A Lovelace panel card served directly from the integration. No separate HACS frontend repository and no manual resource registration needed.
 
-Rooms Tab
-<img width="810" height="435" alt="image" src="https://github.com/user-attachments/assets/6588451c-8656-461d-a725-2768c3ed42ff" />
-Room Settings
-<img width="243" height="352" alt="image" src="https://github.com/user-attachments/assets/324c8edd-7188-4dbc-815b-6e936eaf7377" />
-Maintenance Tab 
-<img width="848" height="431" alt="image" src="https://github.com/user-attachments/assets/3801b206-381e-45f1-93b1-1d3323b28ee4" />
-Base Station Tab
-<img width="843" height="365" alt="image" src="https://github.com/user-attachments/assets/744f6408-50cf-47eb-bb8f-582bd3385593" />
-Metrics Tab
-<img width="846" height="434" alt="image" src="https://github.com/user-attachments/assets/83014786-ad61-409b-adb7-5971dcb11b30" />
-Learning Review Tab
-<img width="848" height="438" alt="image" src="https://github.com/user-attachments/assets/4c3754e1-4038-49d1-baf2-c5ea62d427a3" />
-Room Rules Tab
-<img width="842" height="368" alt="image" src="https://github.com/user-attachments/assets/78bfb254-eb0f-4f3b-833b-93d6a56de8f6" />
-Themes Tab
-<img width="844" height="425" alt="image" src="https://github.com/user-attachments/assets/4fad5545-3bb4-47d9-b3f3-ad384b43e85d" />
-Map Bounds Review Tab
-<img width="844" height="408" alt="image" src="https://github.com/user-attachments/assets/7189e808-d8a9-4685-af49-65559d3cc660" />
-Setup Tab
-<img width="831" height="440" alt="image" src="https://github.com/user-attachments/assets/dd205110-8137-436f-8c0a-70aaa1e16052" />
+## Screenshots
+
+<details>
+<summary><strong>Click to expand the full panel tour</strong></summary>
+
+### Maintenance
+
+Track filter, brush, mop, and dock-water status against the integration's maintenance intervals.
+
+![Maintenance tab](docs/screenshots/maintenance.png)
+
+### Base Station
+
+Live dock state, water reservoir projection, and gated dock actions (wash mop, dry mop, empty dust).
+
+![Base Station tab](docs/screenshots/base-station.png)
+
+### Metrics
+
+Job and learning history, filtered by room, profile, status, or learning use.
+
+![Metrics tab](docs/screenshots/metrics.png)
+
+### Learning Review
+
+Inspect every recorded run, exclude outliers (test runs, false completions, bad room attribution), and see which profiles match the current settings.
+
+![Learning Review tab](docs/screenshots/learning-review.png)
+
+### Room Rules
+
+Per-room blocker and modifier rules driven by any Home Assistant entity — skip a room when a door is open, switch profiles when occupancy changes, etc.
+
+![Room Rules tab](docs/screenshots/room-rules.png)
+
+### Themes
+
+Built-in theme editor with three layers: ready-made presets, a palette editor for high-level colors, and full token-level control with live previews.
+
+![Themes — presets](docs/screenshots/themes-presets.png)
+![Themes — palette](docs/screenshots/themes-palette.png)
+![Themes — tokens](docs/screenshots/themes-tokens.png)
+
+### Map Bounds
+
+Per-room bounding-box review across runs, with outlier detection so a single bad run doesn't poison your learned bounds.
+
+![Map Bounds tab](docs/screenshots/map-bounds.png)
+
+### Setup
+
+Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system).
+
+![Setup tab](docs/screenshots/setup.png)
+
+### Interactive room map (optional)
+
+Tap a room on a live floor-plan view to queue it; double-tap to configure. **This view is not enabled by default** and requires a one-time configuration step — see [Map Configuration](docs/advanced/08-map-configuration.md) for setup.
+
+![Interactive room map](docs/screenshots/rooms-map.png)
+
+</details>
 
 ## Feature summary
 
@@ -79,13 +127,17 @@ Setup Tab
 - Maintenance tracking — reset maintenance counters from the UI
 - Theme system — full theme editor with save/load/import/export
 
+## Documentation
+
+- [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
+- [Services reference](docs/advanced/03-services.md) — for use in automations
+- [Automation examples](docs/advanced/04-automation-examples.md)
+- [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
+- [Developer docs](docs/dev/architecture-overview.md) — architecture, data model, internals
+
 ## Acknowledgements
 
 This integration would not exist without [eufy-clean](https://github.com/jeppesens/eufy-clean) by jeppesens and its contributors. Their work reverse-engineering the Eufy protocol and maintaining the HA integration that bridges the vacuum to Home Assistant is the foundation everything here is built on. If you find this useful, go give their repo a star too.
-
-## Documentation
-
-Full documentation: https://github.com/kingchddg901/eufy-vacuum-manager
 
 ## Licence
 
@@ -95,4 +147,4 @@ One condition: this project is a top-level addition built on [eufy-clean](https:
 
 ## Issues
 
-Please report bugs and feature requests at: https://github.com/kingchddg901/eufy-vacuum-manager/issues
+Please report bugs and feature requests at: <https://github.com/kingchddg901/eufy-vacuum-manager/issues>
