@@ -21,7 +21,8 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from ..const import DOMAIN
+from ..battery.job_metrics import compute_job_battery_metrics
+from ..const import DATA_BATTERY, DOMAIN
 from .utils import _iso_now, _safe_float, _safe_int
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
@@ -449,6 +450,50 @@ class LearningJobFinalizer:
                 _job["cleaning_time_seconds"] = inputs["cleaning_time_seconds"]
             if inputs.get("cleaning_area_m2") is not None:
                 _job["cleaning_area_m2"] = inputs["cleaning_area_m2"]
+
+            # Battery metrics — drain rates + per-mode/suction/water rollup.
+            # Only single-bucket jobs (every room same setting) feed per-bucket
+            # aggregates downstream; mixed runs still get full job-level stats.
+            try:
+                # `resolved_rooms` lives at the TOP LEVEL of completed_job
+                # (build_completed_job_payload promotes it there), not inside
+                # the inner "job" dict. Earlier versions of this hook looked
+                # inside _job and got an empty list, which forced
+                # weighted_by="none" and empty per-bucket maps even on
+                # genuinely single-room runs.
+                resolved_rooms = completed_job.get("resolved_rooms")
+                if not isinstance(resolved_rooms, list) or not resolved_rooms:
+                    resolved_rooms = _job.get("resolved_rooms")
+                if not isinstance(resolved_rooms, list) or not resolved_rooms:
+                    resolved_rooms = (
+                        payload_state.get("resolved_rooms")
+                        if isinstance(payload_state, dict)
+                        else []
+                    )
+                battery_metrics = compute_job_battery_metrics(
+                    battery_start=battery_start,
+                    battery_end=battery_end,
+                    duration_minutes=_job.get("duration_minutes"),
+                    cleaning_area_m2=inputs.get("cleaning_area_m2"),
+                    resolved_rooms=resolved_rooms or [],
+                )
+                _job["battery_metrics"] = battery_metrics
+
+                # Push to BatteryHealthManager so sensors and aggregates update.
+                # Skipped on cancelled/failed/test runs — those drains are not
+                # representative of normal cleaning.
+                outcome = completed_job.get("outcome", {}) or {}
+                outcome_status = str(outcome.get("status", "")).lower()
+                if outcome_status in {"completed", "interrupted"} and outcome.get("used_for_learning", True):
+                    battery_manager = self.hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
+                    if battery_manager is not None:
+                        battery_manager.record_job_metrics(
+                            vacuum_entity_id=vacuum_entity_id,
+                            metrics=battery_metrics,
+                            job_id=job_id,
+                        )
+            except Exception:
+                _LOGGER.exception("battery: failed to compute job metrics")
 
         completed_job["learning_context"] = self._build_learning_context(
             completed_job=completed_job,

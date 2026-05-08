@@ -958,7 +958,10 @@ proto.renderRoomCard = function (room, state) {
 
     const carpet = Boolean(
       room?.carpet ??
-      floorType === "carpet"
+      (() => {
+        const ft = String(floorType).toLowerCase();
+        return ft === "carpet" || ft.startsWith("carpet_") || ft.startsWith("carpet-");
+      })()
     );
 
     const order = Number(

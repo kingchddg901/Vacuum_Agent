@@ -127,6 +127,8 @@ DATA_RUNTIME = "runtime"
 
 DATA_LEARNING = "learning"
 
+DATA_BATTERY = "battery"
+
 # ----------------------
 # Events
 # ----------------------

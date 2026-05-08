@@ -15,7 +15,8 @@ different vacuum ecosystem.
 4. [Data Flows](#4-data-flows)
 5. [State Persistence](#5-state-persistence)
 6. [Key Design Decisions](#6-key-design-decisions)
-7. [Extension Points](#7-extension-points)
+7. [Concurrency & Thread Safety](#7-concurrency--thread-safety)
+8. [Extension Points](#8-extension-points)
 
 ---
 
@@ -578,7 +579,131 @@ fetches a different data payload from the backend and then re-renders.
 
 ---
 
-## 7. Extension Points
+## 7. Concurrency & Thread Safety
+
+The integration is single-process Python. Most code runs on Home Assistant's
+asyncio event loop, but a few intentional paths offload work to HA's
+**executor thread pool** (`hass.async_add_executor_job`) — for CPU-bound
+finalization, blocking file I/O, and anything that would otherwise stall
+the loop. Crossing that thread boundary is where bugs live.
+
+### 7.1 Rule
+
+**Calls into Home Assistant APIs must originate on the event loop thread.**
+Three calls are the most common offenders:
+
+| API | What goes wrong off-loop |
+|---|---|
+| `hass.async_create_task(coro)` | Logs a `helpers.frame` warning; in some HA builds, raises or schedules onto the wrong loop. |
+| `entity.async_write_ha_state()` | Silently no-ops or trips the same warning; the entity's state never updates from that call. |
+| Any `@callback`-decorated handler invoked directly | Same class of failure as above — `@callback` is a marker that the body assumes loop context. |
+
+If you must originate the call from a worker thread, route through one of the
+three bridges below.
+
+### 7.2 The three bridges
+
+```python
+# 1. Schedule a coroutine on the event loop, from any thread.
+asyncio.run_coroutine_threadsafe(coro, hass.loop)
+
+# 2. Run a sync @callback on the event loop, from any thread.
+hass.loop.call_soon_threadsafe(my_callback)
+
+# 3. Run a sync function on a worker thread, from the event loop.
+await hass.async_add_executor_job(blocking_func, *args)
+```
+
+Bridges 1 and 2 push *into* the loop. Bridge 3 pulls work *out* of it.
+
+### 7.3 Context detection pattern
+
+Helpers that may be called from either context (e.g. a manager method that
+fires from both a state-change listener on the loop *and* a finalizer running
+in an executor) detect their context and dispatch accordingly:
+
+```python
+import asyncio
+
+def _schedule(self, coro):
+    try:
+        running = asyncio.get_running_loop()
+    except RuntimeError:
+        running = None
+    if running is self._hass.loop:
+        self._hass.async_create_task(coro)
+    else:
+        asyncio.run_coroutine_threadsafe(coro, self._hass.loop)
+```
+
+`asyncio.get_running_loop()` raises `RuntimeError` when called from a thread
+with no running loop, which is exactly the worker-thread case.
+
+### 7.4 Listener fan-out pattern
+
+Manager classes that publish change notifications to many entities (the
+battery health manager and the theme sensor both do this) keep the iteration
+synchronous and let each listener handle its own dispatch. The publisher
+makes no assumption about who's listening:
+
+```python
+def _notify(self, vacuum_entity_id):
+    for cb in list(self._update_listeners):
+        try:
+            cb(vacuum_entity_id)
+        except Exception:
+            _LOGGER.exception("...")
+```
+
+Each listener wraps its own state write:
+
+```python
+def _on_manager_update(self, vacuum_entity_id):
+    if vacuum_entity_id != self._vacuum_entity_id:
+        return
+
+    @callback
+    def _write():
+        self.async_write_ha_state()
+
+    self.hass.loop.call_soon_threadsafe(_write)
+```
+
+This is more conservative than necessary when the publisher *always* runs on
+the loop, but keeps publishers simple and listeners independently safe — even
+new listeners added by other subsystems can't break the contract.
+
+### 7.5 Where this applies in the codebase
+
+| Subsystem | Off-loop entry point | Bridge used |
+|---|---|---|
+| Battery health (`battery/manager.py`) | `record_job_metrics` (called from `JobFinalizer.finalize_from_inputs` running in executor) | Context-detecting `_schedule_save`; `call_soon_threadsafe` in sensor listeners |
+| Battery health (`battery/sensors.py`) | Same as above (notify fan-out) | `call_soon_threadsafe` around `async_write_ha_state` |
+| Sensor platform (`sensor.py`) | Manager callbacks may fire from worker threads | `_request_entity_state_write()` helper at top of file — same pattern, integration-wide |
+| Learning system (`learning/job_finalizer.py`) | The whole finalize body runs in an executor | All HA-API calls inside it are routed through `hass.async_add_executor_job` boundaries or use thread-safe variants |
+| Mapping system (`mapping/`) | File I/O on disk (separate concern, not thread safety) | Tracked separately — see the issue tracker |
+
+### 7.6 Detecting violations
+
+HA's runtime will surface offenders as `homeassistant.helpers.frame`
+warnings:
+
+```
+Detected that custom integration 'eufy_vacuum' calls
+hass.async_create_task from a thread other than the event loop
+```
+
+These never crash on their own but indicate a real bug. Treat any new
+warning of this shape as a regression even if the integration appears to
+work.
+
+There is **no static check** — the warning fires only when the offending
+path actually executes. If you add code that runs in an executor and
+touches HA APIs, exercise it locally before assuming it's safe.
+
+---
+
+## 8. Extension Points
 
 ### Adding a new HA service
 

@@ -12,7 +12,8 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 
-from .const import DOMAIN, EVENT_JOB_FINISHED
+from .battery.sensors import build_battery_sensors
+from .const import DATA_BATTERY, DOMAIN, EVENT_JOB_FINISHED
 from .core.capabilities import MAINTENANCE_COMPONENTS
 from .entity_helpers import sort_room_items
 from .entity_helpers import build_entity_name
@@ -99,6 +100,17 @@ async def async_setup_entry(
                 vacuum_entity_id=vacuum_entity_id,
             )
         )
+
+        # Battery health sensors — six per vacuum (cycles + 3 rates +
+        # last-charge duration + health %). Backed by BatteryHealthManager.
+        battery_manager = hass.data[DOMAIN].get(DATA_BATTERY)
+        if battery_manager is not None:
+            entities.extend(
+                build_battery_sensors(
+                    manager=battery_manager,
+                    vacuum_entity_id=vacuum_entity_id,
+                )
+            )
 
         vacuum_maps = maps.get(vacuum_entity_id, {})
         for map_id, map_bucket in vacuum_maps.items():

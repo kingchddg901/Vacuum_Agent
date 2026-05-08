@@ -28,6 +28,8 @@ Fires after a cleaning job has been finalized. This covers every path to job com
 | `used_for_learning` | `bool \| null` | Whether this job was included in the learning system's stats; `null` when learning is not active |
 | `finalized_at` | `str \| null` | ISO 8601 timestamp of finalization |
 | `room_count` | `int \| null` | Number of rooms that were queued in the job |
+| `duration_minutes` | `float \| null` | Wall-clock duration of the job in minutes, net of pauses and recharges. Same value used by the post-job summary banner in the panel. |
+| `actual_cleaning_minutes` | `float \| null` | Time the robot actually spent cleaning, derived from the Returning state transition. Excludes the return-to-dock trip. Only set for single-room jobs; `null` for multi-room jobs (where it would not be meaningful). |
 | `job_path` | `str \| null` | Filesystem path to the saved completed-job JSON file, or `null` if learning is not enabled |
 
 ### Example trigger
@@ -40,7 +42,7 @@ trigger:
       vacuum_entity_id: "vacuum.alfred"
 ```
 
-**Practical use:** Send a push notification with the outcome. Check `trigger.event.data.status` to vary the message between `completed` and `cancelled` jobs.
+**Practical use:** Send a push notification with the outcome. Check `trigger.event.data.status` to vary the message between `completed` and `cancelled` jobs. `duration_minutes` and `room_count` are useful for one-line summaries without having to read the saved job file.
 
 ```yaml
 trigger:

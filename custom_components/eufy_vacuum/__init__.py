@@ -10,19 +10,22 @@ from pathlib import Path
 
 import os
 
-from homeassistant.components import panel_custom
+from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event, async_track_time_interval
 
+from ._frontend_url import panel_js_url
 from .const import (
+    DATA_BATTERY,
     DATA_LEARNING,
     DATA_RUNTIME,
     DOMAIN,
     EVENT_JOB_FINISHED,
     EVENT_PATH_BLOCKED,
 )
+from .battery.manager import BatteryHealthManager
 from .core.manager import EufyVacuumManager
 from .learning.manager import LearningManager
 from .learning.services import (
@@ -59,6 +62,8 @@ def _job_finished_event_data(*, vacuum_entity_id: str, map_id: str, finalize_res
         "used_for_learning": outcome.get("used_for_learning"),
         "finalized_at": completed_job.get("finalized_at"),
         "room_count": job_info.get("room_count"),
+        "duration_minutes": job_info.get("duration_minutes"),
+        "actual_cleaning_minutes": job_info.get("actual_cleaning_minutes"),
         "job_path": finalize_result.get("job_path"),
     }
 
@@ -438,7 +443,7 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                                 {k: v for k, v in all_rooms.items() if k in active_ids}
                                 if active_ids else all_rooms
                             )
-                            tracker.start_job(
+                            await tracker.start_job(
                                 vacuum_entity_id=vacuum_entity_id,
                                 map_id=str(map_id),
                                 rooms=job_rooms,
@@ -484,7 +489,7 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                     finally:
                         tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
                         if tracker is not None:
-                            tracker.end_job(vacuum_entity_id=vacuum_entity_id)
+                            await tracker.end_job(vacuum_entity_id=vacuum_entity_id)
 
                     # Always clear the active_job record so it can never be stranded
                     # as status:started regardless of whether finalization succeeded.
@@ -893,6 +898,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][DATA_RUNTIME] = manager
     hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
 
+    battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
+    battery_manager.start(manager.get_known_vacuum_ids())
+    hass.data[DOMAIN][DATA_BATTERY] = battery_manager
+
     mapping_manager = MappingManager(hass)
     mapping_tracker = MappingTracker(hass, mapping_manager)
     hass.data[DOMAIN]["mapping_manager"] = mapping_manager
@@ -933,7 +942,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 hass,
                 frontend_url_path=panel_url,
                 webcomponent_name="eufy-vacuum-command-center",
-                js_url="/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=3",
+                js_url=panel_js_url(),
                 sidebar_title="Eufy Vacuum",
                 sidebar_icon="mdi:robot-vacuum",
                 config={"vacuum_entity_id": vacuum_entity_id},
@@ -957,7 +966,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         domain_data = hass.data.get(DOMAIN, {})
         for panel_url in domain_data.pop(f"_panels_{entry.entry_id}", []):
-            panel_custom.async_remove_panel(hass, panel_url)
+            # panel_custom doesn't expose an unregister API; the panel is
+            # registered into HA's frontend component, which is where the
+            # remove helper lives.
+            try:
+                frontend.async_remove_panel(hass, panel_url)
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.debug("eufy_vacuum: failed to remove panel /%s", panel_url, exc_info=True)
 
         _remove_lifecycle_listeners(hass)
         _remove_dock_event_listeners(hass)
@@ -974,6 +989,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if mapping_tracker is not None:
             mapping_tracker.unregister_all()
         domain_data.pop("mapping_manager", None)
+        battery_manager = domain_data.pop(DATA_BATTERY, None)
+        if battery_manager is not None:
+            try:
+                battery_manager.stop()
+            except Exception:  # pragma: no cover
+                _LOGGER.exception("Failed to stop battery health manager")
         domain_data.pop(DATA_RUNTIME, None)
         domain_data.pop(DATA_LEARNING, None)
 

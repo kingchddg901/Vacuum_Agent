@@ -135,6 +135,68 @@ export const metricsStyles = `
     line-height: 1.5;
   }
 
+  /* Battery sub-tab */
+
+  .evcc-metrics-section-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--evcc-text-strong, var(--primary-text-color));
+    margin-top: 4px;
+  }
+
+  .evcc-metrics-section-subtitle {
+    font-size: 0.78rem;
+    color: var(--evcc-text-muted);
+    line-height: 1.45;
+    margin-top: -6px;
+  }
+
+  .evcc-metrics-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .evcc-metrics-table th,
+  .evcc-metrics-table td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--evcc-border-default);
+  }
+
+  .evcc-metrics-table th {
+    font-weight: 600;
+    color: var(--evcc-text-muted);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evcc-metrics-table tr:last-child td {
+    border-bottom: none;
+  }
+
+  .evcc-metrics-table em {
+    color: var(--evcc-text-muted);
+    font-style: normal;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .evcc-metrics-codeblock {
+    background: var(--evcc-bg-elevated, rgba(0, 0, 0, 0.18));
+    border: 1px solid var(--evcc-border-default);
+    border-radius: var(--evcc-radius-inner, 8px);
+    padding: 10px 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 0.78rem;
+    color: var(--evcc-text-default);
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+  }
+
   @media (max-width: 720px) {
     .evcc-metrics-grid,
     .evcc-metrics-stats,

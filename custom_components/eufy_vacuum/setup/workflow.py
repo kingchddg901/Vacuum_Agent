@@ -24,6 +24,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from .._frontend_url import panel_js_url
 from ..const import DATA_RUNTIME, DOMAIN
 from ..rooms.room_discovery import discover_rooms_for_vacuum, get_active_map_id
 
@@ -109,7 +110,7 @@ async def add_vacuum(
             hass,
             frontend_url_path=panel_url,
             webcomponent_name="eufy-vacuum-command-center",
-            js_url="/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=3",
+            js_url=panel_js_url(),
             sidebar_title="Eufy Vacuum",
             sidebar_icon="mdi:robot-vacuum",
             config={"vacuum_entity_id": vacuum_entity_id},

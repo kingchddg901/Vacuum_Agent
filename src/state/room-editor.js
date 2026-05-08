@@ -413,7 +413,16 @@ export function applyRoomEditorState(proto) {
 
   proto.isEditorRoomCarpet = function () {
     const room = this.activeEditorRoom();
-    return room?.floorType === "carpet";
+    if (!room) return false;
+    // Trust the pre-computed boolean first (set in state/rooms.js from
+    // attrs.carpet or floor_type === "carpet"); then fall back to a string
+    // match that catches every carpet variant the backend may emit:
+    // "carpet", "carpet_low", "carpet_high", "carpet_low_pile",
+    // "carpet_high_pile". Without this, low/high-pile carpet rooms slip
+    // past the gate and the mop fields render.
+    if (room.carpet === true) return true;
+    const ft = String(room.floorType ?? "").toLowerCase();
+    return ft === "carpet" || ft.startsWith("carpet_") || ft.startsWith("carpet-");
   };
 
   proto.showWaterLevel = function () {

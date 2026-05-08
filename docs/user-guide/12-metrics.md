@@ -40,9 +40,9 @@ Selecting a filter immediately re-fetches the snapshot from the backend with the
 
 ## Tabs
 
-Below the filters, a tab bar switches between five data views. The default tab when you first open Metrics is **Learning**.
+Below the filters, a tab bar switches between six data views. The default tab when you first open Metrics is **Learning**.
 
-The five tabs are: **Learning**, **Rooms**, **Profiles**, **Water**, and **Dock**.
+The six tabs are: **Learning**, **Rooms**, **Profiles**, **Water**, **Dock**, and **Battery**.
 
 ---
 
@@ -160,3 +160,41 @@ The Dock tab shows counts and timestamps for events recorded at the charging doc
 | Accuracy Updated | Timestamp of the most recent accuracy stat update |
 
 Timestamps are shown in short-month format (for example, "Apr 18, 9:30 AM"). Fields with no recorded data show "Unknown".
+
+---
+
+### Battery tab
+
+The Battery tab is a focused readout of the integration's battery health subsystem. It samples battery level on every state change, classifies charge sessions, and rolls everything up into ten sensors plus a per-job metrics block. The tab is the at-a-glance view; for the full feature explanation see [13. Battery health](13-battery-health.md).
+
+**Top chips** — four headline numbers:
+
+| Chip | What it shows |
+|---|---|
+| Charge cycles | Cumulative drain ÷ 100. Each percent of battery used adds 0.01 to the count. Persists across HA restarts. |
+| Health % | Current charge speed compared to the first five full charges (the baseline). 100% means matching the baseline; below 100% means slower-than-baseline. Shows "Building baseline" until five qualifying charges have been recorded. |
+| Charge rate | Most recent instantaneous %/min while charging. |
+| Last job %/m² | Battery used per square metre on the most recent completed job. |
+
+**Charge rates by zone** — five rows, one per tracked region of the charge curve:
+
+| Zone | Range | Notes |
+|---|---|---|
+| Overall | Any active charge | Last instantaneous rate. |
+| Low (≤ 29 %) | Slow precharge / soft-cell signal. | Updated only when battery is in this zone. |
+| High (≥ 80 %) | CV taper — earliest indicator of capacity loss. | Updated only when battery is in this zone. |
+| Mid-job (15→75) | Rolling mean across mid-job recharge sessions. | The cleanest health signal: tight zone, pure CC region. |
+| Last full session | Duration of the most recent completed charge. | Plus delta percent. |
+
+**Drain per m² by single-bucket job** — a table of running mean drain rates broken down by clean mode, fan speed, and water level. Rows that say "no single-bucket jobs yet" appear until you've run a job where every room used the same value for that key. Mixed-mode runs feed the **All jobs** row only — they don't pollute per-bucket means.
+
+**Most recent completed job** — a table of the per-job metrics: duration, area, battery used, drain rates, and the single-mode/fan/water tags (or "(mixed)" when not single-bucket). Includes the **Post-job recharge** linkage when present — once the vacuum finishes the recharge that follows the job, that session's duration, delta, and average rate appear here.
+
+**Raw data files** — the full path to the per-vacuum CSV and JSONL the integration writes:
+
+```
+config/eufy_vacuum/battery/<object_id>/sessions.csv
+config/eufy_vacuum/battery/<object_id>/samples.jsonl
+```
+
+You can chart any of the live sensors with HA's history-graph or [apexcharts-card](https://github.com/RomRider/apexcharts-card); for long-term review open the CSV in a spreadsheet.

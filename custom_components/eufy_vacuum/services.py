@@ -92,6 +92,8 @@ def _job_finished_event_payload(*, vacuum_entity_id: str, map_id: str, result: d
         "used_for_learning": outcome.get("used_for_learning"),
         "finalized_at": completed_job.get("finalized_at"),
         "room_count": job_info.get("room_count"),
+        "duration_minutes": job_info.get("duration_minutes"),
+        "actual_cleaning_minutes": job_info.get("actual_cleaning_minutes"),
         "job_path": job_path,
     }
 

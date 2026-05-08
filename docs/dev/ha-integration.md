@@ -27,14 +27,14 @@ The main entry point. Called when the config entry is loaded (on HA start or aft
 5. Calls the four service registration functions: `async_register_services`, `async_register_learning_services`, `async_register_theme_services`, `async_register_mapping_services`.
 6. Registers four background listeners: `_register_lifecycle_listeners`, `_register_dock_event_listeners`, `_register_path_blocker_listeners`, `_register_pause_timeout_listener`.
 7. Forwards setup to the five entity platforms: `button`, `switch`, `select`, `number`, `sensor`.
-8. Registers one sidebar panel per managed vacuum via `panel_custom.async_register_panel`. The panel URL path is `eufy-vacuum-{object_id}`, the webcomponent name is `eufy-vacuum-command-center`, and the JS URL is `/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=3`. Panel URLs for the current entry are stored at `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
+8. Registers one sidebar panel per managed vacuum via `panel_custom.async_register_panel`. The panel URL path is `eufy-vacuum-{object_id}`, the webcomponent name is `eufy-vacuum-command-center`, and the JS URL comes from `_frontend_url.panel_js_url()` — `/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=<bundle_mtime>`. The mtime-based query string is recomputed on every panel registration so a fresh bundle deploy busts the HA service-worker cache without a manual version bump. Panel URLs for the current entry are stored at `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
 
 ### `async_unload_entry` (`__init__.py`)
 
 Called when the entry is being unloaded. In order, it:
 
 1. Unloads all entity platforms.
-2. Removes each registered sidebar panel via `panel_custom.async_remove_panel`.
+2. Removes each registered sidebar panel via `frontend.async_remove_panel` (the `panel_custom` module doesn't expose an unregister API; the panel lives in HA's `frontend` component, which is where the remove helper is defined).
 3. Removes all four background listeners.
 4. Calls all four service unregistration functions.
 5. Unregisters the mapping tracker and clears all runtime keys from `hass.data[DOMAIN]`.
@@ -418,8 +418,8 @@ await panel_custom.async_register_panel(
 )
 ```
 
-The JS URL points to the static path registered by `async_setup`. Increment the `?v=` query parameter whenever the bundle changes to bust the browser cache. The `config` dict is injected into the panel's web component as a property and is how the card learns which vacuum it is managing.
+The JS URL points to the static path registered by `async_setup`. The `?v=` query parameter is now computed automatically via `_frontend_url.panel_js_url()`, which fingerprints the bundle's mtime — every time `dist/eufy-vacuum-command-center.js` is replaced, the panel re-registration on the next reload picks up the new mtime and the URL changes, busting the HA service-worker cache without manual intervention. The `config` dict is injected into the panel's web component as a property and is how the card learns which vacuum it is managing.
 
-Panels are removed in `async_unload_entry` via `panel_custom.async_remove_panel`. If the panel URL is already registered (e.g. from a previous load), the `ValueError` is caught and logged as debug — not an error.
+Panels are removed in `async_unload_entry` via `frontend.async_remove_panel` (`panel_custom` itself has no unregister API; the panel lives in HA's `frontend` component). The call is wrapped in `try/except` so a missing/renamed-in-future helper degrades to a debug log rather than blocking unload.
 
 The card JS file at `/eufy_vacuum/frontend/eufy-vacuum-command-center.js` must be present in `custom_components/eufy_vacuum/frontend/` before the integration loads. It is not bundled with the Python package; it must be placed there as part of the installation or build process.

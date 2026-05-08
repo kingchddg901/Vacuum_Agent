@@ -673,4 +673,39 @@ export const learningStyles = `
     background: var(--evcc-surface-chip, rgba(255,255,255,0.1));
     color: var(--evcc-text-primary);
   }
+
+  /* Cleaning Complete summary banner */
+
+  .evcc-learning-summary-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-top: 4px;
+  }
+
+  .evcc-learning-summary-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 60px;
+  }
+
+  .evcc-learning-summary-value {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--evcc-text-strong, var(--primary-text-color));
+    line-height: 1.1;
+  }
+
+  .evcc-learning-summary-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--evcc-text-muted);
+  }
+
+  @media (max-width: 480px) {
+    .evcc-learning-summary-stats { gap: 16px; }
+    .evcc-learning-summary-stat { min-width: 50px; }
+  }
 `;

@@ -139,6 +139,8 @@ export function applyMetricsRenderers(proto) {
         return this._renderMetricsWaterTab(state, metrics);
       case "dock":
         return this._renderMetricsDockTab(metrics, state);
+      case "battery":
+        return this._renderMetricsBatteryTab(state);
       case "learning":
       default:
         return this._renderMetricsLearningTab(state, metrics, windows);
@@ -660,5 +662,233 @@ export function applyMetricsRenderers(proto) {
       return `${numeric.toFixed(1).replace(/\.0$/, "")} min`;
     }
     return String(value ?? "Unknown");
+  };
+
+  /* =========================================================
+     BATTERY TAB
+     =========================================================
+     Surface the 10 battery sensors registered by the integration's
+     BatteryHealthManager:
+     - Top row: 4 headline chips (cycles, health, current charge rate,
+       last-job drain/m²).
+     - Charge rates table: per-zone instantaneous + mid-job mean.
+     - Last-job table: drain rates plus the per-clean-mode / per-fan-speed /
+       per-water-level aggregates pulled from the sensor's attributes.
+     - Footer: paths to the raw CSV/JSONL the integration writes.
+
+     No charts here — HA's history-graph / apexcharts cards do that better
+     against the live sensors. The integration's sessions.csv and
+     samples.jsonl give the long-term raw view.
+  ========================================================= */
+
+  proto._renderMetricsBatteryTab = function (state) {
+    const m = state.batteryMetrics?.() ?? {};
+
+    const numFmt = (raw, digits = 2) => {
+      const n = Number(raw);
+      return Number.isFinite(n) ? n.toFixed(digits).replace(/\.?0+$/, "") : "—";
+    };
+
+    // HA reports "unknown" / "unavailable" as literal strings for sensors
+    // that haven't published yet — treat those as missing too.
+    const isMissing = (raw) => {
+      if (raw == null) return true;
+      const s = String(raw).trim().toLowerCase();
+      return s === "" || s === "unknown" || s === "unavailable" || s === "none";
+    };
+
+    const sensorVal = (entry, digits = 2, suffix = "") => {
+      if (!entry || isMissing(entry.state)) return "—";
+      const n = Number(entry.state);
+      if (!Number.isFinite(n)) return String(entry.state);
+      return `${numFmt(n, digits)}${suffix}`;
+    };
+
+    // Top chips — pull the four most-glanceable values.
+    const chips = `
+      <div class="evcc-metrics-card-grid">
+        ${this._renderMetricsMiniCard(
+          "Charge cycles",
+          sensorVal(m.cycles, 1),
+          "Cumulative drain ÷ 100"
+        )}
+        ${this._renderMetricsMiniCard(
+          "Health %",
+          sensorVal(m.health, 0, "%"),
+          m.health?.attrs?.baseline_session_count
+            ? `vs first ${m.health.attrs.baseline_session_count} full charges`
+            : "Building baseline"
+        )}
+        ${this._renderMetricsMiniCard(
+          "Charge rate",
+          sensorVal(m.rate_overall, 2, " %/min"),
+          m.rate_overall?.attrs?.charging ? "Charging now" : "Last sample"
+        )}
+        ${this._renderMetricsMiniCard(
+          "Last job %/m²",
+          sensorVal(m.last_job_per_m2, 3),
+          m.last_job_per_m2?.attrs?.area_m2
+            ? `${numFmt(m.last_job_per_m2.attrs.area_m2, 1)} m² | ${numFmt(m.last_job_per_m2.attrs.battery_used_pct, 0)} % used`
+            : "Awaiting first job"
+        )}
+      </div>
+    `;
+
+    // Charge rates table — one row per tracked zone.
+    const ratesTable = `
+      <div class="evcc-metrics-section-title">Charge rates by zone</div>
+      <table class="evcc-metrics-table">
+        <thead>
+          <tr>
+            <th>Zone</th>
+            <th>Last rate</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Overall</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_overall, 2, " %/min"))}</td>
+            <td>Any active charge interval</td>
+          </tr>
+          <tr>
+            <td>Low (≤ 29 %)</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_low, 2, " %/min"))}</td>
+            <td>Slow precharge / soft-cell signal</td>
+          </tr>
+          <tr>
+            <td>High (≥ 80 %)</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_high, 2, " %/min"))}</td>
+            <td>CV taper — earliest health drop indicator</td>
+          </tr>
+          <tr>
+            <td>Mid-job (15→75)</td>
+            <td>${this.escapeHtml(sensorVal(m.rate_mid_job, 2, " %/min"))}</td>
+            <td>${this.escapeHtml(
+              `Rolling mean | ${m.rate_mid_job?.attrs?.sample_count ?? 0} samples`
+            )}</td>
+          </tr>
+          <tr>
+            <td>Last full session</td>
+            <td>${this.escapeHtml(sensorVal(m.last_charge_duration, 0, " min"))}</td>
+            <td>${this.escapeHtml(
+              m.last_charge_duration?.attrs?.last_charge_delta_pct != null
+                ? `Charged ${m.last_charge_duration.attrs.last_charge_delta_pct} %`
+                : ""
+            )}</td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+
+    // Per-mode aggregate table — pulls from any of the last-job sensors;
+    // they all expose the same attribute shape, so use last_job_per_m2.
+    const buckets = m.last_job_per_m2?.attrs?.by_clean_mode_mean ?? {};
+    const fanBuckets = m.last_job_per_m2?.attrs?.by_fan_speed_mean ?? {};
+    const waterBuckets = m.last_job_per_m2?.attrs?.by_water_level_mean ?? {};
+
+    const renderBucketRows = (obj, label) => {
+      const keys = Object.keys(obj || {});
+      if (!keys.length) {
+        return `<tr><td colspan="3"><em>${this.escapeHtml(label)} — no single-bucket jobs yet</em></td></tr>`;
+      }
+      return keys.map((k) => `
+        <tr>
+          <td>${this.escapeHtml(k)}</td>
+          <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
+          <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
+        </tr>
+      `).join("");
+    };
+
+    const allCount = m.last_job_per_m2?.attrs?.all_jobs_count ?? 0;
+    const allMean = m.last_job_per_m2?.attrs?.all_jobs_mean;
+
+    const aggregateTable = `
+      <div class="evcc-metrics-section-title">Drain per m² by single-bucket job</div>
+      <div class="evcc-metrics-section-subtitle">
+        Only jobs where every room used the same setting feed these means.
+        Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.
+      </div>
+      <table class="evcc-metrics-table">
+        <thead>
+          <tr>
+            <th>Bucket</th>
+            <th>Mean %/m²</th>
+            <th>Jobs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>All jobs (mixed + single)</strong></td>
+            <td>${this.escapeHtml(numFmt(allMean, 3))}</td>
+            <td>${this.escapeHtml(String(allCount))}</td>
+          </tr>
+          <tr><td colspan="3"><em>By clean mode</em></td></tr>
+          ${renderBucketRows(buckets, "Clean mode")}
+          <tr><td colspan="3"><em>By fan speed</em></td></tr>
+          ${renderBucketRows(fanBuckets, "Fan speed")}
+          <tr><td colspan="3"><em>By water level</em></td></tr>
+          ${renderBucketRows(waterBuckets, "Water level")}
+        </tbody>
+      </table>
+    `;
+
+    // Last job summary — also expose post-job recharge linkage when present.
+    const lastJob = m.last_job_per_m2?.attrs ?? {};
+    const postJob = lastJob.post_job_charge ?? null;
+    const lastJobBlock = lastJob.recorded_at ? `
+      <div class="evcc-metrics-section-title">Most recent completed job</div>
+      <table class="evcc-metrics-table">
+        <tbody>
+          <tr><td>Job ID</td><td>${this.escapeHtml(String(lastJob.job_id ?? "—"))}</td></tr>
+          <tr><td>Recorded</td><td>${this.escapeHtml(this._formatMetricsTimestamp(lastJob.recorded_at) || "—")}</td></tr>
+          <tr><td>Duration</td><td>${this.escapeHtml(numFmt(lastJob.duration_min, 1) + " min")}</td></tr>
+          <tr><td>Area</td><td>${this.escapeHtml(numFmt(lastJob.area_m2, 1) + " m²")}</td></tr>
+          <tr><td>Battery used</td><td>${this.escapeHtml(numFmt(lastJob.battery_used_pct, 0) + " %")}</td></tr>
+          <tr><td>Drain rate</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
+          <tr><td>Drain per hour</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
+          <tr><td>Drain per m²</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
+          <tr><td>Single clean mode</td><td>${this.escapeHtml(lastJob.single_clean_mode ?? "(mixed)")}</td></tr>
+          <tr><td>Single fan speed</td><td>${this.escapeHtml(lastJob.single_fan_speed ?? "(mixed)")}</td></tr>
+          <tr><td>Single water level</td><td>${this.escapeHtml(lastJob.single_water_level ?? "(mixed)")}</td></tr>
+          <tr><td>Weighted by</td><td>${this.escapeHtml(lastJob.weighted_by ?? "—")}</td></tr>
+          ${postJob ? `
+            <tr><td colspan="2"><em>Post-job recharge</em></td></tr>
+            <tr><td>Recharge duration</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>
+            <tr><td>Recharge delta</td><td>${this.escapeHtml(`${postJob.start_battery ?? "?"} → ${postJob.end_battery ?? "?"} %`)}</td></tr>
+            <tr><td>Avg rate</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + " %/min")}</td></tr>
+            <tr><td>Ended</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
+          ` : `
+            <tr><td>Post-job recharge</td><td><em>Awaiting next charge session</em></td></tr>
+          `}
+        </tbody>
+      </table>
+    ` : `
+      <div class="evcc-metrics-section-title">Most recent completed job</div>
+      <div class="evcc-empty">No completed job yet — sensors populate after the first finalized run.</div>
+    `;
+
+    const objectId = state.vacuumObjectId?.() ?? "";
+    const rawDataNote = `
+      <div class="evcc-metrics-section-title">Raw data files</div>
+      <div class="evcc-metrics-section-subtitle">
+        Long-term review is best done from the raw files written by the integration.
+        Chart any of the sensors above with HA's history-graph or apexcharts-card; for
+        deeper analysis open the CSV in a spreadsheet.
+      </div>
+      <pre class="evcc-metrics-codeblock">config/eufy_vacuum/battery/${this.escapeHtml(objectId)}/sessions.csv
+config/eufy_vacuum/battery/${this.escapeHtml(objectId)}/samples.jsonl</pre>
+    `;
+
+    return `
+      <div class="evcc-metrics-section-stack">
+        ${chips}
+        ${ratesTable}
+        ${aggregateTable}
+        ${lastJobBlock}
+        ${rawDataNote}
+      </div>
+    `;
   };
 }

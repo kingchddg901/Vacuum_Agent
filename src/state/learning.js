@@ -544,7 +544,7 @@ export function applyLearningState(proto) {
    * End the live learning job and snapshot a brief summary for post-job UI.
    * RULES: only live-job state is cleared; the estimate is preserved for reference.
    */
-  proto.endLearningJob = function () {
+  proto.endLearningJob = function (actualOverride = null) {
     const learning = this._ensureLearningState();
 
     const estimate = learning.estimate;
@@ -553,15 +553,34 @@ export function applyLearningState(proto) {
       ? learning.completedRooms
       : [];
 
-    if (estimate || reanchored || completed.length) {
+    // Authoritative actuals come from the EVENT_JOB_FINISHED payload — they
+    // carry the real duration and room_count from the finalized job record.
+    // The live `completedRooms` array can be empty on short 1-room runs if
+    // the room_finished event arrives before learningJobActive flips true,
+    // and `total_minutes` from estimate/reanchored is a *prediction* not the
+    // measured outcome. Prefer override values when present.
+    const actualMinutes = Number(
+      actualOverride?.actual_cleaning_minutes ??
+      actualOverride?.duration_minutes
+    );
+    const actualRoomCount = Number(actualOverride?.room_count);
+
+    const fallbackTotal = Number(
+      reanchored?.total_minutes ??
+      estimate?.total_minutes ??
+      0
+    );
+
+    if (estimate || reanchored || completed.length || actualOverride) {
       learning.summary = {
         finished_at: new Date().toISOString(),
-        total_minutes: Number(
-          reanchored?.total_minutes ??
-          estimate?.total_minutes ??
-          0
-        ) || 0,
-        rooms_completed: completed.length,
+        total_minutes: Number.isFinite(actualMinutes) && actualMinutes > 0
+          ? actualMinutes
+          : (fallbackTotal || 0),
+        rooms_completed: Number.isFinite(actualRoomCount) && actualRoomCount > 0
+          ? actualRoomCount
+          : completed.length,
+        predicted_total_minutes: fallbackTotal || null,
         battery_warning: Boolean(reanchored?.battery_warning),
 
         /*

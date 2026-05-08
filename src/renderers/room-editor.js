@@ -56,7 +56,7 @@ export function applyRoomEditorRenderer(proto) {
           ` : ""}
 
           <div class="evcc-room-editor-include-row">
-            <span class="evcc-room-editor-include-label">Room included in queue</span>
+            <span class="evcc-room-editor-include-label">Current queue status:</span>
             <button
               type="button"
               class="evcc-chip evcc-chip--toggle-include ${room.enabled ? "active" : ""}"

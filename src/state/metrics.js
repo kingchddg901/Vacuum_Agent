@@ -6,6 +6,7 @@ const METRIC_TABS = {
   PROFILES: "profiles",
   WATER: "water",
   DOCK: "dock",
+  BATTERY: "battery",
 };
 
 export function applyMetricsState(proto) {
@@ -76,6 +77,7 @@ export function applyMetricsState(proto) {
       { value: METRIC_TABS.PROFILES, label: "Profiles" },
       { value: METRIC_TABS.WATER, label: "Water" },
       { value: METRIC_TABS.DOCK, label: "Dock" },
+      { value: METRIC_TABS.BATTERY, label: "Battery" },
     ];
   };
 
@@ -164,5 +166,51 @@ export function applyMetricsState(proto) {
     const options = this.metricsSnapshot()?.filter_options?.used_for_learning;
     if (Array.isArray(options) && options.length) return options;
     return [];
+  };
+
+  /* =========================================================
+     BATTERY SUB-TAB
+     =========================================================
+     Reads from the live HA sensors registered by the integration's
+     BatteryHealthManager. Each sensor exposes its core value as state,
+     plus richer breakdown data as attributes (last-job per-mode means,
+     post-job recharge link, etc.). All helpers return null when a sensor
+     hasn't reported yet so the renderer can show "—".
+  */
+
+  proto._batterySensor = function (suffix) {
+    const objectId = this.vacuumObjectId();
+    if (!objectId) return null;
+    const entityId = `sensor.${objectId}_${suffix}`;
+    const stateValue = this.stateOf(entityId);
+    if (stateValue == null) return null;
+    return {
+      entity_id: entityId,
+      state: stateValue,
+      attrs: this.attrsOf(entityId) ?? {},
+    };
+  };
+
+  proto.batteryMetrics = function () {
+    // Note on the per_min entity ID:
+    // The Python sensor is registered with label "Last Job Drain Rate", so HA
+    // slugifies its entity_id to `sensor.<vac>_last_job_drain_rate` — NOT
+    // `_last_job_drain_per_min`. The other two metrics (per_hour, per_m²)
+    // happen to align with their suffixes by coincidence. Looking up the
+    // wrong ID returns null and the row renders as "—".
+    return {
+      cycles:               this._batterySensor("charge_cycles"),
+      health:               this._batterySensor("battery_health"),
+      rate_overall:         this._batterySensor("charge_rate"),
+      rate_low:             this._batterySensor("charge_rate_low_zone"),
+      rate_high:            this._batterySensor("charge_rate_high_zone"),
+      rate_mid_job:         this._batterySensor("mid_job_recharge_rate"),
+      last_charge_duration: this._batterySensor("last_charge_duration"),
+      last_job_per_min:     this._batterySensor("last_job_drain_rate")
+                              || this._batterySensor("last_job_drain_per_min"),
+      last_job_per_hour:    this._batterySensor("last_job_drain_per_hour"),
+      last_job_per_m2:      this._batterySensor("last_job_drain_per_m2")
+                              || this._batterySensor("last_job_drain_per_m_"),
+    };
   };
 }

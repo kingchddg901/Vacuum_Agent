@@ -200,7 +200,14 @@ export class LearningController {
 
     await this.card?.refreshDashboardSnapshot?.();
 
-    this.card?._state?.endLearningJob?.();
+    // Pass the authoritative actuals from the event so the post-job summary
+    // banner shows real duration / room count even when the live tracker
+    // missed events (common on short 1-room jobs).
+    this.card?._state?.endLearningJob?.({
+      duration_minutes: data.duration_minutes,
+      actual_cleaning_minutes: data.actual_cleaning_minutes,
+      room_count: data.room_count,
+    });
     this.endJobProgress();
 
     // Reload the incomplete run log in case this job was cancelled/failed.

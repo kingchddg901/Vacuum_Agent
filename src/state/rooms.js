@@ -605,7 +605,10 @@ export function applyRoomsState(proto) {
     const carpetTypeLabel = attrs.carpet_type_label ?? null;
     const carpet = Boolean(
       attrs.carpet ??
-      String(floorType).toLowerCase() === "carpet"
+      (() => {
+        const ft = String(floorType).toLowerCase();
+        return ft === "carpet" || ft.startsWith("carpet_") || ft.startsWith("carpet-");
+      })()
     );
 
     const cleanMode      = attrs.clean_mode      ?? "vacuum";
