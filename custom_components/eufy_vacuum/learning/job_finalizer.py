@@ -16,7 +16,7 @@ Learning rule:
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -28,6 +28,93 @@ from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _parse_iso_to_utc(value: Any) -> datetime | None:
+    """Tolerant ISO-8601 parser used for error-window arithmetic.
+
+    Returns None on any parse failure so the caller can skip a malformed
+    entry without affecting the rest of the calculation.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _compute_total_error_seconds(
+    error_latch: dict[str, Any] | None,
+    *,
+    job_ended_at: str | None,
+) -> int:
+    """Sum the time the run spent inside an error state.
+
+    Walks ``error_latch.errors[]`` chronologically and treats each entry as
+    a half-open ``[captured_at, recovered_at)`` interval. Entries that
+    never received a recovered_at (because the firmware re-fired before
+    the previous error cleared, or because the job ended while still in
+    error) are bounded by:
+
+    1. The next entry's ``captured_at``, if there is one — the model only
+       carries one "current" error at a time, so the next rising edge
+       implicitly closes the previous window.
+    2. Otherwise the job's ``ended_at``.
+
+    Overlapping intervals are merged to keep us honest if a misbehaving
+    firmware ever produces them despite the alternating-edge model.
+
+    Returns int seconds, clamped to ≥ 0. The caller subtracts this from
+    ``cleaning_time_seconds`` so a recoverable run isn't penalised for
+    transient faults that the vacuum worked through — the run stays in
+    the learning corpus rather than being marked excluded.
+    """
+    if not isinstance(error_latch, dict):
+        return 0
+    raw_entries = error_latch.get("errors") or []
+    if not raw_entries:
+        return 0
+
+    fallback_end = _parse_iso_to_utc(job_ended_at) or datetime.now(timezone.utc)
+
+    intervals: list[tuple[datetime, datetime]] = []
+    for index, entry in enumerate(raw_entries):
+        if not isinstance(entry, dict):
+            continue
+        start = _parse_iso_to_utc(entry.get("captured_at"))
+        if start is None:
+            continue
+        end = _parse_iso_to_utc(entry.get("recovered_at"))
+        if end is None:
+            # Implicit boundary: next entry's captured_at, else job end.
+            for follow in raw_entries[index + 1:]:
+                if isinstance(follow, dict):
+                    end = _parse_iso_to_utc(follow.get("captured_at"))
+                    if end is not None:
+                        break
+            if end is None:
+                end = fallback_end
+        if end <= start:
+            continue
+        intervals.append((start, end))
+
+    if not intervals:
+        return 0
+
+    # Merge overlaps. Latch model alternates rising/falling so this should
+    # be a no-op in normal operation, but defend against firmware quirks.
+    intervals.sort(key=lambda iv: iv[0])
+    merged: list[tuple[datetime, datetime]] = [intervals[0]]
+    for start, end in intervals[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+
+    total = sum((end - start).total_seconds() for start, end in merged)
+    return max(0, int(total))
 
 
 def _apply_water_actuals(
@@ -410,6 +497,75 @@ class LearningJobFinalizer:
         was_interrupted = inputs["was_interrupted"]
         cancel_detection = inputs["cancel_detection"]
 
+        # Harvest the active-run error latch from ErrorTracker. This pulls
+        # the latch dict and nulls it on the tracker side, so the latch
+        # state is owned by exactly one record after this call (the
+        # completed-job outcome). If no errors fired during the run, the
+        # harvest returns None and the outcome reflects had_errors=False.
+        # Defensive: if the tracker isn't loaded for any reason, fall back
+        # to no-error.
+        from ..const import DATA_ERROR_TRACKER as _DATA_ERROR_TRACKER
+
+        error_latch: dict[str, Any] | None = None
+        try:
+            error_tracker = (
+                self.hass.data.get(DOMAIN, {}).get(_DATA_ERROR_TRACKER)
+                if hasattr(self, "hass") and self.hass is not None
+                else None
+            )
+            if error_tracker is not None:
+                error_latch = error_tracker.harvest_active_run(
+                    vacuum_entity_id, job_id
+                )
+        except Exception:  # pragma: no cover - defensive
+            _LOGGER.exception(
+                "job_finalizer: error_tracker harvest failed for %s",
+                vacuum_entity_id,
+            )
+
+        had_errors = bool(
+            isinstance(error_latch, dict)
+            and (error_latch.get("error_count") or 0) > 0
+        )
+        error_count = (
+            int(error_latch.get("error_count") or 0)
+            if isinstance(error_latch, dict)
+            else 0
+        )
+
+        # Total seconds the run spent in error state. Subtracted from the
+        # upstream-reported cleaning_time_seconds below so a recoverable
+        # run isn't penalised for transient faults — the job stays in the
+        # learning corpus, just with a more accurate "active cleaning"
+        # duration. raw and adjusted values are both stored on the job
+        # record so downstream tooling can show "X minutes deducted".
+        total_error_seconds = _compute_total_error_seconds(
+            error_latch, job_ended_at=ended_at,
+        )
+
+        raw_cleaning_seconds = inputs.get("cleaning_time_seconds")
+        adjusted_cleaning_seconds = raw_cleaning_seconds
+        if (
+            raw_cleaning_seconds is not None
+            and total_error_seconds > 0
+        ):
+            adjusted_cleaning_seconds = max(
+                0, int(raw_cleaning_seconds) - total_error_seconds
+            )
+            if total_error_seconds > int(raw_cleaning_seconds):
+                # Defensive log: error window exceeded the upstream cleaning
+                # time. Probably overlapping rising edges or clock skew.
+                # Clamped to 0; record both values so the discrepancy is
+                # visible in audit.
+                _LOGGER.debug(
+                    "job_finalizer: total_error_seconds (%d) > "
+                    "cleaning_time_seconds (%d) for %s/%s; clamping to 0",
+                    total_error_seconds,
+                    int(raw_cleaning_seconds),
+                    vacuum_entity_id,
+                    job_id,
+                )
+
         completed_job = self.store.build_completed_job_payload(
             vacuum_entity_id=vacuum_entity_id,
             job_id=job_id,
@@ -430,6 +586,16 @@ class LearningJobFinalizer:
                 "lifecycle_state": lifecycle_name,
                 "lifecycle_message": lifecycle_message,
                 "cancel_detection": cancel_detection or {"cancel_likely": False},
+                # Error tracking — had_errors is the quick filter; errors
+                # carries the full latch (errors[], current_*, recovered,
+                # first_seen_*) for review-tab analysis.
+                # total_error_seconds: how much wall-clock the run spent in
+                # error state; cleaning_time_seconds on the job dict has
+                # already been adjusted (see below).
+                "had_errors": had_errors,
+                "error_count": error_count,
+                "errors": error_latch,
+                "total_error_seconds": total_error_seconds,
             },
         )
         self._apply_snapshot_estimates_to_completed_job(
@@ -446,8 +612,17 @@ class LearningJobFinalizer:
         )
         _job = completed_job.get("job")
         if isinstance(_job, dict):
-            if inputs.get("cleaning_time_seconds") is not None:
-                _job["cleaning_time_seconds"] = inputs["cleaning_time_seconds"]
+            # Apply error-time-adjusted cleaning_time_seconds when an error
+            # window was observed. cleaning_time_seconds_raw preserves the
+            # upstream value so analysis can recompute or verify.
+            if adjusted_cleaning_seconds is not None:
+                _job["cleaning_time_seconds"] = adjusted_cleaning_seconds
+                if (
+                    raw_cleaning_seconds is not None
+                    and total_error_seconds > 0
+                ):
+                    _job["cleaning_time_seconds_raw"] = int(raw_cleaning_seconds)
+                    _job["total_error_seconds"] = total_error_seconds
             if inputs.get("cleaning_area_m2") is not None:
                 _job["cleaning_area_m2"] = inputs["cleaning_area_m2"]
 

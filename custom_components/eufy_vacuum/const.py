@@ -38,6 +38,8 @@ SERVICE_CLEAR_QUEUE = "clear_queue"
 SERVICE_CLEAR_ACTIVE_JOB = "clear_active_job"
 
 SERVICE_GET_LIFECYCLE_STATE = "get_lifecycle_state"
+SERVICE_ACKNOWLEDGE_ERROR = "acknowledge_error"
+SERVICE_GET_RECENT_ERRORS = "get_recent_errors"
 SERVICE_GET_JOB_PROGRESS_SNAPSHOT = "get_job_progress_snapshot"
 SERVICE_GET_JOB_CONTROL_STATE = "get_job_control_state"
 SERVICE_GET_UPKEEP_SNAPSHOT = "get_upkeep_snapshot"
@@ -129,6 +131,11 @@ DATA_LEARNING = "learning"
 
 DATA_BATTERY = "battery"
 
+#: ErrorTracker instance — captures upstream error_message + vacuum.state
+#: transitions, latches them as active_run / last_device / recent_errors,
+#: persists across restarts. See core/error_tracker.py.
+DATA_ERROR_TRACKER = "error_tracker"
+
 # ----------------------
 # Events
 # ----------------------
@@ -137,6 +144,14 @@ EVENT_JOB_FINISHED = "eufy_vacuum_job_finished"
 EVENT_ROOM_STARTED = "eufy_vacuum_room_started"
 EVENT_ROOM_FINISHED = "eufy_vacuum_room_finished"
 EVENT_PATH_BLOCKED = "eufy_vacuum_path_blocked"
+
+# Fired every 5 s while at least one vacuum has an active job. The backend
+# drives this — the dashboard card subscribes and refreshes its snapshot
+# without having to poll. Carries vacuum_entity_id and map_id; consumers
+# should treat the payload as a "refresh now" trigger and re-read the
+# snapshot via the existing service. See _register_job_progress_listener
+# in __init__.py for the rationale.
+EVENT_JOB_PROGRESS_TICK = "eufy_vacuum_job_progress_tick"
 
 # Fired from get_job_progress_snapshot() when the robot has been in a room for
 # >= 2× its learned timing threshold and awaiting_bounds_exit is already true.

@@ -36,7 +36,15 @@ class EufyVacuumStorage:
                 "dock_events": {},
                 "icons": {},
                 "onboarding": {},
+                # Per-vacuum error_tracker state:
+                #   {<vacuum_entity_id>: {active_run_error, last_device_error, recent_errors}}
+                # Loaded by ErrorTracker on start() and re-persisted on
+                # rising/falling edges, harvest, and acknowledge.
+                "error_tracker": {},
             }
+        # Defensive backfill for installs that pre-date the error_tracker
+        # section. ensure_record-style: only sets the key if missing.
+        data.setdefault("error_tracker", {})
         return data
 
     async def async_save(self, data: dict[str, Any]) -> None:

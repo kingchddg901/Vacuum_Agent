@@ -22,13 +22,16 @@ from homeassistant.helpers.event import async_call_later, async_track_state_chan
 from ._frontend_url import panel_js_url
 from .const import (
     DATA_BATTERY,
+    DATA_ERROR_TRACKER,
     DATA_LEARNING,
     DATA_RUNTIME,
     DOMAIN,
     EVENT_JOB_FINISHED,
+    EVENT_JOB_PROGRESS_TICK,
     EVENT_PATH_BLOCKED,
 )
 from .battery.manager import BatteryHealthManager
+from .core.error_tracker import ErrorTracker
 from .core.manager import EufyVacuumManager
 from .learning.manager import LearningManager
 from .learning.services import (
@@ -72,6 +75,7 @@ def _job_finished_event_data(*, vacuum_entity_id: str, map_id: str, finalize_res
 
 
 PLATFORMS: list[str] = [
+    "binary_sensor",
     "button",
     "switch",
     "select",
@@ -84,6 +88,7 @@ _DOCK_EVENT_UNSUBS = "_dock_event_unsubs"
 _PATH_BLOCKER_UNSUBS = "_path_blocker_unsubs"
 _PATH_BLOCKER_ROOM_CALLBACK = "_path_blocker_room_callback"
 _PAUSE_TIMEOUT_UNSUBS = "_pause_timeout_unsubs"
+_JOB_PROGRESS_UNSUBS = "_job_progress_unsubs"
 
 # Maps dock event_type keys to the normalised dock_status strings that trigger them.
 _DOCK_EVENT_TRIGGERS: dict[str, set[str]] = {
@@ -212,7 +217,21 @@ def _register_post_job_water_amendment(
     starts ~2 seconds after finalization, so the initial water actuals always
     show 0ml. This watcher patches the completed job file once the dock
     finishes its post-job wash cycle (dock_status → Drying).
+
+    Idempotent on ``job_id`` — the lifecycle handler that calls this can fire
+    multiple times for the same finalized job (post-finalize state changes
+    re-trigger the path), and each registration would otherwise leak its own
+    set of listeners + timeout. The registry on ``hass.data[DOMAIN]`` is
+    the single source of truth for "is this job already being watched".
     """
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    registered_jobs: set[str] = domain_data.setdefault(
+        "_water_amendment_jobs", set()
+    )
+    if job_id in registered_jobs:
+        return
+    registered_jobs.add(job_id)
+
     object_id = vacuum_entity_id.split(".", 1)[1]
     dock_status_entity = f"sensor.{object_id}_dock_status"
     water_level_entity = f"sensor.{object_id}_water_level"
@@ -288,7 +307,17 @@ def _register_post_job_water_amendment(
         job["water"] = water
 
         try:
-            path.write_text(json.dumps(job, indent=2), encoding="utf-8")
+            # Atomic write via temp file + rename. POSIX rename is atomic, so
+            # any concurrent reader sees either the pre-patch file or the
+            # post-patch file — never a half-written interleaved state. This
+            # is what catches us when finalize / amendment / mapping-evidence
+            # happen to write concurrently. Without it, a reader can land on
+            # one writer's truncate followed by the other writer's bytes,
+            # producing the "Extra data: line N column 1 (char M)" decode
+            # error pattern from the original report.
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(job, indent=2), encoding="utf-8")
+            os.replace(tmp, path)
             _LOGGER.debug(
                 "post_job_water_amendment: patched %s wash_count=%d end_pct=%s",
                 job_id, total_wash_count, end_percent,
@@ -316,9 +345,18 @@ def _register_post_job_water_amendment(
                 pass
 
         wash_count = amendment_state["wash_count"]
-        hass.async_create_task(
-            hass.async_add_executor_job(_write_amendment, end_pct, wash_count)
-        )
+        # Tracked fire-and-forget. The amendment patches user-visible
+        # actual_*_water_* fields onto the completed job file — losing it
+        # on HA shutdown is observable (the job's water tab keeps its
+        # estimate-only fields). Wrap the executor Future in a coroutine
+        # so async_create_task gets a real coroutine (3.14-compatible)
+        # and the task lands in HA's tracker, ensuring the shutdown
+        # sequence drains it before stopping the loop.
+        async def _flush_amendment() -> None:
+            await hass.async_add_executor_job(
+                _write_amendment, end_pct, wash_count
+            )
+        hass.async_create_task(_flush_amendment())
 
     _MIN_WASH_INTERVAL_SECONDS = 60.0
 
@@ -753,6 +791,86 @@ def _register_pause_timeout_listener(hass: HomeAssistant) -> None:
     domain_data[_PAUSE_TIMEOUT_UNSUBS] = [unsub]
 
 
+def _remove_job_progress_listener(hass: HomeAssistant) -> None:
+    domain_data = hass.data.get(DOMAIN, {})
+    unsubs: list[Callable[[], None]] = domain_data.pop(_JOB_PROGRESS_UNSUBS, [])
+    for unsub in unsubs:
+        try:
+            unsub()
+        except Exception:  # pragma: no cover
+            pass
+
+
+def _register_job_progress_listener(hass: HomeAssistant) -> None:
+    """Tick the job-progress snapshot every 5 s while any vacuum has an
+    active job. Keeps stall detection and ``awaiting_bounds_exit``
+    derivation firing during cleaning periods that have no vacuum-state
+    transitions — e.g. a bounds-exit wait, where the vacuum reports
+    "cleaning" continuously and the entity-state lifecycle listener
+    never fires.
+
+    Without this, ``get_job_progress_snapshot`` would only run when the
+    dashboard polled it, which meant ``EVENT_STALL_DETECTED`` (fired as
+    a side effect from inside the snapshot) silently failed for users
+    who weren't actively looking at the panel. Moving the cadence to
+    the backend makes stall-driven automations reliable regardless of
+    UI state, and lets the card drop its bounds-exit polling.
+
+    After each tick we fire ``EVENT_JOB_PROGRESS_TICK`` so the dashboard
+    can refresh its snapshot if it's open. Cost per tick: one method
+    call and one event per active vacuum/map; negligible.
+    """
+    _remove_job_progress_listener(hass)
+
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    manager: EufyVacuumManager | None = domain_data.get(DATA_RUNTIME)
+    if manager is None:
+        return
+
+    @callback
+    def _handle_job_progress_tick(_now) -> None:
+        for vacuum_entity_id in manager.get_known_vacuum_ids():
+            for map_id in manager.get_known_map_ids(vacuum_entity_id):
+                map_id_str = str(map_id)
+                if map_id_str.strip().lower() == "unknown":
+                    continue
+
+                active_job = manager.get_active_job(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id_str,
+                )
+                if active_job.get("status") not in {"started", "paused"}:
+                    continue
+
+                try:
+                    manager.get_job_progress_snapshot(
+                        vacuum_entity_id=vacuum_entity_id,
+                        map_id=map_id_str,
+                    )
+                except Exception:
+                    _LOGGER.exception(
+                        "eufy_vacuum: job-progress tick failed for %s/%s",
+                        vacuum_entity_id,
+                        map_id_str,
+                    )
+                    continue
+
+                hass.bus.async_fire(
+                    EVENT_JOB_PROGRESS_TICK,
+                    {
+                        "vacuum_entity_id": vacuum_entity_id,
+                        "map_id": map_id_str,
+                    },
+                )
+
+    unsub = async_track_time_interval(
+        hass,
+        _handle_job_progress_tick,
+        timedelta(seconds=5),
+    )
+    domain_data[_JOB_PROGRESS_UNSUBS] = [unsub]
+
+
 def _register_path_blocker_listeners(hass: HomeAssistant) -> None:
     """Watch blocker entities during active jobs and fire path-blocked events."""
     _remove_path_blocker_listeners(hass)
@@ -909,6 +1027,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     battery_manager.start(manager.get_known_vacuum_ids())
     hass.data[DOMAIN][DATA_BATTERY] = battery_manager
 
+    # Active-run error tracker. Wires state-change listeners on each
+    # vacuum's error_message + vacuum entity, latches errors, persists
+    # them across restarts. The two error sensors and the
+    # active_run_has_error binary sensor read from this tracker.
+    error_tracker = ErrorTracker(hass, runtime_manager=manager)
+    error_tracker.start(manager.get_known_vacuum_ids())
+    hass.data[DOMAIN][DATA_ERROR_TRACKER] = error_tracker
+
     async def _handle_rebaseline(call: ServiceCall) -> None:
         vacuum_entity_id = call.data["vacuum_entity_id"]
         bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
@@ -958,6 +1084,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_dock_event_listeners(hass)
     _register_path_blocker_listeners(hass)
     _register_pause_timeout_listener(hass)
+    _register_job_progress_listener(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -1007,6 +1134,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _remove_dock_event_listeners(hass)
         _remove_path_blocker_listeners(hass)
         _remove_pause_timeout_listener(hass)
+        _remove_job_progress_listener(hass)
 
         await async_unregister_mapping_services(hass)
         await async_unregister_learning_services(hass)
@@ -1024,6 +1152,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 battery_manager.stop()
             except Exception:  # pragma: no cover
                 _LOGGER.exception("Failed to stop battery health manager")
+        error_tracker = domain_data.pop(DATA_ERROR_TRACKER, None)
+        if error_tracker is not None:
+            try:
+                error_tracker.stop()
+            except Exception:  # pragma: no cover
+                _LOGGER.exception("Failed to stop error tracker")
         domain_data.pop(DATA_RUNTIME, None)
         domain_data.pop(DATA_LEARNING, None)
 

@@ -2173,6 +2173,61 @@ class EufyVacuumManager:
         slack_minutes = min(slack_minutes, max(4.0, estimated_minutes * 0.35))
         return round(estimated_minutes + slack_minutes, 2)
 
+    # Floor on elapsed-cleaning time before the mapping tracker's
+    # fast-rollover signal is acted on. Calibrated to the smallest room
+    # in a representative install with no floor blockers — anything
+    # finished faster than this is much more likely a transit through
+    # the room than a genuine clean. The tracker's own time/movement-
+    # factor model already filters most noise; this is a final floor.
+    _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER = 1.5  # 90 s
+
+    def _robot_outside_room_bounds(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        room_id: int,
+    ) -> bool | None:
+        """Return True/False if the robot's current position is outside the
+        room's learned bounds, or None when either the position or the
+        bounds aren't available (caller should treat as "unknown" — neither
+        triggers nor blocks rollover).
+        """
+        pos = self._get_robot_position(vacuum_entity_id)
+        if pos is None:
+            return None
+
+        mapping_manager = self.hass.data.get(DOMAIN, {}).get("mapping_manager")
+        if mapping_manager is None:
+            return None
+
+        try:
+            bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+            )
+        except Exception:
+            _LOGGER.debug(
+                "EufyManager: bounds snapshot fetch failed (vacuum=%s room=%s)",
+                vacuum_entity_id, room_id,
+            )
+            return None
+
+        room_bounds = (
+            bounds_snapshot.get("rooms", {})
+            .get(str(room_id), {})
+            .get("bounds")
+        )
+        if room_bounds is None:
+            return None
+
+        vx, vy = pos
+        inside = (
+            room_bounds["min_x"] <= vx <= room_bounds["max_x"]
+            and room_bounds["min_y"] <= vy <= room_bounds["max_y"]
+        )
+        return not inside
+
     def _maybe_roll_current_room_by_timing(
         self,
         *,
@@ -2184,7 +2239,22 @@ class EufyVacuumManager:
         current_room_elapsed_minutes: float,
         completed_room_ids: list[int],
     ) -> dict[str, Any]:
-        """Advance one room when elapsed time strongly suggests rollover."""
+        """Advance one room when elapsed time + bounds together justify rollover.
+
+        Two paths:
+          - **Slow room**: timing has reached or exceeded the per-room
+            learned threshold AND the robot has left the room's bounds
+            (single-sample bounds check — we already waited for timing).
+            Fires ``EVENT_ROOM_FINISHED`` with ``source="timing_rollover"``.
+          - **Fast room**: the mapping tracker's confidence model has
+            decided the robot finished and exited the room (set via the
+            ``_pending_fast_rollover`` flag on active_job — see
+            ``MappingTracker._signal_fast_rollover``). The tracker's
+            time-in-room × movement-count threshold filters doorway
+            transits; we additionally require ``elapsed >=
+            _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER`` as a final floor.
+            Fires ``EVENT_ROOM_FINISHED`` with ``source="bounds_exit_early"``.
+        """
         if active_job.get("status") != "started":
             return active_job
         if current_room_id is None:
@@ -2214,40 +2284,45 @@ class EufyVacuumManager:
             return active_job
 
         threshold_minutes = self._timing_completion_threshold_minutes(current_room)
-        if current_room_elapsed_minutes < threshold_minutes:
-            return active_job
+        elapsed = current_room_elapsed_minutes
 
-        # Require the robot to have physically left before marking the room
-        # complete — a slow run should not roll over while still inside.
-        # When bounds are unavailable (room not yet learned), timing alone wins.
-        pos = self._get_robot_position(vacuum_entity_id)
-        if pos is not None:
-            mapping_manager = self.hass.data.get(DOMAIN, {}).get("mapping_manager")
-            if mapping_manager is not None:
-                try:
-                    bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
-                        vacuum_entity_id=vacuum_entity_id,
-                        map_id=str(map_id),
-                    )
-                    room_bounds = bounds_snapshot.get("rooms", {}).get(
-                        str(current_room_id), {}
-                    ).get("bounds")
-                    if room_bounds is not None:
-                        vx, vy = pos
-                        still_inside = (
-                            room_bounds["min_x"] <= vx <= room_bounds["max_x"]
-                            and room_bounds["min_y"] <= vy <= room_bounds["max_y"]
-                        )
-                        if still_inside:
-                            # Robot hasn't left yet — room is just running long.
-                            return active_job
-                except Exception:
-                    _LOGGER.debug(
-                        "EufyManager: bounds check failed during timing rollover "
-                        "(vacuum=%s room=%s) — falling back to timing only",
-                        vacuum_entity_id,
-                        current_room_id,
-                    )
+        if elapsed < threshold_minutes:
+            # Fast-room path: only the mapping tracker's confidence
+            # signal can advance us before the timing threshold. The
+            # signal lives on active_job as _pending_fast_rollover and
+            # is consumed (popped) when we act on it.
+            pending = active_job.get("_pending_fast_rollover")
+            if not isinstance(pending, dict):
+                return active_job
+            try:
+                signalled_room_id = int(pending.get("room_id"))
+            except (TypeError, ValueError):
+                signalled_room_id = None
+            if signalled_room_id != current_room_id:
+                # Stale signal for a room the queue has already moved
+                # past — leave it; the next confident exit overwrites.
+                return active_job
+            if elapsed < self._MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER:
+                return active_job
+
+            # Consume the signal so it can't trigger again on the next tick.
+            active_job.pop("_pending_fast_rollover", None)
+            rollover_source = "bounds_exit_early"
+        else:
+            # Slow-room path: timing has reached threshold; require the
+            # robot to be outside bounds before allowing rollover. A
+            # single sample is sufficient here because the room already
+            # ran long — we're confirming completion, not detecting it.
+            # When bounds are unavailable, timing alone wins (matches
+            # pre-existing behaviour).
+            outside = self._robot_outside_room_bounds(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                room_id=current_room_id,
+            )
+            if outside is False:
+                return active_job
+            rollover_source = "timing_rollover"
 
         completed_at = _iso_now()
         room_name = self._room_name_from_active_job(active_job, current_room_id)
@@ -2259,7 +2334,7 @@ class EufyVacuumManager:
             room_name=room_name,
             actual_duration_minutes=current_room_elapsed_minutes,
             completed_at=completed_at,
-            source="timing_rollover",
+            source=rollover_source,
             confidence=confidence_score if confidence_score > 0 else None,
         )
 
@@ -2272,7 +2347,7 @@ class EufyVacuumManager:
                 "room_id": str(current_room_id),
                 "room_name": room_name,
                 "completed_at": completed_at,
-                "source": "timing_rollover",
+                "source": rollover_source,
                 "actual_duration_minutes": round(current_room_elapsed_minutes, 2),
                 "confidence": round(confidence_score, 4) if confidence_score > 0 else None,
                 "completed_room_ids": updated_active_job.get("completed_room_ids", []),
@@ -2290,7 +2365,7 @@ class EufyVacuumManager:
                     "room_id": str(next_room_id),
                     "room_name": self._room_name_from_active_job(updated_active_job, next_room_id),
                     "started_at": updated_active_job.get("current_room_started_at"),
-                    "source": "timing_rollover",
+                    "source": rollover_source,
                     "completed_room_ids": updated_active_job.get("completed_room_ids", []),
                 },
             )
@@ -6133,6 +6208,58 @@ class EufyVacuumManager:
             job_metadata=job_metadata,
         )
 
+        # Surface active-run error context. ErrorTracker holds the latch
+        # in memory (and in storage) — read directly without coupling to
+        # robovac_mqtt or duplicating the substring logic. None of the
+        # fields below are populated when no active job is in flight or
+        # when the run hasn't seen any errors yet.
+        from ..const import DATA_ERROR_TRACKER as _DATA_ERROR_TRACKER
+
+        error_tracker = self.hass.data.get(DOMAIN, {}).get(
+            _DATA_ERROR_TRACKER
+        )
+        active_run_latch: dict[str, Any] | None = None
+        if error_tracker is not None:
+            try:
+                active_run_latch = error_tracker.get_active_run_latch(
+                    vacuum_entity_id
+                )
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.debug(
+                    "get_lifecycle_state: error_tracker read failed",
+                    exc_info=True,
+                )
+
+        # Override the generic vacuum_busy / similar lifecycle message
+        # with the actual error string when an error is observed mid-run.
+        # Recovered-sticky mode uses a "had errors, last: …" framing so the
+        # UI can communicate that the vacuum kept going after the fault.
+        lifecycle_message = lifecycle["message"]
+        if isinstance(active_run_latch, dict):
+            error_count = int(active_run_latch.get("error_count") or 0)
+            if error_count > 0:
+                current_msg = active_run_latch.get("current_message") or ""
+                if current_msg:
+                    lifecycle_message = current_msg
+                else:
+                    # Derive from latest entry when current is blank
+                    # (recovered mid-run).
+                    entries = active_run_latch.get("errors") or []
+                    last_msg = (
+                        entries[-1].get("message")
+                        if entries and isinstance(entries[-1], dict)
+                        else None
+                    )
+                    if last_msg:
+                        lifecycle_message = (
+                            f"Run had {error_count} error(s); last: {last_msg}"
+                        )
+
+        has_error = bool(
+            isinstance(active_run_latch, dict)
+            and (active_run_latch.get("error_count") or 0) > 0
+        )
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -6147,10 +6274,27 @@ class EufyVacuumManager:
             "active_job_exists": active_job.get("status") in {"started", "paused"},
             "lifecycle_state": lifecycle["lifecycle_state"],
             "lifecycle_state_label": _display_label(lifecycle["lifecycle_state"]),
-            "message": lifecycle["message"],
+            "message": lifecycle_message,
             "blocking": lifecycle["blocking"],
             "job_metadata": lifecycle["job_metadata"],
             "warning": lifecycle.get("warning", False),
+            # Error tracking — None when no active-run latch exists.
+            "error_message": (
+                active_run_latch.get("current_message")
+                if isinstance(active_run_latch, dict)
+                else None
+            ) or None,
+            "has_error": has_error,
+            "error_count": (
+                int(active_run_latch.get("error_count") or 0)
+                if isinstance(active_run_latch, dict)
+                else 0
+            ),
+            "recovered": (
+                bool(active_run_latch.get("recovered"))
+                if isinstance(active_run_latch, dict)
+                else False
+            ),
         }
 
     def get_start_status(

@@ -531,25 +531,26 @@ class BatteryHealthManager:
         # Persist + notify. The append is offloaded to a worker thread because
         # _process_sample runs on the event loop (initial sync sample at setup
         # and the @callback state-change path) — direct file I/O here trips
-        # HA's blocking-call detector.
-        self._hass.async_create_task(
-            self._hass.async_add_executor_job(
-                partial(
-                    raw_store.append_sample,
-                    config_dir=self._config_dir,
-                    vacuum_entity_id=vacuum_entity_id,
-                    sample={
-                        "ts": ts.isoformat(),
-                        "battery_level": battery_level,
-                        "charging": charging,
-                        "delta_pct": delta_pct,
-                        "rate_per_min": (round(rate_per_min, 4) if rate_per_min is not None else None),
-                        "zone": zone,
-                        "drain_added": drain_added,
-                        "cycles": record.get("cycles"),
-                        "rejected_delta_pct": rejected_delta_pct,
-                    },
-                )
+        # HA's blocking-call detector. async_add_executor_job returns a Future
+        # that runs on the executor pool whether or not we hold the reference;
+        # we don't need to wrap it in async_create_task (which expects a
+        # coroutine and rejects Futures under Python 3.14).
+        self._hass.async_add_executor_job(
+            partial(
+                raw_store.append_sample,
+                config_dir=self._config_dir,
+                vacuum_entity_id=vacuum_entity_id,
+                sample={
+                    "ts": ts.isoformat(),
+                    "battery_level": battery_level,
+                    "charging": charging,
+                    "delta_pct": delta_pct,
+                    "rate_per_min": (round(rate_per_min, 4) if rate_per_min is not None else None),
+                    "zone": zone,
+                    "drain_added": drain_added,
+                    "cycles": record.get("cycles"),
+                    "rejected_delta_pct": rejected_delta_pct,
+                },
             )
         )
         self._schedule_save()
@@ -701,14 +702,14 @@ class BatteryHealthManager:
         vacuum_entity_id = self._lookup_vacuum_for_record(record)
         # Offloaded to worker thread — _close_session is reachable from sync
         # state-change callbacks, so direct CSV I/O would block the event loop.
-        self._hass.async_create_task(
-            self._hass.async_add_executor_job(
-                partial(
-                    raw_store.append_session,
-                    config_dir=self._config_dir,
-                    vacuum_entity_id=vacuum_entity_id,
-                    session=summary,
-                )
+        # async_create_task wrapping was a Python 3.14 TypeError (Task expects
+        # a coroutine, not a Future); the executor future runs regardless.
+        self._hass.async_add_executor_job(
+            partial(
+                raw_store.append_session,
+                config_dir=self._config_dir,
+                vacuum_entity_id=vacuum_entity_id,
+                session=summary,
             )
         )
 
