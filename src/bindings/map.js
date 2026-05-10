@@ -461,10 +461,10 @@ export function applyMapBindings(proto) {
     });
 
     // Room assignment chips. Optimistic local update + backend save
-    // via the new set_segment_room_link service. State and action live
-    // on different objects (state.assignSegmentRoom is local-only;
-    // card.setSegmentRoomLink is the persistence call), so the binding
-    // orchestrates both.
+    // via the new set_segment_room_link service. State and action
+    // live on different objects (state.assignSegmentRoom is
+    // local-only; card._actions.setSegmentRoomLink persists), so the
+    // binding orchestrates both.
     root.querySelectorAll("[data-action='assign-segment-room']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const segId  = btn.dataset.segmentId;
@@ -477,10 +477,10 @@ export function applyMapBindings(proto) {
 
         if (current != null && String(current) === String(roomId)) {
           state.unassignSegmentRoom(segId);
-          if (mapId) this.card.setSegmentRoomLink(mapId, segId, null);
+          if (mapId) this.card._actions?.setSegmentRoomLink?.(mapId, segId, null);
         } else {
           state.assignSegmentRoom(segId, roomId);
-          if (mapId) this.card.setSegmentRoomLink(mapId, segId, roomId);
+          if (mapId) this.card._actions?.setSegmentRoomLink?.(mapId, segId, roomId);
         }
         this.card._scheduleRender();
       });
@@ -604,11 +604,14 @@ export function applyMapBindings(proto) {
           el.removeEventListener("pointercancel", finish);
           el.classList.remove("evcc-map-animal--dragging");
           // Optimistic local update + backend save (same orchestration
-          // pattern as assign-segment-room — state has no card ref).
+          // pattern as assign-segment-room — state has no card ref,
+          // and actions live on card._actions).
           this.card._state.setRoomDotAnchor?.(anchorKey, livePctX, livePctY);
           const mapId = this.card._state.mapSegmentsData()?.map_id;
           if (mapId && anchorKey != null) {
-            this.card.setCompanionAnchor(mapId, anchorKey, livePctX, livePctY);
+            this.card._actions?.setCompanionAnchor?.(
+              mapId, anchorKey, livePctX, livePctY,
+            );
           }
           this.card._scheduleRender();
         };
