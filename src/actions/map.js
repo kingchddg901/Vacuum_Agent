@@ -16,7 +16,11 @@ import {
 export function applyMapActions(proto) {
 
   /**
-   * Fetch map segments and store the result in state.
+   * Fetch map segments and store the result in state. Also drives the
+   * one-time legacy-localStorage migration for the two map UI overlays
+   * (segment_room_links, companion_anchors). The migration runs here
+   * (not in state) because state has no back-reference to call services.
+   *
    * @param {string} mapId
    */
   proto.getMapSegments = async function (mapId) {
@@ -31,7 +35,71 @@ export function applyMapActions(proto) {
     );
 
     const data = result?.response ?? result ?? null;
-    if (data != null) this.state.setMapSegmentsData(data);
+    if (data == null) return;
+    this.state.setMapSegmentsData(data);
+
+    // Legacy migration. Runs every fetch but bails fast if there's
+    // nothing in localStorage. Push only entries the backend doesn't
+    // already know about, then clear the legacy key.
+    try {
+      await this._migrateLegacyMapOverlays(mapId, data);
+    } catch (err) {
+      console.warn("[evcc] map overlay migration failed", err);
+    }
+  };
+
+  /**
+   * One-time push of any legacy localStorage map overlays into backend
+   * storage. Called from getMapSegments after the segments payload
+   * lands so we can compare against backend-known links and skip
+   * already-migrated entries.
+   */
+  proto._migrateLegacyMapOverlays = async function (mapId, segmentsPayload) {
+    const state = this.state;
+
+    // -- Segment-room links --
+    const legacyLinks = state.getLegacySegmentRoomLinks?.();
+    if (legacyLinks && Object.keys(legacyLinks).length > 0) {
+      const backendLinks = new Set();
+      for (const seg of segmentsPayload?.segments || []) {
+        if (seg && seg.room_id != null) {
+          backendLinks.add(String(seg.segment_id));
+        }
+      }
+      let pushed = 0;
+      for (const [segId, roomId] of Object.entries(legacyLinks)) {
+        if (backendLinks.has(String(segId))) continue;
+        await this.setSegmentRoomLink(mapId, segId, roomId);
+        pushed += 1;
+      }
+      state.clearLegacySegmentRoomLinks?.();
+      if (pushed > 0 && console?.info) {
+        console.info(
+          `[evcc] Migrated ${pushed} segment-room link(s) from localStorage to backend.`
+        );
+      }
+    }
+
+    // -- Companion anchors --
+    const legacyAnchors = state.getLegacyDotAnchors?.();
+    if (legacyAnchors && Object.keys(legacyAnchors).length > 0) {
+      const backendAnchors = segmentsPayload?.companion_anchors || {};
+      let pushed = 0;
+      for (const [roomId, val] of Object.entries(legacyAnchors)) {
+        if (backendAnchors[roomId]) continue;
+        const pct_x = val?.pct_x;
+        const pct_y = val?.pct_y;
+        if (pct_x == null || pct_y == null) continue;
+        await this.setCompanionAnchor(mapId, roomId, pct_x, pct_y);
+        pushed += 1;
+      }
+      state.clearLegacyDotAnchors?.();
+      if (pushed > 0 && console?.info) {
+        console.info(
+          `[evcc] Migrated ${pushed} companion anchor(s) from localStorage to backend.`
+        );
+      }
+    }
   };
 
   /**

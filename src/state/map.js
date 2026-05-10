@@ -53,13 +53,9 @@ export function applyMapState(proto) {
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
     }
-    // One-time migration of legacy localStorage on the FIRST payload
-    // with a real map_id. Idempotent across reloads — both helpers
-    // bail if localStorage is empty.
-    if (data?.map_id) {
-      this._migrateLegacySegmentRoomLinks();
-      this._migrateLegacyDotAnchors();
-    }
+    // Legacy localStorage migration is driven by the action layer
+    // (`getMapSegments` in actions/map.js) — state has no card
+    // back-reference for service calls.
   };
 
   proto.mapSegments = function () {
@@ -158,68 +154,28 @@ export function applyMapState(proto) {
   };
 
   /**
-   * One-time migration: if browser localStorage has segment-room links
-   * from an older card version AND the backend hasn't been told about
-   * them yet, push each entry through the service and clear the
-   * legacy key. Idempotent across reloads (the second call sees an
-   * empty localStorage and bails).
+   * Read legacy localStorage segment-room links if any exist. Returns
+   * a plain `{segment_id: room_id}` dict, or null if nothing's stored.
    *
-   * Called from setMapSegmentsData when fresh segments arrive — that's
-   * also when we have an authoritative view of which links the backend
-   * already knows about, so the comparison is accurate.
+   * The actual migration (push to backend + clear localStorage) lives
+   * in the action layer (`getMapSegments` in actions/map.js) — state
+   * has no card back-reference for service calls. This helper just
+   * surfaces the data; the action drives the round-trip.
    */
-  proto._migrateLegacySegmentRoomLinks = function () {
-    let raw;
+  proto.getLegacySegmentRoomLinks = function () {
     try {
-      raw = localStorage.getItem(this._segRoomLegacyKey());
+      const raw = localStorage.getItem(this._segRoomLegacyKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed;
     } catch (_) {
-      return;
+      return null;
     }
-    if (!raw) return;
+  };
 
-    let legacy;
-    try {
-      legacy = JSON.parse(raw);
-    } catch (_) {
-      return;
-    }
-    if (!legacy || typeof legacy !== "object") return;
-
-    // Build the set of links the backend already knows about, from the
-    // freshly-loaded segments payload.
-    const backendLinks = new Set();
-    for (const seg of (this._mapSegmentsData?.segments) || []) {
-      if (seg && seg.room_id != null) backendLinks.add(String(seg.segment_id));
-    }
-
-    const mapId = this._mapSegmentsData?.map_id;
-    if (!mapId) return;
-
-    // Push each legacy link the backend doesn't have. Fire-and-forget
-    // is fine — the entire migration is best-effort, and any failure
-    // means the user's link is preserved in localStorage for the next
-    // attempt.
-    let pushed = 0;
-    for (const [segId, roomId] of Object.entries(legacy)) {
-      if (backendLinks.has(String(segId))) continue;
-      try {
-        this.card?.setSegmentRoomLink?.(mapId, segId, roomId);
-        pushed += 1;
-      } catch (_) {}
-    }
-
-    // Clear localStorage regardless of pushed count — if everything
-    // was already in the backend, we're done; otherwise the next
-    // setMapSegmentsData will see backend-confirmed links.
-    try {
-      localStorage.removeItem(this._segRoomLegacyKey());
-    } catch (_) {}
-
-    if (pushed > 0 && console?.info) {
-      console.info(
-        `[evcc] Migrated ${pushed} segment-room link(s) from localStorage to backend.`
-      );
-    }
+  proto.clearLegacySegmentRoomLinks = function () {
+    try { localStorage.removeItem(this._segRoomLegacyKey()); } catch (_) {}
   };
 
   proto.roomIdForSegment = function (segmentId) {
@@ -248,10 +204,11 @@ export function applyMapState(proto) {
   };
 
   /**
-   * Assign a segment to a room. Optimistic local update + backend
-   * service call. The local overlay covers the round-trip; once the
-   * service responds and the next setMapSegmentsData arrives with
-   * the link baked into the segment payload, the overlay is cleared.
+   * Optimistic local update. The binding fires the backend service
+   * call right after this returns — state has no card back-reference,
+   * so the persistence side is orchestrated from the binding layer
+   * (where both `card._state` and `card.setSegmentRoomLink` are
+   * available).
    */
   proto.assignSegmentRoom = function (segmentId, roomId) {
     const segId = String(segmentId);
@@ -262,19 +219,10 @@ export function applyMapState(proto) {
       if (r === rId && s !== segId) overlay.delete(s);
     }
     overlay.set(segId, rId);
-    const mapId = this._mapSegmentsData?.map_id;
-    if (mapId) {
-      try { this.card?.setSegmentRoomLink?.(mapId, segId, rId); } catch (_) {}
-    }
   };
 
   proto.unassignSegmentRoom = function (segmentId) {
-    const segId = String(segmentId);
-    this._ensureSegmentRoomOverlay().delete(segId);
-    const mapId = this._mapSegmentsData?.map_id;
-    if (mapId) {
-      try { this.card?.setSegmentRoomLink?.(mapId, segId, null); } catch (_) {}
-    }
+    this._ensureSegmentRoomOverlay().delete(String(segmentId));
   };
 
   proto.configSelectedSegment = function () {
@@ -379,52 +327,25 @@ export function applyMapState(proto) {
   };
 
   /**
-   * One-time migration: push any legacy localStorage anchors to the
-   * backend on the first segments payload load, then clear the local
-   * key. Idempotent across reloads.
+   * Surface legacy localStorage anchors so the action layer can push
+   * them to the backend. Returns `{room_id: {pct_x, pct_y}}` or null.
+   * State has no card back-reference, so the migration round-trip is
+   * orchestrated by `getMapSegments` in actions/map.js.
    */
-  proto._migrateLegacyDotAnchors = function () {
-    let raw;
+  proto.getLegacyDotAnchors = function () {
     try {
-      raw = localStorage.getItem(this._dotAnchorLegacyKey());
+      const raw = localStorage.getItem(this._dotAnchorLegacyKey());
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") return null;
+      return parsed;
     } catch (_) {
-      return;
+      return null;
     }
-    if (!raw) return;
+  };
 
-    let legacy;
-    try {
-      legacy = JSON.parse(raw);
-    } catch (_) {
-      return;
-    }
-    if (!legacy || typeof legacy !== "object") return;
-
-    const backendAnchors = this._mapSegmentsData?.companion_anchors || {};
-    const mapId = this._mapSegmentsData?.map_id;
-    if (!mapId) return;
-
-    let pushed = 0;
-    for (const [roomId, val] of Object.entries(legacy)) {
-      if (backendAnchors[roomId]) continue;
-      const pct_x = val?.pct_x;
-      const pct_y = val?.pct_y;
-      if (pct_x == null || pct_y == null) continue;
-      try {
-        this.card?.setCompanionAnchor?.(mapId, roomId, pct_x, pct_y);
-        pushed += 1;
-      } catch (_) {}
-    }
-
-    try {
-      localStorage.removeItem(this._dotAnchorLegacyKey());
-    } catch (_) {}
-
-    if (pushed > 0 && console?.info) {
-      console.info(
-        `[evcc] Migrated ${pushed} companion anchor(s) from localStorage to backend.`
-      );
-    }
+  proto.clearLegacyDotAnchors = function () {
+    try { localStorage.removeItem(this._dotAnchorLegacyKey()); } catch (_) {}
   };
 
   proto.roomDotAnchor = function (roomId) {
@@ -438,15 +359,13 @@ export function applyMapState(proto) {
     return fromBackend ?? null;
   };
 
+  /**
+   * Optimistic local update. Binding fires the backend save right
+   * after this returns.
+   */
   proto.setRoomDotAnchor = function (roomId, pct_x, pct_y) {
     const idStr = String(roomId);
     this._ensureDotAnchorOverlay().set(idStr, { pct_x, pct_y });
-    const mapId = this._mapSegmentsData?.map_id;
-    if (mapId) {
-      try {
-        this.card?.setCompanionAnchor?.(mapId, idStr, pct_x, pct_y);
-      } catch (_) {}
-    }
   };
 
   proto.isMapAnchorMode = function () { return this._mapAnchorMode; };

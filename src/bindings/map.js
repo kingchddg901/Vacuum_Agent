@@ -460,18 +460,27 @@ export function applyMapBindings(proto) {
       });
     });
 
-    // Room assignment chips
+    // Room assignment chips. Optimistic local update + backend save
+    // via the new set_segment_room_link service. State and action live
+    // on different objects (state.assignSegmentRoom is local-only;
+    // card.setSegmentRoomLink is the persistence call), so the binding
+    // orchestrates both.
     root.querySelectorAll("[data-action='assign-segment-room']").forEach((btn) => {
       btn.addEventListener("click", () => {
         const segId  = btn.dataset.segmentId;
         const roomId = btn.dataset.roomId;
         if (!segId || !roomId) return;
 
-        const current = this.card._state.roomIdForSegment(segId);
+        const state = this.card._state;
+        const current = state.roomIdForSegment(segId);
+        const mapId   = state.mapSegmentsData()?.map_id;
+
         if (current != null && String(current) === String(roomId)) {
-          this.card._state.unassignSegmentRoom(segId);
+          state.unassignSegmentRoom(segId);
+          if (mapId) this.card.setSegmentRoomLink(mapId, segId, null);
         } else {
-          this.card._state.assignSegmentRoom(segId, roomId);
+          state.assignSegmentRoom(segId, roomId);
+          if (mapId) this.card.setSegmentRoomLink(mapId, segId, roomId);
         }
         this.card._scheduleRender();
       });
@@ -594,7 +603,13 @@ export function applyMapBindings(proto) {
           el.removeEventListener("pointerup",     finish);
           el.removeEventListener("pointercancel", finish);
           el.classList.remove("evcc-map-animal--dragging");
+          // Optimistic local update + backend save (same orchestration
+          // pattern as assign-segment-room — state has no card ref).
           this.card._state.setRoomDotAnchor?.(anchorKey, livePctX, livePctY);
+          const mapId = this.card._state.mapSegmentsData()?.map_id;
+          if (mapId && anchorKey != null) {
+            this.card.setCompanionAnchor(mapId, anchorKey, livePctX, livePctY);
+          }
           this.card._scheduleRender();
         };
 
