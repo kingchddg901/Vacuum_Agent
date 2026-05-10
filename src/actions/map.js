@@ -1,10 +1,16 @@
-// Service wrappers for map segment reads, image analysis/upload, and segment adjustment.
+// Service wrappers for map segment reads, image analysis/upload, segment
+// adjustment, and the two backend-persisted UI overlays (segment→room
+// links + companion anchors). The overlay services replaced
+// browser-localStorage storage so the same configuration follows the
+// user across browsers and devices.
 import {
   DOMAIN,
   SERVICE_GET_MAP_SEGMENTS,
   SERVICE_ANALYZE_MAP_IMAGE,
   SERVICE_UPLOAD_MAP_IMAGE,
   SERVICE_ADJUST_MAP_SEGMENT,
+  SERVICE_SET_SEGMENT_ROOM_LINK,
+  SERVICE_SET_COMPANION_ANCHOR,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
@@ -71,5 +77,54 @@ export function applyMapActions(proto) {
       undefined,
       true,
     );
+  };
+
+  /**
+   * Persist (or clear) the segment→room link on the backend. Pass null
+   * for roomId to clear the existing link. Returns the full updated
+   * mapping so callers can sync local state without a refetch.
+   */
+  proto.setSegmentRoomLink = async function (mapId, segmentId, roomId) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId || !segmentId) return null;
+
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_SEGMENT_ROOM_LINK,
+      {
+        vacuum_entity_id: vacuum,
+        map_id: mapId,
+        segment_id: segmentId,
+        room_id: roomId == null ? null : String(roomId),
+      },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Persist (or clear) the per-room companion sprite anchor. Pass null
+   * for both pct_x and pct_y to clear. pct values are 0-100. Returns
+   * the full updated anchors map.
+   */
+  proto.setCompanionAnchor = async function (mapId, roomId, pctX, pctY) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId || roomId == null) return null;
+
+    const payload = {
+      vacuum_entity_id: vacuum,
+      map_id: mapId,
+      room_id: String(roomId),
+    };
+    if (pctX != null) payload.pct_x = Number(pctX);
+    if (pctY != null) payload.pct_y = Number(pctY);
+
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_COMPANION_ANCHOR,
+      payload,
+      true,
+    );
+    return result?.response ?? result ?? null;
   };
 }

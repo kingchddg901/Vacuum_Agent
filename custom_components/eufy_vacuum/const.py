@@ -105,6 +105,15 @@ SERVICE_ANALYZE_MAP_IMAGE = "analyze_map_image"
 SERVICE_GET_MAP_SEGMENTS = "get_map_segments"
 SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"
 
+# Map UI overlay state — segment↔room linkage and companion anchor
+# positions. Both used to live in browser localStorage; moved to backend
+# storage so a single configuration persists across browsers and devices.
+# Stored on the per-map bucket as `segment_room_links` and
+# `companion_anchors`; ride along on every analyze_map_image /
+# get_map_segments response.
+SERVICE_SET_SEGMENT_ROOM_LINK = "set_segment_room_link"
+SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
+
 # ----------------------
 # Theme services
 # ----------------------

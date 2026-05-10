@@ -39,10 +39,26 @@ export function applyMapState(proto) {
     const oldMapId = this._mapSegmentsData?.map_id;
     this._mapSegmentsData = data;
     if (data?.map_id !== oldMapId) {
-      this._segmentRoomMap = null;
-      this._mapRoomDotAnchors = null;
+      // Reset overlays when the active map changes — what was true for
+      // the old map's segments has nothing to do with the new map's.
+      this._segmentRoomOverlay = null;
+      this._dotAnchorOverlay = null;
       this._mapAnchorMode = false;
       this.resetMapTransform();
+    } else {
+      // Same map, fresh data — the backend's authoritative state has
+      // landed. Drop any optimistic overlay entries the user clicked
+      // since the last fetch; they're either now reflected in the
+      // backend payload or were rejected (rare; the action would log).
+      this._segmentRoomOverlay = null;
+      this._dotAnchorOverlay = null;
+    }
+    // One-time migration of legacy localStorage on the FIRST payload
+    // with a real map_id. Idempotent across reloads — both helpers
+    // bail if localStorage is empty.
+    if (data?.map_id) {
+      this._migrateLegacySegmentRoomLinks();
+      this._migrateLegacyDotAnchors();
     }
   };
 
@@ -123,75 +139,142 @@ export function applyMapState(proto) {
      Stored in localStorage per vacuum+map combination.
      ========================================================= */
 
-  proto._segmentRoomMap = null;
+  // Local optimistic-update overlay on top of the backend's canonical
+  // segment_room_links map. Each segment payload from the backend
+  // already carries its `room_id` field when linked; this Map only
+  // exists so a freshly-clicked link is visible before the service
+  // round-trip resolves. Cleared whenever fresh segments arrive.
+  proto._segmentRoomOverlay = null;
 
-  proto._segRoomStorageKey = function () {
+  proto._segRoomLegacyKey = function () {
     const mapId = this._mapSegmentsData?.map_id ?? "unknown";
     const vacId = vacuumObjectId(this.config?.vacuum ?? "");
     return `evcc_seg_rooms_${vacId}_${mapId}`;
   };
 
-  proto._loadSegmentRooms = function () {
-    if (this._segmentRoomMap) return;
-    this._segmentRoomMap = new Map();
-    try {
-      const stored = localStorage.getItem(this._segRoomStorageKey());
-      if (stored) {
-        Object.entries(JSON.parse(stored)).forEach(([k, v]) =>
-          this._segmentRoomMap.set(k, v)
-        );
-      }
-    } catch (_) {}
+  proto._ensureSegmentRoomOverlay = function () {
+    if (!this._segmentRoomOverlay) this._segmentRoomOverlay = new Map();
+    return this._segmentRoomOverlay;
   };
 
-  proto._saveSegmentRooms = function () {
+  /**
+   * One-time migration: if browser localStorage has segment-room links
+   * from an older card version AND the backend hasn't been told about
+   * them yet, push each entry through the service and clear the
+   * legacy key. Idempotent across reloads (the second call sees an
+   * empty localStorage and bails).
+   *
+   * Called from setMapSegmentsData when fresh segments arrive — that's
+   * also when we have an authoritative view of which links the backend
+   * already knows about, so the comparison is accurate.
+   */
+  proto._migrateLegacySegmentRoomLinks = function () {
+    let raw;
     try {
-      localStorage.setItem(
-        this._segRoomStorageKey(),
-        JSON.stringify(Object.fromEntries(this._segmentRoomMap ?? []))
-      );
+      raw = localStorage.getItem(this._segRoomLegacyKey());
+    } catch (_) {
+      return;
+    }
+    if (!raw) return;
+
+    let legacy;
+    try {
+      legacy = JSON.parse(raw);
+    } catch (_) {
+      return;
+    }
+    if (!legacy || typeof legacy !== "object") return;
+
+    // Build the set of links the backend already knows about, from the
+    // freshly-loaded segments payload.
+    const backendLinks = new Set();
+    for (const seg of (this._mapSegmentsData?.segments) || []) {
+      if (seg && seg.room_id != null) backendLinks.add(String(seg.segment_id));
+    }
+
+    const mapId = this._mapSegmentsData?.map_id;
+    if (!mapId) return;
+
+    // Push each legacy link the backend doesn't have. Fire-and-forget
+    // is fine — the entire migration is best-effort, and any failure
+    // means the user's link is preserved in localStorage for the next
+    // attempt.
+    let pushed = 0;
+    for (const [segId, roomId] of Object.entries(legacy)) {
+      if (backendLinks.has(String(segId))) continue;
+      try {
+        this.card?.setSegmentRoomLink?.(mapId, segId, roomId);
+        pushed += 1;
+      } catch (_) {}
+    }
+
+    // Clear localStorage regardless of pushed count — if everything
+    // was already in the backend, we're done; otherwise the next
+    // setMapSegmentsData will see backend-confirmed links.
+    try {
+      localStorage.removeItem(this._segRoomLegacyKey());
     } catch (_) {}
+
+    if (pushed > 0 && console?.info) {
+      console.info(
+        `[evcc] Migrated ${pushed} segment-room link(s) from localStorage to backend.`
+      );
+    }
   };
 
   proto.roomIdForSegment = function (segmentId) {
-    this._loadSegmentRooms();
+    const segIdStr = String(segmentId);
+    // Backend payload is canonical when present.
     const seg = this.mapSegments().find(
-      (s) => String(s.segment_id) === String(segmentId)
+      (s) => String(s.segment_id) === segIdStr
     );
     if (seg?.room_id != null) return String(seg.room_id);
-    return this._segmentRoomMap.get(String(segmentId)) ?? null;
+    // Optimistic overlay covers the gap between user click and backend ack.
+    return this._segmentRoomOverlay?.get(segIdStr) ?? null;
   };
 
   proto.segmentIdForRoom = function (roomId) {
-    this._loadSegmentRooms();
+    const roomStr = String(roomId);
     const fromBackend = this.mapSegments().find(
-      (s) => s.room_id != null && String(s.room_id) === String(roomId)
+      (s) => s.room_id != null && String(s.room_id) === roomStr
     );
     if (fromBackend) return String(fromBackend.segment_id);
-    for (const [segId, rId] of this._segmentRoomMap) {
-      if (rId === String(roomId)) return segId;
+    if (this._segmentRoomOverlay) {
+      for (const [segId, rId] of this._segmentRoomOverlay) {
+        if (rId === roomStr) return segId;
+      }
     }
     return null;
   };
 
+  /**
+   * Assign a segment to a room. Optimistic local update + backend
+   * service call. The local overlay covers the round-trip; once the
+   * service responds and the next setMapSegmentsData arrives with
+   * the link baked into the segment payload, the overlay is cleared.
+   */
   proto.assignSegmentRoom = function (segmentId, roomId) {
-    this._loadSegmentRooms();
     const segId = String(segmentId);
     const rId   = String(roomId);
-    for (const [s, r] of this._segmentRoomMap) {
-      if (r === rId && s !== segId) {
-        this._segmentRoomMap.delete(s);
-        break;
-      }
+    const overlay = this._ensureSegmentRoomOverlay();
+    // Enforce 1:1 in the overlay too (matches backend's enforcement).
+    for (const [s, r] of overlay) {
+      if (r === rId && s !== segId) overlay.delete(s);
     }
-    this._segmentRoomMap.set(segId, rId);
-    this._saveSegmentRooms();
+    overlay.set(segId, rId);
+    const mapId = this._mapSegmentsData?.map_id;
+    if (mapId) {
+      try { this.card?.setSegmentRoomLink?.(mapId, segId, rId); } catch (_) {}
+    }
   };
 
   proto.unassignSegmentRoom = function (segmentId) {
-    this._loadSegmentRooms();
-    this._segmentRoomMap.delete(String(segmentId));
-    this._saveSegmentRooms();
+    const segId = String(segmentId);
+    this._ensureSegmentRoomOverlay().delete(segId);
+    const mapId = this._mapSegmentsData?.map_id;
+    if (mapId) {
+      try { this.card?.setSegmentRoomLink?.(mapId, segId, null); } catch (_) {}
+    }
   };
 
   proto.configSelectedSegment = function () {
@@ -267,49 +350,103 @@ export function applyMapState(proto) {
   };
 
   /* =========================================================
-     DOT ANCHOR — per room, persisted per vacuum + map
+     DOT ANCHOR — per room, backend-persisted
      =========================================================
      Anchor is a pct position (0-100 space) for where the
      presence dot renders when the robot is in that room.
      Defaults to polygon centroid (computed in renderer).
+
+     Storage moved from browser localStorage to the backend
+     so anchors follow the user across browsers and devices.
+     The card reads the canonical map from
+     `_mapSegmentsData.companion_anchors` (which the backend
+     enriches into the segments response). An optimistic
+     overlay covers the user-click → service-ack window.
      ========================================================= */
 
-  proto._mapRoomDotAnchors = null;
-  proto._mapAnchorMode     = false;
+  proto._dotAnchorOverlay = null;
+  proto._mapAnchorMode    = false;
 
-  proto._dotAnchorKey = function () {
+  proto._dotAnchorLegacyKey = function () {
     const mapId = this._mapSegmentsData?.map_id ?? "unknown";
     const vacId = vacuumObjectId(this.config?.vacuum ?? "");
     return `evcc_dot_anchors_${vacId}_${mapId}`;
   };
 
-  proto._loadDotAnchors = function () {
-    if (this._mapRoomDotAnchors) return;
-    this._mapRoomDotAnchors = new Map();
+  proto._ensureDotAnchorOverlay = function () {
+    if (!this._dotAnchorOverlay) this._dotAnchorOverlay = new Map();
+    return this._dotAnchorOverlay;
+  };
+
+  /**
+   * One-time migration: push any legacy localStorage anchors to the
+   * backend on the first segments payload load, then clear the local
+   * key. Idempotent across reloads.
+   */
+  proto._migrateLegacyDotAnchors = function () {
+    let raw;
     try {
-      const raw = localStorage.getItem(this._dotAnchorKey());
-      if (raw) {
-        Object.entries(JSON.parse(raw)).forEach(([k, v]) =>
-          this._mapRoomDotAnchors.set(k, v)
-        );
-      }
+      raw = localStorage.getItem(this._dotAnchorLegacyKey());
+    } catch (_) {
+      return;
+    }
+    if (!raw) return;
+
+    let legacy;
+    try {
+      legacy = JSON.parse(raw);
+    } catch (_) {
+      return;
+    }
+    if (!legacy || typeof legacy !== "object") return;
+
+    const backendAnchors = this._mapSegmentsData?.companion_anchors || {};
+    const mapId = this._mapSegmentsData?.map_id;
+    if (!mapId) return;
+
+    let pushed = 0;
+    for (const [roomId, val] of Object.entries(legacy)) {
+      if (backendAnchors[roomId]) continue;
+      const pct_x = val?.pct_x;
+      const pct_y = val?.pct_y;
+      if (pct_x == null || pct_y == null) continue;
+      try {
+        this.card?.setCompanionAnchor?.(mapId, roomId, pct_x, pct_y);
+        pushed += 1;
+      } catch (_) {}
+    }
+
+    try {
+      localStorage.removeItem(this._dotAnchorLegacyKey());
     } catch (_) {}
+
+    if (pushed > 0 && console?.info) {
+      console.info(
+        `[evcc] Migrated ${pushed} companion anchor(s) from localStorage to backend.`
+      );
+    }
   };
 
   proto.roomDotAnchor = function (roomId) {
-    this._loadDotAnchors();
-    return this._mapRoomDotAnchors.get(String(roomId)) ?? null;
+    const idStr = String(roomId);
+    // Optimistic overlay covers click → ack window.
+    if (this._dotAnchorOverlay?.has(idStr)) {
+      return this._dotAnchorOverlay.get(idStr);
+    }
+    // Backend-canonical: rides along on the segments payload.
+    const fromBackend = this._mapSegmentsData?.companion_anchors?.[idStr];
+    return fromBackend ?? null;
   };
 
   proto.setRoomDotAnchor = function (roomId, pct_x, pct_y) {
-    this._loadDotAnchors();
-    this._mapRoomDotAnchors.set(String(roomId), { pct_x, pct_y });
-    try {
-      localStorage.setItem(
-        this._dotAnchorKey(),
-        JSON.stringify(Object.fromEntries(this._mapRoomDotAnchors)),
-      );
-    } catch (_) {}
+    const idStr = String(roomId);
+    this._ensureDotAnchorOverlay().set(idStr, { pct_x, pct_y });
+    const mapId = this._mapSegmentsData?.map_id;
+    if (mapId) {
+      try {
+        this.card?.setCompanionAnchor?.(mapId, idStr, pct_x, pct_y);
+      } catch (_) {}
+    }
   };
 
   proto.isMapAnchorMode = function () { return this._mapAnchorMode; };

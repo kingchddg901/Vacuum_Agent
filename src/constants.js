@@ -113,6 +113,13 @@ export const SERVICE_ANALYZE_MAP_IMAGE      = "analyze_map_image";
 export const SERVICE_GET_MAP_SEGMENTS       = "get_map_segments";
 export const SERVICE_ADJUST_MAP_SEGMENT     = "adjust_map_segment";
 
+// --- Map UI overlays (segment↔room links, companion anchors) ---
+// Backend-persisted equivalents of what used to live in browser
+// localStorage. Card writes through the service; reads ride along on
+// every analyze_map_image / get_map_segments response.
+export const SERVICE_SET_SEGMENT_ROOM_LINK  = "set_segment_room_link";
+export const SERVICE_SET_COMPANION_ANCHOR   = "set_companion_anchor";
+
 // --- Setup ---
 export const SERVICE_SETUP_GET_STATUS       = "setup_get_status";
 export const SERVICE_SETUP_ADD_VACUUM       = "setup_add_vacuum";

@@ -12,6 +12,7 @@
 #   Theme
 #   Battery health
 #   Error tracking
+#   Map UI overlay state
 #
 
 # ============================================================
@@ -1936,5 +1937,85 @@ get_recent_errors:
         number:
           min: 1
           max: 50
+          mode: box
+
+# ============================================================
+# MAP UI OVERLAY STATE
+# ============================================================
+
+set_segment_room_link:
+  name: Set segment-room link
+  description: >
+    Persist (or clear) the link between an image-detected map segment
+    and a managed room. Replaces the card's previous browser-localStorage
+    storage so the linkage survives across browsers and devices.
+    Pass a null/empty room_id to clear an existing link.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    segment_id:
+      name: Segment ID
+      description: e.g. "segment_4"
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      description: Pass null or omit to clear the link.
+      required: false
+      selector:
+        text: {}
+
+set_companion_anchor:
+  name: Set companion anchor
+  description: >
+    Persist (or clear) the per-room anchor position for the animated
+    companion sprite. pct_x/pct_y are 0-100 percentages from the map
+    image's top-left. Omit both to clear the anchor.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        text: {}
+    pct_x:
+      name: X position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
+          mode: box
+    pct_y:
+      name: Y position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
           mode: box
 

@@ -19,6 +19,8 @@ from ..const import (
     SERVICE_ADJUST_MAP_SEGMENT,
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
+    SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_UPLOAD_MAP_IMAGE,
 )
 from ..maps.map_manager import ensure_map_bucket
@@ -94,6 +96,9 @@ ALL_MAPPING_SERVICES = (
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_ADJUST_MAP_SEGMENT,
+    # Map UI overlay state (segment→room links, companion anchors)
+    SERVICE_SET_SEGMENT_ROOM_LINK,
+    SERVICE_SET_COMPANION_ANCHOR,
 )
 
 # ---------------------------------------------------------------------------
@@ -376,6 +381,27 @@ ADJUST_MAP_SEGMENT_SCHEMA = vol.Schema(
     }
 )
 
+SET_SEGMENT_ROOM_LINK_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("segment_id"): cv.string,
+        # Pass null / omit to clear the link.
+        vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
+    }
+)
+
+SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
+        # Pass null / omit pct_x AND pct_y to clear the anchor.
+        vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -643,6 +669,53 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     return result
 
 
+def _build_segments_response(map_bucket: dict) -> dict:
+    """Return the segments payload enriched with backend-stored overlays.
+
+    The base ``image_segments`` cache is what ``detect_room_segments``
+    produced — purely image-derived, no UI-side state. Two overlays live
+    alongside the cache and ride along on every read so the card never
+    has to make a second round-trip:
+
+    - ``segment_room_links`` — ``{segment_id: room_id}`` user-assigned
+      mapping. Each segment gets a ``room_id`` field populated when a
+      link exists.
+    - ``companion_anchors`` — ``{room_id: {pct_x, pct_y}}`` — per-room
+      anchor positions for the animated companion sprite.
+
+    The original ``image_segments`` cache is NOT mutated; this builds a
+    shallow-copied response. Keeps the cache pristine so re-analysis
+    starts from clean data.
+    """
+    base = map_bucket.get("image_segments") or {}
+    if not isinstance(base, dict):
+        return base
+    links = map_bucket.get("segment_room_links") or {}
+    anchors = map_bucket.get("companion_anchors") or {}
+    if not isinstance(links, dict):
+        links = {}
+    if not isinstance(anchors, dict):
+        anchors = {}
+
+    response = dict(base)
+    raw_segments = base.get("segments") or []
+    if isinstance(raw_segments, list) and links:
+        enriched: list[dict] = []
+        for seg in raw_segments:
+            if not isinstance(seg, dict):
+                enriched.append(seg)
+                continue
+            seg_id = str(seg.get("segment_id"))
+            linked_room = links.get(seg_id)
+            if linked_room is not None:
+                # Shallow copy + room_id injection. Original cache untouched.
+                seg = {**seg, "room_id": str(linked_room)}
+            enriched.append(seg)
+        response["segments"] = enriched
+    response["companion_anchors"] = dict(anchors)
+    return response
+
+
 async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> dict:
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     map_id: str = call.data["map_id"]
@@ -661,7 +734,7 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
 
     if not force_reanalyze and map_bucket.get("image_segments"):
         _LOGGER.debug("analyze_map_image: returning cached for %s map %s", vacuum_entity_id, map_id)
-        return map_bucket["image_segments"]
+        return _build_segments_response(map_bucket)
 
     # Prefer the variant recorded on upload; fall back to filesystem probe.
     variants: dict = map_bucket.get("image_variants") or {}
@@ -716,7 +789,10 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         "analyze_map_image: %s segments for %s map %s",
         len(result.get("segments", [])), vacuum_entity_id, map_id,
     )
-    return result
+    # Enrich with stored overlays before returning. Re-analysis preserves
+    # the user's segment_room_links and companion_anchors — they're
+    # independent of the image-derived segments.
+    return _build_segments_response(map_bucket)
 
 
 async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -753,6 +829,22 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
                 for x, y in px
             ]
 
+    # Enrich with backend-stored overlays (segment_room_links,
+    # companion_anchors) so this endpoint serves the same union of
+    # image-derived + UI-state data that analyze_map_image does. Card
+    # never has to make a second round-trip.
+    links = map_bucket.get("segment_room_links") or {}
+    if isinstance(links, dict) and links:
+        for seg in adjusted_segments:
+            if not isinstance(seg, dict):
+                continue
+            seg_id = str(seg.get("segment_id"))
+            linked_room = links.get(seg_id)
+            if linked_room is not None:
+                seg["room_id"] = str(linked_room)
+
+    anchors = map_bucket.get("companion_anchors") or {}
+
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
@@ -771,6 +863,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         },
         "segments": adjusted_segments,
         "adjustments": adjustments,
+        "companion_anchors": dict(anchors) if isinstance(anchors, dict) else {},
     }
 
 
@@ -847,6 +940,116 @@ async def _handle_adjust_map_segment(hass: HomeAssistant, call: ServiceCall) -> 
     }
 
 
+async def _handle_set_segment_room_link(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear a segment→room linkage on the per-map bucket.
+
+    Pass ``room_id`` (string or int) to set; pass ``null`` or omit to
+    clear. The mapping is enforced 1:1 — assigning a room that's already
+    linked to another segment removes the older link, mirroring the
+    card's existing assignSegmentRoom behaviour.
+
+    Returns the updated full ``segment_room_links`` dict so the card
+    can refresh its in-memory state without a separate fetch.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    segment_id: str = str(call.data["segment_id"]).strip()
+    room_id_raw = call.data.get("room_id")
+
+    if not segment_id:
+        return {"saved": False, "reason": "missing_segment_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    links: dict = map_bucket.setdefault("segment_room_links", {})
+
+    if room_id_raw is None or str(room_id_raw).strip() == "":
+        # Clear path.
+        links.pop(segment_id, None)
+        action = "cleared"
+    else:
+        room_id = str(room_id_raw).strip()
+        # Enforce 1:1 — drop any other segment currently pointing at this room.
+        for existing_seg, existing_room in list(links.items()):
+            if str(existing_room) == room_id and existing_seg != segment_id:
+                links.pop(existing_seg, None)
+        links[segment_id] = room_id
+        action = "set"
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_segment_room_link: %s on %s/%s -> %s",
+        action, vacuum_entity_id, map_id, segment_id,
+    )
+    return {
+        "saved": True,
+        "segment_id": segment_id,
+        "action": action,
+        "segment_room_links": dict(links),
+    }
+
+
+async def _handle_set_companion_anchor(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear the per-room companion-sprite anchor position.
+
+    Anchor is stored as ``{room_id: {pct_x, pct_y}}`` where pct_x/pct_y
+    are 0-100 percentage offsets from the map image's top-left. Pass
+    null for both pct_x and pct_y (or omit them) to clear the anchor.
+
+    Returns the updated full ``companion_anchors`` dict so the card
+    refreshes in-memory state without a second fetch.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    room_id: str = str(call.data["room_id"]).strip()
+    pct_x = call.data.get("pct_x")
+    pct_y = call.data.get("pct_y")
+
+    if not room_id:
+        return {"saved": False, "reason": "missing_room_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    anchors: dict = map_bucket.setdefault("companion_anchors", {})
+
+    if pct_x is None and pct_y is None:
+        anchors.pop(room_id, None)
+        action = "cleared"
+    else:
+        # Clamp 0-100 defensively. The card sends fractional pixel%.
+        try:
+            x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
+            y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
+        except (TypeError, ValueError):
+            return {"saved": False, "reason": "invalid_coordinates"}
+        anchors[room_id] = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
+        action = "set"
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_companion_anchor: %s on %s/%s room %s",
+        action, vacuum_entity_id, map_id, room_id,
+    )
+    return {
+        "saved": True,
+        "room_id": room_id,
+        "action": action,
+        "companion_anchors": dict(anchors),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -856,29 +1059,33 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_save_map_image(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.save_map_image(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            image_base64=call.data["image_base64"],
-            image_width=call.data.get("image_width"),
-            image_height=call.data.get("image_height"),
-            variant=call.data.get("variant", "primary"),
+        result = await hass.async_add_executor_job(
+            lambda: mgr.save_map_image(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                image_base64=call.data["image_base64"],
+                image_width=call.data.get("image_width"),
+                image_height=call.data.get("image_height"),
+                variant=call.data.get("variant", "primary"),
+            )
         )
         _LOGGER.info("save_map_image: %s", result)
         return result
 
     async def handle_add_calibration_point(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.add_calibration_point(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            pixel_x=call.data["pixel_x"],
-            pixel_y=call.data["pixel_y"],
-            vacuum_x=call.data["vacuum_x"],
-            vacuum_y=call.data["vacuum_y"],
-            label=call.data.get("label", "manual"),
-            is_calibration_room=call.data.get("is_calibration_room", False),
-            calibration_room_id=call.data.get("calibration_room_id"),
+        result = await hass.async_add_executor_job(
+            lambda: mgr.add_calibration_point(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                pixel_x=call.data["pixel_x"],
+                pixel_y=call.data["pixel_y"],
+                vacuum_x=call.data["vacuum_x"],
+                vacuum_y=call.data["vacuum_y"],
+                label=call.data.get("label", "manual"),
+                is_calibration_room=call.data.get("is_calibration_room", False),
+                calibration_room_id=call.data.get("calibration_room_id"),
+            )
         )
         _LOGGER.info("add_calibration_point: %s", result)
 
@@ -902,9 +1109,11 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_compute_transform(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.compute_transform(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.compute_transform(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+            )
         )
         _LOGGER.info("compute_transform: %s", result)
 
@@ -924,9 +1133,11 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_clear_calibration(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.clear_calibration(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.clear_calibration(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+            )
         )
         _LOGGER.info("clear_calibration: %s", result)
         return result
@@ -947,11 +1158,13 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         map_id = call.data["map_id"]
         room_id = call.data["room_id"]
 
-        result = mgr.close_room_boundary(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-            room_id=room_id,
-            epsilon=call.data.get("epsilon", 5.0),
+        result = await hass.async_add_executor_job(
+            lambda: mgr.close_room_boundary(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                room_id=room_id,
+                epsilon=call.data.get("epsilon", 5.0),
+            )
         )
         _LOGGER.info("close_room_boundary: %s", result)
 
@@ -1007,20 +1220,24 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_save_mapping_package(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.save_mapping_package(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            package=call.data["package"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.save_mapping_package(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                package=call.data["package"],
+            )
         )
         _LOGGER.info("save_mapping_package: %s", result)
         return result
 
     async def handle_append_mapping_trace_evidence(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.append_mapping_trace_evidence(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            evidence=call.data["evidence"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.append_mapping_trace_evidence(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                evidence=call.data["evidence"],
+            )
         )
         _LOGGER.info("append_mapping_trace_evidence: %s", result)
         return result
@@ -1065,26 +1282,30 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_set_dock_anchor(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.set_dock_anchor(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            pixel_x=call.data["pixel_x"],
-            pixel_y=call.data["pixel_y"],
-            vacuum_x=call.data.get("vacuum_x"),
-            vacuum_y=call.data.get("vacuum_y"),
-            exclusion_radius=call.data.get("exclusion_radius"),
-            notes=call.data.get("notes"),
+        result = await hass.async_add_executor_job(
+            lambda: mgr.set_dock_anchor(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                pixel_x=call.data["pixel_x"],
+                pixel_y=call.data["pixel_y"],
+                vacuum_x=call.data.get("vacuum_x"),
+                vacuum_y=call.data.get("vacuum_y"),
+                exclusion_radius=call.data.get("exclusion_radius"),
+                notes=call.data.get("notes"),
+            )
         )
         _LOGGER.info("set_dock_anchor: %s", result)
         return result
 
     async def handle_set_dock_room(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.set_dock_room(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
-            notes=call.data.get("notes"),
+        result = await hass.async_add_executor_job(
+            lambda: mgr.set_dock_room(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                room_id=call.data["room_id"],
+                notes=call.data.get("notes"),
+            )
         )
         _LOGGER.info("set_dock_room: %s", result)
         return result
@@ -1204,9 +1425,11 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def handle_stop_trace_capture(call: ServiceCall) -> dict[str, Any]:
         """Finalise and persist the active TraceRun. Returns stopped=False if no session is active."""
         mgr = _get_mapping_manager(hass)
-        result = mgr.stop_trace_capture(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.stop_trace_capture(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+            )
         )
         _LOGGER.info("stop_trace_capture: %s", result)
         return result
@@ -1298,6 +1521,12 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def adjust_map_segment(call: ServiceCall) -> dict:
         return await _handle_adjust_map_segment(hass, call)
 
+    async def set_segment_room_link(call: ServiceCall) -> dict:
+        return await _handle_set_segment_room_link(hass, call)
+
+    async def set_companion_anchor(call: ServiceCall) -> dict:
+        return await _handle_set_companion_anchor(hass, call)
+
     hass.services.async_register(
         DOMAIN, SERVICE_UPLOAD_MAP_IMAGE, upload_map_image,
         schema=UPLOAD_MAP_IMAGE_SCHEMA, supports_response=True,
@@ -1313,6 +1542,14 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_ADJUST_MAP_SEGMENT, adjust_map_segment,
         schema=ADJUST_MAP_SEGMENT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_SEGMENT_ROOM_LINK, set_segment_room_link,
+        schema=SET_SEGMENT_ROOM_LINK_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_COMPANION_ANCHOR, set_companion_anchor,
+        schema=SET_COMPANION_ANCHOR_SCHEMA, supports_response=True,
     )
 
 
@@ -1349,51 +1586,59 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
 
     async def handle_clear_room_bounds(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.clear_room_bounds(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.clear_room_bounds(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                room_id=call.data["room_id"],
+            )
         )
         _LOGGER.info("clear_room_bounds: %s", result)
         return result
 
     async def handle_exclude_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.exclude_room_job_bounds(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
-            job_index=call.data["job_index"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.exclude_room_job_bounds(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                room_id=call.data["room_id"],
+                job_index=call.data["job_index"],
+            )
         )
         _LOGGER.info("exclude_room_job_bounds: %s", result)
         if result.get("success") and result.get("job_id"):
             tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
             if tracker is not None:
-                tracker.update_raw_samples_exclusion(
+                await hass.async_add_executor_job(
+                    tracker.update_raw_samples_exclusion,
                     call.data["vacuum_entity_id"],
                     call.data["room_id"],
                     result["job_id"],
-                    excluded=True,
+                    True,
                 )
         return result
 
     async def handle_restore_room_job_bounds(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
-        result = mgr.restore_room_job_bounds(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=call.data["room_id"],
-            job_index=call.data["job_index"],
+        result = await hass.async_add_executor_job(
+            lambda: mgr.restore_room_job_bounds(
+                vacuum_entity_id=call.data["vacuum_entity_id"],
+                map_id=call.data["map_id"],
+                room_id=call.data["room_id"],
+                job_index=call.data["job_index"],
+            )
         )
         _LOGGER.info("restore_room_job_bounds: %s", result)
         if result.get("success") and result.get("job_id"):
             tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
             if tracker is not None:
-                tracker.update_raw_samples_exclusion(
+                await hass.async_add_executor_job(
+                    tracker.update_raw_samples_exclusion,
                     call.data["vacuum_entity_id"],
                     call.data["room_id"],
                     result["job_id"],
-                    excluded=False,
+                    False,
                 )
         return result
 
