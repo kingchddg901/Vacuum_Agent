@@ -11,9 +11,10 @@ percent-point drop in battery to a running ``cumulative_drain_pct``;
 ``cycles = cumulative_drain_pct / 100``. Charging samples never decrement
 the counter — only drain wears the cell.
 
-A safety threshold (``MAX_DELTA_PCT``) ignores absurdly large jumps that
-typically indicate a sensor reset, HA restart gap, or bogus reading. Without
-this the counter would inflate every time HA missed events while the integration
+A safety threshold (``MAX_DELTA_PCT``) ignores implausibly fast per-sample
+changes that typically indicate a sensor reset, HA restart gap, firmware
+flip (X → 0 / 0 → X), or self-discharge across a long idle. Without this
+the counter would inflate every time HA missed events while the integration
 was unloaded.
 
 Charge rate tracking — three values
@@ -89,8 +90,15 @@ _LOGGER = logging.getLogger(__name__)
 # === TUNABLES ================================================================
 
 #: Ignore drain/charge deltas above this many percentage points in a single
-#: sample interval. Likely a sensor reset, HA restart gap, or noise.
-MAX_DELTA_PCT = 50.0
+#: sample interval. Real per-sample motion tops out around ±2-3 pp even
+#: under heavy mid-job recharge or peak cleaning drain (per ~30 s sample).
+#: Anything above this is almost certainly a sensor reset, HA restart gap,
+#: firmware X-to-0 / 0-to-X flip, or multi-hour self-discharge. The trade
+#: is that legitimate gap-filling deltas during real HA restarts also get
+#: dropped — but those samples are averaged over an unknown gap and were
+#: never reliable for rate computation anyway, so the cycles counter
+#: stays cleaner with them excluded.
+MAX_DELTA_PCT = 3.0
 
 #: Ignore *rate* computation when more than this many seconds elapsed since
 #: the previous sample — the value would be a meaningless average over the
@@ -429,6 +437,10 @@ class BatteryHealthManager:
         delta_pct = None
         rate_per_min = None
         drain_added = 0.0
+        # Non-null only when this sample's raw_delta was thrown out by the
+        # MAX_DELTA_PCT guard. Surfaced in the JSONL so post-hoc analysis can
+        # see which observations were rejected and how big the flip was.
+        rejected_delta_pct: float | None = None
         zone = _zone_for(battery_level)
 
         if prev_level is not None and prev_ts is not None:
@@ -502,6 +514,12 @@ class BatteryHealthManager:
                                         sess["cv_delta_pct"] = float(
                                             sess.get("cv_delta_pct") or 0.0
                                         ) + cv_span
+                else:
+                    # Guard rejected this observation. Capture the magnitude
+                    # for the JSONL audit trail. delta_pct stays None so
+                    # downstream rate/drain/regime accounting correctly
+                    # ignores the rejected sample.
+                    rejected_delta_pct = float(raw_delta)
 
         # Session lifecycle.
         self._update_session(record, battery_level, charging, ts, rate_per_min)
@@ -529,6 +547,7 @@ class BatteryHealthManager:
                         "zone": zone,
                         "drain_added": drain_added,
                         "cycles": record.get("cycles"),
+                        "rejected_delta_pct": rejected_delta_pct,
                     },
                 )
             )

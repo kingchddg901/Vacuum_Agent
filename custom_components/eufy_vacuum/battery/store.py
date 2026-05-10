@@ -33,6 +33,12 @@ _SAMPLES_FIELDS = (
     "zone",
     "drain_added",
     "cycles",
+    # Non-null only when the per-sample MAX_DELTA_PCT guard rejected the
+    # observed raw_delta (firmware X-to-0 / 0-to-X flip, HA restart gap,
+    # multi-hour self-discharge, etc.). Carries the rejected magnitude
+    # for post-hoc analysis. Grep `rejected_delta_pct` in samples.jsonl
+    # to find every rejection.
+    "rejected_delta_pct",
 )
 
 _SESSION_HEADER = (

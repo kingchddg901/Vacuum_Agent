@@ -1596,7 +1596,14 @@ class EufyVacuumManager:
                 timeline_entry.get("minutes") if isinstance(timeline_entry, dict) else None,
                 0.0,
             )
-            is_mop = "mop" in clean_mode and self._normalize_water_level_key(water_level) != "off"
+            # Gate on the user's clean_mode choice, not on water_level. If the
+            # user picked vacuum_mop or mop, the dock will still wash the pad
+            # after the run regardless of water flow during cleaning — and
+            # _water_rate_ml_per_minute already returns 0 ml/min for
+            # water_level=off, so robot-water accounting stays self-correcting.
+            # Water level is a knob within mop mode, not a gate on whether
+            # mop mode is active.
+            is_mop = "mop" in clean_mode
             room_robot_water_ml = 0.0
             if is_mop:
                 mopping_room_count += 1
@@ -1762,6 +1769,10 @@ class EufyVacuumManager:
             "pending_mid_job_recharge_return_at": None,
             "observed_mop_wash_count": 0,
             "observed_mop_wash_last_at": None,
+            # Per-cycle observation log. List of {"observed_at": <iso ts>}.
+            # Tracks individual wash events (vs. the rollup count above) so
+            # post-job analysis can correlate wash cadence with mop minutes.
+            "observed_mop_wash_cycles": [],
             "state_transitions": [],
             "water_estimate": None,
             "path_block_action": "event_only",
@@ -1812,6 +1823,7 @@ class EufyVacuumManager:
         normalized.setdefault("pending_mid_job_recharge_return_at", None)
         normalized.setdefault("observed_mop_wash_count", 0)
         normalized.setdefault("observed_mop_wash_last_at", None)
+        normalized.setdefault("observed_mop_wash_cycles", [])
         normalized.setdefault("state_transitions", [])
         normalized.setdefault("water_estimate", None)
         normalized.setdefault("has_observed_active_lifecycle", False)
@@ -2055,6 +2067,17 @@ class EufyVacuumManager:
             _safe_int(active_job.get("observed_mop_wash_count"), 0) + 1
         )
         active_job["observed_mop_wash_last_at"] = now_str
+
+        # Append per-cycle timestamp. Capped at 50 to bound storage in case
+        # dock_status oscillates beyond what the 60s debounce above catches —
+        # a real mop-heavy job has 5-10 wash cycles, so this is wildly more
+        # than expected.
+        cycles = [
+            entry for entry in (active_job.get("observed_mop_wash_cycles") or [])
+            if isinstance(entry, dict)
+        ]
+        cycles.append({"observed_at": now_str})
+        active_job["observed_mop_wash_cycles"] = cycles[-50:]
 
         self.data.setdefault("active_jobs", {})
         self.data["active_jobs"].setdefault(vacuum_entity_id, {})
