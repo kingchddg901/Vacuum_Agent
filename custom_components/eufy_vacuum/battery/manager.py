@@ -44,12 +44,24 @@ and:
 
 Battery health proxy
 --------------------
-We compute "minutes per 1% gained" for each completed full-or-near-full
-session (start ≤ 30%, end ≥ 95%). Average of the FIRST 5 such sessions is the
-baseline. Average of the LAST 7-day window of similar sessions is "current".
-``health_pct = round(baseline / current * 100, 1)``.
+We compute "minutes per 1% gained" for each completed deep-enough session
+(start ≤ 50%, end ≥ 90%). The FIRST such session this install observes
+anchors the baseline. Average of the LAST 14-day window of similar sessions
+is "current". ``health_pct = round(baseline / current * 100, 1)``.
 
-While the baseline is being seeded (< 5 sessions), health_pct is None.
+While the baseline is being seeded (no qualifying sessions yet), health_pct
+is None.
+
+The baseline is per-install ("your battery as it was when you started
+measuring"), not an estimate of factory-fresh performance — the integration
+has no way to know factory performance for a given unit. After a battery
+swap, call the eufy_vacuum.battery_rebaseline service to clear the anchor
+so the next qualifying recharge re-anchors on the new cell.
+
+The qualify window is intentionally wide (50→90, not 30→95): a vacuum that
+mostly runs single-room jobs rarely drains far enough for the strict window,
+which would leave the baseline unseeded for months. The window still spans
+the 80→90 CV-taper region so the rate isn't gamed by skipping the slow part.
 
 Persistence
 -----------
@@ -98,16 +110,35 @@ SESSION_MAX_HOURS = 12.0
 #: Sessions kept in the storage ring buffer for recent-trend computation.
 HISTORY_LIMIT = 50
 
-#: Number of qualifying full charges required to lock in the baseline.
-BASELINE_SAMPLE_COUNT = 5
+#: Qualifying sessions used to anchor the baseline. The baseline is
+#: per-install ("your battery as it was when you set this up"), not an
+#: estimate of factory-fresh performance, so the first valid session
+#: anchors it. CURRENT_WINDOW_DAYS smooths comparison-side noise.
+BASELINE_SAMPLE_COUNT = 1
 
-#: Window for the "current" health average.
-CURRENT_WINDOW_DAYS = 7
+#: Window for the "current" health average. Wider than 7 days because
+#: single-room users rarely produce qualifying sessions — the rolling
+#: average needs more time to fill.
+CURRENT_WINDOW_DAYS = 14
 
 #: Sessions used for health proxy must start at or below this and reach at
-#: least this much. Keeps comparisons apples-to-apples.
-HEALTH_QUALIFY_START_MAX = 30
-HEALTH_QUALIFY_END_MIN = 95
+#: least this much. Keeps comparisons apples-to-apples while still being
+#: loose enough to capture natural recharges (vacuums on single-room jobs
+#: rarely hit the strict 30→95 window).
+HEALTH_QUALIFY_START_MAX = 50
+HEALTH_QUALIFY_END_MIN = 90
+
+#: Regime accounting windows. CC = constant-current (capacity proxy),
+#: CV = constant-voltage taper (resistance proxy). The two regimes age in
+#: opposite directions — capacity loss raises %/min in CC, resistance rise
+#: lowers %/min in CV — so they're tracked separately. CC_ZONE_MAX is the
+#: boundary between them; CC_ZONE_MIN and CV_ZONE_MAX are the outer clip
+#: bounds. Aligned with HEALTH_QUALIFY_* by design but decoupled — do not
+#: collapse them. LOW_ZONE_MAX / HIGH_ZONE_MIN remain independent and feed
+#: the rate_low_zone / rate_high_zone stat sensors.
+CC_ZONE_MIN = 50
+CC_ZONE_MAX = 80
+CV_ZONE_MAX = 90
 
 #: When a job finishes, the *next* charge session within this many hours is
 #: attached as its post-job recharge. Anything beyond is treated as
@@ -132,11 +163,23 @@ def _new_record() -> dict[str, Any]:
             "rate_high_zone_per_min": None,
             "last_charge_duration_min": None,
             "last_charge_delta_pct": None,
+            # health_pct is the headline; semantically it's an alias of
+            # cv_charge_speed_pct (resistance proxy). Kept under this name for
+            # entity_id continuity with the existing _battery_health sensor.
             "health_pct": None,
+            "cc_charge_speed_pct": None,
+            "cv_charge_speed_pct": None,
         },
         "baseline": {
-            "min_per_pct": None,
+            # Split into per-regime anchors. CC = capacity proxy (50→80),
+            # CV = resistance proxy (80→90). The legacy session-wide
+            # `min_per_pct` field is intentionally absent; ensure_record only
+            # adds missing keys, so old records keep their legacy field unused
+            # until a future cleanup prunes it.
+            "cc_min_per_pct": None,
+            "cv_min_per_pct": None,
             "session_count": 0,
+            "anchored_at": None,
         },
         "session_history_recent": [],
         # Job-level battery metrics — populated by record_job_metrics().
@@ -340,25 +383,26 @@ class BatteryHealthManager:
     def _is_charging(self, vacuum_entity_id: str) -> bool:
         """Decide whether the vacuum is actively charging right now.
 
-        Reuses the runtime manager's ``_is_recharge_like_state`` helper —
-        the same logic the integration uses for mid-job recharge detection
-        and other charging-aware behaviour, so the battery system stays in
-        sync with the rest of the codebase.
+        Delegates to ``EufyVacuumManager._is_charging``, which prefers the
+        dedicated ``binary_sensor.<object_id>_charging`` entity (definitive
+        on/off signal) and falls back to substring matching on vacuum_state
+        / task_status / dock_status when the binary sensor is absent. The
+        substring fallback has known false negatives — most importantly
+        post-job recharges where ``task_status`` lingers as ``"completed"``
+        and short-circuits the helper to False — so trusting the dedicated
+        sensor as primary is the correct behaviour.
         """
-        vacuum_state = self._hass.states.get(vacuum_entity_id)
-        vacuum_str = vacuum_state.state if vacuum_state else None
-        attrs = vacuum_state.attributes if vacuum_state else {}
-        task_status = attrs.get("task_status") if attrs else None
-        dock_status = attrs.get("dock_status") if attrs else None
         try:
-            return self._manager._is_recharge_like_state(
-                vacuum_state=vacuum_str,
-                task_status=task_status,
-                dock_status=dock_status,
-            )
+            return self._manager._is_charging(vacuum_entity_id)
         except AttributeError:
-            # Defensive — newer / older runtime managers may rename this.
-            # Fall back to a minimal substring check on the same fields.
+            # Defensive — older runtime managers may not expose _is_charging
+            # yet. Fall back to a minimal substring check on the vacuum
+            # entity's own state + attributes (no auxiliary sensor lookups).
+            vacuum_state = self._hass.states.get(vacuum_entity_id)
+            vacuum_str = vacuum_state.state if vacuum_state else None
+            attrs = vacuum_state.attributes if vacuum_state else {}
+            task_status = attrs.get("task_status") if attrs else None
+            dock_status = attrs.get("dock_status") if attrs else None
             for v in (vacuum_str, task_status, dock_status):
                 if v and ("charg" in str(v).lower() or "recharg" in str(v).lower()):
                     return True
@@ -414,6 +458,50 @@ class BatteryHealthManager:
                             record["stats"]["rate_low_zone_per_min"] = round(rate_per_min, 4)
                         elif zone == "high":
                             record["stats"]["rate_high_zone_per_min"] = round(rate_per_min, 4)
+
+                        # Regime attribution — split this charging interval
+                        # into CC (50→80) and CV (80→90) portions, weighted
+                        # linearly by percentage span. Same constant-rate-
+                        # within-a-sample assumption that rate_per_min already
+                        # makes; we just split the time across the boundary.
+                        #
+                        # Runs BEFORE _update_session so the closing sample
+                        # (battery hits 100 / charging flips false) is still
+                        # attributed to the open session before _update_session
+                        # closes it. Skipping the transition sample (charging
+                        # just started, current_session still None) is the
+                        # correct trade — its delta crosses a non-charging gap
+                        # of unknown duration, so attributing the full
+                        # elapsed_sec to charging would be misleading.
+                        if record.get("current_session") is not None:
+                            lo, hi = prev_level, battery_level
+                            win_lo = max(lo, CC_ZONE_MIN)
+                            win_hi = min(hi, CV_ZONE_MAX)
+                            if win_hi > win_lo:
+                                cc_lo = max(win_lo, CC_ZONE_MIN)
+                                cc_hi = min(win_hi, CC_ZONE_MAX)
+                                cv_lo = max(win_lo, CC_ZONE_MAX)
+                                cv_hi = min(win_hi, CV_ZONE_MAX)
+                                cc_span = max(cc_hi - cc_lo, 0.0)
+                                cv_span = max(cv_hi - cv_lo, 0.0)
+                                full_span = float(hi - lo)
+                                if full_span > 0:
+                                    elapsed_min = elapsed_sec / 60.0
+                                    sess = record["current_session"]
+                                    if cc_span > 0:
+                                        sess["cc_duration_min"] = float(
+                                            sess.get("cc_duration_min") or 0.0
+                                        ) + (cc_span / full_span) * elapsed_min
+                                        sess["cc_delta_pct"] = float(
+                                            sess.get("cc_delta_pct") or 0.0
+                                        ) + cc_span
+                                    if cv_span > 0:
+                                        sess["cv_duration_min"] = float(
+                                            sess.get("cv_duration_min") or 0.0
+                                        ) + (cv_span / full_span) * elapsed_min
+                                        sess["cv_delta_pct"] = float(
+                                            sess.get("cv_delta_pct") or 0.0
+                                        ) + cv_span
 
         # Session lifecycle.
         self._update_session(record, battery_level, charging, ts, rate_per_min)
@@ -485,6 +573,13 @@ class BatteryHealthManager:
                 "rate_min": None,
                 "rate_max": None,
                 "kind": kind,
+                # Per-regime accumulators populated by the attribution block
+                # in _process_sample as each charging interval crosses the
+                # CC (50→80) and CV (80→90) windows.
+                "cc_duration_min": 0.0,
+                "cc_delta_pct": 0.0,
+                "cv_duration_min": 0.0,
+                "cv_delta_pct": 0.0,
             }
             return
 
@@ -525,6 +620,15 @@ class BatteryHealthManager:
         )
         kind = str(session.get("kind") or "idle")
 
+        # Per-regime accumulators. Default to 0.0 so sessions opened before
+        # the regime-split rebuild still close cleanly — they just won't
+        # contribute to the new baseline (no anchor data) and read None for
+        # cc_min_per_pct / cv_min_per_pct.
+        cc_dur = float(session.get("cc_duration_min") or 0.0)
+        cc_pct = float(session.get("cc_delta_pct") or 0.0)
+        cv_dur = float(session.get("cv_duration_min") or 0.0)
+        cv_pct = float(session.get("cv_delta_pct") or 0.0)
+
         summary = {
             "start_ts": start_ts.isoformat(),
             "end_ts": ts.isoformat(),
@@ -542,6 +646,15 @@ class BatteryHealthManager:
             "samples": samples,
             "ended_reason": "full" if end_battery >= 100 else "stopped",
             "kind": kind,
+            # Regime-split fields. Raw values for audit + future re-derivation;
+            # min_per_pct values for direct use in _update_health. Both can be
+            # None for sessions that never crossed a given regime window.
+            "cc_duration_min": round(cc_dur, 4),
+            "cc_delta_pct": round(cc_pct, 4),
+            "cv_duration_min": round(cv_dur, 4),
+            "cv_delta_pct": round(cv_pct, 4),
+            "cc_min_per_pct": round(cc_dur / cc_pct, 4) if cc_pct > 0 else None,
+            "cv_min_per_pct": round(cv_dur / cv_pct, 4) if cv_pct > 0 else None,
         }
 
         # Update last-charge stats.
@@ -641,6 +754,18 @@ class BatteryHealthManager:
     # -- health proxy ----------------------------------------------------------
 
     def _update_health(self, record: dict[str, Any]) -> None:
+        """Update CC and CV regime indices plus the headline health_pct.
+
+        - cc_charge_speed_pct: capacity proxy (50→80). Aged cells hold less
+          energy per percent, so %/min rises with age and ratio falls below
+          100. Higher = healthier.
+        - cv_charge_speed_pct: resistance proxy (80→90). Aged cells force
+          earlier/longer taper, so %/min falls with age and ratio falls
+          below 100. Higher = healthier.
+        - health_pct: alias of cv_charge_speed_pct. CV is the conventional
+          "battery health" signal users expect; the headline keeps that
+          framing while CC is exposed separately for the capacity story.
+        """
         history = record.get("session_history_recent", [])
         baseline = record.get("baseline", {})
 
@@ -652,36 +777,104 @@ class BatteryHealthManager:
                 and s.get("delta_pct") and s.get("duration_min"))
         ]
 
-        # Lock in baseline once we have enough qualifying sessions.
-        if baseline.get("min_per_pct") is None and len(qualifying) >= BASELINE_SAMPLE_COUNT:
-            seeds = qualifying[:BASELINE_SAMPLE_COUNT]
-            avg = sum(s["duration_min"] / s["delta_pct"] for s in seeds) / len(seeds)
-            baseline["min_per_pct"] = round(avg, 4)
-            baseline["session_count"] = len(seeds)
+        # Anchor on the first qualifying session that has BOTH regimes
+        # populated. A 51→89 session qualifies session-wide but only fills
+        # cc_min_per_pct (CV span = 0). Requiring both populated keeps the
+        # baseline coherent — we want one anchor point for both regimes,
+        # not different sessions for each.
+        if baseline.get("cc_min_per_pct") is None or baseline.get("cv_min_per_pct") is None:
+            for seed in qualifying:
+                if (
+                    seed.get("cc_min_per_pct") is not None
+                    and seed.get("cv_min_per_pct") is not None
+                ):
+                    baseline["cc_min_per_pct"] = seed["cc_min_per_pct"]
+                    baseline["cv_min_per_pct"] = seed["cv_min_per_pct"]
+                    baseline["session_count"] = 1
+                    baseline["anchored_at"] = seed.get("end_ts")
+                    break
 
-        if baseline.get("min_per_pct") is None:
-            record["stats"]["health_pct"] = None
-            return
+        record["stats"]["cc_charge_speed_pct"] = self._compute_regime_pct(
+            qualifying, baseline.get("cc_min_per_pct"), "cc_min_per_pct"
+        )
+        record["stats"]["cv_charge_speed_pct"] = self._compute_regime_pct(
+            qualifying, baseline.get("cv_min_per_pct"), "cv_min_per_pct"
+        )
+        # Headline alias — the entity_id stays "_battery_health" for
+        # continuity, but the value is now explicitly the CV (resistance)
+        # signal, which is what "battery health" conventionally means.
+        record["stats"]["health_pct"] = record["stats"]["cv_charge_speed_pct"]
 
-        # Current = average over last CURRENT_WINDOW_DAYS days
+    def _compute_regime_pct(
+        self,
+        qualifying: list[dict[str, Any]],
+        baseline_value: float | None,
+        field: str,
+    ) -> float | None:
+        """Compute current regime % vs baseline; None if no usable data."""
+        if baseline_value is None:
+            return None
+
         cutoff = datetime.now(timezone.utc) - timedelta(days=CURRENT_WINDOW_DAYS)
-        recent = []
+        recent: list[float] = []
         for s in qualifying:
+            value = s.get(field)
+            if value is None:
+                continue
             end_ts = _parse_iso(s.get("end_ts"))
             if end_ts is not None and end_ts >= cutoff:
-                recent.append(s["duration_min"] / s["delta_pct"])
+                recent.append(float(value))
 
         if not recent:
-            # Fall back to last qualifying session.
-            recent = [qualifying[-1]["duration_min"] / qualifying[-1]["delta_pct"]]
+            # Fallback: most recent qualifying session that has this regime.
+            for s in reversed(qualifying):
+                value = s.get(field)
+                if value is not None:
+                    recent = [float(value)]
+                    break
+            if not recent:
+                return None
 
-        current_min_per_pct = sum(recent) / len(recent)
-        if current_min_per_pct <= 0:
-            record["stats"]["health_pct"] = None
-            return
+        current = sum(recent) / len(recent)
+        if current <= 0:
+            return None
+        return round(baseline_value / current * 100.0, 1)
 
-        ratio = baseline["min_per_pct"] / current_min_per_pct
-        record["stats"]["health_pct"] = round(ratio * 100.0, 1)
+    # -- baseline management ---------------------------------------------------
+
+    def rebaseline(self, vacuum_entity_id: str) -> bool:
+        """Clear the health baseline so the next qualifying session re-anchors it.
+
+        Intended for use after a battery replacement. Does not touch cycles,
+        aggregates, session history, mid-job stats, or job metrics — only the
+        health proxy's anchor point. The next qualifying recharge (start
+        <= HEALTH_QUALIFY_START_MAX, end >= HEALTH_QUALIFY_END_MIN) will
+        seed a fresh baseline.
+
+        Returns True if a record existed for the vacuum and was cleared,
+        False if no record was found.
+        """
+        vacuums = self._root()["vacuums"]
+        if vacuum_entity_id not in vacuums:
+            return False
+        record = self.ensure_record(vacuum_entity_id)
+        baseline = record["baseline"]
+        baseline["cc_min_per_pct"] = None
+        baseline["cv_min_per_pct"] = None
+        baseline["session_count"] = 0
+        baseline["anchored_at"] = None
+        # Legacy field — only present on records that pre-date the regime
+        # split. Clear it too so a rebaselined record looks consistently
+        # empty regardless of upgrade history.
+        if "min_per_pct" in baseline:
+            baseline["min_per_pct"] = None
+        stats = record["stats"]
+        stats["cc_charge_speed_pct"] = None
+        stats["cv_charge_speed_pct"] = None
+        stats["health_pct"] = None
+        self._schedule_save()
+        self._notify(vacuum_entity_id)
+        return True
 
     # -- job metrics ingestion -------------------------------------------------
 

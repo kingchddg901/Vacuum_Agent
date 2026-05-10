@@ -65,16 +65,17 @@ custom_components/eufy_vacuum/battery/
 ├── __init__.py        # exports BatteryHealthManager
 ├── manager.py         # BatteryHealthManager + tunables
 ├── store.py           # JSONL/CSV writers (raw_store)
-├── sensors.py         # 10 SensorEntity subclasses + build_battery_sensors()
+├── sensors.py         # 12 SensorEntity subclasses + build_battery_sensors()
 └── job_metrics.py     # compute_job_battery_metrics() — pure compute
 ```
 
 Cross-file hooks:
 
 - `const.py` — `DATA_BATTERY = "battery"`
-- `__init__.py` (root) — instantiates manager in `async_setup_entry`, calls `.start(known_vacuum_ids)`, calls `.stop()` in `async_unload_entry`
-- `sensor.py` — calls `build_battery_sensors(manager, vacuum_entity_id)` per vacuum and adds to entity list
-- `learning/job_finalizer.py` — imports `compute_job_battery_metrics` and `DATA_BATTERY`; computes metrics after `cleaning_area_m2` is set; calls `battery_manager.record_job_metrics(...)` for completed and used-for-learning jobs
+- `__init__.py` (root) — instantiates manager in `async_setup_entry`, calls `.start(known_vacuum_ids)`, calls `.stop()` in `async_unload_entry`. Also registers the `eufy_vacuum.battery_rebaseline` service inline with a thin handler that calls `manager.rebaseline(vacuum_entity_id)`.
+- `services.yaml` — declares `battery_rebaseline` (vacuum_entity_id field, scoped to `integration: eufy_vacuum`, `domain: vacuum`).
+- `sensor.py` — calls `build_battery_sensors(manager, vacuum_entity_id)` per vacuum and adds to entity list.
+- `learning/job_finalizer.py` — imports `compute_job_battery_metrics` and `DATA_BATTERY`; computes metrics after `cleaning_area_m2` is set; calls `battery_manager.record_job_metrics(...)` for completed and used-for-learning jobs.
 
 ---
 
@@ -90,10 +91,13 @@ All in `battery/manager.py`:
 | `HIGH_ZONE_MIN` | 80 | Battery level ≥ this counts as "high zone". |
 | `SESSION_MAX_HOURS` | 12.0 | Force-close stale open sessions older than this. |
 | `HISTORY_LIMIT` | 50 | Max sessions kept in `session_history_recent` ring buffer. |
-| `BASELINE_SAMPLE_COUNT` | 5 | Qualifying full charges needed to lock in the baseline. |
-| `CURRENT_WINDOW_DAYS` | 7 | Window for the "current" health average. |
-| `HEALTH_QUALIFY_START_MAX` | 30 | A "qualifying full charge" starts at or below this. |
-| `HEALTH_QUALIFY_END_MIN` | 95 | …and ends at or above this. |
+| `BASELINE_SAMPLE_COUNT` | 1 | Qualifying recharges needed to anchor the baseline. The baseline is per-install, not factory-fresh, so the first valid session anchors it. |
+| `CURRENT_WINDOW_DAYS` | 14 | Window for the "current" health average. |
+| `HEALTH_QUALIFY_START_MAX` | 50 | A "qualifying recharge" starts at or below this. |
+| `HEALTH_QUALIFY_END_MIN` | 90 | …and ends at or above this. |
+| `CC_ZONE_MIN` | 50 | Lower clip for CC regime accumulation. |
+| `CC_ZONE_MAX` | 80 | Boundary between CC and CV regimes. |
+| `CV_ZONE_MAX` | 90 | Upper clip for CV regime accumulation. |
 | `POST_JOB_CHARGE_LINK_HOURS` | 4.0 | Window in which the next charge session is attached to the just-finished job. |
 
 ---
@@ -120,6 +124,13 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
                     "rate_min": 0.32,
                     "rate_max": 0.68,
                     "kind": "mid_job" | "post_job" | "idle",
+                    # Per-regime accumulators populated by the attribution
+                    # block in _process_sample. Each charging interval that
+                    # crosses the CC/CV boundary contributes to one or both.
+                    "cc_duration_min": 8.4,
+                    "cc_delta_pct":   12.0,
+                    "cv_duration_min": 18.6,
+                    "cv_delta_pct":    7.0,
                 },
                 "stats": {
                     "rate_overall_per_min": 0.42,
@@ -127,11 +138,21 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
                     "rate_high_zone_per_min": 0.18,
                     "last_charge_duration_min": 73.0,
                     "last_charge_delta_pct": 40,
+                    # health_pct is the headline, semantically an alias of
+                    # cv_charge_speed_pct (resistance proxy). Kept under this
+                    # name for entity_id continuity.
                     "health_pct": 92.5,
+                    "cc_charge_speed_pct": 88.1,
+                    "cv_charge_speed_pct": 92.5,
                 },
                 "baseline": {
-                    "min_per_pct": 1.05,
-                    "session_count": 5,
+                    "cc_min_per_pct": 0.85,
+                    "cv_min_per_pct": 4.20,
+                    "session_count": 1,
+                    "anchored_at": "2026-05-08T19:42:11+00:00",
+                    # min_per_pct: <legacy> may persist on records that pre-date
+                    # the regime split. ensure_record adds new keys but does not
+                    # remove old ones; the legacy field is unused after upgrade.
                 },
                 "session_history_recent": [
                     {... session summary ...},
@@ -193,11 +214,22 @@ For each vacuum entity passed to `start(...)`, the manager:
 3. Subscribes to state-change events on both entities via `async_track_state_change_event`.
 4. Calls `_sample_now(vacuum_entity_id)` once to capture an initial sample.
 
-Why both entities? `sensor.<vac>_battery` carries the level; `vacuum.<vac>` carries the state string and `task_status` / `dock_status` attributes that the charging-detection helper consumes. Either changing means the charging flag may have flipped.
+Why both entities? `sensor.<vac>_battery` carries the level; `vacuum.<vac>` carries the state string and `task_status` / `dock_status` attributes that the charging-detection fallback consumes. Either changing can flip the charging flag.
+
+### 5.1.1 Charging detection — `EufyVacuumManager._is_charging`
+
+The battery system delegates the "is the vacuum charging right now" check to `EufyVacuumManager._is_charging(vacuum_entity_id)`. The helper has two-layer logic:
+
+1. **Primary: `binary_sensor.<object_id>_charging`.** The upstream eufy-clean integration emits a clean on/off entity that flips precisely when charging starts and stops. If the entity exists and reads `on` or `off`, that's the answer.
+2. **Fallback: `_is_recharge_like_state(vacuum_state, task_status, dock_status)`.** Substring matching on the vacuum's own state plus its task_status / dock_status sensors. Used when the binary sensor is missing or in `unavailable` / `unknown`.
+
+The fallback has known false negatives — most importantly, post-job recharges where `task_status` lingers as `"completed"` after job finalisation, which short-circuits the helper's terminal-state check to `False` even while the vacuum is plainly charging. A real-world JSONL trace caught this: every sample during a clean 84→100 recharge logged `charging: false`, no session opened, no entry hit `session_history_recent`, and the baseline could never anchor. The binary sensor flipped cleanly across the same window. Lesson: prefer the dedicated entity when the upstream integration provides one; never substring-match state strings if there's a definitive signal.
+
+The same `_is_charging` method is reused by `core/manager.update_active_job_recharge_observation` for mid-job recharge detection (paused-job → recharging → resume). Single source of truth across the integration. `_is_recharge_like_state` is kept as the substring fallback path; new callers should use `_is_charging` instead.
 
 ### 5.2 `_process_sample`
 
-Reads `battery_level` (via `manager._get_battery_level`) and `charging` (via `manager._is_recharge_like_state`, with a substring-fallback if the runtime manager renames it again). Then:
+Reads `battery_level` (via `manager._get_battery_level`) and `charging` (via `manager._is_charging`, see §5.1.1). Then:
 
 ```python
 if battery_level is None or battery_level < 0 or battery_level > 100:
@@ -325,42 +357,150 @@ At every sample, if `current_session.start_ts` is older than `SESSION_MAX_HOURS`
 
 ## 7. Health proxy (`_update_health`)
 
-Called on every session close. Two phases:
+Called on every session close. Tracks two regime indices independently and surfaces a headline alias of the CV regime under `stats.health_pct` for entity_id continuity.
 
-### 7.1 Baseline lock-in
+### 7.0 Conceptual model: per-install, regime-split
+
+The health proxy answers "how does this battery charge today vs when measurement started", not "how does this battery compare to factory-new". The latter is unknowable to the integration — cell chemistry batches, charger hardware, ambient, contact resistance, and firmware-side CV taper aggressiveness all shift the curve in ways software can't introspect.
+
+The previous (single-rate) design averaged the entire 50→90 charging interval into one min/per-pct value. That conflated two physical effects that age in **opposite directions**:
+
+| Regime | Range | Dominant phase | Aging effect | Direction of %/min change |
+|---|---|---|---|---|
+| CC | 50→80 | Constant-current bulk | Capacity loss (less energy per percent) | Faster (lower min/pct) |
+| CV | 80→90 | Constant-voltage taper | Resistance rise (charger backs off sooner/longer) | Slower (higher min/pct) |
+
+Averaging into a single rate cancels signal — a battery that's lost both capacity and resistance can read flat against a single-rate baseline while both effects are worsening. The rebuild splits accumulation into the two regimes, anchors each independently, and computes two ratios. The headline `health_pct` is an alias of the CV ratio (resistance proxy = the conventional "battery health" signal), with `cc_charge_speed_pct` exposed alongside for the capacity story.
+
+### 7.1 Per-regime accumulation
+
+Inside the rate-eligibility block of `_process_sample` (i.e. when `raw_delta > 0` and `elapsed_sec ≤ MAX_RATE_INTERVAL_SEC`), the charging interval is split linearly across the CC/CV boundary and accumulated into the open session:
+
+```python
+if record.current_session is not None:
+    lo, hi = prev_level, battery_level
+    win_lo = max(lo, CC_ZONE_MIN)         # 50
+    win_hi = min(hi, CV_ZONE_MAX)         # 90
+    if win_hi > win_lo:
+        cc_span = max(min(win_hi, CC_ZONE_MAX) - max(win_lo, CC_ZONE_MIN), 0)
+        cv_span = max(min(win_hi, CV_ZONE_MAX) - max(win_lo, CC_ZONE_MAX), 0)
+        full_span = hi - lo
+        if full_span > 0:
+            elapsed_min = elapsed_sec / 60
+            if cc_span > 0:
+                sess.cc_duration_min += (cc_span / full_span) * elapsed_min
+                sess.cc_delta_pct    += cc_span
+            if cv_span > 0:
+                sess.cv_duration_min += (cv_span / full_span) * elapsed_min
+                sess.cv_delta_pct    += cv_span
+```
+
+The "constant rate within a sample" assumption matches what `rate_per_min` already does — the per-sample interval is short enough (~30 s with the eufy-clean integration) that linear time-split across a single boundary crossing is fine.
+
+The block runs **before** `_update_session` so the session-closing sample (battery hits 100 / charging flips false) is still attributed before `_update_session` closes it. Samples where `current_session is None` (the charging-just-started transition) are silently skipped — the `elapsed_sec` for that transition spans an unknown amount of non-charging time, so attributing it would be misleading.
+
+`_close_session` reads the accumulators and writes the session summary with both raw and derived fields:
+
+```python
+"cc_duration_min": session.cc_duration_min,
+"cc_delta_pct":    session.cc_delta_pct,
+"cv_duration_min": session.cv_duration_min,
+"cv_delta_pct":    session.cv_delta_pct,
+"cc_min_per_pct":  cc_dur / cc_pct if cc_pct > 0 else None,
+"cv_min_per_pct":  cv_dur / cv_pct if cv_pct > 0 else None,
+```
+
+A session that crosses only one regime (e.g. 51→79 = CC only, 81→89 = CV only) reports None for the other regime. The `min_per_pct` form is what `_update_health` consumes; the raw `duration_min` / `delta_pct` fields are kept for audit and future re-derivation.
+
+### 7.2 Baseline anchor
 
 ```python
 qualifying = [
     s for s in session_history_recent
-    if s.start_battery <= HEALTH_QUALIFY_START_MAX
-    and s.end_battery >= HEALTH_QUALIFY_END_MIN
+    if s.start_battery <= HEALTH_QUALIFY_START_MAX     # 50
+    and s.end_battery   >= HEALTH_QUALIFY_END_MIN      # 90
     and s.delta_pct > 0 and s.duration_min > 0
 ]
-if record.baseline.min_per_pct is None and len(qualifying) >= BASELINE_SAMPLE_COUNT:
-    seeds = qualifying[:BASELINE_SAMPLE_COUNT]
-    avg = mean(s.duration_min / s.delta_pct for s in seeds)
-    record.baseline.min_per_pct = avg
-    record.baseline.session_count = len(seeds)
+
+# Anchor on the first qualifying session that has BOTH regimes populated.
+# A 51→89 session qualifies session-wide but only fills cc_min_per_pct
+# (cv_delta_pct = 0). Requiring both keeps the anchor coherent — one seed
+# session, two regime values from the same physical recharge.
+if baseline.cc_min_per_pct is None or baseline.cv_min_per_pct is None:
+    for seed in qualifying:
+        if seed.cc_min_per_pct is not None and seed.cv_min_per_pct is not None:
+            baseline.cc_min_per_pct = seed.cc_min_per_pct
+            baseline.cv_min_per_pct = seed.cv_min_per_pct
+            baseline.session_count  = 1
+            baseline.anchored_at    = seed.end_ts
+            break
 ```
 
-### 7.2 Health computation
+`BASELINE_SAMPLE_COUNT = 1` is the design value, not a tuning knob; the constant exists to document "we anchor on N sessions" but raising N would change the model from "anchor" back to "estimate", which is what the rebuild moved away from.
+
+> **Window rationale.** The 50→90 window is intentionally wider than the
+> textbook 30→95: vacuums on single-room jobs rarely drain far enough for
+> the strict window to fire, which left baselines unseeded for months on
+> real installs. The relaxed window still covers both the CC region (50→80)
+> and the full CV-taper region (80→90), so a single qualifying recharge
+> populates both anchors at once.
+
+### 7.3 Health computation
+
+Both regimes use the same shape via a shared helper:
 
 ```python
-if record.baseline.min_per_pct is None:
-    record.stats.health_pct = None
-    return
+record.stats.cc_charge_speed_pct = self._compute_regime_pct(
+    qualifying, baseline.cc_min_per_pct, "cc_min_per_pct"
+)
+record.stats.cv_charge_speed_pct = self._compute_regime_pct(
+    qualifying, baseline.cv_min_per_pct, "cv_min_per_pct"
+)
+# Headline alias — entity_id stays "_battery_health" for continuity, but
+# the value is the CV (resistance) signal that users mean by "health".
+record.stats.health_pct = record.stats.cv_charge_speed_pct
 
-cutoff = now - CURRENT_WINDOW_DAYS days
-recent = [s.duration_min / s.delta_pct for s in qualifying if s.end_ts >= cutoff]
-if not recent:
-    recent = [last_qualifying_session.duration_min / .delta_pct]   # fallback
 
-current_min_per_pct = mean(recent)
-if current_min_per_pct <= 0:
-    health_pct = None
-else:
-    health_pct = round(baseline.min_per_pct / current_min_per_pct * 100, 1)
+def _compute_regime_pct(self, qualifying, baseline_value, field):
+    if baseline_value is None:
+        return None
+    cutoff = now - CURRENT_WINDOW_DAYS days       # 14
+    recent = [
+        s[field] for s in qualifying
+        if s[field] is not None and parse(s.end_ts) >= cutoff
+    ]
+    if not recent:
+        # Fallback: most recent qualifying session that has this regime.
+        for s in reversed(qualifying):
+            if s[field] is not None:
+                recent = [s[field]]; break
+        else:
+            return None
+    current = mean(recent)
+    if current <= 0:
+        return None
+    return round(baseline_value / current * 100, 1)
 ```
+
+### 7.4 Re-baselining (`rebaseline`)
+
+Public method on `BatteryHealthManager`:
+
+```python
+def rebaseline(self, vacuum_entity_id: str) -> bool:
+    """Clear the health baseline so the next qualifying session re-anchors it.
+
+    Intended for battery replacement. Touches only the baseline anchor and
+    the three health stat fields — cycles, aggregates, session history,
+    mid-job stats, and job metrics are all preserved.
+    """
+```
+
+Clears `baseline.cc_min_per_pct`, `baseline.cv_min_per_pct`, `baseline.session_count`, `baseline.anchored_at`, plus the legacy `baseline.min_per_pct` field if present (for records that pre-date the regime split), and all three stat fields (`stats.cc_charge_speed_pct`, `stats.cv_charge_speed_pct`, `stats.health_pct`). Then `_schedule_save()` + `_notify(vacuum_entity_id)`.
+
+Returns True if a record existed for the vacuum, False if the vacuum has no record yet. The method does **not** call `ensure_record` to create a record on miss — that would silently mask a typo'd `vacuum_entity_id`. It checks existence in `self._root()["vacuums"]` first, then calls `ensure_record` to repair any missing keys on a legacy record before mutation.
+
+Exposed to users via the `eufy_vacuum.battery_rebaseline` service (registered in `__init__.py`). After the call, the next qualifying recharge re-anchors both regimes — no restart required.
 
 ---
 
@@ -542,7 +682,7 @@ Note `kind` is in the in-memory ring buffer but **not** in the CSV (added after 
 
 ## 13. Sensors (`battery/sensors.py`)
 
-`build_battery_sensors(manager, vacuum_entity_id)` returns a list of ten `SensorEntity` instances. All inherit from `_BatteryBase`:
+`build_battery_sensors(manager, vacuum_entity_id)` returns a list of twelve `SensorEntity` instances. All inherit from `_BatteryBase`:
 
 ```python
 class _BatteryBase(SensorEntity):
@@ -605,6 +745,23 @@ Future sensors should choose a label whose slugified form matches the
 `unique_suffix` to avoid this drift; the `_attr_suggested_object_id` belt
 covers the case where it can't.
 
+### 13.1 Sensor inventory
+
+| Class | Suffix | State | Source field |
+|---|---|---|---|
+| `ChargeCyclesSensor` | `charge_cycles` | cumulative cycles | `cycles` |
+| `ChargeRateSensor` (overall) | `charge_rate` | %/min | `stats.rate_overall_per_min` |
+| `ChargeRateSensor` (low) | `charge_rate_low_zone` | %/min | `stats.rate_low_zone_per_min` |
+| `ChargeRateSensor` (high) | `charge_rate_high_zone` | %/min | `stats.rate_high_zone_per_min` |
+| `LastChargeDurationSensor` | `last_charge_duration` | min | `stats.last_charge_duration_min` |
+| `BatteryHealthSensor` | `battery_health` | % (alias of CV) | `stats.health_pct` |
+| `RegimeChargeSpeedSensor` (CC) | `cc_charge_speed` | % | `stats.cc_charge_speed_pct` |
+| `RegimeChargeSpeedSensor` (CV) | `cv_charge_speed` | % | `stats.cv_charge_speed_pct` |
+| `LastJobMetricSensor` × 3 | `last_job_drain_per_min/per_hour/per_m2` | %/min, %/h, %/m² | `last_job.drain_per_*` |
+| `MidJobRechargeRateSensor` | `mid_job_recharge_rate` | %/min | `mid_job_recharge_stats.rate_mean_per_min` |
+
+`RegimeChargeSpeedSensor` is parameterized — one class, two instances differing only in `stat_key` / `baseline_key` / `label` / `unique_suffix`. Same pattern as `ChargeRateSensor` and `LastJobMetricSensor`. `BatteryHealthSensor` stays as its own class (rather than a third `RegimeChargeSpeedSensor` instance) because its attribute payload is broader — it surfaces both regime baselines, not just one — and its label / suffix don't follow the regime naming convention.
+
 ---
 
 ## 14. Lifecycle integration
@@ -615,9 +772,24 @@ covers the case where it can't.
 battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
 battery_manager.start(manager.get_known_vacuum_ids())
 hass.data[DOMAIN][DATA_BATTERY] = battery_manager
+
+async def _handle_rebaseline(call: ServiceCall) -> None:
+    vacuum_entity_id = call.data["vacuum_entity_id"]
+    bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
+    if bm is None:
+        _LOGGER.warning("battery: rebaseline called but battery manager is not loaded")
+        return
+    ok = bm.rebaseline(vacuum_entity_id)
+    if not ok:
+        _LOGGER.warning("battery: rebaseline called for %s but no record found", vacuum_entity_id)
+
+hass.services.async_register(
+    DOMAIN, "battery_rebaseline", _handle_rebaseline,
+    schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
+)
 ```
 
-Order matters: must run *after* the runtime manager is initialized (to read battery levels) and *before* `async_forward_entry_setups(entry, PLATFORMS)` so sensors can find the manager via `hass.data[DOMAIN][DATA_BATTERY]`.
+Order matters: must run *after* the runtime manager is initialized (to read battery levels) and *before* `async_forward_entry_setups(entry, PLATFORMS)` so sensors can find the manager via `hass.data[DOMAIN][DATA_BATTERY]`. The service handler closes over `hass` so it doesn't need to thread it through; it resolves the manager from `hass.data` on every call so a reload picks up cleanly.
 
 ### 14.2 `__init__.py` unload
 
@@ -690,7 +862,7 @@ The `try/except` is defensive — a failure here must not block job finalization
 | Cumulative cycles survive restart | Persisted in `eufy_vacuum.storage` under `battery.vacuums.<vid>.cycles` and `cumulative_drain_pct`. |
 | Drain across an HA outage | Counts toward cycles when the post-restart sample arrives. The delta is rejected if it exceeds `MAX_DELTA_PCT`, otherwise added. |
 | Rate metrics across an HA outage | Skipped — the `MAX_RATE_INTERVAL_SEC` gate rejects the first post-restart sample's rate computation (would be averaged over the gap). |
-| Health baseline | Persisted, never resets. To re-baseline, manually delete `record.baseline` from storage. |
+| Health baseline | Persisted, never resets on its own. To re-baseline (battery swap), call the `eufy_vacuum.battery_rebaseline` service — it clears `baseline.min_per_pct`, `baseline.session_count`, `baseline.anchored_at`, and `stats.health_pct`, leaving cycles and aggregates intact. |
 | Open charge session at restart | Closed implicitly on the next sample if `charging` reads false; otherwise the stale-session safeguard force-closes after `SESSION_MAX_HOURS`. |
 | Post-job charge linkage pending at restart | **Lost.** `_pending_post_job` is in-memory only. The next charge session after restart classifies as `idle`. |
 | Job aggregates | Persisted; new jobs continue contributing without recompute. |
@@ -699,11 +871,11 @@ The `try/except` is defensive — a failure here must not block job finalization
 
 ## 16. Testing without hardware
 
-For development without a live vacuum, the manager's `_process_sample` is the single entry point. A test harness can construct a `BatteryHealthManager` with a stub `runtime_manager` providing `data`, `_get_battery_level`, and `_is_recharge_like_state`, then drive a synthetic sample stream through `_process_sample` directly — no HA event bus needed.
+For development without a live vacuum, the manager's `_process_sample` is the single entry point. A test harness can construct a `BatteryHealthManager` with a stub `runtime_manager` providing `data`, `_get_battery_level`, and `_is_charging` (the new charging-detection method — see §5.1.1), then drive a synthetic sample stream through `_process_sample` directly — no HA event bus needed.
 
 Useful synthetic fixtures:
 
-- 0→100 charge over 90 minutes (full session, fed into baseline)
+- 60→95 charge over 35 minutes (qualifying session — anchors baseline on the first one fed in)
 - 80→100 partial recharge (high zone update only)
 - 100→0 drain (one full cycle accumulated)
 - 60→62 in 4 hours simulated (long gap — drain counts, rate skipped)

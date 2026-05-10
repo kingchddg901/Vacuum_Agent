@@ -10,10 +10,13 @@ from pathlib import Path
 
 import os
 
+import voluptuous as vol
+
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import Event, HomeAssistant, callback
+from homeassistant.core import Event, HomeAssistant, ServiceCall, callback
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.event import async_call_later, async_track_state_change_event, async_track_time_interval
 
 from ._frontend_url import panel_js_url
@@ -111,8 +114,12 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     maps_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps")
     os.makedirs(maps_dir, exist_ok=True)
 
-    textures_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "textures")
-    os.makedirs(textures_dir, exist_ok=True)
+    # Floor textures ship with the integration so HACS delivers them on
+    # every install. Previously this pointed at <config>/eufy_vacuum/textures
+    # which only ever existed on the developer's machine — every other
+    # install 404'd silently. cache_headers=True because these are
+    # versioned, non-changing static assets (~18 MB total).
+    textures_dir = os.path.join(os.path.dirname(__file__), "textures")
 
     frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
     os.makedirs(frontend_dir, exist_ok=True)
@@ -120,7 +127,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     await hass.http.async_register_static_paths(
         [
             StaticPathConfig("/eufy_vacuum/maps", maps_dir, cache_headers=False),
-            StaticPathConfig("/eufy_vacuum/textures", textures_dir, cache_headers=False),
+            StaticPathConfig("/eufy_vacuum/textures", textures_dir, cache_headers=True),
             StaticPathConfig("/eufy_vacuum/frontend", frontend_dir, cache_headers=False),
         ]
     )
@@ -901,6 +908,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
     battery_manager.start(manager.get_known_vacuum_ids())
     hass.data[DOMAIN][DATA_BATTERY] = battery_manager
+
+    async def _handle_rebaseline(call: ServiceCall) -> None:
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
+        if bm is None:
+            _LOGGER.warning(
+                "battery: rebaseline service called but battery manager is not loaded"
+            )
+            return
+        ok = bm.rebaseline(vacuum_entity_id)
+        if not ok:
+            _LOGGER.warning(
+                "battery: rebaseline service called for %s but no record was found",
+                vacuum_entity_id,
+            )
+
+    hass.services.async_register(
+        DOMAIN,
+        "battery_rebaseline",
+        _handle_rebaseline,
+        schema=vol.Schema({vol.Required("vacuum_entity_id"): cv.entity_id}),
+    )
 
     mapping_manager = MappingManager(hass)
     mapping_tracker = MappingTracker(hass, mapping_manager)

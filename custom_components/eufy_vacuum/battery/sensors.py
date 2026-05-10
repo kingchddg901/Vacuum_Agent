@@ -1,15 +1,24 @@
 """Battery health sensors backed by BatteryHealthManager.
 
-Six sensors per vacuum:
+Sensors per vacuum:
 - {object_id}_charge_cycles      — cumulative cycles (drain ÷ 100)
 - {object_id}_charge_rate        — instantaneous %/min (overall, while charging)
 - {object_id}_charge_rate_low_zone   — %/min while battery ≤ 29%
 - {object_id}_charge_rate_high_zone  — %/min while battery ≥ 80%
 - {object_id}_last_charge_duration   — minutes for the last completed session
-- {object_id}_battery_health     — % vs first-5-session baseline (None until seeded)
+- {object_id}_battery_health     — % vs install baseline (CV regime — resistance proxy)
+- {object_id}_cc_charge_speed    — % vs install baseline, CC regime (capacity proxy)
+- {object_id}_cv_charge_speed    — % vs install baseline, CV regime (resistance proxy)
+- {object_id}_last_job_drain_per_min / per_hour / per_m2 — last-job drain rates
+- {object_id}_mid_job_recharge_rate  — rolling mean of mid-job recharge rates
 
-All six pull from the same in-memory record; a single update listener fans out
-state writes whenever the manager processes a new sample.
+All sensors pull from the same in-memory record; a single update listener
+fans out state writes whenever the manager processes a new sample.
+
+The CC/CV regimes age in opposite directions — capacity loss raises %/min
+in the 50→80 CC region, resistance rise lowers %/min in the 80→90 CV taper —
+so they're tracked separately. _battery_health is an alias of _cv_charge_speed
+for entity_id continuity with installs that pre-date the regime split.
 """
 
 from __future__ import annotations
@@ -54,6 +63,23 @@ def build_battery_sensors(
         ),
         LastChargeDurationSensor(manager=manager, vacuum_entity_id=vacuum_entity_id),
         BatteryHealthSensor(manager=manager, vacuum_entity_id=vacuum_entity_id),
+        # Regime-split charge speed indices. CC = 50→80 (capacity proxy),
+        # CV = 80→90 (resistance proxy). _battery_health above is an alias
+        # of the CV index, kept under the legacy entity_id.
+        RegimeChargeSpeedSensor(
+            manager=manager, vacuum_entity_id=vacuum_entity_id,
+            stat_key="cc_charge_speed_pct",
+            baseline_key="cc_min_per_pct",
+            label="CC Charge Speed",
+            unique_suffix="cc_charge_speed",
+        ),
+        RegimeChargeSpeedSensor(
+            manager=manager, vacuum_entity_id=vacuum_entity_id,
+            stat_key="cv_charge_speed_pct",
+            baseline_key="cv_min_per_pct",
+            label="CV Charge Speed",
+            unique_suffix="cv_charge_speed",
+        ),
         # Job-level metrics — populated when a job completes.
         LastJobMetricSensor(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
@@ -253,10 +279,11 @@ class LastChargeDurationSensor(_BatteryBase):
 
 
 class BatteryHealthSensor(_BatteryBase):
-    """Battery health % relative to the first-N-sessions baseline.
+    """Battery health % relative to the install baseline.
 
-    None until the baseline is locked in (≥ BASELINE_SAMPLE_COUNT qualifying
-    full charges). 100 = matches baseline, <100 = slower than baseline.
+    Headline alias of cv_charge_speed_pct (the resistance-proxy regime).
+    Kept under the _battery_health entity_id for continuity with installs
+    that pre-date the regime split. None until the baseline is anchored.
     """
 
     _attr_state_class = "measurement"
@@ -283,9 +310,61 @@ class BatteryHealthSensor(_BatteryBase):
         baseline = rec.get("baseline", {})
         history = rec.get("session_history_recent", [])
         return {
-            "baseline_min_per_pct": baseline.get("min_per_pct"),
+            # The headline tracks the CV regime, so surface that anchor by
+            # default. cc_min_per_pct is also exposed for visibility.
+            "baseline_cv_min_per_pct": baseline.get("cv_min_per_pct"),
+            "baseline_cc_min_per_pct": baseline.get("cc_min_per_pct"),
             "baseline_session_count": baseline.get("session_count"),
+            "baseline_anchored_at": baseline.get("anchored_at"),
             "completed_sessions": len(history),
+        }
+
+
+class RegimeChargeSpeedSensor(_BatteryBase):
+    """Per-regime charge-speed % vs install baseline (CC or CV).
+
+    Reads ``stats.<stat_key>`` and surfaces the matching baseline anchor
+    in attributes. Returns None until the baseline is anchored. Two
+    instances live side-by-side (CC and CV) so users can read the
+    capacity and resistance signals independently.
+    """
+
+    _attr_state_class = "measurement"
+    _attr_native_unit_of_measurement = "%"
+    _attr_icon = "mdi:battery-heart-variant"
+
+    def __init__(
+        self,
+        *,
+        manager: BatteryHealthManager,
+        vacuum_entity_id: str,
+        stat_key: str,
+        baseline_key: str,
+        label: str,
+        unique_suffix: str,
+    ) -> None:
+        super().__init__(
+            manager=manager,
+            vacuum_entity_id=vacuum_entity_id,
+            label=label,
+            unique_suffix=unique_suffix,
+        )
+        self._stat_key = stat_key
+        self._baseline_key = baseline_key
+
+    @property
+    def native_value(self) -> float | None:
+        stats = self._record().get("stats", {})
+        value = stats.get(self._stat_key)
+        return float(value) if value is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        baseline = self._record().get("baseline", {})
+        return {
+            "baseline_min_per_pct": baseline.get(self._baseline_key),
+            "baseline_session_count": baseline.get("session_count"),
+            "baseline_anchored_at": baseline.get("anchored_at"),
         }
 
 

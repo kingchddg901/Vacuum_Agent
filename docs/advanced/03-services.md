@@ -596,6 +596,41 @@ Clears all runtime state for a vacuum — queue, active job, lifecycle, and any 
 
 ---
 
+## Battery Health
+
+### `battery_rebaseline`
+
+Clears the per-install health baseline anchor for the supplied vacuum so the next qualifying recharge re-anchors it. Use this after physically replacing the battery — the existing baseline describes the old cell's charge curve and produces meaningless health % readings against the new one.
+
+**Parameters:**
+
+| Parameter | Required | Description |
+|---|---|---|
+| `vacuum_entity_id` | Yes | The vacuum entity whose baseline should be cleared. |
+
+**What it touches:**
+
+- `baseline.min_per_pct` → `null`
+- `baseline.session_count` → `0`
+- `baseline.anchored_at` → `null`
+- `stats.health_pct` → `null` (sensor reads "Building baseline" until re-anchored)
+
+**What it leaves alone:**
+
+- `cycles` and `cumulative_drain_pct` — total wear is still meaningful regardless of which battery is installed
+- `job_aggregates` (per-mode / per-fan / per-water-level drain rates) — those describe the *vacuum's* power profile, not the battery's age
+- `mid_job_recharge_stats` — rolling mean continues from where it left off
+- `session_history_recent` — historical sessions still readable; only the baseline pointer is reset
+- Sensors other than `_battery_health`
+
+After the call, run a heavy-load job (max suction, max water, narrow path / 2 passes, edge clean, as many rooms as possible) to drain to ≤ 50 % then dock for an uninterrupted recharge to ≥ 90 %. The next session-close after that recharge anchors the new baseline.
+
+The service has no return value (does not support response). Logs a warning if the battery manager is not loaded or no record exists for the supplied vacuum.
+
+See [advanced/09-battery-health.md](09-battery-health.md#health-proxy) for the full health-proxy model and [user-guide/13-battery-health.md](../user-guide/13-battery-health.md#after-replacing-the-battery) for the user-facing replacement workflow.
+
+---
+
 ## Setup Services
 
 These services drive the setup panel's onboarding flow. Under normal operation the panel calls them for you. Power users and developers can call them directly from automations or scripts, but most of the time you will interact with them through the card's setup UI rather than the service developer tools.

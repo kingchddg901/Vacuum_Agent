@@ -1859,7 +1859,16 @@ class EufyVacuumManager:
         task_status: str | None,
         dock_status: str | None,
     ) -> bool:
-        """Return whether the current HA state looks like actual charging."""
+        """Return whether the current HA state looks like actual charging.
+
+        Substring-based fallback used by ``_is_charging`` when the dedicated
+        ``binary_sensor.<object_id>_charging`` entity is absent / unavailable.
+        Has known false negatives — most importantly, post-job recharges
+        where ``task_status`` lingers as ``"completed"`` after job
+        finalisation, which short-circuits the terminal-state check below
+        and reports False even while the vacuum is plainly charging.
+        Prefer ``_is_charging`` for any new caller.
+        """
         values = [
             str(vacuum_state or "").strip().lower(),
             str(task_status or "").strip().lower(),
@@ -1872,31 +1881,66 @@ class EufyVacuumManager:
             return True
         return any("charg" in value or "recharg" in value for value in values if value)
 
+    def _is_charging(self, vacuum_entity_id: str) -> bool:
+        """Definitive "is the vacuum charging right now" check.
+
+        Reads ``binary_sensor.<object_id>_charging`` as the primary signal —
+        a clean on/off entity emitted by the upstream eufy-clean integration.
+        Falls back to ``_is_recharge_like_state`` substring matching only
+        when the binary sensor is absent or in an unusable state
+        (``unavailable`` / ``unknown`` / not yet registered). The fallback
+        is known-fragile, particularly for post-job recharges; the binary
+        sensor is the authoritative signal for any vacuum that exposes it.
+        """
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+        bs = self.hass.states.get(f"binary_sensor.{object_id}_charging")
+        if bs is not None and bs.state in ("on", "off"):
+            return bs.state == "on"
+
+        # Fallback: substring matching. Same vocabulary _is_recharge_like_state
+        # has always inspected.
+        vacuum_state = self.hass.states.get(vacuum_entity_id)
+        task_status_state = self.hass.states.get(f"sensor.{object_id}_task_status")
+        dock_status_state = self.hass.states.get(f"sensor.{object_id}_dock_status")
+        return self._is_recharge_like_state(
+            vacuum_state=vacuum_state.state if vacuum_state is not None else None,
+            task_status=task_status_state.state if task_status_state is not None else None,
+            dock_status=dock_status_state.state if dock_status_state is not None else None,
+        )
+
     def _is_low_battery_return_state(
         self,
         *,
         current_battery: int,
         vacuum_state: str | None,
         task_status: str | None,
-        dock_status: str | None,
     ) -> bool:
-        """Return whether the robot appears to be returning due to low battery."""
-        task_status_n = str(task_status or "").strip().lower()
-        if task_status_n == "returning to charge":
-            return True
+        """Return whether the robot is returning to dock due to low battery.
 
-        values = [
-            str(vacuum_state or "").strip().lower(),
-            task_status_n,
-            str(dock_status or "").strip().lower(),
-        ]
-        returning = any(
-            value in {"returning", "return to base", "going home", "backing to station"}
-            for value in values
-        )
-        low_battery = current_battery > 0 and current_battery <= 20
-        terminal = any(value in {"completed", "complete", "ready"} for value in values)
-        return returning and low_battery and not terminal
+        Two signals, simplest first:
+
+        - ``task_status == "returning to charge"`` — upstream-authoritative;
+          the string is specific to low-battery return, no battery threshold
+          needed.
+        - ``vacuum_state == "returning"`` (HA standard) **and**
+          ``0 < battery <= 20`` — the generic "returning" state plus a
+          battery gate so user-initiated return_to_base with full battery
+          isn't mis-classified.
+
+        The previous implementation substring-matched against four phrases
+        ("return to base" / "going home" / "backing to station" / "returning")
+        across vacuum_state / task_status / dock_status, with a terminal-
+        state guard. That pattern was the same silent-failure shape that
+        broke charging detection: too many sources, too much fuzzy matching,
+        no canonical signal. HA's vacuum platform normalises the state to
+        ``returning``; dock_status can't observe a robot mid-return; the
+        wider net was inviting trouble for no benefit.
+        """
+        if str(task_status or "").strip().lower() == "returning to charge":
+            return True
+        if str(vacuum_state or "").strip().lower() != "returning":
+            return False
+        return 0 < current_battery <= 20
 
     def update_active_job_recharge_observation(
         self,
@@ -1913,7 +1957,6 @@ class EufyVacuumManager:
         object_id = vacuum_entity_id.split(".", 1)[1]
         vacuum_state = self.hass.states.get(vacuum_entity_id)
         task_status_state = self.hass.states.get(f"sensor.{object_id}_task_status")
-        dock_status_state = self.hass.states.get(f"sensor.{object_id}_dock_status")
         current_battery = self._get_battery_level(vacuum_entity_id)
         observed_at_value = observed_at or _iso_now()
 
@@ -1921,7 +1964,6 @@ class EufyVacuumManager:
             current_battery=current_battery,
             vacuum_state=vacuum_state.state if vacuum_state is not None else None,
             task_status=task_status_state.state if task_status_state is not None else None,
-            dock_status=dock_status_state.state if dock_status_state is not None else None,
         ):
             if not bool(active_job.get("pending_mid_job_recharge_return", False)):
                 active_job["pending_mid_job_recharge_return"] = True
@@ -1933,11 +1975,7 @@ class EufyVacuumManager:
             self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
             return active_job
 
-        if not self._is_recharge_like_state(
-            vacuum_state=vacuum_state.state if vacuum_state is not None else None,
-            task_status=task_status_state.state if task_status_state is not None else None,
-            dock_status=dock_status_state.state if dock_status_state is not None else None,
-        ):
+        if not self._is_charging(vacuum_entity_id):
             self.data.setdefault("active_jobs", {})
             self.data["active_jobs"].setdefault(vacuum_entity_id, {})
             self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
@@ -1947,11 +1985,7 @@ class EufyVacuumManager:
 
         if bool(active_job.get("observed_mid_job_recharge", False)):
             # Recharge already in progress — check if it ended (vacuum resumed cleaning).
-            if not self._is_recharge_like_state(
-                vacuum_state=vacuum_state.state if vacuum_state is not None else None,
-                task_status=task_status_state.state if task_status_state is not None else None,
-                dock_status=dock_status_state.state if dock_status_state is not None else None,
-            ):
+            if not self._is_charging(vacuum_entity_id):
                 started_str = str(active_job.get("observed_mid_job_recharge_started_at") or "").strip()
                 if started_str:
                     started_dt = parse_timestamp(started_str)

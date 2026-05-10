@@ -172,7 +172,7 @@ The Battery tab is a focused readout of the integration's battery health subsyst
 | Chip | What it shows |
 |---|---|
 | Charge cycles | Cumulative drain ÷ 100. Each percent of battery used adds 0.01 to the count. Persists across HA restarts. |
-| Health % | Current charge speed compared to the first five full charges (the baseline). 100% means matching the baseline; below 100% means slower-than-baseline. Shows "Building baseline" until five qualifying charges have been recorded. |
+| Health % | CV-regime charge speed (80→90 % phase, the resistance proxy) compared to *your install's* baseline. Headline alias of the `_cv_charge_speed` sensor. 100% means matching the baseline; below 100% means slower-than-baseline. The companion `_cc_charge_speed` sensor tracks the CC regime (capacity proxy) for the full picture. Shows "Building baseline" until one qualifying recharge (start ≤ 50 %, end ≥ 90 %) has been recorded. See [13-battery-health.md](13-battery-health.md#seeding-the-baseline-faster) for how to force the seeding instead of waiting, and the `eufy_vacuum.battery_rebaseline` service for use after a battery swap. |
 | Charge rate | Most recent instantaneous %/min while charging. |
 | Last job %/m² | Battery used per square metre on the most recent completed job. |
 

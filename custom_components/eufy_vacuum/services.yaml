@@ -10,6 +10,7 @@
 #   Maintenance
 #   Learning
 #   Theme
+#   Battery health
 #
 
 # ============================================================
@@ -1851,4 +1852,25 @@ retry_missed_rooms:
               value: pause_and_event
             - label: Cancel and event
               value: cancel_and_event
+
+# ============================================================
+# BATTERY HEALTH
+# ============================================================
+
+battery_rebaseline:
+  name: Rebaseline battery health
+  description: >
+    Clear the health baseline anchor so the next qualifying recharge
+    re-anchors it. Use after replacing the battery. Does not affect cycle
+    count, per-job metrics, or aggregates — only the health % comparison
+    baseline.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      description: The vacuum entity whose baseline should be cleared.
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
 
