@@ -260,17 +260,30 @@ class ErrorTracker:
         # parity over a registry-based lookup.
         object_id = vacuum_entity_id.split(".", 1)[-1]
         error_message_entity = f"sensor.{object_id}_error_message"
+        task_status_entity = f"sensor.{object_id}_task_status"
 
         self._source_to_vacuum[error_message_entity] = vacuum_entity_id
+        self._source_to_vacuum[task_status_entity] = vacuum_entity_id
         self._source_to_vacuum[vacuum_entity_id] = vacuum_entity_id
 
         self._ensure_record(vacuum_entity_id)
 
         unsubs: list[Callable[[], None]] = []
+        # Three signal sources, each routed by entity_id in _on_state_event:
+        # - error_message: primary; supplies the human-readable string and
+        #   numeric code when upstream surfaces them
+        # - vacuum.state: HA-derived; flips to "error" when upstream
+        #   WorkStatus.state == 2
+        # - task_status: parallel string signal that flips to "Error" on
+        #   the same upstream condition. Empirical observation (real
+        #   recorder trace, 2026-05-10): for stuck/trapped/etc events the
+        #   firmware never populates error_message, so this channel +
+        #   vacuum.state are the ONLY HA-visible indicators. Adding it
+        #   defensively means we don't depend on either alone.
         unsubs.append(
             async_track_state_change_event(
                 self._hass,
-                [error_message_entity, vacuum_entity_id],
+                [error_message_entity, task_status_entity, vacuum_entity_id],
                 self._on_state_event,
             )
         )
@@ -288,12 +301,21 @@ class ErrorTracker:
         old_state = old_state_obj.state if old_state_obj is not None else None
 
         if entity_id == vacuum_entity_id:
-            # vacuum.<obj> transition. Only relevant when transitioning INTO
-            # an error state — that may indicate the firmware fired the state
-            # DPS before the message DPS arrived. Schedule a grace window.
-            self._handle_vacuum_state_change(
-                vacuum_entity_id, old_state, new_state
-            )
+            # vacuum.<obj> state transition. HA-derived from the upstream
+            # WorkStatus.state — flips to "error" when state == 2.
+            self._handle_secondary_error_signal(vacuum_entity_id)
+            return
+
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+        if entity_id == f"sensor.{object_id}_task_status":
+            # task_status string transition. Parallel to vacuum.state — same
+            # upstream condition (WorkStatus.state == 2 → "Error") routes
+            # through this string sensor. Defensive secondary channel:
+            # empirically, stuck-type events flip both vacuum.state and
+            # task_status simultaneously while error_message stays empty,
+            # so subscribing to both protects against edge cases where
+            # one fires without the other.
+            self._handle_secondary_error_signal(vacuum_entity_id)
             return
 
         # error_message sensor transition — the primary signal.
@@ -301,21 +323,49 @@ class ErrorTracker:
             vacuum_entity_id, old_state, new_state
         )
 
-    # -- vacuum.state handling -----------------------------------------------
+    # -- secondary error signal handling -------------------------------------
 
-    def _handle_vacuum_state_change(
-        self,
-        vacuum_entity_id: str,
-        old_state: str | None,
-        new_state: str | None,
-    ) -> None:
-        """Schedule grace-window placeholder if state → 'error' with no msg yet."""
-        if str(new_state or "").strip().lower() != "error":
-            # Cancel any pending grace timer when leaving error state.
+    def _is_in_secondary_error(self, vacuum_entity_id: str) -> bool:
+        """True if any secondary channel currently indicates an error state.
+
+        Checks both vacuum.<obj> state and sensor.<obj>_task_status. Either
+        one being in "error" / "Error" counts. Used to decide whether to
+        schedule a grace window (any channel rising → schedule) and whether
+        to cancel one (all channels back to normal → cancel).
+        """
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+        vac = self._hass.states.get(vacuum_entity_id)
+        if (
+            vac is not None
+            and str(vac.state or "").strip().lower() == "error"
+        ):
+            return True
+        ts = self._hass.states.get(f"sensor.{object_id}_task_status")
+        if (
+            ts is not None
+            and str(ts.state or "").strip().lower() == "error"
+        ):
+            return True
+        return False
+
+    def _handle_secondary_error_signal(self, vacuum_entity_id: str) -> None:
+        """Schedule or cancel the grace window based on combined channel state.
+
+        Called by both the vacuum.state and task_status state-change events.
+        Re-evaluates whether ANY secondary channel is currently in error and
+        manages the grace timer accordingly:
+
+        - At least one secondary channel in error AND no error_message yet
+          → schedule grace timer (idempotent — only schedules once)
+        - All secondary channels back to normal → cancel grace
+        - error_message already populated → no-op (message handler latches)
+        """
+        if not self._is_in_secondary_error(vacuum_entity_id):
             self._cancel_grace(vacuum_entity_id)
             return
 
-        # Already in error state: only schedule once.
+        # Already in error state on at least one channel — schedule grace if
+        # not already pending.
         if vacuum_entity_id in self._grace_cancels:
             return
 
@@ -343,14 +393,19 @@ class ErrorTracker:
 
     @callback
     def _on_grace_expired(self, vacuum_entity_id: str) -> None:
-        """Grace window elapsed — finalise as a generic placeholder latch."""
+        """Grace window elapsed — finalise as a generic placeholder latch.
+
+        Re-checks both secondary channels (vacuum.state, task_status) at
+        expiry. The vacuum may have left "error" on one channel and not the
+        other in the 5 s since the timer was scheduled — if EITHER channel
+        is still in error and error_message is still empty, we latch.
+        """
         self._grace_cancels.pop(vacuum_entity_id, None)
-        # Re-check state at expiry — vacuum may have already left "error".
-        vacuum_state = self._hass.states.get(vacuum_entity_id)
-        if vacuum_state is None or str(vacuum_state.state or "").strip().lower() != "error":
+        if not self._is_in_secondary_error(vacuum_entity_id):
             return
-        # And re-check the message in case it arrived after the timer fired
-        # but before this callback ran.
+        # Re-check the message in case it arrived after the timer fired but
+        # before this callback ran — the message handler would have already
+        # latched in that case.
         object_id = vacuum_entity_id.split(".", 1)[-1]
         msg_state = self._hass.states.get(f"sensor.{object_id}_error_message")
         msg_value = msg_state.state if msg_state is not None else None
