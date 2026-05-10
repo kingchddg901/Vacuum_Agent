@@ -389,11 +389,21 @@ class ErrorTracker:
             self._record_falling_edge(vacuum_entity_id)
 
     def _read_error_code_attr(self, vacuum_entity_id: str) -> int | None:
-        """Pull the upstream error_code attribute if the sensor exposes one.
+        """Pull the upstream error_code attribute if the entity exposes one.
 
-        Some upstream releases attach ``error_code`` as a state attribute on
-        the error_message sensor; others bury it in the vacuum entity. Try
-        both, return the first integer-coercible value.
+        Verified upstream surface (robovac_mqtt as of 2026-05): the code
+        lives on the vacuum.<obj> entity's extra_state_attributes alongside
+        the message — not on the sensor.<obj>_error_message sensor. We
+        check both so a future upstream refactor that adds it to the
+        sensor still works.
+
+        Treats 0 as "no code captured" rather than "the upstream's literal
+        zero". Reasoning: every per-model error_code proto in the upstream
+        starts with E0000_NONE = 0, so upstream uses 0 as the sentinel for
+        "no error". If we observe code=0 alongside a real error_message,
+        the vacuum entity's attributes lagged the sensor state change —
+        better to record None ("we don't know the code") than to claim
+        zero, which has a different meaning in the upstream's vocabulary.
         """
         object_id = vacuum_entity_id.split(".", 1)[-1]
         for entity_id in (
@@ -406,7 +416,7 @@ class ErrorTracker:
             attrs = getattr(state, "attributes", None) or {}
             for key in ("error_code", "code", "errorCode"):
                 value = _safe_int(attrs.get(key))
-                if value is not None:
+                if value is not None and value != 0:
                     return value
         return None
 
