@@ -374,6 +374,8 @@ The active job is an in-memory dict built by `build_active_job_state` in `queue/
   "observed_mid_job_recharge_count":   int
   "recharge_seconds_accumulated":      int
   "observed_mop_wash_count":           int
+  "observed_mop_wash_last_at":         str | None  # iso ts of most recent observed wash
+  "observed_mop_wash_cycles":          list[dict]  # per-cycle log: [{"observed_at": iso ts}, ...] (capped at 50)
   "water_estimate":                    dict        # water usage estimate (see §7)
   "job_metadata":                      dict        # {map_id, room_count, room_slugs}
   "trace_run_id":                      str | None

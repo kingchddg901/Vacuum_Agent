@@ -131,6 +131,7 @@ This is the authoritative rule-evaluation site for job start (the only other sit
   "pending_mid_job_recharge_return_at": None,
   "observed_mop_wash_count": 0,
   "observed_mop_wash_last_at": None,
+  "observed_mop_wash_cycles": [],   # per-cycle log: [{"observed_at": iso ts}, ...] capped at 50
   "state_transitions": [],
   "water_estimate": None,
   "path_block_action": "event_only",

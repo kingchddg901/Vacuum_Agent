@@ -85,7 +85,7 @@ All in `battery/manager.py`:
 
 | Constant | Default | Purpose |
 |---|---|---|
-| `MAX_DELTA_PCT` | 50.0 | Reject single-sample deltas this large or larger. Prevents inflation from sensor resets / HA gaps. |
+| `MAX_DELTA_PCT` | 3.0 | Reject single-sample deltas above this magnitude. Real per-sample motion tops out around ±2-3 pp under heavy charging or peak cleaning drain on ~30s sample intervals; anything larger is almost always a firmware X→0 / 0→X flip, HA restart gap, or multi-hour self-discharge. Rejected deltas are surfaced in samples.jsonl as `rejected_delta_pct`. |
 | `MAX_RATE_INTERVAL_SEC` | 600.0 | Skip rate computation when sample interval exceeds this. Drain still counts toward cycles (drain is time-independent). |
 | `LOW_ZONE_MAX` | 29 | Battery level ≤ this counts as "low zone". |
 | `HIGH_ZONE_MIN` | 80 | Battery level ≥ this counts as "high zone". |
@@ -255,6 +255,12 @@ if prev_level is not None and prev_ts is not None:
             update rate_overall_per_min
             if zone == "low":  update rate_low_zone_per_min
             if zone == "high": update rate_high_zone_per_min
+    else:
+        # Guard rejected the observation. Capture the raw_delta magnitude
+        # for the JSONL audit trail (rejected_delta_pct field). delta_pct
+        # stays None so downstream rate/drain/regime accounting ignores
+        # the rejected sample.
+        rejected_delta_pct = float(raw_delta)
 
 # Session lifecycle (see section 6)
 _update_session(record, battery_level, charging, ts, rate_per_min)
@@ -655,11 +661,20 @@ Two append-only files per vacuum, written under `config/eufy_vacuum/battery/<obj
 
 ### 12.1 samples.jsonl
 
-Append on every accepted sample, one JSON object per line. Fields (from `_SAMPLES_FIELDS`):
+Append on every sample (accepted *and* rejected), one JSON object per line. Fields (from `_SAMPLES_FIELDS`):
 
 ```
-ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added, cycles
+ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added,
+cycles, rejected_delta_pct
 ```
+
+`rejected_delta_pct` is non-null **only** when `MAX_DELTA_PCT` rejected the observation. It carries the raw delta magnitude (signed), so a firmware 100→0 flip records `rejected_delta_pct: -100.0` while the other fields show the after-the-flip state and `delta_pct: null`. To find every rejection event:
+
+```bash
+grep '"rejected_delta_pct": [^n]' samples.jsonl
+```
+
+(Anything where the field isn't `null`.) Useful for tuning the threshold and for spotting hardware misbehaviour patterns.
 
 Best-effort write — `OSError` is logged at debug and swallowed so a transient FS issue can't crash the manager.
 
@@ -860,7 +875,7 @@ The `try/except` is defensive — a failure here must not block job finalization
 | Concern | Handling |
 |---|---|
 | Cumulative cycles survive restart | Persisted in `eufy_vacuum.storage` under `battery.vacuums.<vid>.cycles` and `cumulative_drain_pct`. |
-| Drain across an HA outage | Counts toward cycles when the post-restart sample arrives. The delta is rejected if it exceeds `MAX_DELTA_PCT`, otherwise added. |
+| Drain across an HA outage | If the post-restart sample's delta is within `MAX_DELTA_PCT` (3 pp) it counts toward cycles. Anything bigger is rejected — gap-spanning deltas were averaged over an unknown window and were never reliable, so dropping them keeps the cycles counter cleaner at the cost of losing a few pp per long restart. The rejected magnitude is preserved in `samples.jsonl` as `rejected_delta_pct` for audit. |
 | Rate metrics across an HA outage | Skipped — the `MAX_RATE_INTERVAL_SEC` gate rejects the first post-restart sample's rate computation (would be averaged over the gap). |
 | Health baseline | Persisted, never resets on its own. To re-baseline (battery swap), call the `eufy_vacuum.battery_rebaseline` service — it clears `baseline.min_per_pct`, `baseline.session_count`, `baseline.anchored_at`, and `stats.health_pct`, leaving cycles and aggregates intact. |
 | Open charge session at restart | Closed implicitly on the next sample if `charging` reads false; otherwise the stale-session safeguard force-closes after `SESSION_MAX_HOURS`. |

@@ -20,7 +20,7 @@ The counter:
 
 - **Persists across HA restarts.** Stored in `eufy_vacuum.storage`.
 - **Is monotonic.** Never decreases, never resets — match it against manufacturer cycle ratings (~1000 cycles for typical Li-ion robots) to estimate remaining service life.
-- **Ignores absurdly large jumps.** If a single sample reports a delta over 50 percentage points (likely a sensor reset or HA restart gap), the whole delta is discarded. Otherwise the counter would inflate every time HA missed events while the integration was unloaded.
+- **Ignores implausibly fast per-sample changes.** If a single sample reports a delta of more than 3 percentage points (`MAX_DELTA_PCT`), the whole delta is discarded. Real per-sample motion tops out around ±2-3 pp on ~30 s sample intervals; anything bigger is almost always a firmware X→0 / 0→X flip, an HA restart gap, or multi-hour self-discharge being booked as a single observation. Without this guard, those events would silently inflate the cycles counter by tens of percentage points each time HA missed events. Rejected deltas are preserved in `samples.jsonl` as `rejected_delta_pct` for audit (see Raw data files below).
 
 ---
 
@@ -301,11 +301,24 @@ config/eufy_vacuum/battery/<object_id>/
 
 ### samples.jsonl
 
-One JSON object per line, written on every accepted sample:
+One JSON object per line, written on every observation — accepted *and* rejected. Accepted samples have `delta_pct` populated and `rejected_delta_pct` null; rejected samples are the inverse:
 
 ```jsonl
-{"ts": "2026-05-08T12:34:56+00:00", "battery_level": 82, "charging": true, "delta_pct": 1.0, "rate_per_min": 0.5, "zone": "high", "drain_added": 0.0, "cycles": 12.34}
+{"ts": "2026-05-08T12:34:56+00:00", "battery_level": 82, "charging": true,  "delta_pct": 1.0,   "rate_per_min": 0.5, "zone": "high", "drain_added": 0.0, "cycles": 12.34, "rejected_delta_pct": null}
+{"ts": "2026-05-08T13:01:09+00:00", "battery_level": 0,  "charging": false, "delta_pct": null,  "rate_per_min": null,"zone": "low",  "drain_added": 0.0, "cycles": 12.34, "rejected_delta_pct": -82.0}
 ```
+
+`rejected_delta_pct` is non-null only when the `MAX_DELTA_PCT` guard fired (see Cycle counting). It carries the rejected raw delta magnitude so post-hoc analysis can see the size of every flip the integration filtered out:
+
+```bash
+# Find every rejection event in the log:
+grep '"rejected_delta_pct": [^n]' samples.jsonl
+
+# Histogram of rejection magnitudes (requires jq):
+jq -r 'select(.rejected_delta_pct != null) | .rejected_delta_pct' samples.jsonl | sort -n | uniq -c
+```
+
+A noisy install (lots of rejections) is a signal that either the upstream firmware is misbehaving or HA is restarting frequently; either way the cycles counter stays accurate because the guard protects it.
 
 Use `tail -f` or `jq` for live monitoring; rotate or archive periodically since the file grows forever.
 

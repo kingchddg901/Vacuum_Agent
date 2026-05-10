@@ -169,8 +169,10 @@ Key fields:
 | `pause_timeout_minutes` | Auto-cancel timeout for paused jobs (0 = disabled). |
 | `observed_mid_job_recharge` | `True` if the vacuum went back to dock mid-job to recharge. |
 | `observed_mop_wash_count` | Debounced count of dock mop-wash cycles during the job. |
+| `observed_mop_wash_last_at` | ISO timestamp of the most recent observed wash. |
+| `observed_mop_wash_cycles` | Per-cycle log: list of `{"observed_at": <iso ts>}` entries appended on each observed wash event (after the 60s debounce). Capped at 50 entries. Use this for cadence analysis vs. the rollup count. |
 | `state_transitions` | Rolling last-12 state transition records for debugging. |
-| `water_estimate` | Snapshot of water usage estimate taken at job start. |
+| `water_estimate` | Snapshot of water usage estimate taken at job start. The estimate's "is this a mopping room?" gate is `"mop" in clean_mode` only — water_level is a knob within mop mode, not a gate on it. The dock washes the mop pad after a mop run regardless of water flow, so a `vacuum_mop` room with `water_level: "Off"` still counts as a wash cycle (and `_water_rate_ml_per_minute` returns 0 for off, so robot-water totals stay accurate). |
 | `has_observed_active_lifecycle` | Pre-condition flag for auto-finalization. |
 | `finalized` | `True` after `mark_active_job_finalized()` is called. |
 | `finalize_summary` | Outcome metadata from the learning finalizer. |
