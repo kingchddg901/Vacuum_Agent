@@ -4,7 +4,9 @@ All services are registered under the `eufy_vacuum` domain. Call them as `eufy_v
 
 Services that `supports_response` return a data payload you can capture with `response_variable` in a script or automation action. Services that do not support response run fire-and-forget.
 
-Most services require at least `vacuum_entity_id`. Services that operate on a specific map also require `map_id`. Both fields are noted in each section.
+Most services require at least `vacuum_entity_id`. Services that operate on a specific map also accept `map_id`, but it is **optional everywhere** — omit it and the integration auto-resolves to the vacuum's current active map by reading the adapter's declared `entities.active_map` entity. Pass `map_id` explicitly only when you need to target a non-active map (e.g. inspecting state on a stored secondary map).
+
+Per-service tables below mark `map_id` as `No (auto)` to indicate this. Adapters that do not declare an active-map entity require the caller to pass `map_id` explicitly — the manager surfaces a clear error in that case rather than silently picking a wrong map.
 
 ---
 
@@ -70,7 +72,7 @@ Sends the resolved cleaning payload to the vacuum and starts the job. Honors roo
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `confirm_reduced_run` | No | Set `true` to allow a reduced run (some rooms blocked) to proceed without a separate confirmation step. |
 | `confirm_token` | No | Retry token returned by a prior `confirmation_required` response. Alternative to `confirm_reduced_run`. |
 | `path_block_action` | No | What to do if blocker rules change mid-run and remaining rooms become unreachable. Values: `event_only`, `pause_and_event`, `cancel_and_event`. |
@@ -85,7 +87,7 @@ Pauses the vacuum and marks the integration-owned active job as paused.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `resume_active_job`
 
@@ -94,7 +96,7 @@ Resumes the vacuum and the paused job.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `cancel_active_job`
 
@@ -103,7 +105,7 @@ Returns the vacuum to base, finalizes the active job as cancelled, and emits the
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ---
 
@@ -118,7 +120,7 @@ Builds the cleaning queue from all currently enabled rooms in their configured o
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 Call this after changing room settings or enabling/disabling rooms, before calling `start_selected_rooms`.
 
@@ -129,7 +131,7 @@ Applies a saved run profile, rebuilds the queue from it, and starts cleaning —
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `profile_id` | Yes | ID of the saved run profile to apply. |
 | `confirm_reduced_run` | No | Allow a blocker-reduced run without interactive confirmation. |
 | `confirm_token` | No | Retry token from a prior `confirmation_required` response. |
@@ -145,7 +147,7 @@ Applies per-room field overrides without requiring a named profile. Only the fie
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `room_id` | Yes | |
 | `enabled` | No | Enable or disable the room for queue and payload generation. |
 | `clean_mode` | No | |
@@ -167,7 +169,7 @@ Checks whether a cleaning job can be started and returns the current readiness s
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 Supports response. Use this in an automation condition before calling `start_selected_rooms` if you need to gate on readiness.
 
@@ -184,7 +186,7 @@ Returns the current queue state including room order.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_payload_state`
 
@@ -193,7 +195,7 @@ Returns the current resolved cleaning payload including per-room settings as the
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 Supports response. Use this to inspect exactly what the vacuum would receive before calling `start_selected_rooms`.
 
@@ -204,7 +206,7 @@ Clears the current queue state. The vacuum is not affected — this only resets 
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `clear_active_job`
 
@@ -213,7 +215,7 @@ Clears the active job record without sending any command to the vacuum. Persists
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 Use this to recover from a stuck or orphaned job state when `cancel_active_job` is not appropriate (for example, when the vacuum has already finished but the integration still shows an active job). This service does not finalize or archive the job — it only removes the in-memory record.
 
@@ -224,7 +226,7 @@ Returns the current active job state including start time and battery level at s
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_job_progress_snapshot`
 
@@ -233,7 +235,7 @@ Returns the canonical room-job progress state including current room, completed 
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_job_control_state`
 
@@ -242,7 +244,7 @@ Returns the backend-authored button availability and messages for the start, pau
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 This service returns control state, not job progress. For current job progress use `get_job_progress_snapshot`. For the combined single-call dashboard payload, use `get_dashboard_snapshot`.
 
@@ -253,7 +255,7 @@ Returns the current lifecycle state for a vacuum. Possible states include `ready
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_dashboard_snapshot`
 
@@ -262,7 +264,7 @@ Returns one unified payload containing job progress, job control button state, s
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_pause_timeout_settings`
 
@@ -306,7 +308,7 @@ Saves the currently enabled rooms and their settings as a new named run profile.
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `name` | Yes | Display name for the profile. |
 | `expose_as_button` | No | Mark this profile for Home Assistant button exposure. |
 
@@ -317,7 +319,7 @@ Restores a saved run profile back onto room selection, order, and per-room setti
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 | `profile_id` | Yes |
 
 #### `start_run_profile`
@@ -331,7 +333,7 @@ Returns all saved run profiles for a vacuum/map combination.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 Supports response.
 
@@ -346,7 +348,7 @@ Applies a named profile to one or more rooms on a map.
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `room_ids` | Yes | List of room IDs to apply the profile to. |
 | `profile_name` | Yes | Built-in or custom profile key. |
 
@@ -377,7 +379,7 @@ Creates a new custom room profile by copying one room's current effective settin
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `room_id` | Yes | |
 | `label` | Yes | Display name for the new profile. |
 | `profile_name` | No | Optional stable backend key. |
@@ -424,7 +426,7 @@ Computes a full job estimate from learned room history and the current queue sta
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `current_battery` | No | Current battery %. Default `0.0`. Used for battery warning calculation. |
 | `charge_percent_per_minute` | No | Default `1.0`. |
 | `reserve_battery_percent` | No | Minimum battery buffer to keep in reserve. Default `5.0`. |
@@ -462,7 +464,7 @@ Returns per-room learning estimates for all rooms on a map based on each room's 
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `current_battery` | No | Optional. Informational only. |
 
 **Returns:** Per-room estimate data keyed by room.
@@ -483,7 +485,7 @@ Manually saves a learning snapshot for the current job state. Called automatical
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `started_at` | Yes | Job start timestamp in `YYYY-MM-DDTHH:MM:SS` format. |
 | `battery_start` | Yes | Battery percent at job start (0–100). |
 | `job_id` | No | Optional custom job ID. |
@@ -497,7 +499,7 @@ Fires `eufy_vacuum_job_finished` on completion. Also fires `eufy_vacuum_run_inco
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `battery_start` | Yes | Battery at job start (0–100). |
 | `battery_end` | Yes | Battery at job end (0–100). |
 | `started_at` | Yes | Job start timestamp in `YYYY-MM-DDTHH:MM:SS` format. |
@@ -559,7 +561,7 @@ Runs the dock wash action when the dock state makes it valid to do so.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `dry_mop`
 
@@ -568,7 +570,7 @@ Runs the dock dry action when the dock state makes it valid to do so.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `stop_dry_mop`
 
@@ -577,7 +579,7 @@ Stops an active dock drying cycle. Only runs when the dock is actively drying.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `empty_dust`
 
@@ -586,7 +588,7 @@ Runs the dock dust-empty action when the dock state makes it valid to do so.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `get_dock_action_status`
 
@@ -595,7 +597,7 @@ Returns gated availability and blocked reasons for `wash_mop`, `dry_mop`, and `e
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 ### `set_dock_event_count`
 
@@ -728,7 +730,7 @@ Returns the list of managed rooms for a specific vacuum and map. Used by the set
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
-| `map_id` | Yes |
+| `map_id` | No (auto) |
 
 **Returns:** `{"vacuum_entity_id": ..., "map_id": ..., "rooms": [...]}`.
 
@@ -739,7 +741,7 @@ Saves a set of room IDs as managed rooms for a vacuum and map, optionally settin
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `enabled_room_ids` | No | List of integer room IDs to save. Omit to keep existing. |
 | `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `carpet`. |
 
@@ -754,7 +756,7 @@ Delete operations are protection-gated. High-protection maps (those with signifi
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `map_id` | Yes | |
+| `map_id` | No (auto) | |
 | `confirmation_token` | No | Required for high-protection maps. Must match the map display name exactly. |
 
 **Returns:** An ActionResult dict. Returns `"blocked"` with a `code` of `"confirmation_required"` when the token is missing or wrong for a protected map.
@@ -898,29 +900,29 @@ of these are driven by the card; automation use is rare.
 | `get_room_profiles` | List every factory + user-saved room cleaning profile. | (none) | (none) | yes — `{profiles: [...]}` |
 | `save_user_room_profile` | Save a new custom room profile from explicit clean parameters. | `label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` | `profile_name` | yes — `{ok, profile_name}` |
 | `overwrite_room_profile` | Replace an existing custom profile with new clean parameters. | `profile_name`, `label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` | (none) | yes — `{ok}` |
-| `save_room_profile_from_room` | Create a new profile by copying one room's current settings. | `vacuum_entity_id`, `map_id`, `room_id`, `label` | `profile_name` | yes — `{ok, profile_name}` |
-| `overwrite_room_profile_from_room` | Update an existing profile from one room's current settings. | `vacuum_entity_id`, `map_id`, `room_id`, `profile_name` | `label` | yes — `{ok}` |
+| `save_room_profile_from_room` | Create a new profile by copying one room's current settings. | `vacuum_entity_id`, `room_id`, `label` | `map_id` (auto), `profile_name` | yes — `{ok, profile_name}` |
+| `overwrite_room_profile_from_room` | Update an existing profile from one room's current settings. | `vacuum_entity_id`, `room_id`, `profile_name` | `map_id` (auto), `label` | yes — `{ok}` |
 | `rename_room_profile` | Rename an existing custom profile. | `profile_name` | `new_profile_name`, `label` | yes — `{ok}` |
 | `delete_room_profile` | Remove a custom profile from the library. Factory profiles cannot be deleted. | `profile_name` | (none) | yes — `{ok}` |
-| `apply_room_profile` | Apply one profile's settings to one or more rooms. | `vacuum_entity_id`, `map_id`, `room_ids: list[int]`, `profile_name` | (none) | yes — `{ok, applied_count}` |
+| `apply_room_profile` | Apply one profile's settings to one or more rooms. | `vacuum_entity_id`, `room_ids: list[int]`, `profile_name` | `map_id` (auto) | yes — `{ok, applied_count}` |
 
 ### Run profiles (saved room selections)
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `get_saved_run_profiles` | List saved run profiles for one vacuum/map. | `vacuum_entity_id`, `map_id` | (none) | yes — `{profiles: [...]}` |
-| `save_run_profile` | Save the current enabled-room selection as a named run profile. | `vacuum_entity_id`, `map_id`, `name` | `expose_as_button: bool` | yes — `{ok, profile_id}` |
-| `apply_run_profile` | Activate a saved run profile (enables only its rooms; does not start). | `vacuum_entity_id`, `map_id`, `profile_id` | (none) | yes — `{ok}` |
-| `overwrite_run_profile` | Replace a saved profile with the current enabled-room selection. | `vacuum_entity_id`, `map_id`, `profile_id` | `name`, `expose_as_button` | yes — `{ok}` |
-| `rename_run_profile` | Rename a saved run profile. | `vacuum_entity_id`, `map_id`, `profile_id`, `name` | (none) | yes — `{ok}` |
-| `delete_run_profile` | Delete a saved run profile. | `vacuum_entity_id`, `map_id`, `profile_id` | (none) | yes — `{ok}` |
+| `get_saved_run_profiles` | List saved run profiles for one vacuum/map. | `vacuum_entity_id` | `map_id` (auto) | yes — `{profiles: [...]}` |
+| `save_run_profile` | Save the current enabled-room selection as a named run profile. | `vacuum_entity_id`, `name` | `map_id` (auto), `expose_as_button: bool` | yes — `{ok, profile_id}` |
+| `apply_run_profile` | Activate a saved run profile (enables only its rooms; does not start). | `vacuum_entity_id`, `profile_id` | `map_id` (auto) | yes — `{ok}` |
+| `overwrite_run_profile` | Replace a saved profile with the current enabled-room selection. | `vacuum_entity_id`, `profile_id` | `map_id` (auto), `name`, `expose_as_button` | yes — `{ok}` |
+| `rename_run_profile` | Rename a saved run profile. | `vacuum_entity_id`, `profile_id`, `name` | `map_id` (auto) | yes — `{ok}` |
+| `delete_run_profile` | Delete a saved run profile. | `vacuum_entity_id`, `profile_id` | `map_id` (auto) | yes — `{ok}` |
 
 ### Room field editing
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `get_room_access_editor` | Return the access-graph editor state for one room (incoming/outgoing edges, rules). | `vacuum_entity_id`, `map_id`, `room_id` | (none) | yes |
-| `get_access_graph_health` | Validate the access graph for the whole map (orphan rooms, cycles, dock reachability). | `vacuum_entity_id`, `map_id` | (none) | yes — `{ok, issues: [...]}` |
+| `get_room_access_editor` | Return the access-graph editor state for one room (incoming/outgoing edges, rules). | `vacuum_entity_id`, `room_id` | `map_id` (auto) | yes |
+| `get_access_graph_health` | Validate the access graph for the whole map (orphan rooms, cycles, dock reachability). | `vacuum_entity_id` | `map_id` (auto) | yes — `{ok, issues: [...]}` |
 
 ---
 
@@ -932,7 +934,7 @@ inventory.
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
 | `discover_rooms` | Read the room list from the vacuum entity's `segments` attribute (or wherever the adapter declares) and stage them for selection. | `vacuum_entity_id` | `map_id` | no |
-| `save_managed_rooms` | Persist a subset of discovered rooms as managed. Drives the onboarding "pick the rooms you want to manage" step. | `vacuum_entity_id`, `map_id` | `enabled_room_ids: list[int]` | no |
+| `save_managed_rooms` | Persist a subset of discovered rooms as managed. Drives the onboarding "pick the rooms you want to manage" step. | `vacuum_entity_id` | `map_id` (auto), `enabled_room_ids: list[int]` | no |
 | `get_vacuum_maps` | List every map stored for one vacuum. | `vacuum_entity_id` | (none) | yes — `{maps: [{map_id, name, ...}, ...]}` |
 
 ---
