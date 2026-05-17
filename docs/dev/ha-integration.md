@@ -490,3 +490,15 @@ The JS URL points to the static path registered by `async_setup`. The `?v=` quer
 Panels are removed in `async_unload_entry` via `frontend.async_remove_panel` (`panel_custom` itself has no unregister API; the panel lives in HA's `frontend` component). The call is wrapped in `try/except` so a missing/renamed-in-future helper degrades to a debug log rather than blocking unload.
 
 The card JS file at `/eufy_vacuum/frontend/eufy-vacuum-command-center.js` must be present in `custom_components/eufy_vacuum/frontend/` before the integration loads. It ships with the integration (committed to the repo as a built artifact); it is not bundled with the Python package and is not built at install time.
+
+### The www/ duplicate trap
+
+A common gotcha: users sometimes install the card *additionally* as a Lovelace resource pointing at `/local/eufy-vacuum-command-center.js` (served from `<config>/www/`). This is the conventional install path for custom cards distributed via HACS. It's redundant when the integration is also installed — the integration's sidebar panel registers the card from `/eufy_vacuum/frontend/` with proper cache-busting — but the duplicate is harmless *as long as both files stay in sync*.
+
+They often don't. A bundle deploy that updates `custom_components/eufy_vacuum/frontend/eufy-vacuum-command-center.js` does **not** automatically update `<config>/www/eufy-vacuum-command-center.js`. If the user's dashboard tile is configured to load from the Lovelace resource path, they'll see a stale bundle indefinitely while the integration's sidebar panel shows the current one — same card, two file paths, different versions.
+
+Symptoms: hard-refreshing doesn't fix card behavior; "I updated and nothing changed"; a sidebar entry behaves differently from a dashboard card despite being the same card.
+
+Diagnosis: compare file sizes / mtimes of the two paths. If they differ, the dashboard resource is stale.
+
+Recommended fix: **remove the Lovelace resource entirely**. The integration's sidebar panel does the same job better, with mtime cache-busting baked in. Settings → Dashboards → ⋮ → Resources → delete `/local/eufy-vacuum-command-center.js`. Then access the card via the auto-registered sidebar panel.

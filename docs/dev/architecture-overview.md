@@ -137,7 +137,7 @@ references:
 - [ha-integration.md](ha-integration.md) — HA platforms, services, events
 - [adapter-config-reference.md](adapter-config-reference.md) — per-vacuum brand schema
 - [porting-guide.md](porting-guide.md) — workflow for non-Eufy brands
-- [card-architecture.md](card-architecture.md) — frontend / Lovelace integration
+- [card-architecture.md](card-architecture.md) — frontend / Lovelace integration (incl. mobile shell, §7)
 - [data-model.md](data-model.md) — canonical stored-data shapes
 
 ```
