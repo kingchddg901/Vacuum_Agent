@@ -18,7 +18,8 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
 - **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces ten sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
-- **Theme system** — a built-in theme editor for the panel card, with save/load/import/export support.
+- **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
+- **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
 
 ## Tested hardware
@@ -107,7 +108,7 @@ Per-room bounding-box review across runs, with outlier detection so a single bad
 
 ### Setup
 
-Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system).
+Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system). The Setup tab stays useful after the initial wizard: it watches for new rooms the vacuum reports later and for configured rooms that disappear, surfacing both for one-click review.
 
 ![Setup tab](docs/screenshots/setup.png)
 
@@ -133,17 +134,29 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Automation events — job, room, stall, path-blocked, and incomplete-run events
 - Dock actions — wash mop, dry mop, empty dust bin (model-dependent)
 - Maintenance tracking — reset maintenance counters from the UI
-- Theme system — full theme editor with save/load/import/export
+- Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
+- Theme system — full theme editor with clipboard and file-based import/export
 
 ## Documentation
 
 - [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
+- [Setup tab](docs/user-guide/11-setup.md) — initial setup wizard and ongoing drift review
 - [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the ten sensors, charting, raw CSV/JSONL access
 - [Services reference](docs/advanced/03-services.md) — for use in automations
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
 - [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
 - [Developer docs](docs/dev/architecture-overview.md) — architecture, data model, internals
+- [Adapter config reference](docs/dev/adapter-config-reference.md) — the schema for per-vacuum brand config
+- [Porting guide](docs/dev/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
+
+## For developers and porters
+
+Under the hood the integration is **adapter-driven**: every brand-specific fact (entity IDs, vocabulary, dispatch payload shape, dropdown option lists, maintenance components, water-tank measurements, upkeep guides) lives in one per-vacuum adapter config dict. The framework reads from this registry at runtime; no brand assumptions exist in core code.
+
+The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for a different vacuum brand is a config-only change: write a parallel `adapters/<brand>/` folder, declare what your brand exposes, register the adapter at integration setup. The framework, the card, the learning system, and the dispatch path all consume whatever the adapter declares.
+
+See the [porting guide](docs/dev/porting-guide.md) for the workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs.
 
 ## Acknowledgements
 
