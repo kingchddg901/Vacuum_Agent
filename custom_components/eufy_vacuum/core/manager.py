@@ -6731,11 +6731,12 @@ class EufyVacuumManager:
             room_entry["remaining_minutes"] = remaining_minutes
             timeline.append(room_entry)
 
-        terminal_status = str(active_job.get("status", "idle")).strip().lower() in {
-            "completed",
-            "cancelled",
-            "failed",
-            "interrupted",
+        # WHY: invert the check — terminal means "not actively running" so the
+        # card's _dashboardJobIsActive doesn't latch on `idle`/cleared jobs.
+        # Anything outside the active set ({started, paused}) is terminal.
+        terminal_status = str(active_job.get("status", "idle")).strip().lower() not in {
+            "started",
+            "paused",
         }
 
         return {

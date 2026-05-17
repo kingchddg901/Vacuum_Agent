@@ -82,6 +82,44 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 
+def _resolved_call_data(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return call.data with map_id auto-resolved when absent.
+
+    Services are adapter-agnostic, so the map_id field is optional on every
+    service that takes one. When the caller omits it (or passes a blank
+    string), look up the vacuum's current active map via the adapter's
+    declared `entities.active_map` entity and substitute that value.
+
+    The lookup is delegated to `rooms.room_discovery.get_active_map_id`,
+    which reads from `adapter_config.entities.active_map`. Any adapter that
+    declares an active-map entity gets a free auto-resolve path; adapters
+    that don't declare one require callers to pass map_id explicitly.
+
+    Pass-through behavior:
+      - map_id already present and non-empty -> returned unchanged.
+      - vacuum_entity_id missing -> returned unchanged (validation surface
+        will reject the call anyway).
+      - active_map entity missing or sentinel-valued -> returned unchanged;
+        the manager method will raise its own clear error on the missing
+        kwarg, which is the desired behavior (silent fallback to a wrong
+        map would be worse).
+    """
+    data = dict(call.data)
+    if data.get("map_id"):
+        return data
+    vacuum_entity_id = data.get("vacuum_entity_id")
+    if not vacuum_entity_id:
+        return data
+    # Imported lazily to keep services.py import-time clean — the rooms
+    # subpackage pulls in adapter machinery we don't need at module load.
+    from .rooms.room_discovery import get_active_map_id
+
+    resolved = get_active_map_id(hass, vacuum_entity_id)
+    if resolved:
+        data["map_id"] = resolved
+    return data
+
+
 def _job_finished_event_payload(*, vacuum_entity_id: str, map_id: str, result: dict | None) -> dict:
     """Build consistent payload for the job-finished event."""
     result = result if isinstance(result, dict) else {}
@@ -118,7 +156,7 @@ DISCOVER_ROOMS_SCHEMA = vol.Schema(
 SAVE_MANAGED_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Optional("enabled_room_ids"): vol.All(
             cv.ensure_list,
             [vol.Coerce(int)],
@@ -135,7 +173,7 @@ GET_VACUUM_MAPS_SCHEMA = vol.Schema(
 VACUUM_MAP_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
     }
 )
 
@@ -190,7 +228,7 @@ SAVE_USER_ROOM_PROFILE_SCHEMA = vol.Schema(
 SAVE_ROOM_PROFILE_FROM_ROOM_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Coerce(int),
         vol.Required("label"): cv.string,
         vol.Optional("profile_name"): cv.string,
@@ -213,7 +251,7 @@ OVERWRITE_ROOM_PROFILE_SCHEMA = vol.Schema(
 OVERWRITE_ROOM_PROFILE_FROM_ROOM_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Coerce(int),
         vol.Required("profile_name"): cv.string,
         vol.Optional("label"): cv.string,
@@ -237,7 +275,7 @@ DELETE_ROOM_PROFILE_SCHEMA = vol.Schema(
 APPLY_ROOM_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_ids"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
         vol.Required("profile_name"): cv.string,
     }
@@ -246,7 +284,7 @@ APPLY_ROOM_PROFILE_SCHEMA = vol.Schema(
 RUN_PROFILE_NAME_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("name"): cv.string,
         vol.Optional("expose_as_button"): cv.boolean,
     }
@@ -255,7 +293,7 @@ RUN_PROFILE_NAME_SCHEMA = vol.Schema(
 RUN_PROFILE_ID_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
     }
 )
@@ -263,7 +301,7 @@ RUN_PROFILE_ID_SCHEMA = vol.Schema(
 RUN_PROFILE_OVERWRITE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
         vol.Optional("name"): cv.string,
         vol.Optional("expose_as_button"): cv.boolean,
@@ -273,7 +311,7 @@ RUN_PROFILE_OVERWRITE_SCHEMA = vol.Schema(
 RUN_PROFILE_RENAME_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
         vol.Required("name"): cv.string,
     }
@@ -282,7 +320,7 @@ RUN_PROFILE_RENAME_SCHEMA = vol.Schema(
 START_SELECTED_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Optional("confirm_reduced_run"): cv.boolean,
         vol.Optional("confirm_token"): cv.string,
         vol.Optional("path_block_action"): vol.In(
@@ -297,7 +335,7 @@ START_SELECTED_ROOMS_SCHEMA = vol.Schema(
 START_RUN_PROFILE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
         vol.Optional("confirm_reduced_run"): cv.boolean,
         vol.Optional("confirm_token"): cv.string,
@@ -313,7 +351,7 @@ START_RUN_PROFILE_SCHEMA = vol.Schema(
 UPDATE_ROOM_FIELDS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Coerce(int),
         vol.Optional("enabled"): cv.boolean,
         vol.Optional("clean_mode"): cv.string,
@@ -332,7 +370,7 @@ UPDATE_ROOM_FIELDS_SCHEMA = vol.Schema(
 ROOM_ACCESS_EDITOR_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
+        vol.Optional("map_id"): cv.string,
         vol.Required("room_id"): vol.Coerce(int),
     }
 )
@@ -378,7 +416,7 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
     from .setup.drift import run_discovery_pass
 
     manager = _get_manager(hass)
-    payload = manager.discover_rooms(**call.data)
+    payload = manager.discover_rooms(**_resolved_call_data(hass, call))
     _LOGGER.debug("discover_rooms complete: %s", payload)
 
     vacuum_entity_id = call.data.get("vacuum_entity_id")
@@ -396,84 +434,84 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
 
 async def _handle_save_managed_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Save selected rooms as managed configuration."""
-    payload = _get_manager(hass).save_managed_rooms(**call.data)
+    payload = _get_manager(hass).save_managed_rooms(**_resolved_call_data(hass, call))
     _LOGGER.debug("save_managed_rooms complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_get_vacuum_maps(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get all maps for a vacuum."""
-    payload = _get_manager(hass).get_vacuum_maps(**call.data)
+    payload = _get_manager(hass).get_vacuum_maps(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_vacuum_maps complete: %s", payload)
     return payload
 
 
 async def _handle_build_queue(hass: HomeAssistant, call: ServiceCall) -> None:
     """Build cleaning queue from enabled rooms."""
-    payload = _get_manager(hass).build_queue(**call.data)
+    payload = _get_manager(hass).build_queue(**_resolved_call_data(hass, call))
     _LOGGER.debug("build_queue complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_build_room_payload(hass: HomeAssistant, call: ServiceCall) -> None:
     """Build payload for room cleaning."""
-    payload = _get_manager(hass).build_room_payload(**call.data)
+    payload = _get_manager(hass).build_room_payload(**_resolved_call_data(hass, call))
     _LOGGER.debug("build_room_payload complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_get_queue_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get current queue state."""
-    payload = _get_manager(hass).get_queue_state(**call.data)
+    payload = _get_manager(hass).get_queue_state(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_queue_state complete: %s", payload)
     return payload
 
 
 async def _handle_get_payload_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get current payload state."""
-    payload = _get_manager(hass).get_payload_state(**call.data)
+    payload = _get_manager(hass).get_payload_state(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_payload_state complete: %s", payload)
     return payload
 
 
 async def _handle_clear_queue(hass: HomeAssistant, call: ServiceCall) -> None:
     """Clear queue state."""
-    payload = _get_manager(hass).clear_queue(**call.data)
+    payload = _get_manager(hass).clear_queue(**_resolved_call_data(hass, call))
     _LOGGER.debug("clear_queue complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_get_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get current active job state."""
-    payload = _get_manager(hass).get_active_job(**call.data)
+    payload = _get_manager(hass).get_active_job(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_active_job complete: %s", payload)
     return payload
 
 
 async def _handle_get_job_progress_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return canonical room-job progress state for the card."""
-    payload = _get_manager(hass).get_job_progress_snapshot(**call.data)
+    payload = _get_manager(hass).get_job_progress_snapshot(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_job_progress_snapshot complete: %s", payload)
     return payload
 
 
 async def _handle_get_job_control_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return card-facing action state for one vacuum/map."""
-    payload = _get_manager(hass).get_job_control_state(**call.data)
+    payload = _get_manager(hass).get_job_control_state(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_job_control_state complete: %s", payload)
     return payload
 
 
 async def _handle_get_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return persisted default pause-timeout settings for one vacuum."""
-    payload = _get_manager(hass).get_pause_timeout_settings(**call.data)
+    payload = _get_manager(hass).get_pause_timeout_settings(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_pause_timeout_settings complete: %s", payload)
     return payload
 
 
 async def _handle_set_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Persist default pause-timeout settings for one vacuum."""
-    payload = _get_manager(hass).set_pause_timeout_settings(**call.data)
+    payload = _get_manager(hass).set_pause_timeout_settings(**_resolved_call_data(hass, call))
     _LOGGER.debug("set_pause_timeout_settings complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -481,7 +519,7 @@ async def _handle_set_pause_timeout_settings(hass: HomeAssistant, call: ServiceC
 
 async def _handle_get_upkeep_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return upkeep snapshot for one vacuum."""
-    payload = _get_manager(hass).get_upkeep_snapshot(**call.data)
+    payload = _get_manager(hass).get_upkeep_snapshot(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_upkeep_snapshot complete: %s", payload)
     return payload
 
@@ -491,28 +529,28 @@ async def _handle_get_dashboard_snapshot(hass: HomeAssistant, call: ServiceCall)
     # Must NOT use async_add_executor_job here — get_dashboard_snapshot calls
     # hass.bus.async_fire internally (via _maybe_roll_current_room_by_timing),
     # which requires the event loop thread.
-    payload = _get_manager(hass).get_dashboard_snapshot(**call.data)
+    payload = _get_manager(hass).get_dashboard_snapshot(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_dashboard_snapshot complete: %s", payload)
     return payload
 
 
 async def _handle_get_dock_action_status(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return gated dock-action availability for one vacuum/map."""
-    payload = _get_manager(hass).get_dock_action_status(**call.data)
+    payload = _get_manager(hass).get_dock_action_status(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_dock_action_status complete: %s", payload)
     return payload
 
 
 async def _handle_clear_active_job(hass: HomeAssistant, call: ServiceCall) -> None:
     """Clear active job state."""
-    payload = _get_manager(hass).clear_active_job(**call.data)
+    payload = _get_manager(hass).clear_active_job(**_resolved_call_data(hass, call))
     _LOGGER.debug("clear_active_job complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_get_lifecycle_state(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get lifecycle state for vacuum."""
-    payload = _get_manager(hass).get_lifecycle_state(**call.data)
+    payload = _get_manager(hass).get_lifecycle_state(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_lifecycle_state complete: %s", payload)
     return payload
 
@@ -571,21 +609,21 @@ async def _handle_get_start_status(hass: HomeAssistant, call: ServiceCall) -> di
     hass.bus.async_fire internally (via _build_effective_start_plan →
     _maybe_roll_current_room_by_timing) and must stay on the event loop.
     """
-    payload = _get_manager(hass).get_start_status(**call.data)
+    payload = _get_manager(hass).get_start_status(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_start_status complete: %s", payload)
     return payload
 
 
 async def _handle_start_selected_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Start cleaning selected rooms."""
-    payload = await _get_manager(hass).start_selected_rooms(**call.data)
+    payload = await _get_manager(hass).start_selected_rooms(**_resolved_call_data(hass, call))
     _LOGGER.debug("start_selected_rooms complete: %s", payload)
     await _get_manager(hass).async_save()
 
 
 async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Apply and start one saved run profile."""
-    payload = await _get_manager(hass).start_run_profile(**call.data)
+    payload = await _get_manager(hass).start_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("start_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -593,7 +631,7 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_pause_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Pause one tracked active job and the underlying vacuum."""
-    payload = await _get_manager(hass).async_pause_active_job(**call.data)
+    payload = await _get_manager(hass).async_pause_active_job(**_resolved_call_data(hass, call))
     _LOGGER.debug("pause_active_job complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -601,7 +639,7 @@ async def _handle_pause_active_job(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_resume_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Resume one tracked paused job and the underlying vacuum."""
-    payload = await _get_manager(hass).async_resume_active_job(**call.data)
+    payload = await _get_manager(hass).async_resume_active_job(**_resolved_call_data(hass, call))
     _LOGGER.debug("resume_active_job complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -609,13 +647,14 @@ async def _handle_resume_active_job(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Cancel one tracked job, return the vacuum to base, and finalize it."""
-    payload = await _get_manager(hass).async_cancel_active_job(**call.data)
+    resolved = _resolved_call_data(hass, call)
+    payload = await _get_manager(hass).async_cancel_active_job(**resolved)
     if payload.get("cancelled"):
         hass.bus.async_fire(
             EVENT_JOB_FINISHED,
             _job_finished_event_payload(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
+                vacuum_entity_id=resolved.get("vacuum_entity_id"),
+                map_id=resolved.get("map_id"),
                 result=payload.get("finalize_result"),
             ),
         )
@@ -626,35 +665,35 @@ async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_wash_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated wash-mop dock action."""
-    payload = await _get_manager(hass).async_wash_mop(**call.data)
+    payload = await _get_manager(hass).async_wash_mop(**_resolved_call_data(hass, call))
     _LOGGER.debug("wash_mop complete: %s", payload)
     return payload
 
 
 async def _handle_dry_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated dry-mop dock action."""
-    payload = await _get_manager(hass).async_dry_mop(**call.data)
+    payload = await _get_manager(hass).async_dry_mop(**_resolved_call_data(hass, call))
     _LOGGER.debug("dry_mop complete: %s", payload)
     return payload
 
 
 async def _handle_empty_dust(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated empty-dust dock action."""
-    payload = await _get_manager(hass).async_empty_dust(**call.data)
+    payload = await _get_manager(hass).async_empty_dust(**_resolved_call_data(hass, call))
     _LOGGER.debug("empty_dust complete: %s", payload)
     return payload
 
 
 async def _handle_stop_dry_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated stop-dry-mop dock action."""
-    payload = await _get_manager(hass).async_stop_dry_mop(**call.data)
+    payload = await _get_manager(hass).async_stop_dry_mop(**_resolved_call_data(hass, call))
     _LOGGER.debug("stop_dry_mop complete: %s", payload)
     return payload
 
 
 async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Reset the maintenance counter for a specific component."""
-    payload = _get_manager(hass).reset_maintenance(**call.data)
+    payload = _get_manager(hass).reset_maintenance(**_resolved_call_data(hass, call))
     _LOGGER.debug("reset_maintenance complete: %s", payload)
     if payload.get("reset"):
         await _get_manager(hass).async_save()
@@ -663,7 +702,7 @@ async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_set_dock_event_count(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite a dock event counter to a specific value."""
-    payload = _get_manager(hass).set_dock_event_count(**call.data)
+    payload = _get_manager(hass).set_dock_event_count(**_resolved_call_data(hass, call))
     _LOGGER.debug("set_dock_event_count complete: %s", payload)
     if payload.get("updated"):
         await _get_manager(hass).async_save()
@@ -679,7 +718,7 @@ async def _handle_get_room_profiles(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_save_user_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save a custom room profile."""
-    payload = _get_manager(hass).save_user_room_profile(**call.data)
+    payload = _get_manager(hass).save_user_room_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("save_user_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -687,7 +726,7 @@ async def _handle_save_user_room_profile(hass: HomeAssistant, call: ServiceCall)
 
 async def _handle_overwrite_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite one existing custom room profile."""
-    payload = _get_manager(hass).overwrite_room_profile(**call.data)
+    payload = _get_manager(hass).overwrite_room_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("overwrite_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -695,7 +734,7 @@ async def _handle_overwrite_room_profile(hass: HomeAssistant, call: ServiceCall)
 
 async def _handle_save_room_profile_from_room(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save a custom room profile from one room's current settings."""
-    payload = _get_manager(hass).save_room_profile_from_room(**call.data)
+    payload = _get_manager(hass).save_room_profile_from_room(**_resolved_call_data(hass, call))
     _LOGGER.debug("save_room_profile_from_room complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -703,7 +742,7 @@ async def _handle_save_room_profile_from_room(hass: HomeAssistant, call: Service
 
 async def _handle_overwrite_room_profile_from_room(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite one existing custom room profile from one room's current settings."""
-    payload = _get_manager(hass).overwrite_room_profile_from_room(**call.data)
+    payload = _get_manager(hass).overwrite_room_profile_from_room(**_resolved_call_data(hass, call))
     _LOGGER.debug("overwrite_room_profile_from_room complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -711,7 +750,7 @@ async def _handle_overwrite_room_profile_from_room(hass: HomeAssistant, call: Se
 
 async def _handle_rename_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Rename one custom room profile key and/or label."""
-    payload = _get_manager(hass).rename_room_profile(**call.data)
+    payload = _get_manager(hass).rename_room_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("rename_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -719,7 +758,7 @@ async def _handle_rename_room_profile(hass: HomeAssistant, call: ServiceCall) ->
 
 async def _handle_delete_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete one custom room profile."""
-    payload = _get_manager(hass).delete_room_profile(**call.data)
+    payload = _get_manager(hass).delete_room_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("delete_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -727,7 +766,7 @@ async def _handle_delete_room_profile(hass: HomeAssistant, call: ServiceCall) ->
 
 async def _handle_apply_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Apply a profile to one or more rooms."""
-    payload = _get_manager(hass).apply_room_profile(**call.data)
+    payload = _get_manager(hass).apply_room_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("apply_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -735,28 +774,28 @@ async def _handle_apply_room_profile(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_get_saved_run_profiles(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return saved run profiles for one vacuum/map."""
-    payload = _get_manager(hass).get_saved_run_profiles(**call.data)
+    payload = _get_manager(hass).get_saved_run_profiles(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_saved_run_profiles complete: %s", payload)
     return payload
 
 
 async def _handle_get_room_access_editor(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return one room's access-graph editor payload."""
-    payload = _get_manager(hass).get_room_access_editor(**call.data)
+    payload = _get_manager(hass).get_room_access_editor(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_room_access_editor complete: %s", payload)
     return payload
 
 
 async def _handle_get_access_graph_health(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return whole-map access-graph health."""
-    payload = _get_manager(hass).get_access_graph_health(**call.data)
+    payload = _get_manager(hass).get_access_graph_health(**_resolved_call_data(hass, call))
     _LOGGER.debug("get_access_graph_health complete: %s", payload)
     return payload
 
 
 async def _handle_save_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save current enabled-room run as a named reusable profile."""
-    payload = _get_manager(hass).save_run_profile(**call.data)
+    payload = _get_manager(hass).save_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("save_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -764,7 +803,7 @@ async def _handle_save_run_profile(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_apply_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Apply one saved run profile back onto room selections/settings."""
-    payload = _get_manager(hass).apply_run_profile(**call.data)
+    payload = _get_manager(hass).apply_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("apply_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -772,7 +811,7 @@ async def _handle_apply_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_rename_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Rename one saved run profile."""
-    payload = _get_manager(hass).rename_run_profile(**call.data)
+    payload = _get_manager(hass).rename_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("rename_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -780,7 +819,7 @@ async def _handle_rename_run_profile(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_overwrite_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite one saved run profile from the current enabled-room snapshot."""
-    payload = _get_manager(hass).overwrite_run_profile(**call.data)
+    payload = _get_manager(hass).overwrite_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("overwrite_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -788,7 +827,7 @@ async def _handle_overwrite_run_profile(hass: HomeAssistant, call: ServiceCall) 
 
 async def _handle_delete_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete one saved run profile."""
-    payload = _get_manager(hass).delete_run_profile(**call.data)
+    payload = _get_manager(hass).delete_run_profile(**_resolved_call_data(hass, call))
     _LOGGER.debug("delete_run_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -959,20 +998,21 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def update_room_fields(call: ServiceCall) -> dict:
         manager = _get_manager(hass)
+        data = _resolved_call_data(hass, call)
         result = manager.update_room_fields(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            room_id=int(call.data["room_id"]),
-            clean_mode=call.data.get("clean_mode"),
-            fan_speed=call.data.get("fan_speed"),
-            water_level=call.data.get("water_level"),
-            clean_intensity=call.data.get("clean_intensity"),
-            clean_passes=call.data.get("clean_passes"),
-            edge_mopping=call.data.get("edge_mopping"),
-            is_dock_room=call.data.get("is_dock_room"),
-            is_transition=call.data.get("is_transition"),
-            grants_access_to=call.data.get("grants_access_to"),
-            rules=call.data.get("rules"),
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
+            room_id=int(data["room_id"]),
+            clean_mode=data.get("clean_mode"),
+            fan_speed=data.get("fan_speed"),
+            water_level=data.get("water_level"),
+            clean_intensity=data.get("clean_intensity"),
+            clean_passes=data.get("clean_passes"),
+            edge_mopping=data.get("edge_mopping"),
+            is_dock_room=data.get("is_dock_room"),
+            is_transition=data.get("is_transition"),
+            grants_access_to=data.get("grants_access_to"),
+            rules=data.get("rules"),
         )
         if result.get("updated"):
             await manager.async_save()
@@ -1528,13 +1568,13 @@ async def async_register_services(hass: HomeAssistant) -> None:
     SETUP_GET_MAP_ROOMS_SCHEMA = vol.Schema(
         {
             vol.Required("vacuum_entity_id"): cv.entity_id,
-            vol.Required("map_id"): cv.string,
+            vol.Optional("map_id"): cv.string,
         }
     )
     SETUP_SAVE_ROOMS_SCHEMA = vol.Schema(
         {
             vol.Required("vacuum_entity_id"): cv.entity_id,
-            vol.Required("map_id"): cv.string,
+            vol.Optional("map_id"): cv.string,
             vol.Optional("enabled_room_ids"): vol.All(
                 cv.ensure_list, [vol.Coerce(int)]
             ),
@@ -1544,7 +1584,7 @@ async def async_register_services(hass: HomeAssistant) -> None:
     SETUP_DELETE_MAP_SCHEMA = vol.Schema(
         {
             vol.Required("vacuum_entity_id"): cv.entity_id,
-            vol.Required("map_id"): cv.string,
+            vol.Optional("map_id"): cv.string,
             # confirmation_token: truthy string for elevated; map display name for high
             vol.Optional("confirmation_token"): cv.string,
         }
@@ -1582,11 +1622,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def setup_get_map_rooms(call: ServiceCall) -> dict:
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        data = _resolved_call_data(hass, call)
         if manager is None:
-            return {"rooms": [], "vacuum_entity_id": call.data["vacuum_entity_id"], "map_id": call.data["map_id"]}
+            return {"rooms": [], "vacuum_entity_id": data["vacuum_entity_id"], "map_id": data.get("map_id")}
         result = manager.get_managed_rooms(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
         )
         rooms_dict = result.get("rooms", {})
         rooms_list = sorted(
@@ -1602,8 +1643,8 @@ async def async_register_services(hass: HomeAssistant) -> None:
             key=lambda r: r["room_id"],
         )
         return {
-            "vacuum_entity_id": call.data["vacuum_entity_id"],
-            "map_id": str(call.data["map_id"]),
+            "vacuum_entity_id": data["vacuum_entity_id"],
+            "map_id": str(data["map_id"]),
             "rooms": rooms_list,
         }
 
@@ -1611,17 +1652,18 @@ async def async_register_services(hass: HomeAssistant) -> None:
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
         if manager is None:
             return {"status": "error", "message": "Integration manager not available."}
+        data = _resolved_call_data(hass, call)
         result = manager.save_managed_rooms(
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            enabled_room_ids=call.data.get("enabled_room_ids"),
-            floor_types=call.data.get("floor_types") or {},
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
+            enabled_room_ids=data.get("enabled_room_ids"),
+            floor_types=data.get("floor_types") or {},
         )
         # is_configured stamping is handled by build_managed_rooms —
         # every room returned by save_managed_rooms now carries True
         # plus a configured_at timestamp. Mark the step complete here.
         _record_setup_step(
-            manager, call.data["vacuum_entity_id"], "save_rooms"
+            manager, data["vacuum_entity_id"], "save_rooms"
         )
         await manager.async_save()
         return {"status": "success", "room_count": result.get("room_count", 0)}
@@ -1663,11 +1705,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     async def setup_delete_map(call: ServiceCall) -> dict:
+        data = _resolved_call_data(hass, call)
         return await _delete_map(
             hass,
-            vacuum_entity_id=call.data["vacuum_entity_id"],
-            map_id=call.data["map_id"],
-            confirmation_token=call.data.get("confirmation_token"),
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
+            confirmation_token=data.get("confirmation_token"),
         )
 
     hass.services.async_register(

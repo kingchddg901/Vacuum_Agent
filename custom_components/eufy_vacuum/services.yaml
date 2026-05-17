@@ -54,7 +54,8 @@ save_managed_rooms:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     enabled_room_ids:
@@ -108,7 +109,8 @@ update_room_fields:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_id:
@@ -194,7 +196,8 @@ get_room_access_editor:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_id:
@@ -221,7 +224,8 @@ get_access_graph_health:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -241,7 +245,8 @@ build_queue:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -259,7 +264,8 @@ build_room_payload:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -275,7 +281,8 @@ get_queue_state:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -291,7 +298,8 @@ get_payload_state:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -307,7 +315,8 @@ clear_queue:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -323,7 +332,8 @@ get_active_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -341,7 +351,8 @@ get_job_progress_snapshot:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -359,7 +370,8 @@ get_job_control_state:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -488,7 +500,8 @@ get_dashboard_snapshot:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -506,7 +519,8 @@ get_dock_action_status:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -522,7 +536,8 @@ clear_active_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -540,7 +555,8 @@ get_lifecycle_state:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -558,7 +574,8 @@ get_start_status:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -576,7 +593,8 @@ start_selected_rooms:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     confirm_reduced_run:
@@ -655,7 +673,8 @@ start_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     profile_id:
@@ -717,7 +736,8 @@ pause_active_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -734,7 +754,8 @@ resume_active_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -752,7 +773,8 @@ cancel_active_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -770,7 +792,8 @@ wash_mop:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -788,7 +811,8 @@ dry_mop:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -805,7 +829,8 @@ stop_dry_mop:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -823,7 +848,8 @@ empty_dust:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -902,7 +928,8 @@ save_room_profile_from_room:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_id:
@@ -996,7 +1023,8 @@ overwrite_room_profile_from_room:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_id:
@@ -1068,7 +1096,8 @@ apply_room_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_ids:
@@ -1095,7 +1124,8 @@ get_saved_run_profiles:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
 
@@ -1111,7 +1141,8 @@ save_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     name:
@@ -1138,7 +1169,8 @@ apply_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     profile_id:
@@ -1159,7 +1191,8 @@ overwrite_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     profile_id:
@@ -1190,7 +1223,8 @@ rename_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     profile_id:
@@ -1216,7 +1250,8 @@ delete_run_profile:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     profile_id:
@@ -1291,7 +1326,8 @@ save_learning_snapshot:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     started_at:
@@ -1332,7 +1368,8 @@ finalize_learning_job:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     battery_start:
@@ -1420,7 +1457,8 @@ run_learning_estimate:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     current_battery:
@@ -1758,7 +1796,8 @@ get_room_learning_estimates:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     current_battery:
@@ -1960,7 +1999,8 @@ set_segment_room_link:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     segment_id:
@@ -1992,7 +2032,8 @@ set_companion_anchor:
           domain: vacuum
     map_id:
       name: Map ID
-      required: true
+      description: Leave blank to use the current active map.
+      required: false
       selector:
         text: {}
     room_id:
