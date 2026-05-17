@@ -369,6 +369,32 @@ def register_eufy_adapter_for_vacuum(
             },
         },
 
+        "mapping": {
+            # Selects the pluggable map segmenter engine. The framework
+            # looks the name up in mapping.segmenter_engines._SEGMENTER_ENGINES;
+            # unknown names degrade to noop_fallback with a warning.
+            #
+            # eufy_cv_v1 wraps the Pillow + NumPy + SciPy pipeline in
+            # mapping/image_segments.py. Adapters without a usable image
+            # asset should declare "noop_fallback" here so the card stops
+            # trying to render polygonal overlays while the trace tracker
+            # keeps working off vacuum-space coordinates.
+            "segmenter_engine": "eufy_cv_v1",
+            "segmenter_tuning": {
+                # All keys map to detect_room_segments() kwargs. The
+                # engine's validate_tuning() rejects unknown keys at
+                # registration time.
+                "min_area_pixels": 1200,
+                # simplify_epsilon: None means "no polygon simplification"
+                # (default from detect_room_segments). Set a small positive
+                # float (e.g. 2.5) to merge near-collinear vertices.
+                "simplify_epsilon": None,
+                # expected_room_count: None lets the engine infer; set an
+                # int to bias the candidate-scoring pass toward that count.
+                "expected_room_count": None,
+            },
+        },
+
         "capabilities": {
             # Sourced from detect_capabilities() above — reflects actual
             # HA entity surface for this installation rather than model spec.

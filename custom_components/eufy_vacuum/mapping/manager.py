@@ -12,8 +12,9 @@ from homeassistant.core import HomeAssistant
 from ..const import DATA_RUNTIME, DOMAIN
 from ..entity_helpers import get_floor_type_label
 from ..timestamp_utils import utc_now_iso
+from ..adapters.registry import get_adapter_config
 from .boundary import boundary_to_pixel, point_in_polygon, process_boundary_trail, score_transition_candidate
-from .image_segments import detect_room_segments
+from .segmenter_engines import get_segmenter_engine
 from .transform import (
     compute_affine_transform,
     merge_or_add_corner,
@@ -2368,7 +2369,10 @@ class MappingManager:
                 "available": False,
                 "reason": "missing_image",
                 "message": "No saved map image is available for this map.",
-                "runtime": analysis.get("runtime", {}) if "analysis" in locals() else {},
+                "runtime": (
+                    analysis.get("engine_diagnostics", {}).get("runtime", {})
+                    if "analysis" in locals() else {}
+                ),
                 "image": {
                     "image_path": str(image_path) if image_path else None,
                     "image_url": image_url,
@@ -2413,15 +2417,36 @@ class MappingManager:
                 "room_id": room_id,
                 "room_label": room.get("label") or room.get("name") or room.get("slug") or room_id,
             }
-        analysis = detect_room_segments(
+        # Select the segmenter engine declared by the adapter. Unknown or
+        # missing engine names resolve to noop_fallback with a logged warning.
+        adapter = get_adapter_config(vacuum_entity_id) or {}
+        mapping_block = adapter.get("mapping", {}) if isinstance(adapter, dict) else {}
+        engine_name = mapping_block.get("segmenter_engine") if isinstance(mapping_block, dict) else None
+        adapter_tuning = mapping_block.get("segmenter_tuning", {}) if isinstance(mapping_block, dict) else {}
+
+        # Caller-supplied kwargs override the adapter's stored tuning so
+        # service calls can still parameterize a one-off run (e.g. raising
+        # max_segments while debugging).
+        tuning: dict[str, Any] = dict(adapter_tuning) if isinstance(adapter_tuning, dict) else {}
+        tuning["expected_room_count"] = len(room_roster)
+        if max_segments is not None:
+            tuning["max_segments"] = max_segments
+        if min_area_pixels is not None:
+            tuning["min_area_pixels"] = min_area_pixels
+        if simplify_epsilon is not None:
+            tuning["simplify_epsilon"] = simplify_epsilon
+        if assist_image_path:
+            tuning["assist_image_path"] = str(assist_image_path)
+        if preferred_variant is not None:
+            tuning["image_variant"] = preferred_variant
+        if assist_variant is not None:
+            tuning["assist_variant"] = assist_variant
+
+        engine = get_segmenter_engine(engine_name)
+        analysis = engine.segment_map_image(
             image_path=str(image_path),
-            expected_room_count=len(room_roster),
-            max_segments=max_segments,
-            min_area_pixels=min_area_pixels,
-            simplify_epsilon=simplify_epsilon,
-            assist_image_path=str(assist_image_path) if assist_image_path else None,
-            image_variant=preferred_variant,
-            assist_variant=assist_variant,
+            tuning=tuning,
+            context=None,
         )
         segments = analysis.get("segments", []) if isinstance(analysis.get("segments"), list) else []
         segments = self._apply_segment_adjustments(
@@ -2464,7 +2489,8 @@ class MappingManager:
             "available": bool(analysis.get("available", False)),
             "reason": analysis.get("reason"),
             "message": analysis.get("message"),
-            "runtime": analysis.get("runtime", {}),
+            "engine": analysis.get("engine"),
+            "runtime": analysis.get("engine_diagnostics", {}).get("runtime", {}),
             "image": {
                 "image_path": str(image_path),
                 "image_url": image_url,
@@ -2476,7 +2502,7 @@ class MappingManager:
                 "width": analysis.get("image", {}).get("width", preferred_image.get("width") if isinstance(preferred_image, dict) else data.get("image_width")),
                 "height": analysis.get("image", {}).get("height", preferred_image.get("height") if isinstance(preferred_image, dict) else data.get("image_height")),
             },
-            "segmentation": analysis.get("segmentation", {}),
+            "segmentation": analysis.get("engine_diagnostics", {}).get("segmentation", {}),
             "summary": {
                 "segment_count": len(segments),
                 "good_count": sum(

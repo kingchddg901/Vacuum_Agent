@@ -672,10 +672,11 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
 def _build_segments_response(map_bucket: dict) -> dict:
     """Return the segments payload enriched with backend-stored overlays.
 
-    The base ``image_segments`` cache is what ``detect_room_segments``
-    produced — purely image-derived, no UI-side state. Two overlays live
-    alongside the cache and ride along on every read so the card never
-    has to make a second round-trip:
+    The base ``image_segments`` cache is the canonical ``SegmentationResult``
+    produced by whichever ``MapSegmenter`` engine the adapter selected —
+    purely engine-derived, no UI-side state. Two overlays live alongside
+    the cache and ride along on every read so the card never has to make
+    a second round-trip:
 
     - ``segment_room_links`` — ``{segment_id: room_id}`` user-assigned
       mapping. Each segment gets a ``room_id`` field populated when a
@@ -768,17 +769,40 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
     light_p = _variant_path("light")
     assist_path = light_p if os.path.isfile(light_p) else None
 
+    # Select the engine declared by the adapter. Tuning starts from the
+    # adapter's persisted defaults; call.data fields override them so a
+    # service caller can still parameterize a one-off run.
+    from ..adapters.registry import get_adapter_config
+    from .segmenter_engines import get_segmenter_engine
+
+    adapter = get_adapter_config(vacuum_entity_id) or {}
+    mapping_block = adapter.get("mapping", {}) if isinstance(adapter, dict) else {}
+    engine_name = mapping_block.get("segmenter_engine") if isinstance(mapping_block, dict) else None
+    adapter_tuning = mapping_block.get("segmenter_tuning", {}) if isinstance(mapping_block, dict) else {}
+
+    tuning: dict = dict(adapter_tuning) if isinstance(adapter_tuning, dict) else {}
+    if expected_room_count is not None:
+        tuning["expected_room_count"] = expected_room_count
+    if max_segments is not None:
+        tuning["max_segments"] = max_segments
+    if min_area_pixels is not None:
+        tuning["min_area_pixels"] = min_area_pixels
+    if simplify_epsilon is not None:
+        tuning["simplify_epsilon"] = simplify_epsilon
+    if assist_path:
+        tuning["assist_image_path"] = assist_path
+    if image_variant is not None:
+        tuning["image_variant"] = image_variant
+    if assist_path:
+        tuning["assist_variant"] = "light"
+
+    engine = get_segmenter_engine(engine_name)
+
     def _run() -> dict:
-        from .image_segments import detect_room_segments
-        return detect_room_segments(
+        return engine.segment_map_image(
             image_path=image_path,
-            expected_room_count=expected_room_count,
-            max_segments=max_segments,
-            min_area_pixels=min_area_pixels,
-            simplify_epsilon=simplify_epsilon,
-            assist_image_path=assist_path,
-            image_variant=image_variant,
-            assist_variant="light" if assist_path else None,
+            tuning=tuning,
+            context=None,
         )
 
     result = await hass.async_add_executor_job(_run)

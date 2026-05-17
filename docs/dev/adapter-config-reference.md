@@ -71,6 +71,7 @@ shared.
     "post_job_wash_amendment": { ... },  # optional — post-job water amendment
     "discovery": { ... },        # optional — how room list is exposed
     "dispatch": { ... },         # required — how to send a clean job
+    "mapping": { ... },          # optional — pluggable segmenter engine selection
 
     # Static catalogs (display + hardware constants)
     "capabilities": { ... },             # optional — explicit capability flags
@@ -825,6 +826,98 @@ the payload for a sample room selection and prints the service call
 The `template` value is informational today — `build_room_clean_payload`
 reads the explicit field-name knobs, not the template — but the UI
 should still use it as a preset selector for sensible defaults.
+
+---
+
+## 13a. `mapping` — pluggable segmenter engine selection
+
+Selects which segmenter engine drives image-segment analysis for this
+adapter. The framework's `MapSegmenter` registry holds the engines; the
+adapter declares which one to use by name. Engines vary in what kind
+of input they consume (image bytes vs. structured wire data vs. nothing
+at all) but produce the same canonical `SegmentationResult`, so the
+rest of the framework doesn't have to know which engine is selected.
+
+See [mapping-system.md §2.0](mapping-system.md#20-the-segmenter-engine-seam)
+for the full protocol, the three engine variants, and the
+`SegmentationResult` shape.
+
+### Schema
+
+```python
+"mapping": {
+    "segmenter_engine":  str,                  # required if `mapping` present
+    "segmenter_tuning":  dict[str, Any],       # required if `mapping` present (may be empty)
+}
+```
+
+If the whole `mapping` block is absent, the framework treats this
+adapter as if it had declared `noop_fallback` — no image segmentation
+runs, trace-based room bounds keep working off vacuum-space samples,
+the card stops rendering polygonal overlays. This is the right
+declaration for adapters whose vendor provides no usable map image.
+
+### `segmenter_engine` *(required when `mapping` is present, str)*
+
+One of the names registered in `mapping/segmenter_engines.py`:
+`_SEGMENTER_ENGINES`. Currently:
+
+| Name | What it does |
+|---|---|
+| `eufy_cv_v1` | Pillow + NumPy + SciPy CV pipeline. Reads the stored map PNG. Default for adapters that ship flat map images (Eufy, Dreame). |
+| `noop_fallback` | Returns empty result. Use when the vendor provides no map image. Trace tracking still works. |
+| `roborock_deterministic` *(reserved)* | Will read structured vector map data from the wire payload instead of an image. Not yet implemented. |
+
+Unknown values fall back to `noop_fallback` with a logged warning,
+and `_validate_adapter` flags the unknown name as a validation issue
+at registration time. Add new engines by writing a class that
+satisfies the `MapSegmenter` protocol and registering it under a
+new name (see [mapping-system.md §2.0b](mapping-system.md#20b-adding-a-new-engine)).
+
+### `segmenter_tuning` *(required when `mapping` is present, dict)*
+
+Engine-specific knobs. **Each engine owns its own tuning schema**
+and validates the dict in its `validate_tuning(tuning) -> list[str]`
+method — unknown keys produce non-blocking warnings, malformed
+values produce blocking errors. The framework's `_validate_adapter`
+delegates to the engine's validator at registration time.
+
+For `eufy_cv_v1`, the accepted keys mirror the kwargs of
+`detect_room_segments(...)` (see [mapping-system.md §2.1.1](mapping-system.md#211-input)):
+
+```python
+"segmenter_tuning": {
+    "min_area_pixels":     int,                # default 1200
+    "simplify_epsilon":    float | None,       # default None
+    "expected_room_count": int | None,         # default None
+    "max_segments":        int | None,         # optional cap
+    "image_variant":       str | None,         # optional metadata label
+    "assist_variant":      str | None,         # optional metadata label
+}
+```
+
+For `noop_fallback`, the dict must be empty — any keys are flagged
+as misconfiguration (since noop ignores tuning by definition).
+
+### Example (from the Eufy adapter)
+
+```python
+"mapping": {
+    "segmenter_engine": "eufy_cv_v1",
+    "segmenter_tuning": {
+        "min_area_pixels":     1200,
+        "simplify_epsilon":    None,
+        "expected_room_count": None,
+    },
+}
+```
+
+### Where the framework reads it
+
+- `mapping/manager.py:get_image_segment_suggestions` — selects engine, layers caller kwargs over the adapter's `segmenter_tuning`, dispatches.
+- `mapping/mapping_services.py:_handle_analyze_map_image` — same pattern for the user-facing service call.
+
+The two call sites consume the canonical `SegmentationResult` and cache it under `map_bucket["image_segments"]` in `.storage`. The `runtime` and `segmentation.*` blocks that were top-level in earlier versions are now under `engine_diagnostics`; consumers that need them read via that path.
 
 ---
 

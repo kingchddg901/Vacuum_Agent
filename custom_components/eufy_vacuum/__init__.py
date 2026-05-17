@@ -24,6 +24,7 @@ from homeassistant.helpers.event import async_call_later, async_track_state_chan
 from ._frontend_url import panel_js_url
 from .const import (
     DATA_BATTERY,
+    DATA_ADAPTER_COORDINATOR,
     DATA_ERROR_TRACKER,
     DATA_LEARNING,
     DATA_RUNTIME,
@@ -32,7 +33,11 @@ from .const import (
     EVENT_JOB_PROGRESS_TICK,
     EVENT_PATH_BLOCKED,
 )
-from .adapters.registry import get_adapter_config, unregister_adapter_config
+from .adapters.registry import (
+    AdapterCoordinator,
+    get_adapter_config,
+    unregister_adapter_config,
+)
 from .adapters.eufy.adapter import register_eufy_adapter_for_vacuum
 from .adapters.config_loader import load_stored_adapter_configs
 from .core.water_amendment import (
@@ -1226,6 +1231,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up Eufy Vacuum Manager from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
+    # AdapterCoordinator owns the per-entry adapter registry. Constructing
+    # it sets it as the module-level active coordinator so legacy
+    # bare-function lookups in adapters/registry.py route through it.
+    # Must be constructed BEFORE any adapter registration so the stored
+    # adapters and code adapters land in the coordinator's registry, not
+    # the fallback module-level dict.
+    coordinator = AdapterCoordinator(hass, entry)
+    hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = coordinator
+
     manager = EufyVacuumManager(hass)
     await manager.async_initialize()
 
@@ -1392,11 +1406,30 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 error_tracker.stop()
             except Exception:  # pragma: no cover
                 _LOGGER.exception("Failed to stop error tracker")
-        # Unregister adapter configs on unload.
-        _runtime_manager = domain_data.get(DATA_RUNTIME)
-        if _runtime_manager is not None:
-            for _vacuum_entity_id in list(_runtime_manager.get_known_vacuum_ids()):
-                unregister_adapter_config(_vacuum_entity_id)
+        # Unregister adapter configs on unload. Wrapped in try/finally so
+        # the coordinator shutdown ALWAYS runs even if individual
+        # unregister calls raise — otherwise stale module-level pointer
+        # state could leak into the next setup_entry.
+        try:
+            _runtime_manager = domain_data.get(DATA_RUNTIME)
+            if _runtime_manager is not None:
+                for _vacuum_entity_id in list(_runtime_manager.get_known_vacuum_ids()):
+                    try:
+                        unregister_adapter_config(_vacuum_entity_id)
+                    except Exception:  # pragma: no cover — defensive
+                        _LOGGER.exception(
+                            "Failed to unregister adapter config for %s",
+                            _vacuum_entity_id,
+                        )
+        finally:
+            # Coordinator shutdown clears the registry and detaches the
+            # module-level active pointer. Drop the slot from hass.data.
+            coordinator = domain_data.pop(DATA_ADAPTER_COORDINATOR, None)
+            if coordinator is not None:
+                try:
+                    coordinator.shutdown()
+                except Exception:  # pragma: no cover — defensive
+                    _LOGGER.exception("Failed to shut down AdapterCoordinator")
 
         domain_data.pop(DATA_RUNTIME, None)
         domain_data.pop(DATA_LEARNING, None)

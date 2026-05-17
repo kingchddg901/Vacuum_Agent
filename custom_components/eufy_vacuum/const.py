@@ -165,6 +165,13 @@ DATA_BATTERY = "battery"
 #: persists across restarts. See core/error_tracker.py.
 DATA_ERROR_TRACKER = "error_tracker"
 
+#: AdapterCoordinator instance — per-config-entry owner of the adapter
+#: registry (vacuum_entity_id -> adapter_config). Replaces the previous
+#: module-level _REGISTRY dict; bare-function lookups in
+#: adapters/registry.py now route through this. See
+#: adapters/registry.py:AdapterCoordinator.
+DATA_ADAPTER_COORDINATOR = "adapter_coordinator"
+
 # ----------------------
 # Events
 # ----------------------

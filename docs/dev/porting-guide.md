@@ -572,27 +572,45 @@ Cases where the schema can't yet express what you need:
 > don't care about the source. See [mapping-system.md §2 + §11](mapping-system.md)
 > for what happens once the image is in.
 
-> **TODO — image segmentation tuning is Eufy-biased.** The
-> segment-detection pipeline in `mapping/manager.py` (and described
-> in [mapping-system.md §2](mapping-system.md#2-image-segment-analysis-pipeline))
-> was tuned heavily against Eufy floor-plan PNGs — flood-fill
-> thresholds, contour simplification epsilons, minimum-area pixel
-> counts, the dock-anchor exclusion radius, all of it. Other
-> brands' floor plans differ in colour palette, line weight, wall
-> rendering, room-fill style, and overall resolution. Image
-> segmentation **will probably not work well out of the box** for
-> very different image types. A port should expect to either:
->   1. Tune the pipeline parameters for the new brand's image style
->      (the constants in `mapping/manager.py` and the per-brand
->      defaults in the upload flow).
->   2. Allow the user to draw room boundaries manually via the
->      interactive boundary-trace flow (works regardless of image
->      style; see [mapping-system.md §3](mapping-system.md#3-room-bounds-from-traces)).
->   3. Accept reduced segmentation quality and treat image segments
->      as hints rather than authoritative.
+> **Image segmentation is now pluggable.** Earlier drafts of this
+> guide flagged Eufy-biased segmentation as a hard porting problem.
+> The framework's response is a pluggable engine seam in
+> `mapping/segmenter_engines.py` — see
+> [mapping-system.md §2.0](mapping-system.md#20-the-segmenter-engine-seam)
+> for the full protocol. Adapters declare which engine they want via
+> `adapter_config["mapping"]["segmenter_engine"]`; the framework
+> dispatches uniformly and consumes the canonical `SegmentationResult`
+> regardless of which engine produced it.
 >
-> The framework's segmentation is one of the harder bits to make
-> brand-agnostic and may genuinely need per-brand tuning constants.
+> Three strategies, pick whichever matches your brand:
+>   1. **Fork `EufyCVSegmenter`** — register a new engine that runs
+>      the same Pillow/NumPy/SciPy pipeline with parameters tuned
+>      for the new brand's image style. Most relevant for brands
+>      that ship flat PNG floor plans (Dreame, Narwal). The tunable
+>      surface is `min_area_pixels`, `simplify_epsilon`, the HSV
+>      mask thresholds, and the assist-variant alignment scoring.
+>   2. **`noop_fallback`** — declare it as the adapter's
+>      `segmenter_engine` if your vendor provides no usable map
+>      image. The card stops rendering polygonal overlays; trace-
+>      based room bounds keep working off vacuum-space coordinates
+>      (see [mapping-system.md §3](mapping-system.md#3-room-bounds-from-traces)).
+>      This is the safe degradation path — core automations, queue,
+>      job lifecycle, and room presence detection are unaffected.
+>   3. **A deterministic engine** — for vendors that stream structured
+>      polygon data over the wire (Roborock's map protocol is the
+>      canonical example), implement a new engine that reads
+>      `context["wire_payload"]` and translates it into the canonical
+>      `SegmentationResult` shape directly. `matched_room_id` comes
+>      straight from the wire — no fuzzy image matching. A
+>      `roborock_deterministic` slot is reserved in the registry for
+>      when there's a Roborock adapter to drive it.
+>
+> Adding a new engine is one new class + one registry entry. The
+> framework's two consumer call sites (`get_image_segment_suggestions`
+> in `manager.py`, `_handle_analyze_map_image` in `mapping_services.py`)
+> change nothing. See
+> [mapping-system.md §2.0b](mapping-system.md#20b-adding-a-new-engine)
+> for the recipe.
 
 None of these are blocking for the four common brands at runtime —
 existing setup_* services are still functional for Eufy installs.

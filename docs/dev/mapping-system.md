@@ -8,9 +8,11 @@ This document covers the complete mapping subsystem: image segment analysis, tra
 
 The mapping system has two independent subsystems that address different aspects of knowing where rooms are.
 
-**Image segment analysis** (`image_segments.py`) answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card and can feed the coordinate transform pipeline.
+**Image segment analysis** answers: *given map data, what regions probably correspond to rooms?* The answer mechanism varies by vendor — Eufy ships flat PNGs that need computer-vision analysis, Roborock streams structured polygons over the wire, and some brands provide no map data at all. To stay brand-agnostic the framework routes this through a **pluggable segmenter engine** (`mapping/segmenter_engines.py`). Each adapter selects an engine by name; the engine's `segment_map_image(...)` method produces a canonical `SegmentationResult` regardless of how it was derived. Polygons in pixel space, labelled with quality signals, get used as room shape overlays in the card and can feed the coordinate transform pipeline.
 
-**Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
+**Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection. This subsystem is **brand-agnostic by construction** — it reads vacuum-space position samples that exist in the same coordinate frame regardless of vendor.
+
+The bridge between the two subsystems is the **room ID**. The trace tracker knows which room it's in by point-in-bounds checks; the image segmenter produces polygons that get linked to room IDs via the `segment_room_links` overlay. The two never share a coordinate space — they share an identifier. If the image segmenter fails, breaks, or doesn't exist for a particular adapter, the trace tracker keeps working off vacuum-space coordinates and the core integration (queue, job lifecycle, room presence) is unaffected. See §2.0 for the engine seam contract.
 
 The two subsystems are related in two ways:
 - An image segment's pixel polygon can be mapped to vacuum space via the affine transform, giving a rough vacuum polygon. That polygon drives the `BOUNDARY_CROSSING` signal in trace segmentation and the room-entry gating on boundary traces.
@@ -20,7 +22,87 @@ The two subsystems are related in two ways:
 
 ## 2. Image Segment Analysis Pipeline
 
-All code lives in `mapping/image_segments.py`. The public entry point is `detect_room_segments(...)`, which currently delegates to `_detect_room_segments_fallback(...)` unconditionally.
+### 2.0 The segmenter engine seam
+
+`mapping/segmenter_engines.py` defines the pluggable interface. Three pieces:
+
+**`MapSegmenter` Protocol** — what every engine implements:
+
+```python
+class MapSegmenter(Protocol):
+    engine_name: str                                          # registry key
+
+    def validate_tuning(self, tuning: dict) -> list[str]:     # validation hook
+        ...
+
+    def segment_map_image(
+        self, *,
+        image_path: str | None,                               # optional — None for engines that read wire data
+        tuning: dict[str, Any],                               # from adapter_config.mapping.segmenter_tuning
+        context: dict[str, Any] | None = None,                # optional engine-specific input
+    ) -> SegmentationResult:
+        ...
+```
+
+**`SegmentationResult`** TypedDict — the canonical output every engine produces:
+
+```python
+{
+    "available":   bool,                  # False = engine couldn't run
+    "reason":      str,                   # "ready" | "pipeline_unavailable" | "noop" | ...
+    "message":     str,
+    "engine":      str,                   # engine_name that produced this result
+    "image":       {"width", "height"} | None,
+    "segments":    [EnrichedSegment, ...],
+    "summary":     {"segment_count", "quality_counts", "good_or_better_count"},
+    "engine_diagnostics": dict,           # free-form, engine-specific (optional)
+}
+```
+
+Renderers and room-link UIs must restrict themselves to `CanonicalSegment` fields (`segment_id`, `polygon_pixel`, `bbox`, `area_pixels`, `area_percent`, `center_pixel`, `confidence`, `quality`, `structural_role`, `segmentation_state`, `edit_readiness`, `matched_room_id`, `matched_room_label`). `EnrichedSegment` extras (`mean_saturation`, `cluster_index`, `fill_ratio`, etc.) are engine-specific and may be absent depending on the engine — use them for debug overlays only, never for production rendering.
+
+**Registry + lookup** — engines are registered in `_SEGMENTER_ENGINES`:
+
+```python
+_SEGMENTER_ENGINES = {
+    "eufy_cv_v1":    EufyCVSegmenter(),
+    "noop_fallback": NoopSegmenter(),
+    # "roborock_deterministic": RoborockDeterministicSegmenter(),   # when ready
+}
+
+def get_segmenter_engine(name: str | None) -> MapSegmenter:
+    """Returns the engine registered under `name`. Falls back to noop_fallback
+    on unknown names with a logged warning."""
+```
+
+The two consumer call sites (`mapping/manager.py:get_image_segment_suggestions` and `mapping_services.py:_handle_analyze_map_image`) both:
+
+1. Read `adapter_config["mapping"]["segmenter_engine"]` to pick the engine name.
+2. Layer caller-supplied kwargs over the adapter's persisted `segmenter_tuning` (for one-off overrides via service calls).
+3. Dispatch via `engine.segment_map_image(image_path=..., tuning=..., context=None)`.
+4. Cache the resulting `SegmentationResult` under `map_bucket["image_segments"]` in `.storage`.
+
+### 2.0a The three engines
+
+**`eufy_cv_v1` — Pillow + NumPy + SciPy CV pipeline (default).** Wraps the `detect_room_segments` function described below (§2.1–§2.10). Used by adapters that ship flat map PNGs (Eufy, Dreame). The engine's `_reshape` method moves CV-specific diagnostics (`runtime` capability flags, `segmentation.stages.*` pipeline diagnostics) under `engine_diagnostics` so consumers of the canonical contract aren't polluted with engine internals.
+
+**`noop_fallback` — empty result.** Used by adapters that yield no usable map data. Returns `{"available": False, "reason": "noop", "segments": [], ...}`. The card stops rendering polygonal overlays; the trace tracker keeps working off vacuum-space coordinates. This is the safe-default when an adapter doesn't declare a `mapping` block at all.
+
+**`roborock_deterministic` — reserved.** Roborock provides the full map as structured wire data (vector polygons + affine transform) rather than an image. The engine will read `context["wire_payload"]` and translate it into the canonical `SegmentationResult` shape directly, populating `matched_room_id` from the wire room IDs (no fuzzy matching needed). Not yet implemented — slot reserved for when there's a Roborock adapter to drive it.
+
+### 2.0b Adding a new engine
+
+To support a new vendor's segmentation strategy:
+
+1. Implement a class that satisfies `MapSegmenter` — `engine_name`, `validate_tuning`, `segment_map_image`. Translate the vendor's data into the canonical `SegmentationResult` shape.
+2. Register it in `_SEGMENTER_ENGINES` under a new string name.
+3. The adapter selects it via `adapter_config["mapping"]["segmenter_engine"] = "your_engine_name"` with any vendor-specific knobs under `segmenter_tuning`.
+
+Framework code consuming the result is unchanged — it reads canonical fields off the result without knowing which engine produced it.
+
+### 2.1 Eufy CV engine internals
+
+The sections below describe the internals of `EufyCVSegmenter` — the engine that wraps the Pillow + NumPy + SciPy pipeline. All code lives in `mapping/image_segments.py`. The public function `detect_room_segments(...)` is called by `EufyCVSegmenter.segment_map_image()`, which then reshapes the output into the canonical `SegmentationResult` (hoisting `runtime` and `segmentation` blocks under `engine_diagnostics`).
 
 > **Tuning caveat for porters.** Every threshold and parameter in
 > this pipeline — flood-fill thresholds, RDP simplification epsilon,
@@ -30,17 +112,17 @@ All code lives in `mapping/image_segments.py`. The public entry point is `detect
 > Brands whose app exports look meaningfully different (heavier
 > walls, different colour palette, photo-style floorplans, very
 > high or low resolution) **will probably not segment well with the
-> stock parameters**. A port targeting one of those brands should
-> plan to either re-tune the constants for their image style, fall
-> back to the interactive boundary-trace flow (§3), or treat
-> auto-detected segments as user-confirmable hints rather than
-> ground truth. This is one of the harder bits of the framework to
-> make truly brand-agnostic and may need per-brand tuning constants
-> rather than a single universal pipeline. See
-> [porting-guide.md §9](porting-guide.md#9-what-still-might-require-framework-work)
-> for the workflow tradeoffs.
+> stock parameters**. The pluggable engine seam in §2.0 is the
+> framework's answer to this: a port targeting one of those brands
+> should write a new engine class rather than try to retune
+> `eufy_cv_v1`. Three strategies are commonly viable — fork
+> `EufyCVSegmenter` and adjust constants for the new image style;
+> use `noop_fallback` and rely on the interactive boundary-trace
+> flow (§3) for shape data; or implement a deterministic engine
+> if the vendor exposes structured polygons over the wire (see
+> the reserved `roborock_deterministic` slot).
 
-### 2.1 Input
+### 2.1.1 Input
 
 ```
 detect_room_segments(
@@ -217,18 +299,15 @@ This converts each vertex to percentage of image dimensions [0–100]. The card 
 
 ```python
 {
-    "opencv":          {"available": bool, "version": str|None, "error": str|None},
-    "numpy":           {...},
+    "numpy":           {"available": bool, "version": str|None, "error": str|None},
     "pillow":          {...},
     "scipy":           {...},
     "scipy_ndimage":   {...},
-    "skimage":         {...},
-    "cv_pipeline_ready":       bool,  # True if opencv + numpy available
-    "fallback_pipeline_ready": bool,  # True if pillow + numpy + scipy.ndimage available
+    "pipeline_ready":  bool,  # True if pillow + numpy + scipy.ndimage available
 }
 ```
 
-Currently only the fallback pipeline (Pillow + NumPy + SciPy) is implemented. The OpenCV path is reserved for a future higher-performance implementation.
+The pipeline uses Pillow + NumPy + SciPy. There is no OpenCV path — earlier drafts spec'd one but it was never implemented and the field carried no value.
 
 ---
 
@@ -657,7 +736,7 @@ anchoring, and image-segment analysis.
 |---------|---------|----------|----------|---------|
 | `save_map_image` | Store a base64-encoded PNG as the map image for one vacuum/map. | `vacuum_entity_id`, `map_id`, `image_base64: str` | `image_width: int`, `image_height: int`, `variant: str` | no |
 | `upload_map_image` | Accept a user-uploaded floor plan image for analysis (alternative entry point). | `vacuum_entity_id`, `map_id`, `image_base64: str` | (none) | no |
-| `analyze_map_image` | Run image segment detection on the stored map image (see §2). | `vacuum_entity_id`, `map_id` | (none) | yes — analysis result with detected segments |
+| `analyze_map_image` | Dispatch to the adapter-declared segmenter engine (see §2.0). | `vacuum_entity_id` | `map_id` (auto), `force_reanalyze: bool`, plus tuning overrides that layer on top of `adapter_config.mapping.segmenter_tuning` (`expected_room_count`, `max_segments`, `min_area_pixels`, `simplify_epsilon`) | yes — canonical `SegmentationResult` with engine-specific diagnostics under `engine_diagnostics` |
 
 ### Calibration
 
