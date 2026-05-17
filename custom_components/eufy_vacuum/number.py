@@ -10,8 +10,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 
+from .adapters.registry import get_adapter_config
 from .const import DOMAIN
-from .core.capabilities import MAINTENANCE_COMPONENTS
 from .entity_helpers import build_entity_name, sort_room_items
 from .room_entities import EufyVacuumRoomEntity
 
@@ -38,8 +38,11 @@ async def async_setup_entry(
             refresh=False,
         )
         sources = capabilities.get("maintenance_sources", {})
+        # Maintenance components are now adapter-declared per vacuum.
+        _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        maintenance_components = _adapter_cfg.get("maintenance_components") or {}
 
-        for component, meta in MAINTENANCE_COMPONENTS.items():
+        for component, meta in maintenance_components.items():
             if sources.get(component) is None:
                 continue
 

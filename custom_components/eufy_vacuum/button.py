@@ -11,8 +11,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+from .adapters.registry import get_adapter_config
 from .const import DOMAIN
-from .core.capabilities import MAINTENANCE_COMPONENTS
 from .entity_helpers import build_entity_name
 
 
@@ -39,8 +39,12 @@ async def async_setup_entry(
             refresh=False,
         )
         sources = capabilities.get("maintenance_sources", {})
+        # Maintenance components are now adapter-declared per vacuum.
+        # The framework iterates whatever the adapter says applies.
+        _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        maintenance_components = _adapter_cfg.get("maintenance_components") or {}
 
-        for component, meta in MAINTENANCE_COMPONENTS.items():
+        for component, meta in maintenance_components.items():
             if sources.get(component) is None:
                 continue
 

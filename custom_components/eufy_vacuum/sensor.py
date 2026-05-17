@@ -13,10 +13,10 @@ from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import entity_registry as er
 
+from .adapters.registry import get_adapter_config
 from .battery.sensors import build_battery_sensors
 from .const import DATA_BATTERY, DATA_ERROR_TRACKER, DOMAIN, EVENT_JOB_FINISHED
 from .core.error_tracker import ErrorTracker
-from .core.capabilities import MAINTENANCE_COMPONENTS
 from .entity_helpers import sort_room_items
 from .entity_helpers import build_entity_name
 from .profiles.room_profiles import get_available_profiles
@@ -59,6 +59,9 @@ async def async_setup_entry(
             refresh=False,
         )
         sources = capabilities.get("maintenance_sources", {})
+        # Maintenance components are now adapter-declared per vacuum.
+        _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+        maintenance_components = _adapter_cfg.get("maintenance_components") or {}
 
         entities.append(
             EufyVacuumProfileSensor(
@@ -68,7 +71,7 @@ async def async_setup_entry(
             )
         )
 
-        for component, meta in MAINTENANCE_COMPONENTS.items():
+        for component, meta in maintenance_components.items():
             if sources.get(component) is None:
                 continue
             entities.append(
