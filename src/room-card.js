@@ -1,4 +1,4 @@
-// Standalone per-room Lovelace card with settings chips, save, and quick-start for Eufy vacuums.
+// Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
@@ -192,39 +192,40 @@ class EufyRoomCard extends HTMLElement {
      OPTION LISTS
      ========================================================= */
 
-  _optionsFrom(entityId, fallback) {
-    const s = this._hass?.states?.[entityId];
-    const opts = s?.attributes?.options;
-    return Array.isArray(opts) && opts.length ? opts : fallback;
+  /**
+   * Read an adapter-declared option list from the target room switch's
+   * attributes. Each list is `[{value, label}, ...]` populated by
+   * EufyVacuumRoomEntity in the backend. Falls back to an empty array
+   * when the attribute is absent (older backend, attribute not yet
+   * surfaced) — the caller's chipRow hides empty groups.
+   *
+   * @param {string} attrName - "clean_mode_options" / "fan_speed_options" /
+   *                            "water_level_options" / "clean_intensity_options"
+   * @returns {Array<{value: string, label: string}>}
+   */
+  _adapterOptions(attrName) {
+    const sw = this._targetSwitch();
+    const list = sw?.attrs?.[attrName];
+    return Array.isArray(list) ? list : [];
   }
 
   _cleanModeOptions() {
-    return this._optionsFrom(
-      `select.${this._objectId()}_cleaning_mode`,
-      ["Vacuum", "Mop", "Vacuum & Mop"]
-    );
+    return this._adapterOptions("clean_mode_options");
   }
 
   _suctionOptions() {
-    return this._optionsFrom(
-      `select.${this._objectId()}_suction_level`,
-      ["Quiet", "Standard", "Turbo", "Max"]
-    ).filter((o) => String(o).toLowerCase().replace(/[\s_-]/g, "") !== "boostiq");
+    return this._adapterOptions("fan_speed_options");
   }
 
   _waterLevelOptions() {
-    return this._optionsFrom(
-      `select.${this._objectId()}_water_level`,
-      ["Low", "Medium", "High"]
-    ).filter((o) => String(o).toLowerCase() !== "off");
+    return this._adapterOptions("water_level_options");
   }
 
-  _cleanIntensityOptions(slug, mapId) {
-    const objectId = this._objectId();
-    return this._optionsFrom(
-      `input_select.${objectId}_map_${mapId}_cleaning_speed_${slug}`,
-      ["Quick", "Normal", "Narrow"]
-    );
+  _cleanIntensityOptions(_slug, _mapId) {
+    // slug/mapId no longer needed — the option list is per-vacuum
+    // (declared once by the adapter), not per-room. Parameters
+    // retained for call-site compatibility.
+    return this._adapterOptions("clean_intensity_options");
   }
 
   _isMopMode(mode) {
@@ -298,10 +299,10 @@ class EufyRoomCard extends HTMLElement {
           <div class="chips">
             ${options.map((opt) => `
               <button
-                class="chip ${String(currentVal ?? "").toLowerCase() === String(opt).toLowerCase() ? "active" : ""}"
+                class="chip ${String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase() ? "active" : ""}"
                 data-field="${_esc(fieldKey)}"
-                data-value="${_esc(opt)}"
-              >${_esc(opt)}</button>
+                data-value="${_esc(opt.value)}"
+              >${_esc(opt.label)}</button>
             `).join("")}
           </div>
         </div>
@@ -645,5 +646,5 @@ window.customCards = window.customCards || [];
 window.customCards.push({
   type:        ROOM_CARD_NAME,
   name:        "Eufy Room Card",
-  description: "Single-room settings and quick-start card for Eufy vacuums",
+  description: "Single-room settings and quick-start card for managed vacuums.",
 });

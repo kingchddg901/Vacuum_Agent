@@ -6,6 +6,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import timedelta
+from typing import Any
 from pathlib import Path
 
 import os
@@ -29,6 +30,12 @@ from .const import (
     EVENT_JOB_FINISHED,
     EVENT_JOB_PROGRESS_TICK,
     EVENT_PATH_BLOCKED,
+)
+from .adapters.registry import get_adapter_config, unregister_adapter_config
+from .adapters.eufy.adapter import register_eufy_adapter_for_vacuum
+from .adapters.config_loader import load_stored_adapter_configs
+from .core.water_amendment import (
+    register_post_job_water_amendment as _register_post_job_water_amendment,
 )
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
@@ -89,13 +96,7 @@ _PATH_BLOCKER_UNSUBS = "_path_blocker_unsubs"
 _PATH_BLOCKER_ROOM_CALLBACK = "_path_blocker_room_callback"
 _PAUSE_TIMEOUT_UNSUBS = "_pause_timeout_unsubs"
 _JOB_PROGRESS_UNSUBS = "_job_progress_unsubs"
-
-# Maps dock event_type keys to the normalised dock_status strings that trigger them.
-_DOCK_EVENT_TRIGGERS: dict[str, set[str]] = {
-    "last_mop_wash": {"washing", "washing mop"},
-    "last_dust_empty": {"emptying dust", "emptying dust bin", "dust emptying"},
-    "last_dry_start": {"drying", "drying mop", "drying pads", "mop drying"},
-}
+_DISCOVERY_UNSUBS = "_discovery_unsubs"
 
 # Lifecycle states that confirm the job has genuinely started moving.
 # A job is not eligible for auto-finalization until at least one of these
@@ -105,6 +106,118 @@ _ACTIVE_LIFECYCLE_STATES: set[str] = {
     "active_job_running",  # vacuum is actively cleaning
     "mid_job_service",     # dock is servicing mid-job (wash/empty/recycle)
 }
+
+# Generic completion fallbacks. Used by _get_adapter_value when the adapter
+# registry is absent. The task_status value is the normalized "job done"
+# string; the clear sentinels are standard HA empty/unavailable states.
+_DEFAULT_COMPLETION_TASK_STATUS = "completed"
+_DEFAULT_CLEAR_SENTINELS: frozenset[str] = frozenset(
+    {"", "unknown", "unavailable", "none", "null"}
+)
+
+
+def _get_adapter_vocab(
+    vacuum_entity_id: str,
+    section: str,
+    key: str,
+    fallback: frozenset[str],
+) -> frozenset[str]:
+    """Read a vocabulary set from the adapter registry with fallback.
+
+    Returns the registry value as a frozenset if present, otherwise
+    returns the fallback. Never raises.
+    """
+    try:
+        config = get_adapter_config(vacuum_entity_id)
+        if config is None:
+            return fallback
+        value = config.get(section, {}).get(key)
+        if isinstance(value, (list, set, frozenset)):
+            return frozenset(str(v).strip().lower() for v in value)
+        return fallback
+    except Exception:
+        return fallback
+
+
+def _get_adapter_value(
+    vacuum_entity_id: str,
+    *path: str,
+    fallback: Any,
+) -> Any:
+    """Read any scalar value from the adapter registry with fallback.
+
+    ``path`` is a sequence of dict keys to traverse.
+    Returns fallback if registry is absent, path is missing, or any
+    error occurs.
+    """
+    try:
+        config = get_adapter_config(vacuum_entity_id)
+        if config is None:
+            return fallback
+        value: Any = config
+        for key in path:
+            if not isinstance(value, dict):
+                return fallback
+            value = value.get(key)
+            if value is None:
+                return fallback
+        return value
+    except Exception:
+        return fallback
+
+
+def _get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
+    """Return entity IDs to watch for lifecycle state changes.
+
+    Reads from the adapter registry — always includes the vacuum entity
+    itself plus all declared entities whose state changes drive lifecycle
+    re-evaluation. Returns only the vacuum entity when no adapter is
+    registered, which is still safe (lifecycle functions then read empty
+    entity states and produce no-op results).
+
+    No brand-specific entity naming — all entity IDs come from the
+    adapter's registered config.
+    """
+    config = get_adapter_config(vacuum_entity_id) or {}
+    entities = config.get("entities", {})
+    watch: list[str] = [vacuum_entity_id]
+    for key in ("task_status", "dock_status", "active_cleaning_target", "active_map"):
+        entity_id = entities.get(key)
+        if entity_id:
+            watch.append(entity_id)
+    return watch
+
+
+def _completed_finalize_signals(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+) -> dict[str, Any]:
+    """Return current entity states used for completion detection.
+
+    Reads entity IDs from the adapter registry. Returns empty strings
+    for absent or unavailable entities — the caller compares values
+    against configured sentinels and task_status values.
+
+    No brand-specific entity naming — all entity IDs come from the
+    adapter's registered config.
+    """
+    config = get_adapter_config(vacuum_entity_id) or {}
+    entities = config.get("entities", {})
+
+    def _state(entity_id: str | None) -> str:
+        if not entity_id:
+            return ""
+        state_obj = hass.states.get(entity_id)
+        if state_obj is None or state_obj.state is None:
+            return ""
+        return str(state_obj.state).strip().lower()
+
+    return {
+        "vacuum_state": _state(vacuum_entity_id),
+        "task_status": _state(entities.get("task_status")),
+        "dock_status": _state(entities.get("dock_status")),
+        "active_target": _state(entities.get("active_cleaning_target")),
+    }
 
 
 # ----------------------------------------------------------------------
@@ -145,49 +258,6 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 # ----------------------------------------------------------------------
 
 
-def _get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
-    """Return entity ids that should trigger lifecycle reevaluation."""
-    object_id = vacuum_entity_id.split(".", 1)[1]
-    return [
-        vacuum_entity_id,
-        f"sensor.{object_id}_task_status",
-        f"sensor.{object_id}_dock_status",
-        f"sensor.{object_id}_active_cleaning_target",
-        f"sensor.{object_id}_active_map",
-    ]
-
-
-def _get_entity_state_lower(hass: HomeAssistant, entity_id: str) -> str:
-    """Return one entity state as a normalized lowercase string."""
-    state_obj = hass.states.get(entity_id)
-    if state_obj is None or state_obj.state is None:
-        return ""
-    return str(state_obj.state).strip().lower()
-
-
-def _active_cleaning_target_cleared(value: str) -> bool:
-    """Return whether the active cleaning target should be treated as cleared."""
-    return value in {"", "unknown", "unavailable", "none", "null"}
-
-
-def _completed_finalize_signals(hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, object]:
-    """Return the current strong completion signals for one vacuum."""
-    object_id = vacuum_entity_id.split(".", 1)[1]
-    vacuum_state = _get_entity_state_lower(hass, vacuum_entity_id)
-    task_status = _get_entity_state_lower(hass, f"sensor.{object_id}_task_status")
-    dock_status = _get_entity_state_lower(hass, f"sensor.{object_id}_dock_status")
-    active_target = _get_entity_state_lower(hass, f"sensor.{object_id}_active_cleaning_target")
-
-    return {
-        "vacuum_state": vacuum_state,
-        "task_status": task_status,
-        "dock_status": dock_status,
-        "active_target": active_target,
-        "task_completed": task_status == "completed",
-        "target_cleared": _active_cleaning_target_cleared(active_target),
-        "vacuum_docked": vacuum_state == "docked",
-    }
-
 
 def _remove_lifecycle_listeners(hass: HomeAssistant) -> None:
     """Remove lifecycle listeners."""
@@ -200,187 +270,6 @@ def _remove_lifecycle_listeners(hass: HomeAssistant) -> None:
         except Exception:
             _LOGGER.exception("Failed to remove lifecycle listener")
 
-
-def _register_post_job_water_amendment(
-    hass: HomeAssistant,
-    *,
-    vacuum_entity_id: str,
-    job_id: str,
-    job_path: str,
-    water_start_percent: float,
-    mop_wash_count_at_finalization: int,
-    timeout_seconds: int = 180,
-) -> None:
-    """Watch for post-job mop wash and patch completed job water actuals.
-
-    The X10 Pro Omni washes the mop pad after docking from a mop job. This
-    starts ~2 seconds after finalization, so the initial water actuals always
-    show 0ml. This watcher patches the completed job file once the dock
-    finishes its post-job wash cycle (dock_status → Drying).
-
-    Idempotent on ``job_id`` — the lifecycle handler that calls this can fire
-    multiple times for the same finalized job (post-finalize state changes
-    re-trigger the path), and each registration would otherwise leak its own
-    set of listeners + timeout. The registry on ``hass.data[DOMAIN]`` is
-    the single source of truth for "is this job already being watched".
-    """
-    domain_data = hass.data.setdefault(DOMAIN, {})
-    registered_jobs: set[str] = domain_data.setdefault(
-        "_water_amendment_jobs", set()
-    )
-    if job_id in registered_jobs:
-        return
-    registered_jobs.add(job_id)
-
-    object_id = vacuum_entity_id.split(".", 1)[1]
-    dock_status_entity = f"sensor.{object_id}_dock_status"
-    water_level_entity = f"sensor.{object_id}_water_level"
-
-    amendment_state: dict = {"wash_count": 0, "committed": False, "last_wash_at": 0.0}
-    unsub_listener: list[Callable] = []
-    unsub_timeout: list[Callable] = []
-
-    def _cancel_all() -> None:
-        for fn in unsub_listener:
-            try:
-                fn()
-            except Exception:
-                pass
-        for fn in unsub_timeout:
-            try:
-                fn()
-            except Exception:
-                pass
-        unsub_listener.clear()
-        unsub_timeout.clear()
-
-    def _write_amendment(end_percent: float | None, wash_count: int) -> None:
-        path = Path(job_path)
-        if not path.exists():
-            return
-        try:
-            job = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            _LOGGER.exception("post_job_water_amendment: failed to read %s", job_path)
-            return
-
-        water = job.get("water")
-        if not isinstance(water, dict):
-            return
-
-        total_wash_count = mop_wash_count_at_finalization + wash_count
-        water["actual_mop_wash_count"] = total_wash_count
-        water["actual_end_station_clean_water_percent"] = end_percent
-
-        start_pct = water.get("station_clean_water_percent")
-        capacity_ml = water.get("dock_clean_tank_capacity_ml", 3080.0)
-        overhead_per_cycle = water.get("dock_wash_overhead_ml_per_cycle", 120.0)
-
-        tank_emptied = end_percent is not None and end_percent <= 0.0
-
-        if (
-            end_percent is not None
-            and isinstance(start_pct, (int, float))
-            and isinstance(capacity_ml, (int, float))
-            and capacity_ml > 0
-            and start_pct >= end_percent
-        ):
-            actual_total_ml = round((start_pct - end_percent) / 100.0 * capacity_ml, 1)
-            actual_wash_ml = round(total_wash_count * overhead_per_cycle, 1)
-            actual_floor_ml = round(max(actual_total_ml - actual_wash_ml, 0.0), 1) if not tank_emptied else None
-            estimated = water.get("estimated_total_dock_clean_water_used_ml") or 0.0
-            water["actual_dock_water_used_ml"] = actual_total_ml
-            water["actual_mop_wash_water_ml"] = actual_wash_ml
-            water["actual_floor_water_ml"] = actual_floor_ml
-            water["actual_vs_estimated_delta_ml"] = round(actual_total_ml - float(estimated), 1) if not tank_emptied else None
-        else:
-            water["actual_dock_water_used_ml"] = None
-            water["actual_mop_wash_water_ml"] = None
-            water["actual_floor_water_ml"] = None
-            water["actual_vs_estimated_delta_ml"] = None
-
-        water["actual_tank_emptied"] = tank_emptied
-
-        from .learning.utils import _iso_now
-        water["water_amended_at"] = _iso_now()
-        water["water_amendment_reason"] = "post_job_wash"
-        job["water"] = water
-
-        try:
-            # Atomic write via temp file + rename. POSIX rename is atomic, so
-            # any concurrent reader sees either the pre-patch file or the
-            # post-patch file — never a half-written interleaved state. This
-            # is what catches us when finalize / amendment / mapping-evidence
-            # happen to write concurrently. Without it, a reader can land on
-            # one writer's truncate followed by the other writer's bytes,
-            # producing the "Extra data: line N column 1 (char M)" decode
-            # error pattern from the original report.
-            tmp = path.with_suffix(path.suffix + ".tmp")
-            tmp.write_text(json.dumps(job, indent=2), encoding="utf-8")
-            os.replace(tmp, path)
-            _LOGGER.debug(
-                "post_job_water_amendment: patched %s wash_count=%d end_pct=%s",
-                job_id, total_wash_count, end_percent,
-            )
-        except Exception:
-            _LOGGER.exception("post_job_water_amendment: failed to write %s", job_path)
-
-    @callback
-    def _commit(reason: str) -> None:
-        if amendment_state["committed"]:
-            return
-        amendment_state["committed"] = True
-        _cancel_all()
-
-        # Only write if something actually happened during the window.
-        if amendment_state["wash_count"] == 0 and reason == "timeout":
-            return
-
-        water_state = hass.states.get(water_level_entity)
-        end_pct: float | None = None
-        if water_state and water_state.state not in ("unavailable", "unknown"):
-            try:
-                end_pct = float(water_state.state)
-            except (ValueError, TypeError):
-                pass
-
-        wash_count = amendment_state["wash_count"]
-        # Tracked fire-and-forget. The amendment patches user-visible
-        # actual_*_water_* fields onto the completed job file — losing it
-        # on HA shutdown is observable (the job's water tab keeps its
-        # estimate-only fields). Wrap the executor Future in a coroutine
-        # so async_create_task gets a real coroutine (3.14-compatible)
-        # and the task lands in HA's tracker, ensuring the shutdown
-        # sequence drains it before stopping the loop.
-        async def _flush_amendment() -> None:
-            await hass.async_add_executor_job(
-                _write_amendment, end_pct, wash_count
-            )
-        hass.async_create_task(_flush_amendment())
-
-    _MIN_WASH_INTERVAL_SECONDS = 60.0
-
-    @callback
-    def _on_dock_change(event: Event) -> None:
-        import time as _time
-        new_state_obj = event.data.get("new_state")
-        new_state = str(getattr(new_state_obj, "state", "") or "").strip().lower()
-        if new_state in {"washing", "washing mop"}:
-            now = _time.monotonic()
-            if now - amendment_state["last_wash_at"] >= _MIN_WASH_INTERVAL_SECONDS:
-                amendment_state["wash_count"] += 1
-                amendment_state["last_wash_at"] = now
-        elif new_state == "drying":
-            _commit("drying")
-
-    @callback
-    def _on_timeout(_now) -> None:
-        _commit("timeout")
-
-    unsub_listener.append(
-        async_track_state_change_event(hass, [dock_status_entity], _on_dock_change)
-    )
-    unsub_timeout.append(async_call_later(hass, timeout_seconds, _on_timeout))
 
 
 def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
@@ -446,6 +335,8 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                     lifecycle = manager_local.get_lifecycle_state(
                         vacuum_entity_id=vacuum_entity_id,
                         map_id=map_id,
+                        # Vocabulary params omitted — manager reads them from the
+                        # adapter registry directly, with brand-specific fallbacks.
                     )
 
                     manager_local.update_active_job_recharge_observation(
@@ -453,10 +344,17 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                         map_id=map_id,
                     )
 
-                    _object_id = vacuum_entity_id.split(".", 1)[1]
-                    if entity_id == f"sensor.{_object_id}_dock_status":
+                    _adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
+                    _dock_status_entity = _adapter_cfg.get("entities", {}).get("dock_status")
+                    if _dock_status_entity and entity_id == _dock_status_entity:
                         _new_state_n = str(new_state or "").strip().lower()
-                        if _new_state_n in {"washing", "washing mop"}:
+                        _wash_triggers = frozenset(
+                            str(s).strip().lower()
+                            for s in _adapter_cfg.get("dock_events", {})
+                                                  .get("triggers", {})
+                                                  .get("last_mop_wash", [])
+                        ) or frozenset({"washing", "washing mop"})
+                        if _new_state_n in _wash_triggers:
                             manager_local.update_active_job_mop_wash_observation(
                                 vacuum_entity_id=vacuum_entity_id,
                                 map_id=map_id,
@@ -494,6 +392,17 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                                 rooms=job_rooms,
                             )
 
+                    _completion_task_status = _get_adapter_value(
+                        vacuum_entity_id,
+                        "completion", "task_status_value",
+                        fallback=_DEFAULT_COMPLETION_TASK_STATUS,
+                    )
+                    _clear_sentinels = _get_adapter_vocab(
+                        vacuum_entity_id,
+                        "completion", "secondary_clear_sentinels",
+                        _DEFAULT_CLEAR_SENTINELS,
+                    )
+
                     completion_signals = _completed_finalize_signals(hass, vacuum_entity_id)
 
                     # Successful completion: task_status==Completed + target cleared.
@@ -503,8 +412,10 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                     # the vacuum may still be returning when these two signals fire,
                     # and requiring docked was stranding active_job records.
                     should_finalize_completed = bool(
-                        completion_signals["task_completed"]
-                        and completion_signals["target_cleared"]
+                        str(completion_signals.get("task_status", "")).strip().lower()
+                        == str(_completion_task_status).strip().lower()
+                        and str(completion_signals.get("active_target", "")).strip().lower()
+                        in _clear_sentinels
                         and active_job.get("has_observed_active_lifecycle", False)
                     )
 
@@ -554,7 +465,7 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                             ),
                         )
                         # Register post-job water amendment for mop jobs.
-                        # The X10 washes the mop ~2s after docking, after finalization.
+                        # Some docks wash the mop ~2s after docking, after finalization.
                         _completed = finalize_result.get("completed_job") or {}
                         _job_path = finalize_result.get("job_path")
                         _job_id = finalize_result.get("job_id")
@@ -563,8 +474,23 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                             for r in _completed.get("resolved_rooms", [])
                             if isinstance(r, dict)
                         )
-                        if _has_mop and _job_path and _job_id:
+                        _amendment_enabled = _get_adapter_value(
+                            vacuum_entity_id,
+                            "post_job_wash_amendment", "enabled",
+                            fallback=True,  # amendment: enabled by default
+                        )
+                        if _has_mop and _job_path and _job_id and _amendment_enabled:
                             _water = _completed.get("water") or {}
+                            _debounce = _get_adapter_value(
+                                vacuum_entity_id,
+                                "post_job_wash_amendment", "debounce_seconds",
+                                fallback=60.0,  # seconds; adapter config is authoritative
+                            )
+                            _timeout = _get_adapter_value(
+                                vacuum_entity_id,
+                                "post_job_wash_amendment", "timeout_seconds",
+                                fallback=180,  # seconds; adapter config is authoritative
+                            )
                             _register_post_job_water_amendment(
                                 hass,
                                 vacuum_entity_id=vacuum_entity_id,
@@ -576,6 +502,8 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                                 mop_wash_count_at_finalization=int(
                                     _water.get("actual_mop_wash_count") or 0
                                 ),
+                                debounce_seconds=_debounce,
+                                timeout_seconds=_timeout,
                             )
                     any_changes = True
 
@@ -591,6 +519,123 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
     )
 
     domain_data[_JOB_LIFECYCLE_UNSUBS] = [unsub]
+
+
+# ----------------------------------------------------------------------
+# Job metrics listeners (cleaning_time, cleaning_area)
+# ----------------------------------------------------------------------
+
+_JOB_METRICS_UNSUBS = "_job_metrics_unsubs"
+
+
+def _remove_job_metrics_listeners(hass: HomeAssistant) -> None:
+    """Remove job metrics state listeners."""
+    domain_data = hass.data.get(DOMAIN, {})
+    unsubs: list[Callable[[], None]] = domain_data.pop(_JOB_METRICS_UNSUBS, [])
+    for unsub in unsubs:
+        try:
+            unsub()
+        except Exception:
+            _LOGGER.exception("Failed to remove job metrics listener")
+
+
+def _register_job_metrics_listeners(hass: HomeAssistant) -> None:
+    """Register listeners that push job-metric sensor values into active_job_state.
+
+    Tracks cleaning_time, cleaning_area, and station water level. These
+    sensors update during the run via DPS packets, but finalization fires on
+    a separate DPS packet (task_status → Completed) that may arrive before
+    the sensor values have landed in HA's state machine. By pushing the
+    last-seen value into active_job_state as each update arrives, finalization
+    reads from there instead of issuing a live HA state read at job-end.
+    """
+    _remove_job_metrics_listeners(hass)
+
+    domain_data = hass.data.get(DOMAIN, {})
+    manager: EufyVacuumManager | None = domain_data.get(DATA_RUNTIME)
+    if manager is None:
+        return
+
+    # Build a map of entity_id → (vacuum_entity_id, active_job_state_key, type)
+    # for every vacuum whose adapter config exposes these entities.
+    from .adapters.registry import get_adapter_config
+    watch_map: dict[str, tuple[str, str, str]] = {}
+    for vacuum_entity_id in manager.get_known_vacuum_ids():
+        config = get_adapter_config(vacuum_entity_id)
+        entities = (config or {}).get("entities", {})
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+
+        # Only watch entities the adapter explicitly declares. If an entity
+        # key is absent the listener simply doesn't subscribe — finalization
+        # falls through to its sensor and wall-clock fallbacks. Guessing at
+        # a brand-specific name would silently subscribe to a nonexistent
+        # entity on any adapter that doesn't expose it.
+        ct_entity = entities.get("cleaning_time")
+        if ct_entity:
+            watch_map[ct_entity] = (vacuum_entity_id, "last_cleaning_time_seconds", "int")
+
+        ca_entity = entities.get("cleaning_area")
+        if ca_entity:
+            watch_map[ca_entity] = (vacuum_entity_id, "last_cleaning_area_m2", "float")
+
+        # Station water level — lives in capabilities entities, not the main
+        # entities dict. Only added when the capability is exposed.
+        try:
+            caps = manager.get_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id, refresh=False
+            )
+            water_entity = (
+                caps.get("entities", {}).get("water_level")
+                or caps.get("entities", {}).get("station_water")
+            )
+            if water_entity:
+                watch_map[water_entity] = (
+                    vacuum_entity_id, "last_station_water_percent", "float"
+                )
+        except Exception:
+            pass
+
+    if not watch_map:
+        domain_data[_JOB_METRICS_UNSUBS] = []
+        return
+
+    @callback
+    def _handle_metrics_change(event: Event) -> None:
+        entity_id = str(event.data.get("entity_id", ""))
+        entry = watch_map.get(entity_id)
+        if entry is None:
+            return
+
+        new_state_obj = event.data.get("new_state")
+        if new_state_obj is None:
+            return
+        raw = new_state_obj.state
+        if raw in ("unavailable", "unknown", None):
+            return
+
+        vacuum_entity_id, key, value_type = entry
+        manager_local: EufyVacuumManager | None = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager_local is None:
+            return
+
+        try:
+            value = int(float(raw)) if value_type == "int" else float(raw)
+        except (TypeError, ValueError):
+            return
+
+        manager_local.record_active_job_sensor_value(
+            vacuum_entity_id=vacuum_entity_id,
+            key=key,
+            value=value,
+        )
+
+    unsub = async_track_state_change_event(
+        hass,
+        list(watch_map.keys()),
+        _handle_metrics_change,
+    )
+
+    domain_data[_JOB_METRICS_UNSUBS] = [unsub]
 
 
 # ----------------------------------------------------------------------
@@ -620,9 +665,9 @@ def _register_dock_event_listeners(hass: HomeAssistant) -> None:
 
     watched: dict[str, str] = {}
     for vacuum_entity_id in manager.get_known_vacuum_ids():
-        object_id = vacuum_entity_id.split(".", 1)[1]
-        dock_entity = f"sensor.{object_id}_dock_status"
-        watched[dock_entity] = vacuum_entity_id
+        dock_entity = (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("dock_status")
+        if dock_entity:
+            watched[dock_entity] = vacuum_entity_id
 
     if not watched:
         domain_data[_DOCK_EVENT_UNSUBS] = []
@@ -652,14 +697,25 @@ def _register_dock_event_listeners(hass: HomeAssistant) -> None:
         if manager_local is None:
             return
 
-        for event_type, trigger_states in _DOCK_EVENT_TRIGGERS.items():
-            if new_val not in trigger_states:
+        _triggers = _get_adapter_value(
+            vacuum_entity_id,
+            "dock_events", "triggers",
+            fallback={},
+        )
+
+        for event_type, trigger_states in _triggers.items():
+            trigger_set = frozenset(
+                str(s).strip().lower() for s in trigger_states
+            )
+            if new_val not in trigger_set:
                 continue
 
             dry_duration: str | None = None
             if event_type == "last_dry_start":
-                object_id = vacuum_entity_id.split(".", 1)[1]
-                dry_sel = hass.states.get(f"select.{object_id}_dry_duration")
+                _dry_entity = _get_adapter_value(
+                    vacuum_entity_id, "entities", "dry_duration", fallback=None
+                )
+                dry_sel = hass.states.get(_dry_entity) if _dry_entity else None
                 if dry_sel is not None and dry_sel.state not in ("unknown", "unavailable", ""):
                     dry_duration = dry_sel.state
 
@@ -871,6 +927,143 @@ def _register_job_progress_listener(hass: HomeAssistant) -> None:
     domain_data[_JOB_PROGRESS_UNSUBS] = [unsub]
 
 
+def _remove_discovery_listeners(hass: HomeAssistant) -> None:
+    """Tear down all auto-discovery triggers registered for the entry."""
+    domain_data = hass.data.get(DOMAIN, {})
+    unsubs: list[Callable[[], None]] = domain_data.pop(_DISCOVERY_UNSUBS, [])
+    for unsub in unsubs:
+        try:
+            unsub()
+        except Exception:  # pragma: no cover
+            pass
+
+
+def _register_discovery_listeners(hass: HomeAssistant) -> None:
+    """Wire auto-discovery triggers that keep room-drift history fresh.
+
+    Each managed vacuum's adapter declares which triggers apply (under
+    ``discovery.auto_refresh_on``) and an optional periodic interval
+    (``discovery.auto_refresh_interval_seconds``). The framework owns
+    the trigger semantics; the adapter just opts in.
+
+    Triggers wired here:
+      - ``vacuum_docked``        — vacuum entity transitions to "docked"
+      - ``active_map_changed``   — active_map sensor value changes
+      - ``config_entry_reload``  — one-shot pass right now (setup time)
+      - periodic safety net      — every N seconds, adapter-configurable
+
+    Manual rescan via ``setup_discover_rooms`` service also updates
+    drift history (wired separately in services.py — the service path
+    is always available regardless of which auto triggers are declared).
+    """
+    _remove_discovery_listeners(hass)
+
+    from .setup.drift import get_discovery_cadence, run_discovery_pass
+
+    domain_data = hass.data.get(DOMAIN, {})
+    manager: EufyVacuumManager | None = domain_data.get(DATA_RUNTIME)
+    if manager is None:
+        return
+
+    unsubs: list[Callable[[], None]] = []
+
+    for vacuum_entity_id in manager.get_known_vacuum_ids():
+        cadence = get_discovery_cadence(vacuum_entity_id)
+        triggers = set(cadence.get("auto_refresh_on") or [])
+        interval_seconds = int(cadence.get("auto_refresh_interval_seconds") or 0)
+        adapter_config = _get_adapter_config(vacuum_entity_id) or {}
+        active_map_entity = (adapter_config.get("entities") or {}).get("active_map")
+
+        # Bind vacuum_entity_id at closure-creation time so per-vacuum
+        # callbacks see their own ID rather than the loop variable.
+        def _make_run_pass(vid: str) -> Callable[[], None]:
+            def _run() -> None:
+                async def _do() -> None:
+                    try:
+                        run_discovery_pass(hass, manager, vid)
+                        await manager.async_save()
+                    except Exception:
+                        _LOGGER.exception(
+                            "discovery: failed for %s", vid
+                        )
+                hass.async_create_task(_do())
+            return _run
+
+        run_pass = _make_run_pass(vacuum_entity_id)
+
+        # --- config_entry_reload: one-shot pass right now ---
+        if "config_entry_reload" in triggers:
+            run_pass()
+
+        # --- vacuum_docked: state transitions to "docked" ---
+        if "vacuum_docked" in triggers:
+            @callback
+            def _on_vacuum_state(
+                event: Event,
+                _run_pass: Callable[[], None] = run_pass,
+            ) -> None:
+                new_state_obj = event.data.get("new_state")
+                old_state_obj = event.data.get("old_state")
+                new_state = getattr(new_state_obj, "state", None)
+                old_state = getattr(old_state_obj, "state", None)
+                # Only fire on transition INTO docked — filter out
+                # repeat docked-to-docked attribute updates and unknown
+                # → docked startup noise.
+                if new_state == "docked" and old_state != "docked":
+                    _run_pass()
+
+            unsubs.append(
+                async_track_state_change_event(
+                    hass, [vacuum_entity_id], _on_vacuum_state
+                )
+            )
+
+        # --- active_map_changed: active_map sensor value changes ---
+        if "active_map_changed" in triggers and active_map_entity:
+            @callback
+            def _on_active_map(
+                event: Event,
+                _run_pass: Callable[[], None] = run_pass,
+            ) -> None:
+                new_state_obj = event.data.get("new_state")
+                old_state_obj = event.data.get("old_state")
+                new_value = getattr(new_state_obj, "state", None)
+                old_value = getattr(old_state_obj, "state", None)
+                if (
+                    new_value not in (None, "unknown", "unavailable")
+                    and new_value != old_value
+                ):
+                    _run_pass()
+
+            unsubs.append(
+                async_track_state_change_event(
+                    hass, [active_map_entity], _on_active_map
+                )
+            )
+
+        # --- periodic safety net ---
+        if interval_seconds > 0:
+            @callback
+            def _on_tick(
+                _now,
+                _run_pass: Callable[[], None] = run_pass,
+            ) -> None:
+                _run_pass()
+
+            unsubs.append(
+                async_track_time_interval(
+                    hass, _on_tick, timedelta(seconds=interval_seconds)
+                )
+            )
+
+    domain_data[_DISCOVERY_UNSUBS] = unsubs
+    _LOGGER.debug(
+        "discovery: registered %d auto-discovery trigger(s) across %d vacuum(s)",
+        len(unsubs),
+        len(manager.get_known_vacuum_ids()),
+    )
+
+
 def _register_path_blocker_listeners(hass: HomeAssistant) -> None:
     """Watch blocker entities during active jobs and fire path-blocked events."""
     _remove_path_blocker_listeners(hass)
@@ -1020,6 +1213,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     manager = EufyVacuumManager(hass)
     await manager.async_initialize()
 
+    # Load stored adapter configs (UI-configured brands) before code
+    # adapter registration. Code adapters registered below will overwrite
+    # stored configs for the same vacuum — code adapters always win.
+    _stored_count = load_stored_adapter_configs(hass, manager.data)
+    if _stored_count > 0:
+        _LOGGER.debug(
+            "eufy_vacuum: loaded %d stored adapter config(s)",
+            _stored_count,
+        )
+
+    # Register Eufy code adapter for each managed vacuum.
+    # This overwrites any stored config for the same vacuum.
+    for _vacuum_entity_id in manager.get_known_vacuum_ids():
+        try:
+            register_eufy_adapter_for_vacuum(hass, _vacuum_entity_id)
+        except Exception:
+            _LOGGER.exception(
+                "eufy_vacuum: failed to register adapter config for %s",
+                _vacuum_entity_id,
+            )
+
     hass.data[DOMAIN][DATA_RUNTIME] = manager
     hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
 
@@ -1081,10 +1295,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await async_register_mapping_services(hass)
 
     _register_lifecycle_listeners(hass)
+    _register_job_metrics_listeners(hass)
     _register_dock_event_listeners(hass)
     _register_path_blocker_listeners(hass)
     _register_pause_timeout_listener(hass)
     _register_job_progress_listener(hass)
+    _register_discovery_listeners(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -1131,10 +1347,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 _LOGGER.debug("eufy_vacuum: failed to remove panel /%s", panel_url, exc_info=True)
 
         _remove_lifecycle_listeners(hass)
+        _remove_job_metrics_listeners(hass)
         _remove_dock_event_listeners(hass)
         _remove_path_blocker_listeners(hass)
         _remove_pause_timeout_listener(hass)
         _remove_job_progress_listener(hass)
+        _remove_discovery_listeners(hass)
 
         await async_unregister_mapping_services(hass)
         await async_unregister_learning_services(hass)
@@ -1158,6 +1376,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 error_tracker.stop()
             except Exception:  # pragma: no cover
                 _LOGGER.exception("Failed to stop error tracker")
+        # Unregister adapter configs on unload.
+        _runtime_manager = domain_data.get(DATA_RUNTIME)
+        if _runtime_manager is not None:
+            for _vacuum_entity_id in list(_runtime_manager.get_known_vacuum_ids()):
+                unregister_adapter_config(_vacuum_entity_id)
+
         domain_data.pop(DATA_RUNTIME, None)
         domain_data.pop(DATA_LEARNING, None)
 

@@ -8,6 +8,8 @@ import {
   SERVICE_SETUP_GET_MAP_ROOMS,
   SERVICE_SETUP_SAVE_ROOMS,
   SERVICE_SETUP_DELETE_MAP,
+  SERVICE_SETUP_REJECT_ROOMS,
+  SERVICE_SETUP_FORCE_REMOVE_ROOM,
 } from "../constants.js";
 
 export function applySetupActions(proto) {
@@ -91,6 +93,44 @@ export function applySetupActions(proto) {
         map_id:            String(mapId),
         enabled_room_ids:  enabledRoomIds,
         floor_types:       floorTypes,
+      },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Mark one or more discovered rooms as phantoms — they never surface in
+   * room_drift.new_rooms again, even if discovery re-reports them.
+   *
+   * @param {number[]} roomIds - integer room IDs to reject
+   */
+  proto.rejectSetupRooms = async function (vacuumEntityId, roomIds) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SETUP_REJECT_ROOMS,
+      {
+        vacuum_entity_id: vacuumEntityId,
+        room_ids:         roomIds,
+      },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Bypass the missing-pass counter and immediately flag one room as removed.
+   * The room stays in managed_rooms (history preserved); only the drift
+   * signal flips so the setup tab moves it from transiently_missing →
+   * removed_rooms on the next status read.
+   */
+  proto.forceRemoveSetupRoom = async function (vacuumEntityId, roomId) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SETUP_FORCE_REMOVE_ROOM,
+      {
+        vacuum_entity_id: vacuumEntityId,
+        room_id:          Number(roomId),
       },
       true,
     );

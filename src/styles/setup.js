@@ -527,4 +527,82 @@ export const setupStyles = `
     align-items: center;
     gap:         8px;
   }
+
+  /* =========================================================
+     ROOM DRIFT PANEL — new / removed / transiently-missing rooms
+     surfaced inside the save_rooms step when discovery shows
+     the integration is out of sync with the vacuum's segments.
+     ========================================================= */
+
+  .evcc-setup-drift-panel {
+    display:        flex;
+    flex-direction: column;
+    gap:            12px;
+    margin-top:     12px;
+    margin-bottom:  8px;
+  }
+
+  .evcc-setup-drift-section {
+    border-radius: 8px;
+    border:        1px solid var(--evcc-surface-border, rgba(255, 255, 255, 0.08));
+    background:    var(--evcc-surface-elev1, rgba(255, 255, 255, 0.03));
+    padding:       12px 14px;
+    display:       flex;
+    flex-direction: column;
+    gap:           8px;
+  }
+
+  /* Section colour-coding mirrors the semantic meaning of each
+     drift category — new rooms are an info/action prompt, removed
+     rooms are warning-coloured because user action just lost data,
+     transient is muted because no action is needed yet. */
+  .evcc-setup-drift-section.new {
+    border-color: color-mix(in srgb, var(--evcc-sem-info, #38bdf8) 35%, transparent);
+  }
+  .evcc-setup-drift-section.removed {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning, #fbbf24) 40%, transparent);
+  }
+  .evcc-setup-drift-section.transient {
+    border-color: color-mix(in srgb, var(--evcc-text-muted, #94a3b8) 30%, transparent);
+    opacity:      0.92;
+  }
+
+  .evcc-setup-drift-title {
+    font-size:   0.92rem;
+    font-weight: 600;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-setup-drift-hint {
+    font-size: 0.8rem;
+    color:     var(--evcc-text-muted, #94a3b8);
+    line-height: 1.4;
+  }
+
+  .evcc-setup-drift-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+    margin-top:     4px;
+  }
+
+  .evcc-setup-drift-row {
+    display:         flex;
+    align-items:     center;
+    gap:             10px;
+    padding:         6px 10px;
+    border-radius:   6px;
+    background:      var(--evcc-surface-elev2, rgba(255, 255, 255, 0.04));
+  }
+
+  .evcc-setup-drift-room-name {
+    flex:        1 1 auto;
+    font-size:   0.88rem;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-setup-drift-room-map {
+    font-size: 0.75rem;
+    margin-right: 8px;
+  }
 `;

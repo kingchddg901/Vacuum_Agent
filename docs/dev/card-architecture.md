@@ -439,7 +439,7 @@ If a binding needs a value from two different state modules, it calls each modul
 
 ## 5. Building a Different UI — What You Need
 
-This section specifies the minimum required for any UI (React app, Vue SPA, native app, CLI tool, etc.) that wants to drive a eufy_vacuum installation.
+This section specifies the minimum required for any UI (React app, Vue SPA, native app, CLI tool, etc.) that wants to drive a eufy_vacuum installation. The HA service contract that any UI must call into is documented in [core-manager.md](core-manager.md) and [ha-integration.md](ha-integration.md).
 
 ### 5.1 Minimum viable polling loop
 

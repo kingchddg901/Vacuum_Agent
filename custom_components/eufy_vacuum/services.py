@@ -18,6 +18,8 @@ from .const import (
     SERVICE_SETUP_GET_MAP_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
     SERVICE_SETUP_DELETE_MAP,
+    SERVICE_SETUP_REJECT_ROOMS,
+    SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_APPLY_ROOM_PROFILE,
     SERVICE_BUILD_QUEUE,
     SERVICE_BUILD_ROOM_PAYLOAD,
@@ -69,6 +71,11 @@ from .const import (
     SERVICE_APPLY_RUN_PROFILE,
     SERVICE_DELETE_RUN_PROFILE,
     SERVICE_OVERWRITE_RUN_PROFILE,
+    SERVICE_SAVE_ADAPTER_CONFIG,
+    SERVICE_DELETE_ADAPTER_CONFIG,
+    SERVICE_GET_ADAPTER_CONFIG,
+    SERVICE_DISCOVER_ADAPTER_ENTITIES,
+    SERVICE_OBSERVE_ENTITY_STATES,
     EVENT_JOB_FINISHED,
 )
 
@@ -360,10 +367,31 @@ def _get_manager(hass: HomeAssistant):
 
 
 async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Discover rooms from the vacuum integration."""
-    payload = _get_manager(hass).discover_rooms(**call.data)
+    """Discover rooms from the vacuum integration.
+
+    Also runs a drift-history update so the setup tab's new-room /
+    removed-room signals stay in sync after a manual rescan. The
+    automatic discovery triggers (vacuum_docked, active_map_changed,
+    periodic safety net) wired in __init__.py keep drift fresh in
+    normal operation; this is the manual-trigger equivalent.
+    """
+    from .setup.drift import run_discovery_pass
+
+    manager = _get_manager(hass)
+    payload = manager.discover_rooms(**call.data)
     _LOGGER.debug("discover_rooms complete: %s", payload)
-    await _get_manager(hass).async_save()
+
+    vacuum_entity_id = call.data.get("vacuum_entity_id")
+    if vacuum_entity_id:
+        try:
+            run_discovery_pass(hass, manager, vacuum_entity_id)
+        except Exception:
+            _LOGGER.exception(
+                "discover_rooms: drift update failed for %s",
+                vacuum_entity_id,
+            )
+
+    await manager.async_save()
 
 
 async def _handle_save_managed_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
@@ -1298,6 +1326,185 @@ async def async_register_services(hass: HomeAssistant) -> None:
     )
 
     # ----------------------------------------------------------------------
+    # Adapter config services (panel wizard)
+    # ----------------------------------------------------------------------
+
+    async def save_adapter_config(call: ServiceCall) -> None:
+        """Save a UI-submitted adapter config for one vacuum."""
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        config = dict(call.data["config"])
+
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            _LOGGER.error("save_adapter_config: runtime manager not available")
+            return
+
+        if not config.get("adapter_id"):
+            _LOGGER.error(
+                "save_adapter_config: missing adapter_id for %s",
+                vacuum_entity_id,
+            )
+            return
+        if not config.get("dispatch", {}).get("template"):
+            _LOGGER.error(
+                "save_adapter_config: missing dispatch.template for %s",
+                vacuum_entity_id,
+            )
+            return
+
+        # Source field is always set by the service — never trusted from caller.
+        config["source"] = "config"
+
+        from .adapters.config_loader import save_adapter_config as _save_stored
+        from .adapters.registry import register_adapter_config as _register
+
+        _save_stored(manager.data, vacuum_entity_id, config)
+        _register(vacuum_entity_id, config)
+        await manager.async_save()
+
+        _LOGGER.debug(
+            "save_adapter_config: saved and registered adapter '%s' for %s",
+            config.get("adapter_id"),
+            vacuum_entity_id,
+        )
+
+    async def delete_adapter_config(call: ServiceCall) -> None:
+        """Delete a stored adapter config for one vacuum."""
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return
+
+        from .adapters.config_loader import delete_adapter_config as _delete_stored
+        from .adapters.registry import unregister_adapter_config as _unregister
+
+        deleted = _delete_stored(manager.data, vacuum_entity_id)
+        if deleted:
+            _unregister(vacuum_entity_id)
+            await manager.async_save()
+            _LOGGER.debug(
+                "delete_adapter_config: deleted adapter config for %s",
+                vacuum_entity_id,
+            )
+
+    async def get_adapter_config(call: ServiceCall) -> dict:
+        """Return the registered adapter config for one vacuum."""
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+
+        from .adapters.registry import get_adapter_config as _get_config
+
+        config = _get_config(vacuum_entity_id)
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "config": config,
+            "source": (config or {}).get("source"),
+            "adapter_id": (config or {}).get("adapter_id"),
+        }
+
+    async def discover_adapter_entities(call: ServiceCall) -> dict:
+        """Discover companion entities for a vacuum and suggest role mappings."""
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        object_id = vacuum_entity_id.split(".", 1)[-1]
+
+        from homeassistant.helpers import entity_registry as er
+        registry = er.async_get(hass)
+
+        matches: list[dict] = []
+        for entry in registry.entities.values():
+            eid = str(entry.entity_id)
+            if object_id in eid:
+                state = hass.states.get(eid)
+                matches.append({
+                    "entity_id": eid,
+                    "domain": eid.split(".")[0],
+                    "current_state": state.state if state else None,
+                    "platform": entry.platform,
+                })
+
+        by_domain: dict[str, list] = {}
+        for match in matches:
+            by_domain.setdefault(match["domain"], []).append(match)
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "object_id": object_id,
+            "entity_count": len(matches),
+            "entities": matches,
+            "by_domain": by_domain,
+        }
+
+    async def observe_entity_states(call: ServiceCall) -> dict:
+        """Return current states for a list of entities for vocabulary mapping."""
+        entity_ids = call.data["entity_ids"]
+
+        observations: list[dict] = []
+        for entity_id in entity_ids:
+            state = hass.states.get(entity_id)
+            if state is not None:
+                observations.append({
+                    "entity_id": entity_id,
+                    "state": state.state,
+                    "attributes": dict(state.attributes),
+                })
+            else:
+                observations.append({
+                    "entity_id": entity_id,
+                    "state": None,
+                    "attributes": {},
+                })
+
+        return {
+            "observations": observations,
+            "entity_count": len(observations),
+        }
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SAVE_ADAPTER_CONFIG,
+        save_adapter_config,
+        schema=vol.Schema({
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+            vol.Required("config"): dict,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_ADAPTER_CONFIG,
+        delete_adapter_config,
+        schema=vol.Schema({
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+        }),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_GET_ADAPTER_CONFIG,
+        get_adapter_config,
+        schema=vol.Schema({
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+        }),
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DISCOVER_ADAPTER_ENTITIES,
+        discover_adapter_entities,
+        schema=vol.Schema({
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+        }),
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_OBSERVE_ENTITY_STATES,
+        observe_entity_states,
+        schema=vol.Schema({
+            vol.Required("entity_ids"): [cv.entity_id],
+        }),
+        supports_response=True,
+    )
+
+    # ----------------------------------------------------------------------
     # Setup services (panel-driven)
     # ----------------------------------------------------------------------
 
@@ -1305,6 +1512,11 @@ async def async_register_services(hass: HomeAssistant) -> None:
     from .setup.workflow import import_active_map as _import_active_map
     from .setup.status import get_setup_status as _get_setup_status
     from .setup.delete import delete_map as _delete_map
+    from .setup.drift import (
+        record_step_completed as _record_setup_step,
+        reject_rooms as _reject_rooms,
+        force_remove_room as _force_remove_room,
+    )
 
     SETUP_ADD_VACUUM_SCHEMA = vol.Schema(
         {vol.Required("vacuum_entity_id"): cv.entity_id}
@@ -1342,10 +1554,31 @@ async def async_register_services(hass: HomeAssistant) -> None:
         return _get_setup_status(hass)
 
     async def setup_add_vacuum(call: ServiceCall) -> dict:
-        return await _add_vacuum(hass, call.data["vacuum_entity_id"])
+        result = await _add_vacuum(hass, call.data["vacuum_entity_id"])
+        # Stamp step complete only on a non-error result. The workflow
+        # functions today don't return a uniform status key; treat
+        # any non-{"status": "error", ...} response as success.
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is not None and (
+            not isinstance(result, dict) or result.get("status") != "error"
+        ):
+            _record_setup_step(
+                manager, call.data["vacuum_entity_id"], "add_vacuum"
+            )
+            await manager.async_save()
+        return result
 
     async def setup_import_active_map(call: ServiceCall) -> dict:
-        return await _import_active_map(hass, call.data["vacuum_entity_id"])
+        result = await _import_active_map(hass, call.data["vacuum_entity_id"])
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is not None and (
+            not isinstance(result, dict) or result.get("status") != "error"
+        ):
+            _record_setup_step(
+                manager, call.data["vacuum_entity_id"], "import_active_map"
+            )
+            await manager.async_save()
+        return result
 
     async def setup_get_map_rooms(call: ServiceCall) -> dict:
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
@@ -1383,6 +1616,12 @@ async def async_register_services(hass: HomeAssistant) -> None:
             map_id=call.data["map_id"],
             enabled_room_ids=call.data.get("enabled_room_ids"),
             floor_types=call.data.get("floor_types") or {},
+        )
+        # is_configured stamping is handled by build_managed_rooms —
+        # every room returned by save_managed_rooms now carries True
+        # plus a configured_at timestamp. Mark the step complete here.
+        _record_setup_step(
+            manager, call.data["vacuum_entity_id"], "save_rooms"
         )
         await manager.async_save()
         return {"status": "success", "room_count": result.get("room_count", 0)}
@@ -1439,6 +1678,77 @@ async def async_register_services(hass: HomeAssistant) -> None:
         supports_response=True,
     )
 
+    # --- Drift services (phantom rejection + forced removal) -----------
+
+    SETUP_REJECT_ROOMS_SCHEMA = vol.Schema(
+        {
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+            vol.Required("room_ids"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+        }
+    )
+    SETUP_FORCE_REMOVE_ROOM_SCHEMA = vol.Schema(
+        {
+            vol.Required("vacuum_entity_id"): cv.entity_id,
+            vol.Required("room_id"): vol.Coerce(int),
+        }
+    )
+
+    async def setup_reject_rooms(call: ServiceCall) -> dict:
+        """Mark discovered rooms as phantoms — never surface them again."""
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "message": "Integration manager not available."}
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        result = _reject_rooms(
+            manager,
+            vacuum_entity_id,
+            call.data["room_ids"],
+        )
+        # Fire room-update callbacks for every map that lost a room so
+        # the entity-platform cleanup (switch/number/sensor) tears down
+        # the orphaned entities. The drift module is pure data; service
+        # handler dispatches the HA-side notifications.
+        for affected_map_id in result.get("affected_map_ids", []):
+            manager._notify_rooms_updated(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=affected_map_id,
+            )
+        await manager.async_save()
+        return {"status": "success", **result}
+
+    async def setup_force_remove_room(call: ServiceCall) -> dict:
+        """Bypass the missing-pass counter and immediately flag a room removed.
+
+        The room stays in managed_rooms (history preserved); only its
+        drift signal flips. Pair with a separate delete operation if
+        full removal is wanted.
+        """
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "message": "Integration manager not available."}
+        result = _force_remove_room(
+            manager,
+            call.data["vacuum_entity_id"],
+            call.data["room_id"],
+        )
+        await manager.async_save()
+        return {"status": "success", **result}
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SETUP_REJECT_ROOMS,
+        setup_reject_rooms,
+        schema=SETUP_REJECT_ROOMS_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SETUP_FORCE_REMOVE_ROOM,
+        setup_force_remove_room,
+        schema=SETUP_FORCE_REMOVE_ROOM_SCHEMA,
+        supports_response=True,
+    )
+
 
 
 async def async_unregister_services(hass: HomeAssistant) -> None:
@@ -1450,6 +1760,8 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         SERVICE_SETUP_GET_MAP_ROOMS,
         SERVICE_SETUP_SAVE_ROOMS,
         SERVICE_SETUP_DELETE_MAP,
+        SERVICE_SETUP_REJECT_ROOMS,
+        SERVICE_SETUP_FORCE_REMOVE_ROOM,
         SERVICE_DISCOVER_ROOMS,
         SERVICE_SAVE_MANAGED_ROOMS,
         SERVICE_GET_VACUUM_MAPS,
@@ -1499,5 +1811,10 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         SERVICE_DELETE_RUN_PROFILE,
         SERVICE_START_RUN_PROFILE,
         SERVICE_GET_VACUUM_CAPABILITIES,
+        SERVICE_SAVE_ADAPTER_CONFIG,
+        SERVICE_DELETE_ADAPTER_CONFIG,
+        SERVICE_GET_ADAPTER_CONFIG,
+        SERVICE_DISCOVER_ADAPTER_ENTITIES,
+        SERVICE_OBSERVE_ENTITY_STATES,
     ):
         hass.services.async_remove(DOMAIN, service_name)

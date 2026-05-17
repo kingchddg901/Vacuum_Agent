@@ -274,5 +274,71 @@ export function applySetupBindings(proto) {
         card._scheduleRender();
       }
     });
+
+    /* -------------------------------------------------------
+       REJECT ROOM — mark a discovered room as a phantom
+       Used on the room_drift.new_rooms entries to permanently
+       suppress a room the user identifies as bogus.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-reject-room']", "click", async (e) => {
+      const roomId         = Number(e.currentTarget.dataset.roomId);
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!Number.isFinite(roomId) || !vacuumEntityId) return;
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.rejectSetupRooms?.(
+          vacuumEntityId,
+          [roomId],
+        );
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        card._state.setSetupError?.(
+          `Failed to reject room: ${err?.message ?? String(err)}`,
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
+       FORCE-REMOVE ROOM — bypass the missing-pass counter on
+       a transiently_missing room when the user knows it's
+       permanently gone.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-force-remove-room']", "click", async (e) => {
+      const roomId         = Number(e.currentTarget.dataset.roomId);
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!Number.isFinite(roomId) || !vacuumEntityId) return;
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.forceRemoveSetupRoom?.(
+          vacuumEntityId,
+          roomId,
+        );
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        card._state.setSetupError?.(
+          `Failed to force-remove room: ${err?.message ?? String(err)}`,
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
+        card._scheduleRender();
+      }
+    });
   };
 }

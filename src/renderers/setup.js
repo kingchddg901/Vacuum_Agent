@@ -5,13 +5,24 @@
  *
  * PURPOSE
  * -------
- * Renders the Setup tab — a two-step wizard:
- *   1. Add the card's vacuum to the integration
- *   2. Import maps + immediately configure each map's rooms
- *      (exclude ghost rooms, set floor type per room)
+ * Renders the Setup tab as a data-driven step list. The backend
+ * declares each vacuum's setup.steps in its adapter config; the
+ * card iterates that list and renders the appropriate view per
+ * step ID. There is no longer a hardcoded "step 1 / step 2"
+ * structure — the adapter owns the truth, the card displays.
  *
- * Room config is part of step 2 so ghost rooms are never
- * persisted — setup_save_rooms is what actually writes them.
+ * Step IDs handled today (closed enum from backend):
+ *   - "add_vacuum"         → register the vacuum entity
+ *   - "import_active_map"  → import a map from upstream cloud
+ *                            (Eufy-conditional; brands with always-on
+ *                            map exposure omit this step)
+ *   - "save_rooms"         → configure rooms (floor types, phantom
+ *                            filtering, drift review)
+ *
+ * The save_rooms step is special: even after being marked complete,
+ * room drift (new rooms discovered, configured rooms missing) can
+ * re-open it. The drift display surfaces these as actionable items
+ * with Configure / Reject / Force-Remove buttons.
  *
  * ============================================================
  */
@@ -27,17 +38,18 @@ const FLOOR_TYPE_OPTIONS = [
   { value: "carpet_high_pile", label: "High-Pile Carpet" },
 ];
 
-/**
- * Mix setup renderer methods onto the given prototype.
- *
- * @param {object} proto - VacuumCardRenderers prototype to extend.
- */
 export function applySetupRenderers(proto) {
 
   /**
-   * Render the two-step setup wizard (add vacuum, import maps + configure rooms).
+   * Render the Setup tab.
    *
-   * @param {{ state: object, card: object }} ctx - Render context.
+   * Iterates vacuumEntry.setup_steps and dispatches per-step rendering
+   * based on each step's `id`. The badge number reflects the step's
+   * position in the adapter-declared list, not a hardcoded sequence —
+   * a brand with two steps shows "1, 2"; a brand with three shows
+   * "1, 2, 3".
+   *
+   * @param {{ state: object, card: object }} ctx
    * @returns {string} HTML string.
    */
   proto.renderSetupView = function (ctx) {
@@ -50,24 +62,28 @@ export function applySetupRenderers(proto) {
     const lastResult     = state.setupLastResult?.() ?? null;
 
     /* -------------------------------------------------------
-       Derive per-vacuum state
+       Resolve this card's vacuum entry from the status response
        ------------------------------------------------------- */
-    const vacuums      = Array.isArray(status?.vacuums) ? status.vacuums : [];
-    const vacuumEntry  = vacuums.find((v) => v.vacuum_entity_id === vacuumEntityId) ?? null;
-    const step1Done    = vacuumEntry != null;
-    const importedMaps = (vacuumEntry?.maps ?? []).filter((m) => m.imported);
-    const hasAnyMap    = importedMaps.length > 0;
+    const vacuums     = Array.isArray(status?.vacuums) ? status.vacuums : [];
+    const vacuumEntry = vacuums.find((v) => v.vacuum_entity_id === vacuumEntityId) ?? null;
 
-    const allMapsConfigured =
-      hasAnyMap && importedMaps.every((m) => state.isSetupMapConfigured?.(String(m.map_id)));
+    /* Adapter-declared step list (new contract). Falls back to a
+       legacy two-step list when the response predates the contract;
+       this keeps the card functional during a partial backend
+       rollout and against older snapshots of state. */
+    const steps = (Array.isArray(vacuumEntry?.setup_steps) && vacuumEntry.setup_steps.length)
+      ? vacuumEntry.setup_steps
+      : _legacyStepsFallback(vacuumEntry);
 
-    /* Room editor state */
+    const drift = vacuumEntry?.room_drift ?? null;
+
+    /* Room editor state — same as before; the save_rooms step
+       drives this. */
     const openMapId    = state.setupRoomEditorOpenMapId?.()    ?? null;
     const loadingMapId = state.setupRoomEditorLoadingMapId?.() ?? null;
     const rooms        = state.setupRoomEditorRooms?.()        ?? [];
     const saving       = state.setupRoomEditorSaving?.()       ?? false;
 
-    /* Delete state */
     const deletePendingMapId = state.setupDeletePendingMapId?.() ?? null;
     const deleteStage        = state.setupDeleteStage?.()        ?? null;
     const deleteTypedToken   = state.setupDeleteTypedToken?.()   ?? "";
@@ -78,8 +94,10 @@ export function applySetupRenderers(proto) {
     );
     const floorTypesMap = state.setupRoomEditorFloorTypesMap?.() ?? {};
 
+    const importedMaps = (vacuumEntry?.maps ?? []).filter((m) => m.imported);
+
     /* -------------------------------------------------------
-       Transient feedback
+       Transient feedback (loading / error / last action)
        ------------------------------------------------------- */
     const loadingHtml = loading
       ? `<div class="evcc-setup-result info">Working…</div>`
@@ -96,59 +114,219 @@ export function applySetupRenderers(proto) {
       if (s === "error" || s === "blocked") {
         return `<div class="evcc-setup-result error">${this.escapeHtml(msg)}</div>`;
       }
-      return `<div class="evcc-setup-result success">${this.escapeHtml(msg)}</div>`;
+      if (msg) {
+        return `<div class="evcc-setup-result success">${this.escapeHtml(msg)}</div>`;
+      }
+      return "";
     })();
 
     /* -------------------------------------------------------
-       Step 1 — Add Vacuum
+       Per-step body renderers
+       -------------------------------------------------------
+       Each function returns the HTML for the step's body
+       region. The outer step container (badge + label) is
+       added by renderStep().
        ------------------------------------------------------- */
-    const step1Html = `
-      <div class="evcc-setup-step">
-        <div class="evcc-setup-step-header">
-          <div class="evcc-setup-step-badge ${step1Done ? "done" : ""}">
-            ${step1Done ? "✓" : "1"}
-          </div>
-          <div class="evcc-setup-step-label">Add Vacuum</div>
-        </div>
 
+    const renderAddVacuumBody = (step) => {
+      if (step.completed) {
+        return `
+          <div class="evcc-setup-step-body">
+            Vacuum registered.
+            <div class="evcc-setup-entity-id">${this.escapeHtml(vacuumEntityId)}</div>
+          </div>
+        `;
+      }
+      return `
         <div class="evcc-setup-step-body">
           Register this vacuum with the integration so it can be managed.
           <div class="evcc-setup-entity-id">${this.escapeHtml(vacuumEntityId)}</div>
         </div>
+        <button class="evcc-setup-btn"
+                data-action="setup-add-vacuum"
+                ${loading ? "disabled" : ""}>
+          Add Vacuum
+        </button>
+      `;
+    };
 
-        ${step1Done
-          ? `<div class="evcc-setup-result success">Vacuum registered.</div>`
-          : `<button class="evcc-setup-btn"
-                     data-action="setup-add-vacuum"
-                     ${loading ? "disabled" : ""}>
-               Add Vacuum
-             </button>`
-        }
-      </div>
-    `;
+    const renderImportActiveMapBody = (step) => {
+      const addVacuumDone = _isStepCompleted(steps, "add_vacuum");
+      const mapCount      = importedMaps.length;
+
+      if (!addVacuumDone) {
+        return `<div class="evcc-setup-step-body muted">Complete Add Vacuum first.</div>`;
+      }
+
+      const summaryHtml = mapCount > 0
+        ? `<div class="evcc-setup-step-body muted">${mapCount} map${mapCount === 1 ? "" : "s"} imported.</div>`
+        : `<div class="evcc-setup-step-body">Import the vacuum's currently active map. Make sure it has completed a mapping run first.</div>`;
+
+      const buttonLabel = mapCount > 0 ? "Import Another Map" : "Import Active Map";
+      const buttonClass = mapCount > 0 ? "secondary" : "";
+
+      return `
+        ${summaryHtml}
+        <button class="evcc-setup-btn ${buttonClass}"
+                data-action="setup-import-map"
+                ${loading ? "disabled" : ""}>
+          ${buttonLabel}
+        </button>
+      `;
+    };
+
+    const renderSaveRoomsBody = (step) => {
+      const importStep      = steps.find((s) => s.id === "import_active_map");
+      const importNeeded    = Boolean(importStep);
+      const importDone      = !importStep || importStep.completed;
+      const addVacuumDone   = _isStepCompleted(steps, "add_vacuum");
+
+      if (!addVacuumDone) {
+        return `<div class="evcc-setup-step-body muted">Complete Add Vacuum first.</div>`;
+      }
+      if (importNeeded && !importDone) {
+        return `<div class="evcc-setup-step-body muted">Complete map import first.</div>`;
+      }
+      if (importedMaps.length === 0 && !importNeeded) {
+        return `
+          <div class="evcc-setup-step-body">
+            No rooms discovered yet. Run a clean cycle so the vacuum reports
+            its room list, then refresh setup status.
+          </div>
+        `;
+      }
+
+      const driftHtml = renderDriftPanel(drift, vacuumEntry);
+      const mapRowsHtml = importedMaps.map((m) =>
+        renderMapRow(m, /* showConfigureControls */ true)
+      ).join("");
+
+      const intro = step.completed
+        ? `<div class="evcc-setup-step-body muted">Rooms configured. Drift detection watches for new or removed rooms below.</div>`
+        : `<div class="evcc-setup-step-body">Configure each imported map — exclude ghost rooms and set floor types.</div>`;
+
+      return `
+        ${intro}
+        ${driftHtml}
+        <div class="evcc-setup-mapconfig-list">${mapRowsHtml}</div>
+      `;
+    };
+
+    const STEP_BODY_RENDERERS = {
+      "add_vacuum":         renderAddVacuumBody,
+      "import_active_map":  renderImportActiveMapBody,
+      "save_rooms":         renderSaveRoomsBody,
+    };
 
     /* -------------------------------------------------------
-       Step 2 — Import Maps + Configure Rooms
-
-       Import and room config are one step so the user configures
-       each map (excludes ghost rooms, sets floor types) before
-       the rooms are ever saved to the integration.
-
-       Flow:
-         1. Click "Import Active Map" → map discovered
-         2. Room editor auto-opens for the new map
-         3. Toggle off ghost rooms, pick floor types, Save
-         4. Repeat for additional maps
+       Drift panel — shown inside save_rooms when not in_sync
        ------------------------------------------------------- */
 
-    /* Inline room editor for a specific map */
+    const renderDriftPanel = (drift, vacuumEntry) => {
+      if (!drift || drift.in_sync) return "";
+
+      const newRooms       = Array.isArray(drift.new_rooms)       ? drift.new_rooms       : [];
+      const removedRooms   = Array.isArray(drift.removed_rooms)   ? drift.removed_rooms   : [];
+      const transientRooms = Array.isArray(drift.transiently_missing) ? drift.transiently_missing : [];
+
+      if (newRooms.length === 0 && removedRooms.length === 0 && transientRooms.length === 0) {
+        return "";
+      }
+
+      const newSection = newRooms.length === 0 ? "" : `
+        <div class="evcc-setup-drift-section new">
+          <div class="evcc-setup-drift-title">
+            New rooms discovered (${newRooms.length})
+          </div>
+          <div class="evcc-setup-drift-hint">
+            The vacuum reports rooms you haven't configured yet. Configure
+            the matching map to include them, or reject as phantoms.
+          </div>
+          <div class="evcc-setup-drift-list">
+            ${newRooms.map((r) => `
+              <div class="evcc-setup-drift-row">
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
+                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+                <button class="evcc-setup-btn secondary small"
+                        data-action="setup-reject-room"
+                        data-room-id="${r.room_id}"
+                        ${loading ? "disabled" : ""}>
+                  Reject as phantom
+                </button>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      const removedSection = removedRooms.length === 0 ? "" : `
+        <div class="evcc-setup-drift-section removed">
+          <div class="evcc-setup-drift-title">
+            Rooms no longer reported (${removedRooms.length})
+          </div>
+          <div class="evcc-setup-drift-hint">
+            These rooms have been missing from discovery long enough to be
+            confirmed removed. Reconfigure the matching map to drop them.
+          </div>
+          <div class="evcc-setup-drift-list">
+            ${removedRooms.map((r) => `
+              <div class="evcc-setup-drift-row">
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
+                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      const transientSection = transientRooms.length === 0 ? "" : `
+        <div class="evcc-setup-drift-section transient">
+          <div class="evcc-setup-drift-title">
+            Temporarily missing (${transientRooms.length})
+          </div>
+          <div class="evcc-setup-drift-hint">
+            Missing from recent discovery passes but not yet confirmed
+            removed — likely a transient API glitch. Use "Force remove"
+            only if you know the room is permanently gone.
+          </div>
+          <div class="evcc-setup-drift-list">
+            ${transientRooms.map((r) => `
+              <div class="evcc-setup-drift-row">
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
+                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+                <button class="evcc-setup-btn destructive-ghost small"
+                        data-action="setup-force-remove-room"
+                        data-room-id="${r.room_id}"
+                        ${loading ? "disabled" : ""}>
+                  Force remove now
+                </button>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+
+      return `
+        <div class="evcc-setup-drift-panel">
+          ${newSection}
+          ${removedSection}
+          ${transientSection}
+        </div>
+      `;
+    };
+
+    /* -------------------------------------------------------
+       Per-map row (with inline editor + delete panel)
+       Same UI as before; only its placement moved into the
+       save_rooms step.
+       ------------------------------------------------------- */
+
     const renderRoomEditor = (mapId) => {
       if (loadingMapId === mapId) {
         return `<div class="evcc-setup-room-editor">
           <div class="evcc-setup-result info">Loading rooms…</div>
         </div>`;
       }
-
       if (openMapId !== mapId) return "";
 
       const roomRowsHtml = rooms.length === 0
@@ -189,7 +367,7 @@ export function applySetupRenderers(proto) {
       return `
         <div class="evcc-setup-room-editor">
           <div class="evcc-setup-room-editor-hint">
-            Deselect ghost rooms (Eufy sometimes reports phantom rooms).
+            Deselect rooms you don't want managed (phantom rooms, closets, etc.).
             Set each real room's floor type — it drives the cleaning profile system.
           </div>
           <div class="evcc-setup-room-list">
@@ -205,13 +383,11 @@ export function applySetupRenderers(proto) {
       `;
     };
 
-    /* Render delete confirmation panel for a map */
     const renderDeletePanel = (mapId, protection) => {
       if (deletePendingMapId !== mapId) return "";
-      const targetName     = this.escapeHtml(protection?.typed_confirmation_value ?? `Map ${mapId}`);
-      const requiresTyped  = protection?.requires_typed_confirmation ?? false;
-      const protectionLevel = protection?.protection_level ?? "normal";
-      const reasons        = protection?.reasons ?? [];
+      const targetName      = this.escapeHtml(protection?.typed_confirmation_value ?? `Map ${mapId}`);
+      const requiresTyped   = protection?.requires_typed_confirmation ?? false;
+      const reasons         = protection?.reasons ?? [];
 
       const reasonBadgesHtml = reasons.length
         ? `<div class="evcc-setup-delete-badges">
@@ -244,7 +420,7 @@ export function applySetupRenderers(proto) {
           <div class="evcc-setup-delete-warning">
             Delete <strong>${targetName}</strong>? This removes all rooms, history,
             and learning data for this map from the integration.
-            Eufy's upstream map is not affected.
+            The upstream cloud map is not affected.
           </div>
           ${typingInputHtml}
           <div class="evcc-setup-delete-actions">
@@ -264,28 +440,27 @@ export function applySetupRenderers(proto) {
       `;
     };
 
-    /* Configured / unconfigured map rows */
-    const mapRowsHtml = importedMaps.map((m) => {
-      const mapId      = String(m.map_id);
-      const mapLabel   = this.escapeHtml(m.display_name ?? `Map ${mapId}`);
-      const configured = state.isSetupMapConfigured?.(mapId);
-      const isOpen     = openMapId === mapId || loadingMapId === mapId;
-      const protection = m.protection ?? null;
+    const renderMapRow = (m, showConfigureControls) => {
+      const mapId         = String(m.map_id);
+      const mapLabel      = this.escapeHtml(m.display_name ?? `Map ${mapId}`);
+      const configured    = state.isSetupMapConfigured?.(mapId);
+      const isOpen        = openMapId === mapId || loadingMapId === mapId;
+      const protection    = m.protection ?? null;
       const requiresTyped = protection?.requires_typed_confirmation ?? false;
-      const isDeleteOpen = deletePendingMapId === mapId;
+      const isDeleteOpen  = deletePendingMapId === mapId;
 
       const badge = configured && !isOpen
         ? `<span class="evcc-setup-configured-badge">✓ Configured</span>`
         : "";
 
-      const configBtn = `
+      const configBtn = showConfigureControls ? `
         <button class="evcc-setup-btn ${configured ? "secondary" : ""} small"
                 data-action="setup-configure-map"
                 data-map-id="${mapId}"
                 ${(loading || saving || deleteDeleting) ? "disabled" : ""}>
           ${isOpen ? "Close" : configured ? "Reconfigure" : "Configure Rooms"}
         </button>
-      `;
+      ` : "";
 
       const deleteBtn = !isDeleteOpen
         ? `<button class="evcc-setup-btn destructive-ghost small"
@@ -308,52 +483,46 @@ export function applySetupRenderers(proto) {
             </div>
           </div>
           ${renderDeletePanel(mapId, protection)}
-          ${renderRoomEditor(mapId)}
+          ${showConfigureControls ? renderRoomEditor(mapId) : ""}
         </div>
       `;
-    }).join("");
+    };
 
-    const step2Done = allMapsConfigured;
+    /* -------------------------------------------------------
+       Build the step list
+       ------------------------------------------------------- */
 
-    const step2Html = `
-      <div class="evcc-setup-step">
-        <div class="evcc-setup-step-header">
-          <div class="evcc-setup-step-badge ${step2Done ? "done" : ""}">
-            ${step2Done ? "✓" : "2"}
+    const renderStep = (step, index) => {
+      const bodyRenderer = STEP_BODY_RENDERERS[step.id];
+      const body = bodyRenderer
+        ? bodyRenderer(step)
+        : `<div class="evcc-setup-step-body muted">No handler for step "${this.escapeHtml(step.id)}".</div>`;
+
+      const badgeContents = step.completed ? "✓" : String(index + 1);
+
+      return `
+        <div class="evcc-setup-step">
+          <div class="evcc-setup-step-header">
+            <div class="evcc-setup-step-badge ${step.completed ? "done" : ""}">
+              ${badgeContents}
+            </div>
+            <div class="evcc-setup-step-label">${this.escapeHtml(step.label)}</div>
           </div>
-          <div class="evcc-setup-step-label">Import Maps &amp; Configure Rooms</div>
+          ${body}
         </div>
+      `;
+    };
 
-        <div class="evcc-setup-step-body">
-          ${hasAnyMap
-            ? "Configure each imported map — exclude ghost rooms and set floor types. Then import additional maps as needed."
-            : "Import the vacuum's currently active map. Make sure it has completed a mapping run first."
-          }
-        </div>
-
-        ${hasAnyMap ? `<div class="evcc-setup-mapconfig-list">${mapRowsHtml}</div>` : ""}
-
-        ${step1Done
-          ? `<button class="evcc-setup-btn ${hasAnyMap ? "secondary" : ""}"
-                     data-action="setup-import-map"
-                     ${loading ? "disabled" : ""}>
-               ${hasAnyMap ? "Import Another Map" : "Import Active Map"}
-             </button>`
-          : `<div class="evcc-setup-step-body muted">Complete step 1 first.</div>`
-        }
-      </div>
-    `;
+    const stepsHtml = steps.map(renderStep).join("");
 
     /* -------------------------------------------------------
        Ready banner
        ------------------------------------------------------- */
-    const readyHtml = allMapsConfigured
+    const setupComplete   = Boolean(status?.setup_complete);
+    const allInSync       = drift ? drift.in_sync !== false : true;
+    const readyHtml = setupComplete && allInSync
       ? `<div class="evcc-setup-result success">
            ✓ Setup complete — switch to the Rooms tab to start cleaning.
-         </div>`
-      : hasAnyMap
-      ? `<div class="evcc-setup-result info">
-           Configure rooms for each imported map to complete setup.
          </div>`
       : "";
 
@@ -372,25 +541,61 @@ export function applySetupRenderers(proto) {
 
     return `
       <div class="evcc-setup-view">
-
         <div class="evcc-setup-header">
           <div class="evcc-setup-title">Vacuum Setup</div>
           <div class="evcc-setup-description">
-            Add your vacuum, import each of its maps, then configure rooms
-            per map — this is where you exclude ghost rooms and set floor types.
+            Steps below are declared by your vacuum adapter. Each must complete
+            in order. New rooms discovered after setup will surface here for
+            review before they enter the room library.
           </div>
         </div>
 
-        ${step1Html}
-        ${step2Html}
+        ${stepsHtml}
         ${readyHtml}
         ${lastResultHtml}
         ${errorHtml}
         ${loadingHtml}
         ${refreshHtml}
-
-
       </div>
     `;
   };
+
+}
+
+/* -----------------------------------------------------------
+   Helpers (module-private)
+   ----------------------------------------------------------- */
+
+/**
+ * Check whether the named step is marked completed in a steps array.
+ */
+function _isStepCompleted(steps, stepId) {
+  if (!Array.isArray(steps)) return false;
+  const entry = steps.find((s) => s.id === stepId);
+  return Boolean(entry?.completed);
+}
+
+/**
+ * Build a fallback steps array from legacy status fields when the
+ * backend response predates the data-driven contract.
+ *
+ * Mirrors the old hardcoded two-step wizard: add_vacuum + import+save
+ * combined under the legacy "no_map"→"ready" transition. This lets the
+ * card render against an older snapshot of state without crashing;
+ * once the backend ships, this branch is rarely hit.
+ */
+function _legacyStepsFallback(vacuumEntry) {
+  if (!vacuumEntry) {
+    return [
+      { id: "add_vacuum",        label: "Add vacuum",       completed: false, service: "" },
+      { id: "import_active_map", label: "Import active map", completed: false, service: "" },
+      { id: "save_rooms",        label: "Configure rooms",  completed: false, service: "" },
+    ];
+  }
+  const hasImported = Boolean(vacuumEntry.has_imported_map);
+  return [
+    { id: "add_vacuum",        label: "Add vacuum",        completed: true,        service: "" },
+    { id: "import_active_map", label: "Import active map", completed: hasImported, service: "" },
+    { id: "save_rooms",        label: "Configure rooms",   completed: hasImported, service: "" },
+  ];
 }

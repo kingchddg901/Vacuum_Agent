@@ -960,6 +960,102 @@ export function applyThemeBindings(proto) {
         alert("Invalid theme JSON.");
       }
     });
+
+    /* =========================================================
+       DOWNLOAD / UPLOAD — file-based variants of export/import
+       =========================================================
+       The clipboard export/import works inside one HA session.
+       File download/upload exists so users can:
+         - back up a theme to disk
+         - share a theme by attaching a file
+         - migrate themes between HA installs (the primary use case
+           — themes are one of the few things portable between the
+           current and the next major version of this integration)
+       ========================================================= */
+
+    this.card._on(this.card.$("[data-action='download-theme']"), "click", async () => {
+      const state = this.card._state._ensureThemeState();
+      const themeId = state.activeThemeId;
+
+      if (!themeId) {
+        alert("No active theme to download.");
+        return;
+      }
+
+      let result;
+      try {
+        result = await this.card._actions.exportTheme(themeId);
+      } catch (err) {
+        alert(`Failed to export theme: ${err?.message ?? String(err)}`);
+        return;
+      }
+
+      const themeStr = JSON.stringify(result, null, 2);
+
+      // Derive a filename from the theme name (or fall back to ID).
+      // Strip filesystem-unfriendly characters; collapse whitespace.
+      const rawName = String(result?.name ?? result?.theme_id ?? themeId);
+      const safeName = rawName
+        .replace(/[^\w\s.-]/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .toLowerCase() || "theme";
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `evcc-theme-${safeName}-${stamp}.json`;
+
+      // Trigger download via temp anchor. Anchor must live on the
+      // top document (not the shadow root) for the browser's
+      // download dispatch to pick it up. URL.revokeObjectURL releases
+      // the blob URL after the click is processed.
+      const blob = new Blob([themeStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+
+    this.card._on(this.card.$("[data-action='upload-theme']"), "click", () => {
+      // Create a hidden file input and trigger it. The file picker
+      // is a user-action consequence (the click handler runs in
+      // the click event handler stack), which browsers require for
+      // file-dialog access.
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".json,application/json";
+      input.style.display = "none";
+
+      input.addEventListener("change", async (event) => {
+        const file = event.target?.files?.[0];
+        if (!file) {
+          document.body.removeChild(input);
+          return;
+        }
+
+        try {
+          const text = await file.text();
+          const payload = JSON.parse(text);
+          await this.card._actions.importTheme(payload);
+          await this._refreshThemeFromBackend();
+          alert(`Theme imported from ${file.name}.`);
+        } catch (err) {
+          alert(
+            `Failed to import "${file.name}": ${err?.message ?? String(err)}`
+          );
+        } finally {
+          if (input.parentNode === document.body) {
+            document.body.removeChild(input);
+          }
+        }
+      });
+
+      document.body.appendChild(input);
+      input.click();
+    });
   };
 
   /* =========================================================

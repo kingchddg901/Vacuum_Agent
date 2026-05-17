@@ -123,6 +123,23 @@ automation script could also do using the same service calls.
 
 ## 3. Integration Internal Layers
 
+Each layer has its own deep-dive doc; this section is the map. Detailed
+references:
+
+- [core-manager.md](core-manager.md) — `EufyVacuumManager` orchestrator
+- [queue-engine.md](queue-engine.md) — queue / payload / snapshot builders
+- [job-lifecycle.md](job-lifecycle.md) — lifecycle evaluation, finalization
+- [learning-system.md](learning-system.md) — ETA math, file-backed job store
+- [mapping-system.md](mapping-system.md) — calibration, boundaries, transforms
+- [room-rules-system.md](room-rules-system.md) — blocker/modifier rule evaluation
+- [battery-system.md](battery-system.md) — battery health subsystem
+- [theme-system.md](theme-system.md) — token-based theme engine
+- [ha-integration.md](ha-integration.md) — HA platforms, services, events
+- [adapter-config-reference.md](adapter-config-reference.md) — per-vacuum brand schema
+- [porting-guide.md](porting-guide.md) — workflow for non-Eufy brands
+- [card-architecture.md](card-architecture.md) — frontend / Lovelace integration
+- [data-model.md](data-model.md) — canonical stored-data shapes
+
 ```
 eufy_vacuum/
 ├── __init__.py             ← domain setup, config entry lifecycle,
@@ -131,13 +148,40 @@ eufy_vacuum/
 │
 ├── core/
 │   ├── manager.py          ← EufyVacuumManager — central orchestrator
-│   └── storage.py          ← EufyVacuumStorage — HA Store wrapper
+│   ├── storage.py          ← EufyVacuumStorage — HA Store wrapper
+│   ├── water_amendment.py  ← generic post-job mop-wash water amendment watcher
+│   ├── error_tracker.py    ← active-run error latching, falling-edge detection
+│   └── capabilities.py     ← entity-presence-based capability detection
+│
+├── adapters/               ← brand-config layer (data-driven, no logic)
+│   ├── registry.py         ← per-vacuum adapter config registry
+│   ├── config_schema.py    ← canonical ADAPTER_CONFIG_SCHEMA (source of truth)
+│   ├── config_loader.py    ← loads stored adapter configs at integration setup
+│   └── eufy/               ← reference adapter (entity patterns, vocabulary,
+│       ├── adapter.py          maintenance components, upkeep guides, water
+│       ├── vocabulary.py       configs, model catalog). A port to a different
+│       ├── entities.py         brand creates a parallel sub-folder; framework
+│       ├── constants.py        code never imports from here. See
+│       ├── model_catalog.py    docs/dev/adapter-config-reference.md and
+│       ├── maintenance_components.py   docs/dev/porting-guide.md.
+│       ├── upkeep_catalog.py
+│       ├── upkeep_guides.py
+│       └── water_config.py
 │
 ├── queue/
-│   └── queue_engine.py     ← pure queue/payload/snapshot builders (no IO)
+│   └── queue_engine.py     ← pure queue/payload/snapshot builders (no IO);
+│                             payload shape is adapter-driven via dispatch
 │
 ├── jobs/
 │   └── job_monitor.py      ← lifecycle evaluation, start-blocker logic
+│
+├── setup/                  ← onboarding, drift detection, lifecycle services
+│   ├── workflow.py         ← initial discovery + room onboarding flow
+│   ├── status.py           ← data-driven setup state machine (steps + drift)
+│   ├── drift.py            ← per-room missing-pass history + run_discovery_pass
+│   │                          + reject_rooms + force_remove_room helpers
+│   ├── protection.py       ← guards against partial / mid-setup operations
+│   └── delete.py           ← vacuum / map deletion services
 │
 ├── learning/
 │   ├── manager.py          ← LearningManager — orchestrates learning subsystem
@@ -145,6 +189,12 @@ eufy_vacuum/
 │   ├── history_store.py    ← file-backed job JSON store
 │   ├── job_finalizer.py    ← per-job finalization, writes completed JSON
 │   └── stats_rebuilder.py  ← rebuilds aggregate stats from job files
+│
+├── battery/
+│   ├── manager.py          ← BatteryHealthManager — sampling, drain/charge zones, baseline
+│   ├── job_metrics.py      ← per-job drain ingestion + per-mode aggregates
+│   ├── sensors.py          ← battery health HA sensor entities
+│   └── store.py            ← JSON-on-disk persistence (separate from HA Store)
 │
 ├── mapping/
 │   ├── manager.py          ← MappingManager — calibration, boundary, transform
@@ -274,18 +324,24 @@ EufyVacuumManager.async_start_selected_rooms()
   │     is in its blocking state
   │  5. Calls build_queue_from_managed_rooms() [queue_engine.py]
   │     → returns QueueEntry list sorted by room order
-  │  6. Calls build_room_clean_payload() for each enabled room
+  │  6. Calls build_room_clean_payload() once with all enabled rooms
   │     → applies capability gating (e.g. strips water_level if no mop)
-  │     → returns PayloadItem list
+  │     → consumes the adapter's dispatch config to rename fields and
+  │       map values to the brand's wire vocabulary
+  │       (see docs/dev/adapter-config-reference.md §13)
+  │     → returns PayloadItem list (canonical, framework-internal names)
+  │       plus a wire-shape "payload" dict (brand-specific names)
   │  7. Calls build_active_job_state() [queue_engine.py]
   │     → freezes queue + payload into an ActiveJobSnapshot (immutable after this)
   │     → assigns job_id (UUID), records started_at timestamp
   │  8. Stores the snapshot as the active_job record in memory + saves to storage
-  │  9. Calls vacuum.send_command via hass.services.call with the assembled payload
-  │     (robovac_mqtt translates this to the Eufy cloud command)
+  │  9. Calls hass.services.async_call() with the service domain, name, and
+  │     envelope shape resolved from the adapter's dispatch config
+  │     (Eufy → vacuum.send_command with command=room_clean; other brands
+  │     resolve to their own service signature — see porting-guide.md §3)
   │
   ▼
-robovac_mqtt → Eufy cloud → robot starts moving
+Upstream integration → vacuum hardware → robot starts moving
   │
   │  10. Robot state changes propagate back:
   │      sensor.*_task_status, sensor.*_dock_status,
@@ -524,7 +580,8 @@ manager orchestrates them rather than duplicating their logic.
 ### 6.2 Flat-file learning storage rather than HA storage
 
 Learning job records (the per-job JSON files) are stored as flat files rather than
-inside the HA `.storage` blob.
+inside the HA `.storage` blob. The concrete file layout, schema versions, and
+rebuild path are documented in [learning-system.md](learning-system.md).
 
 **Why:**
 
@@ -751,17 +808,29 @@ To add a new kind:
 
 ### Porting to a different vacuum ecosystem
 
-The integration is Eufy-specific in two places:
+A port is one adapter config dict. **No framework code changes are
+required** for any of the four most common brands (Eufy, Roborock,
+Dreame, Narwal).
 
-1. **Entity naming convention.** `__init__.py` constructs sensor entity IDs from the
-   vacuum object ID (e.g. `sensor.{object_id}_task_status`). A port would need to
-   adapt `_get_lifecycle_watch_entities()` and `_completed_finalize_signals()` to
-   the target integration's entity naming scheme.
+Every brand-specific fact — entity IDs, vocabulary, water tank
+measurements, upkeep guides, the service call envelope, the per-room
+payload field names and value vocabularies — is read at runtime from
+`get_adapter_config(vacuum_entity_id)`. The Eufy adapter at
+`adapters/eufy/adapter.py` is the reference implementation.
 
-2. **Payload shape.** `build_room_clean_payload()` in `queue_engine.py` produces a
-   dict shaped for the `robovac_mqtt` `send_command` service. A port would replace
-   or wrap this function with one that produces the target integration's expected
-   payload shape.
+See:
 
-Everything else — the queue engine, learning system, mapping subsystem, theme system,
-and the card — is vacuum-agnostic and can be reused without modification.
+- [porting-guide.md](porting-guide.md) — the workflow and a worked
+  brand catalog (Eufy / Roborock / Dreame / Narwal) covering the
+  dispatch shape, lifecycle vocabulary translation, capability
+  declarations, and testing.
+- [adapter-config-reference.md](adapter-config-reference.md) — the
+  canonical schema reference. Every section in the adapter config
+  is documented field-by-field with examples and UI-builder notes.
+
+The queue engine, learning system, mapping subsystem, theme system,
+error tracker, water amendment watcher, and card are all
+vacuum-agnostic. The only remaining brand-specific surface (outside
+the adapter folder) is the integration's name, HA domain string
+(`eufy_vacuum`), and the frontend card filename — none of which are
+porting blockers.

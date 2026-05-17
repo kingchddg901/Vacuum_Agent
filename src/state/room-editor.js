@@ -440,91 +440,79 @@ export function applyRoomEditorState(proto) {
   };
 
   /* =========================================================
-     ENTITY OPTION READERS
+     ADAPTER-DRIVEN OPTION READERS
+     =========================================================
+     Each function returns an `Array<{value: string, label: string}>`
+     of dropdown choices for the room editor. The primary source is
+     the adapter's vocabulary (declared at adapter registration),
+     surfaced to the card via dashboard_snapshot.adapter_vocabulary.
+     A defensive merge with profile-derived legacy values keeps any
+     saved profile selectable even if its value isn't in the current
+     adapter declaration. UX rules (carpet excludes mop, etc.) are
+     applied on top. Entity probing of upstream brand selects is
+     gone — that was Eufy-only.
      ========================================================= */
 
+  /**
+   * Merge adapter-declared options with profile-derived legacy values
+   * into a single `[{value, label}]` list, deduped by lowercase value.
+   * Profile values that aren't in the adapter list get value-as-label.
+   *
+   * @param {string} roleKey - "clean_mode" / "fan_speed" / "water_level" / "clean_intensity"
+   * @param {string} profileFieldName - matching key inside saved profiles
+   * @returns {Array<{value: string, label: string}>}
+   */
+  proto._buildOptionListForRole = function (roleKey, profileFieldName) {
+    const adapterOptions = this.adapterOptionsFor?.(roleKey) ?? [];
+    const profileOptions = this._profileDerivedOptions(profileFieldName);
+    const seen = new Set();
+    const result = [];
+
+    for (const opt of adapterOptions) {
+      const value = String(opt?.value ?? "").trim();
+      if (!value) continue;
+      const key = value.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({
+        value,
+        label: String(opt?.label ?? value),
+      });
+    }
+    for (const value of profileOptions) {
+      const text = String(value ?? "").trim();
+      if (!text) continue;
+      const key = text.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      // Legacy profile values that the adapter doesn't list — display
+      // verbatim. Not a stylistic concern; users rarely see these
+      // (only when migrating from an older profile that used a value
+      // the current adapter doesn't declare).
+      result.push({ value: text, label: text });
+    }
+    return result;
+  };
+
   proto.cleanModeOptions = function () {
-    const objectId = this.vacuumObjectId();
-    const entityId = `select.${objectId}_cleaning_mode`;
-    const entityOptions = this.attrsOf(entityId)?.options ?? [];
-    const profileOptions = this._profileDerivedOptions("clean_mode");
-
-    const canonicalized = [
-      ...entityOptions,
-      ...profileOptions,
-      "vacuum",
-      "vacuum_mop",
-    ].map((option) => this._canonicalCleanModeDisplay(option));
-
-    const options = this._normalizeOptionList(canonicalized);
-
-    return options.filter((o) => {
-      const lower = String(o).toLowerCase().replace(/[\s_-]/g, "");
-
-      if (lower.includes("mopaftersweep") || lower.includes("afterswee")) return false;
-      if (this.isEditorRoomCarpet() && this.isMopMode(o)) return false;
-
-      return true;
-    });
+    const options = this._buildOptionListForRole("clean_mode", "clean_mode");
+    // UX rule: carpet rooms cannot use mop modes.
+    if (this.isEditorRoomCarpet()) {
+      return options.filter((o) => !this.isMopMode(o.value));
+    }
+    return options;
   };
 
   proto.suctionLevelOptions = function () {
-    const objectId = this.vacuumObjectId();
-    const entityId = `select.${objectId}_suction_level`;
-    const entityOptions = this.attrsOf(entityId)?.options ?? [];
-    const profileOptions = this._profileDerivedOptions("fan_speed");
-
-    return this._normalizeOptionList([
-      ...entityOptions,
-      ...profileOptions,
-      "Quiet",
-      "Standard",
-      "Turbo",
-      "Max",
-    ]).filter(
-      (o) => String(o).toLowerCase().replace(/[\s_-]/g, "") !== "boostiq"
-    );
+    return this._buildOptionListForRole("fan_speed", "fan_speed");
   };
 
   proto.waterLevelOptions = function () {
-    const objectId = this.vacuumObjectId();
-    const entityId = `select.${objectId}_water_level`;
-    const entityOptions = this.attrsOf(entityId)?.options ?? [];
-    const profileOptions = this._profileDerivedOptions("water_level");
-
-    return this._normalizeOptionList([
-      ...entityOptions,
-      ...profileOptions,
-      "Low",
-      "Medium",
-      "High",
-    ]).filter((o) => {
-      const normalized = String(o ?? "").trim().toLowerCase().replace(/[\s_-]/g, "");
-      return normalized !== "off";
-    });
+    return this._buildOptionListForRole("water_level", "water_level");
   };
 
   proto.cleanIntensityOptions = function () {
-    const room = this.activeEditorRoom();
-
-    // Primary source of truth: per-room entity options
-    if (room?.slug) {
-      const objectId = this.vacuumObjectId();
-      const entityId = `input_select.${objectId}_map_${room.mapId}_cleaning_speed_${room.slug}`;
-      const entityOptions = this.attrsOf(entityId)?.options ?? [];
-
-      const normalizedEntityOptions = this._normalizeOptionList(entityOptions);
-      if (normalizedEntityOptions.length) return normalizedEntityOptions;
-    }
-
-    // Fallback only when the entity is missing.
-    // Do NOT merge profile labels here because profile intensity
-    // vocabulary is not the same as the real room entity vocabulary.
-    return this._normalizeOptionList([
-      "Quick",
-      "Normal",
-      "Narrow",
-    ]);
+    return this._buildOptionListForRole("clean_intensity", "clean_intensity");
   };
 
   /* =========================================================

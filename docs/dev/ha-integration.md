@@ -315,7 +315,7 @@ All events carry `vacuum_entity_id` in their payload, so automations can filter 
 
 ## 8. Auto-Finalization
 
-`__init__.py` contains a state-change watcher that automatically finalizes a cleaning job when HA sensor states indicate the job is done, without requiring an explicit finalize call from the frontend.
+`__init__.py` contains a state-change watcher that automatically finalizes a cleaning job when HA sensor states indicate the job is done, without requiring an explicit finalize call from the frontend. Auto-finalization is one of several end paths for an active job — see [job-lifecycle.md](job-lifecycle.md) for the full set.
 
 ### Watched entities
 

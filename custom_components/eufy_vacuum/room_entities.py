@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
+from .adapters.registry import get_adapter_config
 from .const import DOMAIN
 from .entity_helpers import make_room_entity_name, make_room_unique_id
 
@@ -161,6 +162,16 @@ class EufyVacuumRoomEntity(Entity):
             room_id=self._room_id,
         ) or {}
 
+        # Adapter-declared dropdown vocabularies. Carried on the room
+        # entity so the standalone Eufy Room Card (which reads HA state
+        # directly and has no service-layer access) can populate its
+        # mode/speed/water/intensity pickers from the adapter without
+        # probing upstream brand integration entities. Each list is
+        # `[{value, label}, ...]`; absent role keys become empty lists.
+        _adapter_vocab = (
+            get_adapter_config(self._vacuum_entity_id) or {}
+        ).get("vocabulary", {}) or {}
+
         return {
             "vacuum_entity_id": self._vacuum_entity_id,
             "map_id": self._map_id,
@@ -182,4 +193,8 @@ class EufyVacuumRoomEntity(Entity):
             "grants_access_to": grants_access_to,
             "rules": room.get("rules", []),
             "integration": self._coordinator_key,
+            "clean_mode_options": _adapter_vocab.get("clean_mode_options") or [],
+            "fan_speed_options": _adapter_vocab.get("fan_speed_options") or [],
+            "water_level_options": _adapter_vocab.get("water_level_options") or [],
+            "clean_intensity_options": _adapter_vocab.get("clean_intensity_options") or [],
         }

@@ -141,8 +141,10 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in `data["maps
 | `is_dock_room` | `bool` | required | Marks the room that contains the dock. Backfilled to `False` on schema migration. |
 | `grants_access_to` | `list[str]` | required | Room slugs this room grants traversal access to. Backfilled to `[]`. |
 | `rules` | `list[dict]` | required | `RuleDefinition` dicts. Backfilled to `[]`. |
+| `is_configured` | `bool` | required | **Setup-state gate.** `True` iff the user has explicitly approved this room via `setup_save_rooms`. Discovered-but-not-yet-approved rooms carry `False` and are filtered out of HA entity creation (via `entity_helpers.sort_room_items`), drift "removed" signals, and dispatch eligibility. Migration shim stamps `True` on every existing room at first load with the new code so existing Eufy installs are unaffected. |
+| `configured_at` | `str \| None` | optional | ISO timestamp of when `is_configured` first flipped to `True`. Absent until the user configures the room. |
 
-**Schema migration** (in `async_initialize`): `path_type`, `is_dock_room`, `grants_access_to`, `rules`, `floor_type`, and `profile_name` are backfilled with `setdefault`. The old `floor_type="carpet"` + `carpet_type` sub-field is collapsed into `"carpet_low_pile"` / `"carpet_high_pile"` in place. The derived `carpet` boolean is removed.
+**Schema migration** (in `async_initialize`): `path_type`, `is_dock_room`, `grants_access_to`, `rules`, `floor_type`, and `profile_name` are backfilled with `setdefault`. The old `floor_type="carpet"` + `carpet_type` sub-field is collapsed into `"carpet_low_pile"` / `"carpet_high_pile"` in place. The derived `carpet` boolean is removed. `is_configured` and `configured_at` are stamped by `_migrate_setup_progress()` on the same `async_initialize` pass — see §12 below.
 
 **`is_transition` field:** The backfill also seeds `_room.setdefault("is_transition", False)` but this field is not present on `RoomRecord` TypedDict — treat it as internal/legacy.
 
@@ -362,7 +364,7 @@ The active job is an in-memory dict built by `build_active_job_state` in `queue/
 }
 ```
 
-**Fields populated during the run** (not present in the initial snapshot but written to the active job by the job monitor):
+**Fields populated during the run** (not present in the initial snapshot but written to the active job by the job monitor — see [job-lifecycle.md](job-lifecycle.md) for when each field is set):
 
 ```
   "started_at":                        str         # ISO timestamp
@@ -918,3 +920,65 @@ Keyed by `str(room_id)` in the `rooms` dict.
 ```
 
 **Note:** For a completed job (`outcome_status == "completed"`), all queued rooms are treated as completed — `active_completed` is set to `queued_room_ids` directly. For non-completed jobs, `active_completed` comes from `active_job_state["completed_room_ids"]`.
+
+---
+
+## 12. Setup Progress
+
+Stored at `data["setup_progress"][vacuum_entity_id]`. Drives the
+data-driven setup state machine (see [adapter-config-reference.md §12a](adapter-config-reference.md#12a-setup--adapter-declared-setup-steps))
+and the auto-discovery drift detection (see
+[adapter-config-reference.md §12](adapter-config-reference.md#12-discovery--how-the-room-list-is-exposed)
+and `setup/drift.py`).
+
+```
+{
+  "completed_steps":      list[str]       # step IDs from adapter's setup.steps that
+                                          #   have been marked complete
+  "last_advanced_at":     str | None      # ISO timestamp of last step completion
+  "migrated_at":          str | None      # ISO timestamp; set only by the migration
+                                          #   shim that ran at first load with new code
+  "rejected_rooms":       list[int]       # room IDs explicitly marked as phantoms;
+                                          #   never resurface in room_drift.new_rooms
+  "room_drift_history":   dict[str, dict] # per-room missing/seen counters, keyed by
+                                          #   str(room_id) — see below
+}
+```
+
+### `room_drift_history` entry
+
+Keyed by `str(room_id)`. Each entry tracks one room's discovery history
+across auto-discovery passes. The framework reads these counters at
+status-read time to derive `room_drift.new_rooms` and
+`room_drift.removed_rooms`.
+
+```
+{
+  "missing_passes":   int           # consecutive discoveries where this
+                                    #   room was absent. Hits
+                                    #   removal_confirmation_passes (default 3)
+                                    #   → room appears in removed_rooms.
+  "seen_passes":      int           # consecutive discoveries where this room
+                                    #   was present. Hits new_room_confirmation_passes
+                                    #   (default 1, immediate) → room appears in
+                                    #   new_rooms if not already configured.
+  "last_seen_at":     str | None    # ISO timestamp of most recent sighting
+  "first_seen_at":    str | None    # ISO timestamp of first sighting
+  "first_missed_at":  str | None    # ISO timestamp the current missing streak began
+}
+```
+
+### One-time migration
+
+`_migrate_setup_progress()` in `core/manager.py` runs once at
+`async_initialize` for any vacuum with managed rooms but no
+`setup_progress` record. It back-fills `completed_steps` with all three
+Eufy steps (`add_vacuum`, `import_active_map`, `save_rooms`) and stamps
+`is_configured: True` + `configured_at: <now>` on every existing room.
+Idempotent — re-running is a no-op because the second pass sees
+`setup_progress` already exists.
+
+The migration is invisible to users in the success path: existing Eufy
+installs load and run identically to before, but with the new
+data-driven setup machine now armed for any new-room or removed-room
+discovery drift that lands after the upgrade.

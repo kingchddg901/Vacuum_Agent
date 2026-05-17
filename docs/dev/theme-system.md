@@ -295,7 +295,7 @@ The result is that the UI updates on every keypress / slider drag pixel without 
 
 ### What it exposes
 
-`EufyVacuumThemeStateSensor` in `sensor.py` is a `SensorEntity` with `_attr_should_poll = False` (it fires on push from manager callbacks).
+`EufyVacuumThemeStateSensor` in `sensor.py` is a `SensorEntity` with `_attr_should_poll = False` (it fires on push from manager callbacks). The sensor platform machinery that creates and registers this entity is covered in [ha-integration.md](ha-integration.md).
 
 **State value:** the active theme's `name`, or `"none"` if no theme is selected.
 
@@ -341,22 +341,81 @@ if (sensor?.attributes) {
 
 ## 7. Import / Export
 
-### Export
+The theme editor exposes four buttons in the view footer that map to two
+transport mechanisms (clipboard and file) and two operations (export and
+import). The clipboard path is for quick in-session moves; the file path
+is the supported route for three use cases:
 
-The export flow triggered by the "Export Theme" button in the editor:
+1. **Sharing themes between users** — post the JSON file on a forum or
+   GitHub, anyone can download and upload it into their own install.
+2. **Backing up themes** before risky edits or migrations.
+3. **Migrating themes between major versions** of this integration —
+   download from the old install, upload to the new one.
+
+All three are the same mechanism. Themes are the most portable artifact
+in the system (token/color/alpha dicts with no entity refs, no brand
+vocabulary, no per-vacuum state), which is why the file path matters
+even though clipboard suffices for one-person/one-session edits.
+
+| Button | Transport | Operation |
+|--------|-----------|-----------|
+| Export | Clipboard | Read theme → JSON → `navigator.clipboard.writeText` |
+| Import | Clipboard | `prompt()` paste → `JSON.parse` → service |
+| Download | File | Read theme → JSON → Blob → triggered `<a download>` |
+| Upload | File | Hidden `<input type="file">` → file picker → JSON parse → service |
+
+### Export (clipboard)
+
+The "Export" button in the editor:
 
 1. The card calls `exportTheme(themeId)` → `eufy_vacuum.export_theme` service → `manager.export_theme()`.
 2. `export_theme()` returns the theme entry wrapped as `{ "theme": { name, tokens, colors, alpha } }`.
 3. The card serializes it with `JSON.stringify(result, null, 2)` and calls `navigator.clipboard.writeText()`.
-4. There is no file download — the theme JSON is written to the clipboard only. A fallback logs to the browser console if clipboard access is denied.
+4. A fallback logs to the browser console if clipboard access is denied.
 
-### Import
+### Download (file)
 
-The import flow triggered by the "Import Theme" button:
+The "Download" button reuses `exportTheme(themeId)` for the JSON payload
+but routes the result through a Blob and a hidden temporary anchor:
+
+1. Sanitize the theme name into a filesystem-safe slug; append the ISO
+   date. Final filename: `evcc-theme-<safe-name>-<YYYY-MM-DD>.json`.
+2. Wrap the JSON string in a `Blob` with type `application/json`,
+   `URL.createObjectURL`, attach to a temporary `<a download>` on
+   `document.body` (NOT the shadow root — browsers dispatch download
+   events from the top document), `.click()`, then remove the anchor
+   and `revokeObjectURL`.
+
+This is the supported migration path: download from one install,
+upload to another, theme survives intact regardless of version.
+
+### Import (clipboard)
+
+The "Import" button:
 
 1. The user is prompted to paste JSON via `prompt()`.
 2. The card JSON-parses the pasted string client-side. If `JSON.parse` throws, the operation is aborted with an alert.
 3. The parsed object is sent to `importTheme(payload)` → `eufy_vacuum.import_theme` service → `manager.import_theme()`.
+
+### Upload (file)
+
+The "Upload" button creates a hidden file input synchronously inside
+the click handler (browser security requires file-picker access to
+originate in a user-event stack) and routes the picked file through
+the same `importTheme` service:
+
+1. Create `<input type="file" accept=".json,application/json">` on
+   `document.body`, hidden.
+2. `input.click()` opens the OS file dialog.
+3. On `change`: read the file via `File.text()`, `JSON.parse`, call
+   `importTheme(payload)`, refresh the theme library from the backend,
+   show a success alert with the filename. Errors surface with a
+   descriptive alert.
+4. Clean up the input element from the DOM.
+
+Both upload and download append their helper elements to `document.body`
+rather than the card's shadow DOM — required for the browser's
+download dispatch and file-picker dialog to fire correctly.
 
 ### What is validated on import (`manager.import_theme()`)
 
@@ -476,3 +535,36 @@ Future direction:
 4. The pose mapping itself becomes a theme-token (`mascot_pose_map`), letting different themes drive different mascot behaviours from the same state.
 
 The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.
+
+---
+
+## 10. Services
+
+All theme services are registered in `theme_services.py` under the
+`eufy_vacuum.*` namespace. The central index of every integration
+service lives in [advanced/03-services.md](../advanced/03-services.md).
+
+### Library management
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_theme_library` | Return every theme in the library (preloaded + user-saved) plus the default-theme ID. | (none) | (none) | yes — `{themes: [...], default_theme_id}` |
+| `save_theme_as_new` | Save the current vacuum's working draft as a new named theme in the library. | `vacuum_entity_id`, `name: str` | `set_as_default: bool` | yes — `{ok, theme_id, name}` |
+| `overwrite_theme` | Overwrite an existing theme with the current draft's values. | `vacuum_entity_id`, `theme_id: str` | (none) | yes — `{ok, theme_id}` |
+| `rename_theme` | Change a theme's display name. | `theme_id: str`, `name: str` | (none) | yes — `{ok, theme_id, name}` |
+| `delete_theme` | Remove a user theme from the library. Preloaded themes cannot be deleted. | `theme_id: str` | (none) | yes — `{ok}` |
+
+### Activation and editing
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `set_active_theme` | Apply a theme globally or per-vacuum. When `vacuum_entity_id` is provided, that vacuum's active theme is set; otherwise it's set as the global default. | `theme_id: str` | `vacuum_entity_id` | yes — `{ok, theme_id, scope}` |
+| `update_working_draft` | Merge token/color/alpha overrides into the vacuum's active working draft. The draft is what's rendered live until the user saves or reverts. | `vacuum_entity_id` | `tokens: dict`, `colors: dict`, `alpha: dict` | yes — `{ok, tokens, colors, alpha}` |
+| `revert_draft` | Discard the working draft and restore the active theme's saved values. | `vacuum_entity_id` | (none) | yes — `{ok}` |
+
+### Import / export
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `export_theme` | Return a theme's complete data as a portable JSON payload. | `theme_id: str` | (none) | yes — `{theme_id, name, tokens, colors, alpha}` |
+| `import_theme` | Add a previously exported theme to the library. The payload must be the exact shape `export_theme` produces. | `payload: dict` | (none) | yes — `{ok, theme_id, name}` |

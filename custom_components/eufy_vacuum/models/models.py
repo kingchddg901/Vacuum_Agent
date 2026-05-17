@@ -193,6 +193,13 @@ class RoomConfig:
     grants_access_to: list = field(default_factory=list)
     rules: list = field(default_factory=list)
 
+    # Setup-state flag — True iff the user has explicitly approved this
+    # room via the save_rooms step. Discovered-but-not-yet-approved rooms
+    # carry False and are filtered out of entity creation, drift "removed"
+    # signals, and other consumer paths. See setup/drift.py.
+    is_configured: bool = False
+    configured_at: Optional[str] = None
+
     def as_dict(self) -> dict[str, Any]:
         """Return the room config as a dictionary."""
         return asdict(self)

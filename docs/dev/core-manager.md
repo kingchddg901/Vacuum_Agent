@@ -2,6 +2,8 @@
 
 `EufyVacuumManager` is the single integration-wide runtime object. Every service call, every sensor read, and every card data request passes through it. This document explains why it is designed as a singleton, what it owns, and how to extend it.
 
+For the surrounding architecture, see [architecture-overview.md](architecture-overview.md). For the per-vacuum brand config the manager reads at every call site, see [adapter-config-reference.md](adapter-config-reference.md). For end-to-end job flow, see [job-lifecycle.md](job-lifecycle.md).
+
 ---
 
 ## 1. Role
@@ -100,7 +102,7 @@ All keys below are top-level keys of `self.data`.
 | `discovery` | `dict[vacuum_entity_id, dict[map_id_str, payload]]` | Raw room discovery payloads. Written by `discover_rooms()`, consumed by `save_managed_rooms()`. Never shown directly to the card. |
 | `active_jobs` | `dict[vacuum_entity_id, dict[map_id_str, active_job]]` | Live job tracking. Each slot is reset (not deleted) on job completion or map removal. |
 | `queue` | `dict[vacuum_entity_id, dict[map_id_str, queue_state]]` | Output of `build_queue_from_managed_rooms()`. Rebuilt whenever rooms are updated. |
-| `payloads` | `dict[vacuum_entity_id, dict[map_id_str, payload_state]]` | Output of `build_room_clean_payload()`. Contains the `room_clean` command params. |
+| `payloads` | `dict[vacuum_entity_id, dict[map_id_str, payload_state]]` | Output of `build_room_clean_payload()`. The `payload` sub-object's field names and value vocabulary are adapter-driven via the [`dispatch` config block](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job); the Eufy default produces the `room_clean` command params. |
 | `profiles` | `{"room_profiles": dict[profile_name, profile]}` | Custom room clean-settings presets. Built-in presets are never stored here. |
 | `run_profiles` | `dict[vacuum_entity_id, dict[map_id_str, dict[profile_id, profile]]]` | Saved multi-room run configurations. |
 | `theme` | `{"library": dict, "default_theme_id": str\|None, "vacuums": dict}` | Full theme system state. Preloaded themes live in `library`. Per-vacuum active theme and working draft live in `vacuums`. |
@@ -258,7 +260,7 @@ The file is divided into clearly commented sections. This is the logical map:
 | Section header | Key methods |
 |---|---|
 | Module-level helpers | `_safe_int`, `_safe_float`, `_display_label`, `_settings_profile_display`, `_room_surface_labels`, `_build_preloaded_theme_entry`, `_build_release_theme_colors`, `_build_release_theme_tokens` |
-| Module-level constants | `PRELOADED_THEME_SPECS`, `BASE_PRELOADED_THEME_SPEC`, `UPKEEP_MODEL_NAMES`, `UPKEEP_GUIDE_LIBRARY`, `WATER_MODEL_CONFIGS` |
+| Module-level constants | `PRELOADED_THEME_SPECS`, `BASE_PRELOADED_THEME_SPEC`, `_HA_ACTIVE_VACUUM_STATES`. Brand-specific catalogs (model names, upkeep guides, water tank configs) live in the adapter config — see [adapter-config-reference.md](adapter-config-reference.md). |
 | Callback registration / notification | `register_*_callback`, `unregister_*_callback`, `_notify_*` |
 | Vacuum / capability management | `ensure_vacuum_record`, `get_managed_vacuums`, `get_vacuum_capabilities`, `refresh_vacuum_capabilities`, `ensure_runtime` |
 | Water usage estimation | `estimate_job_water_usage` |

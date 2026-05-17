@@ -1,4 +1,37 @@
-"""Capability detection for Eufy Vacuum Manager."""
+"""Generic vacuum capability detection for the ha_vacuum_manager framework.
+
+Probes the HA state machine and entity registry for the entities declared
+by the adapter, then combines adapter-supplied capability hints with entity
+presence to produce a complete capability map.
+
+No brand-specific knowledge lives here. All vacuum-specific inputs are
+supplied by the caller (the adapter's registration function):
+
+  entity_candidates — {key: [entity_id, ...]} — entity IDs to probe per
+      capability slot. Each list is tried in order; first present wins.
+      Standard keys: task_status, work_mode, dock_status, active_map,
+      active_cleaning_target, cleaning_area, cleaning_time, water_level,
+      robot_position_x, robot_position_y, wash_mop_button, dry_mop_button,
+      empty_dust_button, cleaning_intensity.
+
+  model_family — pre-computed model family string ('x10', 'generic', …).
+      Used only for logging/return value; capability decisions use hints.
+
+  capability_hints — {flag: bool} — model-based override flags. Each flag
+      is OR-ed with entity presence: True from hints means the feature is
+      supported even if the entity is absent; False (or absent) means fall
+      back to entity presence detection.
+      Standard flags: supports_mop_features, supports_mop_wash,
+      supports_mop_dry, supports_empty_dust, supports_path_control.
+
+  maintenance_components — {component_id: {sensor_suffix, …}} — the
+      maintenance component catalog from the adapter. Passed through to
+      _detect_maintenance_sources(). Absent → maintenance_sources empty.
+
+A port to a different brand supplies its own entity_candidates and
+capability_hints from its adapter registration function. The probing
+logic is universal HA entity detection that works for any brand.
+"""
 
 from __future__ import annotations
 
@@ -6,87 +39,6 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-
-
-MAINTENANCE_COMPONENTS: dict[str, dict] = {
-    "filter": {
-        "sensor_suffix": "filter",
-        "default_interval_hours": 20.0,
-        "label": "Filter",
-        "icon": "mdi:air-filter",
-    },
-    "sensor": {
-        "sensor_suffix": "sensor",
-        "default_interval_hours": 60.0,
-        "label": "Sensor",
-        "icon": "mdi:eye-outline",
-    },
-    "side_brush": {
-        "sensor_suffix": "side_brush",
-        "default_interval_hours": 30.0,
-        "label": "Side Brush",
-        "icon": "mdi:broom",
-    },
-    "rolling_brush": {
-        "sensor_suffix": "rolling_brush",
-        "default_interval_hours": 30.0,
-        "label": "Rolling Brush",
-        "icon": "mdi:broom",
-    },
-    "mopping_cloth": {
-        "sensor_suffix": "mopping_cloth",
-        "default_interval_hours": 20.0,
-        "label": "Mopping Cloth",
-        "icon": "mdi:water",
-    },
-    "cleaning_tray": {
-        "sensor_suffix": "cleaning_tray",
-        "default_interval_hours": 30.0,
-        "label": "Cleaning Tray",
-        "icon": "mdi:wiper",
-    },
-    "swivel_wheel": {
-        "sensor_suffix": None,
-        "default_interval_hours": 60.0,
-        "label": "Swivel Wheel",
-        "icon": "mdi:rotate-360",
-    },
-}
-
-
-MODEL_FAMILY_HINTS: dict[str, str] = {
-    "x10": "x10",
-    "x8": "x8",
-    "l60": "l60",
-    "l50": "l50",
-    "g50": "g50",
-    "g40": "g40",
-    "lr30": "lr30",
-}
-
-MODEL_CODE_FAMILIES: dict[str, str] = {
-    "T2351": "x10",
-    "T2320": "x10",
-    "T2261": "x8",
-    "T2262": "x8",
-    "T2266": "x8",
-    "T2276": "x8",
-    "T2267": "l60",
-    "T2268": "l60",
-    "T2277": "l60",
-    "T2278": "l60",
-    "T2280": "c20",
-    "T2080": "s1",
-    "T2071": "s1",
-    "T2210": "g50",
-    "T2255": "g40",
-    "T2256": "g40",
-    "T2192": "lr30",
-    "T2193": "lr30",
-    "T2181": "lr30",
-    "T2194": "lr30",
-    "T2182": "lr30",
-}
 
 
 # ----------------------------------------------------------------------
@@ -103,21 +55,6 @@ def _registry_entry_exists(hass: HomeAssistant, entity_id: str) -> bool:
     """Return True if entity exists in registry, even if disabled."""
     registry = er.async_get(hass)
     return registry.async_get(entity_id) is not None
-
-
-def _detect_model_family(detected_model: str | None) -> str:
-    """Infer model family from detected model text."""
-    raw = str(detected_model or "").strip()
-    if raw in MODEL_CODE_FAMILIES:
-        return MODEL_CODE_FAMILIES[raw]
-
-    text = raw.lower()
-
-    for needle, family in MODEL_FAMILY_HINTS.items():
-        if needle in text:
-            return family
-
-    return "generic"
 
 
 def _find_existing_entity(
@@ -151,7 +88,7 @@ def _find_registry_entity_by_tokens(
 ) -> str | None:
     """Find a registry entity by prefix + token match.
 
-    This is used for entities whose exact suffix may differ between versions
+    Used for entities whose exact suffix may differ between versions
     or may be disabled by default.
     """
     registry = er.async_get(hass)
@@ -159,10 +96,8 @@ def _find_registry_entity_by_tokens(
 
     for entry in registry.entities.values():
         entity_id = str(entry.entity_id).lower()
-
         if not entity_id.startswith(prefix):
             continue
-
         if all(token in entity_id for token in required_tokens):
             return entry.entity_id
 
@@ -178,9 +113,12 @@ def _detect_maintenance_sources(
     hass: HomeAssistant,
     *,
     object_id: str,
+    maintenance_components: dict[str, Any],
 ) -> dict[str, str | None]:
-    """Return a component -> source entity_id map for maintenance tracking.
+    """Return a component → source entity_id map for maintenance tracking.
 
+    maintenance_components is the adapter's component catalog dict:
+    {component_id: {sensor_suffix, proxy_for, label, icon, …}}.
     Swivel wheel uses filter_remaining as preferred proxy, falling back
     to swivel_wheel_remaining if filter is unavailable.
     """
@@ -191,8 +129,8 @@ def _detect_maintenance_sources(
         hass, filter_entity
     )
 
-    for component, meta in MAINTENANCE_COMPONENTS.items():
-        suffix = meta["sensor_suffix"]
+    for component, meta in maintenance_components.items():
+        suffix = meta.get("sensor_suffix")
 
         if component == "swivel_wheel":
             if filter_available:
@@ -205,6 +143,10 @@ def _detect_maintenance_sources(
                     sources[component] = swivel_own
                 else:
                     sources[component] = None
+            continue
+
+        if suffix is None:
+            sources[component] = None
             continue
 
         candidate = f"sensor.{object_id}_{suffix}_remaining"
@@ -226,12 +168,22 @@ def detect_capabilities(
     *,
     vacuum_entity_id: str,
     detected_model: str | None = None,
+    # Adapter-supplied inputs — all optional for graceful degradation
+    entity_candidates: dict[str, list[str]] | None = None,
+    model_family: str | None = None,
+    capability_hints: dict[str, bool] | None = None,
+    maintenance_components: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Detect and return a capability map for one vacuum.
 
-    "support" flags indicate the entity exists in the registry or the model
-    supports the feature; "available" flags indicate the entity is currently
-    present in the state machine and usable now.
+    When adapter inputs are provided, entity probing uses the supplied
+    candidate lists and model-based hints. When absent (no registered
+    adapter), returns a minimal capability set derived from the vacuum
+    entity alone.
+
+    "support" flags indicate the entity exists in the registry or the
+    model supports the feature; "available" flags indicate the entity is
+    currently in the state machine and usable now.
     """
     object_id = vacuum_entity_id.split(".", 1)[1]
     vacuum_state = hass.states.get(vacuum_entity_id)
@@ -240,132 +192,125 @@ def detect_capabilities(
     if vacuum_state is not None:
         supported_features = int(vacuum_state.attributes.get("supported_features", 0))
 
-    model_family = _detect_model_family(detected_model)
+    _cands = entity_candidates or {}
+    _hints = capability_hints or {}
 
-    task_status_candidates = [f"sensor.{object_id}_task_status"]
-    work_mode_candidates = [f"sensor.{object_id}_work_mode"]
-    dock_status_candidates = [f"sensor.{object_id}_dock_status"]
-    active_map_candidates = [f"sensor.{object_id}_active_map"]
-    active_cleaning_target_candidates = [f"sensor.{object_id}_active_cleaning_target"]
-    cleaning_area_candidates = [f"sensor.{object_id}_cleaning_area"]
-    cleaning_time_candidates = [f"sensor.{object_id}_cleaning_time"]
-    water_level_candidates = [f"sensor.{object_id}_water_level"]
-    robot_position_x_candidates = [f"sensor.{object_id}_robot_position_x_raw"]
-    robot_position_y_candidates = [f"sensor.{object_id}_robot_position_y_raw"]
+    def _find(key: str) -> str | None:
+        return _find_existing_entity(hass, _cands.get(key, []))
 
-    task_status_entity = _find_existing_entity(hass, task_status_candidates)
-    work_mode_entity = _find_existing_entity(hass, work_mode_candidates)
-    dock_status_entity = _find_existing_entity(hass, dock_status_candidates)
-    active_map_entity = _find_existing_entity(hass, active_map_candidates)
-    active_cleaning_target_entity = _find_existing_entity(hass, active_cleaning_target_candidates)
-    cleaning_area_entity = _find_existing_entity(hass, cleaning_area_candidates)
-    cleaning_time_entity = _find_existing_entity(hass, cleaning_time_candidates)
-    water_level_entity = _find_existing_entity(hass, water_level_candidates)
+    def _find_reg(key: str) -> str | None:
+        return _find_registered_entity(hass, _cands.get(key, []))
 
-    task_status_registered = _find_registered_entity(hass, task_status_candidates)
-    work_mode_registered = _find_registered_entity(hass, work_mode_candidates)
-    dock_status_registered = _find_registered_entity(hass, dock_status_candidates)
-    active_map_registered = _find_registered_entity(hass, active_map_candidates)
-    active_cleaning_target_registered = _find_registered_entity(hass, active_cleaning_target_candidates)
-    cleaning_area_registered = _find_registered_entity(hass, cleaning_area_candidates)
-    cleaning_time_registered = _find_registered_entity(hass, cleaning_time_candidates)
-    water_level_registered = _find_registered_entity(hass, water_level_candidates)
-    robot_position_x_entity = _find_existing_entity(hass, robot_position_x_candidates)
-    robot_position_y_entity = _find_existing_entity(hass, robot_position_y_candidates)
-    robot_position_x_registered = _find_registered_entity(hass, robot_position_x_candidates)
-    robot_position_y_registered = _find_registered_entity(hass, robot_position_y_candidates)
+    def _any_present(key: str) -> bool:
+        return any(
+            _state_exists(hass, e) or _registry_entry_exists(hass, e)
+            for e in _cands.get(key, [])
+        )
 
-    maintenance_sources = _detect_maintenance_sources(hass, object_id=object_id)
+    # --- entity detection ---------------------------------------------------
+
+    task_status_entity                = _find("task_status")
+    work_mode_entity                  = _find("work_mode")
+    dock_status_entity                = _find("dock_status")
+    active_map_entity                 = _find("active_map")
+    active_cleaning_target_entity     = _find("active_cleaning_target")
+    cleaning_area_entity              = _find("cleaning_area")
+    cleaning_time_entity              = _find("cleaning_time")
+    water_level_entity                = _find("water_level")
+    robot_position_x_entity           = _find("robot_position_x")
+    robot_position_y_entity           = _find("robot_position_y")
+
+    task_status_registered            = _find_reg("task_status")
+    work_mode_registered              = _find_reg("work_mode")
+    dock_status_registered            = _find_reg("dock_status")
+    active_map_registered             = _find_reg("active_map")
+    active_cleaning_target_registered = _find_reg("active_cleaning_target")
+    cleaning_area_registered          = _find_reg("cleaning_area")
+    cleaning_time_registered          = _find_reg("cleaning_time")
+    water_level_registered            = _find_reg("water_level")
+    robot_position_x_registered       = _find_reg("robot_position_x")
+    robot_position_y_registered       = _find_reg("robot_position_y")
+
+    # --- dock action button presence ----------------------------------------
+
+    _wash_mop_entity_present      = _any_present("wash_mop_button")
+    _dry_mop_entity_present       = _any_present("dry_mop_button")
+    _empty_dust_entity_present    = _any_present("empty_dust_button")
+    _cleaning_intensity_present   = _any_present("cleaning_intensity")
+
+    # --- capability flags ---------------------------------------------------
+    # Hints take precedence (model-confirmed support). Entity presence is the
+    # fallback for unrecognised models that still expose the relevant entities.
 
     robot_position_x_entity_id = robot_position_x_entity or robot_position_x_registered
     robot_position_y_entity_id = robot_position_y_entity or robot_position_y_registered
 
-    supports_rooms = bool(active_map_registered or active_map_entity)
-    supports_segments = supports_rooms
-    supports_active_map = bool(active_map_registered or active_map_entity)
+    supports_rooms                  = bool(active_map_registered or active_map_entity)
+    supports_segments               = supports_rooms
+    supports_active_map             = bool(active_map_registered or active_map_entity)
     supports_active_cleaning_target = bool(
         active_cleaning_target_registered or active_cleaning_target_entity
     )
-    supports_task_status = bool(task_status_registered or task_status_entity)
-    supports_work_mode = bool(work_mode_registered or work_mode_entity)
-    supports_dock_status = bool(dock_status_registered or dock_status_entity)
+    supports_task_status    = bool(task_status_registered or task_status_entity)
+    supports_work_mode      = bool(work_mode_registered or work_mode_entity)
+    supports_dock_status    = bool(dock_status_registered or dock_status_entity)
     supports_cleaning_stats = bool(
-        cleaning_area_registered
-        or cleaning_time_registered
-        or cleaning_area_entity
-        or cleaning_time_entity
+        cleaning_area_registered or cleaning_time_registered
+        or cleaning_area_entity or cleaning_time_entity
     )
-    supports_station_water = bool(water_level_registered or water_level_entity)
-
+    supports_station_water  = bool(water_level_registered or water_level_entity)
     supports_robot_position = bool(robot_position_x_entity_id and robot_position_y_entity_id)
     robot_position_available = bool(robot_position_x_entity and robot_position_y_entity)
 
-    # Mop feature presence: model-family is the primary signal, but water_level entity
-    # existence is an entity-based fallback for unrecognised models that still expose
-    # a station water sensor via eufy-clean.
-    supports_mop_features = model_family in {"x10", "x8", "l60", "l50"} or bool(
+    # Hint OR entity presence — True from either source is sufficient.
+    supports_mop_features = bool(_hints.get("supports_mop_features")) or bool(
         water_level_registered or water_level_entity
     )
+    supports_mop_wash     = bool(_hints.get("supports_mop_wash"))   or _wash_mop_entity_present
+    supports_mop_dry      = bool(_hints.get("supports_mop_dry"))    or _dry_mop_entity_present
+    supports_empty_dust   = bool(_hints.get("supports_empty_dust")) or _empty_dust_entity_present
+    supports_path_control = bool(_hints.get("supports_path_control")) or _cleaning_intensity_present
 
-    # Dock action buttons: model-family is the primary signal.  If the model resolves
-    # to "generic" (eufy-clean returned an unrecognised string or nothing), fall back
-    # to checking whether the upstream button entity actually exists in the registry or
-    # state machine.  This prevents a legitimate X10/X8 user from seeing dock actions
-    # disabled solely because the model code was not in MODEL_CODE_FAMILIES.
-    _wash_mop_entity_present = any(
-        _state_exists(hass, e) or _registry_entry_exists(hass, e)
-        for e in (f"button.{object_id}_wash_mop", f"button.{object_id}_mop_wash")
-    )
-    _dry_mop_entity_present = any(
-        _state_exists(hass, e) or _registry_entry_exists(hass, e)
-        for e in (f"button.{object_id}_dry_mop", f"button.{object_id}_mop_dry")
-    )
-    _empty_dust_entity_present = any(
-        _state_exists(hass, e) or _registry_entry_exists(hass, e)
-        for e in (f"button.{object_id}_empty_dust", f"button.{object_id}_empty_dust_bin")
-    )
-
-    supports_mop_wash   = model_family in {"x10", "x8"} or _wash_mop_entity_present
-    supports_mop_dry    = model_family in {"x10", "x8"} or _dry_mop_entity_present
-    supports_empty_dust = model_family in {"x10", "x8", "l60", "l50"} or _empty_dust_entity_present
-
-    # Path control: eufy-clean exposes select.*_cleaning_intensity with options
-    # ["Normal", "Narrow", "Quick"] on hardware that supports path types.  Probing
-    # that entity is a reliable fallback when the model code is unrecognised.
-    _cleaning_intensity_entity_present = (
-        _state_exists(hass, f"select.{object_id}_cleaning_intensity")
-        or _registry_entry_exists(hass, f"select.{object_id}_cleaning_intensity")
-    )
-    supports_path_control = model_family in {"x10", "x8"} or _cleaning_intensity_entity_present
-
-    supports_water_control = supports_mop_features
-
-    # Edge mopping is always allowed.  eufy-clean passes the edge_mopping field
-    # straight through to set_room_custom without validating it — the firmware
-    # silently ignores it on hardware that does not support it.  The field only
-    # enters the payload when a room profile explicitly sets it to True, so there
-    # is no risk of forcing CUSTOMIZE mode on hardware that does not need it.
-    supports_edge_mopping = True
-    supports_passes = True
+    supports_water_control     = supports_mop_features
+    supports_edge_mopping      = True
+    supports_passes            = True
     supports_custom_room_config = True
-    supports_room_clean = True
+    supports_room_clean        = True
+
+    # --- maintenance sources ------------------------------------------------
+
+    maintenance_sources: dict[str, str | None] = {}
+    if maintenance_components:
+        maintenance_sources = _detect_maintenance_sources(
+            hass,
+            object_id=object_id,
+            maintenance_components=maintenance_components,
+        )
+
+    # --- live state values --------------------------------------------------
 
     _task_state = hass.states.get(task_status_entity) if task_status_entity else None
     task_status_value = _task_state.state if _task_state else None
     _dock_state = hass.states.get(dock_status_entity) if dock_status_entity else None
     dock_status_value = _dock_state.state if _dock_state else None
 
-    robot_position_status = "available" if robot_position_available else ("registered" if supports_robot_position else "inactive")
+    robot_position_status = (
+        "available" if robot_position_available
+        else ("registered" if supports_robot_position else "inactive")
+    )
     robot_position_message = (
         "Position tracking active." if robot_position_available
-        else ("Position entities registered but not yet in state machine." if supports_robot_position
-              else "Robot position entities not found.")
+        else (
+            "Position entities registered but not yet in state machine."
+            if supports_robot_position
+            else "Robot position entities not found."
+        )
     )
 
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "detected_model": detected_model,
-        "model_family": model_family,
+        "model_family": model_family or "generic",
         "supported_features": supported_features,
         "supports_room_clean": supports_room_clean,
         "supports_custom_room_config": supports_custom_room_config,
@@ -402,7 +347,9 @@ def detect_capabilities(
             "work_mode": work_mode_entity or work_mode_registered,
             "dock_status": dock_status_entity or dock_status_registered,
             "active_map": active_map_entity or active_map_registered,
-            "active_cleaning_target": active_cleaning_target_entity or active_cleaning_target_registered,
+            "active_cleaning_target": (
+                active_cleaning_target_entity or active_cleaning_target_registered
+            ),
             "cleaning_area": cleaning_area_entity or cleaning_area_registered,
             "cleaning_time": cleaning_time_entity or cleaning_time_registered,
             "water_level": water_level_entity or water_level_registered,

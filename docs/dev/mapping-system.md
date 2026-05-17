@@ -22,6 +22,24 @@ The two subsystems are related in two ways:
 
 All code lives in `mapping/image_segments.py`. The public entry point is `detect_room_segments(...)`, which currently delegates to `_detect_room_segments_fallback(...)` unconditionally.
 
+> **Tuning caveat for porters.** Every threshold and parameter in
+> this pipeline — flood-fill thresholds, RDP simplification epsilon,
+> `min_area_pixels`, dock-anchor exclusion radius, the count-deficit
+> recovery heuristics — was tuned against Eufy floor-plan PNGs
+> (X10-style line weight, two-tone room fill, light wall outlines).
+> Brands whose app exports look meaningfully different (heavier
+> walls, different colour palette, photo-style floorplans, very
+> high or low resolution) **will probably not segment well with the
+> stock parameters**. A port targeting one of those brands should
+> plan to either re-tune the constants for their image style, fall
+> back to the interactive boundary-trace flow (§3), or treat
+> auto-detected segments as user-confirmable hints rather than
+> ground truth. This is one of the harder bits of the framework to
+> make truly brand-agnostic and may need per-brand tuning constants
+> rather than a single universal pipeline. See
+> [porting-guide.md §9](porting-guide.md#9-what-still-might-require-framework-work)
+> for the workflow tradeoffs.
+
 ### 2.1 Input
 
 ```
@@ -298,6 +316,8 @@ The resulting bounds is the *union* of all active (non-excluded) job entries. Th
 ---
 
 ## 4. Coordinate System
+
+> Map images are served to the card through the static-path registration documented in [ha-integration.md](ha-integration.md); the coordinate math below maps the vacuum's raw position sensors into pixel space for trace rendering.
 
 ### 4.1 Vacuum Coordinate Space
 
@@ -608,3 +628,81 @@ The following components have no Eufy-specific dependencies and would port direc
 - **`_recompute_bounds_from_history`** — pure Python union of history entries.
 
 The `BOUNDS_MARGIN` value (50 vacuum units) and percentile parameters (P10/P90) are tuning constants that will need adjustment if the coordinate scale differs from Eufy's.
+
+---
+
+## 10. Services
+
+All mapping services are registered in `mapping/mapping_services.py`
+under the `eufy_vacuum.*` namespace. The central index of every
+integration service lives in
+[advanced/03-services.md](../advanced/03-services.md).
+
+The services fall into five functional groups: map image management,
+calibration, room boundaries (interactive draw + trace-driven), dock
+anchoring, and image-segment analysis.
+
+### Map image management
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `save_map_image` | Store a base64-encoded PNG as the map image for one vacuum/map. | `vacuum_entity_id`, `map_id`, `image_base64: str` | `image_width: int`, `image_height: int`, `variant: str` | no |
+| `upload_map_image` | Accept a user-uploaded floor plan image for analysis (alternative entry point). | `vacuum_entity_id`, `map_id`, `image_base64: str` | (none) | no |
+| `analyze_map_image` | Run image segment detection on the stored map image (see §2). | `vacuum_entity_id`, `map_id` | (none) | yes — analysis result with detected segments |
+
+### Calibration
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `add_calibration_point` | Record one pixel↔world coordinate pair for georeferencing the map. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float`, `vacuum_x: float`, `vacuum_y: float` | `label: str`, `is_calibration_room: bool`, `calibration_room_id: str` | no |
+| `compute_transform` | Calculate the affine transform from accumulated calibration points. See §4. | `vacuum_entity_id`, `map_id` | (none) | no |
+| `clear_calibration` | Remove all calibration points and the computed transform for one map. | `vacuum_entity_id`, `map_id` | (none) | no |
+| `set_companion_anchor` | Position a secondary anchor point for offset correction. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float` | `vacuum_x: float`, `vacuum_y: float`, `notes: str` | no |
+
+### Interactive room boundaries
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `start_room_boundary_trace` | Begin an interactive boundary-drawing session for one room. The card streams pointer positions until `close` or `cancel`. | `vacuum_entity_id`, `map_id`, `room_id: str` | (none) | no |
+| `close_room_boundary` | Finalize the drawing as a closed polygon with epsilon smoothing applied. | `vacuum_entity_id`, `map_id`, `room_id: str` | `epsilon: float` (default 5.0) | no |
+| `cancel_room_boundary_trace` | Abort the current drawing session without saving. | `vacuum_entity_id`, `map_id`, `room_id: str` | (none) | no |
+| `get_room_bounds_snapshot` | Return all currently recorded room-boundary polygons for one map. | `vacuum_entity_id`, `map_id` | (none) | yes — `{room_id: polygon, ...}` |
+| `clear_room_bounds` | Discard the boundary for one room. | `vacuum_entity_id`, `map_id`, `room_id: str` | (none) | no |
+
+### Trace-driven boundaries (job-based learning)
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `start_trace_capture` | Begin recording the robot's position trace during a clean job. Phase-1 of trace-driven bounds. | `vacuum_entity_id`, `map_id` | `room_id: str` | no |
+| `stop_trace_capture` | End recording (the trace is saved and available for review). | `vacuum_entity_id`, `map_id` | (none) | no |
+| `cancel_trace_capture` | Discard the in-progress trace. | `vacuum_entity_id`, `map_id` | (none) | no |
+| `review_trace_run` | Review and finalize a captured trace run. Phase-2 of trace-driven bounds. | (payload TBD) | (none) | no |
+| `append_mapping_trace_evidence` | Add a positional sample to an in-progress trace. Called by the live-position listener. | `vacuum_entity_id`, `map_id`, `evidence: dict` | (none) | no |
+| `exclude_room_job_bounds` | Mark one job's trace-derived bounds for a room as unreliable. Excluded from union averaging. | `vacuum_entity_id`, `map_id`, `room_id: str`, `job_index: int` | (none) | no |
+| `restore_room_job_bounds` | Re-include previously excluded bounds for one job. | `vacuum_entity_id`, `map_id`, `room_id: str`, `job_index: int` | (none) | no |
+| `rebuild_room_bounds_from_archive` | Recompute one room's bounds from all archived trace runs after exclusions/restorations. | `vacuum_entity_id`, `map_id`, `room_id: str` | (none) | no |
+
+### Dock and segment positioning
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `set_dock_anchor` | Place the dock at a pixel + world coordinate. Drives dock-relative trace start-points. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float` | `vacuum_x: float`, `vacuum_y: float`, `exclusion_radius: float`, `notes: str` | no |
+| `set_dock_room` | Mark a room as the dock-containing room. | `vacuum_entity_id`, `map_id`, `room_id: str` | `notes: str` | no |
+
+### Image segment analysis
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_image_segment_suggestions` | Detect contiguous regions in the map image as candidate room polygons. | `vacuum_entity_id`, `map_id` | `min_area_pixels: int` (default 1200), `simplify_epsilon: float`, `max_segments: int` | yes — `{segments: [...]}` |
+| `translate_image_segment` | Move/edit a polygon segment via delta translation, edge nudge, or per-vertex moves. | `vacuum_entity_id`, `map_id`, `segment_id: str` | `delta_x: int`, `delta_y: int`, `edge_*`, `vertex_moves: list` | no |
+| `adjust_map_segment` | Batch segment edits in one call. See §5. | `vacuum_entity_id`, `map_id`, `updates: list[dict]` | (none) | no |
+| `set_segment_room_link` | Link or unlink a detected segment to/from a room. | `vacuum_entity_id`, `map_id`, `segment_id: str` | `room_id: str` (omit to unlink) | no |
+| `get_map_segments` | Return detected segments plus their room links and companion anchors. | `vacuum_entity_id`, `map_id` | (none) | yes — `{segments, segment_room_links, companion_anchors}` |
+
+### State and packaging
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_mapping_state` | Fetch calibration points, boundaries, and current transform for one map. | `vacuum_entity_id`, `map_id` | (none) | yes — full mapping state dict |
+| `get_mapping_package` | Retrieve the full calibration/boundary/transform package for export or sync. | `vacuum_entity_id`, `map_id` | (none) | yes — package dict |
+| `save_mapping_package` | Persist a calibration/boundary/transform package (used by import flows). | `vacuum_entity_id`, `map_id`, `package: dict` | (none) | no |

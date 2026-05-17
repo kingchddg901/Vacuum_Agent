@@ -6,6 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.entity import EntityCategory
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
@@ -930,7 +931,7 @@ class EufyVacuumLastDeviceErrorSensor(_ErrorTrackerSensorBase):
     """
 
     _attr_icon = "mdi:history"
-    _attr_entity_category = "diagnostic"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,

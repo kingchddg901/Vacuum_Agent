@@ -31,13 +31,27 @@ A dict that contains:
 }
 ```
 
-The `payload` sub-object is the exact body sent to the Eufy API via `vacuum.send_command` with `command: room_clean`.
+The `payload` sub-object is the body sent to the vacuum's clean
+service. For Eufy this is `vacuum.send_command` with
+`command: "room_clean"`; for other brands the service name, envelope
+shape, field names, and value vocabularies all come from the
+adapter's `dispatch` config block — see
+[adapter-config-reference.md §13](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job)
+and [porting-guide.md §3](porting-guide.md#3-brand-catalog) for the
+non-Eufy shapes (Roborock, Dreame, Narwal).
 
 ---
 
 ## 2. Payload structure
 
-### Wire format sent to the vacuum
+### Default wire format (Eufy)
+
+The shape below is what `build_room_clean_payload` produces by default
+and for the Eufy reference adapter. Every field name and value
+vocabulary is configurable per-brand via `dispatch.room_fields`,
+`dispatch.rooms_field`, `dispatch.room_id_field`, and the related
+knobs documented in
+[adapter-config-reference.md §13](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
 
 ```json
 {
@@ -57,13 +71,17 @@ The `payload` sub-object is the exact body sent to the Eufy API via `vacuum.send
 }
 ```
 
-**Field reference**
+**Canonical field reference** — these are the framework's internal
+field names and values, written verbatim to the wire when the adapter
+doesn't override them. A Roborock adapter renames `fan_speed` to
+`fan_power` with integer-coded values; a Dreame adapter renames
+`water_level` to `water_volume`; etc.
 
-| Field | Type | Notes |
+| Canonical field | Type | Notes |
 |---|---|---|
-| `map_id` | int or str | Numeric when the ID is all-digits; raw string otherwise. |
-| `id` | int | Room ID as assigned by the vacuum firmware. |
-| `clean_times` | int | Number of cleaning passes. Always 1 or 2. |
+| `map_id` | int or str | Numeric when the ID is all-digits; raw string otherwise. Configurable via `dispatch.map_id_type`. |
+| `id` | int | Room ID as assigned by the vacuum firmware. Wire field name via `dispatch.room_id_field`. |
+| `clean_times` | int | Number of cleaning passes. Always 1 or 2. Wire field name via `dispatch.clean_passes_field`. |
 | `fan_speed` | str | `"Quiet"`, `"Standard"`, `"Boost"`, or `"Max"`. |
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
 | `clean_intensity` | str | `"Quick"`, `"Narrow"`, or `"Deep"`. |
@@ -100,7 +118,7 @@ The sort is applied identically in `get_enabled_rooms_in_order` (queue state) an
 
 The access graph encodes which rooms the vacuum must physically pass through to reach other rooms. It is a directed graph stored as adjacency data on each room object.
 
-**Why it matters for cleaning** — the vacuum's firmware cleans in queue order and navigates between rooms autonomously. If the path from room A to room B passes through room C, and room C is blocked by a rule, the vacuum cannot safely reach room B. The access graph tells the rule evaluator about this dependency so it can cascade the block.
+**Why it matters for cleaning** — the vacuum's firmware cleans in queue order and navigates between rooms autonomously. If the path from room A to room B passes through room C, and room C is blocked by a rule, the vacuum cannot safely reach room B. The access graph tells the rule evaluator about this dependency so it can cascade the block. The cascade logic itself lives in [room-rules-system.md](room-rules-system.md).
 
 ### Storage format
 

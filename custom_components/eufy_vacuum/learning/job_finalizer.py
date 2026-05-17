@@ -21,6 +21,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
+from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..battery.job_metrics import compute_job_battery_metrics
 from ..const import DATA_BATTERY, DOMAIN
 from .utils import _iso_now, _safe_float, _safe_int
@@ -379,19 +380,31 @@ class LearningJobFinalizer:
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
         )
-        lifecycle_state = manager.get_lifecycle_state(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-
         job_id = None
         if isinstance(snapshot, dict):
             job_id = str(snapshot.get("job_id", "")).strip() or None
         if not job_id:
             job_id = f"job_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
 
-        lifecycle_name = str(forced_lifecycle_state or lifecycle_state.get("lifecycle_state", "")).strip().lower()
-        lifecycle_message = str(forced_lifecycle_message or lifecycle_state.get("message", "")).strip()
+        # Lifecycle name and message are derived from the caller-supplied
+        # forced values for non-completed outcomes (cancellation, failure,
+        # interruption). For normal completions forced_lifecycle_state is
+        # None, and we set "completed" directly.
+        #
+        # Previously this called get_lifecycle_state() which reads 5 live
+        # HA entities (vacuum.state, task_status, dock_status, etc.) and
+        # returns the vacuum's *current* readiness — "ready", "mid_job_service",
+        # etc. None of those values map to cancelled/failed/interrupted, so
+        # they all fell through to outcome_status="completed" anyway. The call
+        # added no classification value for normal completions, introduced a
+        # live read at finalization time, and produced a stale or misleading
+        # lifecycle_message (already suppressed by a separate guard). Removed.
+        if forced_lifecycle_state is not None:
+            lifecycle_name = str(forced_lifecycle_state).strip().lower()
+            lifecycle_message = str(forced_lifecycle_message or "").strip()
+        else:
+            lifecycle_name = "completed"
+            lifecycle_message = str(forced_lifecycle_message or "").strip()
 
         was_cancelled = lifecycle_name in {"cancelled", "canceled", "user_cancelled", "job_cancelled"}
         was_failed = lifecycle_name in {"failed", "error", "job_failed"}
@@ -426,26 +439,88 @@ class LearningJobFinalizer:
                     or "Job returned unusually early and looks like a manual cancellation."
                 )
 
-        water_end_station_percent: float | None = None
-        try:
-            water_end_station_percent = manager._get_station_clean_water_percent(
-                vacuum_entity_id=vacuum_entity_id,
-            )
-        except Exception:
-            pass
+        # Prefer values pushed into active_job_state by the job-metrics
+        # listener during the run. These are written on every DPS update so
+        # they reflect the last value seen before finalization fired, with no
+        # race against the task_status "Completed" packet ordering.
+        # Fall back to a live sensor read for the first run after a cold
+        # start (listener not yet fired), then to wall-clock derivation.
+        _job_state_for_metrics = active_job_state if isinstance(active_job_state, dict) else {}
+        cleaning_time_seconds: int | None = _safe_int(
+            _job_state_for_metrics.get("last_cleaning_time_seconds"), None
+        )
+        cleaning_area_m2: float | None = _safe_float(
+            _job_state_for_metrics.get("last_cleaning_area_m2"), None
+        )
+        water_end_station_percent: float | None = _safe_float(
+            _job_state_for_metrics.get("last_station_water_percent"), None
+        )
 
-        cleaning_time_seconds: int | None = None
-        cleaning_area_m2: float | None = None
-        try:
-            object_id = vacuum_entity_id.split(".", 1)[1]
-            ct_state = manager.hass.states.get(f"sensor.{object_id}_cleaning_time")
-            if ct_state and ct_state.state not in ("unavailable", "unknown"):
-                cleaning_time_seconds = _safe_int(ct_state.state, None)
-            ca_state = manager.hass.states.get(f"sensor.{object_id}_cleaning_area")
-            if ca_state and ca_state.state not in ("unavailable", "unknown"):
-                cleaning_area_m2 = _safe_float(ca_state.state, None)
-        except Exception:
-            pass
+        if cleaning_time_seconds is None or cleaning_area_m2 is None or water_end_station_percent is None:
+            # Sensor fallback — covers the first run on a fresh install
+            # before the metrics listener has had a chance to push values.
+            try:
+                _adapter_entities = (
+                    _get_adapter_config(vacuum_entity_id) or {}
+                ).get("entities", {})
+                if cleaning_time_seconds is None:
+                    _ct_entity = _adapter_entities.get("cleaning_time")
+                    if _ct_entity:
+                        ct_state = manager.hass.states.get(_ct_entity)
+                        if ct_state and ct_state.state not in ("unavailable", "unknown"):
+                            cleaning_time_seconds = _safe_int(ct_state.state, None)
+                if cleaning_area_m2 is None:
+                    _ca_entity = _adapter_entities.get("cleaning_area")
+                    if _ca_entity:
+                        ca_state = manager.hass.states.get(_ca_entity)
+                        if ca_state and ca_state.state not in ("unavailable", "unknown"):
+                            cleaning_area_m2 = _safe_float(ca_state.state, None)
+                if water_end_station_percent is None:
+                    water_end_station_percent = manager._get_station_clean_water_percent(
+                        vacuum_entity_id=vacuum_entity_id,
+                    )
+            except Exception:
+                pass
+
+        if cleaning_time_seconds is None:
+            # Sensor was unavailable or unknown at finalization time. This is
+            # common on normal completions — the cleaning_time DPS update from
+            # the firmware often arrives in a packet after the task_status
+            # "Completed" packet that triggers finalization, so the HA state
+            # is still showing the previous (stale or unavailable) value.
+            #
+            # Fall back to a wall-clock derivation: job wall time minus the
+            # paused and mid-job recharge seconds tracked in the active job.
+            # Not as precise as the upstream sensor (which also excludes small
+            # dock manoeuvring delays), but far better than None, which would
+            # cause the error-time subtraction to be silently skipped.
+            try:
+                _job_state = active_job_state if isinstance(active_job_state, dict) else {}
+                _started_str = str(_job_state.get("started_at", "")).strip()
+                _paused_secs = _safe_int(_job_state.get("paused_duration_seconds"), 0) or 0
+                _recharge_secs = _safe_int(_job_state.get("recharge_seconds_accumulated"), 0) or 0
+                if _started_str and ended_at:
+                    _s_dt = datetime.fromisoformat(_started_str.replace("Z", "+00:00"))
+                    _e_dt = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+                    _wall = int((_e_dt - _s_dt).total_seconds())
+                    _derived = max(0, _wall - _paused_secs - _recharge_secs)
+                    if _derived > 0:
+                        cleaning_time_seconds = _derived
+                        _LOGGER.debug(
+                            "job_finalizer: cleaning_time sensor unavailable for %s — "
+                            "derived %ds from wall-clock (wall=%ds paused=%ds recharge=%ds)",
+                            vacuum_entity_id,
+                            _derived,
+                            _wall,
+                            _paused_secs,
+                            _recharge_secs,
+                        )
+            except Exception:
+                _LOGGER.debug(
+                    "job_finalizer: wall-clock cleaning_time derivation failed for %s",
+                    vacuum_entity_id,
+                    exc_info=True,
+                )
 
         return {
             "snapshot": snapshot,
@@ -496,6 +571,24 @@ class LearningJobFinalizer:
         was_failed = inputs["was_failed"]
         was_interrupted = inputs["was_interrupted"]
         cancel_detection = inputs["cancel_detection"]
+
+        # For completed jobs the timing-based room rollover may not have fired
+        # for the last room before finalization ran — there is no "next room"
+        # event to trigger it. A successful completion means all queued rooms
+        # were cleaned by definition, so synthesize the full list from the
+        # queue rather than relying on the accumulation state.
+        # For non-completed jobs (cancelled/failed/interrupted) we use the
+        # tracked state as-is — it reflects what was actually observed.
+        if outcome_status == "completed" and isinstance(active_job_state, dict):
+            _queued_ids = [
+                _safe_int(r, -1)
+                for r in (queue_state or {}).get("queue_room_ids", [])
+                if _safe_int(r, -1) > 0
+            ]
+            if _queued_ids:
+                # Shallow copy so we don't mutate the stored active_job_state.
+                active_job_state = dict(active_job_state)
+                active_job_state["completed_room_ids"] = _queued_ids
 
         # Harvest the active-run error latch from ErrorTracker. This pulls
         # the latch dict and nulls it on the tracker side, so the latch
@@ -1012,26 +1105,37 @@ class LearningJobFinalizer:
             for entry in transitions
         ]
 
-        stronger_service_states = {
-            "returning to charge",
-            "charging (resume)",
-            "returning to wash",
-            "washing mop",
-            "returning to empty",
-            "emptying dust",
-        }
-        if any(to_state in stronger_service_states for _, _, to_state in transition_pairs):
+        # Resolve the task_status entity ID from the adapter registry so we
+        # match by full entity ID, not by brand-specific suffix.
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        _task_status_entity = _adapter_cfg.get("entities", {}).get("task_status", "")
+        if not _task_status_entity:
+            return {"cancel_likely": False, "reason": "no_task_status_entity"}
+
+        # Read cancel service exclusion states from adapter vocabulary.
+        # These are normalized task_status strings that explain an early return
+        # as a service event (low-battery, mop wash, dust empty) rather than
+        # a manual cancel. Fall back to an empty set — no false negatives are
+        # worse than no exclusion; callers should register vocab if they want it.
+        _exclusion_vocab = _adapter_cfg.get("vocabulary", {}).get(
+            "cancel_service_exclusion_states", []
+        )
+        service_exclusion_states: frozenset[str] = frozenset(
+            str(s).strip().lower() for s in _exclusion_vocab if s
+        )
+
+        if any(to_state in service_exclusion_states for _, _, to_state in transition_pairs):
             return {"cancel_likely": False, "reason": "service_state_explains_return"}
 
         direct_returning = any(
-            entity_id.endswith("task_status") and from_state == "cleaning" and to_state == "returning"
+            entity_id == _task_status_entity and from_state == "cleaning" and to_state == "returning"
             for entity_id, from_state, to_state in transition_pairs
         )
         paused_then_returning = False
         recent_task_states = [
             to_state
             for entity_id, _, to_state in transition_pairs
-            if entity_id.endswith("task_status")
+            if entity_id == _task_status_entity
         ]
         for idx in range(len(recent_task_states) - 1):
             if recent_task_states[idx] == "paused" and recent_task_states[idx + 1] == "returning":

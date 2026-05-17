@@ -8,6 +8,57 @@ Most services require at least `vacuum_entity_id`. Services that operate on a sp
 
 ---
 
+## Service Index
+
+Every `eufy_vacuum.*` service registered by the integration. Services
+with full details in this doc link to their section below; services
+whose deep reference lives in a subsystem doc link out.
+
+### Core services (full reference below)
+
+**Job control** — [Job Control](#job-control)
+`start_selected_rooms` · `pause_active_job` · `resume_active_job` · `cancel_active_job` · `start_run_profile` · `get_start_status` · `clear_active_job` · `get_active_job` · `get_job_progress_snapshot` · `get_job_control_state`
+
+**Queue and payload** — [Queue Management](#queue-management) (and similar sections)
+`build_queue` · `build_room_payload` · `get_queue_state` · `get_payload_state` · `clear_queue`
+
+**Lifecycle and dashboard**
+`get_lifecycle_state` · `get_dashboard_snapshot` · `get_pause_timeout_settings` · `set_pause_timeout_settings` · `get_upkeep_snapshot`
+
+**Room and profile management**
+`get_room_profiles` · `save_user_room_profile` · `overwrite_room_profile` · `save_room_profile_from_room` · `overwrite_room_profile_from_room` · `rename_room_profile` · `delete_room_profile` · `apply_room_profile` · `update_room_fields` · `get_room_access_editor` · `get_access_graph_health` · `get_saved_run_profiles` · `save_run_profile` · `apply_run_profile` · `overwrite_run_profile` · `rename_run_profile` · `delete_run_profile`
+
+**Room and map discovery**
+`discover_rooms` · `save_managed_rooms` · `get_vacuum_maps`
+
+**Dock actions** — [Dock Actions](#dock-actions)
+`wash_mop` · `dry_mop` · `stop_dry_mop` · `empty_dust` · `get_dock_action_status` · `set_dock_event_count`
+
+**Maintenance and errors**
+`reset_maintenance` · `acknowledge_error` · `get_recent_errors`
+
+**Setup (card-level Eufy onboarding — refactor candidate, see [porting-guide.md §9](../dev/porting-guide.md#9-what-still-might-require-framework-work))**
+`setup_get_status` · `setup_add_vacuum` · `setup_import_active_map` · `setup_get_map_rooms` · `setup_save_rooms` · `setup_delete_map` · `setup_reject_rooms` · `setup_force_remove_room`
+
+**Backend, battery, and diagnostics**
+`refresh_backend` · `rebuild_active_map` · `clear_runtime_state` · `battery_rebaseline`
+
+### Subsystem services (full reference in subsystem docs)
+
+**Learning** — full table in [learning-system.md §11](../dev/learning-system.md#11-services)
+`save_learning_snapshot` · `finalize_learning_job` · `rebuild_learning_stats` · `run_learning_estimate` · `record_estimate_accuracy` · `reanchor_learning_timeline` · `get_next_room` · `get_room_learning_estimates` · `get_learning_history_snapshot` · `get_metrics_snapshot` · `get_incomplete_run_log` · `get_trouble_rooms_log` · `retry_missed_rooms` · `exclude_learning_job` · `restore_learning_job`
+
+**Theme** — full table in [theme-system.md §10](../dev/theme-system.md#10-services)
+`get_theme_library` · `save_theme_as_new` · `overwrite_theme` · `rename_theme` · `delete_theme` · `set_active_theme` · `update_working_draft` · `revert_draft` · `export_theme` · `import_theme`
+
+**Mapping** — full table in [mapping-system.md §10](../dev/mapping-system.md#10-services)
+`save_map_image` · `upload_map_image` · `analyze_map_image` · `add_calibration_point` · `compute_transform` · `clear_calibration` · `set_companion_anchor` · `start_room_boundary_trace` · `close_room_boundary` · `cancel_room_boundary_trace` · `get_room_bounds_snapshot` · `clear_room_bounds` · `start_trace_capture` · `stop_trace_capture` · `cancel_trace_capture` · `review_trace_run` · `append_mapping_trace_evidence` · `exclude_room_job_bounds` · `restore_room_job_bounds` · `rebuild_room_bounds_from_archive` · `set_dock_anchor` · `set_dock_room` · `get_image_segment_suggestions` · `translate_image_segment` · `adjust_map_segment` · `set_segment_room_link` · `get_map_segments` · `get_mapping_state` · `get_mapping_package` · `save_mapping_package`
+
+**Adapter config** — full table in [adapter-config-reference.md §21](../dev/adapter-config-reference.md#21-services-that-read-and-write-adapter-configs)
+`save_adapter_config` · `delete_adapter_config` · `get_adapter_config` · `discover_adapter_entities` · `observe_entity_states` · `get_vacuum_capabilities`
+
+---
+
 ## Job Control
 
 These services start, pause, resume, and cancel the integration-managed active job.
@@ -710,6 +761,36 @@ Delete operations are protection-gated. High-protection maps (those with signifi
 
 > **Risk:** Irreversible. All learned history for the map is permanently deleted.
 
+### `setup_reject_rooms`
+
+Marks one or more discovered rooms as phantoms. Rejected rooms never resurface in `room_drift.new_rooms` even if the vacuum re-reports them on a later discovery pass. If a rejected room was previously configured, it is removed from `managed_rooms` and its HA entities (switch, number, sensor) are torn down via the room-update callback chain.
+
+Stored under `setup_progress[vacuum_entity_id].rejected_rooms` so the rejection persists across HA restarts.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `room_ids` | Yes | List of integer room IDs to reject. |
+
+**Returns:** `{status, rejected: [room_id, ...], removed_from_managed: [room_id, ...], affected_map_ids: [map_id, ...]}`.
+
+**Typical use:** A vacuum reports a phantom room (firmware glitch) which surfaces on the setup tab as a "new room". The user clicks **Reject as phantom** in the card to call this service. The room is permanently suppressed.
+
+### `setup_force_remove_room`
+
+Bypasses the missing-pass counter for one room — immediately flags it as removed in `room_drift.removed_rooms` without waiting for the normal `removal_confirmation_passes` window (default 3 missed discoveries).
+
+The room **stays in `managed_rooms`** with `is_configured: True` and its HA entities continue to exist; only the drift signal flips. Pair with a separate explicit delete operation if you want to fully remove the room from learning history.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `room_id` | Yes | Integer room ID. |
+
+**Returns:** `{status, room_id, missing_passes, threshold}`.
+
+**Typical use:** The user knows a room has been permanently removed (renovation, vacuum reset) and doesn't want to wait several discovery passes for the framework to confirm it. Click **Force remove now** in the setup tab's drift panel.
+
 ---
 
 ## Theme Services
@@ -801,6 +882,109 @@ Imports a theme from an exported payload. Handles name collisions by appending `
 | Parameter | Required | Notes |
 |---|---|---|
 | `payload` | Yes | The full dict returned by `export_theme`. |
+
+---
+
+## Room and Profile Management
+
+Services for managing room cleaning profiles (factory + user-defined)
+and saved multi-room "run profiles" (named selections of rooms). Most
+of these are driven by the card; automation use is rare.
+
+### Room cleaning profiles
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_room_profiles` | List every factory + user-saved room cleaning profile. | (none) | (none) | yes — `{profiles: [...]}` |
+| `save_user_room_profile` | Save a new custom room profile from explicit clean parameters. | `label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` | `profile_name` | yes — `{ok, profile_name}` |
+| `overwrite_room_profile` | Replace an existing custom profile with new clean parameters. | `profile_name`, `label`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping` | (none) | yes — `{ok}` |
+| `save_room_profile_from_room` | Create a new profile by copying one room's current settings. | `vacuum_entity_id`, `map_id`, `room_id`, `label` | `profile_name` | yes — `{ok, profile_name}` |
+| `overwrite_room_profile_from_room` | Update an existing profile from one room's current settings. | `vacuum_entity_id`, `map_id`, `room_id`, `profile_name` | `label` | yes — `{ok}` |
+| `rename_room_profile` | Rename an existing custom profile. | `profile_name` | `new_profile_name`, `label` | yes — `{ok}` |
+| `delete_room_profile` | Remove a custom profile from the library. Factory profiles cannot be deleted. | `profile_name` | (none) | yes — `{ok}` |
+| `apply_room_profile` | Apply one profile's settings to one or more rooms. | `vacuum_entity_id`, `map_id`, `room_ids: list[int]`, `profile_name` | (none) | yes — `{ok, applied_count}` |
+
+### Run profiles (saved room selections)
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_saved_run_profiles` | List saved run profiles for one vacuum/map. | `vacuum_entity_id`, `map_id` | (none) | yes — `{profiles: [...]}` |
+| `save_run_profile` | Save the current enabled-room selection as a named run profile. | `vacuum_entity_id`, `map_id`, `name` | `expose_as_button: bool` | yes — `{ok, profile_id}` |
+| `apply_run_profile` | Activate a saved run profile (enables only its rooms; does not start). | `vacuum_entity_id`, `map_id`, `profile_id` | (none) | yes — `{ok}` |
+| `overwrite_run_profile` | Replace a saved profile with the current enabled-room selection. | `vacuum_entity_id`, `map_id`, `profile_id` | `name`, `expose_as_button` | yes — `{ok}` |
+| `rename_run_profile` | Rename a saved run profile. | `vacuum_entity_id`, `map_id`, `profile_id`, `name` | (none) | yes — `{ok}` |
+| `delete_run_profile` | Delete a saved run profile. | `vacuum_entity_id`, `map_id`, `profile_id` | (none) | yes — `{ok}` |
+
+### Room field editing
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `get_room_access_editor` | Return the access-graph editor state for one room (incoming/outgoing edges, rules). | `vacuum_entity_id`, `map_id`, `room_id` | (none) | yes |
+| `get_access_graph_health` | Validate the access graph for the whole map (orphan rooms, cycles, dock reachability). | `vacuum_entity_id`, `map_id` | (none) | yes — `{ok, issues: [...]}` |
+
+---
+
+## Room and Map Discovery
+
+Services for adding rooms and maps to the integration's managed
+inventory.
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `discover_rooms` | Read the room list from the vacuum entity's `segments` attribute (or wherever the adapter declares) and stage them for selection. | `vacuum_entity_id` | `map_id` | no |
+| `save_managed_rooms` | Persist a subset of discovered rooms as managed. Drives the onboarding "pick the rooms you want to manage" step. | `vacuum_entity_id`, `map_id` | `enabled_room_ids: list[int]` | no |
+| `get_vacuum_maps` | List every map stored for one vacuum. | `vacuum_entity_id` | (none) | yes — `{maps: [{map_id, name, ...}, ...]}` |
+
+---
+
+## Maintenance and Errors
+
+Per-component maintenance reset and the error-tracker surface.
+
+| Service | Purpose | Required | Optional | Returns |
+|---------|---------|----------|----------|---------|
+| `reset_maintenance` | Reset the manual-reset counter for one consumable component (brush, filter, mop pad, etc.). The component key must match `adapter_config.maintenance_components`. | `vacuum_entity_id`, `component: str` | (none) | yes — `{ok, component, reset_at}` |
+| `acknowledge_error` | Clear an active-run error latch or the last-device error latch (or both). | `vacuum_entity_id` | `scope: "active_run" \| "last_device" \| "both"` (default `both`) | yes — `{ok, cleared: [...]}` |
+| `get_recent_errors` | Return the most recent error entries from the per-device ring buffer. | `vacuum_entity_id` | `limit: int` (1-50, default 20) | yes — `{vacuum_entity_id, errors: [...], count}` |
+
+---
+
+## Mapping Services
+
+The mapping subsystem exposes 31 services covering map image upload,
+calibration, room boundary drawing, trace capture, dock anchoring,
+and image-segment analysis. Most are called by the card during the
+map setup flow, not from automations.
+
+**Full reference: [mapping-system.md §10](../dev/mapping-system.md#10-services).**
+
+Quick categories:
+
+- **Image management** — `save_map_image`, `upload_map_image`, `analyze_map_image`
+- **Calibration** — `add_calibration_point`, `compute_transform`, `clear_calibration`, `set_companion_anchor`
+- **Interactive boundaries** — `start_room_boundary_trace`, `close_room_boundary`, `cancel_room_boundary_trace`, `get_room_bounds_snapshot`, `clear_room_bounds`
+- **Trace capture** (job-driven learning) — `start_trace_capture`, `stop_trace_capture`, `cancel_trace_capture`, `review_trace_run`, `append_mapping_trace_evidence`, `exclude_room_job_bounds`, `restore_room_job_bounds`, `rebuild_room_bounds_from_archive`
+- **Dock and segments** — `set_dock_anchor`, `set_dock_room`, `get_image_segment_suggestions`, `translate_image_segment`, `adjust_map_segment`, `set_segment_room_link`, `get_map_segments`
+- **State and packaging** — `get_mapping_state`, `get_mapping_package`, `save_mapping_package`
+
+---
+
+## Adapter Config Services
+
+Services for the future multi-brand UI config flow. All operate on
+the per-vacuum adapter registry that drives every brand-specific
+behaviour in the framework.
+
+**Full reference: [adapter-config-reference.md §21](../dev/adapter-config-reference.md#21-services-that-read-and-write-adapter-configs).**
+
+| Service | Purpose | Required | Returns |
+|---------|---------|----------|---------|
+| `save_adapter_config` | Persist a UI-built adapter config dict. | `vacuum_entity_id`, `config: dict` | no |
+| `delete_adapter_config` | Remove a stored adapter config; setup falls back to the code adapter if present. | `vacuum_entity_id` | no |
+| `get_adapter_config` | Return the active adapter config (code or stored). | `vacuum_entity_id` | yes |
+| `discover_adapter_entities` | Scan HA for entities matching adapter roles based on `detected_model`. | `detected_model: str` | yes |
+| `observe_entity_states` | Return current state snapshots for a list of entity IDs (config-flow validation). | `entity_ids: list[entity_id]` | yes |
+| `get_vacuum_capabilities` | Detect or refresh capability flags for one vacuum. | `vacuum_entity_id` | yes |
 
 ---
 

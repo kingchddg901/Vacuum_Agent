@@ -76,6 +76,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .history_store import LearningHistoryStore
+from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
 from .utils import _iso_now, _safe_float, _safe_int
 
@@ -178,55 +179,53 @@ def _confidence_result(score: float) -> dict[str, Any]:
 
 
 
-def _normalize_wash_frequency_mode(value: Any) -> str:
+def _normalize_wash_frequency_mode(
+    value: Any,
+    *,
+    aliases: dict[str, str] | None = None,
+) -> str:
     """Normalize wash frequency mode strings into stable estimator keys.
 
-    The Eufy-facing entity is expected to expose friendly strings such as
-    "By Time". The estimator only needs to distinguish whether mop wash
-    cadence is driven by elapsed mop minutes or not, so this collapses a
-    variety of possible labels into a small internal set.
+    aliases — brand-specific display string → canonical key map, sourced
+    from adapter_config.vocabulary.wash_frequency_mode_aliases. Pass None
+    when aliases are unavailable; canonical keys pass through unchanged.
     """
     raw = str(value or "").strip().lower().replace("-", " ").replace("_", " ")
     compact = " ".join(raw.split())
 
     if not compact:
         return "unknown"
-    if compact in {"by time", "time"} or ("time" in compact and "by" in compact):
-        return "by_time"
-    if compact in {"by room", "room"} or ("room" in compact and "by" in compact):
-        return "by_room"
-    if compact in {"off", "disabled", "none"}:
-        return "off"
+    # Adapter alias lookup.
+    if aliases:
+        mapped = aliases.get(compact)
+        if mapped is not None:
+            return mapped
+    # Unknown values pass through with spaces replaced by underscores.
     return compact.replace(" ", "_")
-
-
-def _derive_wash_frequency_entity_ids(vacuum_entity_id: str) -> tuple[str, str]:
-    """Derive wash-frequency helper entity ids from the vacuum entity id.
-
-    Example:
-      vacuum.alfred -> select.alfred_wash_frequency_mode
-                    -> number.alfred_wash_frequency_value_time
-    """
-    object_id = vacuum_entity_id.split(".", 1)[-1]
-    return (
-        f"select.{object_id}_wash_frequency_mode",
-        f"number.{object_id}_wash_frequency_value_time",
-    )
 
 
 def _load_mop_wash_config(*, hass: HomeAssistant, vacuum_entity_id: str) -> dict[str, Any]:
     """Read mop wash cadence configuration from Home Assistant state.
 
-    The current implementation only models the user's "By Time" mode
-    because that is the installed workflow for Alfred. When the entities
-    are unavailable, the estimator falls back to a safe default interval
-    so ETA math remains stable.
+    Entity IDs are resolved from the adapter registry — adapters that don't
+    expose wash-frequency helpers simply yield ``None`` here and the
+    estimator falls back to a safe default interval so ETA math remains
+    stable. The current implementation only models the "By Time" mode.
     """
-    mode_entity_id, interval_entity_id = _derive_wash_frequency_entity_ids(vacuum_entity_id)
-    mode_state = hass.states.get(mode_entity_id)
-    interval_state = hass.states.get(interval_entity_id)
+    _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+    _entities = _adapter_cfg.get("entities", {})
+    mode_entity_id: str | None = _entities.get("wash_frequency_mode")
+    interval_entity_id: str | None = _entities.get("wash_frequency_value_time")
 
-    mode_key = _normalize_wash_frequency_mode(mode_state.state if mode_state else None)
+    mode_state = hass.states.get(mode_entity_id) if mode_entity_id else None
+    interval_state = hass.states.get(interval_entity_id) if interval_entity_id else None
+
+    _vocab = _adapter_cfg.get("vocabulary", {})
+    _wash_freq_aliases: dict[str, str] = _vocab.get("wash_frequency_mode_aliases") or {}
+    mode_key = _normalize_wash_frequency_mode(
+        mode_state.state if mode_state else None,
+        aliases=_wash_freq_aliases,
+    )
     interval_minutes = _safe_float(
         interval_state.state if interval_state else None,
         _DEFAULT_WASH_INTERVAL_MINUTES,

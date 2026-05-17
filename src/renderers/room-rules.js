@@ -12,31 +12,11 @@
 
 const NO_VALUE_OPERATORS = new Set(["is_on", "is_off", "exists", "missing"]);
 
-const CLEAN_MODE_OPTIONS = [
-  { value: "vacuum", label: "Vacuum" },
-  { value: "mop", label: "Mop" },
-  { value: "vacuum_mop", label: "Vacuum & Mop" },
-];
-
-const FAN_SPEED_OPTIONS = [
-  { value: "Quiet", label: "Quiet" },
-  { value: "Standard", label: "Standard" },
-  { value: "Boost", label: "Boost" },
-  { value: "Max", label: "Max" },
-];
-
-const WATER_LEVEL_OPTIONS = [
-  { value: "Off", label: "Off" },
-  { value: "Low", label: "Low" },
-  { value: "Medium", label: "Medium" },
-  { value: "High", label: "High" },
-];
-
-const CLEAN_INTENSITY_OPTIONS = [
-  { value: "Quick", label: "Quick" },
-  { value: "Narrow", label: "Narrow" },
-  { value: "Deep", label: "Deep" },
-];
+// Option lists for modifier setting-overrides are read from the
+// adapter's vocabulary at render time (state.adapterOptionsFor).
+// Each adapter declares what its hardware supports — Eufy declares
+// 4 fan speeds, Roborock with Max+ would declare 5, etc. The card
+// renders whatever the adapter says is valid for this brand.
 
 /**
  * Mix room rules renderer methods onto the given prototype.
@@ -297,7 +277,7 @@ export function applyRoomRulesRenderers(proto) {
             />
           </div>
 
-          ${isModifier ? this._renderModifierChanges(draft) : ""}
+          ${isModifier ? this._renderModifierChanges(draft, state) : ""}
         </div>
 
         ${saveError ? `<div class="evcc-rule-editor-save-error">${this.escapeHtml(saveError)}</div>` : ""}
@@ -462,30 +442,44 @@ export function applyRoomRulesRenderers(proto) {
     `;
   };
 
-  proto._renderModifierChanges = function (draft) {
+  proto._renderModifierChanges = function (draft, state) {
     const changes = draft.effect?.changes ?? {};
 
-    const chipRow = (label, field, options) => `
-      <div class="evcc-rule-change-row">
-        <div class="evcc-rule-change-label">${this.escapeHtml(label)}</div>
-        <div class="evcc-chips">
-          <button
-            type="button"
-            class="evcc-chip evcc-chip--muted ${changes[field] == null ? "active" : ""}"
-            data-rule-field="effect.changes.${this.escapeHtml(field)}"
-            data-rule-value=""
-          >-</button>
-          ${options.map((option) => `
+    // chipRow returns "" when the adapter declared no options for this
+    // role — keeps brands without a given concept (e.g. Roborock has no
+    // clean_intensity) from rendering an empty "Clean Intensity: -" row.
+    const chipRow = (label, field, options) => {
+      if (!Array.isArray(options) || options.length === 0) return "";
+      return `
+        <div class="evcc-rule-change-row">
+          <div class="evcc-rule-change-label">${this.escapeHtml(label)}</div>
+          <div class="evcc-chips">
             <button
               type="button"
-              class="evcc-chip ${changes[field] === option.value ? "active" : ""}"
+              class="evcc-chip evcc-chip--muted ${changes[field] == null ? "active" : ""}"
               data-rule-field="effect.changes.${this.escapeHtml(field)}"
-              data-rule-value="${this.escapeHtml(String(option.value))}"
-            >${this.escapeHtml(option.label)}</button>
-          `).join("")}
+              data-rule-value=""
+            >-</button>
+            ${options.map((option) => `
+              <button
+                type="button"
+                class="evcc-chip ${changes[field] === option.value ? "active" : ""}"
+                data-rule-field="effect.changes.${this.escapeHtml(field)}"
+                data-rule-value="${this.escapeHtml(String(option.value))}"
+              >${this.escapeHtml(option.label)}</button>
+            `).join("")}
+          </div>
         </div>
-      </div>
-    `;
+      `;
+    };
+
+    // Read each option list from the adapter at render time. The state
+    // accessor returns [] when the adapter omits a role, and chipRow
+    // hides the row in that case.
+    const cleanModeOptions      = state?.adapterOptionsFor?.("clean_mode") ?? [];
+    const fanSpeedOptions       = state?.adapterOptionsFor?.("fan_speed") ?? [];
+    const waterLevelOptions     = state?.adapterOptionsFor?.("water_level") ?? [];
+    const cleanIntensityOptions = state?.adapterOptionsFor?.("clean_intensity") ?? [];
 
     return `
       <div class="evcc-rule-editor-section">
@@ -494,10 +488,10 @@ export function applyRoomRulesRenderers(proto) {
           Select overrides to apply. "-" means keep the room's saved setting.
         </div>
 
-        ${chipRow("Clean Mode", "clean_mode", CLEAN_MODE_OPTIONS)}
-        ${chipRow("Fan Speed", "fan_speed", FAN_SPEED_OPTIONS)}
-        ${chipRow("Water Level", "water_level", WATER_LEVEL_OPTIONS)}
-        ${chipRow("Clean Intensity", "clean_intensity", CLEAN_INTENSITY_OPTIONS)}
+        ${chipRow("Clean Mode", "clean_mode", cleanModeOptions)}
+        ${chipRow("Fan Speed", "fan_speed", fanSpeedOptions)}
+        ${chipRow("Water Level", "water_level", waterLevelOptions)}
+        ${chipRow("Clean Intensity", "clean_intensity", cleanIntensityOptions)}
 
         <div class="evcc-rule-change-row">
           <div class="evcc-rule-change-label">Clean Passes</div>

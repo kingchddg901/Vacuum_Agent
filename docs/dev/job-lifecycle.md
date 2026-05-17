@@ -31,12 +31,15 @@ The queue contains only rooms whose `enabled` flag is `True`. The output shape i
 
 ### `build_room_payload`
 
-`EufyVacuumManager.build_room_payload(vacuum_entity_id, map_id)` builds the `room_clean` command payload. Before passing rooms to the payload builder it applies carpet/mop invariants via `_protected_room_config` on every room. It fetches:
+`EufyVacuumManager.build_room_payload(vacuum_entity_id, map_id)` builds the room-clean command payload. Before passing rooms to the payload builder it applies carpet/mop invariants via `_protected_room_config` on every room. It fetches:
 - the current queue state for `queue_room_ids`
 - stored room profiles from `self.data["profiles"]["room_profiles"]`
 - vacuum capabilities via `get_vacuum_capabilities`
+- the adapter's `dispatch` config via `get_adapter_config(vacuum_entity_id).get("dispatch", {})`
 
 The result is stored at `self.data["payloads"][vacuum_entity_id][map_id]` and contains the raw `payload` dict plus a `resolved_rooms` list with full per-room settings.
+
+The `payload` dict's outer wrapper keys (`map_id`, `rooms`), per-room key names (`id`, `clean_times`, `fan_speed`, `clean_mode`, etc.), and per-field value vocabularies are all adapter-driven via the dispatch config — see [adapter-config-reference.md §13](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job). The Eufy default produces the `vacuum.send_command room_clean` shape; other brands produce their own wire format with zero framework changes.
 
 ### `get_start_status` — blocker reasons
 
@@ -143,6 +146,9 @@ This is the authoritative rule-evaluation site for job start (the only other sit
 ---
 
 ## 3. Active Job Monitoring
+
+> The progress snapshot returned to the card stitches together pre-job ETA estimates and live actuals — the underlying timing math is documented in [learning-system.md](learning-system.md).
+
 
 ### `get_job_progress_snapshot`
 
@@ -282,7 +288,7 @@ When detected, `outcome_status` is overridden to `"cancelled"` with `lifecycle_n
 
 ### `finalize_learning_for_active_job` (manager entry point)
 
-`async EufyVacuumManager.finalize_learning_for_active_job(...)` reads `started_at` and `battery_start` from the active job, reads current battery as `battery_end`, then delegates to `learning.async_finalize_completed_job`. After the result returns, it calls `_ingest_completed_job_into_room_history` and fires the room-history-updated notification if anything was ingested.
+`async EufyVacuumManager.finalize_learning_for_active_job(...)` reads `started_at` and `battery_start` from the active job, reads current battery as `battery_end`, then delegates to `learning.async_finalize_completed_job`. After the result returns, it calls `_ingest_completed_job_into_room_history` and fires the room-history-updated notification if anything was ingested. The on-disk shape of the finalized job record and the per-room stats it feeds are documented in [learning-system.md](learning-system.md).
 
 ### `finalize_from_manager_state` / `finalize_from_inputs` (LearningJobFinalizer)
 

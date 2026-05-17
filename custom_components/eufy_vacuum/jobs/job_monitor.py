@@ -4,6 +4,16 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
+# HA vacuum platform standard states. These are part of the HA vacuum
+# state machine spec — not brand-specific firmware strings. All HA vacuum
+# integrations use these state names regardless of brand.
+_HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
+    "cleaning",   # vacuum platform standard
+    "returning",  # vacuum platform standard
+    "paused",     # vacuum platform standard
+    "error",      # vacuum platform standard
+})
+
 try:
     from typing import TypedDict
 except ImportError:
@@ -135,6 +145,15 @@ def evaluate_job_lifecycle(
     active_map_id: str | None,
     selected_map_id: str | None,
     job_metadata: dict[str, Any] | None = None,
+    # Adapter-supplied vocabulary. Brand-specific sets (hard_service_states,
+    # drying_states, active_run_task_states) default to empty — callers must
+    # pass values from the adapter registry for correct blocking behaviour.
+    # active_vacuum_states defaults to the HA platform standard set, which
+    # applies universally across all vacuum integrations.
+    hard_service_states: frozenset[str] = frozenset(),
+    drying_states: frozenset[str] = frozenset(),
+    active_run_task_states: frozenset[str] = frozenset(),
+    active_vacuum_states: frozenset[str] = _HA_ACTIVE_VACUUM_STATES,
 ) -> dict[str, Any]:
     """Return a lifecycle state dict describing the vacuum's current readiness.
 
@@ -149,39 +168,6 @@ def evaluate_job_lifecycle(
     active_cleaning_target_n = _norm(active_cleaning_target)
     active_map_id_n = str(active_map_id or "").strip()
     selected_map_id_n = str(selected_map_id or "").strip()
-
-    hard_service_states = {
-        "washing",
-        "washing mop",
-        "recycling waste water",
-        "recycling wastewater",
-        "emptying dust",
-        "emptying dust bin",
-        "dust emptying",
-    }
-
-    drying_states = {
-        "drying",
-        "drying mop",
-        "drying pads",
-        "mop drying",
-    }
-
-    active_run_states = {
-        "cleaning",
-        "room cleaning",
-        "spot cleaning",
-        "returning",
-        "resuming",
-        "navigating",
-    }
-
-    active_vacuum_states = {
-        "cleaning",
-        "returning",
-        "paused",
-        "error",
-    }
 
     if selected_map_id_n and active_map_id_n and selected_map_id_n != active_map_id_n:
         return {
@@ -210,7 +196,7 @@ def evaluate_job_lifecycle(
 
     if active_job_exists and (
         active_cleaning_target_n
-        or task_status_n in active_run_states
+        or task_status_n in active_run_task_states
         or vacuum_state_n in active_vacuum_states
     ):
         return {
@@ -220,7 +206,7 @@ def evaluate_job_lifecycle(
             "job_metadata": job_metadata,
         }
 
-    if task_status_n in active_run_states:
+    if task_status_n in active_run_task_states:
         return {
             "lifecycle_state": "vacuum_busy",
             "message": "Vacuum is busy and cannot start a new room job.",

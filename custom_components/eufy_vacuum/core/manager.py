@@ -12,6 +12,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from ..adapters.registry import get_adapter_config as _get_adapter_config
+from ..adapters.eufy.charging import (
+    get_battery_level as _get_battery_level_impl,
+    is_charging as _is_charging_impl,
+    is_low_battery_return_state as _is_low_battery_return_state_impl,
+)
 from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED, EVENT_STALL_DETECTED
 from ..entity_helpers import get_floor_type_label
 from ..jobs.job_monitor import (
@@ -19,7 +25,6 @@ from ..jobs.job_monitor import (
     build_start_blocker_from_lifecycle,
     evaluate_job_lifecycle,
 )
-from ..core.capabilities import MAINTENANCE_COMPONENTS
 from ..maps.map_manager import (
     ensure_map_bucket,
     get_map_bucket,
@@ -49,6 +54,16 @@ from .storage import EufyVacuumStorage
 
 _LOGGER = logging.getLogger(__name__)
 _PROTECTED_ROOM_PROFILE_NAMES = frozenset(BUILT_IN_ROOM_PROFILES.keys())
+
+# Standard HA vacuum platform states that indicate an active or faulted vacuum.
+# These are defined by the HA vacuum integration, not by any specific brand.
+# Brand-specific active states (e.g. task_status strings) come from the adapter.
+_HA_ACTIVE_VACUUM_STATES: frozenset[str] = frozenset({
+    "cleaning",   # HA standard
+    "returning",  # HA standard
+    "paused",     # HA standard
+    "error",      # HA standard
+})
 _PATH_BLOCK_ACTIONS = frozenset(
     {"event_only", "pause_and_event", "cancel_and_event"}
 )
@@ -710,395 +725,6 @@ def _ensure_preloaded_theme_library(theme_data: dict[str, Any]) -> None:
     if not default_theme_id or default_theme_id not in library:
         theme_data["default_theme_id"] = "theme_follow_ha"
 
-UPKEEP_MODEL_NAMES: dict[str, str] = {
-    "T2351": "Robovac X10 Pro Omni",
-    "T2080": "Robovac S1 Pro",
-    "T2071": "Robovac S1",
-    "T2280": "Robovac Omni C20",
-    "T2261": "RoboVac X8 Hybrid",
-    "T2262": "RoboVac X8",
-    "T2266": "Robovac X8 Pro",
-    "T2276": "Robovac X8 Pro SES",
-    "T2267": "RoboVac L60",
-    "T2268": "Robovac L60 Hybrid",
-    "T2277": "Robovac L60 SES",
-    "T2278": "Robovac L60 Hybrid SES",
-}
-
-
-UPKEEP_MODEL_GUIDE_FAMILIES: dict[str, str] = {
-    "T2351": "x10_pro_omni",
-    "T2080": "s1_pro",
-    "T2071": "s1_pro",
-    "T2280": "omni_c20",
-    "T2261": "x8_series",
-    "T2262": "x8_series",
-    "T2266": "x8_series",
-    "T2276": "x8_series",
-    "T2267": "l60_series",
-    "T2268": "l60_series",
-    "T2277": "l60_series",
-    "T2278": "l60_series",
-}
-
-
-UPKEEP_GUIDE_FAMILY_NAMES: dict[str, str] = {
-    "x10_pro_omni": "X10 Pro Omni",
-    "s1_pro": "S1 Pro / S1",
-    "omni_c20": "Omni C20",
-    "x8_series": "X8 / X8 Pro Series",
-    "l60_series": "L60 / L60 Hybrid / L60 SES Series",
-}
-
-
-UPKEEP_GUIDE_LIBRARY: dict[str, dict[str, dict[str, Any]]] = {
-    "x10_pro_omni": {
-        "filter": {
-            "clean_frequency": "weekly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Open the top cover and remove the dust box.",
-                "Remove the filter from the dust box.",
-                "Tap dust off the filter and empty the dust box.",
-                "Rinse the dust box and filter with water only.",
-                "Let both parts air dry completely before reinstalling.",
-            ],
-            "notes": [
-                "Do not use a brush, hot water, or detergent.",
-                "Replace the filter every 3-6 months.",
-            ],
-        },
-        "sensor": {
-            "clean_frequency": "monthly",
-            "replace_frequency": None,
-            "steps": [
-                "Use a soft, dry cloth to wipe the sensors and cameras.",
-                "Also wipe the charging pins while doing sensor maintenance.",
-            ],
-            "notes": [
-                "No replacement interval is listed for sensors in the manual.",
-            ],
-        },
-        "side_brush": {
-            "clean_frequency": "monthly",
-            "replace_frequency": "every 3-6 months or when worn",
-            "steps": [
-                "Remove the side brush with a screwdriver.",
-                "Unwind and remove any hair or debris.",
-                "Rinse the brush with water and air dry it fully.",
-                "Reinstall the brush after it is dry.",
-            ],
-            "notes": [],
-        },
-        "rolling_brush": {
-            "clean_frequency": "monthly",
-            "replace_frequency": "every 6 months",
-            "steps": [
-                "Unlock the brush guard tabs and lift the guard out.",
-                "Remove the rolling brush.",
-                "Cut away and remove wrapped hair and debris.",
-                "Rinse the brush and guard, then air dry them.",
-                "Reinstall the brush and snap the guard back into place.",
-            ],
-            "notes": [
-                "Brush guard should also be replaced every 3-6 months or when worn.",
-            ],
-        },
-        "mopping_cloth": {
-            "clean_frequency": "wash after use / inspect regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Remove the mopping pads from the robot.",
-                "Wash and fully dry the pads before reuse.",
-                "Replace the pads when they become worn or no longer clean effectively.",
-            ],
-            "notes": [],
-        },
-        "cleaning_tray": {
-            "clean_frequency": "as needed",
-            "replace_frequency": None,
-            "steps": [
-                "Remove the cleaning tray from the Omni Station.",
-                "Rinse the tray thoroughly with water.",
-                "Reinstall the tray after cleaning.",
-            ],
-            "notes": [
-                "Dirty water tank should be emptied and rinsed when full.",
-            ],
-        },
-        "swivel_wheel": {
-            "clean_frequency": "monthly",
-            "replace_frequency": None,
-            "steps": [
-                "Inspect the swivel wheel for wrapped hair or debris.",
-                "Remove debris carefully and wipe the wheel area clean.",
-                "Confirm the wheel spins freely before the next run.",
-            ],
-            "notes": [
-                "The manual lists swivel wheel cleaning but does not provide a dedicated replacement interval.",
-            ],
-        },
-    },
-    "s1_pro": {
-        "filter": {
-            "clean_frequency": "every 60 hours",
-            "replace_frequency": "every 3 months",
-            "steps": [
-                "Remove the high-performance filter from the dust bin area.",
-                "Tap off dust and debris gently.",
-                "Reinstall or replace the filter once it is clean and dry.",
-            ],
-            "notes": [
-                "Accessory service guidance in the app is the primary official reset flow for S1 Pro.",
-            ],
-        },
-        "sensor": {
-            "clean_frequency": "every 360 hours",
-            "replace_frequency": None,
-            "steps": [
-                "Wipe the robot sensors with a soft, dry cloth.",
-                "Also clean the charging contacts while servicing the sensors.",
-            ],
-            "notes": [],
-        },
-        "side_brush": {
-            "clean_frequency": "every 180 hours",
-            "replace_frequency": "as needed when worn",
-            "steps": [
-                "Inspect the side brush for trapped hair and debris.",
-                "Remove buildup around the base and bristles.",
-                "Replace the brush if bristles are bent or damaged.",
-            ],
-            "notes": [],
-        },
-        "rolling_brush": {
-            "clean_frequency": "every 180 hours",
-            "replace_frequency": "every 6 months",
-            "steps": [
-                "Remove the rolling brush guard.",
-                "Check the brush and both end caps for tangled hair or debris.",
-                "Clean the brush thoroughly before reinstalling.",
-            ],
-            "notes": [],
-        },
-        "mopping_cloth": {
-            "clean_frequency": "every 60 hours",
-            "replace_frequency": "every 6 months",
-            "steps": [
-                "Remove the rolling mop or mop contact surfaces and clean away residue.",
-                "Allow cleaned parts to dry before reuse.",
-                "Replace the mop-related consumable when wear becomes visible or performance drops.",
-            ],
-            "notes": [
-                "S1 documentation is rolling-mop oriented rather than detachable twin-pad wording.",
-            ],
-        },
-        "cleaning_tray": {
-            "clean_frequency": "every 30 hours",
-            "replace_frequency": None,
-            "steps": [
-                "Remove the filter tray or tray insert from the station area.",
-                "Rinse away residue and buildup.",
-                "Reinstall after cleaning.",
-            ],
-            "notes": [
-                "Also clean the clean/dirty water tanks and dirty water filter as needed.",
-            ],
-        },
-        "swivel_wheel": {
-            "clean_frequency": "as needed",
-            "replace_frequency": None,
-            "steps": [
-                "Inspect the swivel wheel for hair and debris.",
-                "Remove buildup and confirm the wheel rotates freely.",
-            ],
-            "notes": [],
-        },
-    },
-    "omni_c20": {
-        "filter": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Remove the dust bin or filter compartment.",
-                "Take out the filter and tap off dust.",
-                "Wash only if the manual/app guidance allows, then dry fully before reinstalling.",
-            ],
-            "notes": [
-                "The Omni C20 accessory guide is primarily video-based.",
-            ],
-        },
-        "sensor": {
-            "clean_frequency": "regularly",
-            "replace_frequency": None,
-            "steps": [
-                "Use a clean, dry cloth to wipe the sensors and charging contacts on both the robot and station.",
-            ],
-            "notes": [],
-        },
-        "side_brush": {
-            "clean_frequency": "inspect every 2 weeks",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Inspect the side brush for wear, tangles, or damage.",
-                "Remove wrapped hair and debris from the brush and base.",
-                "Replace the brush if bristles are bent or missing.",
-            ],
-            "notes": [],
-        },
-        "rolling_brush": {
-            "clean_frequency": "periodically",
-            "replace_frequency": "as needed",
-            "steps": [
-                "Inspect the rolling brush for tangled hair or debris.",
-                "Use the cleaning tool or scissors to cut away wrapped material.",
-                "Reinstall after cleaning.",
-            ],
-            "notes": [
-                "The Pro-Detangle Comb reduces but does not eliminate manual cleaning.",
-            ],
-        },
-        "mopping_cloth": {
-            "clean_frequency": "after dirty runs / regularly",
-            "replace_frequency": "as needed",
-            "steps": [
-                "Remove the mop pads from the robot or station.",
-                "Clean and fully dry them before reuse.",
-                "Replace the pads when worn or no longer cleaning effectively.",
-            ],
-            "notes": [],
-        },
-        "cleaning_tray": {
-            "clean_frequency": "regularly",
-            "replace_frequency": None,
-            "steps": [
-                "Detach the station base or mop washing area component.",
-                "Rinse and wipe away residue from the tray area.",
-                "Reinstall the tray after cleaning.",
-            ],
-            "notes": [
-                "Also monitor and service the clean and dirty water tanks.",
-            ],
-        },
-    },
-    "x8_series": {
-        "filter": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Remove the dust bin and take out the filter.",
-                "Tap the filter gently to remove dust.",
-                "If rinsed, allow it to dry completely before reinstalling.",
-            ],
-            "notes": [],
-        },
-        "sensor": {
-            "clean_frequency": "regularly",
-            "replace_frequency": None,
-            "steps": [
-                "Wipe drop sensors, bumper sensors, and charging contacts with a dry cloth.",
-            ],
-            "notes": [],
-        },
-        "side_brush": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Remove the side brush.",
-                "Clear away hair and debris from the brush and its base.",
-                "Reattach or replace if worn.",
-            ],
-            "notes": [],
-        },
-        "rolling_brush": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Pinch the main brush guard tabs and remove the guard.",
-                "Lift out the main brush.",
-                "Use the cleaning tool or scissors to remove hair and debris.",
-                "Reinstall the brush and guard.",
-            ],
-            "notes": [],
-        },
-        "mopping_cloth": {
-            "clean_frequency": "after mop runs",
-            "replace_frequency": "as needed",
-            "steps": [
-                "Remove the mop pad from the holder.",
-                "Wash and dry it before reuse.",
-                "Replace if it becomes worn or ineffective.",
-            ],
-            "notes": [
-                "Applies only to hybrid/mop-capable X8 models.",
-            ],
-        },
-    },
-    "l60_series": {
-        "filter": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Press the dustbin release button and remove the dust bin.",
-                "Remove the filter and tap off loose dirt.",
-                "If allowed by the specific model guide, rinse and dry fully before reinstalling.",
-            ],
-            "notes": [],
-        },
-        "sensor": {
-            "clean_frequency": "regularly",
-            "replace_frequency": None,
-            "steps": [
-                "Use a dry cloth to wipe the sensors and charging contacts on the robot and base.",
-            ],
-            "notes": [],
-        },
-        "side_brush": {
-            "clean_frequency": "regularly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Pull off the side brush.",
-                "Remove tangled hair and debris.",
-                "Reattach or replace if worn.",
-            ],
-            "notes": [],
-        },
-        "rolling_brush": {
-            "clean_frequency": "at least weekly",
-            "replace_frequency": "every 3-6 months",
-            "steps": [
-                "Remove the main brush cover.",
-                "Lift out the roller brush.",
-                "Clean wrapped hair and debris from the brush and bearings.",
-                "Wipe dry and reinstall the brush and guard.",
-            ],
-            "notes": [
-                "SES models also use automatic hair-cutting to reduce maintenance.",
-            ],
-        },
-        "mopping_cloth": {
-            "clean_frequency": "after mop runs",
-            "replace_frequency": "as needed",
-            "steps": [
-                "Remove the mop pad or cloth.",
-                "Clean and dry it fully before reuse.",
-                "Replace the cloth when worn.",
-            ],
-            "notes": [
-                "Applies only to hybrid variants.",
-            ],
-        },
-    },
-}
-
-
-WATER_MODEL_CONFIGS: dict[str, dict[str, float]] = {
-    "T2351": {
-        "robot_internal_tank_ml": 80.0,
-        "dock_clean_tank_capacity_ml": 3080.0,
-        "dock_wash_overhead_ml_per_cycle": 120.0,
-    },
-}
 
 
 class EufyVacuumManager:
@@ -1165,12 +791,82 @@ class EufyVacuumManager:
                 _old_map_id = str(_disc.get("active_map_id") or "unknown")
                 self.data["discovery"][_vac_id] = {_old_map_id: _disc}
 
+        # One-time migration: back-fill setup_progress for existing installs
+        # whose data predates the explicit setup state machine. Detects
+        # vacuums that already have managed rooms and stamps their setup as
+        # complete so the new framework code doesn't prompt for onboarding
+        # that was already done. Idempotent — re-running is a no-op.
+        self._migrate_setup_progress()
+
         self._room_update_callbacks: list = []
         self._run_profile_update_callbacks: list = []
         self._room_history_update_callbacks: list = []
         self._room_rule_status_update_callbacks: list = []
         self._theme_update_callbacks: list = []
         self._room_history_cache_loading: set[str] = set()
+
+    def _migrate_setup_progress(self) -> None:
+        """One-time back-fill of setup_progress for pre-state-machine installs.
+
+        Before the explicit setup state machine landed, "setup complete"
+        was inferred from data shape ("rooms exist == map imported ==
+        setup done"). This migration converts that implicit state to
+        the explicit setup_progress record.
+
+        Rules:
+          - Vacuums already in setup_progress are skipped (idempotent).
+          - Vacuums with no managed rooms are skipped (they genuinely
+            haven't completed setup; let the normal flow handle them).
+          - Vacuums with managed rooms get all three legacy Eufy steps
+            stamped complete: add_vacuum, import_active_map, save_rooms.
+          - Every room without an is_configured field gets stamped True
+            with the current timestamp.
+
+        Invisible to users in the success path. The only signal is the
+        absence of an onboarding prompt that would otherwise appear.
+        """
+        from ..learning.utils import _iso_now
+
+        self.data.setdefault("setup_progress", {})
+        now = _iso_now()
+
+        for vacuum_entity_id, vac_record in (
+            self.data.get("vacuums", {}) or {}
+        ).items():
+            if not isinstance(vac_record, dict):
+                continue
+            if vacuum_entity_id in self.data["setup_progress"]:
+                continue  # already migrated
+
+            vac_maps = self.data.get("maps", {}).get(vacuum_entity_id, {}) or {}
+            has_rooms = any(
+                isinstance(bucket, dict) and bucket.get("rooms")
+                for bucket in vac_maps.values()
+            )
+            if not has_rooms:
+                continue  # never completed setup; normal flow applies
+
+            self.data["setup_progress"][vacuum_entity_id] = {
+                "completed_steps": [
+                    "add_vacuum",
+                    "import_active_map",
+                    "save_rooms",
+                ],
+                "last_advanced_at": now,
+                "migrated_at": now,
+                "rejected_rooms": [],
+                "room_drift_history": {},
+            }
+
+            for bucket in vac_maps.values():
+                if not isinstance(bucket, dict):
+                    continue
+                for room in (bucket.get("rooms") or {}).values():
+                    if not isinstance(room, dict):
+                        continue
+                    if "is_configured" not in room:
+                        room["is_configured"] = True
+                        room.setdefault("configured_at", now)
 
     # ------------------------------------------------------------------
     # Callback registration / notification
@@ -1426,38 +1122,45 @@ class EufyVacuumManager:
 
     def _get_battery_level(self, vacuum_entity_id: str) -> int:
         """Return current battery level from sensor first, then vacuum entity."""
-        object_id = vacuum_entity_id.split(".", 1)[1]
+        return _get_battery_level_impl(self.hass, vacuum_entity_id)
 
-        battery_sensor = self.hass.states.get(f"sensor.{object_id}_battery")
-        if battery_sensor is not None:
-            battery_level = _safe_int(battery_sensor.state, -1)
-            if battery_level >= 0:
-                return battery_level
+    def _normalize_water_level_key(
+        self,
+        value: Any,
+        *,
+        aliases: dict[str, str] | None = None,
+    ) -> str:
+        """Normalize room water level into stable estimator keys.
 
-        vacuum_state = self.hass.states.get(vacuum_entity_id)
-        if vacuum_state is None:
-            return 0
-
-        battery_level = vacuum_state.attributes.get("battery_level")
-        return _safe_int(battery_level, 0)
-
-    def _normalize_water_level_key(self, value: Any) -> str:
-        """Normalize room water level into stable estimator keys."""
+        aliases — brand-specific display string → canonical key map, sourced
+        from adapter_config.vocabulary.water_level_aliases. Callers with
+        vacuum_entity_id in scope should read and pass it; pass None (or
+        omit) when aliases are unavailable.
+        """
         text = str(value or "").strip().lower().replace("-", " ").replace("_", " ")
         compact = " ".join(text.split())
-        if compact in {"off", "none", "disabled", ""}:
+        # Empty input — no water level configured.
+        if not compact:
             return "off"
-        if compact in {"low", "quiet"}:
-            return "low"
-        if compact in {"medium", "mid", "automatic", "auto"}:
-            return "medium"
-        if compact in {"high", "strong"}:
-            return "high"
+        # Canonical keys pass through unchanged.
+        if compact in {"off", "low", "medium", "high"}:
+            return compact
+        # Adapter alias lookup.
+        if aliases:
+            mapped = aliases.get(compact)
+            if mapped is not None:
+                return mapped
+        # Unknown values pass through as-is.
         return compact
 
-    def _water_rate_ml_per_minute(self, water_level: Any) -> float:
+    def _water_rate_ml_per_minute(
+        self,
+        water_level: Any,
+        *,
+        aliases: dict[str, str] | None = None,
+    ) -> float:
         """Return first-pass floor application water rate by water level."""
-        normalized = self._normalize_water_level_key(water_level)
+        normalized = self._normalize_water_level_key(water_level, aliases=aliases)
         rates = {
             "off": 0.0,
             "low": 3.2,
@@ -1490,9 +1193,10 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
     ) -> dict[str, Any]:
         """Return model-based water configuration if known."""
+        _water_model_configs = (_get_adapter_config(vacuum_entity_id) or {}).get("water_model_configs", {})
         model_meta = self._get_upkeep_model_meta(vacuum_entity_id=vacuum_entity_id)
         model_code = model_meta.get("code")
-        config = dict(WATER_MODEL_CONFIGS.get(model_code or "", {}))
+        config = dict(_water_model_configs.get(model_code or "", {}))
         config["model_code"] = model_code
         config["model_name"] = model_meta.get("name")
         config["available"] = bool(config)
@@ -1504,20 +1208,17 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
     ) -> dict[str, Any]:
         """Return current mop-wash cadence configuration from helper entities."""
-        object_id = vacuum_entity_id.split(".", 1)[1]
-        mode_entity_id = f"select.{object_id}_wash_frequency_mode"
-        interval_entity_id = f"number.{object_id}_wash_frequency_value_time"
+        _wf_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
+        mode_entity_id = _wf_entities.get("wash_frequency_mode")
+        interval_entity_id = _wf_entities.get("wash_frequency_value_time")
         mode_state = self.hass.states.get(mode_entity_id)
         interval_state = self.hass.states.get(interval_entity_id)
 
+        _wf_vocab = (_get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
+        _wash_freq_aliases: dict[str, str] = _wf_vocab.get("wash_frequency_mode_aliases") or {}
         raw_mode = str(mode_state.state if mode_state is not None else "").strip().lower().replace("-", " ").replace("_", " ")
         compact_mode = " ".join(raw_mode.split())
-        if compact_mode in {"by room", "room", "byroom"} or ("room" in compact_mode):
-            mode_key = "by_room"
-        elif compact_mode in {"by time", "time", "bytime"} or ("time" in compact_mode and "by" in compact_mode):
-            mode_key = "by_time"
-        else:
-            mode_key = "unknown"
+        mode_key = _wash_freq_aliases.get(compact_mode, "unknown")
 
         interval_minutes = _safe_float(interval_state.state if interval_state is not None else None, 20.0)
         if interval_minutes <= 0:
@@ -1554,6 +1255,8 @@ class EufyVacuumManager:
                 "message": "No water model is available for this vacuum.",
             }
 
+        _water_vocab = (_get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
+        _water_level_aliases: dict[str, str] = _water_vocab.get("water_level_aliases") or {}
         capabilities = self.get_vacuum_capabilities(vacuum_entity_id=vacuum_entity_id, refresh=False)
         station_water_percent = self._get_station_clean_water_percent(
             vacuum_entity_id=vacuum_entity_id,
@@ -1609,7 +1312,7 @@ class EufyVacuumManager:
                 mopping_room_count += 1
                 if estimated_minutes > 0:
                     projected_mop_minutes += estimated_minutes
-                    room_robot_water_ml = estimated_minutes * self._water_rate_ml_per_minute(water_level)
+                    room_robot_water_ml = estimated_minutes * self._water_rate_ml_per_minute(water_level, aliases=_water_level_aliases)
                     robot_water_used_ml += room_robot_water_ml
 
             room_entry = {
@@ -1661,6 +1364,13 @@ class EufyVacuumManager:
             wash_cycle_count = int(projected_mop_minutes // max(wash_config["interval_minutes"], 1.0))
         else:
             wash_cycle_count = 0
+
+        # Pre-wash + post-wash always happen when any mopping is on the plan,
+        # regardless of frequency mode. Floor at 2 so a single short mopped
+        # room (by_room=1) or a sub-interval mop run (by_time=0) still
+        # accounts for both bookend washes.
+        if mopping_room_count > 0:
+            wash_cycle_count = max(wash_cycle_count, 2)
 
         robot_internal_tank_ml = _safe_float(model_config.get("robot_internal_tank_ml"), 0.0)
         dock_clean_tank_capacity_ml = _safe_float(model_config.get("dock_clean_tank_capacity_ml"), 0.0)
@@ -1864,61 +1574,9 @@ class EufyVacuumManager:
 
         return round(max((elapsed_seconds - paused_seconds) / 60.0, 0.0), 2)
 
-    def _is_recharge_like_state(
-        self,
-        *,
-        vacuum_state: str | None,
-        task_status: str | None,
-        dock_status: str | None,
-    ) -> bool:
-        """Return whether the current HA state looks like actual charging.
-
-        Substring-based fallback used by ``_is_charging`` when the dedicated
-        ``binary_sensor.<object_id>_charging`` entity is absent / unavailable.
-        Has known false negatives — most importantly, post-job recharges
-        where ``task_status`` lingers as ``"completed"`` after job
-        finalisation, which short-circuits the terminal-state check below
-        and reports False even while the vacuum is plainly charging.
-        Prefer ``_is_charging`` for any new caller.
-        """
-        values = [
-            str(vacuum_state or "").strip().lower(),
-            str(task_status or "").strip().lower(),
-            str(dock_status or "").strip().lower(),
-        ]
-        terminal_task_states = {"completed", "complete"}
-        if any(value in terminal_task_states for value in values):
-            return False
-        if str(task_status or "").strip().lower() == "charging (resume)":
-            return True
-        return any("charg" in value or "recharg" in value for value in values if value)
-
     def _is_charging(self, vacuum_entity_id: str) -> bool:
-        """Definitive "is the vacuum charging right now" check.
-
-        Reads ``binary_sensor.<object_id>_charging`` as the primary signal —
-        a clean on/off entity emitted by the upstream eufy-clean integration.
-        Falls back to ``_is_recharge_like_state`` substring matching only
-        when the binary sensor is absent or in an unusable state
-        (``unavailable`` / ``unknown`` / not yet registered). The fallback
-        is known-fragile, particularly for post-job recharges; the binary
-        sensor is the authoritative signal for any vacuum that exposes it.
-        """
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        bs = self.hass.states.get(f"binary_sensor.{object_id}_charging")
-        if bs is not None and bs.state in ("on", "off"):
-            return bs.state == "on"
-
-        # Fallback: substring matching. Same vocabulary _is_recharge_like_state
-        # has always inspected.
-        vacuum_state = self.hass.states.get(vacuum_entity_id)
-        task_status_state = self.hass.states.get(f"sensor.{object_id}_task_status")
-        dock_status_state = self.hass.states.get(f"sensor.{object_id}_dock_status")
-        return self._is_recharge_like_state(
-            vacuum_state=vacuum_state.state if vacuum_state is not None else None,
-            task_status=task_status_state.state if task_status_state is not None else None,
-            dock_status=dock_status_state.state if dock_status_state is not None else None,
-        )
+        """Definitive "is the vacuum charging right now" check."""
+        return _is_charging_impl(self.hass, vacuum_entity_id)
 
     def _is_low_battery_return_state(
         self,
@@ -1927,32 +1585,12 @@ class EufyVacuumManager:
         vacuum_state: str | None,
         task_status: str | None,
     ) -> bool:
-        """Return whether the robot is returning to dock due to low battery.
-
-        Two signals, simplest first:
-
-        - ``task_status == "returning to charge"`` — upstream-authoritative;
-          the string is specific to low-battery return, no battery threshold
-          needed.
-        - ``vacuum_state == "returning"`` (HA standard) **and**
-          ``0 < battery <= 20`` — the generic "returning" state plus a
-          battery gate so user-initiated return_to_base with full battery
-          isn't mis-classified.
-
-        The previous implementation substring-matched against four phrases
-        ("return to base" / "going home" / "backing to station" / "returning")
-        across vacuum_state / task_status / dock_status, with a terminal-
-        state guard. That pattern was the same silent-failure shape that
-        broke charging detection: too many sources, too much fuzzy matching,
-        no canonical signal. HA's vacuum platform normalises the state to
-        ``returning``; dock_status can't observe a robot mid-return; the
-        wider net was inviting trouble for no benefit.
-        """
-        if str(task_status or "").strip().lower() == "returning to charge":
-            return True
-        if str(vacuum_state or "").strip().lower() != "returning":
-            return False
-        return 0 < current_battery <= 20
+        """Return whether the robot is returning to dock due to low battery."""
+        return _is_low_battery_return_state_impl(
+            current_battery=current_battery,
+            vacuum_state=vacuum_state,
+            task_status=task_status,
+        )
 
     def update_active_job_recharge_observation(
         self,
@@ -1966,9 +1604,9 @@ class EufyVacuumManager:
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
-        object_id = vacuum_entity_id.split(".", 1)[1]
         vacuum_state = self.hass.states.get(vacuum_entity_id)
-        task_status_state = self.hass.states.get(f"sensor.{object_id}_task_status")
+        _recharge_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
+        task_status_state = self.hass.states.get(_recharge_entities.get("task_status"))
         current_battery = self._get_battery_level(vacuum_entity_id)
         observed_at_value = observed_at or _iso_now()
 
@@ -2638,15 +2276,21 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
     ) -> dict[str, Any]:
         """Return upkeep model metadata derived from the upstream device registry."""
+        _catalog = (_get_adapter_config(vacuum_entity_id) or {}).get("upkeep_catalog", {})
+        model_names = _catalog.get("model_names", {})
+        model_guide_families = _catalog.get("model_guide_families", {})
+        guide_family_names = _catalog.get("guide_family_names", {})
+        guide_library = _catalog.get("guide_library", {})
+
         model_code = self._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
-        guide_family = UPKEEP_MODEL_GUIDE_FAMILIES.get(model_code or "")
-        guide_map = UPKEEP_GUIDE_LIBRARY.get(guide_family or "", {})
+        guide_family = model_guide_families.get(model_code or "")
+        guide_map = guide_library.get(guide_family or "", {})
         return {
             "code": model_code,
-            "name": UPKEEP_MODEL_NAMES.get(model_code or "", model_code),
+            "name": model_names.get(model_code or "", model_code),
             "source": "device_registry" if model_code else None,
             "guide_family": guide_family,
-            "guide_family_name": UPKEEP_GUIDE_FAMILY_NAMES.get(guide_family or "", guide_family),
+            "guide_family_name": guide_family_names.get(guide_family or "", guide_family),
             "guide_available": bool(guide_map),
             "supported_guide_components": sorted(guide_map.keys()),
         }
@@ -2654,20 +2298,27 @@ class EufyVacuumManager:
     def _get_upkeep_item_guide(
         self,
         *,
+        vacuum_entity_id: str,
         model_code: str | None,
         component: str,
         item_kind: str,
     ) -> dict[str, Any] | None:
         """Return model-specific upkeep guide metadata for one component."""
-        guide_family = UPKEEP_MODEL_GUIDE_FAMILIES.get(model_code or "")
-        guide = dict(UPKEEP_GUIDE_LIBRARY.get(guide_family or "", {}).get(component, {}))
+        _catalog = (_get_adapter_config(vacuum_entity_id) or {}).get("upkeep_catalog", {})
+        model_names = _catalog.get("model_names", {})
+        model_guide_families = _catalog.get("model_guide_families", {})
+        guide_family_names = _catalog.get("guide_family_names", {})
+        guide_library = _catalog.get("guide_library", {})
+
+        guide_family = model_guide_families.get(model_code or "")
+        guide = dict(guide_library.get(guide_family or "", {}).get(component, {}))
         if not guide:
             return None
 
         guide["source_model_code"] = model_code
-        guide["source_model_name"] = UPKEEP_MODEL_NAMES.get(model_code or "", model_code)
+        guide["source_model_name"] = model_names.get(model_code or "", model_code)
         guide["source_guide_family"] = guide_family
-        guide["source_guide_family_name"] = UPKEEP_GUIDE_FAMILY_NAMES.get(guide_family or "", guide_family)
+        guide["source_guide_family_name"] = guide_family_names.get(guide_family or "", guide_family)
         guide["available"] = True
         guide["maintenance"] = {
             "frequency": guide.get("clean_frequency"),
@@ -2800,6 +2451,28 @@ class EufyVacuumManager:
         docked = vacuum_state_value == "docked"
         active_job_running = active_job.get("status") in {"started", "paused"}
 
+        # Resolve dock state vocabulary from adapter registry.
+        # dock_events.triggers maps framework event keys to the dock_status strings
+        # that signal each dock action is currently in progress.
+        # vocabulary.hard_service_states covers the generic "dock busy" catch-all.
+        # Fall back to the imported Eufy constants when the adapter doesn't declare them.
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        _dock_triggers = _adapter_cfg.get("dock_events", {}).get("triggers", {})
+        _adapter_vocab = _adapter_cfg.get("vocabulary", {})
+
+        def _vocab_set(trigger_key: str) -> frozenset[str]:
+            raw = _dock_triggers.get(trigger_key)
+            if raw is not None:
+                return frozenset(str(s).strip().lower() for s in raw)
+            return frozenset()
+
+        _wash_states: frozenset[str] = _vocab_set("last_mop_wash") or frozenset({"washing", "washing mop"})
+        _dry_states: frozenset[str] = _vocab_set("last_dry_start") or frozenset({"drying", "drying mop", "drying pads", "mop drying"})
+        _empty_states: frozenset[str] = _vocab_set("last_dust_empty") or frozenset({"emptying dust", "emptying dust bin", "dust emptying"})
+        _hard_service_states: frozenset[str] = frozenset(
+            str(s).strip().lower() for s in _adapter_vocab.get("hard_service_states", [])
+        )
+
         def build_action_status(*, action: str, supported: bool, action_entity: str | None) -> dict[str, Any]:
             reason = "ready"
             message = "Ready."
@@ -2821,30 +2494,23 @@ class EufyVacuumManager:
                 reason = "not_docked"
                 message = "The vacuum must be docked before using that dock action."
                 allowed = False
-            elif action == "wash_mop" and dock_status in {"washing", "washing mop"}:
+            elif action == "wash_mop" and dock_status in _wash_states:
                 reason = "already_washing"
                 message = "The dock is already washing the mop."
                 allowed = False
-            elif action == "dry_mop" and dock_status in {"drying", "drying mop", "drying pads", "mop drying"}:
+            elif action == "dry_mop" and dock_status in _dry_states:
                 reason = "already_drying"
                 message = "The dock is already drying the mop."
                 allowed = False
-            elif action == "stop_dry_mop" and dock_status not in {"drying", "drying mop", "drying pads", "mop drying"}:
+            elif action == "stop_dry_mop" and dock_status not in _dry_states:
                 reason = "not_drying"
                 message = "Stop dry is only useful while the dock is actively drying."
                 allowed = False
-            elif action == "empty_dust" and dock_status in {"emptying dust", "emptying dust bin", "dust emptying"}:
+            elif action == "empty_dust" and dock_status in _empty_states:
                 reason = "already_emptying"
                 message = "The dock is already emptying dust."
                 allowed = False
-            elif action != "stop_dry_mop" and dock_status in {
-                "washing",
-                "washing mop",
-                "emptying dust",
-                "emptying dust bin",
-                "dust emptying",
-                "recycling waste water",
-            }:
+            elif action != "stop_dry_mop" and dock_status in _hard_service_states:
                 reason = "dock_busy"
                 message = "The dock is currently busy with another service action."
                 allowed = False
@@ -3070,10 +2736,29 @@ class EufyVacuumManager:
         registry_model = self._get_registry_model_code(vacuum_entity_id=vacuum_entity_id)
         effective_model = detected_model or record.get("detected_model") or registry_model
 
+        # Build detect_capabilities inputs from the adapter registry so the
+        # refresh uses the same entity candidates and model hints as startup.
+        # Falls back gracefully (empty candidates, no hints) if the adapter
+        # is not registered — detect_capabilities returns a minimal result.
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        _adapter_entities = _adapter_cfg.get("entities", {})
+        _entity_candidates: dict[str, list[str]] = {
+            k: [v] for k, v in _adapter_entities.items() if v
+        }
+        _capability_hints: dict[str, bool] = {
+            k: bool(v)
+            for k, v in _adapter_cfg.get("capabilities", {}).items()
+            if isinstance(v, bool)
+        }
+        _maintenance_components = _adapter_cfg.get("maintenance_components") or None
+
         payload = detect_capabilities(
             self.hass,
             vacuum_entity_id=vacuum_entity_id,
             detected_model=effective_model,
+            entity_candidates=_entity_candidates or None,
+            capability_hints=_capability_hints or None,
+            maintenance_components=_maintenance_components,
         )
 
         if effective_model:
@@ -5745,6 +5430,7 @@ class EufyVacuumManager:
                         vacuum_entity_id=vacuum_entity_id,
                         refresh=False,
                     ),
+                    dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
                 ),
                 "preflight": preflight,
             }
@@ -5814,6 +5500,7 @@ class EufyVacuumManager:
                         vacuum_entity_id=vacuum_entity_id,
                         refresh=False,
                     ),
+                    dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
                 ),
                 "preflight": preflight,
             }
@@ -5957,6 +5644,7 @@ class EufyVacuumManager:
             queue_room_ids=queue_state.get("queue_room_ids", []),
             stored_profiles=self.data.get("profiles", {}).get("room_profiles", {}),
             capabilities=capabilities,
+            dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
         )
 
         room_minutes_map = self._room_estimate_minutes_map(
@@ -6102,6 +5790,7 @@ class EufyVacuumManager:
             queue_room_ids=queue_room_ids,
             stored_profiles=stored_profiles,
             capabilities=capabilities,
+            dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
         )
 
         self.data.setdefault("payloads", {})
@@ -6168,15 +5857,39 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         map_id: str,
+        hard_service_states: frozenset[str] | None = None,
+        drying_states: frozenset[str] | None = None,
+        active_run_task_states: frozenset[str] | None = None,
+        active_vacuum_states: frozenset[str] | None = None,
     ) -> dict[str, Any]:
         """Return normalized lifecycle state for one vacuum/map."""
-        object_id = vacuum_entity_id.split(".", 1)[1]
+        # Read vocabulary from adapter registry when not supplied by caller.
+        # Callers that pass explicit sets (e.g. __init__.py lifecycle listener)
+        # bypass this lookup — their values take precedence.
+        if any(v is None for v in (hard_service_states, drying_states, active_run_task_states)):
+            _vocab = (_get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
 
+            def _vocab_frozenset(key: str, fallback: frozenset[str]) -> frozenset[str]:
+                raw = _vocab.get(key)
+                if raw:
+                    return frozenset(str(s).strip().lower() for s in raw)
+                return fallback
+
+            if hard_service_states is None:
+                hard_service_states = _vocab_frozenset("hard_service_states", frozenset())
+            if drying_states is None:
+                drying_states = _vocab_frozenset("drying_states", frozenset())
+            if active_run_task_states is None:
+                active_run_task_states = _vocab_frozenset("active_run_task_states", frozenset())
+        if active_vacuum_states is None:
+            active_vacuum_states = _HA_ACTIVE_VACUUM_STATES
+
+        _lifecycle_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
         vacuum_state = self.hass.states.get(vacuum_entity_id)
-        task_status_state = self.hass.states.get(f"sensor.{object_id}_task_status")
-        dock_status_state = self.hass.states.get(f"sensor.{object_id}_dock_status")
-        active_map_state = self.hass.states.get(f"sensor.{object_id}_active_map")
-        active_target_state = self.hass.states.get(f"sensor.{object_id}_active_cleaning_target")
+        task_status_state = self.hass.states.get(_lifecycle_entities.get("task_status"))
+        dock_status_state = self.hass.states.get(_lifecycle_entities.get("dock_status"))
+        active_map_state = self.hass.states.get(_lifecycle_entities.get("active_map"))
+        active_target_state = self.hass.states.get(_lifecycle_entities.get("active_cleaning_target"))
 
         active_job = self.get_active_job(
             vacuum_entity_id=vacuum_entity_id,
@@ -6206,6 +5919,10 @@ class EufyVacuumManager:
             active_map_id=active_map_state.state if active_map_state else None,
             selected_map_id=str(map_id),
             job_metadata=job_metadata,
+            hard_service_states=hard_service_states,
+            drying_states=drying_states,
+            active_run_task_states=active_run_task_states,
+            active_vacuum_states=active_vacuum_states,
         )
 
         # Surface active-run error context. ErrorTracker holds the latch
@@ -6306,9 +6023,10 @@ class EufyVacuumManager:
         """Build start protection status for one vacuum/map."""
         runtime = self.ensure_runtime(vacuum_entity_id)
 
-        active_map_state = self.hass.states.get(
-            f"sensor.{vacuum_entity_id.split('.', 1)[1]}_active_map"
+        _active_map_entity = (
+            (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("active_map")
         )
+        active_map_state = self.hass.states.get(_active_map_entity) if _active_map_entity else None
 
         start_plan = self._build_effective_start_plan(
             vacuum_entity_id=vacuum_entity_id,
@@ -6580,6 +6298,41 @@ class EufyVacuumManager:
             )
         ))
 
+    def record_active_job_sensor_value(
+        self,
+        *,
+        vacuum_entity_id: str,
+        key: str,
+        value: Any,
+    ) -> bool:
+        """Write a sensor-derived value into all in-flight active jobs for a vacuum.
+
+        Writes to every map bucket that has a started_at and no ended_at —
+        normally only one bucket is active at a time, but the loop is
+        defensive. Returns True if at least one job was updated.
+
+        Called from the job-metrics state listener in __init__.py whenever
+        a tracked sensor (cleaning_time, cleaning_area, etc.) changes during
+        a run. Finalization then reads from active_job_state instead of
+        issuing a live HA state read at job-end, avoiding the DPS timing race.
+        """
+        per_map = self.data.get("active_jobs", {}).get(vacuum_entity_id, {})
+        if not isinstance(per_map, dict):
+            return False
+        updated = False
+        for job in per_map.values():
+            if not isinstance(job, dict):
+                continue
+            if job.get("started_at") and not job.get("ended_at"):
+                job[key] = value
+                updated = True
+        if updated:
+            try:
+                self.hass.async_create_task(self.async_save())
+            except Exception:
+                pass
+        return updated
+
     def clear_active_job(
         self,
         *,
@@ -6692,6 +6445,12 @@ class EufyVacuumManager:
             completed_ids.append(normalized_room_id)
         active_job["completed_room_ids"] = completed_ids
 
+        # Upsert: strip any existing entry for this room then append the new one.
+        # De-duplication bounds the list to at most one entry per unique room ID,
+        # so the safety cap below matches the job's own room count.
+        _queue_room_count = len(active_job.get("queue_room_ids") or [])
+        _completed_rooms_cap = max(_queue_room_count + 1, 20)
+
         completed_rooms = [
             dict(entry)
             for entry in active_job.get("completed_rooms", [])
@@ -6709,7 +6468,7 @@ class EufyVacuumManager:
         if confidence is not None:
             entry["confidence"] = round(float(confidence), 4)
         completed_rooms.append(entry)
-        active_job["completed_rooms"] = completed_rooms
+        active_job["completed_rooms"] = completed_rooms[-_completed_rooms_cap:]
 
         next_room_id = self._derive_active_job_current_room_id(active_job)
         active_job["current_room_id"] = next_room_id
@@ -6885,10 +6644,13 @@ class EufyVacuumManager:
                     stall_ratio = round(current_room_elapsed_minutes / _stall_threshold, 2)
 
                     # Fire event exactly once per room per job.
+                    # The set is bounded to one entry per unique room ID; cap
+                    # mirrors the job's own room count as a safety valve.
                     _notified = set(active_job.get("_stall_notified_room_ids") or [])
                     if current_room_id not in _notified:
                         _notified.add(current_room_id)
-                        active_job["_stall_notified_room_ids"] = list(_notified)
+                        _stall_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
+                        active_job["_stall_notified_room_ids"] = list(_notified)[-_stall_cap:]
                         self.data.setdefault("active_jobs", {}) \
                             .setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
                         _stall_room_name = (
@@ -7176,7 +6938,8 @@ class EufyVacuumManager:
         highest_priority_status = "good"
         priority_rank = {"unknown": 0, "good": 1, "warning": 2, "replace_soon": 3, "replace_now": 4}
 
-        for component, meta in MAINTENANCE_COMPONENTS.items():
+        _maintenance_components = (_get_adapter_config(vacuum_entity_id) or {}).get("maintenance_components", {})
+        for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
             source_entity = sources.get(component)
             replacement_state = self.hass.states.get(source_entity) if source_entity else None
@@ -7253,6 +7016,7 @@ class EufyVacuumManager:
                     else None
                 ),
                 "guide": self._get_upkeep_item_guide(
+                    vacuum_entity_id=vacuum_entity_id,
                     model_code=model_code,
                     component=component,
                     item_kind="replacement",
@@ -7313,6 +7077,7 @@ class EufyVacuumManager:
                     else None
                 ),
                 "guide": self._get_upkeep_item_guide(
+                    vacuum_entity_id=vacuum_entity_id,
                     model_code=model_code,
                     component=component,
                     item_kind="maintenance",
@@ -7326,8 +7091,7 @@ class EufyVacuumManager:
                 if priority_rank.get(status_value, 0) > priority_rank.get(highest_priority_status, 0):
                     highest_priority_status = status_value
 
-        object_id = vacuum_entity_id.split(".", 1)[1]
-        dock_entity = capabilities.get("entities", {}).get("dock_status") or f"sensor.{object_id}_dock_status"
+        dock_entity = capabilities.get("entities", {}).get("dock_status")
         station_water_entity = capabilities.get("entities", {}).get("water_level") or capabilities.get("entities", {}).get("station_water")
         dock_state = self.hass.states.get(dock_entity) if dock_entity else None
         station_water_state = self.hass.states.get(station_water_entity) if station_water_entity else None
@@ -7390,6 +7154,15 @@ class EufyVacuumManager:
             map_id=map_id,
         )
 
+        # Adapter vocabulary is the card's source for user-facing
+        # dropdown option lists (clean_mode_options, fan_speed_options,
+        # water_level_options, clean_intensity_options) plus the alias
+        # maps. Static per adapter — the card uses whatever the adapter
+        # declares rather than probing upstream select entities, which
+        # only exist on some brands.
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        adapter_vocabulary = _adapter_cfg.get("vocabulary", {}) or {}
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -7401,6 +7174,7 @@ class EufyVacuumManager:
             "start_status": start_status,
             "lifecycle": lifecycle,
             "upkeep": upkeep,
+            "adapter_vocabulary": adapter_vocabulary,
             "updated_at": _iso_now(),
         }
 
@@ -7572,8 +7346,7 @@ class EufyVacuumManager:
             blocking=True,
         )
 
-        object_id = vacuum_entity_id.split(".", 1)[1]
-        task_status_entity_id = f"sensor.{object_id}_task_status"
+        task_status_entity_id = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("task_status")
         deadline = self.hass.loop.time() + self._CANCEL_CONFIRM_TIMEOUT_S
         confirmed = False
         last_vac_state: str | None = None
@@ -9335,14 +9108,32 @@ class EufyVacuumManager:
         battery_start = self._get_battery_level(vacuum_entity_id)
         job_id = self._generate_job_id()
 
-        await self.hass.services.async_call(
-            "vacuum",
-            "send_command",
-            {
+        # Read dispatch config so the service call honors brand-specific
+        # service_domain/service_name/command. Eufy-shape defaults preserve
+        # legacy behavior when no adapter is registered.
+        _dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        _service_domain = _dispatch_cfg.get("service_domain", "vacuum")
+        _service_name = _dispatch_cfg.get("service_name", "send_command")
+        _command = _dispatch_cfg.get("command", "room_clean")
+
+        # Two envelope shapes — switched by whether the adapter declared
+        # a `command` field. Wrapped form is the HA send_command pattern
+        # (Eufy, Roborock); direct form is the merge-payload-into-data
+        # pattern used by integrations like dreame_vacuum that expose
+        # their own vacuum_clean_segment service.
+        if _command:
+            _service_data = {
                 "entity_id": vacuum_entity_id,
-                "command": "room_clean",
+                "command": _command,
                 "params": payload,
-            },
+            }
+        else:
+            _service_data = {"entity_id": vacuum_entity_id, **payload}
+
+        await self.hass.services.async_call(
+            _service_domain,
+            _service_name,
+            _service_data,
             blocking=True,
         )
 

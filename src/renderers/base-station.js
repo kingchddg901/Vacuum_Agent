@@ -38,12 +38,33 @@ export function applyBaseStationRenderers(proto) {
     const events = upkeep.dock_events ?? {};
     const pauseTimeoutMinutes = state.pauseTimeoutMinutesDefault?.();
 
-    const actionCards = [
-      this._renderDockActionCard("wash_mop", "Wash Mop", state),
-      this._renderDockActionCard("dry_mop", "Dry Mop", state),
-      this._renderDockActionCard("stop_dry_mop", "Stop Drying", state),
-      this._renderDockActionCard("empty_dust", "Empty Dust", state),
-    ].join("");
+    /* Capability-gated dock action list. The backend's per-action
+       gate exposes `supported: bool` reflecting the adapter's
+       capability flags (supports_mop_wash / supports_mop_dry /
+       supports_empty_dust). Actions not supported by this vacuum
+       are omitted entirely rather than rendered as disabled clutter.
+       `stop_dry_mop` rides on supports_mop_dry. */
+    const _DOCK_ACTIONS = [
+      { id: "wash_mop",     label: "Wash Mop"    },
+      { id: "dry_mop",      label: "Dry Mop"     },
+      { id: "stop_dry_mop", label: "Stop Drying" },
+      { id: "empty_dust",   label: "Empty Dust"  },
+    ];
+    const supportedActions = _DOCK_ACTIONS.filter(
+      ({ id }) => state.dockActionGate?.(id)?.supported !== false,
+    );
+    const actionCards = supportedActions
+      .map(({ id, label }) => this._renderDockActionCard(id, label, state))
+      .join("");
+
+    /* Derive panel-level capability flags from the per-action gates.
+       The Water panel only makes sense for vacuums whose dock exposes
+       a clean-water tank — which is the same surface that wash_mop
+       depends on. The Recent Dock Activity panel only makes sense
+       when at least one event-producing action is supported. */
+    const hasWaterCapability =
+      state.dockActionGate?.("wash_mop")?.supported !== false;
+    const hasAnyDockActivity = supportedActions.length > 0;
 
     return `
       <div class="evcc-base-station-view">
@@ -78,40 +99,50 @@ export function applyBaseStationRenderers(proto) {
             ` : ""}
           </section>
 
-          <section class="evcc-base-station-panel">
-            <div class="evcc-base-station-panel-header">
-              <div>
-                <div class="evcc-base-station-panel-title">Water</div>
-                <div class="evcc-base-station-panel-subtitle">
-                  Current dock water plus projected post-job tank level
+          ${hasWaterCapability ? `
+            <section class="evcc-base-station-panel">
+              <div class="evcc-base-station-panel-header">
+                <div>
+                  <div class="evcc-base-station-panel-title">Water</div>
+                  <div class="evcc-base-station-panel-subtitle">
+                    Current dock water plus projected post-job tank level
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="evcc-base-station-stats">
-              ${this._renderBaseStationStat("Station Water", state.stationWaterLabel?.() || this._formatBaseStationWaterLevel(upkeep.station_water))}
-              ${this._renderBaseStationStat("Tank Now", this._formatBaseStationMilliliters(plannedWater?.available_clean_tank_ml))}
-              ${this._renderBaseStationStat("After Job", this._formatBaseStationProjectedTank(plannedWater))}
-              ${this._renderBaseStationStat("Job Use", this._formatBaseStationMilliliters(plannedWater?.estimated_total_dock_clean_water_used_ml))}
-            </div>
-          </section>
+              <div class="evcc-base-station-stats">
+                ${this._renderBaseStationStat("Station Water", state.stationWaterLabel?.() || this._formatBaseStationWaterLevel(upkeep.station_water))}
+                ${this._renderBaseStationStat("Tank Now", this._formatBaseStationMilliliters(plannedWater?.available_clean_tank_ml))}
+                ${this._renderBaseStationStat("After Job", this._formatBaseStationProjectedTank(plannedWater))}
+                ${this._renderBaseStationStat("Job Use", this._formatBaseStationMilliliters(plannedWater?.estimated_total_dock_clean_water_used_ml))}
+              </div>
+            </section>
+          ` : ""}
 
-          <section class="evcc-base-station-panel evcc-base-station-panel--wide">
-            <div class="evcc-base-station-panel-header">
-              <div>
-                <div class="evcc-base-station-panel-title">Recent Dock Activity</div>
-                <div class="evcc-base-station-panel-subtitle">
-                  Last known mop wash, dust empty, and drying activity
+          ${hasAnyDockActivity ? `
+            <section class="evcc-base-station-panel evcc-base-station-panel--wide">
+              <div class="evcc-base-station-panel-header">
+                <div>
+                  <div class="evcc-base-station-panel-title">Recent Dock Activity</div>
+                  <div class="evcc-base-station-panel-subtitle">
+                    Last known dock service activity
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="evcc-base-station-activity-grid">
-              ${this._renderBaseStationActivityCard("Mop Wash", events.last_mop_wash, events.mop_wash_count)}
-              ${this._renderBaseStationActivityCard("Dust Empty", events.last_dust_empty, events.dust_empty_count)}
-              ${this._renderBaseStationActivityCard("Dry Start", events.last_dry_start, events.dry_start_count, events.last_dry_duration)}
-            </div>
-          </section>
+              <div class="evcc-base-station-activity-grid">
+                ${state.dockActionGate?.("wash_mop")?.supported !== false
+                  ? this._renderBaseStationActivityCard("Mop Wash", events.last_mop_wash, events.mop_wash_count)
+                  : ""}
+                ${state.dockActionGate?.("empty_dust")?.supported !== false
+                  ? this._renderBaseStationActivityCard("Dust Empty", events.last_dust_empty, events.dust_empty_count)
+                  : ""}
+                ${state.dockActionGate?.("dry_mop")?.supported !== false
+                  ? this._renderBaseStationActivityCard("Dry Start", events.last_dry_start, events.dry_start_count, events.last_dry_duration)
+                  : ""}
+              </div>
+            </section>
+          ` : ""}
 
           <section class="evcc-base-station-panel evcc-base-station-panel--wide">
             <div class="evcc-base-station-panel-header">
@@ -134,20 +165,22 @@ export function applyBaseStationRenderers(proto) {
             </div>
           </section>
 
-          <section class="evcc-base-station-panel evcc-base-station-panel--wide">
-            <div class="evcc-base-station-panel-header">
-              <div>
-                <div class="evcc-base-station-panel-title">Dock Actions</div>
-                <div class="evcc-base-station-panel-subtitle">
-                  Backend-gated dock controls
+          ${supportedActions.length > 0 ? `
+            <section class="evcc-base-station-panel evcc-base-station-panel--wide">
+              <div class="evcc-base-station-panel-header">
+                <div>
+                  <div class="evcc-base-station-panel-title">Dock Actions</div>
+                  <div class="evcc-base-station-panel-subtitle">
+                    Backend-gated dock controls
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="evcc-base-station-action-grid">
-              ${actionCards}
-            </div>
-          </section>
+              <div class="evcc-base-station-action-grid">
+                ${actionCards}
+              </div>
+            </section>
+          ` : ""}
 
         </div>
       </div>

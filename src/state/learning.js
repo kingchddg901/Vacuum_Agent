@@ -193,6 +193,39 @@ export function applyLearningState(proto) {
     return this.dashboardSnapshot()?.upkeep ?? null;
   };
 
+  /**
+   * Adapter-declared vocabulary surface from the dashboard snapshot.
+   * Contains the option lists the card's room editor and rule editor
+   * use to populate dropdowns (clean_mode_options / fan_speed_options /
+   * water_level_options / clean_intensity_options) plus alias maps.
+   * Each option list is `[{value, label}, ...]`.
+   */
+  proto.dashboardAdapterVocabulary = function () {
+    return this.dashboardSnapshot()?.adapter_vocabulary ?? null;
+  };
+
+  /**
+   * Return the adapter-declared option list for one dropdown role.
+   *
+   * @param {string} roleKey - One of "clean_mode" / "fan_speed" /
+   *                           "water_level" / "clean_intensity".
+   * @returns {Array<{value: string, label: string}>} List of options,
+   *   or `[]` when the adapter hasn't declared one for this role.
+   */
+  proto.adapterOptionsFor = function (roleKey) {
+    const vocab = this.dashboardAdapterVocabulary();
+    const list = vocab?.[`${roleKey}_options`];
+    return Array.isArray(list) ? list : [];
+  };
+
+  /**
+   * Convenience: just the `value` strings from adapterOptionsFor(role).
+   * Useful where the card historically worked with flat string arrays.
+   */
+  proto.adapterOptionValuesFor = function (roleKey) {
+    return this.adapterOptionsFor(roleKey).map((o) => o?.value).filter(Boolean);
+  };
+
   proto.dashboardStatusSummary = function () {
     return this.dashboardSnapshot()?.status_summary ?? null;
   };

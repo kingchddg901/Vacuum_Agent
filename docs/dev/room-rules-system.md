@@ -193,7 +193,7 @@ The backend does not enforce this constraint itself; it trusts the frontend to s
 
 ### When rules are evaluated
 
-Rules are evaluated **once: at job start time**, inside `_build_effective_start_plan`. This method is called by `get_start_status` (which drives the card's preflight display) and again at the top of `start_selected_rooms` to produce the final effective plan before the API call.
+Rules are evaluated **once: at job start time**, inside `_build_effective_start_plan`. This method is called by `get_start_status` (which drives the card's preflight display) and again at the top of `start_selected_rooms` to produce the final effective plan before the API call — see [queue-engine.md](queue-engine.md) for the queue and payload builders the effective plan feeds into.
 
 The only other evaluation site is `get_runtime_path_block_report`, which re-evaluates **blocker rules only** mid-job as entity states change (see section 7).
 

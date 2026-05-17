@@ -2,14 +2,22 @@
 
 from __future__ import annotations
 
-DOMAIN = "eufy_vacuum"
-NAME = "Eufy Vacuum Manager"
-VERSION = "0.9.0"
+# Adapter-specific identity constants — DOMAIN, NAME, VERSION, DEFAULT_TITLE,
+# and SUPPORTED_TESTED_MODEL live in the adapter package so that porting to a
+# different vacuum ecosystem only requires changing that one file.
+# NOTE: STORAGE_KEY must also be explicitly declared in the adapter rather than
+# derived from DOMAIN at runtime, to ensure storage isolation across adapters.
+# This will be addressed in a later pass.
+from .adapters.eufy.const import (
+    DEFAULT_TITLE,
+    DOMAIN,
+    NAME,
+    SUPPORTED_TESTED_MODEL,
+    VERSION,
+)
 
 CONF_TESTED_MODEL = "tested_model"
 CONF_NOTES = "notes"
-
-DEFAULT_TITLE = NAME
 
 # ----------------------
 # Service names
@@ -77,6 +85,16 @@ SERVICE_START_RUN_PROFILE = "start_run_profile"
 SERVICE_GET_VACUUM_CAPABILITIES = "get_vacuum_capabilities"
 
 # ----------------------
+# Adapter config services
+# ----------------------
+
+SERVICE_SAVE_ADAPTER_CONFIG = "save_adapter_config"
+SERVICE_DELETE_ADAPTER_CONFIG = "delete_adapter_config"
+SERVICE_GET_ADAPTER_CONFIG = "get_adapter_config"
+SERVICE_DISCOVER_ADAPTER_ENTITIES = "discover_adapter_entities"
+SERVICE_OBSERVE_ENTITY_STATES = "observe_entity_states"
+
+# ----------------------
 # Learning services
 # ----------------------
 
@@ -95,6 +113,8 @@ SERVICE_SETUP_IMPORT_MAP    = "setup_import_active_map"
 SERVICE_SETUP_GET_MAP_ROOMS = "setup_get_map_rooms"
 SERVICE_SETUP_SAVE_ROOMS    = "setup_save_rooms"
 SERVICE_SETUP_DELETE_MAP    = "setup_delete_map"
+SERVICE_SETUP_REJECT_ROOMS  = "setup_reject_rooms"
+SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room"
 
 # ----------------------
 # Mapping services
@@ -149,10 +169,10 @@ DATA_ERROR_TRACKER = "error_tracker"
 # Events
 # ----------------------
 
-EVENT_JOB_FINISHED = "eufy_vacuum_job_finished"
-EVENT_ROOM_STARTED = "eufy_vacuum_room_started"
-EVENT_ROOM_FINISHED = "eufy_vacuum_room_finished"
-EVENT_PATH_BLOCKED = "eufy_vacuum_path_blocked"
+EVENT_JOB_FINISHED       = f"{DOMAIN}_job_finished"
+EVENT_ROOM_STARTED       = f"{DOMAIN}_room_started"
+EVENT_ROOM_FINISHED      = f"{DOMAIN}_room_finished"
+EVENT_PATH_BLOCKED       = f"{DOMAIN}_path_blocked"
 
 # Fired every 5 s while at least one vacuum has an active job. The backend
 # drives this — the dashboard card subscribes and refreshes its snapshot
@@ -160,24 +180,24 @@ EVENT_PATH_BLOCKED = "eufy_vacuum_path_blocked"
 # should treat the payload as a "refresh now" trigger and re-read the
 # snapshot via the existing service. See _register_job_progress_listener
 # in __init__.py for the rationale.
-EVENT_JOB_PROGRESS_TICK = "eufy_vacuum_job_progress_tick"
+EVENT_JOB_PROGRESS_TICK  = f"{DOMAIN}_job_progress_tick"
 
 # Fired from get_job_progress_snapshot() when the robot has been in a room for
 # >= 2× its learned timing threshold and awaiting_bounds_exit is already true.
 # Fires at most once per room per job (tracked via _stall_notified_room_ids in
 # the active job dict).  Payload: vacuum_entity_id, map_id, room_id, room_name,
 # elapsed_minutes, expected_minutes, stall_ratio.
-EVENT_STALL_DETECTED = "eufy_vacuum_stall_detected"
+EVENT_STALL_DETECTED     = f"{DOMAIN}_stall_detected"
 
 # Fired from finalize_learning_job after a cancelled/failed/interrupted job
 # when at least one queued room was not cleaned.  Payload: vacuum_entity_id,
 # job_id, outcome_status, missed_room_ids (list of ints), missed_rooms
 # (list of {room_id, name} dicts).  Use with the retry_missed_rooms service
 # to automatically re-queue the skipped rooms.
-EVENT_RUN_INCOMPLETE = "eufy_vacuum_run_incomplete"
+EVENT_RUN_INCOMPLETE     = f"{DOMAIN}_run_incomplete"
 
 # ----------------------
 # Supported / tested
 # ----------------------
 
-SUPPORTED_TESTED_MODEL = "Eufy X10 Pro Omni"
+# SUPPORTED_TESTED_MODEL is imported from adapters/eufy/const.py above.

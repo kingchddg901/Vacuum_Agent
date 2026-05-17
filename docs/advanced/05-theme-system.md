@@ -156,11 +156,39 @@ Setting a new active theme clears the working draft if the service response indi
 
 ## Import and export
 
-Export and Import buttons appear in the lower-left of the editor footer.
+Four buttons in the lower-left of the editor footer give you two
+transport options (clipboard and file) for moving themes in and out:
 
-**Export** calls `export_theme` for the currently active theme and copies the resulting JSON to your clipboard. If clipboard access is unavailable, the JSON is printed to the browser console instead. There is no active theme, the export button shows an alert and does nothing.
+| Button | Transport | Best for |
+|--------|-----------|----------|
+| **Export** | Clipboard | Quick one-session paste into a sibling tab or chat |
+| **Import** | Clipboard | Pasting a theme JSON you copied from somewhere else |
+| **Download** | File | Backing up a theme, sharing it as a file attachment, or migrating between Home Assistant installs |
+| **Upload** | File | Loading a theme `.json` file someone shared, restoring a backup, or migrating from a previous install |
 
-**Import** opens a browser prompt where you paste JSON. If the JSON parses successfully, the card calls `import_theme` with the parsed payload and then refreshes the theme library. If the JSON is invalid, you see an error alert.
+### Export (clipboard)
+
+Calls `export_theme` for the currently active theme and copies the resulting JSON to your clipboard. If clipboard access is unavailable, the JSON is printed to the browser console instead. When there is no active theme, the button shows an alert and does nothing.
+
+### Import (clipboard)
+
+Opens a browser prompt where you paste JSON. If the JSON parses successfully, the card calls `import_theme` with the parsed payload and then refreshes the theme library. If the JSON is invalid, you see an error alert.
+
+### Download (file)
+
+Calls `export_theme` for the currently active theme, then triggers a browser file download of the JSON. The filename uses the theme name plus today's date — for example `evcc-theme-midnight-2026-05-17.json` — so you can tell different exports apart at a glance.
+
+This is the recommended way to:
+
+- **Share a theme** with someone else — post the file in a forum thread or attach it to a message
+- **Back up a theme** before making risky edits, so you can restore it via Upload if things go wrong
+- **Migrate a theme** to a different Home Assistant install (or to a future version of this integration)
+
+### Upload (file)
+
+Opens a file picker for `.json` files. After you pick one, the card reads the file, JSON-parses the contents, and calls `import_theme` with the result. On success you see a confirmation with the filename; on failure (invalid JSON, unsupported shape) you see an error alert with the filename for context.
+
+Themes don't reference your specific entities, room IDs, or vacuum brand — they're pure visual styling data — so a theme exported on one install will work cleanly when uploaded on another.
 
 ---
 

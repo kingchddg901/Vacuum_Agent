@@ -60,6 +60,13 @@ def build_managed_rooms(
             or str(existing.get("floor_type", "hardwood"))
         )
 
+        # Calling build_managed_rooms with a room ID in enabled_room_ids
+        # is the user's explicit approval — stamp is_configured=True.
+        # Preserve a previous configured_at when present; otherwise set
+        # now so the response includes a defined timestamp.
+        from ..learning.utils import _iso_now
+        existing_configured_at = existing.get("configured_at")
+
         room_config = RoomConfig(
             room_id=room_id,
             map_id=str(room["map_id"]),
@@ -79,6 +86,8 @@ def build_managed_rooms(
             is_dock_room=bool(existing.get("is_dock_room", False)),
             grants_access_to=list(existing.get("grants_access_to", [])),
             rules=list(existing.get("rules", [])),
+            is_configured=True,
+            configured_at=existing_configured_at or _iso_now(),
         )
 
         managed[room_id_key] = room_config.as_dict()

@@ -52,6 +52,8 @@ from homeassistant.helpers.event import (
     async_track_state_change_event,
 )
 
+from ..adapters.registry import get_adapter_config
+
 if TYPE_CHECKING:
     from .manager import EufyVacuumManager
 
@@ -59,13 +61,10 @@ _LOGGER = logging.getLogger(__name__)
 
 # === TUNABLES ================================================================
 
-#: Strings the upstream may emit that mean "no error". Anything else is
-#: treated as an error message. The dead ``error_code=0 → "NONE"`` branch in
-#: the upstream constants makes ``"NONE"`` important to include alongside
-#: the obvious empty / unknown / unavailable values.
-_NOT_ERROR: frozenset[str] = frozenset(
-    {"", "unknown", "unavailable", "none", "normal"}
-)
+# Generic not-error sentinel set — standard HA empty/unavailable states.
+# Brand-specific sentinels come from adapter_config.vocabulary.not_error_sentinels.
+# This is only the last-resort fallback when no adapter is registered.
+_NOT_ERROR: frozenset[str] = frozenset({"", "unknown", "unavailable"})
 
 #: How long to wait after ``vacuum.<obj>`` flips to ``"error"`` for a real
 #: ``error_message`` to arrive before finalising the latch with a generic
@@ -86,12 +85,33 @@ def _iso_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _is_error_value(value: Any) -> bool:
+def _is_error_value(
+    value: Any,
+    *,
+    not_error: frozenset[str] = _NOT_ERROR,
+) -> bool:
     """Return True if ``value`` looks like a real error string."""
     if value is None:
         return False
     text = str(value).strip().lower()
-    return bool(text) and text not in _NOT_ERROR
+    return bool(text) and text not in not_error
+
+
+def _get_not_error_set(vacuum_entity_id: str) -> frozenset[str]:
+    """Return the not-error sentinel set for this vacuum.
+
+    Reads from the adapter registry. Falls back to the generic HA sentinel
+    set (_NOT_ERROR) when the adapter is not registered or has no vocabulary.
+    Never raises.
+    """
+    try:
+        config = get_adapter_config(vacuum_entity_id)
+        sentinels = (config or {}).get("vocabulary", {}).get("not_error_sentinels")
+        if sentinels:
+            return frozenset(str(s).strip().lower() for s in sentinels)
+    except Exception:
+        pass
+    return _NOT_ERROR
 
 
 def _safe_int(value: Any) -> int | None:
@@ -150,6 +170,11 @@ class ErrorTracker:
         # Update notifications for sensors / binary_sensors. Same shape as
         # BatteryHealthManager.add_update_listener.
         self._update_listeners: list[Callable[[str], None]] = []
+        # Per-vacuum entity ID map: vacuum_entity_id → {entity_key: entity_id}.
+        # Populated by _wire_vacuum from the adapter registry. None values mean
+        # the adapter did not declare that entity — the corresponding channel
+        # is skipped rather than falling back to brand-specific naming conventions.
+        self._vacuum_entities: dict[str, dict[str, str | None]] = {}
 
     # -- listener registration ----------------------------------------------
 
@@ -248,28 +273,47 @@ class ErrorTracker:
                 pass
         self._grace_cancels.clear()
         self._source_to_vacuum.clear()
+        self._vacuum_entities.clear()
 
     def _wire_vacuum(self, vacuum_entity_id: str) -> None:
         if vacuum_entity_id in self._vacuum_unsubs:
             return
 
-        # Derive upstream entity ids by object_id, matching the rest of the
-        # integration's convention. If the user renames the upstream sensor,
-        # this lookup breaks — same constraint as task_status / dock_status /
-        # cleaning_area lookups elsewhere. The plan explicitly accepts this
-        # parity over a registry-based lookup.
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        error_message_entity = f"sensor.{object_id}_error_message"
-        task_status_entity = f"sensor.{object_id}_task_status"
+        config = get_adapter_config(vacuum_entity_id)
+        entities = (config or {}).get("entities", {})
 
-        self._source_to_vacuum[error_message_entity] = vacuum_entity_id
-        self._source_to_vacuum[task_status_entity] = vacuum_entity_id
+        # Resolve entity IDs from the adapter registry only — no brand-specific fallbacks.
+        # If the adapter did not declare an entity, that channel is simply absent.
+        # Skipping silently is correct: the vacuum entity itself (always present)
+        # is still wired, so the secondary-error path continues to function.
+        error_message_entity: str | None = entities.get("error_message") or None
+        task_status_entity: str | None = entities.get("task_status") or None
+
+        # Store entity IDs so every subsequent method can look them up without
+        # reconstructing them from object_id or calling the registry again.
+        self._vacuum_entities[vacuum_entity_id] = {
+            "error_message": error_message_entity,
+            "task_status": task_status_entity,
+        }
+
         self._source_to_vacuum[vacuum_entity_id] = vacuum_entity_id
+        if error_message_entity:
+            self._source_to_vacuum[error_message_entity] = vacuum_entity_id
+        if task_status_entity:
+            self._source_to_vacuum[task_status_entity] = vacuum_entity_id
 
         self._ensure_record(vacuum_entity_id)
 
+        # Build the watch list from the entities that are actually declared.
+        # vacuum_entity_id is always included (HA-standard secondary channel).
+        watch_entities = [vacuum_entity_id]
+        if error_message_entity:
+            watch_entities.append(error_message_entity)
+        if task_status_entity:
+            watch_entities.append(task_status_entity)
+
         unsubs: list[Callable[[], None]] = []
-        # Three signal sources, each routed by entity_id in _on_state_event:
+        # Signal sources, each routed by entity_id in _on_state_event:
         # - error_message: primary; supplies the human-readable string and
         #   numeric code when upstream surfaces them
         # - vacuum.state: HA-derived; flips to "error" when upstream
@@ -283,7 +327,7 @@ class ErrorTracker:
         unsubs.append(
             async_track_state_change_event(
                 self._hass,
-                [error_message_entity, task_status_entity, vacuum_entity_id],
+                watch_entities,
                 self._on_state_event,
             )
         )
@@ -306,8 +350,8 @@ class ErrorTracker:
             self._handle_secondary_error_signal(vacuum_entity_id)
             return
 
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        if entity_id == f"sensor.{object_id}_task_status":
+        _ts_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("task_status")
+        if _ts_entity and entity_id == _ts_entity:
             # task_status string transition. Parallel to vacuum.state — same
             # upstream condition (WorkStatus.state == 2 → "Error") routes
             # through this string sensor. Defensive secondary channel:
@@ -333,19 +377,14 @@ class ErrorTracker:
         schedule a grace window (any channel rising → schedule) and whether
         to cancel one (all channels back to normal → cancel).
         """
-        object_id = vacuum_entity_id.split(".", 1)[-1]
         vac = self._hass.states.get(vacuum_entity_id)
-        if (
-            vac is not None
-            and str(vac.state or "").strip().lower() == "error"
-        ):
+        if vac is not None and str(vac.state or "").strip().lower() == "error":
             return True
-        ts = self._hass.states.get(f"sensor.{object_id}_task_status")
-        if (
-            ts is not None
-            and str(ts.state or "").strip().lower() == "error"
-        ):
-            return True
+        _ts_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("task_status")
+        if _ts_entity:
+            ts = self._hass.states.get(_ts_entity)
+            if ts is not None and str(ts.state or "").strip().lower() == "error":
+                return True
         return False
 
     def _handle_secondary_error_signal(self, vacuum_entity_id: str) -> None:
@@ -357,11 +396,32 @@ class ErrorTracker:
 
         - At least one secondary channel in error AND no error_message yet
           → schedule grace timer (idempotent — only schedules once)
-        - All secondary channels back to normal → cancel grace
+        - All secondary channels back to normal → cancel grace; if the
+          active-run latch has an unrecovered entry AND error_message is
+          still empty, emit a falling edge so recovered/recovered_at are
+          set. Firmware that never populates error_message (e.g. brush-stuck
+          events on some dock models) has no other clearing signal.
         - error_message already populated → no-op (message handler latches)
         """
         if not self._is_in_secondary_error(vacuum_entity_id):
             self._cancel_grace(vacuum_entity_id)
+            # Secondary channels have both cleared. Emit a falling edge if:
+            #   1. There is an active-run latch with recovered=False, AND
+            #   2. error_message is NOT currently in an error state.
+            # Condition 2 prevents double-firing when error_message IS
+            # populated — in that case the primary channel (_handle_error_
+            # message_change) owns the latch and will emit its own falling
+            # edge when the message clears.
+            record = self._ensure_record(vacuum_entity_id)
+            latch = record.get("active_run_error")
+            if isinstance(latch, dict) and not latch.get("recovered"):
+                err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
+                msg_state = self._hass.states.get(err_msg_entity) if err_msg_entity else None
+                msg_value = msg_state.state if msg_state is not None else None
+                if not _is_error_value(
+                    msg_value, not_error=_get_not_error_set(vacuum_entity_id)
+                ):
+                    self._record_falling_edge(vacuum_entity_id)
             return
 
         # Already in error state on at least one channel — schedule grace if
@@ -371,10 +431,10 @@ class ErrorTracker:
 
         # If error_message is already populated, don't bother with the grace
         # window — the message handler will (or already did) latch.
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        msg_state = self._hass.states.get(f"sensor.{object_id}_error_message")
+        _err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
+        msg_state = self._hass.states.get(_err_msg_entity) if _err_msg_entity else None
         msg_value = msg_state.state if msg_state is not None else None
-        if _is_error_value(msg_value):
+        if _is_error_value(msg_value, not_error=_get_not_error_set(vacuum_entity_id)):
             return
 
         self._grace_cancels[vacuum_entity_id] = async_call_later(
@@ -406,14 +466,22 @@ class ErrorTracker:
         # Re-check the message in case it arrived after the timer fired but
         # before this callback ran — the message handler would have already
         # latched in that case.
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        msg_state = self._hass.states.get(f"sensor.{object_id}_error_message")
+        config = get_adapter_config(vacuum_entity_id)
+        error_config = (config or {}).get("error_tracking", {})
+
+        unknown_message = (
+            error_config.get("unknown_error_message")
+            or "Unknown error during run"
+        )
+
+        _err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
+        msg_state = self._hass.states.get(_err_msg_entity) if _err_msg_entity else None
         msg_value = msg_state.state if msg_state is not None else None
         if _is_error_value(msg_value):
             return
         self._record_rising_edge(
             vacuum_entity_id,
-            message="Unknown error during run",
+            message=unknown_message,
             code=None,
             attribute_code=None,
         )
@@ -426,8 +494,9 @@ class ErrorTracker:
         old_state: str | None,
         new_state: str | None,
     ) -> None:
-        was_error = _is_error_value(old_state)
-        is_error = _is_error_value(new_state)
+        _not_error = _get_not_error_set(vacuum_entity_id)
+        was_error = _is_error_value(old_state, not_error=_not_error)
+        is_error = _is_error_value(new_state, not_error=_not_error)
 
         if is_error:
             # Cancel any pending grace timer — we have a real message now.
@@ -460,11 +529,8 @@ class ErrorTracker:
         better to record None ("we don't know the code") than to claim
         zero, which has a different meaning in the upstream's vocabulary.
         """
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        for entity_id in (
-            f"sensor.{object_id}_error_message",
-            vacuum_entity_id,
-        ):
+        _err_msg_entity = self._vacuum_entities.get(vacuum_entity_id, {}).get("error_message")
+        for entity_id in filter(None, (_err_msg_entity, vacuum_entity_id)):
             state = self._hass.states.get(entity_id)
             if state is None:
                 continue

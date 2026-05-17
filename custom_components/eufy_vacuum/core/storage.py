@@ -7,10 +7,9 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
-from ..const import DOMAIN
+from ..adapters.eufy.const import STORAGE_KEY as STORAGE_KEY  # noqa: F401
 
 STORAGE_VERSION = 1
-STORAGE_KEY = f"{DOMAIN}.storage"
 
 
 class EufyVacuumStorage:

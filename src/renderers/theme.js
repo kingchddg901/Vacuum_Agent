@@ -802,12 +802,36 @@ export function applyThemeRenderers(proto) {
     return `
       <div class="evcc-view-footer">
         <div class="footer-left">
-          <button class="evcc-chip" data-action="export-theme">
+          <button
+            class="evcc-chip"
+            data-action="export-theme"
+            title="Copy theme JSON to clipboard"
+          >
             Export
           </button>
 
-          <button class="evcc-chip" data-action="import-theme">
+          <button
+            class="evcc-chip"
+            data-action="import-theme"
+            title="Paste theme JSON from clipboard"
+          >
             Import
+          </button>
+
+          <button
+            class="evcc-chip"
+            data-action="download-theme"
+            title="Download theme as a .json file"
+          >
+            Download
+          </button>
+
+          <button
+            class="evcc-chip"
+            data-action="upload-theme"
+            title="Upload a theme .json file"
+          >
+            Upload
           </button>
         </div>
 

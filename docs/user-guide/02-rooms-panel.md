@@ -98,7 +98,7 @@ When the room's settings do not match any saved profile, the **Custom** chip is 
 
 ### Cleaning Mode
 
-Selects what the vacuum does in this room. The options available depend on what your vacuum entity reports. Common options:
+Selects what the vacuum does in this room. The options available are the modes your vacuum supports. Common options:
 
 - **Vacuum** — suction only; no mopping.
 - **Mop** — mopping only; no suction.
@@ -108,17 +108,17 @@ Carpet rooms are locked to vacuum-only modes and show a notice in the editor. Mo
 
 ### Suction Level
 
-Selects how hard the vacuum's motor works in this room. The exact options (such as Standard, Boost, Max, or similar) come from your vacuum entity. A higher suction level uses more battery and takes longer but picks up more debris.
+Selects how hard the vacuum's motor works in this room. The exact options (such as Standard, Boost, Max, or similar) reflect what your vacuum supports. A higher suction level uses more battery and takes longer but picks up more debris.
 
 ### Water Level
 
 Only shown when the selected cleaning mode includes mopping and the room is not carpet.
 
-Sets how much water the mop pad receives. The exact options come from your vacuum entity (typically something like Low, Medium, High, or Off). Setting this to Off effectively disables mopping even if a mop mode is selected.
+Sets how much water the mop pad receives. The exact options (typically something like Low, Medium, High, or Off) reflect what your vacuum supports. Setting this to Off effectively disables mopping even if a mop mode is selected.
 
 ### Cleaning Path
 
-Controls how thoroughly the vacuum covers the room. Options come from your vacuum entity. Common values include Standard (single efficient pass) and deeper options that make the vacuum cover the room more completely — at the cost of time.
+Controls how thoroughly the vacuum covers the room. The exact options reflect what your vacuum supports. Common values include Standard (single efficient pass) and deeper options that make the vacuum cover the room more completely — at the cost of time. Vacuums that don't expose this concept simply omit the row.
 
 If you later change the Cleaning Path and the room already has a learned time estimate from a different path setting, a warning note on the room card will say "intensity mismatch" to let you know the estimate may be inaccurate until new data is collected.
 

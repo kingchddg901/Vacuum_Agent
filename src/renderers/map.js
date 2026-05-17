@@ -12,8 +12,10 @@
 /* =========================================================
    VACUUM STATE → ANIMAL POSE
    =========================================================
-   Maps HA vacuum entity state strings to animal-svg poses.
-   Covers all states the Eufy X10 can report.
+   Maps HA vacuum-platform standard state strings to animal-svg
+   poses. The mapping is brand-agnostic — every HA vacuum
+   integration reports the same canonical state set
+   (cleaning / returning / paused / error / docked / idle).
    ========================================================= */
 
 function _vacuumStateToPose(vacuumStatus) {

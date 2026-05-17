@@ -2,7 +2,7 @@
 
 > **Scope:** This document is a complete implementation reference for the `eufy_vacuum` battery health subsystem. Every formula, constant, threshold, file path, and storage shape is derived directly from the source. A developer should be able to re-implement the system from this document alone.
 
-For user-facing material see [user-guide/13-battery-health.md](../user-guide/13-battery-health.md). For automation and zone-rationale depth see [advanced/09-battery-health.md](../advanced/09-battery-health.md).
+For user-facing material see [user-guide/13-battery-health.md](../user-guide/13-battery-health.md). For automation and zone-rationale depth see [advanced/09-battery-health.md](../advanced/09-battery-health.md). For the wider system the battery manager plugs into, see [architecture-overview.md](architecture-overview.md); the battery sensor entities that surface this data are documented in [ha-integration.md](ha-integration.md).
 
 ---
 
@@ -218,14 +218,16 @@ Why both entities? `sensor.<vac>_battery` carries the level; `vacuum.<vac>` carr
 
 ### 5.1.1 Charging detection — `EufyVacuumManager._is_charging`
 
-The battery system delegates the "is the vacuum charging right now" check to `EufyVacuumManager._is_charging(vacuum_entity_id)`. The helper has two-layer logic:
+The battery system delegates the "is the vacuum charging right now" check to `EufyVacuumManager._is_charging(vacuum_entity_id)`. The helper reads the dedicated charging binary sensor declared by the adapter at [`adapter_config.entities.charging`](adapter-config-reference.md#5-entities--the-role-to-entity-id-map) — for Eufy, this resolves to `binary_sensor.<object_id>_charging`.
 
-1. **Primary: `binary_sensor.<object_id>_charging`.** The upstream eufy-clean integration emits a clean on/off entity that flips precisely when charging starts and stops. If the entity exists and reads `on` or `off`, that's the answer.
-2. **Fallback: `_is_recharge_like_state(vacuum_state, task_status, dock_status)`.** Substring matching on the vacuum's own state plus its task_status / dock_status sensors. Used when the binary sensor is missing or in `unavailable` / `unknown`.
+The check is intentionally **single-source**:
 
-The fallback has known false negatives — most importantly, post-job recharges where `task_status` lingers as `"completed"` after job finalisation, which short-circuits the helper's terminal-state check to `False` even while the vacuum is plainly charging. A real-world JSONL trace caught this: every sample during a clean 84→100 recharge logged `charging: false`, no session opened, no entry hit `session_history_recent`, and the baseline could never anchor. The binary sensor flipped cleanly across the same window. Lesson: prefer the dedicated entity when the upstream integration provides one; never substring-match state strings if there's a definitive signal.
+- If the entity exists and reads `on` or `off`, that's the answer.
+- If the entity is absent, `unknown`, or `unavailable`, the method returns `False`. No substring-on-state-strings fallback.
 
-The same `_is_charging` method is reused by `core/manager.update_active_job_recharge_observation` for mid-job recharge detection (paused-job → recharging → resume). Single source of truth across the integration. `_is_recharge_like_state` is kept as the substring fallback path; new callers should use `_is_charging` instead.
+The substring fallback used to exist (under the name `_is_recharge_like_state`) and had a known false-negative: post-job recharges where `task_status` lingered as `"completed"` after job finalisation short-circuited the terminal-state check to `False` even while the vacuum was plainly charging. A real-world JSONL trace caught this — every sample during a clean 84→100 recharge logged `charging: false`, no session opened, the baseline never anchored. The binary sensor flipped cleanly across the same window. That fallback was removed; the lesson encoded in the current single-source approach is **prefer the dedicated upstream signal; never substring-match state strings if there's a definitive entity**.
+
+The same `_is_charging` method is reused by `core/manager.update_active_job_recharge_observation` for mid-job recharge detection (paused-job → recharging → resume). Single source of truth across the integration.
 
 ### 5.2 `_process_sample`
 

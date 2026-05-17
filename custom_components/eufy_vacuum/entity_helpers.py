@@ -38,9 +38,31 @@ def make_room_entity_name(
     return f"{_friendly_vacuum_name(vacuum_entity_id)} {room_name} {label}"
 
 
-def sort_room_items(rooms: dict[str, dict[str, Any]]) -> list[tuple[str, dict[str, Any]]]:
-    """Return rooms sorted by order then name."""
+def sort_room_items(
+    rooms: dict[str, dict[str, Any]],
+    *,
+    configured_only: bool = True,
+) -> list[tuple[str, dict[str, Any]]]:
+    """Return rooms sorted by order then name.
+
+    Filters out unconfigured rooms by default — rooms whose
+    ``is_configured`` flag is not True. This is the entity-creation
+    gate: discovered-but-not-yet-approved rooms (newly surfaced by the
+    drift detector, awaiting user review on the setup tab) do not
+    materialize as HA entities until the user explicitly configures
+    them via setup_save_rooms.
+
+    ``configured_only=False`` opts out and returns every room
+    regardless of state — useful for setup flows and diagnostics that
+    need to list discovered rooms pre-approval. No current caller
+    needs this; it's available for future setup-side iteration.
+    """
     items = list(rooms.items())
+    if configured_only:
+        items = [
+            item for item in items
+            if isinstance(item[1], dict) and item[1].get("is_configured")
+        ]
     items.sort(
         key=lambda item: (
             int(item[1].get("order", 999)),

@@ -195,8 +195,9 @@ export function applyRoomEditorRenderer(proto) {
   };
 
   /**
-   * Clean mode chip row — reads live options from vacuum entity.
-   * Carpet rooms see only vacuum-only modes (filtered by state layer).
+   * Clean mode chip row — options declared by the adapter's
+   * vocabulary.clean_mode_options. Carpet rooms see only vacuum-only
+   * modes (filtered by state layer).
    */
   proto._renderCleanModeField = function (state, fields) {
     const options = state.cleanModeOptions();
@@ -209,10 +210,10 @@ export function applyRoomEditorRenderer(proto) {
           ${options.map((opt) => `
             <button
               type="button"
-              class="evcc-chip ${fields.clean_mode === opt ? "active" : ""}"
+              class="evcc-chip ${fields.clean_mode === opt.value ? "active" : ""}"
               data-field="clean_mode"
-              data-value="${this.escapeHtml(opt)}"
-            >${this.escapeHtml(opt)}</button>
+              data-value="${this.escapeHtml(opt.value)}"
+            >${this.escapeHtml(opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -220,7 +221,7 @@ export function applyRoomEditorRenderer(proto) {
   };
 
   /**
-   * Suction level chip row.
+   * Suction level chip row — options from adapter vocabulary.fan_speed_options.
    */
   proto._renderSuctionField = function (state, fields) {
     const options = state.suctionLevelOptions();
@@ -233,10 +234,10 @@ export function applyRoomEditorRenderer(proto) {
           ${options.map((opt) => `
             <button
               type="button"
-              class="evcc-chip ${fields.fan_speed === opt ? "active" : ""}"
+              class="evcc-chip ${fields.fan_speed === opt.value ? "active" : ""}"
               data-field="fan_speed"
-              data-value="${this.escapeHtml(opt)}"
-            >${this.escapeHtml(opt)}</button>
+              data-value="${this.escapeHtml(opt.value)}"
+            >${this.escapeHtml(opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -245,7 +246,8 @@ export function applyRoomEditorRenderer(proto) {
 
   /**
    * Water level chip row — only rendered when mop mode is active and
-   * room is not carpet. Visibility controlled by state.showWaterLevel().
+   * room is not carpet. Options from adapter vocabulary.water_level_options.
+   * Visibility controlled by state.showWaterLevel().
    */
   proto._renderWaterLevelField = function (state, fields) {
     const options = state.waterLevelOptions();
@@ -258,10 +260,10 @@ export function applyRoomEditorRenderer(proto) {
           ${options.map((opt) => `
             <button
               type="button"
-              class="evcc-chip ${fields.water_level === opt ? "active" : ""}"
+              class="evcc-chip ${fields.water_level === opt.value ? "active" : ""}"
               data-field="water_level"
-              data-value="${this.escapeHtml(opt)}"
-            >${this.escapeHtml(opt)}</button>
+              data-value="${this.escapeHtml(opt.value)}"
+            >${this.escapeHtml(opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -269,7 +271,9 @@ export function applyRoomEditorRenderer(proto) {
   };
 
   /**
-   * Cleaning path chip row — reads from per-room entity/state layer.
+   * Cleaning path chip row — options from adapter
+   * vocabulary.clean_intensity_options. Brands that don't expose
+   * a path/intensity concept declare an empty list and this row hides.
    */
   proto._renderIntensityField = function (state, fields) {
     const options = state.cleanIntensityOptions();
@@ -282,10 +286,10 @@ export function applyRoomEditorRenderer(proto) {
           ${options.map((opt) => `
             <button
               type="button"
-              class="evcc-chip ${fields.clean_intensity === opt ? "active" : ""}"
+              class="evcc-chip ${fields.clean_intensity === opt.value ? "active" : ""}"
               data-field="clean_intensity"
-              data-value="${this.escapeHtml(opt)}"
-            >${this.escapeHtml(opt)}</button>
+              data-value="${this.escapeHtml(opt.value)}"
+            >${this.escapeHtml(opt.label)}</button>
           `).join("")}
         </div>
       </div>

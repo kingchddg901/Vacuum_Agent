@@ -121,6 +121,59 @@ def build_queue_from_managed_rooms(
     }
 
 
+def _cast_map_id(map_id: Any, map_id_type: str | None) -> Any:
+    """Cast the map_id to the wire type the brand expects.
+
+    map_id_type='int' forces int (falling back to str if not numeric).
+    map_id_type='str' forces str.
+    map_id_type=None preserves the legacy auto-cast: int when numeric,
+    str otherwise. This keeps the default behavior identical to
+    pre-refactor output for adapters that don't declare a type.
+    """
+    s = str(map_id)
+    if map_id_type == "int":
+        try:
+            return int(s)
+        except (ValueError, TypeError):
+            return s
+    if map_id_type == "str":
+        return s
+    return int(s) if s.isdigit() else s
+
+
+def _write_room_field(
+    payload_room: dict[str, Any],
+    room_fields: dict[str, dict[str, Any]],
+    canonical_name: str,
+    canonical_value: Any,
+) -> None:
+    """Write one per-room field to payload_room using the adapter rename map.
+
+    ``room_fields`` is the ``dispatch.room_fields`` block. For each
+    canonical field name the adapter may supply:
+
+      - ``field_name`` (str | None) — wire field name to use; ``None``
+        omits the field entirely
+      - ``value_map`` (dict[str, Any] | None) — maps stringified
+        canonical values to wire values; absent keys pass through
+
+    Absent canonical-name entry in ``room_fields`` → identity rename,
+    identity value (passes through unchanged). This makes the function
+    safe to call regardless of whether the adapter declared a
+    ``room_fields`` block at all.
+    """
+    cfg = room_fields.get(canonical_name, {})
+    wire_name = cfg.get("field_name", canonical_name)
+    if wire_name is None:
+        return
+    value_map = cfg.get("value_map")
+    if value_map:
+        wire_value = value_map.get(str(canonical_value), canonical_value)
+    else:
+        wire_value = canonical_value
+    payload_room[wire_name] = wire_value
+
+
 def build_room_clean_payload(
     *,
     vacuum_entity_id: str,
@@ -129,14 +182,34 @@ def build_room_clean_payload(
     queue_room_ids: list[int] | None = None,
     stored_profiles: dict[str, dict[str, Any]] | None = None,
     capabilities: dict[str, Any] | None = None,
+    dispatch: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build the vacuum room_clean payload and resolved room metadata.
 
-    Profiles are resolved and capability-gated for each room. Returns a dict
-    containing the API ``payload``, ``resolved_rooms``, and ``room_count``.
+    Profiles are resolved and capability-gated for each room. Returns a
+    dict containing the API ``payload``, ``resolved_rooms``, and
+    ``room_count``.
+
+    Wire payload field names and value vocabularies are controlled by
+    the adapter's ``dispatch`` config block (see
+    docs/dev/adapter-config-reference.md). Absent or partial ``dispatch``
+    falls back to Eufy-shape defaults so this function is safe to call
+    without the parameter — that is the legacy path and produces
+    byte-for-byte the same output as pre-refactor.
     """
     capabilities = capabilities or {}
+    dispatch = dispatch or {}
     selected_ids = set(queue_room_ids or [])
+
+    # Outer wrapper field names — fall back to Eufy defaults.
+    map_id_field: str = dispatch.get("map_id_field", "map_id")
+    map_id_type: str | None = dispatch.get("map_id_type")  # None = legacy auto-cast
+    rooms_field: str = dispatch.get("rooms_field", "rooms")
+
+    # Per-room field names — fall back to Eufy defaults.
+    room_id_field: str = dispatch.get("room_id_field", "id")
+    clean_passes_field: str = dispatch.get("clean_passes_field", "clean_times")
+    room_fields: dict[str, dict[str, Any]] = dispatch.get("room_fields", {}) or {}
 
     candidate_rooms = [
         room
@@ -177,6 +250,9 @@ def build_room_clean_payload(
             resolved_profile_name=resolved.get("resolved_profile_name"),
         )
 
+        # Canonical (framework-internal) values, before any wire rename.
+        # Mop-mode and capability gates below check the canonical value,
+        # not the wire value, so they remain valid across brands.
         clean_mode = str(gated["clean_mode"])
         fan_speed = str(gated["fan_speed"])
         water_level = str(gated["water_level"])
@@ -185,22 +261,25 @@ def build_room_clean_payload(
         clean_passes = int(gated["clean_passes"])
         edge_mopping = bool(gated["edge_mopping"])
 
-        payload_room = {
-            "id": room_id,
-            "clean_times": clean_passes,
-            "fan_speed": fan_speed,
-            "clean_mode": clean_mode,
-            "clean_intensity": clean_intensity,
+        payload_room: dict[str, Any] = {
+            room_id_field: room_id,
+            clean_passes_field: clean_passes,
         }
 
+        # Per-room fields written through the adapter rename map.
+        # Unconditional fields first, then capability-gated ones.
+        _write_room_field(payload_room, room_fields, "fan_speed", fan_speed)
+        _write_room_field(payload_room, room_fields, "clean_mode", clean_mode)
+        _write_room_field(payload_room, room_fields, "clean_intensity", clean_intensity)
+
         if supports_water and clean_mode in {"mop", "vacuum_mop"}:
-            payload_room["water_level"] = water_level
+            _write_room_field(payload_room, room_fields, "water_level", water_level)
 
         if supports_edge and clean_mode in {"mop", "vacuum_mop"}:
-            payload_room["edge_mopping"] = edge_mopping
+            _write_room_field(payload_room, room_fields, "edge_mopping", edge_mopping)
 
         if supports_path:
-            payload_room["path_type"] = path_type
+            _write_room_field(payload_room, room_fields, "path_type", path_type)
 
         payload_rooms.append(payload_room)
 
@@ -211,6 +290,11 @@ def build_room_clean_payload(
                 "slug": room.get("slug"),
                 "selected_profile_name": resolved["selected_profile_name"],
                 "resolved_profile_name": resolved["resolved_profile_name"],
+                # Resolved-room metadata always uses canonical names —
+                # this is the framework's internal record, not the wire
+                # payload. Learning and history readers depend on these
+                # canonical keys, so they intentionally do not pass
+                # through the rename map.
                 "clean_mode": clean_mode,
                 "fan_speed": fan_speed,
                 "water_level": water_level,
@@ -233,62 +317,11 @@ def build_room_clean_payload(
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": str(map_id),
         "payload": {
-            "map_id": int(map_id) if str(map_id).isdigit() else str(map_id),
-            "rooms": payload_rooms,
+            map_id_field: _cast_map_id(map_id, map_id_type),
+            rooms_field: payload_rooms,
         },
         "resolved_rooms": resolved_rooms,
         "room_count": len(payload_rooms),
-    }
-
-
-def build_start_block_reason(
-    *,
-    selected_map_id: str | None,
-    active_map_id: str | None,
-    queue_room_ids: list[int],
-    payload_room_count: int,
-    vacuum_state: str | None,
-    work_mode: str | None,
-    task_status: str | None,
-    dock_status: str | None,
-) -> dict[str, Any]:
-    """Return a start-blocker dict with ``reason``, ``message``, and ``blocked`` flag.
-
-    Checks are evaluated in priority order; the first matching condition wins.
-    ``blocked`` is ``False`` only when ``reason`` is ``"ready"``.
-    """
-    if not selected_map_id:
-        reason = "no_target_map"
-        message = "Select a target map first."
-    elif vacuum_state not in {"docked", "idle", "paused"}:
-        reason = "vacuum_busy"
-        message = "Vacuum is busy and cannot start a new room job."
-    elif selected_map_id != active_map_id:
-        reason = "map_mismatch"
-        message = "The selected map does not match the vacuum's active map."
-    elif work_mode in {"Smart Follow", "Auto", "Room"}:
-        reason = "blocked_work_mode"
-        message = "Vacuum is still in an active work mode."
-    elif task_status in {"Cleaning", "Returning", "Washing Mop"}:
-        reason = "blocked_task_status"
-        message = "Vacuum task status is still active."
-    elif dock_status in {"Washing", "Recycling waste water"}:
-        reason = "blocked_dock_status"
-        message = "Dock is still servicing the previous job."
-    elif not queue_room_ids:
-        reason = "no_rooms_selected"
-        message = "Select at least one room first."
-    elif payload_room_count <= 0:
-        reason = "invalid_payload"
-        message = "Room-clean payload is missing or invalid."
-    else:
-        reason = "ready"
-        message = "Ready to start cleaning."
-
-    return {
-        "reason": reason,
-        "message": message,
-        "blocked": reason != "ready",
     }
 
 

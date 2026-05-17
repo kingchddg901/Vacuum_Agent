@@ -84,7 +84,7 @@ async def add_vacuum(
             "blocked",
             (
                 f"Vacuum entity '{vacuum_entity_id}' not found in Home Assistant. "
-                "Ensure the Eufy integration is loaded and the device is online."
+                "Ensure the vacuum integration is loaded and the device is online."
             ),
             data={"vacuum_entity_id": vacuum_entity_id},
         )
@@ -142,8 +142,8 @@ async def import_active_map(
     """Import the currently active map for a managed vacuum.
 
     Upstream constraint: only the map that is currently active on the device
-    can be imported.  This is a hard limitation of the Eufy cloud API — there
-    is no way to query historical or alternate maps.
+    can be imported.  This is a hard limitation of the upstream cloud API —
+    there is no way to query historical or alternate maps.
 
     Idempotent — returns ``"already_done"`` if that exact map_id is already
     known and has rooms.  If the map exists but has no rooms (empty bucket),
@@ -199,7 +199,7 @@ async def import_active_map(
             (
                 f"No rooms detected for '{vacuum_entity_id}' on map '{map_id}'. "
                 "Ensure the vacuum has completed a mapping run and room "
-                "segmentation is configured in the Eufy app, then try again."
+                "segmentation is configured in your vacuum app, then try again."
             ),
             data={"vacuum_entity_id": vacuum_entity_id, "map_id": map_id},
         )

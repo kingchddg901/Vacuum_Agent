@@ -1,0 +1,420 @@
+"""
+Eufy adapter registration for the ha_vacuum_manager framework.
+
+Assembles the Eufy X10 Pro Omni adapter config from the constants,
+vocabulary, and entity patterns defined in the other adapter modules,
+and registers it with the adapter registry for each managed vacuum.
+
+This is the reference implementation of the adapter config schema.
+Every field maps directly to a measured or observed value — see the
+inline source references for provenance.
+
+Called once per managed vacuum at startup from async_setup_entry in
+__init__.py via register_eufy_adapter_for_vacuum().
+"""
+
+from __future__ import annotations
+
+import logging
+
+from homeassistant.core import HomeAssistant
+
+from ..registry import register_adapter_config
+from .const import ADAPTER_ID, STORAGE_KEY
+from .constants import (
+    POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS,
+    POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
+)
+from .vocabulary import (
+    HARD_SERVICE_STATES,
+    DRYING_STATES,
+    ACTIVE_RUN_TASK_STATES,
+    HA_ACTIVE_VACUUM_STATES,
+    DOCK_EVENT_TRIGGERS,
+    WATER_LEVEL_ALIASES,
+    WASH_FREQUENCY_MODE_ALIASES,
+    NOT_ERROR_SENTINELS,
+    CANCEL_SERVICE_EXCLUSION_STATES,
+)
+from .entities import (
+    build_entity_id,
+    SUFFIX_TASK_STATUS,
+    SUFFIX_DOCK_STATUS,
+    SUFFIX_ACTIVE_MAP,
+    SUFFIX_ACTIVE_CLEANING_TARGET,
+    SUFFIX_CLEANING_TIME,
+    SUFFIX_CLEANING_AREA,
+    SUFFIX_BATTERY,
+    SUFFIX_ERROR_MESSAGE,
+    SUFFIX_CHARGING,
+    SUFFIX_WASH_FREQUENCY_MODE,
+    SUFFIX_WASH_FREQUENCY_VALUE_TIME,
+    SUFFIX_DRY_DURATION,
+    SUFFIX_WATER_LEVEL,
+    DOMAIN_SENSOR,
+    DOMAIN_BINARY_SENSOR,
+    DOMAIN_SELECT,
+    DOMAIN_NUMBER,
+)
+from .maintenance_components import MAINTENANCE_COMPONENTS
+from .model_catalog import detect_model_family as _detect_model_family
+from .upkeep_catalog import (
+    UPKEEP_GUIDE_FAMILY_NAMES,
+    UPKEEP_MODEL_GUIDE_FAMILIES,
+    UPKEEP_MODEL_NAMES,
+)
+from .upkeep_guides import UPKEEP_GUIDE_LIBRARY
+from .water_config import WATER_MODEL_CONFIGS
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def register_eufy_adapter_for_vacuum(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+) -> None:
+    """Assemble and register the Eufy adapter config for one vacuum.
+
+    Called once per managed vacuum at startup. Idempotent — re-calling
+    for the same vacuum overwrites the previous registration.
+
+    The capabilities dict is populated from entity presence detection
+    (detect_capabilities) rather than hardcoded flags — this ensures
+    the registered config reflects the actual HA entity surface for
+    this specific installation, not just the model spec.
+    """
+    from ..core.capabilities import detect_capabilities
+
+    vacuum_state = hass.states.get(vacuum_entity_id)
+    detected_model = None
+    if vacuum_state is not None:
+        detected_model = vacuum_state.attributes.get("detected_model")
+
+    # Compute model family using the Eufy model catalog.
+    model_family = _detect_model_family(detected_model)
+
+    # Build entity candidate lists from Eufy entity suffix conventions.
+    # Each list is tried in order by detect_capabilities — first entity
+    # present in the HA state machine or registry wins.
+    object_id = vacuum_entity_id.split(".", 1)[1]
+    entity_candidates: dict[str, list[str]] = {
+        "task_status":            [build_entity_id(vacuum_entity_id, SUFFIX_TASK_STATUS)],
+        "dock_status":            [build_entity_id(vacuum_entity_id, SUFFIX_DOCK_STATUS)],
+        "active_map":             [build_entity_id(vacuum_entity_id, SUFFIX_ACTIVE_MAP)],
+        "active_cleaning_target": [build_entity_id(vacuum_entity_id, SUFFIX_ACTIVE_CLEANING_TARGET)],
+        "cleaning_time":          [build_entity_id(vacuum_entity_id, SUFFIX_CLEANING_TIME)],
+        "cleaning_area":          [build_entity_id(vacuum_entity_id, SUFFIX_CLEANING_AREA)],
+        "water_level":            [build_entity_id(vacuum_entity_id, SUFFIX_WATER_LEVEL)],
+        # work_mode and position suffixes vary between robovac_mqtt versions;
+        # list the known patterns so the prober finds whichever is present.
+        "work_mode":              [f"sensor.{object_id}_work_mode"],
+        "robot_position_x":       [f"sensor.{object_id}_robot_position_x_raw"],
+        "robot_position_y":       [f"sensor.{object_id}_robot_position_y_raw"],
+        # Dock action button candidates — robovac_mqtt exposes two naming
+        # variants depending on firmware/integration version.
+        "wash_mop_button":   [f"button.{object_id}_wash_mop",   f"button.{object_id}_mop_wash"],
+        "dry_mop_button":    [f"button.{object_id}_dry_mop",    f"button.{object_id}_mop_dry"],
+        "empty_dust_button": [f"button.{object_id}_empty_dust", f"button.{object_id}_empty_dust_bin"],
+        "cleaning_intensity": [f"select.{object_id}_cleaning_intensity"],
+    }
+
+    # Model-based capability hints — confirmed hardware support regardless
+    # of whether the entity happens to be present right now. Entity presence
+    # detection in detect_capabilities() is the fallback for unrecognised
+    # model codes that still expose the relevant entities.
+    capability_hints: dict[str, bool] = {
+        "supports_mop_features": model_family in {"x10", "x8", "l60", "l50"},
+        "supports_mop_wash":     model_family in {"x10", "x8"},
+        "supports_mop_dry":      model_family in {"x10", "x8"},
+        "supports_empty_dust":   model_family in {"x10", "x8", "l60", "l50"},
+        "supports_path_control": model_family in {"x10", "x8"},
+    }
+
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=vacuum_entity_id,
+        detected_model=detected_model,
+        entity_candidates=entity_candidates,
+        model_family=model_family,
+        capability_hints=capability_hints,
+        maintenance_components=MAINTENANCE_COMPONENTS,
+    )
+
+    # Build entity ID map from adapter entity patterns.
+    # Each entity ID is constructed using build_entity_id() which applies
+    # the object_id_suffix naming strategy for Eufy/robovac_mqtt.
+    entities = {
+        "task_status": build_entity_id(vacuum_entity_id, SUFFIX_TASK_STATUS),
+        "dock_status": build_entity_id(vacuum_entity_id, SUFFIX_DOCK_STATUS),
+        "active_map": build_entity_id(vacuum_entity_id, SUFFIX_ACTIVE_MAP),
+        "active_cleaning_target": build_entity_id(
+            vacuum_entity_id, SUFFIX_ACTIVE_CLEANING_TARGET
+        ),
+        "cleaning_time": build_entity_id(vacuum_entity_id, SUFFIX_CLEANING_TIME),
+        "cleaning_area": build_entity_id(vacuum_entity_id, SUFFIX_CLEANING_AREA),
+        "battery": build_entity_id(vacuum_entity_id, SUFFIX_BATTERY),
+        "error_message": build_entity_id(vacuum_entity_id, SUFFIX_ERROR_MESSAGE),
+        "charging": build_entity_id(
+            vacuum_entity_id, SUFFIX_CHARGING, DOMAIN_BINARY_SENSOR
+        ),
+        "wash_frequency_mode": build_entity_id(
+            vacuum_entity_id, SUFFIX_WASH_FREQUENCY_MODE, DOMAIN_SELECT
+        ),
+        "wash_frequency_value_time": build_entity_id(
+            vacuum_entity_id, SUFFIX_WASH_FREQUENCY_VALUE_TIME, DOMAIN_NUMBER
+        ),
+        "dry_duration": build_entity_id(
+            vacuum_entity_id, SUFFIX_DRY_DURATION, DOMAIN_SELECT
+        ),
+        "water_level": build_entity_id(vacuum_entity_id, SUFFIX_WATER_LEVEL),
+        # Position entities sourced from capability detection — these use
+        # robovac_mqtt-specific suffixes that are already resolved by
+        # detect_capabilities().
+        "robot_position_x": caps.get("entities", {}).get("robot_position_x"),
+        "robot_position_y": caps.get("entities", {}).get("robot_position_y"),
+        "work_mode": caps.get("entities", {}).get("work_mode"),
+        "cleaning_intensity": caps.get("entities", {}).get("cleaning_intensity"),
+    }
+
+    # Remove None values — absent entities degrade gracefully per the schema.
+    entities = {k: v for k, v in entities.items() if v is not None}
+
+    config = {
+        "adapter_id": ADAPTER_ID,
+        "source": "code",
+        "display_name": "Eufy X10 Pro Omni",
+
+        "entities": entities,
+
+        "vocabulary": {
+            # Dock/task states — sourced from vocabulary.py
+            # See prompts 3 and 4 for extraction provenance.
+            "hard_service_states": sorted(HARD_SERVICE_STATES),
+            "drying_states": sorted(DRYING_STATES),
+            "active_run_task_states": sorted(ACTIVE_RUN_TASK_STATES),
+            "not_error_sentinels": sorted(NOT_ERROR_SENTINELS),
+            # Raw (non-normalized) block states — sourced from queue_engine.py
+            # audit. These are title-cased firmware strings, not normalized.
+            "blocked_work_mode_states": ["Smart Follow", "Auto", "Room"],
+            "blocked_task_status_states": ["Cleaning", "Returning", "Washing Mop"],
+            "blocked_dock_status_states": ["Washing", "Recycling waste water"],
+            # Cancel detection exclusions — normalized task_status strings that
+            # explain a short early return as a service event, not a manual cancel.
+            # Sourced from vocabulary.py CANCEL_SERVICE_EXCLUSION_STATES.
+            "cancel_service_exclusion_states": sorted(CANCEL_SERVICE_EXCLUSION_STATES),
+            # Alias maps — normalize brand-specific display strings to canonical keys.
+            # Sourced from vocabulary.py WATER_LEVEL_ALIASES / WASH_FREQUENCY_MODE_ALIASES.
+            "water_level_aliases": dict(WATER_LEVEL_ALIASES),
+            "wash_frequency_mode_aliases": dict(WASH_FREQUENCY_MODE_ALIASES),
+
+            # User-facing dropdown option lists. The card reads these to
+            # populate clean_mode / fan_speed / water_level / clean_intensity
+            # selectors in the room editor and rule editor. The framework
+            # never reads them — purely a card-facing vocabulary surface.
+            # See docs/dev/adapter-config-reference.md §6.
+            "clean_mode_options": [
+                {"value": "vacuum",     "label": "Vacuum"       },
+                {"value": "mop",        "label": "Mop"          },
+                {"value": "vacuum_mop", "label": "Vacuum & Mop" },
+            ],
+            "fan_speed_options": [
+                {"value": "Quiet",    "label": "Quiet"    },
+                {"value": "Standard", "label": "Standard" },
+                {"value": "Boost",    "label": "Boost"    },
+                {"value": "Max",      "label": "Max"      },
+            ],
+            "water_level_options": [
+                {"value": "Off",    "label": "Off"    },
+                {"value": "Low",    "label": "Low"    },
+                {"value": "Medium", "label": "Medium" },
+                {"value": "High",   "label": "High"   },
+            ],
+            "clean_intensity_options": [
+                {"value": "Quick",  "label": "Quick"  },
+                {"value": "Narrow", "label": "Narrow" },
+                {"value": "Deep",   "label": "Deep"   },
+            ],
+        },
+
+        "completion": {
+            # Primary completion signal — task_status must equal this value
+            # (after .strip().lower()) for the framework to consider the job done.
+            "task_status_value": "completed",
+            # Secondary completion signal — active_cleaning_target must be in
+            # this sentinel set simultaneously with task_status_value.
+            "secondary_clear_entity": "active_cleaning_target",
+            "secondary_clear_sentinels": [
+                "", "unknown", "unavailable", "none", "null"
+            ],
+        },
+
+        "charging": {
+            # Primary: dedicated binary sensor from robovac_mqtt.
+            "binary_sensor_entity": "charging",
+            # Fallback: task_status string for mid-job recharge resume.
+            "fallback_task_status_string": "charging (resume)",
+            # Fallback: substring patterns for charging state detection.
+            # See adapters/eufy/charging.py for usage context.
+            "fallback_substrings": ["charg", "recharg"],
+        },
+
+        "error_tracking": {
+            # Secondary error channel — task_status flips to this value
+            # on the same upstream condition as vacuum.state == "error".
+            # Empirical observation (recorder trace 2026-05-10): stuck/trapped
+            # events flip both channels while error_message stays empty.
+            "task_status_error_value": "error",
+            # Grace window — how long to wait for error_message after the
+            # secondary channel fires before finalizing as unknown error.
+            # Some firmware emits state DPS before message DPS.
+            "grace_window_seconds": 5,
+            # Attribute keys checked when reading error code.
+            # Tried in order — first non-zero int wins.
+            "error_code_attribute_names": ["error_code", "code", "errorCode"],
+            "unknown_error_message": "Unknown error during run",
+        },
+
+        "dock_events": {
+            # Dock event recording enabled — X10 Pro Omni dock supports
+            # wash, empty, and dry cycles observable via dock_status sensor.
+            "enabled": True,
+            # Trigger mapping — sourced from vocabulary.py DOCK_EVENT_TRIGGERS.
+            # Keys are framework event type names; values are normalized
+            # dock_status strings that trigger each event.
+            "triggers": {
+                event_type: sorted(trigger_states)
+                for event_type, trigger_states in DOCK_EVENT_TRIGGERS.items()
+            },
+        },
+
+        "post_job_wash_amendment": {
+            # The X10 Pro Omni dock washes the mop ~2s after docking from
+            # a mop job. The amendment watcher patches water actuals after
+            # finalization. See core/water_amendment.py.
+            "enabled": True,
+            # States that increment the post-job wash count.
+            "trigger_states": sorted({"washing", "washing mop"}),
+            # State that signals the wash cycle is complete.
+            "commit_state": "drying",
+            # Debounce — prevents double-counting multi-state wash sequence.
+            # The X10 wash cycle averages ~46s; 60s provides buffer.
+            # See adapters/eufy/constants.py MOP_WASH_DEBOUNCE_SECONDS.
+            "debounce_seconds": POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS,
+            # Timeout — safety valve if drying never fires.
+            "timeout_seconds": POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
+        },
+
+        "discovery": {
+            # Room segments are exposed as the 'segments' attribute on the
+            # vacuum entity by robovac_mqtt. Each segment is a dict with
+            # 'id' (int) and 'name' (str) keys.
+            "room_list_entity": "vacuum_entity",
+            "room_list_attribute": "segments",
+            "room_id_key": "id",
+            "room_name_key": "name",
+            # Auto-discovery cadence. The framework runs discovery on each
+            # listed event plus once every interval as a safety net.
+            "auto_refresh_on": [
+                "vacuum_docked",
+                "active_map_changed",
+                "config_entry_reload",
+            ],
+            "auto_refresh_interval_seconds": 21600,  # 6 hours
+            # Drift confirmation windows — see core/setup/drift.py.
+            # Eufy's robovac_mqtt is generally stable; N=3 catches firmware
+            # hiccups without delaying genuine removals by more than a day
+            # at typical clean cadence.
+            "removal_confirmation_passes": 3,
+            "new_room_confirmation_passes": 1,
+        },
+
+        "setup": {
+            # Eufy needs an explicit import_active_map step because
+            # robovac_mqtt only surfaces one map at a time and requires a
+            # fetch operation. Brands with always-on map exposure should
+            # drop "import_active_map" from this list.
+            "steps": [
+                "add_vacuum",
+                "import_active_map",
+                "save_rooms",
+            ],
+        },
+
+        "dispatch": {
+            # Eufy room_clean payload template.
+            # Service: vacuum.send_command with command=room_clean.
+            # Payload: {map_id: int, rooms: [{id, clean_times, ...}]}
+            "template": "eufy_room_clean",
+            "service_domain": "vacuum",
+            "service_name": "send_command",
+            "command": "room_clean",
+            "map_id_field": "map_id",
+            "map_id_type": "int",
+            "room_id_field": "id",
+            "clean_passes_field": "clean_times",
+            "rooms_field": "rooms",
+            # Per-room field rename + value vocabulary. Eufy uses the
+            # canonical framework names and values verbatim, so every
+            # entry is an identity rename with no value_map. This block
+            # is technically optional for Eufy (defaults match), but it
+            # serves as the reference example a port to another brand
+            # copies from. See docs/dev/adapter-config-reference.md.
+            "room_fields": {
+                "fan_speed":       {"field_name": "fan_speed",       "value_map": None},
+                "clean_mode":      {"field_name": "clean_mode",      "value_map": None},
+                "clean_intensity": {"field_name": "clean_intensity", "value_map": None},
+                "water_level":     {"field_name": "water_level",     "value_map": None},
+                "edge_mopping":    {"field_name": "edge_mopping",    "value_map": None},
+                "path_type":       {"field_name": "path_type",       "value_map": None},
+            },
+        },
+
+        "capabilities": {
+            # Sourced from detect_capabilities() above — reflects actual
+            # HA entity surface for this installation rather than model spec.
+            "supports_mop_features": caps.get("supports_mop_features", False),
+            "supports_water_control": caps.get("supports_water_control", False),
+            "supports_path_control": caps.get("supports_path_control", False),
+            "supports_edge_mopping": caps.get("supports_edge_mopping", True),
+            "supports_mop_wash": caps.get("supports_mop_wash", False),
+            "supports_mop_dry": caps.get("supports_mop_dry", False),
+            "supports_empty_dust": caps.get("supports_empty_dust", False),
+            "supports_robot_position": caps.get("supports_robot_position", False),
+            "supports_station_water": caps.get("supports_station_water", False),
+        },
+
+        "maintenance_components": {
+            # Sourced from adapters/eufy/maintenance_components.py.
+            # Each entry defines the firmware replacement counter sensor,
+            # display metadata, and interval configuration.
+            component_id: {
+                "sensor_suffix": component.get("sensor_suffix"),
+                "proxy_for": component.get("proxy_for"),
+                "default_interval_hours": component["default_interval_hours"],
+                "max_interval_hours": component["max_interval_hours"],
+                "label": component["label"],
+                "icon": component["icon"],
+            }
+            for component_id, component in MAINTENANCE_COMPONENTS.items()
+        },
+
+        "upkeep_catalog": {
+            # Sourced from adapters/eufy/upkeep_catalog.py and upkeep_guides.py.
+            # model_names, model_guide_families, and guide_family_names map
+            # device registry model codes to guide family keys and display names.
+            # guide_library maps guide family keys to per-component upkeep data.
+            "model_names": UPKEEP_MODEL_NAMES,
+            "model_guide_families": UPKEEP_MODEL_GUIDE_FAMILIES,
+            "guide_family_names": UPKEEP_GUIDE_FAMILY_NAMES,
+            "guide_library": UPKEEP_GUIDE_LIBRARY,
+        },
+
+        "water_model_configs": WATER_MODEL_CONFIGS,
+    }
+
+    register_adapter_config(vacuum_entity_id, config)
+    _LOGGER.debug(
+        "eufy_adapter: registered config for %s (adapter_id=%s)",
+        vacuum_entity_id,
+        ADAPTER_ID,
+    )

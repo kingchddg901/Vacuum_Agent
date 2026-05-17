@@ -127,6 +127,8 @@ export const SERVICE_SETUP_IMPORT_MAP       = "setup_import_active_map";
 export const SERVICE_SETUP_GET_MAP_ROOMS    = "setup_get_map_rooms";
 export const SERVICE_SETUP_SAVE_ROOMS       = "setup_save_rooms";
 export const SERVICE_SETUP_DELETE_MAP       = "setup_delete_map";
+export const SERVICE_SETUP_REJECT_ROOMS     = "setup_reject_rooms";
+export const SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room";
 
 // --- Learning ---
 export const SERVICE_FINALIZE_LEARNING_JOB  = "finalize_learning_job";
