@@ -441,7 +441,7 @@ async def _handle_save_managed_rooms(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_get_vacuum_maps(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Get all maps for a vacuum."""
-    payload = _get_manager(hass).get_vacuum_maps(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).get_vacuum_maps(**call.data)
     _LOGGER.debug("get_vacuum_maps complete: %s", payload)
     return payload
 
@@ -504,14 +504,14 @@ async def _handle_get_job_control_state(hass: HomeAssistant, call: ServiceCall) 
 
 async def _handle_get_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return persisted default pause-timeout settings for one vacuum."""
-    payload = _get_manager(hass).get_pause_timeout_settings(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).get_pause_timeout_settings(**call.data)
     _LOGGER.debug("get_pause_timeout_settings complete: %s", payload)
     return payload
 
 
 async def _handle_set_pause_timeout_settings(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Persist default pause-timeout settings for one vacuum."""
-    payload = _get_manager(hass).set_pause_timeout_settings(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).set_pause_timeout_settings(**call.data)
     _LOGGER.debug("set_pause_timeout_settings complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -519,7 +519,7 @@ async def _handle_set_pause_timeout_settings(hass: HomeAssistant, call: ServiceC
 
 async def _handle_get_upkeep_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return upkeep snapshot for one vacuum."""
-    payload = _get_manager(hass).get_upkeep_snapshot(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).get_upkeep_snapshot(**call.data)
     _LOGGER.debug("get_upkeep_snapshot complete: %s", payload)
     return payload
 
@@ -693,7 +693,7 @@ async def _handle_stop_dry_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
 
 async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Reset the maintenance counter for a specific component."""
-    payload = _get_manager(hass).reset_maintenance(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).reset_maintenance(**call.data)
     _LOGGER.debug("reset_maintenance complete: %s", payload)
     if payload.get("reset"):
         await _get_manager(hass).async_save()
@@ -702,7 +702,7 @@ async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_set_dock_event_count(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite a dock event counter to a specific value."""
-    payload = _get_manager(hass).set_dock_event_count(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).set_dock_event_count(**call.data)
     _LOGGER.debug("set_dock_event_count complete: %s", payload)
     if payload.get("updated"):
         await _get_manager(hass).async_save()
@@ -718,7 +718,7 @@ async def _handle_get_room_profiles(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_save_user_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save a custom room profile."""
-    payload = _get_manager(hass).save_user_room_profile(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).save_user_room_profile(**call.data)
     _LOGGER.debug("save_user_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -726,7 +726,7 @@ async def _handle_save_user_room_profile(hass: HomeAssistant, call: ServiceCall)
 
 async def _handle_overwrite_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite one existing custom room profile."""
-    payload = _get_manager(hass).overwrite_room_profile(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).overwrite_room_profile(**call.data)
     _LOGGER.debug("overwrite_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -750,7 +750,7 @@ async def _handle_overwrite_room_profile_from_room(hass: HomeAssistant, call: Se
 
 async def _handle_rename_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Rename one custom room profile key and/or label."""
-    payload = _get_manager(hass).rename_room_profile(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).rename_room_profile(**call.data)
     _LOGGER.debug("rename_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
@@ -758,7 +758,7 @@ async def _handle_rename_room_profile(hass: HomeAssistant, call: ServiceCall) ->
 
 async def _handle_delete_room_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete one custom room profile."""
-    payload = _get_manager(hass).delete_room_profile(**_resolved_call_data(hass, call))
+    payload = _get_manager(hass).delete_room_profile(**call.data)
     _LOGGER.debug("delete_room_profile complete: %s", payload)
     await _get_manager(hass).async_save()
     return payload
