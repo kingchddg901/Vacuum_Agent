@@ -51,10 +51,18 @@ const PRIMARY_MOBILE_TABS = [
   { id: VIEWS.METRICS,      label: "Stats",  icon: _iconChart()  },
 ];
 
+/**
+ * Overflow tabs on mobile. Theme is intentionally excluded — its
+ * editor needs too many panels visible simultaneously (palette,
+ * tokens, previews, presets) to be useful at phone widths. Users
+ * who need it can edit themes on desktop; the active theme still
+ * applies on mobile, just the editor isn't reachable from the
+ * mobile shell. Add it back here if/when the theme editor gets a
+ * mobile-tailored layout.
+ */
 const OVERFLOW_MOBILE_TABS = [
   { id: VIEWS.LEARNING_REVIEW, label: "Learning Review" },
   { id: VIEWS.ROOM_RULES,      label: "Room Rules"      },
-  { id: VIEWS.THEME,           label: "Theme"           },
   { id: VIEWS.MAP_CONFIG,      label: "Map Config"      },
   { id: VIEWS.MAPPING_REVIEW,  label: "Map Bounds"      },
   { id: VIEWS.SETUP,           label: "Setup"           },
