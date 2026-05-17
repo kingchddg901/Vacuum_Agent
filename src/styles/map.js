@@ -107,6 +107,65 @@ export const mapStyles = `
   }
 
   /* =========================================================
+     ZOOM TOOLBAR
+     =========================================================
+     Floating control bar pinned to the bottom-right of the
+     map container. Sits above all other map layers; pointer
+     events enabled so the buttons are clickable. The buttons
+     drive state.applyMapZoom / state.resetMapTransform; the
+     readout reflects state.mapZoom() as a percentage.
+     ========================================================= */
+
+  .evcc-map-zoom-toolbar {
+    position:        absolute;
+    right:           10px;
+    bottom:          10px;
+    display:         flex;
+    align-items:     center;
+    gap:             4px;
+    padding:         4px 6px;
+    background:      var(--evcc-color-surface-elev2, rgba(20, 30, 50, 0.85));
+    border:          1px solid var(--evcc-color-border, rgba(255, 255, 255, 0.15));
+    border-radius:   6px;
+    backdrop-filter: blur(4px);
+    z-index:         10;
+    pointer-events:  auto;
+    user-select:     none;
+  }
+
+  .evcc-map-zoom-btn {
+    width:           28px;
+    height:          28px;
+    line-height:     1;
+    font-size:       16px;
+    font-weight:     600;
+    color:           var(--evcc-color-text, #fff);
+    background:      var(--evcc-color-surface-elev3, rgba(255, 255, 255, 0.08));
+    border:          1px solid var(--evcc-color-border, rgba(255, 255, 255, 0.15));
+    border-radius:   4px;
+    cursor:          pointer;
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+    transition:      background-color 0.15s ease, transform 0.05s ease;
+  }
+  .evcc-map-zoom-btn:hover {
+    background:      var(--evcc-color-accent-faint, rgba(255, 255, 255, 0.18));
+  }
+  .evcc-map-zoom-btn:active {
+    transform:       scale(0.93);
+  }
+
+  .evcc-map-zoom-readout {
+    min-width:       42px;
+    text-align:      center;
+    font-size:       12px;
+    color:           var(--evcc-color-text-muted, rgba(255, 255, 255, 0.7));
+    padding:         0 2px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* =========================================================
      ANIMAL SVG COMPANION
      =========================================================
      Positioned absolutely in .evcc-map-layers (same space as

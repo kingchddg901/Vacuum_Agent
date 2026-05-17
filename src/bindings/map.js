@@ -646,9 +646,53 @@ export function applyMapBindings(proto) {
     };
 
     // ----------------------------------------------------------
-    // Wheel zoom — zoom toward cursor position in container space
+    // Zoom toolbar buttons — explicit +/-/fit controls. The map state
+    // already supports zoom in the range [0.5, 8]; these just provide
+    // discoverable UI for desktop users who have no pinch gesture.
     // ----------------------------------------------------------
-    // wheel zoom intentionally disabled — use pinch-to-zoom on touch instead
+    const _stepZoom = (factor) => {
+      const cur = this.card._state.mapZoom?.() ?? 1;
+      const rect = container.getBoundingClientRect();
+      // Zoom toward container center when triggered via button.
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      this.card._state.applyMapZoom?.(cur * factor, cx, cy);
+      applyTransform();
+      this.card._scheduleRender?.();      // refresh the % readout
+    };
+
+    root.querySelectorAll("[data-action='map-zoom-in']").forEach((btn) => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); _stepZoom(1.25); });
+    });
+    root.querySelectorAll("[data-action='map-zoom-out']").forEach((btn) => {
+      btn.addEventListener("click", (e) => { e.stopPropagation(); _stepZoom(0.8); });
+    });
+    root.querySelectorAll("[data-action='map-zoom-fit']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.card._state.resetMapTransform?.();
+        applyTransform();
+        this.card._scheduleRender?.();
+      });
+    });
+
+    // ----------------------------------------------------------
+    // Ctrl + wheel zoom — desktop equivalent of pinch. Plain wheel
+    // is left to the page (so scrolling the parent dashboard still
+    // works); only Ctrl-modified wheel intercepts.
+    // ----------------------------------------------------------
+    container.addEventListener("wheel", (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      const rect = container.getBoundingClientRect();
+      const cx = e.clientX - rect.left;
+      const cy = e.clientY - rect.top;
+      const factor = e.deltaY < 0 ? 1.1 : (1 / 1.1);   // up = in, down = out
+      const cur = this.card._state.mapZoom?.() ?? 1;
+      this.card._state.applyMapZoom?.(cur * factor, cx, cy);
+      applyTransform();
+      this.card._scheduleRender?.();
+    }, { passive: false });
 
     // ----------------------------------------------------------
     // Pointer drag pan — document-level listeners so pointer

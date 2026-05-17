@@ -120,7 +120,7 @@ export function applyMapRenderers(proto) {
             <svg
               class="evcc-map-svg"
               viewBox="0 0 100 100"
-              preserveAspectRatio="xMidYMid meet"
+              preserveAspectRatio="none"
             >
               ${typeof this._buildFloorTextureDefs === "function"
                 ? this._buildFloorTextureDefs(segFloorTypes)
@@ -160,6 +160,19 @@ export function applyMapRenderers(proto) {
           </div>
 
           <div class="evcc-map-tooltip" aria-hidden="true"></div>
+
+          <!-- Zoom controls. Absolute-positioned over the map. CSS-styled
+               as a small floating toolbar; see styles/map.js -->
+          <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
+            <button class="evcc-map-zoom-btn" data-action="map-zoom-out"
+                    title="Zoom out" aria-label="Zoom out">−</button>
+            <button class="evcc-map-zoom-btn" data-action="map-zoom-fit"
+                    title="Fit map to screen" aria-label="Fit to screen">⤢</button>
+            <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
+                    title="Zoom in" aria-label="Zoom in">+</button>
+            <span class="evcc-map-zoom-readout"
+                  aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
+          </div>
 
         </div>
 
@@ -349,6 +362,15 @@ export function applyMapRenderers(proto) {
     const summary        = segmentsData?.summary ?? {};
     const actionStatus   = state.mapActionStatus?.() ?? null;
 
+    // Config mode shares the same zoom state as the rooms view — same
+    // bindings drive it, same toolbar reflects it. The .evcc-map-layers
+    // wrapper here mirrors the rooms-view structure so the CSS
+    // transform on it scales both the image and the polygon SVG
+    // together.
+    const zoom = state.mapZoom?.() ?? 1;
+    const tx   = state.mapTranslateX?.() ?? 0;
+    const ty   = state.mapTranslateY?.() ?? 0;
+
     return `
       <div class="evcc-map-config-view">
 
@@ -366,13 +388,25 @@ export function applyMapRenderers(proto) {
 
           <div class="evcc-map-container evcc-map-container--config">
             ${imageUrl
-              ? `<img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
-                 <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                   ${segments.map((seg, i) => {
-                     const isThis = String(seg.segment_id) === String(selectedId ?? "");
-                     return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null);
-                   }).join("")}
-                 </svg>`
+              ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
+                   <img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                   <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+                     ${segments.map((seg, i) => {
+                       const isThis = String(seg.segment_id) === String(selectedId ?? "");
+                       return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null);
+                     }).join("")}
+                   </svg>
+                 </div>
+                 <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
+                   <button class="evcc-map-zoom-btn" data-action="map-zoom-out"
+                           title="Zoom out" aria-label="Zoom out">−</button>
+                   <button class="evcc-map-zoom-btn" data-action="map-zoom-fit"
+                           title="Fit map to screen" aria-label="Fit to screen">⤢</button>
+                   <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
+                           title="Zoom in" aria-label="Zoom in">+</button>
+                   <span class="evcc-map-zoom-readout"
+                         aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
+                 </div>`
               : `<div class="evcc-map-unavailable">
                    <p>No map image uploaded yet.</p>
                  </div>`}
