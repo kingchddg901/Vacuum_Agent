@@ -18,14 +18,11 @@ def _optional_import(name: str) -> tuple[Any | None, str | None]:
         return None, f"{type(err).__name__}: {err}"
 
 
-cv2, _CV2_IMPORT_ERROR = _optional_import("cv2")
 np, _NUMPY_IMPORT_ERROR = _optional_import("numpy")
 PIL_Image, _PIL_IMPORT_ERROR = _optional_import("PIL.Image")
 scipy, _SCIPY_IMPORT_ERROR = _optional_import("scipy")
 scipy_ndimage, _SCIPY_NDIMAGE_IMPORT_ERROR = _optional_import("scipy.ndimage")
-skimage, _SKIMAGE_IMPORT_ERROR = _optional_import("skimage")
 
-_CV_AVAILABLE = cv2 is not None and np is not None
 _PIL_SCIPY_READY = PIL_Image is not None and np is not None and scipy_ndimage is not None
 _NDIMAGE = scipy_ndimage
 
@@ -38,11 +35,6 @@ def image_runtime_capabilities() -> dict[str, Any]:
         return getattr(module, "__version__", None)
 
     return {
-        "opencv": {
-            "available": cv2 is not None,
-            "version": _version(cv2),
-            "error": _CV2_IMPORT_ERROR,
-        },
         "numpy": {
             "available": np is not None,
             "version": _version(np),
@@ -63,13 +55,7 @@ def image_runtime_capabilities() -> dict[str, Any]:
             "version": _version(scipy_ndimage),
             "error": _SCIPY_NDIMAGE_IMPORT_ERROR,
         },
-        "skimage": {
-            "available": skimage is not None,
-            "version": _version(skimage),
-            "error": _SKIMAGE_IMPORT_ERROR,
-        },
-        "cv_pipeline_ready": _CV_AVAILABLE,
-        "fallback_pipeline_ready": _PIL_SCIPY_READY and _NDIMAGE is not None,
+        "pipeline_ready": _PIL_SCIPY_READY and _NDIMAGE is not None,
     }
 
 
@@ -1204,7 +1190,7 @@ def _component_should_keep(
     return keep, reasons
 
 
-def _detect_room_segments_fallback(
+def _detect_room_segments_pipeline(
     *,
     image_path: str,
     expected_room_count: int | None = None,
@@ -1215,7 +1201,7 @@ def _detect_room_segments_fallback(
     image_variant: str | None = None,
     assist_variant: str | None = None,
 ) -> dict[str, Any]:
-    """Run the Pillow/NumPy/SciPy fallback segmentation pipeline.
+    """Run the Pillow/NumPy/SciPy segmentation pipeline.
 
     Segments the primary map image by HSV hue clustering, optionally guided
     by a second image variant for wall-cut refinement. Returns the full
@@ -1224,8 +1210,8 @@ def _detect_room_segments_fallback(
     if not (_PIL_SCIPY_READY and _NDIMAGE is not None):
         return {
             "available": False,
-            "reason": "fallback_unavailable",
-            "message": "Pillow/scipy-based fallback pipeline is not available in this environment.",
+            "reason": "pipeline_unavailable",
+            "message": "Pillow/scipy-based segmentation pipeline is not available in this environment.",
             "runtime": image_runtime_capabilities(),
             "segments": [],
         }
@@ -1802,9 +1788,9 @@ def _detect_room_segments_fallback(
         isinstance(assist_registration, dict)
         and assist_registration.get("enabled")
     )
-    message = "Image-assisted room segments generated via the fallback pipeline."
+    message = "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline."
     if assist_enabled:
-        message = "Image-assisted room segments generated via the fallback pipeline using primary and assist image variants."
+        message = "Image-assisted room segments generated via the Pillow/NumPy/SciPy pipeline using primary and assist image variants."
 
     return {
         "available": True,
@@ -1897,7 +1883,7 @@ def detect_room_segments(
     assist_variant: str | None = None,
 ) -> dict[str, Any]:
     """Return suggested room-like segments from a clean unlabeled map image."""
-    return _detect_room_segments_fallback(
+    return _detect_room_segments_pipeline(
         image_path=image_path,
         expected_room_count=expected_room_count,
         max_segments=max_segments,
