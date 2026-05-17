@@ -971,7 +971,7 @@ def _register_discovery_listeners(hass: HomeAssistant) -> None:
         cadence = get_discovery_cadence(vacuum_entity_id)
         triggers = set(cadence.get("auto_refresh_on") or [])
         interval_seconds = int(cadence.get("auto_refresh_interval_seconds") or 0)
-        adapter_config = _get_adapter_config(vacuum_entity_id) or {}
+        adapter_config = get_adapter_config(vacuum_entity_id) or {}
         active_map_entity = (adapter_config.get("entities") or {}).get("active_map")
 
         # Bind vacuum_entity_id at closure-creation time so per-vacuum

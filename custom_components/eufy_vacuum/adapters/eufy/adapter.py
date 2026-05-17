@@ -83,7 +83,7 @@ def register_eufy_adapter_for_vacuum(
     the registered config reflects the actual HA entity surface for
     this specific installation, not just the model spec.
     """
-    from ..core.capabilities import detect_capabilities
+    from ...core.capabilities import detect_capabilities
 
     vacuum_state = hass.states.get(vacuum_entity_id)
     detected_model = None
