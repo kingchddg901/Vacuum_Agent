@@ -4,6 +4,27 @@ This document covers the Home Assistant-specific plumbing of `eufy_vacuum`: conf
 
 ---
 
+## 0. Adapter Framework Primer
+
+`eufy_vacuum` is **adapter-driven**. Every brand-specific fact (entity IDs, vocabulary, dispatch payload shape, dropdown option lists, maintenance components, water-tank measurements, completion signals, dock event triggers) lives in a per-vacuum adapter config dict. The framework code reads from this registry at runtime; **no brand assumptions exist in core code.**
+
+Lookup pattern, used everywhere in this integration:
+
+```python
+from .adapters.registry import get_adapter_config
+
+config = get_adapter_config(vacuum_entity_id) or {}
+entity_id = config.get("entities", {}).get("task_status")
+```
+
+Or via the `_get_adapter_value(vacuum_entity_id, *path, fallback=...)` helper for nested lookups with a default.
+
+The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for another vacuum brand is a config-only change — see [adapter-config-reference.md](adapter-config-reference.md) for the schema and [porting-guide.md](porting-guide.md) for the workflow.
+
+Anywhere this doc says "from the adapter config", that means a runtime lookup through `get_adapter_config` (or `_get_adapter_value`). The integration code never references brand-specific strings, entity names, or vocabulary directly.
+
+---
+
 ## 1. Integration Entry Points
 
 ### `async_setup` (`__init__.py`)
@@ -22,11 +43,11 @@ The main entry point. Called when the config entry is loaded (on HA start or aft
 
 1. Instantiates `EufyVacuumManager` and calls `manager.async_initialize()` to load persisted storage.
 2. Stores the manager at `hass.data[DOMAIN][DATA_RUNTIME]`.
-3. Instantiates `LearningManager` and stores it at `hass.data[DOMAIN][DATA_LEARNING]`.
-4. Instantiates `MappingManager` and `MappingTracker`, stored at `hass.data[DOMAIN]["mapping_manager"]` and `hass.data[DOMAIN]["mapping_tracker"]`. Registers vacuum position entities with the tracker for any vacuum whose capability map includes `robot_position_x`/`robot_position_y`.
-5. Calls the four service registration functions: `async_register_services`, `async_register_learning_services`, `async_register_theme_services`, `async_register_mapping_services`.
-6. Registers four background listeners: `_register_lifecycle_listeners`, `_register_dock_event_listeners`, `_register_path_blocker_listeners`, `_register_pause_timeout_listener`.
-7. Forwards setup to the five entity platforms: `button`, `switch`, `select`, `number`, `sensor`.
+3. Instantiates `LearningManager`, `BatteryHealthManager`, and `ErrorTracker`. Stored at `DATA_LEARNING`, `DATA_BATTERY`, and `DATA_ERROR_TRACKER` respectively. The error tracker is started after instantiation.
+4. Instantiates `MappingManager` and `MappingTracker`, stored at `hass.data[DOMAIN]["mapping_manager"]` and `hass.data[DOMAIN]["mapping_tracker"]`. Registers vacuum position entities with the tracker for any vacuum whose adapter declares `entities.robot_position_x`/`robot_position_y`.
+5. Loads any stored adapter config overlays via `load_stored_adapter_configs(...)`. Calls the four service-registration functions: `async_register_services` (which covers core, adapter config, and error-tracker services), `async_register_learning_services`, `async_register_theme_services`, `async_register_mapping_services`.
+6. Registers four background listeners: `_register_lifecycle_listeners`, `_register_dock_event_listeners`, `_register_path_blocker_listeners`, `_register_pause_timeout_listener`. Each reads the entity IDs it needs to watch from the adapter config at registration time.
+7. Forwards setup to the six entity platforms in `PLATFORMS`: `binary_sensor`, `button`, `switch`, `select`, `number`, `sensor`.
 8. Registers one sidebar panel per managed vacuum via `panel_custom.async_register_panel`. The panel URL path is `eufy-vacuum-{object_id}`, the webcomponent name is `eufy-vacuum-command-center`, and the JS URL comes from `_frontend_url.panel_js_url()` — `/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=<bundle_mtime>`. The mtime-based query string is recomputed on every panel registration so a fresh bundle deploy busts the HA service-worker cache without a manual version bump. Panel URLs for the current entry are stored at `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
 
 ### `async_unload_entry` (`__init__.py`)
@@ -34,10 +55,10 @@ The main entry point. Called when the config entry is loaded (on HA start or aft
 Called when the entry is being unloaded. In order, it:
 
 1. Unloads all entity platforms.
-2. Removes each registered sidebar panel via `frontend.async_remove_panel` (the `panel_custom` module doesn't expose an unregister API; the panel lives in HA's `frontend` component, which is where the remove helper is defined).
+2. Removes each registered sidebar panel via `frontend.async_remove_panel` (the `panel_custom` module doesn't expose an unregister API; the panel lives in HA's `frontend` component, which is where the remove helper is defined). The call is wrapped in `try/except` so a missing/renamed helper degrades to a debug log rather than blocking unload.
 3. Removes all four background listeners.
 4. Calls all four service unregistration functions.
-5. Unregisters the mapping tracker and clears all runtime keys from `hass.data[DOMAIN]`.
+5. Unregisters the mapping tracker, stops the error tracker, and clears all runtime keys from `hass.data[DOMAIN]`.
 
 ### `async_remove_entry` (`__init__.py`)
 
@@ -49,9 +70,14 @@ Called when the entry is permanently deleted. Creates a bare `Store` instance fo
 |---|---|---|
 | `DATA_RUNTIME` (`"runtime"`) | `EufyVacuumManager` | Core manager. All services and entities resolve the manager through this key. |
 | `DATA_LEARNING` (`"learning"`) | `LearningManager` | Learning subsystem manager. |
+| `DATA_BATTERY` (`"battery"`) | `BatteryHealthManager` | Battery health tracking subsystem (cycle count, zone-aware charge rates, drain rates). |
+| `DATA_ERROR_TRACKER` (`"error_tracker"`) | `ErrorTracker` | Per-vacuum error latch (active-run / last-device) and recent-errors ring buffer. |
 | `"mapping_manager"` | `MappingManager` | Map image/segment processing. |
 | `"mapping_tracker"` | `MappingTracker` | Real-time robot position tracker. |
 | `f"_panels_{entry.entry_id}"` | `list[str]` | Panel URL paths registered for this entry (used for cleanup). |
+| `"_job_lifecycle_unsubs"`, `"_dock_event_unsubs"`, `"_path_blocker_unsubs"`, `"_pause_timeout_unsubs"` | `list[Callable]` | Unsub handles for the four background listeners. |
+
+Adapter configs themselves live in the adapter registry (`adapters/registry.py`), not in `hass.data`.
 
 ---
 
@@ -59,7 +85,7 @@ Called when the entry is permanently deleted. Creates a bare `Store` instance fo
 
 `EufyVacuumConfigFlow` in `config_flow.py` is intentionally minimal. It collects:
 
-- `CONF_TESTED_MODEL` (`"tested_model"`) — defaults to `"Eufy X10 Pro Omni"`. Stored as a string for display only; not used for runtime capability detection.
+- `CONF_TESTED_MODEL` (`"tested_model"`) — defaults to `"Eufy X10 Pro Omni"`. Stored as a string for display only; not used for runtime capability detection. (Capability and vocabulary surfaces come from the adapter config, not from the tested-model string.)
 - `CONF_NOTES` (`"notes"`) — optional free-text field. The default value instructs the user to open the sidebar panel to add their vacuum and import its map.
 
 The flow calls `async_set_unique_id(DOMAIN)` and `_abort_if_unique_id_configured()`, which means only one config entry per HA instance is permitted.
@@ -68,13 +94,13 @@ On submit the entry is created with `title = DEFAULT_TITLE` (`"Eufy Vacuum Manag
 
 **Options flow** (`EufyVacuumOptionsFlow`) exposes only the `CONF_NOTES` field for editing after initial setup. It reads the current value from `config_entry.options` first, falling back to `config_entry.data`.
 
-`config_entry.data` contains `{"tested_model": str, "notes": str}`. No operational configuration (vacuum entity IDs, map IDs, room settings) lives in the config entry — all of that is in the storage layer.
+`config_entry.data` contains `{"tested_model": str, "notes": str}`. No operational configuration (vacuum entity IDs, map IDs, room settings, adapter overrides) lives in the config entry — all of that is in the storage layer.
 
 ---
 
 ## 3. Entity Platforms
 
-Five platforms are registered: `button`, `switch`, `select`, `number`, and `sensor`. All platform `async_setup_entry` functions pull the manager from `hass.data[DOMAIN]["runtime"]`.
+Six platforms are registered: `binary_sensor`, `button`, `switch`, `select`, `number`, and `sensor`. All platform `async_setup_entry` functions pull the manager from `hass.data[DOMAIN]["runtime"]`.
 
 ### Base pattern: `EufyVacuumRoomEntity`
 
@@ -103,7 +129,7 @@ Five platforms are registered: `button`, `switch`, `select`, `number`, and `sens
 
 Exposes two entity kinds:
 
-- **Maintenance reset buttons** — one per supported maintenance component (brush roll, filter, side brush, etc.) for each vacuum. Registered at startup and tied to capability detection (`sources.get(component)` must be non-`None`).
+- **Maintenance reset buttons** — one per supported maintenance component for each vacuum. The component list is **read from `adapter_config.maintenance_components`** at platform setup; each entry declares the component key, label, interval, and the source HA entity that supplies cumulative usage. A button is created only when the source entity is declared in the adapter config.
 - **Saved run profile buttons** — dynamic; created when a run profile is saved with `expose_as_button = True`. A manager callback (`_on_run_profiles_updated`) syncs these dynamically, adding new ones and removing stale ones from the entity registry.
 
 ### switch platform
@@ -112,11 +138,15 @@ Exposes per-room enable/disable toggles. One `EufyVacuumRoomEnableSwitch` per ro
 
 ### select platform
 
-Exposes per-room profile selectors. One `EufyVacuumRoomProfileSelect` per room per map. Options are the available profile keys returned by `get_available_profiles(capabilities, stored_profiles)`. Changing selection calls `_async_update_room({"profile_name": value})`.
+Exposes per-room profile selectors. One `EufyVacuumRoomProfileSelect` per room per map. Options are the available profile keys returned by `get_available_profiles(capabilities, stored_profiles)` — capabilities are resolved from the adapter config. Changing selection calls `_async_update_room({"profile_name": value})`.
 
 ### number platform
 
-Exposes per-room clean pass count sliders. One `EufyVacuumRoomCleanPassesNumber` per room per map. Range is 1–3. Changing the value calls `_async_update_room({"clean_passes": value})`.
+Exposes per-room clean pass count sliders. One `EufyVacuumRoomCleanPassesNumber` per room per map. Range is 1–3 (driven by `adapter_config.dispatch.clean_passes_options`). Changing the value calls `_async_update_room({"clean_passes": value})`.
+
+### binary_sensor platform
+
+Exposes per-vacuum status signals that are inherently boolean — for example `binary_sensor.{object_id}_active_run_has_error`, which latches when the active run produces an error and exposes the error detail as attributes. Reads its source entities through the adapter config; the platform itself contains no brand-specific names.
 
 ### room_entities (shared base)
 
@@ -136,11 +166,13 @@ One set of these is created per vacuum at startup and never torn down while the 
 |---|---|---|---|
 | `EufyVacuumProfileSensor` | `sensor.<object_id>_available_profiles` | String-cast count of available profiles (e.g. `"4"`) | `profile_count` (int), `profiles` (full dict), `profile_labels` (key→label dict), `supports_mop_features` (bool), `supports_water_control` (bool), `capability_filtered` (always `True`) |
 | `EufyVacuumMaintenanceRemainingSensor` | `sensor.<object_id>_<component>_maintenance_remaining` | Remaining hours as a float (`native_unit_of_measurement = "h"`, `device_class = "duration"`, `state_class = "measurement"`) | `component` (str), `used_since_reset_hours` (float), `interval_hours` (float), `current_usage_hours` (float), `reset_at_usage_hours` (float), `reset_at` (ISO timestamp or `None`), `source_entity` (entity ID), `source_available` (bool) |
-| `EufyVacuumDockEventSensor` | `sensor.<object_id>_dock_events` | ISO timestamp of the most recent dock event across all event types (`None` if no events recorded) | `last_mop_wash` (ISO str or `None`), `last_dust_empty` (ISO str or `None`), `last_dry_start` (ISO str or `None`), `last_dry_duration` (str or `None`), `vacuum_entity_id` |
-| `EufyVacuumThemeStateSensor` | `sensor.<object_id>_theme_state` | Active theme name string, or `"none"` if no theme is selected or the active ID is not in the library | `active_theme_id` (str or `None`), `draft_dirty` (bool), `editor_mode` (str), `working_draft` (dict with `tokens`, `colors`, `alpha`), `library_count` (int), `library_summary` (list of `{id, theme_id, name}`), `default_theme_id` (str or `None`), `vacuum_entity_id` |
+| `EufyVacuumDockEventSensor` | `sensor.<object_id>_dock_events` | ISO timestamp of the most recent dock event across all event types (`None` if no events recorded) | `last_mop_wash`, `last_dust_empty`, `last_dry_start` (ISO strs or `None`), `last_dry_duration` (str or `None`), `vacuum_entity_id` |
+| `EufyVacuumThemeStateSensor` | `sensor.<object_id>_theme_state` | Active theme name string, or `"none"` if no theme is selected or the active ID is not in the library | `active_theme_id`, `draft_dirty`, `editor_mode`, `working_draft`, `library_count`, `library_summary`, `default_theme_id`, `vacuum_entity_id` |
 | `EufyVacuumOnboardingSensor` | `sensor.<object_id>_onboarding_state` | Worst-case status across all maps: `"rooms_needed"` > `"floor_type_needed"` > `"complete"` | `all_complete` (bool), `vacuum_entity_id`, `maps` (list of per-map status dicts) |
 
-`EufyVacuumMaintenanceRemainingSensor` is created once per maintenance component per vacuum, conditioned on capability detection (`maintenance_sources[component]` must be non-`None`). It reads usage hours live from the HA entity referenced by the capabilities map. The `<component>` token in its entity ID is the component key from `MAINTENANCE_COMPONENTS` (e.g. `filter`, `rolling_brush`, `side_brush`, `mopping_cloth`, `cleaning_tray`, `swivel_wheel`, `sensor`).
+`EufyVacuumMaintenanceRemainingSensor` is created once per component **declared in `adapter_config.maintenance_components`** for each vacuum. The `<component>` token in its entity ID is the component key from that config (e.g. `filter`, `rolling_brush`, `side_brush`, `mopping_cloth`, `cleaning_tray`, `swivel_wheel`, `sensor`). The sensor reads usage hours live from the HA entity declared by the adapter as the component's `source_entity`. Adapters that don't declare a particular component simply don't get a sensor for it.
+
+Battery-health sensors (cycle counter, zone-aware charge rate, per-job drain) are registered alongside these from `battery/sensors.py` and consume `BatteryHealthManager` state. See [docs/user-guide/13-battery-health.md](../user-guide/13-battery-health.md) and [docs/advanced/09-battery-health.md](../advanced/09-battery-health.md) for the full surface.
 
 `EufyVacuumThemeStateSensor` sets `_attr_should_poll = False` and is updated exclusively via the theme update callback.
 
@@ -151,7 +183,7 @@ One pair of these is created per room per map. They are added and removed dynami
 | Class | Entity ID pattern | `native_value` | Key attributes |
 |---|---|---|---|
 | `EufyVacuumRoomCleaningHistorySensor` | `sensor.<object_id>_<map_id>_<room_id>_cleaning_history` | ISO timestamp of the last completed cleaning for this room (`None` if never cleaned) | `last_cleaned_at`, `last_vacuumed_at`, `last_mopped_at` (ISO strs or `None`), `hours_since_last_vacuum`, `hours_since_last_mop` (floats or `None`), `last_job_mode` (str or `None`), plus all base `EufyVacuumRoomEntity` attributes |
-| `EufyVacuumRoomRuleStatusSensor` | `sensor.<object_id>_<map_id>_<room_id>_rule_status` | Last rule evaluation result string (e.g. `"selected"`, `"blocked"`, `"never"`) | `last_evaluated_at` (ISO str or `None`), `last_result`, `last_selected` (bool), `last_included` (bool), `last_block_reason` (str or `None`), `last_block_source` (str or `None`), `last_blocked_by_room_id` (int or `None`), `last_blocked_by_room_name` (str or `None`), `last_triggered_rule_ids` (list), `last_modifier_changes` (dict or `None`), `last_requires_confirmation` (bool), `last_preflight_reason` (str or `None`), `last_warning_codes` (list), `last_evaluation_scope` (str or `None`), plus all base `EufyVacuumRoomEntity` attributes |
+| `EufyVacuumRoomRuleStatusSensor` | `sensor.<object_id>_<map_id>_<room_id>_rule_status` | Last rule evaluation result string (e.g. `"selected"`, `"blocked"`, `"never"`) | `last_evaluated_at`, `last_result`, `last_selected` (bool), `last_included` (bool), `last_block_reason`, `last_block_source`, `last_blocked_by_room_id`, `last_blocked_by_room_name`, `last_triggered_rule_ids`, `last_modifier_changes`, `last_requires_confirmation`, `last_preflight_reason`, `last_warning_codes`, `last_evaluation_scope`, plus all base `EufyVacuumRoomEntity` attributes |
 
 Both inherit from `EufyVacuumRoomEntity` and set `_attr_should_poll = False`.
 
@@ -176,7 +208,9 @@ Room sensors also refresh on the `eufy_vacuum_job_finished` event (registered vi
 
 ## 5. Service Registration Pattern
 
-All integration services are registered in `async_register_services(hass)` in `services.py`. The pattern is:
+All core integration services are registered in `async_register_services(hass)` in `services.py`. Three sister registrars handle their own surfaces: `async_register_learning_services`, `async_register_theme_services`, `async_register_mapping_services`.
+
+The pattern is:
 
 1. Define a module-level `_handle_*` async function that takes `(hass, call)` and calls through to the manager.
 2. Inside `async_register_services`, define a thin closure that calls the handler with the captured `hass` reference.
@@ -186,20 +220,46 @@ Services that return data to the caller (read-only snapshots, capability queries
 
 After mutation, handlers call `await _get_manager(hass).async_save()` to persist. Read-only handlers skip the save.
 
+### Adapter-driven `map_id` auto-resolve
+
+Every service that operates on per-map state takes `map_id` as an **optional** parameter (in `services.yaml`) and an **optional** voluptuous schema key. When the caller omits it, the handler resolves it from the adapter via a single helper:
+
+```python
+def _resolved_call_data(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return call.data with map_id auto-resolved when absent."""
+    data = dict(call.data)
+    if data.get("map_id"):
+        return data
+    vacuum_entity_id = data.get("vacuum_entity_id")
+    if not vacuum_entity_id:
+        return data
+    from .rooms.room_discovery import get_active_map_id
+    resolved = get_active_map_id(hass, vacuum_entity_id)
+    if resolved:
+        data["map_id"] = resolved
+    return data
+```
+
+`get_active_map_id` reads `adapter_config.entities.active_map` — so any adapter that declares an active-map entity gets a free auto-resolve path. Adapters that don't declare one just keep the old explicit-`map_id` behavior; the manager method's required kwarg surfaces the missing value with a clear error, with no silent fallback to a wrong map.
+
+Handlers dispatch via `**_resolved_call_data(hass, call)` rather than `**call.data`. The helper is a no-op when `map_id` is already present, so it's safe to apply uniformly.
+
 ### Service groups
 
 | Group | Examples | Notes |
 |---|---|---|
-| Setup (panel-driven) | `setup_get_status`, `setup_add_vacuum`, `setup_import_active_map`, `setup_get_map_rooms`, `setup_save_rooms`, `setup_delete_map` | Invoked by the frontend panel during onboarding. All return data. |
+| Setup (panel-driven) | `setup_get_status`, `setup_add_vacuum`, `setup_import_active_map`, `setup_get_map_rooms`, `setup_save_rooms`, `setup_delete_map`, `setup_reject_rooms`, `setup_force_remove_room` | Invoked by the frontend panel during onboarding and ongoing drift review. All return data. |
 | Queue / payload | `discover_rooms`, `save_managed_rooms`, `build_queue`, `build_room_payload`, `get_queue_state`, `get_payload_state`, `clear_queue` | Core room selection plumbing. |
 | Job control | `get_start_status`, `start_selected_rooms`, `start_run_profile`, `pause_active_job`, `resume_active_job`, `cancel_active_job`, `get_active_job`, `get_job_progress_snapshot`, `get_job_control_state`, `clear_active_job`, `get_pause_timeout_settings`, `set_pause_timeout_settings` | Active job lifecycle. |
 | Dock actions | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `get_dock_action_status` | Gated dock commands. All `supports_response=True`. |
 | Snapshots | `get_lifecycle_state`, `get_dashboard_snapshot`, `get_upkeep_snapshot` | Unified card data snapshots. |
 | Maintenance | `reset_maintenance`, `set_dock_event_count` | Upkeep counter management. |
+| Errors | `acknowledge_error`, `get_recent_errors` | ErrorTracker latches and recent-errors ring buffer. `vacuum_entity_id` only — these are per-device, not per-map. |
 | Room profiles | `get_room_profiles`, `save_user_room_profile`, `overwrite_room_profile`, `save_room_profile_from_room`, `overwrite_room_profile_from_room`, `rename_room_profile`, `delete_room_profile`, `apply_room_profile` | Named cleaning profile CRUD. |
 | Run profiles | `get_saved_run_profiles`, `save_run_profile`, `apply_run_profile`, `overwrite_run_profile`, `rename_run_profile`, `delete_run_profile` | Saved run configuration CRUD. |
 | Room fields / access | `update_room_fields`, `get_room_access_editor`, `get_access_graph_health` | Per-room field edits and access graph tooling. |
 | Capabilities | `get_vacuum_capabilities` | Capability detection and refresh. |
+| Adapter config | `save_adapter_config`, `delete_adapter_config`, `get_adapter_config`, `discover_adapter_entities`, `observe_entity_states` | Read/write the per-vacuum adapter overlay; discovery helpers used by the porting workflow. |
 
 ### `async_unregister_services`
 
@@ -209,11 +269,12 @@ Called in `async_unload_entry`. Iterates over every registered service name and 
 
 1. Add the service name constant to `const.py` (e.g. `SERVICE_MY_NEW_SERVICE = "my_new_service"`).
 2. Add the constant to the imports in `services.py`.
-3. Define a voluptuous schema constant (e.g. `MY_NEW_SERVICE_SCHEMA`).
-4. Write a `_handle_my_new_service(hass, call) -> dict | None` function. Call the manager. Call `async_save()` if state was mutated.
+3. Define a voluptuous schema constant. If the service operates on a map, use `vol.Optional("map_id"): cv.string` (not `vol.Required`) so the adapter auto-resolve helper can fill it in.
+4. Write a `_handle_my_new_service(hass, call) -> dict | None` function. If the service takes `map_id`, dispatch via `**_resolved_call_data(hass, call)` rather than `**call.data` so the auto-resolve fires. Call the manager. Call `async_save()` if state was mutated.
 5. Inside `async_register_services`, define the closure and call `hass.services.async_register(DOMAIN, SERVICE_MY_NEW_SERVICE, closure, schema=MY_NEW_SERVICE_SCHEMA, supports_response=True)`.
 6. Add the service name to the tuple in `async_unregister_services`.
-7. If the service is called from the frontend card, add a corresponding handler in the card's service call module.
+7. Add the YAML entry to `services.yaml`. For `map_id`, use `required: false` with `description: Leave blank to use the current active map.` to match the established pattern.
+8. If the service is called from the frontend card, add a corresponding handler in the card's service call module.
 
 ---
 
@@ -228,7 +289,7 @@ self._store = Store[dict[str, Any]](hass, STORAGE_VERSION, STORAGE_KEY)
 ```
 
 - `STORAGE_VERSION = 1`
-- `STORAGE_KEY = "eufy_vacuum.storage"`
+- `STORAGE_KEY = "eufy_vacuum.storage"` (imported from `adapters/eufy/const.py` — the storage key is currently fixed per integration, not per adapter)
 
 HA's `Store` writes to `.storage/eufy_vacuum.storage` in the HA config directory. The `STORAGE_VERSION` is a schema version number — HA uses it for migration hooks (not yet implemented). **Do not edit the `.storage` file directly.** Use HA's UI or integration services.
 
@@ -250,8 +311,11 @@ Calls `self._store.async_load()`. Returns the stored dict if it exists, or the d
     "dock_events": {},
     "icons": {},
     "onboarding": {},
+    "error_tracker": {},
 }
 ```
+
+Loaders defensively `setdefault("error_tracker", {})` for installs that pre-date that section. Newer keys added in future versions should follow the same backfill pattern.
 
 ### `async_save(data: dict) -> None`
 
@@ -263,7 +327,7 @@ Calls `self._store.async_save(data)`. The manager calls this after any mutation.
 
 | Key | Contents |
 |---|---|
-| `vacuums` | Vacuum registration metadata (capabilities snapshot, model info) |
+| `vacuums` | Vacuum registration metadata, capabilities snapshot, model info, **per-vacuum adapter config overlays** |
 | `maps` | Map definitions, per-map room configs, summaries, queue state, active job, run profiles |
 | `theme` | Theme library, per-vacuum active theme, working drafts |
 | `analytics` | Learning job records and derived stats |
@@ -271,12 +335,16 @@ Calls `self._store.async_save(data)`. The manager calls this after any mutation.
 | `dock_events` | Timestamps and counts for mop wash, dust empty, dry start events |
 | `icons` | Custom room icon overrides |
 | `onboarding` | Per-vacuum/map onboarding completion flags |
+| `error_tracker` | Per-vacuum `active_run_error`, `last_device_error`, and `recent_errors` ring buffer |
 
 **Runtime-only (in `hass.data[DOMAIN]` or in-memory on the manager):**
 
 - The manager object itself (`DATA_RUNTIME`)
 - Learning manager (`DATA_LEARNING`)
+- Battery health manager (`DATA_BATTERY`)
+- Error tracker (`DATA_ERROR_TRACKER`)
 - Mapping tracker state and active job tracking
+- Adapter registry (lives in `adapters/registry.py` module state)
 - Background listener unsub handles
 - Registered panel URL lists
 
@@ -317,17 +385,11 @@ All events carry `vacuum_entity_id` in their payload, so automations can filter 
 
 `__init__.py` contains a state-change watcher that automatically finalizes a cleaning job when HA sensor states indicate the job is done, without requiring an explicit finalize call from the frontend. Auto-finalization is one of several end paths for an active job — see [job-lifecycle.md](job-lifecycle.md) for the full set.
 
-### Watched entities
+### Watched entities (adapter-driven)
 
-For each vacuum, `_get_lifecycle_watch_entities(vacuum_entity_id)` returns five entity IDs:
+For each vacuum, `_get_lifecycle_watch_entities(vacuum_entity_id)` returns the vacuum entity itself plus every entity the adapter declares as lifecycle-relevant. Specifically it reads `adapter_config.entities.{task_status, dock_status, active_cleaning_target, active_map}` and includes whichever of those the adapter has declared.
 
-- `vacuum.{object_id}` — vacuum state (e.g. `docked`)
-- `sensor.{object_id}_task_status`
-- `sensor.{object_id}_dock_status`
-- `sensor.{object_id}_active_cleaning_target`
-- `sensor.{object_id}_active_map`
-
-`async_track_state_change_event` watches all of these. One callback handles all vacuums.
+`async_track_state_change_event` watches the resulting list. One callback handles all vacuums. There are no hardcoded entity names anywhere in the watcher — when no adapter is registered, the watcher falls back to just the vacuum entity itself and lifecycle helpers return no-op results.
 
 ### `_ACTIVE_LIFECYCLE_STATES`
 
@@ -344,19 +406,20 @@ The job is not eligible for auto-finalization until the manager has reported at 
 
 A job is finalized when all three of these are simultaneously true:
 
-1. `task_status == "completed"`
-2. `active_cleaning_target` is in `{"", "unknown", "unavailable", "none", "null"}`
-3. `has_observed_active_lifecycle` is `True` on the active job record
+1. `task_status` equals the adapter's declared `completion.task_status_value` (`"completed"` for Eufy; adapter-defined for other brands).
+2. `active_cleaning_target` is in the adapter's declared completion sentinel set (`{"", "unknown", "unavailable", "none", "null"}` for Eufy via `completion.cleared_target_sentinels`).
+3. `has_observed_active_lifecycle` is `True` on the active job record.
 
 `vacuum.state == "docked"` is intentionally not required — requiring it was stranding active job records when the vacuum was still returning to dock.
 
 ### What happens on finalization
 
 1. `manager.finalize_learning_for_active_job(...)` is called.
-2. `manager.mark_active_job_finalized(...)` clears the active job record (prevents stranded records even if finalization fails).
-3. `eufy_vacuum_job_finished` is fired with the result payload.
-4. For mop jobs: `_register_post_job_water_amendment(...)` registers a temporary dock status watcher to capture post-job mop wash water consumption and patch the job file once drying starts (or after a 180-second timeout).
-5. `manager.async_save()` persists all changes.
+2. `MappingTracker.end_job(...)` is invoked via `hass.async_add_executor_job` — the tracker method is synchronous and performs disk I/O (bounds update, raw-sample archive), so it runs on the executor to stay off the event loop.
+3. `manager.mark_active_job_finalized(...)` clears the active job record (prevents stranded records even if finalization fails).
+4. `eufy_vacuum_job_finished` is fired with the result payload.
+5. For mop jobs: `_register_post_job_water_amendment(...)` registers a temporary dock status watcher to capture post-job mop wash water consumption and patch the job file once drying starts (or after a 180-second timeout).
+6. `manager.async_save()` persists all changes.
 
 ### Pause timeout watchdog
 
@@ -366,25 +429,29 @@ A job is finalized when all three of these are simultaneously true:
 
 ## 9. Dock Event Listeners
 
-`_register_dock_event_listeners` watches each vacuum's `sensor.{object_id}_dock_status` entity.
+`_register_dock_event_listeners` watches each vacuum's adapter-declared dock status entity (`adapter_config.entities.dock_status`). When that entity transitions to a value in the trigger set declared by the adapter, the corresponding dock event is recorded.
 
-### `_DOCK_EVENT_TRIGGERS`
+### Adapter-declared triggers
+
+Trigger states come from `adapter_config.dock_events.triggers`. For the Eufy adapter the shape is:
 
 ```python
-_DOCK_EVENT_TRIGGERS = {
-    "last_mop_wash":   {"washing", "washing mop"},
-    "last_dust_empty": {"emptying dust", "emptying dust bin", "dust emptying"},
-    "last_dry_start":  {"drying", "drying mop", "drying pads", "mop drying"},
+dock_events: {
+    "triggers": {
+        "last_mop_wash":   {"washing", "washing mop"},
+        "last_dust_empty": {"emptying dust", "emptying dust bin", "dust emptying"},
+        "last_dry_start":  {"drying", "drying mop", "drying pads", "mop drying"},
+    },
 }
 ```
 
-When `dock_status` transitions to any value in a trigger set, `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` is called and the manager is saved. For `last_dry_start` events, the current value of `select.{object_id}_dry_duration` is captured and stored as `dry_duration`.
+The listener iterates `_triggers.items()`, lowercases both sides for comparison, and calls `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` when a match is found. For `last_dry_start` events, the current value of the adapter's `entities.dry_duration` entity (Eufy: `select.{object_id}_dry_duration`) is captured and stored as `dry_duration`. The manager is then saved fire-and-forget via `manager._async_save_logged()`.
 
 These records are exposed through `EufyVacuumDockEventSensor`.
 
 ### Debounce / deduplication
 
-There is no timer-based debounce on dock events. The listener fires on every state transition and records immediately. Deduplication relies on the dock_status not oscillating: it only records when the state is in the trigger set, and a transition from one non-trigger state to another does not fire. For mop wash counting in the post-job water amendment watcher, a minimum 60-second interval between wash counts is enforced via `_MIN_WASH_INTERVAL_SECONDS`.
+There is no timer-based debounce on dock events. The listener fires on every state transition and records immediately. Deduplication relies on the dock_status not oscillating: it only records when the state is in the trigger set, and a transition from one non-trigger state to another does not fire. The listener also ignores transitions where `new_val == old_val`. For mop wash counting in the post-job water amendment watcher, a minimum 60-second interval between wash counts is enforced via `_MIN_WASH_INTERVAL_SECONDS`.
 
 ---
 
@@ -409,7 +476,7 @@ await panel_custom.async_register_panel(
     hass,
     frontend_url_path=f"eufy-vacuum-{object_id}",   # e.g. "eufy-vacuum-alfred"
     webcomponent_name="eufy-vacuum-command-center",
-    js_url="/eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=3",
+    js_url=panel_js_url(hass),                       # /eufy_vacuum/frontend/eufy-vacuum-command-center.js?v=<mtime>
     sidebar_title="Eufy Vacuum",
     sidebar_icon="mdi:robot-vacuum",
     config={"vacuum_entity_id": vacuum_entity_id},
@@ -418,8 +485,8 @@ await panel_custom.async_register_panel(
 )
 ```
 
-The JS URL points to the static path registered by `async_setup`. The `?v=` query parameter is now computed automatically via `_frontend_url.panel_js_url()`, which fingerprints the bundle's mtime — every time `dist/eufy-vacuum-command-center.js` is replaced, the panel re-registration on the next reload picks up the new mtime and the URL changes, busting the HA service-worker cache without manual intervention. The `config` dict is injected into the panel's web component as a property and is how the card learns which vacuum it is managing.
+The JS URL points to the static path registered by `async_setup`. The `?v=` query parameter is computed automatically via `_frontend_url.panel_js_url()`, which fingerprints the bundle's mtime — every time `eufy-vacuum-command-center.js` is replaced, the panel re-registration on the next reload picks up the new mtime and the URL changes, busting the HA service-worker cache without manual intervention. The `config` dict is injected into the panel's web component as a property and is how the card learns which vacuum it is managing.
 
 Panels are removed in `async_unload_entry` via `frontend.async_remove_panel` (`panel_custom` itself has no unregister API; the panel lives in HA's `frontend` component). The call is wrapped in `try/except` so a missing/renamed-in-future helper degrades to a debug log rather than blocking unload.
 
-The card JS file at `/eufy_vacuum/frontend/eufy-vacuum-command-center.js` must be present in `custom_components/eufy_vacuum/frontend/` before the integration loads. It is not bundled with the Python package; it must be placed there as part of the installation or build process.
+The card JS file at `/eufy_vacuum/frontend/eufy-vacuum-command-center.js` must be present in `custom_components/eufy_vacuum/frontend/` before the integration loads. It ships with the integration (committed to the repo as a built artifact); it is not bundled with the Python package and is not built at install time.
