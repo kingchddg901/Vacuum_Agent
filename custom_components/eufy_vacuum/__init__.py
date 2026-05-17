@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from collections.abc import Callable
@@ -386,10 +387,17 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                                 {k: v for k, v in all_rooms.items() if k in active_ids}
                                 if active_ids else all_rooms
                             )
-                            await tracker.start_job(
-                                vacuum_entity_id=vacuum_entity_id,
-                                map_id=str(map_id),
-                                rooms=job_rooms,
+                            # WHY: start_job is sync and performs disk I/O
+                                # (`_load_samples_from_disk` / `_delete_samples_tmp_file`).
+                                # Run it on the executor to avoid both the
+                                # not-awaitable TypeError and the blocking-I/O warning.
+                            await hass.async_add_executor_job(
+                                functools.partial(
+                                    tracker.start_job,
+                                    vacuum_entity_id=vacuum_entity_id,
+                                    map_id=str(map_id),
+                                    rooms=job_rooms,
+                                )
                             )
 
                     _completion_task_status = _get_adapter_value(
@@ -445,7 +453,15 @@ def _register_lifecycle_listeners(hass: HomeAssistant) -> None:
                     finally:
                         tracker = hass.data.get(DOMAIN, {}).get("mapping_tracker")
                         if tracker is not None:
-                            await tracker.end_job(vacuum_entity_id=vacuum_entity_id)
+                            # WHY: end_job is sync and performs disk I/O
+                            # (update_room_bounds, _append_raw_samples,
+                            # _load_map_data). Run on executor.
+                            await hass.async_add_executor_job(
+                                functools.partial(
+                                    tracker.end_job,
+                                    vacuum_entity_id=vacuum_entity_id,
+                                )
+                            )
 
                     # Always clear the active_job record so it can never be stranded
                     # as status:started regardless of whether finalization succeeded.
