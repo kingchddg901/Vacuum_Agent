@@ -10,6 +10,8 @@ This document defines the backend as a **contract**, not just a description of t
 
 All services live in the `eufy_vacuum` domain. Call them via `hass.callService(domain, service, data, target?, notifyOnError?, returnResponse?)`. Services marked **response** must be called with `returnResponse = true`; the result lives at `result.response`.
 
+> **`map_id` is optional on every service.** The integration auto-resolves it from the adapter's `entities.active_map` entity when omitted. The tables below list `map_id` next to the fields the card actually passes (the card always knows which map it's looking at), but the service surface itself accepts an omitted `map_id` and falls back to the active map. See [03-services.md](../advanced/03-services.md) for the user-facing details.
+
 #### State queries (read-only, response)
 
 | Service | Required fields | What it returns |

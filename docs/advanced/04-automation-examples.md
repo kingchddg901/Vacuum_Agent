@@ -149,15 +149,16 @@ automation:
     - service: eufy_vacuum.start_run_profile
       data:
         vacuum_entity_id: vacuum.alfred
-        map_id: map_6
         profile_id: full_house
         confirm_reduced_run: true
         path_block_action: pause_and_event
+        # map_id is optional — defaults to the vacuum's current active map.
+        # Set it explicitly only if you need to target a stored secondary map.
 ```
 
 **Finding your `profile_id`:** Call `eufy_vacuum.get_saved_run_profiles` with
-your `vacuum_entity_id` and `map_id`. The response lists every saved run profile;
-use the `id` field from the profile you want.
+just your `vacuum_entity_id` (the map auto-resolves). The response lists every
+saved run profile; use the `id` field from the profile you want.
 
 **Customization points:**
 

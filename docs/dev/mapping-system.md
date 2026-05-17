@@ -642,6 +642,15 @@ The services fall into five functional groups: map image management,
 calibration, room boundaries (interactive draw + trace-driven), dock
 anchoring, and image-segment analysis.
 
+> **`map_id` is optional on every service** listed below. The
+> integration auto-resolves it from the adapter's `entities.active_map`
+> entity when the caller omits it. The tables show `map_id` in the
+> Required column because the card always passes it (it knows which
+> map it's on), but the service surface itself accepts an omitted
+> `map_id` and falls back to the active map. See
+> [advanced/03-services.md](../advanced/03-services.md) for the
+> user-facing details.
+
 ### Map image management
 
 | Service | Purpose | Required | Optional | Returns |

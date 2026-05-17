@@ -641,19 +641,19 @@ service lives in [advanced/03-services.md](../advanced/03-services.md).
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `save_learning_snapshot` | Capture the active job's start-time state for later estimation. Idempotent on `job_id`. | `vacuum_entity_id`, `map_id`, `started_at: str`, `battery_start: int` | `job_id: str` | no |
-| `finalize_learning_job` | Complete the job record, optionally rebuild stats, optionally rebuild CSV exports. | `vacuum_entity_id`, `map_id`, `battery_start: int`, `battery_end: int`, `started_at: str` | `ended_at: str`, `used_for_learning: bool`, `rebuild_stats: bool`, `rebuild_csv: bool` | yes — finalization result with outcome status |
+| `save_learning_snapshot` | Capture the active job's start-time state for later estimation. Idempotent on `job_id`. | `vacuum_entity_id`, `started_at: str`, `battery_start: int` | `map_id` (auto), `job_id: str` | no |
+| `finalize_learning_job` | Complete the job record, optionally rebuild stats, optionally rebuild CSV exports. | `vacuum_entity_id`, `battery_start: int`, `battery_end: int`, `started_at: str` | `map_id` (auto), `ended_at: str`, `used_for_learning: bool`, `rebuild_stats: bool`, `rebuild_csv: bool` | yes — finalization result with outcome status |
 | `rebuild_learning_stats` | Recompute aggregate statistics for one vacuum from all archived job files. | `vacuum_entity_id` | `rebuild_csv: bool` | no |
 
 ### Estimation
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `run_learning_estimate` | Full per-room ETA estimate with confidence scores and battery readiness for the current queue. | `vacuum_entity_id`, `map_id` | `current_battery: float`, `charge_percent_per_minute: float`, `reserve_battery_percent: float`, `started_at: str` | yes — `{rooms: [...], total_minutes, completion_eta, ...}` |
+| `run_learning_estimate` | Full per-room ETA estimate with confidence scores and battery readiness for the current queue. | `vacuum_entity_id` | `map_id` (auto), `current_battery: float`, `charge_percent_per_minute: float`, `reserve_battery_percent: float`, `started_at: str` | yes — `{rooms: [...], total_minutes, completion_eta, ...}` |
 | `record_estimate_accuracy` | Log estimated vs actual durations post-job for accuracy tracking. Drives the per-room drift metric. | `vacuum_entity_id`, `room_actuals: list[dict]` | (none) | yes — `{ok, recorded_count}` |
 | `reanchor_learning_timeline` | Recalculate remaining-room ETAs from completed-room actuals mid-job. Called on every `room_completed` event. | `original_estimate: dict`, `completed_rooms: list[dict]` | `reanchor_at: str`, `current_battery: float`, `charge_percent_per_minute: float`, `reserve_battery_percent: float` | yes — re-anchored estimate dict |
 | `get_next_room` | Lightweight next-room lookup from a re-anchored estimate. Used by the card for the "now cleaning"/"next" tiles. | `reanchored_estimate: dict` | (none) | yes — `{current_room, next_room}` |
-| `get_room_learning_estimates` | Per-room estimates for every managed room (not just queue members). Useful for the room-detail view. | `vacuum_entity_id`, `map_id` | `current_battery: float` | yes — `{rooms: {room_id: estimate, ...}}` |
+| `get_room_learning_estimates` | Per-room estimates for every managed room (not just queue members). Useful for the room-detail view. | `vacuum_entity_id` | `map_id` (auto), `current_battery: float` | yes — `{rooms: {room_id: estimate, ...}}` |
 
 ### History and diagnostics
 
@@ -663,7 +663,7 @@ service lives in [advanced/03-services.md](../advanced/03-services.md).
 | `get_metrics_snapshot` | Card-facing metrics rollup (avg time, area, pass count per room/profile combination). | `vacuum_entity_id` | `room_slug: str`, `profile_key: str`, `status: str`, `used_for_learning: bool` | yes — aggregate stats by room/profile |
 | `get_incomplete_run_log` | Returns the most recent incomplete run (cancelled, errored, or timed out) for the missed-rooms-retry flow. | `vacuum_entity_id` | (none) | yes — `{last_incomplete_run: {...}}` |
 | `get_trouble_rooms_log` | Rooms with chronic miss patterns (`miss_count >= 2` AND `miss_rate >= 0.33`). See §7 for the math. | `vacuum_entity_id` | (none) | yes — `{rooms: [{room_id, name, miss_count, miss_rate, is_trouble}, ...]}` |
-| `retry_missed_rooms` | Re-queue rooms that were missed in the last incomplete run and immediately start cleaning. | `vacuum_entity_id` | `map_id`, `confirm_reduced_run: bool`, `path_block_action: enum` | yes — start result |
+| `retry_missed_rooms` | Re-queue rooms that were missed in the last incomplete run and immediately start cleaning. | `vacuum_entity_id` | `map_id` (auto — also falls back to incomplete-run log if missing), `confirm_reduced_run: bool`, `path_block_action: enum` | yes — start result |
 
 ### Job-record management
 

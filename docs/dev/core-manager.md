@@ -331,19 +331,18 @@ Add a schema constant:
 ```python
 GET_MY_NEW_THING_SCHEMA = vol.Schema({
     vol.Required("vacuum_entity_id"): cv.string,
-    vol.Required("map_id"): cv.string,
+    vol.Optional("map_id"): cv.string,   # auto-resolves via adapter
 })
 ```
+
+`map_id` is **always optional** on service schemas. The handler dispatches through `_resolved_call_data(hass, call)`, which fills in `map_id` from the adapter's declared `entities.active_map` entity when the caller omits it. Adapters that don't declare an active-map entity make the manager raise a clear error for the missing kwarg — no silent fallback.
 
 Add the handler inside `async_register_services`:
 
 ```python
 async def handle_get_my_new_thing(call: ServiceCall) -> None:
     manager = hass.data[DOMAIN][DATA_RUNTIME]
-    result = manager.get_my_new_thing(
-        vacuum_entity_id=call.data["vacuum_entity_id"],
-        map_id=call.data["map_id"],
-    )
+    result = manager.get_my_new_thing(**_resolved_call_data(hass, call))
     # Optionally fire a HA event or set call.return_value
     call.return_value = result
 
@@ -370,10 +369,12 @@ get_my_new_thing:
         entity:
           domain: vacuum
     map_id:
-      required: true
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
       example: "6"
       selector:
-        text:
+        text: {}
 ```
 
 ### Step 5 — Add to `async_unregister_services`
