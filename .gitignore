@@ -30,5 +30,13 @@ desktop.ini
 # Staging / dev artifacts
 mapping_staging/
 
+# Commit-message scratch files (used by `git commit -F` for long messages)
+.commit_msg*
+*.commit_msg
+COMMIT_MSG*
+
+# Local backup archives
+*.zip
+
 # Claude Code settings
 .claude/
