@@ -51,6 +51,7 @@ import { applyThemeBindings         } from "./theme.js";
 import { applyMapBindings           } from "./map.js";
 import { applySetupBindings         } from "./setup.js";
 import { applyMappingReviewBindings } from "./mapping-review.js";
+import { applyMobileShellBindings   } from "./mobile-shell.js";
 
 /* =========================================================
    CLASS
@@ -94,6 +95,7 @@ export class VacuumCardBindings {
     this._bindMap();
     this._bindSetup();
     this._bindMappingReview();
+    this._bindMobileShell();
   }
 
   _bindOrder() {
@@ -275,3 +277,4 @@ applyThemeBindings(VacuumCardBindings.prototype);
 applyMapBindings(VacuumCardBindings.prototype);
 applySetupBindings(VacuumCardBindings.prototype);
 applyMappingReviewBindings(VacuumCardBindings.prototype);
+applyMobileShellBindings(VacuumCardBindings.prototype);

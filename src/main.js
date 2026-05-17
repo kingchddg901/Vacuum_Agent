@@ -51,6 +51,17 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     this._learningController = null;
 
+    // Mobile overflow ("More") sheet visibility. Toggled by the bottom
+    // nav's More button and closed by backdrop tap or sheet-item tap.
+    // Only consulted by render when isMobileViewport() is true.
+    this._mobileMoreOpen = false;
+
+    // Optional card-config override for mobile shell. Set by setConfig
+    // when the user has `mobile_shell: true | false` in YAML. When
+    // explicit, suppresses width-based viewport detection so the
+    // user's choice sticks across resizes.
+    this._mobileShellOverride = "auto";
+
     /* =====================================================
        PANEL RESUME HANDLERS
        Bound once so add/remove are symmetric.
@@ -60,7 +71,45 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._boundHandleLocationChanged   = () => this._handlePanelResume();
     this._boundHandlePageShow          = (e) => { if (e.persisted) this._handlePanelResume(); };
 
+    /* =====================================================
+       VIEWPORT HANDLER
+       ResizeObserver on the card host itself, not the window.
+       Lovelace can embed this card in a grid cell narrower than
+       the browser viewport — window.innerWidth lies in that case.
+       Observing `this` (the custom-element host) gives us the
+       actual rendered card width, which is what the layout
+       decision should be based on.
+
+       Debounced via setViewportFromWidth's own change-detection
+       (it returns false when the mobile/desktop boundary isn't
+       crossed). Re-renders only when the boundary actually changes.
+       ===================================================== */
+    this._resizeObserver = null;
+    this._boundHandleResize = (entries) => {
+      if (!this._state) return;
+      // Honor the config override even on resize.
+      if (this._mobileShellOverride === true || this._mobileShellOverride === false) return;
+      const width = (entries?.[0]?.contentRect?.width)
+                    ?? this.getBoundingClientRect().width
+                    ?? window.innerWidth;
+      if (this._state.setViewportFromWidth(width)) {
+        this._scheduleRender();
+      }
+    };
+
     applyCardDomHelpers(this);
+  }
+
+  /**
+   * Best-effort measurement of the card's own rendered width.
+   * Falls back to the window's innerWidth if the card isn't
+   * laid out yet (first-mount race). Used for initial viewport
+   * detection before the ResizeObserver fires.
+   */
+  _measureCardWidth() {
+    const rect = this.getBoundingClientRect?.();
+    if (rect && rect.width > 0) return rect.width;
+    return (typeof window !== "undefined") ? window.innerWidth : 1024;
   }
 
   /**
@@ -82,7 +131,26 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._state.sync(this._hass, config);
     } else {
       this._state = new VacuumCardState(this._hass, config);
+      // Seed viewport before first render. setConfig runs before the
+      // element is necessarily in the DOM, so getBoundingClientRect
+      // may return 0; falls back to window.innerWidth in that case.
+      // connectedCallback + ResizeObserver correct this once layout
+      // settles.
+      this._state.setViewportFromWidth(this._measureCardWidth());
     }
+
+    // Honor explicit mobile_shell override from card config. Useful
+    // for previewing the mobile layout without resizing the window
+    // or fighting the HA app's WebView cache:
+    //   mobile_shell: true   → always render mobile shell
+    //   mobile_shell: false  → always render desktop shell
+    //   mobile_shell: "auto" → width-based detection (default)
+    if (config.mobile_shell === true) {
+      this._state.setViewport("mobile");
+    } else if (config.mobile_shell === false) {
+      this._state.setViewport("desktop");
+    }
+    this._mobileShellOverride = config.mobile_shell;
 
     if (!this._renderers) {
       this._renderers = new VacuumCardRenderers(this);
@@ -640,11 +708,39 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     this._maybeLoadRoomEstimates();
 
+    // Defensive viewport re-measurement at the start of every render.
+    // ResizeObserver handles ongoing changes, but this guards against
+    // initial-load lifecycle races (e.g. setConfig running before the
+    // element is in the DOM, or HA reloading the card without
+    // re-running setConfig). Uses the card's own width, not the
+    // window, so Lovelace grid embeds get the right answer.
+    //
+    // If the user has explicitly overridden via mobile_shell config,
+    // skip the width-based detection — keep their forced choice.
+    if (this._mobileShellOverride !== true && this._mobileShellOverride !== false) {
+      this._state.setViewportFromWidth?.(this._measureCardWidth());
+    }
+
     const ctx = buildRenderContext(this);
     const focusSnapshot = this._captureShadowFocusState();
     const scrollSnapshot = this._captureShadowScrollState();
     const frame = this._ensureShellFrame(STYLES);
-    const headerHtml = renderHeader(ctx);
+    const isMobile = this._state.isMobileViewport?.() ?? false;
+
+    // Tag the shell so CSS can adjust spacing / fixed positioning
+    // based on which chrome is active.
+    const shellEl = this.shadowRoot.querySelector(".evcc-shell");
+    if (shellEl) {
+      shellEl.dataset.viewport = isMobile ? "mobile" : "desktop";
+    }
+
+    // Header content forks by viewport: desktop has nav tabs in the
+    // header; mobile shows just vacuum name + status (nav is at the
+    // bottom). Both compose from the same context object.
+    const headerHtml = isMobile
+      ? this._renderers.renderMobileHeader?.(ctx) ?? ""
+      : renderHeader(ctx);
+
     let viewHtml;
     try {
       viewHtml = renderView(ctx);
@@ -653,9 +749,29 @@ class EufyVacuumCommandCenter extends HTMLElement {
       viewHtml = `<div class="evcc-empty">View error — check console (${ctx.view})</div>`;
     }
 
+    // Mobile-only chrome regions: bottom nav and the overflow sheet
+    // overlay. Empty strings on desktop so the regions exist but
+    // render nothing.
+    const bottomNavHtml = isMobile
+      ? this._renderers.renderMobileBottomNav?.(ctx.view) ?? ""
+      : "";
+    const mobileOverlayHtml = isMobile
+      ? this._renderers.renderMobileOverlay?.(ctx) ?? ""
+      : "";
+
     if (frame.header.dataset.renderedHtml !== headerHtml) {
       frame.header.innerHTML = headerHtml;
       frame.header.dataset.renderedHtml = headerHtml;
+    }
+
+    if (frame.bottomNav && frame.bottomNav.dataset.renderedHtml !== bottomNavHtml) {
+      frame.bottomNav.innerHTML = bottomNavHtml;
+      frame.bottomNav.dataset.renderedHtml = bottomNavHtml;
+    }
+
+    if (frame.mobileOverlay && frame.mobileOverlay.dataset.renderedHtml !== mobileOverlayHtml) {
+      frame.mobileOverlay.innerHTML = mobileOverlayHtml;
+      frame.mobileOverlay.dataset.renderedHtml = mobileOverlayHtml;
     }
 
     frame.viewStage.dataset.view = ctx.view;
@@ -682,9 +798,19 @@ class EufyVacuumCommandCenter extends HTMLElement {
     let styleRoot = this.shadowRoot?.querySelector("[data-evcc-style-root]");
     let header = this.shadowRoot?.querySelector("[data-evcc-header-root]");
     let viewStage = this.shadowRoot?.querySelector("[data-evcc-view-stage]");
+    let bottomNav = this.shadowRoot?.querySelector("[data-evcc-bottom-nav-root]");
+    let mobileOverlay = this.shadowRoot?.querySelector("[data-evcc-mobile-overlay-root]");
     let viewRoots = this._collectViewRoots();
 
-    if (!styleRoot || !header || !viewStage || Object.keys(viewRoots).length !== VIEW_ORDER.length) {
+    // Treat the shell as missing if either of the new slots is absent
+    // — happens on first mount and during HACS update when the frame
+    // is reset. The mobile slots are always built; CSS hides them on
+    // desktop based on the shell's data-viewport attribute.
+    const missingFrame = !styleRoot || !header || !viewStage
+      || !bottomNav || !mobileOverlay
+      || Object.keys(viewRoots).length !== VIEW_ORDER.length;
+
+    if (missingFrame) {
       this.shadowRoot.innerHTML = `
         <style data-evcc-style-root>${styles}</style>
 
@@ -701,6 +827,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
                 ></div>
               `).join("")}
             </div>
+            <div data-evcc-bottom-nav-root></div>
+            <div data-evcc-mobile-overlay-root></div>
           </div>
         </ha-card>
       `;
@@ -708,6 +836,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
       styleRoot = this.shadowRoot?.querySelector("[data-evcc-style-root]");
       header = this.shadowRoot?.querySelector("[data-evcc-header-root]");
       viewStage = this.shadowRoot?.querySelector("[data-evcc-view-stage]");
+      bottomNav = this.shadowRoot?.querySelector("[data-evcc-bottom-nav-root]");
+      mobileOverlay = this.shadowRoot?.querySelector("[data-evcc-mobile-overlay-root]");
       viewRoots = this._collectViewRoots();
     } else if (styleRoot.textContent !== styles) {
       styleRoot.textContent = styles;
@@ -717,6 +847,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
       styleRoot,
       header,
       viewStage,
+      bottomNav,
+      mobileOverlay,
       viewRoots,
     };
   }
@@ -815,6 +947,25 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.addEventListener("location-changed", this._boundHandleLocationChanged);
     window.addEventListener("pageshow", this._boundHandlePageShow);
 
+    // Initial viewport measurement. setConfig may have run before
+    // connectedCallback (so _state already exists); re-measure now that
+    // the element is in the document and laid out — getBoundingClientRect
+    // returns real numbers, which is more accurate than setConfig's
+    // window.innerWidth fallback.
+    if (this._state) {
+      this._state.setViewportFromWidth(this._measureCardWidth());
+    }
+
+    // ResizeObserver on the card host. Fires whenever the card's own
+    // box dimensions change — whether from window resize, Lovelace
+    // grid reflow, sidebar collapse, or anything else that shrinks
+    // or grows our cell. Always fires once on observe() so initial
+    // measurement is also covered.
+    if (typeof ResizeObserver !== "undefined") {
+      this._resizeObserver = new ResizeObserver(this._boundHandleResize);
+      this._resizeObserver.observe(this);
+    }
+
     // Schedule a render on (re)connection — panel navigation or initial mount
     // may happen before the first hass setter call in panel mode.
     this._scheduleRender();
@@ -847,6 +998,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.removeEventListener("focus", this._boundHandlePanelResume);
     window.removeEventListener("location-changed", this._boundHandleLocationChanged);
     window.removeEventListener("pageshow", this._boundHandlePageShow);
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
 
     if (this._modalHost) {
       this._modalHost.remove();

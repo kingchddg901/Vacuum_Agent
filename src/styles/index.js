@@ -40,6 +40,7 @@ import { mapStyles                           } from "./map.js";
 import { floorTextureStyles                  } from "./floor-texture-styles.js";
 import { setupStyles                         } from "./setup.js";
 import { mappingReviewStyles                 } from "./mapping-review.js";
+import { MOBILE_STYLES                       } from "./mobile.js";
 import { THEME_TOKEN_REGISTRY                } from "../theme-tokens/index.js";
 
 export const STYLES = [
@@ -64,6 +65,11 @@ export const STYLES = [
   floorTextureStyles,
   setupStyles,
   mappingReviewStyles,
+  // Mobile shell styles last — they reach into shared elements via
+  // .evcc-shell[data-viewport="mobile"] selectors and need to win
+  // specificity over the desktop defaults declared in the modules
+  // above.
+  MOBILE_STYLES,
 ].join("\n");
 
 /**

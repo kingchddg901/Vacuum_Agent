@@ -16,6 +16,7 @@ import { applyRoomRulesState  } from "./room-rules.js";
 import { applyMaintenanceState } from "./maintenance.js";
 import { applyThemeState } from "./theme.js";
 import { applyMapState   } from "./map.js";
+import { applyViewportState } from "./viewport.js";
 
 // Learning is predictive, temporal, and controller-managed — applied after all structural modules.
 import { applyLearningState      } from "./learning.js";
@@ -67,6 +68,7 @@ applyRoomRulesState(VacuumCardState.prototype);
 applyMaintenanceState(VacuumCardState.prototype);
 applyThemeState(VacuumCardState.prototype);
 applyMapState(VacuumCardState.prototype);
+applyViewportState(VacuumCardState.prototype);
 
 /* === LEARNING / SETUP / MAPPING (FINAL LAYERS) === */
 

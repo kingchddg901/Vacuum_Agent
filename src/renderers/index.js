@@ -27,6 +27,7 @@ import { applyMapRenderers          } from "./map.js";
 import { applyFloorTextureSurface   } from "./floor-texture-surface.js";
 import { applySetupRenderers           } from "./setup.js";
 import { applyMappingReviewRenderers   } from "./mapping-review.js";
+import { applyMobileShellRenderer      } from "./mobile-shell.js";
 
 /* =========================================================
    LEARNING RENDERERS
@@ -97,3 +98,4 @@ applyFloorTextureSurface(VacuumCardRenderers.prototype);
 applyLearningRenderers(VacuumCardRenderers.prototype);
 applySetupRenderers(VacuumCardRenderers.prototype);
 applyMappingReviewRenderers(VacuumCardRenderers.prototype);
+applyMobileShellRenderer(VacuumCardRenderers.prototype);
