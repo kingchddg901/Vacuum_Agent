@@ -9,6 +9,13 @@ haven't, and keep [adapter-config-reference.md](adapter-config-reference.md)
 open in another tab — it's the canonical schema reference and this
 guide will link to it constantly.
 
+> If you're applying the same approach to a non-vacuum HA integration
+> (thermostat, lock, EV charger, etc.), the underlying pattern is
+> documented in its own repo: [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
+> This porting guide stays focused on vacuum-specific concerns — the
+> standalone guide covers the pattern itself, decoupled from the
+> domain.
+
 ---
 
 ## 1. The porting story in one sentence
