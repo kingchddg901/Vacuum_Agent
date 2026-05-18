@@ -406,65 +406,15 @@ The vacuum reports its position as `(vx, vy)` values. These are in proprietary i
 
 The map PNG uses the standard image convention: origin at the top-left, X increases rightward, Y increases downward.
 
-### 4.3 Affine Transform — `compute_affine_transform`
+### 4.3 Legacy: affine-transform calibration (System A)
 
-The transform maps vacuum coordinates to pixel coordinates. It is a 2D affine transform represented as a 3×3 row-major matrix:
-
-```
-M = [[a,  b,  tx],
-     [c,  d,  ty],
-     [0,  0,  1 ]]
-```
-
-To compute the matrix, the system needs at least 3 calibration pairs (the constant `MIN_PAIRS_FOR_TRANSFORM = 3`), each providing a known `(vx, vy)` → `(px, py)` correspondence. The system solves for the 6 unknowns `[a, b, tx, c, d, ty]` by least squares:
-
-For each calibration pair, two rows are added to the matrix equation `A · x = b`:
-
-```
-[vx, vy, 1,  0,  0,  0]  · [a, b, tx, c, d, ty]ᵀ = px
-[ 0,  0, 0, vx, vy,  1]  · [a, b, tx, c, d, ty]ᵀ = py
-```
-
-`numpy.linalg.lstsq` solves the overdetermined system (2N equations, 6 unknowns) when N ≥ 3.
-
-The mean reprojection error in pixels is computed after solving:
-
-```python
-residual_pixels = mean(distance(vacuum_to_pixel(v), p) for each pair)
-```
-
-Quality thresholds: ≤ 5 px → `"excellent"`, ≤ 15 px → `"good"`, ≤ 30 px → `"fair"`, otherwise `"poor"`.
-
-### 4.4 `vacuum_to_pixel` — The Conversion Formula
-
-```python
-def vacuum_to_pixel(vacuum_point, matrix):
-    vx, vy = float(vacuum_point[0]), float(vacuum_point[1])
-    a,  b,  tx = matrix[0]
-    c,  d,  ty = matrix[1]
-    px = a * vx + b * vy + tx
-    py = c * vx + d * vy + ty
-    return (round(px, 2), round(py, 2))
-```
-
-The inverse (`pixel_to_vacuum`) uses `numpy.linalg.inv(M)` and returns `None` if the matrix is singular.
-
-### 4.5 Calibration Pair Sources and Clustering
-
-Calibration pairs come from two sources:
-
-- **`"manual"`** — added by the user via `add_calibration_point`, never automatically modified.
-- **`"machine"`** — derived from detected boundary-trace corners.
-
-Machine pairs are clustered: `merge_or_add_corner` searches existing machine pairs within `CLUSTER_THRESHOLD_UNITS = 50` vacuum units. When a match is found, the centroid is updated via running mean:
-
-```python
-new_centroid = (old_centroid × n + new_point) / (n + 1)
-```
-
-where `n` is the existing `cluster_count`. The pixel coordinate is re-derived from the new centroid using the current transform. This accumulation stabilises corner positions across multiple boundary traces.
-
-When the transform is recomputed (e.g., a new manual pair is added), all machine-source pairs have their pixel coordinates recomputed from the current transform via `reproject_machine_pairs`. Manual pairs are never touched.
+> **Not the active pipeline.** Earlier versions of this integration produced room bounds by fitting a 2D affine transform from manually-anchored vacuum↔pixel pairs (`compute_affine_transform`, `add_calibration_point`, `merge_or_add_corner`, `reproject_machine_pairs` in [`transform.py`](../../custom_components/eufy_vacuum/mapping/transform.py)). That code is preserved for installations that set up calibration before the trace-based pipeline existed, but **the live system does not depend on it**.
+>
+> The active bounds system is the trace-based pipeline documented in [§3 Room Bounds from Traces](#3-room-bounds-from-traces). It fits envelopes directly from robot movement geometry recorded during a job — no manual anchoring, no least-squares matrix, no calibration pairs. New installs never use the affine transform.
+>
+> `vacuum_to_pixel` (the conversion formula itself) is still imported by [`boundary.py`](../../custom_components/eufy_vacuum/mapping/boundary.py) to render trace overlays when a legacy calibration matrix happens to exist, but for the bounds pipeline it is a no-op path. Porting a new brand does **not** require implementing any of this.
+>
+> If you need the historical details (3×3 row-major matrix, `numpy.linalg.lstsq` of `2N` equations in 6 unknowns, `CLUSTER_THRESHOLD_UNITS = 50`, residual quality bands), read the function docstrings in `transform.py` directly — they are the source of truth for the legacy code.
 
 ---
 
