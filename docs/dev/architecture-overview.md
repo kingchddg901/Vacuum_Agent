@@ -130,7 +130,7 @@ references:
 - [queue-engine.md](queue-engine.md) — queue / payload / snapshot builders
 - [job-lifecycle.md](job-lifecycle.md) — lifecycle evaluation, finalization
 - [learning-system.md](learning-system.md) — ETA math, file-backed job store
-- [mapping-system.md](mapping-system.md) — calibration, boundaries, transforms
+- [mapping-system.md](mapping-system.md) — room bounds learning, boundaries, segments
 - [room-rules-system.md](room-rules-system.md) — blocker/modifier rule evaluation
 - [battery-system.md](battery-system.md) — battery health subsystem
 - [theme-system.md](theme-system.md) — token-based theme engine
@@ -197,9 +197,8 @@ eufy_vacuum/
 │   └── store.py            ← JSON-on-disk persistence (separate from HA Store)
 │
 ├── mapping/
-│   ├── manager.py          ← MappingManager — calibration, boundary, transform
+│   ├── manager.py          ← MappingManager — boundaries, bounds, trace pipeline
 │   ├── tracker.py          ← MappingTracker — live position tracking
-│   ├── transform.py        ← affine transform (vacuum coords → pixel coords)
 │   └── boundary.py         ← room boundary processing
 │
 ├── rooms/
@@ -282,11 +281,10 @@ from the core manager, delegates estimation to `LearningEstimator`, and delegate
 persistence to `LearningHistoryStore` and `LearningJobFinalizer`. It never performs
 ETA math itself; that is isolated in `estimator.py`.
 
-**MappingManager** handles the transform pipeline for overlaying the robot's coordinate
-space onto a map image: calibration corner collection, affine transform computation,
-and room boundary learning from traced runs. **MappingTracker** holds the live
-in-memory position trace during an active job and feeds it to the manager on
-finalization.
+**MappingManager** handles the room-shape pipeline: interactive boundary tracing,
+trace-based room bounds learning from cleaning runs, image-segment analysis, and
+storage of map images and overlays. **MappingTracker** holds the live in-memory
+position trace during an active job and feeds it to the manager on finalization.
 
 **HA Entity Layer** (`sensor.py`, `button.py`, etc.) creates standard HA entities that
 expose integration state. The `sensor.*_theme_state` entity is particularly important:
@@ -529,7 +527,7 @@ by `LearningStatsRebuilder` after each finalization.
 
 **Written by:** `MappingManager`
 
-**Contents:** Affine transform calibration data, room boundary polygons, and archived
+**Contents:** Room boundary polygons, per-room job bounds history, and archived
 trace run JSON files. These are separate from learning data because they are spatial /
 geometric rather than temporal.
 

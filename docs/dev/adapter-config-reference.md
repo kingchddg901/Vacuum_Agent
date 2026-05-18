@@ -530,7 +530,6 @@ renders one view per step in order.
 | `add_vacuum` | `setup_add_vacuum` | Vacuum present in `managed_vacuums` | Yes |
 | `import_active_map` | `setup_import_active_map` | At least one map with rooms exists | Eufy + similar single-map-surfaced brands |
 | `save_rooms` | `setup_save_rooms` | All discovered rooms are either `is_configured: True` or rejected | **Yes — universal floor-type + phantom-filter step** |
-| `calibrate_map` (reserved) | `mapping.compute_transform` | Calibration transform stored | Brand-specific future |
 | `set_dock_position` (reserved) | `mapping.set_dock_anchor` | Dock anchor stored | Brand-specific future |
 
 Adapters omitting `setup.steps` default to `["add_vacuum", "save_rooms"]`.

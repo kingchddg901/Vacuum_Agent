@@ -1,6 +1,6 @@
 # Mapping System — Developer Reference
 
-This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, the affine coordinate transform, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
+This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
 
 ---
 
@@ -14,9 +14,7 @@ The mapping system has two independent subsystems that address different aspects
 
 The bridge between the two subsystems is the **room ID**. The trace tracker knows which room it's in by point-in-bounds checks; the image segmenter produces polygons that get linked to room IDs via the `segment_room_links` overlay. The two never share a coordinate space — they share an identifier. If the image segmenter fails, breaks, or doesn't exist for a particular adapter, the trace tracker keeps working off vacuum-space coordinates and the core integration (queue, job lifecycle, room presence) is unaffected. See §2.0 for the engine seam contract.
 
-The two subsystems are related in two ways:
-- An image segment's pixel polygon can be mapped to vacuum space via the affine transform, giving a rough vacuum polygon. That polygon drives the `BOUNDARY_CROSSING` signal in trace segmentation and the room-entry gating on boundary traces.
-- The trace-based bounds and the image-segment polygon serve complementary purposes: the image segment gives shape; the trace bounds give a reliable presence envelope.
+The trace-based bounds and the image-segment polygon serve complementary purposes: the image segment gives shape; the trace bounds give a reliable presence envelope.
 
 ---
 
@@ -406,15 +404,7 @@ The vacuum reports its position as `(vx, vy)` values. These are in proprietary i
 
 The map PNG uses the standard image convention: origin at the top-left, X increases rightward, Y increases downward.
 
-### 4.3 Legacy: affine-transform calibration (System A)
-
-> **Not the active pipeline.** Earlier versions of this integration produced room bounds by fitting a 2D affine transform from manually-anchored vacuum↔pixel pairs (`compute_affine_transform`, `add_calibration_point`, `merge_or_add_corner`, `reproject_machine_pairs` in [`transform.py`](../../custom_components/eufy_vacuum/mapping/transform.py)). That code is preserved for installations that set up calibration before the trace-based pipeline existed, but **the live system does not depend on it**.
->
-> The active bounds system is the trace-based pipeline documented in [§3 Room Bounds from Traces](#3-room-bounds-from-traces). It fits envelopes directly from robot movement geometry recorded during a job — no manual anchoring, no least-squares matrix, no calibration pairs. New installs never use the affine transform.
->
-> `vacuum_to_pixel` (the conversion formula itself) is still imported by [`boundary.py`](../../custom_components/eufy_vacuum/mapping/boundary.py) to render trace overlays when a legacy calibration matrix happens to exist, but for the bounds pipeline it is a no-op path. Porting a new brand does **not** require implementing any of this.
->
-> If you need the historical details (3×3 row-major matrix, `numpy.linalg.lstsq` of `2N` equations in 6 unknowns, `CLUSTER_THRESHOLD_UNITS = 50`, residual quality bands), read the function docstrings in `transform.py` directly — they are the source of truth for the legacy code.
+The two coordinate spaces are kept independent. The active bounds pipeline is the trace-based system in [§3 Room Bounds from Traces](#3-room-bounds-from-traces) — it operates entirely in vacuum coordinate space and never needs to project samples into pixel space.
 
 ---
 
@@ -573,7 +563,6 @@ map_<map_id>.json
 
 One JSON file per (vacuum, map). Contains:
 
-- `calibration` — calibration pairs, transform matrix, residual, `calibration_room_id`
 - `rooms` — per-room dict keyed by `room_id` string. Each room entry holds:
   - `boundary` — vacuum-space polygon from a boundary trace (list of `[vx, vy]`)
   - `boundary_pixel` — same polygon in pixel space
@@ -584,6 +573,8 @@ One JSON file per (vacuum, map). Contains:
 - `image_path`, `image_width`, `image_height` — legacy fields, now duplicated in `image_variants`
 - `image_variants` — dict of variant metadata records
 - `package` — the richer mapping package (see below)
+
+> **Legacy `calibration` block.** Older map JSONs may contain a top-level `calibration` block from the now-removed affine-transform calibration system (manual anchor pairs, transform matrix, `calibration_room_id`). `_load_map_data` strips this block on first read of any file that still has it, logging at info level, and resaves the file. New installs never write the field.
 
 ### 8.2 Mapping Package
 
@@ -641,7 +632,7 @@ The following are specific to Eufy's implementation:
 
 - **Vacuum coordinate units** — Eufy reports `robot_position_x` / `robot_position_y` as integer sensor states in its proprietary unit. The scale (≈ 1 mm/unit) is inferred and not guaranteed.
 - **Map image format** — Eufy's map images use a consistent hue-per-room convention. The dark variant provides saturated, high-contrast room colours; the light variant provides near-white walls. Both properties are assumed by the HSV thresholding approach.
-- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires HA bus events (`eufy_vacuum_room_completed`, `eufy_vacuum_calibration_updated`, `eufy_vacuum_boundary_saved`). These are HA-specific patterns.
+- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires HA bus events (`eufy_vacuum_room_completed`, `eufy_vacuum_boundary_saved`). These are HA-specific patterns.
 - **HA storage** — `MappingManager._save_map_data` / `_load_map_data` writes directly to JSON files on the config dir filesystem. The `image_segment_adjustments` and `image_segments` results live in the runtime HA storage manager (`.storage` files), not in the mapping JSON files.
 
 ### 9.2 Generic / Portable
@@ -650,7 +641,6 @@ The following components have no Eufy-specific dependencies and would port direc
 
 - **`image_segments.py`** — entire pipeline. Inputs: a PNG file path. Outputs: a pure-Python dict. Only dependencies: Pillow, NumPy, SciPy.
 - **`boundary.py`** — Douglas-Peucker simplification, corner detection, point-in-polygon (ray casting), transition candidate scoring, shoelace polygon area, convex hull (Andrew's monotone chain). All pure Python.
-- **`transform.py`** — affine transform computation (requires NumPy), `vacuum_to_pixel`, `pixel_to_vacuum`, calibration pair clustering. The coordinate system is abstract — substitute any two corresponding point sets.
 - **`trace_capture.py`** — in-memory session manager. No HA dependency. Requires a `write_trace_run` backend (currently `trace_store.py`).
 - **`trace_segmentation.py`** — `segment_trace_run`. Input: a TraceRun dict with `samples` having `x`, `y`, `ts` keys. Output: a SegmentationResult dict. No HA dependency.
 - **`_percentile_trim`** in `manager.py` — pure Python outlier trimming.
@@ -668,7 +658,7 @@ integration service lives in
 [advanced/03-services.md](../advanced/03-services.md).
 
 The services fall into five functional groups: map image management,
-calibration, room boundaries (interactive draw + trace-driven), dock
+room boundaries (interactive draw + trace-driven), room markers, dock
 anchoring, and image-segment analysis.
 
 > **`map_id` is optional on every service** listed below. The
@@ -688,14 +678,11 @@ anchoring, and image-segment analysis.
 | `upload_map_image` | Accept a user-uploaded floor plan image for analysis (alternative entry point). | `vacuum_entity_id`, `map_id`, `image_base64: str` | (none) | no |
 | `analyze_map_image` | Dispatch to the adapter-declared segmenter engine (see §2.0). | `vacuum_entity_id` | `map_id` (auto), `force_reanalyze: bool`, plus tuning overrides that layer on top of `adapter_config.mapping.segmenter_tuning` (`expected_room_count`, `max_segments`, `min_area_pixels`, `simplify_epsilon`) | yes — canonical `SegmentationResult` with engine-specific diagnostics under `engine_diagnostics` |
 
-### Calibration
+### Room markers
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `add_calibration_point` | Record one pixel↔world coordinate pair for georeferencing the map. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float`, `vacuum_x: float`, `vacuum_y: float` | `label: str`, `is_calibration_room: bool`, `calibration_room_id: str` | no |
-| `compute_transform` | Calculate the affine transform from accumulated calibration points. See §4. | `vacuum_entity_id`, `map_id` | (none) | no |
-| `clear_calibration` | Remove all calibration points and the computed transform for one map. | `vacuum_entity_id`, `map_id` | (none) | no |
-| `set_companion_anchor` | Position a secondary anchor point for offset correction. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float` | `vacuum_x: float`, `vacuum_y: float`, `notes: str` | no |
+| `set_companion_anchor` | Place or move a per-room visual marker dot on the map image. Rendered by the card as a room anchor; not part of any coordinate-transform pipeline. | `vacuum_entity_id`, `map_id`, `pixel_x: float`, `pixel_y: float` | `vacuum_x: float`, `vacuum_y: float`, `notes: str` | no |
 
 ### Interactive room boundaries
 
@@ -741,6 +728,6 @@ anchoring, and image-segment analysis.
 
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
-| `get_mapping_state` | Fetch calibration points, boundaries, and current transform for one map. | `vacuum_entity_id`, `map_id` | (none) | yes — full mapping state dict |
-| `get_mapping_package` | Retrieve the full calibration/boundary/transform package for export or sync. | `vacuum_entity_id`, `map_id` | (none) | yes — package dict |
-| `save_mapping_package` | Persist a calibration/boundary/transform package (used by import flows). | `vacuum_entity_id`, `map_id`, `package: dict` | (none) | no |
+| `get_mapping_state` | Fetch room boundaries, image variants, and the mapping package for one map. | `vacuum_entity_id`, `map_id` | (none) | yes — full mapping state dict |
+| `get_mapping_package` | Retrieve the full mapping package (room definitions, segment adjustments, dock, evidence) for export or sync. | `vacuum_entity_id`, `map_id` | (none) | yes — package dict |
+| `save_mapping_package` | Persist a mapping package (used by import flows). | `vacuum_entity_id`, `map_id`, `package: dict` | (none) | no |

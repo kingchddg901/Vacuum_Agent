@@ -244,28 +244,6 @@ def point_in_polygon(
 
 
 # ---------------------------------------------------------------------------
-# Pixel boundary derivation
-# ---------------------------------------------------------------------------
-
-def boundary_to_pixel(
-    boundary_vacuum: list[list[float]],
-    transform_matrix: list[list[float]],
-) -> list[list[float]]:
-    """Convert a vacuum-coord boundary polygon to pixel coordinates.
-
-    Used to pre-compute the pixel boundary for the card map overlay.
-    """
-    from .transform import vacuum_to_pixel
-
-    pixel_boundary = []
-    for point in boundary_vacuum:
-        px, py = vacuum_to_pixel([float(point[0]), float(point[1])], transform_matrix)
-        pixel_boundary.append([px, py])
-
-    return pixel_boundary
-
-
-# ---------------------------------------------------------------------------
 # Transition candidate scoring
 # ---------------------------------------------------------------------------
 

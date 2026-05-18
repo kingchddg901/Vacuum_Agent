@@ -1,9 +1,10 @@
-"""Orchestrates all mapping operations: calibration, boundary tracing, bounds learning, and the trace-based transform pipeline."""
+"""Orchestrates all mapping operations: boundary tracing, bounds learning, and the trace-based transform pipeline."""
 
 from __future__ import annotations
 
 import base64
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -13,16 +14,8 @@ from ..const import DATA_RUNTIME, DOMAIN
 from ..entity_helpers import get_floor_type_label
 from ..timestamp_utils import utc_now_iso
 from ..adapters.registry import get_adapter_config
-from .boundary import boundary_to_pixel, point_in_polygon, process_boundary_trail, score_transition_candidate
+from .boundary import point_in_polygon, process_boundary_trail, score_transition_candidate
 from .segmenter_engines import get_segmenter_engine
-from .transform import (
-    compute_affine_transform,
-    merge_or_add_corner,
-    reproject_machine_pairs,
-    transform_is_ready,
-    transform_quality,
-    vacuum_to_pixel,
-)
 from .trace_capture import TraceCapture
 from .trace_review import review_trace_run
 from .trace_segmentation import segment_trace_run
@@ -54,6 +47,8 @@ MULTI_ROOM_MIN_RUNS = 4
 # Minimum sample count before applying percentile trimming.
 # Below this threshold all samples are kept as-is.
 _TRIM_MIN_SAMPLES = 10
+
+_LOGGER = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -322,7 +317,7 @@ def _bbox_from_polygon_pixel(polygon: list[list[int]]) -> dict[str, int] | None:
 # ---------------------------------------------------------------------------
 
 class MappingManager:
-    """Manages calibration, boundary tracing, and image storage per vacuum/map.
+    """Manages boundary tracing, trace capture, and image storage per vacuum/map.
 
     Active boundary traces are stored in memory only — they are not persisted
     until close_room_boundary is called.
@@ -414,20 +409,20 @@ class MappingManager:
     ) -> dict[str, Any]:
         """Return one active trace state entry."""
         map_data = self._ensure_map_data(vacuum_entity_id, map_id)
-        transform = map_data.get("calibration", {}).get("transform")
         target_polygon_pixel = self._resolve_trace_target_polygon_pixel(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             room_id=str(room_id),
             map_data=map_data,
         )
-        gating_enabled = bool(target_polygon_pixel) and isinstance(transform, list)
+        # No vacuum→pixel transform is available (legacy System A removed),
+        # so target-room gating cannot fire. Traces always start armed.
         return {
             "samples": [],
-            "armed": not gating_enabled,
-            "arm_reason": "ungated" if not gating_enabled else "target_room_entry",
+            "armed": True,
+            "arm_reason": "ungated",
             "target_polygon_pixel": target_polygon_pixel,
-            "transform_matrix": transform if gating_enabled else None,
+            "transform_matrix": None,
             "pending_inside": [],
             "inside_hits": 0,
         }
@@ -467,14 +462,36 @@ class MappingManager:
         return f"/eufy_vacuum/maps/{_vacuum_slug(vacuum_entity_id)}/map_{map_id}{suffix}.png"
 
     def _load_map_data(self, vacuum_entity_id: str, map_id: str) -> dict[str, Any]:
-        """Load map JSON from filesystem, returning empty dict if absent."""
+        """Load map JSON from filesystem, returning empty dict if absent.
+
+        Strips the legacy ``calibration`` block (System A — affine-transform
+        calibration) if encountered, resaving the file once so the legacy
+        data is purged on first read.
+        """
         path = self._map_json_path(vacuum_entity_id, map_id)
         if not path.exists():
             return {}
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             return {}
+
+        if isinstance(data, dict) and "calibration" in data:
+            _LOGGER.info(
+                "Stripping legacy calibration block from map_data for %s/%s",
+                vacuum_entity_id,
+                map_id,
+            )
+            data.pop("calibration", None)
+            try:
+                path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+            except Exception:
+                _LOGGER.exception(
+                    "Failed to resave map_data after stripping calibration block: %s",
+                    path,
+                )
+
+        return data
 
     def _save_map_data(
         self, vacuum_entity_id: str, map_id: str, data: dict[str, Any]
@@ -488,14 +505,6 @@ class MappingManager:
     ) -> dict[str, Any]:
         """Return map data, initializing defaults if absent."""
         data = self._load_map_data(vacuum_entity_id, map_id)
-        data.setdefault("calibration", {
-            "pairs": [],
-            "transform": None,
-            "calibrated_at": None,
-            "point_count": 0,
-            "residual_pixels": None,
-            "calibration_room_id": None,
-        })
         data.setdefault("rooms", {})
         data.setdefault("image_path", None)
         data.setdefault("image_width", None)
@@ -885,7 +894,6 @@ class MappingManager:
                     "boundary_pixel_point_count": len(boundary_pixel) if isinstance(boundary_pixel, list) else 0,
                     "traced_at": mapped.get("traced_at"),
                     "is_active_trace": str(room_id) in active_traces,
-                    "is_calibration_room": str(room_id) == str(map_data.get("calibration", {}).get("calibration_room_id")),
                     "is_dock_room": dock_room_id is not None and str(room_id) == dock_room_id,
                     "transition_candidate": bool(mapped.get("transition_candidate", False)),
                     "transition_score": float(mapped.get("transition_score", 0.0)),
@@ -1154,152 +1162,11 @@ class MappingManager:
         }
 
     # ------------------------------------------------------------------
-    # Manual anchor calibration (legacy System A)
-    # ------------------------------------------------------------------
-    # WHY preserved: backwards-compatible entry point for users who set
-    # up calibration before the trace-based pipeline existed.
-    # Trace-based phases (System B) must not call add_calibration_point()
-    # or depend on calibration["pairs"] — System B fits transforms from
-    # robot movement geometry, not manual pixel anchors.
-    # ------------------------------------------------------------------
-
-    def add_calibration_point(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        pixel_x: float,
-        pixel_y: float,
-        vacuum_x: float,
-        vacuum_y: float,
-        label: str = "manual",
-        is_calibration_room: bool = False,
-        calibration_room_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Add a manual calibration pair (dock or room corner).
-
-        The vacuum coordinates are the ground truth snapshot taken at
-        capture time. The pixel coordinates are the user's click on the
-        map image — also ground truth and never auto-updated.
-
-        Parameters
-        ----------
-        is_calibration_room: mark the currently selected room as the
-            calibration room if True.
-        """
-        data = self._ensure_map_data(vacuum_entity_id, map_id)
-        cal = data["calibration"]
-
-        pair: dict[str, Any] = {
-            "vacuum": [round(float(vacuum_x), 4), round(float(vacuum_y), 4)],
-            "pixel":  [round(float(pixel_x), 2), round(float(pixel_y), 2)],
-            "label":  str(label),
-            "source": "manual",
-            "cluster_count": 1,
-            "added_at": _iso_now(),
-        }
-        cal["pairs"].append(pair)
-        cal["point_count"] = len(cal["pairs"])
-
-        if is_calibration_room and calibration_room_id is not None:
-            cal["calibration_room_id"] = str(calibration_room_id)
-
-        # Recompute transform eagerly so the map overlay stays current after every new pair.
-        transform_result = None
-        if transform_is_ready(cal["pairs"]):
-            transform_result = compute_affine_transform(cal["pairs"])
-            if transform_result:
-                cal["transform"] = transform_result["matrix"]
-                cal["calibrated_at"] = _iso_now()
-                cal["residual_pixels"] = transform_result["residual_pixels"]
-                # WHY: machine-source pairs have derived pixel coords — re-derive
-                # from the new matrix so all pairs remain self-consistent.
-                cal["pairs"] = reproject_machine_pairs(
-                    cal["pairs"], transform_result["matrix"]
-                )
-
-        self._save_map_data(vacuum_entity_id, map_id, data)
-
-        return {
-            "added": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "pair_index": len(cal["pairs"]) - 1,
-            "pair_count": len(cal["pairs"]),
-            "transform_ready": transform_is_ready(cal["pairs"]),
-            "transform_updated": transform_result is not None,
-            "residual_pixels": cal.get("residual_pixels"),
-        }
-
-    def compute_transform(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Force recompute the affine transform from all stored pairs."""
-        data = self._ensure_map_data(vacuum_entity_id, map_id)
-        cal = data["calibration"]
-
-        if not transform_is_ready(cal["pairs"]):
-            return {
-                "computed": False,
-                "reason": "insufficient_pairs",
-                "pair_count": len(cal["pairs"]),
-                "minimum_required": 3,
-            }
-
-        result = compute_affine_transform(cal["pairs"])
-        if result is None:
-            return {"computed": False, "reason": "numpy_unavailable_or_singular"}
-
-        cal["transform"] = result["matrix"]
-        cal["calibrated_at"] = _iso_now()
-        cal["residual_pixels"] = result["residual_pixels"]
-        cal["pairs"] = reproject_machine_pairs(cal["pairs"], result["matrix"])
-
-        self._save_map_data(vacuum_entity_id, map_id, data)
-
-        return {
-            "computed": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "pair_count": result["pair_count"],
-            "residual_pixels": result["residual_pixels"],
-            "quality": transform_quality(result["residual_pixels"]),
-            "calibrated_at": cal["calibrated_at"],
-        }
-
-    def clear_calibration(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Reset all calibration pairs and the transform for a map."""
-        data = self._ensure_map_data(vacuum_entity_id, map_id)
-        data["calibration"] = {
-            "pairs": [],
-            "transform": None,
-            "calibrated_at": None,
-            "point_count": 0,
-            "residual_pixels": None,
-            "calibration_room_id": data["calibration"].get("calibration_room_id"),
-        }
-        self._save_map_data(vacuum_entity_id, map_id, data)
-        return {
-            "cleared": True,
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-        }
-
-    # ------------------------------------------------------------------
     # Trace-based transform pipeline — Phase 1: Raw trace capture
     # ------------------------------------------------------------------
     # Captures robot position samples into TraceRun files for later
     # quality review and transform fitting. Separate from the boundary
-    # trace system (room polygon derivation) and the legacy manual
-    # calibration path above.
+    # trace system (room polygon derivation).
     # ------------------------------------------------------------------
 
     def start_trace_capture(
@@ -1966,33 +1833,12 @@ class MappingManager:
             return False
 
         sample = (float(vacuum_x), float(vacuum_y))
-        if trace.get("armed"):
-            trace.setdefault("samples", []).append(sample)
-            return True
-
-        target_polygon_pixel = self._coerce_polygon_points(trace.get("target_polygon_pixel"))
-        transform_matrix = trace.get("transform_matrix")
-        if not target_polygon_pixel or not isinstance(transform_matrix, list):
+        # Traces always start armed now that the vacuum→pixel transform
+        # (legacy System A) has been removed — target-room gating cannot fire.
+        trace.setdefault("samples", []).append(sample)
+        if not trace.get("armed"):
             trace["armed"] = True
             trace["arm_reason"] = "ungated"
-            trace.setdefault("samples", []).append(sample)
-            return True
-
-        pixel_point = vacuum_to_pixel(sample, transform_matrix)
-        if point_in_polygon(pixel_point, target_polygon_pixel):
-            pending_inside = trace.setdefault("pending_inside", [])
-            pending_inside.append(sample)
-            if len(pending_inside) > TRACE_PREARM_BUFFER_LIMIT:
-                del pending_inside[:-TRACE_PREARM_BUFFER_LIMIT]
-            trace["inside_hits"] = int(trace.get("inside_hits") or 0) + 1
-            if int(trace.get("inside_hits") or 0) >= TRACE_ARM_INSIDE_HITS:
-                trace["armed"] = True
-                trace["arm_reason"] = "target_room_entry"
-                trace.setdefault("samples", []).extend(pending_inside)
-                trace["pending_inside"] = []
-        else:
-            trace["inside_hits"] = 0
-            trace["pending_inside"] = []
         return True
 
     def close_room_boundary(
@@ -2004,9 +1850,6 @@ class MappingManager:
         epsilon: float = 5.0,
     ) -> dict[str, Any]:
         """Stop tracing, simplify the trail, store the boundary.
-
-        If this room is the calibration room, the detected corners are
-        merged into the calibration pairs and the transform is recomputed.
 
         Returns a summary dict used by the service layer to fire
         eufy_vacuum_boundary_saved.
@@ -2051,53 +1894,20 @@ class MappingManager:
             }
 
         data = self._ensure_map_data(vacuum_entity_id, map_id)
-        cal = data["calibration"]
-        transform = cal.get("transform")
 
         boundary_vacuum = result["simplified_boundary"]
-        boundary_pixel: list[list[float]] = []
-
-        if transform is not None:
-            boundary_pixel = boundary_to_pixel(boundary_vacuum, transform)
 
         room_key = str(room_id)
         transition_score, transition_candidate = score_transition_candidate(boundary_vacuum)
         data["rooms"][room_key] = {
             "boundary": boundary_vacuum,
-            "boundary_pixel": boundary_pixel,
+            "boundary_pixel": [],
             "traced_at": _iso_now(),
             "point_count_raw": result["point_count_raw"],
             "point_count_simplified": result["point_count_simplified"],
             "transition_candidate": transition_candidate,
             "transition_score": transition_score,
         }
-
-        # Refine transform with detected corners when this is the calibration room.
-        transform_updated = False
-        if cal.get("calibration_room_id") == room_key and result["corners"]:
-            for corner in result["corners"]:
-                cal["pairs"], _ = merge_or_add_corner(
-                    cal["pairs"],
-                    (float(corner[0]), float(corner[1])),
-                    transform,
-                )
-
-            if transform_is_ready(cal["pairs"]):
-                transform_result = compute_affine_transform(cal["pairs"])
-                if transform_result:
-                    cal["transform"] = transform_result["matrix"]
-                    cal["calibrated_at"] = _iso_now()
-                    cal["residual_pixels"] = transform_result["residual_pixels"]
-                    cal["pairs"] = reproject_machine_pairs(
-                        cal["pairs"], transform_result["matrix"]
-                    )
-                    # Update the stored pixel boundary to match the refined transform.
-                    data["rooms"][room_key]["boundary_pixel"] = boundary_to_pixel(
-                        boundary_vacuum, transform_result["matrix"]
-                    )
-                    transform_updated = True
-
-            cal["point_count"] = len(cal["pairs"])
 
         self._save_map_data(vacuum_entity_id, map_id, data)
 
@@ -2109,9 +1919,7 @@ class MappingManager:
             "point_count_raw": result["point_count_raw"],
             "point_count_simplified": result["point_count_simplified"],
             "corner_count": result["corner_count"],
-            "transform_updated": transform_updated,
-            "boundary_pixel": data["rooms"][room_key]["boundary_pixel"],
-            "calibration_residual_pixels": cal.get("residual_pixels"),
+            "boundary_pixel": [],
         }
 
     def cancel_room_boundary_trace(
@@ -2151,8 +1959,6 @@ class MappingManager:
     ) -> dict[str, Any]:
         """Return the full mapping config for a vacuum/map pair."""
         data = self._ensure_map_data(vacuum_entity_id, map_id)
-        cal = data["calibration"]
-        transform = cal.get("transform")
 
         active_traces = [
             room_id
@@ -2178,16 +1984,6 @@ class MappingManager:
             "image_width": data.get("image_width"),
             "image_height": data.get("image_height"),
             "image_variants": data.get("image_variants", {}) if isinstance(data.get("image_variants"), dict) else {},
-            "calibration": {
-                "pair_count": len(cal.get("pairs", [])),
-                "transform_ready": transform is not None,
-                "calibrated_at": cal.get("calibrated_at"),
-                "residual_pixels": cal.get("residual_pixels"),
-                "quality": transform_quality(cal["residual_pixels"])
-                    if cal.get("residual_pixels") is not None else None,
-                "calibration_room_id": cal.get("calibration_room_id"),
-                "pairs": cal.get("pairs", []),
-            },
             "rooms": {
                 room_id: {
                     "boundary_point_count": len(room.get("boundary", [])),

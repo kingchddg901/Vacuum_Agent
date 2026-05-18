@@ -25,7 +25,7 @@ from ..const import (
 )
 from ..maps.map_manager import ensure_map_bucket
 from .manager import MappingManager
-from .tracker import EVENT_BOUNDARY_SAVED, EVENT_CALIBRATION_UPDATED
+from .tracker import EVENT_BOUNDARY_SAVED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,9 +36,6 @@ _PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 # ---------------------------------------------------------------------------
 
 SERVICE_SAVE_MAP_IMAGE             = "save_map_image"
-SERVICE_ADD_CALIBRATION_POINT      = "add_calibration_point"
-SERVICE_COMPUTE_TRANSFORM          = "compute_transform"
-SERVICE_CLEAR_CALIBRATION          = "clear_calibration"
 SERVICE_START_ROOM_BOUNDARY_TRACE  = "start_room_boundary_trace"
 SERVICE_CLOSE_ROOM_BOUNDARY        = "close_room_boundary"
 SERVICE_CANCEL_ROOM_BOUNDARY_TRACE = "cancel_room_boundary_trace"
@@ -66,9 +63,6 @@ SERVICE_REVIEW_TRACE_RUN = "review_trace_run"
 
 ALL_MAPPING_SERVICES = (
     SERVICE_SAVE_MAP_IMAGE,
-    SERVICE_ADD_CALIBRATION_POINT,
-    SERVICE_COMPUTE_TRANSFORM,
-    SERVICE_CLEAR_CALIBRATION,
     SERVICE_START_ROOM_BOUNDARY_TRACE,
     SERVICE_CLOSE_ROOM_BOUNDARY,
     SERVICE_CANCEL_ROOM_BOUNDARY_TRACE,
@@ -113,34 +107,6 @@ SAVE_MAP_IMAGE_SCHEMA = vol.Schema(
         vol.Optional("image_width"): vol.Coerce(int),
         vol.Optional("image_height"): vol.Coerce(int),
         vol.Optional("variant", default="primary"): cv.string,
-    }
-)
-
-ADD_CALIBRATION_POINT_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
-        vol.Required("pixel_x"): vol.Coerce(float),
-        vol.Required("pixel_y"): vol.Coerce(float),
-        vol.Required("vacuum_x"): vol.Coerce(float),
-        vol.Required("vacuum_y"): vol.Coerce(float),
-        vol.Optional("label", default="manual"): cv.string,
-        vol.Optional("is_calibration_room", default=False): cv.boolean,
-        vol.Optional("calibration_room_id"): vol.Any(None, cv.string),
-    }
-)
-
-COMPUTE_TRANSFORM_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
-    }
-)
-
-CLEAR_CALIBRATION_SCHEMA = vol.Schema(
-    {
-        vol.Required("vacuum_entity_id"): cv.entity_id,
-        vol.Required("map_id"): cv.string,
     }
 )
 
@@ -1096,76 +1062,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         _LOGGER.info("save_map_image: %s", result)
         return result
 
-    async def handle_add_calibration_point(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.add_calibration_point(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-                pixel_x=call.data["pixel_x"],
-                pixel_y=call.data["pixel_y"],
-                vacuum_x=call.data["vacuum_x"],
-                vacuum_y=call.data["vacuum_y"],
-                label=call.data.get("label", "manual"),
-                is_calibration_room=call.data.get("is_calibration_room", False),
-                calibration_room_id=call.data.get("calibration_room_id"),
-            )
-        )
-        _LOGGER.info("add_calibration_point: %s", result)
-
-        if result.get("transform_updated"):
-            state = mgr.get_mapping_state(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-            )
-            hass.bus.async_fire(
-                EVENT_CALIBRATION_UPDATED,
-                {
-                    "vacuum_entity_id": call.data["vacuum_entity_id"],
-                    "map_id": call.data["map_id"],
-                    "point_count": result["pair_count"],
-                    "transform_ready": result["transform_ready"],
-                    "residual_pixels": result.get("residual_pixels"),
-                },
-            )
-
-        return result
-
-    async def handle_compute_transform(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.compute_transform(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-            )
-        )
-        _LOGGER.info("compute_transform: %s", result)
-
-        if result.get("computed"):
-            hass.bus.async_fire(
-                EVENT_CALIBRATION_UPDATED,
-                {
-                    "vacuum_entity_id": call.data["vacuum_entity_id"],
-                    "map_id": call.data["map_id"],
-                    "point_count": result["pair_count"],
-                    "transform_ready": True,
-                    "residual_pixels": result.get("residual_pixels"),
-                },
-            )
-
-        return result
-
-    async def handle_clear_calibration(call: ServiceCall) -> dict[str, Any]:
-        mgr = _get_mapping_manager(hass)
-        result = await hass.async_add_executor_job(
-            lambda: mgr.clear_calibration(
-                vacuum_entity_id=call.data["vacuum_entity_id"],
-                map_id=call.data["map_id"],
-            )
-        )
-        _LOGGER.info("clear_calibration: %s", result)
-        return result
-
     async def handle_start_room_boundary_trace(call: ServiceCall) -> dict[str, Any]:
         mgr = _get_mapping_manager(hass)
         result = mgr.start_room_boundary_trace(
@@ -1205,22 +1101,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
                     "boundary_pixel": result.get("boundary_pixel", []),
                 },
             )
-
-            if result.get("transform_updated"):
-                state = mgr.get_mapping_state(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=map_id,
-                )
-                hass.bus.async_fire(
-                    EVENT_CALIBRATION_UPDATED,
-                    {
-                        "vacuum_entity_id": vacuum_entity_id,
-                        "map_id": str(map_id),
-                        "point_count": state["calibration"]["pair_count"],
-                        "transform_ready": state["calibration"]["transform_ready"],
-                        "residual_pixels": result.get("calibration_residual_pixels"),
-                    },
-                )
 
         return result
 
@@ -1338,24 +1218,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_SAVE_MAP_IMAGE,
         handle_save_map_image,
         schema=SAVE_MAP_IMAGE_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_ADD_CALIBRATION_POINT,
-        handle_add_calibration_point,
-        schema=ADD_CALIBRATION_POINT_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_COMPUTE_TRANSFORM,
-        handle_compute_transform,
-        schema=COMPUTE_TRANSFORM_SCHEMA,
-        supports_response=True,
-    )
-    hass.services.async_register(
-        DOMAIN, SERVICE_CLEAR_CALIBRATION,
-        handle_clear_calibration,
-        schema=CLEAR_CALIBRATION_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(

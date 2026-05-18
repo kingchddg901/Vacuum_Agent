@@ -54,7 +54,7 @@ whose deep reference lives in a subsystem doc link out.
 `get_theme_library` · `save_theme_as_new` · `overwrite_theme` · `rename_theme` · `delete_theme` · `set_active_theme` · `update_working_draft` · `revert_draft` · `export_theme` · `import_theme`
 
 **Mapping** — full table in [mapping-system.md §10](../dev/mapping-system.md#10-services)
-`save_map_image` · `upload_map_image` · `analyze_map_image` · `add_calibration_point` · `compute_transform` · `clear_calibration` · `set_companion_anchor` · `start_room_boundary_trace` · `close_room_boundary` · `cancel_room_boundary_trace` · `get_room_bounds_snapshot` · `clear_room_bounds` · `start_trace_capture` · `stop_trace_capture` · `cancel_trace_capture` · `review_trace_run` · `append_mapping_trace_evidence` · `exclude_room_job_bounds` · `restore_room_job_bounds` · `rebuild_room_bounds_from_archive` · `set_dock_anchor` · `set_dock_room` · `get_image_segment_suggestions` · `translate_image_segment` · `adjust_map_segment` · `set_segment_room_link` · `get_map_segments` · `get_mapping_state` · `get_mapping_package` · `save_mapping_package`
+`save_map_image` · `upload_map_image` · `analyze_map_image` · `set_companion_anchor` · `start_room_boundary_trace` · `close_room_boundary` · `cancel_room_boundary_trace` · `get_room_bounds_snapshot` · `clear_room_bounds` · `start_trace_capture` · `stop_trace_capture` · `cancel_trace_capture` · `review_trace_run` · `append_mapping_trace_evidence` · `exclude_room_job_bounds` · `restore_room_job_bounds` · `rebuild_room_bounds_from_archive` · `set_dock_anchor` · `set_dock_room` · `get_image_segment_suggestions` · `translate_image_segment` · `adjust_map_segment` · `set_segment_room_link` · `get_map_segments` · `get_mapping_state` · `get_mapping_package` · `save_mapping_package`
 
 **Adapter config** — full table in [adapter-config-reference.md §21](../dev/adapter-config-reference.md#21-services-that-read-and-write-adapter-configs)
 `save_adapter_config` · `delete_adapter_config` · `get_adapter_config` · `discover_adapter_entities` · `observe_entity_states` · `get_vacuum_capabilities`
@@ -953,17 +953,17 @@ Per-component maintenance reset and the error-tracker surface.
 
 ## Mapping Services
 
-The mapping subsystem exposes 31 services covering map image upload,
-calibration, room boundary drawing, trace capture, dock anchoring,
-and image-segment analysis. Most are called by the card during the
-map setup flow, not from automations.
+The mapping subsystem covers map image upload, room boundary drawing,
+trace capture, dock anchoring, and image-segment analysis. Most
+services are called by the card during the map setup flow, not from
+automations.
 
 **Full reference: [mapping-system.md §10](../dev/mapping-system.md#10-services).**
 
 Quick categories:
 
 - **Image management** — `save_map_image`, `upload_map_image`, `analyze_map_image`
-- **Calibration** — `add_calibration_point`, `compute_transform`, `clear_calibration`, `set_companion_anchor`
+- **Room markers** — `set_companion_anchor` (per-room visual marker dot drawn on the map image)
 - **Interactive boundaries** — `start_room_boundary_trace`, `close_room_boundary`, `cancel_room_boundary_trace`, `get_room_bounds_snapshot`, `clear_room_bounds`
 - **Trace capture** (job-driven learning) — `start_trace_capture`, `stop_trace_capture`, `cancel_trace_capture`, `review_trace_run`, `append_mapping_trace_evidence`, `exclude_room_job_bounds`, `restore_room_job_bounds`, `rebuild_room_bounds_from_archive`
 - **Dock and segments** — `set_dock_anchor`, `set_dock_room`, `get_image_segment_suggestions`, `translate_image_segment`, `adjust_map_segment`, `set_segment_room_link`, `get_map_segments`

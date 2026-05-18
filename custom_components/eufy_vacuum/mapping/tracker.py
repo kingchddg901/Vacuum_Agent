@@ -40,7 +40,6 @@ SAMPLES_FLUSH_INTERVAL = 25
 
 # HA event names.
 EVENT_ROOM_COMPLETED = "eufy_vacuum_room_completed"
-EVENT_CALIBRATION_UPDATED = "eufy_vacuum_calibration_updated"
 EVENT_BOUNDARY_SAVED = "eufy_vacuum_boundary_saved"
 
 
