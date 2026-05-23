@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>animal-svg demo</title>
+<style>
+  body { font: 14px system-ui, sans-serif; background: #1a1a1a; color: #ddd; padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; max-width: 1400px; }
+  .cell { background: #2a2a2a; border-radius: 8px; padding: 12px; text-align: center; }
+  .cell h3 { margin: 0 0 8px; font-size: 13px; font-weight: 500; opacity: 0.7; }
+  animal-svg { width: 180px; height: 130px; }
+  .controls { margin-bottom: 20px; }
+  button { background: #333; color: #ddd; border: 1px solid #555; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+  button.active { background: #4a8; color: #000; border-color: #4a8; }
+  #err { color: #f88; white-space: pre-wrap; font-family: monospace; }
+</style>
+</head>
+<body>
+  <h1>&lt;animal-svg&gt; demo</h1>
+
+  <div class="controls">
+    Pose:
+    <button data-pose="animating">animating</button>
+    <button data-pose="standing">standing</button>
+    <button data-pose="curled">curled</button>
+    <button data-pose="alert">alert</button>
+    <button data-pose="walking">walking</button>
+    <button data-pose="warning">warning</button>
+  </div>
+
+  <div id="err"></div>
+  <div class="grid" id="grid"></div>
+
+  <!-- Plain scripts: load order is preserved, no module / import.meta needed. -->
+  <script src="./animal-svg.js"></script>
+  <script src="./animals/cat.js"></script>
+  <script src="./animals/dog.js"></script>
+  <script src="./animals/raccoon.js"></script>
+  <script src="./animals/parrot.js"></script>
+  <script src="./animals/snake.js"></script>
+
+  <script>
+    (function () {
+      const err = document.getElementById('err');
+      if (!window.AnimalSVG) {
+        err.textContent = 'AnimalSVG did not load. Check the browser console — if this page is opened from a file share (file://) some browsers block local script loads. Try opening via http://<ha-host>:8123/local/animal-svg/demo.html instead.';
+        return;
+      }
+
+      const grid = document.getElementById('grid');
+      const names = AnimalSVG.list();
+      if (names.length === 0) {
+        err.textContent = 'No animals registered. Check that animals/*.js loaded (browser DevTools → Network tab).';
+        return;
+      }
+
+      names.forEach(name => {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        const h = document.createElement('h3');
+        h.textContent = AnimalSVG.get(name).label || name;
+        const svg = document.createElement('animal-svg');
+        svg.setAttribute('animal', name);
+        svg.setAttribute('pose', 'standing');
+        cell.append(h, svg);
+        grid.appendChild(cell);
+      });
+
+      function setActivePose(pose) {
+        document.querySelectorAll('.controls button').forEach(b => {
+          b.classList.toggle('active', b.dataset.pose === pose);
+        });
+        document.querySelectorAll('animal-svg').forEach(el => el.setAttribute('pose', pose));
+      }
+
+      document.querySelectorAll('.controls button').forEach(b => {
+        b.addEventListener('click', () => setActivePose(b.dataset.pose));
+      });
+      setActivePose('standing');
+    })();
+  </script>
+</body>
+</html>

@@ -974,19 +974,26 @@ class EufyVacuumCommandCenter extends HTMLElement {
   /* =========================================================
      ANIMAL SVG MODULE LOADER
      =========================================================
-     Dynamically imports /local/animal-svg/manifest.js which:
+     Dynamically imports /eufy_vacuum/frontend/animal-svg/manifest.js
+     (served by the integration's static path) which:
        1. loads animal-svg.js (defines <animal-svg>)
        2. loads all animal definition modules in parallel
      Uses a class-level flag so the import fires only once even
      if multiple card instances exist or connectedCallback fires
      more than once.  After all animals are registered a render
      is scheduled to upgrade any elements already in the DOM.
+
+     WHY served by the integration (not /local/www): textures got
+     migrated for the same reason — assets in <config>/www/ exist
+     only on the developer's machine; fresh installs 404'd silently
+     and lost the feature. Shipping them inside the integration's
+     frontend/ directory makes them available on every install.
      ========================================================= */
 
   _loadAnimalSvg() {
     if (EufyVacuumCommandCenter._animalSvgLoaded) return;
     EufyVacuumCommandCenter._animalSvgLoaded = true;
-    import("/local/animal-svg/manifest.js")
+    import("/eufy_vacuum/frontend/animal-svg/manifest.js")
       .then(() => this._scheduleRender())
       .catch((err) =>
         console.warn("[eufy-vacuum-command-center] animal-svg load failed:", err)
