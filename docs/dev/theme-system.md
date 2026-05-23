@@ -513,9 +513,14 @@ relationship with the theme system.
 
 ### What themes control
 
-The animal subsystem now mirrors the **floor-textures** pattern: one parent
+The animal subsystem mirrors the **floor-textures** pattern: one parent
 group with global tokens + per-animal sub-groups with animal-specific
-overrides. Six editor groups in total.
+overrides. **The sub-groups are derived from the live AnimalSVG registry**
+— adding a new animal in `frontend/animal-svg/animals/` creates a new
+editor sub-group automatically; no `src/` edits.
+
+For the five bundled animals (cat, dog, raccoon, parrot, snake) the
+editor surfaces six groups in total.
 
 | Group | Token shape | Purpose |
 |-------|-------------|---------|
@@ -570,6 +575,32 @@ Previews are implemented as `<animal-svg>` elements directly embedded in
 the editor's preview pane. They inherit the working-draft tokens via the
 same CSS cascade that drives the live map view, so token edits update
 instantly without any JS wiring.
+
+### Dynamic registry — how new mascots show up automatically
+
+`AnimalSVG.register()` dispatches a `animal-svg-registered` document
+event whenever a new animal is registered. Two modules listen:
+
+- `src/theme-tokens/index.js` rebuilds `THEME_TOKEN_REGISTRY`,
+  `THEME_TOKEN_MAP`, `THEME_GROUP_MAP`, and `THEME_GROUPS` in place.
+  ESM live bindings make the new values visible to all consumers
+  without re-import.
+- `src/renderers/theme-preview-registry.js` rebuilds
+  `THEME_PREVIEW_REGISTRY` with a new entry for the new animal,
+  routing to the parameterized `_renderThemePreviewAnimal(name)`
+  method via a `methodArgs` field on the entry.
+
+Both modules build with a fallback list of bundled-animal names at
+JS-module-load time (since the bundle is parsed before animal-svg's
+dynamic import completes). The first `animal-svg-registered` event
+replaces the fallback with the real registry list. Adding new bundled
+animals doesn't strictly require updating the fallback — the rebuild
+runs anyway — but doing so avoids a brief window where the editor
+shows only the fallback animals.
+
+This is the same pattern used for theme overrides reaching the
+animal-svg shadow root: keep one canonical source of truth (the live
+registry) and have everything else reactively derive from it.
 
 ### What themes do NOT control (still)
 

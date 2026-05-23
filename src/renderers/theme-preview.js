@@ -32,8 +32,9 @@ export function applyThemePreviewRenderers(proto) {
       return "";
     }
 
+    const args = Array.isArray(entry.methodArgs) ? entry.methodArgs : [];
     const body = typeof this[entry.method] === "function"
-      ? this[entry.method]()
+      ? this[entry.method](...args)
       : "";
 
     if (!body) {
@@ -407,30 +408,22 @@ export function applyThemePreviewRenderers(proto) {
     );
   };
 
-  // Per-animal previews. Each passes the matching animal name (and the
-  // corresponding per-animal token prefix in the footer note) to the
-  // shared renderer.
-  function _animalNote(name, prefix) {
-    return `Tokens in this sub-group (prefixed
-      <code>${prefix}-…</code>) override the global Animal Companion tokens for
-      just the ${name}. Leave any token unset to inherit the parent value
-      (or the ${name}'s own built-in default if no theme value is set).`;
-  }
-
-  proto._renderThemePreviewAnimalCat = function () {
-    return this._renderAnimalPreviewGrid(["cat"], _animalNote("cat", "--evcc-animal-cat"));
-  };
-  proto._renderThemePreviewAnimalDog = function () {
-    return this._renderAnimalPreviewGrid(["dog"], _animalNote("dog", "--evcc-animal-dog"));
-  };
-  proto._renderThemePreviewAnimalRaccoon = function () {
-    return this._renderAnimalPreviewGrid(["raccoon"], _animalNote("raccoon", "--evcc-animal-raccoon"));
-  };
-  proto._renderThemePreviewAnimalParrot = function () {
-    return this._renderAnimalPreviewGrid(["parrot"], _animalNote("parrot", "--evcc-animal-parrot"));
-  };
-  proto._renderThemePreviewAnimalSnake = function () {
-    return this._renderAnimalPreviewGrid(["snake"], _animalNote("snake", "--evcc-animal-snake"));
+  /**
+   * Parameterized per-animal preview. Driven by the dynamic entries
+   * theme-preview-registry generates from the live AnimalSVG list —
+   * the entry passes the animal name through methodArgs.
+   *
+   * @param {string} animalName
+   */
+  proto._renderThemePreviewAnimal = function (animalName) {
+    const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
+    if (!safe) return "";
+    const note =
+      `Tokens in this sub-group (prefixed <code>--evcc-animal-${safe}-…</code>) ` +
+      `override the global Animal Companion tokens for just the ${safe}. ` +
+      `Leave any token unset to inherit the parent value (or the ${safe}'s ` +
+      `own built-in default if no theme value is set).`;
+    return this._renderAnimalPreviewGrid([safe], note);
   };
 
   proto._renderThemePreviewSharedFoundations = function () {

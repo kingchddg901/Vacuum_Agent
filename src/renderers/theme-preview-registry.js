@@ -15,10 +15,27 @@
  * mount only the surfaces relevant to the currently focused
  * group instead of rendering a permanent full-card mirror.
  *
+ * The Animal Companion sub-groups are NOT enumerated here — they
+ * are derived from the live AnimalSVG registry and rebuilt when
+ * a new animal registers itself (via the 'animal-svg-registered'
+ * document event). All animal previews route to the same
+ * parameterized renderer; the animal name is passed through
+ * `methodArgs` on the registry entry.
+ *
+ * Consumers read this module via `THEME_PREVIEW_REGISTRY` — a
+ * live binding that the dispatch in theme-preview.js reads at
+ * call time, so dynamic rebuilds are picked up automatically.
+ *
  * ============================================================
  */
 
-export const THEME_PREVIEW_REGISTRY = Object.freeze({
+import { animalSubGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
+
+/* =========================================================
+   STATIC PREVIEW ENTRIES (non-animal groups)
+   ========================================================= */
+
+const STATIC_PREVIEW_ENTRIES = {
   "App Shell & Typography": {
     method: "_renderThemePreviewShellTypography",
     title: "Shell & Typography Preview",
@@ -62,12 +79,12 @@ export const THEME_PREVIEW_REGISTRY = Object.freeze({
   "Floor Textures — Marble": {
     method: "_renderThemePreviewFloorTextureMarble",
     title: "Marble Floor Preview",
-    description: "Base and accent colors control the marble field and vein layers.",
+    description: "Base color tints the marble texture layer on the card surface.",
   },
   "Floor Textures — Concrete": {
     method: "_renderThemePreviewFloorTextureConcrete",
     title: "Concrete Floor Preview",
-    description: "Base and accent colors control the micro-texture and broad variation layers.",
+    description: "Base color tints the concrete texture layer on the card surface.",
   },
   "Floor Textures — Carpet Low": {
     method: "_renderThemePreviewFloorTextureCarpetLow",
@@ -99,35 +116,10 @@ export const THEME_PREVIEW_REGISTRY = Object.freeze({
     title: "Learning & Metrics Preview",
     description: "Estimate badges and learning panels preview predictive and analytical surfaces.",
   },
-  "Animal Companion": {
+  [ANIMAL_PARENT_GROUP]: {
     method: "_renderThemePreviewAnimalCompanion",
     title: "Animal Companion Preview",
     description: "Every registered animal in standing pose across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
-  },
-  "Animal Companion — Cat": {
-    method: "_renderThemePreviewAnimalCat",
-    title: "Cat Preview",
-    description: "The cat across all five battery-state bands. Tokens in this group override the global Animal Companion palette and eye-state colors for just the cat.",
-  },
-  "Animal Companion — Dog": {
-    method: "_renderThemePreviewAnimalDog",
-    title: "Dog Preview",
-    description: "The dog across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the dog.",
-  },
-  "Animal Companion — Raccoon": {
-    method: "_renderThemePreviewAnimalRaccoon",
-    title: "Raccoon Preview",
-    description: "The raccoon across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the raccoon.",
-  },
-  "Animal Companion — Parrot": {
-    method: "_renderThemePreviewAnimalParrot",
-    title: "Parrot Preview",
-    description: "The parrot across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the parrot.",
-  },
-  "Animal Companion — Snake": {
-    method: "_renderThemePreviewAnimalSnake",
-    title: "Snake Preview",
-    description: "The snake across all five battery-state bands. Procedural renderer; the eye color and palette tokens still apply via CSS inheritance.",
   },
   "Modals & Overlays": {
     method: "_renderThemePreviewModalsOverlays",
@@ -139,4 +131,63 @@ export const THEME_PREVIEW_REGISTRY = Object.freeze({
     title: "Shared Foundations Preview",
     description: "A mixed control-surface preview shows spacing, radius, motion, and typography primitives together.",
   },
-});
+};
+
+/* =========================================================
+   DYNAMIC ENTRIES (per-animal sub-groups)
+   ========================================================= */
+
+const BUNDLED_ANIMAL_FALLBACK = ["cat", "dog", "raccoon", "parrot", "snake"];
+
+function currentAnimalList() {
+  try {
+    const live = (typeof window !== "undefined" && window.AnimalSVG?.list)
+      ? window.AnimalSVG.list()
+      : null;
+    if (Array.isArray(live) && live.length > 0) return live;
+  } catch (_) {}
+  return BUNDLED_ANIMAL_FALLBACK;
+}
+
+function buildAnimalSubgroupEntries(animals) {
+  const out = {};
+  for (const name of animals) {
+    const safe = String(name || "").replace(/[^a-z0-9-]/gi, "");
+    if (!safe) continue;
+    const display = safe.charAt(0).toUpperCase() + safe.slice(1);
+    out[animalSubGroupLabel(safe)] = {
+      method:     "_renderThemePreviewAnimal",
+      methodArgs: [safe],
+      title:      `${display} Preview`,
+      description:
+        `The ${safe} across all five battery-state bands. Tokens in this ` +
+        `sub-group (prefixed --evcc-animal-${safe}-) override the global ` +
+        `Animal Companion palette and eye-state colors for just the ${safe}.`,
+    };
+  }
+  return out;
+}
+
+/* =========================================================
+   LIVE REGISTRY (rebuilds on animal-svg-registered)
+   ========================================================= */
+
+function buildRegistry() {
+  const animals = currentAnimalList();
+  return Object.freeze({
+    ...STATIC_PREVIEW_ENTRIES,
+    ...buildAnimalSubgroupEntries(animals),
+  });
+}
+
+export let THEME_PREVIEW_REGISTRY = buildRegistry();
+
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("animal-svg-registered", () => {
+    try {
+      THEME_PREVIEW_REGISTRY = buildRegistry();
+    } catch (err) {
+      console.warn("[theme-preview-registry] rebuild failed:", err);
+    }
+  });
+}

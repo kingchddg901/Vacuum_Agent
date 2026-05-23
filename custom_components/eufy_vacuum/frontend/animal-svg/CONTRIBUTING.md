@@ -155,9 +155,21 @@ focused.
 1. Drop `animals/<yourname>.js` that calls `AnimalSVG.register('yourname',
    {...})`.
 2. Add a line to `manifest.js` to load it.
-3. PR description includes: a screenshot of all six poses (you can use
-   `demo.html` for this), what the animal expresses (cat → reserved,
-   parrot → flighty, etc.), and the palette rationale.
+
+**That is the entire change.** No edits to `src/`. The integration's theme
+token registry and editor preview pane both auto-derive from the live
+AnimalSVG list — once your file's `register()` call fires, an event
+notifies the theme system, which rebuilds the registry and adds:
+
+- An "Animal Companion — `<Yourname>`" editor sub-group with 14 tokens
+  (5 battery-state overrides + 9 palette overrides), all prefixed
+  `--evcc-animal-<yourname>-`
+- A single-animal preview pane in the editor showing your animal in all
+  five battery-state bands
+
+PR description should include: a screenshot of all six poses (you can use
+`demo.html` for this), what the animal expresses (cat → reserved, parrot
+→ flighty, etc.), and the palette rationale.
 
 If your animal needs procedural rendering (snake-like), use
 `type: 'custom'`. See `animals/snake.js` for the pattern. You are entirely

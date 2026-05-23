@@ -9,11 +9,20 @@
  *
  * Structure follows the floor-textures pattern:
  *   - Parent "Animal Companion" group holds global tokens (the five
- *     battery-state eye colors + an optional cross-animal palette
- *     override layer).
+ *     battery-state eye colors + a cross-animal palette override layer).
  *   - Per-animal subgroups ("Animal Companion — Cat" etc.) hold that
- *     specific animal's palette overrides plus optional per-animal
- *     eye-state overrides.
+ *     specific animal's palette overrides plus per-animal eye-state
+ *     overrides.
+ *
+ * SMART REGISTRY
+ * --------------
+ * This module exports BUILD FUNCTIONS, not static arrays. The combiner
+ * in index.js calls buildAnimalTokenSets() with the live list of
+ * registered animals (window.AnimalSVG.list()) and gets a fully
+ * formed token registry. When a new animal registers itself, the
+ * 'animal-svg-registered' document event fires, index.js rebuilds,
+ * and the new animal's sub-group appears in the editor automatically
+ * — no manual touch points in src/.
  *
  * OVERRIDE PRIORITY (high → low)
  * ------------------------------
@@ -22,9 +31,8 @@
  *   3. Animal's own default     (value baked into the animal's colors block)
  *
  * The animal-svg shadow root wraps each color it consumes with this
- * two-level fallback, so themes can either reskin everything in one
- * place (set the globals) or fine-tune per animal (set the per-animal
- * tokens). Both can coexist.
+ * two-level fallback (see colorVarsStyle / batteryStateDefaultsCss in
+ * animal-svg.js).
  *
  * HSL TRIPLET FORMAT
  * ------------------
@@ -37,20 +45,27 @@
 
 import { makeTypedGroupToken } from "./helpers.js";
 
-// Helpers — one per sub-group. Matches the floor-textures.js convention
-// of defining per-sub-group token factories inline.
-const a   = makeTypedGroupToken("Animal Companion",             "color");
-const aCat     = makeTypedGroupToken("Animal Companion — Cat",     "color");
-const aDog     = makeTypedGroupToken("Animal Companion — Dog",     "color");
-const aRaccoon = makeTypedGroupToken("Animal Companion — Raccoon", "color");
-const aParrot  = makeTypedGroupToken("Animal Companion — Parrot",  "color");
-const aSnake   = makeTypedGroupToken("Animal Companion — Snake",   "color");
+/* =========================================================
+   GROUP NAMING
+   ========================================================= */
 
-// ---- Parent group: global tokens applied across every animal ----
-//
-// Set these once to bulk-override all animals. Per-animal sub-groups can
-// further override on top.
-export const ANIMAL_TOKENS = [
+export const ANIMAL_PARENT_GROUP = "Animal Companion";
+
+/** Group label for a specific animal name. Stable across rebuilds so
+ *  saved themes referencing a sub-group keep working. */
+export function animalSubGroupLabel(animalName) {
+  const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
+  const display = safe.charAt(0).toUpperCase() + safe.slice(1);
+  return `${ANIMAL_PARENT_GROUP} — ${display}`;
+}
+
+/* =========================================================
+   PARENT GROUP — global tokens (shape never depends on animal list)
+   ========================================================= */
+
+const a = makeTypedGroupToken(ANIMAL_PARENT_GROUP, "color");
+
+const PARENT_TOKENS = [
   // Battery-state eye colors (semantic, not animal-specific).
   a.color("--evcc-animal-eye-good",     "Eye — Good (>50% battery)"),
   a.color("--evcc-animal-eye-mid",      "Eye — Mid (25–50%)"),
@@ -58,7 +73,7 @@ export const ANIMAL_TOKENS = [
   a.color("--evcc-animal-eye-low",      "Eye — Low (≤15%)"),
   a.color("--evcc-animal-eye-charging", "Eye — Charging (pulses)"),
 
-  // Global palette fallbacks. Set these to apply across all animals at once.
+  // Global palette fallbacks. Set these to apply across every animal.
   a.color("--evcc-animal-fur",            "Fur (all animals)"),
   a.color("--evcc-animal-fur-shadow",     "Fur Shadow (all)"),
   a.color("--evcc-animal-fur-highlight",  "Fur Highlight (all)"),
@@ -70,43 +85,96 @@ export const ANIMAL_TOKENS = [
   a.color("--evcc-animal-white-tip",      "White Tip / Accent (all)"),
 ];
 
-// ---- Per-animal sub-groups ----
-//
-// Each animal exposes the same shape: 5 battery-state eye colors + 9 palette
-// tokens. Setting any token here overrides the corresponding global token for
-// just that animal.
+/* =========================================================
+   PER-ANIMAL TOKEN SHAPE
+   =========================================================
+   Every animal exposes the same 14 tokens — 5 battery-state overrides
+   plus 9 palette overrides. The names are derived from the animal name
+   so the registry is mechanical.
+   ========================================================= */
 
-function perAnimalTokens(g) {
+const PER_ANIMAL_SUFFIXES = [
+  // Battery-state overrides — apply to just this animal.
+  { suffix: "eye-good",       label: "Eye — Good" },
+  { suffix: "eye-mid",        label: "Eye — Mid" },
+  { suffix: "eye-warn",       label: "Eye — Warn" },
+  { suffix: "eye-low",        label: "Eye — Low" },
+  { suffix: "eye-charging",   label: "Eye — Charging" },
+  // Palette overrides.
+  { suffix: "fur",            label: "Fur" },
+  { suffix: "fur-shadow",     label: "Fur Shadow" },
+  { suffix: "fur-highlight",  label: "Fur Highlight" },
+  { suffix: "eye",            label: "Eye Base" },
+  { suffix: "pupil",          label: "Pupil" },
+  { suffix: "nose",           label: "Nose" },
+  { suffix: "whisker",        label: "Whisker" },
+  { suffix: "ear-inner",      label: "Ear Inner" },
+  { suffix: "white-tip",      label: "White Tip / Accent" },
+];
+
+function buildPerAnimalTokens(animalName) {
+  const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
+  if (!safe) return [];
+  const group = animalSubGroupLabel(safe);
+  const tk = makeTypedGroupToken(group, "color");
+  return PER_ANIMAL_SUFFIXES.map(({ suffix, label }) =>
+    tk.color(`--evcc-animal-${safe}-${suffix}`, label)
+  );
+}
+
+/* =========================================================
+   PUBLIC API
+   ========================================================= */
+
+/**
+ * Build the full Animal Companion token set for the given list of
+ * animal names. Returns `{ parent, perAnimal }`:
+ *
+ *   - `parent` — array of global tokens for the "Animal Companion" group.
+ *   - `perAnimal` — array of `{ group, tokens }` entries, one per animal,
+ *     each ready to be slotted into the combined registry.
+ *
+ * The animal-name list typically comes from `window.AnimalSVG.list()`
+ * but accepts a manual fallback for the initial bundle build before
+ * animal-svg has loaded.
+ *
+ * @param {string[]} animals
+ * @returns {{ parent: Array, perAnimal: Array<{ group: string, tokens: Array }> }}
+ */
+export function buildAnimalTokenSets(animals) {
+  const names = Array.isArray(animals) ? animals.filter(Boolean) : [];
+  return {
+    parent: PARENT_TOKENS,
+    perAnimal: names.map((name) => ({
+      group:  animalSubGroupLabel(name),
+      tokens: buildPerAnimalTokens(name),
+    })),
+  };
+}
+
+/**
+ * Convenience: full flat list of every animal token, in stable order.
+ * Used by the registry combiner.
+ *
+ * @param {string[]} animals
+ * @returns {Array}
+ */
+export function buildAnimalTokenRegistry(animals) {
+  const { parent, perAnimal } = buildAnimalTokenSets(animals);
   return [
-    // Per-animal battery-state overrides.
-    g.color(`${g.PREFIX_STUB}-eye-good`,     "Eye — Good"),
-    g.color(`${g.PREFIX_STUB}-eye-mid`,      "Eye — Mid"),
-    g.color(`${g.PREFIX_STUB}-eye-warn`,     "Eye — Warn"),
-    g.color(`${g.PREFIX_STUB}-eye-low`,      "Eye — Low"),
-    g.color(`${g.PREFIX_STUB}-eye-charging`, "Eye — Charging"),
-    // Per-animal palette.
-    g.color(`${g.PREFIX_STUB}-fur`,            "Fur"),
-    g.color(`${g.PREFIX_STUB}-fur-shadow`,     "Fur Shadow"),
-    g.color(`${g.PREFIX_STUB}-fur-highlight`,  "Fur Highlight"),
-    g.color(`${g.PREFIX_STUB}-eye`,            "Eye Base"),
-    g.color(`${g.PREFIX_STUB}-pupil`,          "Pupil"),
-    g.color(`${g.PREFIX_STUB}-nose`,           "Nose"),
-    g.color(`${g.PREFIX_STUB}-whisker`,        "Whisker"),
-    g.color(`${g.PREFIX_STUB}-ear-inner`,      "Ear Inner"),
-    g.color(`${g.PREFIX_STUB}-white-tip`,      "White Tip / Accent"),
+    ...parent,
+    ...perAnimal.flatMap((g) => g.tokens),
   ];
 }
 
-// Stamp each per-animal helper with its token prefix stub so perAnimalTokens
-// can build the keys generically. Keeps the 5 arrays from being duplicated.
-aCat.PREFIX_STUB     = "--evcc-animal-cat";
-aDog.PREFIX_STUB     = "--evcc-animal-dog";
-aRaccoon.PREFIX_STUB = "--evcc-animal-raccoon";
-aParrot.PREFIX_STUB  = "--evcc-animal-parrot";
-aSnake.PREFIX_STUB   = "--evcc-animal-snake";
-
-export const ANIMAL_CAT_TOKENS     = perAnimalTokens(aCat);
-export const ANIMAL_DOG_TOKENS     = perAnimalTokens(aDog);
-export const ANIMAL_RACCOON_TOKENS = perAnimalTokens(aRaccoon);
-export const ANIMAL_PARROT_TOKENS  = perAnimalTokens(aParrot);
-export const ANIMAL_SNAKE_TOKENS   = perAnimalTokens(aSnake);
+/**
+ * Group labels for the Animal Companion section in editor order:
+ * parent first, then one per animal.
+ *
+ * @param {string[]} animals
+ * @returns {string[]}
+ */
+export function buildAnimalGroupOrder(animals) {
+  const names = Array.isArray(animals) ? animals.filter(Boolean) : [];
+  return [ANIMAL_PARENT_GROUP, ...names.map(animalSubGroupLabel)];
+}

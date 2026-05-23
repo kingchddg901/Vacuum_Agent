@@ -237,6 +237,13 @@ Each animal is its own self-registering file in `animals/`. To add one:
 1. Create `animals/myanimal.js` that calls `AnimalSVG.register('myanimal', { ... })`.
 2. Add `loadScript('animals/myanimal.js')` to the array in `manifest.js`.
 
+**That's it.** When the file's `register()` call fires, an
+`animal-svg-registered` document event tells the integration's theme
+system to rebuild its dynamic registry. Your animal appears automatically
+in the map view's animal selector, in the theme editor with its own
+sub-group of 14 tokens, and in the editor's per-animal preview pane.
+There are no `src/` edits to make.
+
 To remove one, delete its line from `manifest.js` (and optionally its file).
 
 To edit colors only, change the `colors` block in the relevant file — no other

@@ -574,7 +574,17 @@
   const AnimalSVG = {
     register(name, def) {
       if (!name || !def) throw new Error('AnimalSVG.register(name, def) — both required');
+      const isNew = !REGISTRY.has(name);
       REGISTRY.set(name, def);
+      // Fire a document event so external systems (e.g. the theme-token
+      // registry in the eufy_vacuum card) can rebuild their dynamic
+      // animal-derived lists. Detail includes the animal name and the
+      // current full list, so listeners don't have to look it up.
+      if (typeof document !== 'undefined' && document.dispatchEvent) {
+        document.dispatchEvent(new CustomEvent('animal-svg-registered', {
+          detail: { name, isNew, all: [...REGISTRY.keys()] },
+        }));
+      }
       // If any element on the page is showing this animal, re-render it.
       document.querySelectorAll('animal-svg').forEach(el => {
         if (el.getAttribute('animal') === name && el._render) el._render();
