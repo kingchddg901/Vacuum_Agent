@@ -84,6 +84,33 @@ export function applyCoreState(proto) {
   };
 
   /**
+   * Resolves the vacuum's current battery state into one of five buckets
+   * for visual presentation. Used by the map view's animal companion (the
+   * `battery-state` attribute on <animal-svg>) and any other consumer that
+   * wants the same banding.
+   *
+   * Bands (battery_level percent):
+   *   charging      — isCharging() is true (overrides level-based bands)
+   *   good          — battery > 50
+   *   mid           — 25 < battery ≤ 50
+   *   warn          — 15 < battery ≤ 25
+   *   low           — battery ≤ 15
+   *
+   * Battery unavailable → "good" (least-alarming default).
+   *
+   * @returns {'good'|'mid'|'warn'|'low'|'charging'}
+   */
+  proto.batteryState = function () {
+    if (this.isCharging()) return "charging";
+    const level = this.batteryLevel();
+    if (level == null) return "good";
+    if (level <= 15) return "low";
+    if (level <= 25) return "warn";
+    if (level <= 50) return "mid";
+    return "good";
+  };
+
+  /**
    * User-friendly vacuum name. Priority: friendly_name attribute → formatted object_id.
    * @returns {string}
    */

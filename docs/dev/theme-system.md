@@ -496,59 +496,73 @@ The group name string must match exactly between `THEME_GROUPS`, the `group` fie
 
 ---
 
-## 9. Animal companion (`animal-svg`) — not theme-driven
+## 9. Animal companion (`animal-svg`) — palette is theme-driven
 
 The `<animal-svg>` web component renders the map view's animal companion.
-It now ships **inside the integration** at
+It ships **inside the integration** at
 `custom_components/eufy_vacuum/frontend/animal-svg/` and is served by the
 integration's static-path registration at `/eufy_vacuum/frontend/animal-svg/`.
 The card loads it via a dynamic import in `src/main.js` during first render.
 
 The full component + integration contract — attribute table, allowed poses,
-the state→pose mapping the panel uses, the `charging` hook, how to author a
-creature pack — is in
+the state→pose mapping the panel uses, the `battery-state` bands, how to
+author a creature pack — is in
 [`custom_components/eufy_vacuum/frontend/animal-svg/README.md`](../../custom_components/eufy_vacuum/frontend/animal-svg/README.md).
-That file is the canonical reference; this section only covers the
+That file is the canonical reference; this section covers only the
 relationship with the theme system.
 
-### Why this is in the theme doc
+### What themes control
 
-Earlier scoping treated animal selection as a theme concern (mascot token,
-theme-driven pose mapping). That design is **not** what shipped. Instead:
+The **Animal Companion** token group (`src/theme-tokens/animals.js`) holds
+~13 tokens. Two clusters:
 
-- **Mascot choice (`animal` attribute) is per-map, not per-theme.** Stored
-  via `state.mapAnimalSelection()` / `setMapAnimalSelection()`, not in the
-  theme token registry. A user can swap from cat to raccoon without touching
-  themes.
-- **Pose mapping is hardcoded.** Defined once in
-  `src/renderers/map.js::_vacuumStateToPose`. The six HA vacuum-platform
-  states map to fixed poses; themes don't customize this.
-- **Charging state goes through a presence attribute, not a token.** The
-  panel reads `binary_sensor.<vacuum>_charging` via `state.isCharging()` and
-  sets the `charging` attribute on `<animal-svg>`. Animals override
-  `--animal-eye-charging` in their own colors block if they want a custom
-  charging look — that's per-animal, not per-theme.
+| Cluster | Tokens | What they override |
+|---------|--------|--------------------|
+| Battery-state eye colors | `--evcc-animal-eye-good`, `--evcc-animal-eye-mid`, `--evcc-animal-eye-warn`, `--evcc-animal-eye-low`, `--evcc-animal-eye-charging` | The five color bands tied to battery level + charging state. `charging` also pulses (brightness modulation). |
+| General palette          | `--evcc-animal-fur`, `--evcc-animal-fur-shadow`, `--evcc-animal-fur-highlight`, `--evcc-animal-pupil`, `--evcc-animal-nose`, `--evcc-animal-whisker`, `--evcc-animal-ear-inner`, `--evcc-animal-white-tip` | Per-color overrides applied across every animal. A theme that sets `--evcc-animal-fur` reskins every animal that uses fur (cat, dog, raccoon, snake). |
 
-### Theme system overlap: zero (currently)
+### How the override actually reaches the SVG
 
-There is no animal-related token in `theme-tokens/groups.js`. Themes do not
-control animal selection, pose mapping, or charging colors. The two systems
-are independent.
+The animal-svg shadow root wraps each per-animal default in a fallback:
 
-### If a future theme-mascot integration ever happens
+```css
+:host {
+  --animal-fur: var(--evcc-animal-fur, 0 0% 7%);   /* cat default */
+  --animal-eye: var(--evcc-animal-eye, 142 71% 45%);
+  /* ...one line per color in the animal's `colors` block */
+}
+```
 
-The path is straightforward but unimplemented:
+The wrapping happens once in `colorVarsStyle()` in `animal-svg.js` — animal
+definitions don't change. CSS custom-property inheritance then carries the
+theme override (set on the card host by `applyThemeToCard()`) through the
+shadow boundary into the `:host` rule's `var()` lookup. Animal's default
+is the fallback when no theme token is set.
 
-1. Add a `mascot` token to `SHELL_TOKENS` (or its own group), value =
-   registered animal name.
-2. Resolve the token in `mapAnimalSelection()` with theme-token override
-   priority over the per-map setting (or vice versa — design call).
-3. Optionally promote `--animal-eye-charging` to a theme token so charging
-   color can be themed.
+### What themes do NOT control (still)
 
-No protocol or backend changes would be needed; this is entirely a card-side
-concern. There's no current plan to do it — the per-map selection has been
-sufficient.
+- **Mascot choice** (`animal` attribute). Stored per-map via
+  `state.mapAnimalSelection()`, not in the theme registry. A user can swap
+  from cat to raccoon without touching themes — the choice persists across
+  theme changes.
+- **Pose mapping.** Defined once in `src/renderers/map.js::_vacuumStateToPose`.
+  Six HA vacuum states map to six fixed poses. Themes don't customize this.
+- **Battery thresholds.** The 50/25/15 percent boundaries that resolve
+  `battery-state` live in `state.batteryState()` and are not currently
+  theme-tunable. (They could be added as `--evcc-animal-threshold-*`
+  number tokens if the need ever materialises.)
+
+### How creature-pack authors interact with this
+
+A new animal's `colors` block sets per-animal defaults. Those defaults are
+automatically wrapped as theme-overridable fallbacks. No animal-file change
+is needed to make a new animal theme-aware — the wrapping is mechanical.
+
+An animal that wants to opt into the battery-state pulse on its eye
+elements adds `class="animal-eyes"` to whatever it draws as eyes. Declarative
+`quadruped`/`parrot` animals get this for free (the framework tags
+`parts.eyes` automatically). Procedural (`custom`) animals add the class
+themselves; see `animals/snake.js` for the reference pattern.
 
 ---
 

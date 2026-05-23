@@ -2,14 +2,15 @@
  * <animal-svg> — Home Assistant friendly custom element.
  *
  * Attributes (reflected, observable):
- *   animal    — registered animal name (e.g. "cat", "dog", "raccoon", "parrot", "snake")
- *   pose      — one of: animating | standing | curled | alert | walking | warning
- *   width     — optional css width  (default 360px)
- *   height    — optional css height (default 240px)
- *   charging  — boolean attribute. When present, swaps eye color via
- *               --animal-eye → --animal-eye-charging (default yellow if the
- *               animal doesn't supply its own charging palette). Pure CSS,
- *               no re-render. Driven by attribute presence, not by value.
+ *   animal         — registered animal name (e.g. "cat", "dog", "raccoon", "parrot", "snake")
+ *   pose           — one of: animating | standing | curled | alert | walking | warning
+ *   width          — optional css width  (default 360px)
+ *   height         — optional css height (default 240px)
+ *   battery-state  — one of: good | mid | warn | low | charging. Swaps --animal-eye
+ *                    to the matching state color via :host([battery-state="X"]) rules.
+ *                    The "charging" value also triggers a gentle brightness pulse on
+ *                    elements with the .animal-eyes class. Pure CSS; no re-render.
+ *                    Absent attribute is equivalent to battery-state="good".
  *
  * Methods:
  *   .setAnimal(name)
@@ -19,6 +20,14 @@
  *   AnimalSVG.register(name, definition)
  *
  * See animals/*.js and README.md for the definition shape.
+ *
+ * Theme integration:
+ *   All colors a definition declares in its `colors` block become theme-
+ *   overridable. Each --animal-X default is wrapped as
+ *     --animal-X: var(--evcc-animal-X, <animal default>);
+ *   so a theme that sets --evcc-animal-fur (etc.) on any ancestor element
+ *   overrides every animal. Battery-state colors follow the same pattern
+ *   with --evcc-animal-eye-{good,mid,warn,low,charging} keys.
  */
 
 (() => {
@@ -270,8 +279,48 @@
   // === SVG STRING BUILDERS ===================================================
 
   function colorVarsStyle(colors) {
-    return Object.entries(colors).map(([k, v]) => `${k}:${v};`).join('');
+    // Wrap each --animal-X default as var(--evcc-animal-X, <default>) so the
+    // outer theme system can override the entire animal palette by setting
+    // --evcc-animal-* tokens on the card host. The animal's own value is the
+    // fallback when no theme override exists.
+    return Object.entries(colors).map(([k, v]) => {
+      const themeKey = k.replace(/^--animal-/, '--evcc-animal-');
+      return `${k}: var(${themeKey}, ${v});`;
+    }).join('');
   }
+
+  // Battery-state defaults. These are the framework-supplied defaults for
+  // each of the five battery states; themes override via the matching
+  // --evcc-animal-eye-* token. Animal definitions can ALSO supply their own
+  // per-animal defaults for these by including the keys in their `colors`
+  // block (in which case the animal default wins over the framework default
+  // but a theme override still wins over both).
+  const BATTERY_STATE_DEFAULTS_CSS = `
+    :host {
+      --animal-eye-good:     var(--evcc-animal-eye-good,     142 71% 45%);
+      --animal-eye-mid:      var(--evcc-animal-eye-mid,       50 100% 55%);
+      --animal-eye-warn:     var(--evcc-animal-eye-warn,      30 100% 50%);
+      --animal-eye-low:      var(--evcc-animal-eye-low,        0 80% 50%);
+      --animal-eye-charging: var(--evcc-animal-eye-charging, 210 100% 55%);
+    }
+    :host([battery-state="good"])     { --animal-eye: var(--animal-eye-good); }
+    :host([battery-state="mid"])      { --animal-eye: var(--animal-eye-mid); }
+    :host([battery-state="warn"])     { --animal-eye: var(--animal-eye-warn); }
+    :host([battery-state="low"])      { --animal-eye: var(--animal-eye-low); }
+    :host([battery-state="charging"]) { --animal-eye: var(--animal-eye-charging); }
+
+    /* Gentle brightness pulse on eye elements while charging. Animals
+       (declarative and procedural) opt in by tagging their eye group/element
+       with class="animal-eyes". The quadruped + parrot pipelines apply this
+       class automatically; custom animals add it themselves. */
+    @keyframes evcc-animal-eye-pulse {
+      from { filter: brightness(1);   }
+      to   { filter: brightness(0.55); }
+    }
+    :host([battery-state="charging"]) .animal-eyes {
+      animation: evcc-animal-eye-pulse 1.2s ease-in-out infinite alternate;
+    }
+  `;
 
   /**
    * Build the SVG inner markup for a quadruped (cat, dog, raccoon).
@@ -322,7 +371,7 @@
 
         <g class="${headCls}" style="${s.head}">
           ${p.head}
-          <g class="${eyesCls}" style="${s.eyes}">${p.eyes}</g>
+          <g class="animal-eyes ${eyesCls}" style="${s.eyes}">${p.eyes}</g>
           ${p.face}
         </g>
 
@@ -380,7 +429,7 @@
 
           <g class="${headCls}" style="${s.head}">
             ${p.head}
-            <g class="${eyesCls}" style="${s.eyes}">${p.eyes}</g>
+            <g class="animal-eyes ${eyesCls}" style="${s.eyes}">${p.eyes}</g>
             ${p.face}
           </g>
 
@@ -463,8 +512,9 @@
       }
 
       // Colors are emitted as :host custom properties (rather than inline on
-      // the SVG) so attribute-driven rules like :host([charging]) can override
-      // them. Inline element styles would otherwise beat any CSS rule.
+      // the SVG) so attribute-driven rules like :host([battery-state="X"])
+      // can override them. Inline element styles would otherwise beat any
+      // CSS rule.
       this._root.innerHTML = `
         <style>
           :host {
@@ -474,13 +524,7 @@
             height: ${height};
             ${colorStyle}
           }
-          /* Charging override: animals can supply --animal-eye-charging in
-             their colors block; otherwise we fall back to a friendly yellow.
-             The eye paths use hsl(var(--animal-eye)), so this re-targets them
-             without any per-animal change. */
-          :host([charging]) {
-            --animal-eye: var(--animal-eye-charging, 50 100% 55%);
-          }
+          ${BATTERY_STATE_DEFAULTS_CSS}
           svg { width: 100%; height: 100%; display: block; overflow: visible; }
           ${KEYFRAMES_CSS}
           ${ANIMATION_CSS}

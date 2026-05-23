@@ -227,9 +227,10 @@
 
       const headEll  = el('ellipse', { cx: 0, cy: 0, rx: 26, ry: 16, fill: 'hsl(var(--animal-fur))' });
       const headHl   = el('ellipse', { cx: -6, cy: -2, rx: 22, ry: 13, fill: 'hsl(var(--animal-fur-highlight))', opacity: '0.35' });
-      const eyeUp    = el('circle', { cx: -6, cy: -6, r: showWarning ? 4 : 3.2, fill: 'hsl(var(--animal-eye))' });
+      // class="animal-eyes" opts in to the framework's charging-state pulse.
+      const eyeUp    = el('circle', { cx: -6, cy: -6, r: showWarning ? 4 : 3.2, fill: 'hsl(var(--animal-eye))',   class: 'animal-eyes' });
       const pupUp    = el('circle', { cx: -6, cy: -6, r: showWarning ? 2 : 1.4, fill: 'hsl(var(--animal-pupil))' });
-      const eyeDn    = el('circle', { cx: -6, cy: 6,  r: showWarning ? 4 : 3.2, fill: 'hsl(var(--animal-eye))' });
+      const eyeDn    = el('circle', { cx: -6, cy: 6,  r: showWarning ? 4 : 3.2, fill: 'hsl(var(--animal-eye))',   class: 'animal-eyes' });
       const pupDn    = el('circle', { cx: -6, cy: 6,  r: showWarning ? 2 : 1.4, fill: 'hsl(var(--animal-pupil))' });
       const nostrilU = el('circle', { cx: -22, cy: -3, r: 1, fill: 'hsl(var(--animal-nose))' });
       const nostrilL = el('circle', { cx: -22, cy: 3,  r: 1, fill: 'hsl(var(--animal-nose))' });

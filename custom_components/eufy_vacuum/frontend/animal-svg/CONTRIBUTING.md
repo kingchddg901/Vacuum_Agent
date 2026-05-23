@@ -11,8 +11,8 @@ better one. This guide describes what "better" means here, so you have
 something to aim at.
 
 The technical contract (definition shape, coordinate space, allowed poses,
-charging hook) lives in [README.md](./README.md). This file is purely about
-*making them look good*.
+battery-state hook, theme tokens) lives in [README.md](./README.md). This
+file is purely about *making them look good*.
 
 ## What "good" means here
 
@@ -73,9 +73,29 @@ intentional but minimal. A more characterful palette might use:
 - Eye colors that read well at the small render size — high contrast
   against the surrounding fur
 
-You also have `--animal-eye-charging` if the default warm yellow clashes
-with your palette. Pick a charging color that contrasts with your normal
-eye color *and* feels like it fits the animal.
+The framework also drives a five-band eye color tied to battery state
+(`good` / `mid` / `warn` / `low` / `charging`). Defaults are green /
+yellow / orange / red / pulsing blue — sensible across most palettes,
+but they may clash with very vivid animals. You can override any band
+per-animal by adding the matching key to your `colors` block:
+
+```js
+colors: {
+  '--animal-eye':           '142 71% 45%',  // base "good" eye color
+  '--animal-eye-good':      '142 71% 45%',  // optional per-animal override
+  '--animal-eye-mid':       '50 100% 55%',
+  '--animal-eye-warn':      '30 100% 50%',
+  '--animal-eye-low':       '0 80% 50%',
+  '--animal-eye-charging':  '210 100% 55%',
+  // ...rest of palette
+}
+```
+
+When picking colors, keep each band visually distinct at the 64×44 render
+size — green vs yellow is easy, but yellow vs orange can muddle if both
+are too saturated. The charging color should feel "active" (cool or
+electric); the warn/low colors should feel "concerning" without becoming
+indistinguishable.
 
 ### 5. Asymmetric motion
 
@@ -148,8 +168,10 @@ you the pose name and walks away.
 
 Open `demo.html` (served at `/eufy_vacuum/frontend/animal-svg/demo.html` if
 the integration is installed, or open it directly from the file editor).
-Walk through every pose for your animal. Then add `?charging` to the URL
-and walk through again. Both should look intentional, not accidental.
+Walk through every pose for your animal. Then walk through each
+`battery-state` value (`good`, `mid`, `warn`, `low`, `charging`) and
+re-check every pose. All thirty (6 × 5) combinations should look
+intentional, not accidental.
 
 If any pose looks broken at the default size *and* at 2× scale, fix it
 before submitting. Map-view users will see one or the other; both should

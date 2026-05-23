@@ -138,3 +138,4 @@ export const statusToken        = makeTypedGroupToken("Status, Confidence & Aler
 export const learningToken      = makeTypedGroupToken("Learning & Metrics",           "color");
 export const modalToken         = makeTypedGroupToken("Modals & Overlays",            "color");
 export const foundationToken    = makeTypedGroupToken("Shared Foundations",           "size");
+export const animalToken        = makeTypedGroupToken("Animal Companion",              "color");

@@ -35,6 +35,7 @@ import { QUEUE_ORDERING_TOKENS } from "./queue-ordering.js";
 import { STATUS_TOKENS         } from "./status.js";
 import { LEARNING_TOKENS       } from "./learning.js";
 import { MODAL_TOKENS          } from "./modals.js";
+import { ANIMAL_TOKENS         } from "./animals.js";
 import { FOUNDATION_TOKENS     } from "./foundations.js";
 
 const GROUPED_TOKEN_SETS = [
@@ -48,6 +49,7 @@ const GROUPED_TOKEN_SETS = [
   STATUS_TOKENS,
   LEARNING_TOKENS,
   MODAL_TOKENS,
+  ANIMAL_TOKENS,
   FOUNDATION_TOKENS,
 ];
 

@@ -282,9 +282,11 @@ export function applyMapRenderers(proto) {
     const isDocked = pose === "curled";
     const animal   = state.mapAnimalSelection?.() ?? "cat";
     const scale    = state.mapAnimalScale?.()     ?? 1.0;
-    // Charging is an auxiliary visual signal independent of pose. The animal
-    // expresses it however its definition chooses (default: eye color swap).
-    const charging = state.isCharging?.() === true;
+    // Battery state is an auxiliary visual signal orthogonal to pose. The
+    // five-band resolution (charging/good/mid/warn/low) lives in
+    // state.batteryState(); the animal renders the corresponding eye color
+    // via :host([battery-state="X"]) rules, plus a charging pulse.
+    const batteryState = state.batteryState?.() ?? "good";
 
     // Anchor key: prefer room ID; fall back to segment ID so unlinked
     // segments can still have user-placed anchors.
@@ -301,7 +303,7 @@ export function applyMapRenderers(proto) {
       data-action="map-dot-click"
       data-anchor-key="${this.escapeHtml(anchorKey)}"
       title="Drag to reposition"
-    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px"${charging ? ' charging' : ''}></animal-svg></div>`;
+    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
   };
 
   /* =========================================================

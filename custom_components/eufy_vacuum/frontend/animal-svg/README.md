@@ -56,12 +56,13 @@ Then anywhere in a card:
 | `pose`     | `animating`, `standing`, `curled`, `alert`, `walking`, `warning` | `standing` | Triggers full re-render |
 | `width`    | any CSS length | `360px` | Applied to host (`:host { width: ... }`) |
 | `height`   | any CSS length | `240px` | Applied to host |
-| `charging` | presence-only (boolean attribute) | absent | Pure CSS — re-targets `--animal-eye` to `--animal-eye-charging` (default yellow `50 100% 55%`) when present |
+| `battery-state` | `good`, `mid`, `warn`, `low`, `charging` | absent ≡ `good` | Pure CSS — re-targets `--animal-eye` to the matching framework default (`good`=green, `mid`=yellow, `warn`=orange, `low`=red, `charging`=blue). Themes can override via `--evcc-animal-eye-*` tokens. `charging` additionally drives a gentle brightness pulse on elements tagged `.animal-eyes`. |
 
 `animal` and `pose` are observed and trigger a full re-render via
-`attributeChangedCallback`. `width`, `height`, and `charging` work without
-re-rendering — `charging` in particular is implemented as a `:host([charging])`
-CSS rule, so toggling it on/off is essentially free.
+`attributeChangedCallback`. `width`, `height`, and `battery-state` work without
+re-rendering — `battery-state` is implemented as five `:host([battery-state="X"])`
+CSS rules plus a keyframe animation, so flipping through values is essentially
+free.
 
 From JS you can also use `el.setAnimal(name)` / `el.setPose(pose)`.
 
@@ -85,16 +86,15 @@ It sets these attributes and nothing else:
 | `pose`      | Derived from the HA vacuum entity's state (see mapping below) |
 | `width`     | `64 * state.mapAnimalScale()` (user-configurable, default 1.0×) |
 | `height`    | `44 * state.mapAnimalScale()` |
-| `charging`  | Present when `binary_sensor.<vacuum>_charging` is `on`; absent otherwise |
+| `battery-state` | `state.batteryState()` — resolved from battery % + charging into one of `good` / `mid` / `warn` / `low` / `charging` |
 
-**Things the panel deliberately does NOT pass:**
+**Things the panel deliberately does NOT pass directly to the element:**
 
-- No color overrides. Animals own their palette via the `colors` block in
-  their definition. The only color signal the panel injects is the binary
-  `charging` attribute.
-- No theme tokens. The card's wider theme system does not reach into the
-  animal's shadow root. Animals stay visually consistent regardless of card
-  theme.
+- No color attributes or inline color styles. Color customisation happens
+  through the **theme token system** (see [Theme integration](#theme-integration)
+  below) — the card sets `--evcc-animal-*` tokens on its host, the animal-svg
+  shadow root picks them up via CSS custom-property inheritance, and the
+  animal's per-definition defaults serve as fallbacks.
 - No event handlers. The wrapper div carries the click/drag handlers for
   repositioning the anchor; the `<animal-svg>` itself receives no click
   listeners from the panel. The component's built-in click-to-cycle-pose
@@ -119,27 +119,44 @@ the canonical HA vacuum-platform state vocabulary (brand-agnostic):
 makes up new pose names. Creature packs only need to implement the six poses
 the framework defines.
 
-### `charging` semantics
+### `battery-state` semantics
 
-The panel attaches the `charging` attribute when the vacuum is actively
-charging on the dock. It is **orthogonal to `pose`** — a docked vacuum
-gets `pose="curled"` AND (usually) `charging`. A docked vacuum at full
-battery gets `pose="curled"` but no `charging`.
+The panel sets `battery-state` to one of five values resolved by
+`state.batteryState()`:
 
-The framework's default behaviour:
+| State      | Trigger | Framework default eye color |
+|------------|---------|-----------------------------|
+| `charging` | `binary_sensor.<vacuum>_charging` is `on` (overrides level-based bands) | blue, pulsing |
+| `low`      | battery ≤ 15% | red |
+| `warn`     | 15% < battery ≤ 25% | orange |
+| `mid`      | 25% < battery ≤ 50% | yellow |
+| `good`     | battery > 50% (or unavailable) | green |
 
-```css
-:host([charging]) {
-  --animal-eye: var(--animal-eye-charging, 50 100% 55%);
-}
-```
+It's **orthogonal to `pose`** — a docked vacuum gets `pose="curled"`
+regardless of which `battery-state` band applies. A docked vacuum at full
+battery gets `pose="curled"` + `battery-state="good"`. A docked vacuum
+actively charging gets `pose="curled"` + `battery-state="charging"`.
 
-So out of the box, charging swaps the eye color to a warm yellow.
-An animal can customise by setting `--animal-eye-charging` in its `colors`
-block (e.g. an electric-blue charging look). The framework provides only
-this single override hook for now; if you want to express charging more
-elaborately (body pulse, tail twitch, particle effects), implement it
-yourself via a CSS rule scoped to `:host([charging]) .your-class`.
+Implementation: five `:host([battery-state="X"])` rules swap `--animal-eye`
+to a state-specific color. The `charging` value additionally drives a
+brightness pulse via the `evcc-animal-eye-pulse` keyframe on any element
+tagged with the `.animal-eyes` class. The framework auto-tags the eye
+group in `quadruped`/`parrot` types; `custom` animals add the class
+themselves.
+
+Themes override any of the five colors via the corresponding theme token:
+
+| State       | Theme token                     |
+|-------------|---------------------------------|
+| `good`      | `--evcc-animal-eye-good`        |
+| `mid`       | `--evcc-animal-eye-mid`         |
+| `warn`      | `--evcc-animal-eye-warn`        |
+| `low`       | `--evcc-animal-eye-low`         |
+| `charging`  | `--evcc-animal-eye-charging`    |
+
+Animals may also override these per-animal by including the matching
+`--animal-eye-*` keys in their `colors` block (theme token still wins
+over per-animal default).
 
 ### How creature-pack authors should think about this
 
@@ -147,15 +164,37 @@ When you write a new animal for the eufy_vacuum panel, the only state inputs
 you can rely on are:
 
 1. The six framework poses (the panel will only request these)
-2. The presence/absence of the `charging` attribute (binary)
+2. The five `battery-state` values (the panel will only set one of these)
 
-If your animal needs more state than that — battery percentage, dock activity,
-fan speed, anything — you cannot get it. The contract is intentionally narrow.
+If your animal needs more state than that — fan speed, dock activity, error
+code, anything — you cannot get it. The contract is intentionally narrow.
 This protects the panel from being coupled to creature internals, and
 protects creatures from breaking when the panel's state model changes.
 
 If you want to ship an animal that does more, it must be expressed entirely
-through pose × charging-state combinations.
+through pose × battery-state combinations.
+
+### Theme integration
+
+Every color the animal-svg framework consumes is theme-overridable. The
+shadow root wraps each per-animal default as:
+
+```css
+--animal-X: var(--evcc-animal-X, <animal default>);
+```
+
+A theme that sets `--evcc-animal-X` on the card host (or any ancestor of
+`<animal-svg>`) overrides the animal's default for every animal. Two
+classes of token exist:
+
+- **Per-state eye colors:** `--evcc-animal-eye-good/mid/warn/low/charging`.
+  Drive the colored-eye banding described above.
+- **Per-animal palette:** `--evcc-animal-fur`, `--evcc-animal-fur-shadow`,
+  `--evcc-animal-fur-highlight`, `--evcc-animal-pupil`, `--evcc-animal-nose`,
+  `--evcc-animal-whisker`, `--evcc-animal-ear-inner`, `--evcc-animal-white-tip`.
+  Reskin every animal that consumes the matching `--animal-X` color.
+
+The theme editor surfaces these under the **Animal Companion** group.
 
 ## Wiring to HA state (standalone usage)
 
@@ -171,7 +210,13 @@ content: |
             else 'curled'  if is_state('vacuum.alfred','docked')
             else 'warning' if is_state('vacuum.alfred','error')
             else 'standing' }}"
-    {% if is_state('binary_sensor.alfred_charging','on') %}charging{% endif %}>
+    battery-state="{% set b = states('sensor.alfred_battery') | int(0) -%}
+      {% if is_state('binary_sensor.alfred_charging','on') -%}charging
+      {%- elif b <= 15 -%}low
+      {%- elif b <= 25 -%}warn
+      {%- elif b <= 50 -%}mid
+      {%- else -%}good
+      {%- endif %}">
   </animal-svg>
 ```
 
@@ -203,7 +248,11 @@ AnimalSVG.register('myanimal', {
     '--animal-fur-shadow':     '0 0% 5%',
     '--animal-fur-highlight':  '0 0% 10%',
     '--animal-eye':            '142 71% 45%',
-    '--animal-eye-charging':   '50 100% 55%',  // optional; overrides the framework default
+    '--animal-eye-good':       '142 71% 45%',  // optional; per-animal default for battery>50
+    '--animal-eye-mid':        '50 100% 55%',  // optional; battery 25-50
+    '--animal-eye-warn':       '30 100% 50%',  // optional; battery 15-25
+    '--animal-eye-low':        '0 80% 50%',    // optional; battery ≤15
+    '--animal-eye-charging':   '210 100% 55%', // optional; pulses while charging
     '--animal-pupil':          '0 0% 7%',
     '--animal-nose':           '0 0% 33%',
     '--animal-whisker':        '0 0% 33%',
@@ -322,12 +371,14 @@ AnimalSVG.register('myproc', {
 });
 ```
 
-The framework still honors `charging` for custom animals — the
-`:host([charging])` rule that swaps `--animal-eye` applies regardless of
-type, so if your custom animal uses `hsl(var(--animal-eye))` for any
-element it'll respond automatically. To express charging more elaborately
-in a custom animal, add your own CSS rule scoped to `:host([charging]) .your-class`
-or read the `charging` attribute inside your render callback.
+The framework still honors `battery-state` for custom animals — the five
+`:host([battery-state="X"])` rules that swap `--animal-eye` apply
+regardless of type, so any element your render callback creates with
+`fill="hsl(var(--animal-eye))"` responds automatically. To opt elements
+into the charging pulse, tag them `class="animal-eyes"` (the snake does
+this on its eye circles). For anything more elaborate, add your own CSS
+scoped to `:host([battery-state="charging"]) .your-class` or read the
+attribute inside your render callback.
 
 ## Contributing or making your own
 
@@ -345,7 +396,8 @@ finished.
 Open `demo.html` in a browser (use the HA file editor or any static-file
 viewer that can serve `/config/www/` or `/eufy_vacuum/frontend/`). The page
 builds a grid of every registered animal and lets you scrub through every
-pose. Add `?charging` to the URL to test the charging state.
+pose. Pass `?battery-state=charging` (or `low` / `warn` / `mid` / `good`)
+in the URL to test each band.
 
 If you see "animal-svg: unknown animal" in the host element, the registration
 file did not run — check the browser console for a load error in `manifest.js`.

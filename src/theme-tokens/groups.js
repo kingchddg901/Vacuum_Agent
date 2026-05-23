@@ -39,5 +39,6 @@ export const THEME_GROUPS = [
   "Status, Confidence & Alerts",
   "Learning & Metrics",
   "Modals & Overlays",
+  "Animal Companion",
   "Shared Foundations",
 ];
