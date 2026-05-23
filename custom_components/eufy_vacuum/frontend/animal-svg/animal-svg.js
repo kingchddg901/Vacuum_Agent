@@ -2,10 +2,14 @@
  * <animal-svg> — Home Assistant friendly custom element.
  *
  * Attributes (reflected, observable):
- *   animal  — registered animal name (e.g. "cat", "dog", "raccoon", "parrot", "snake")
- *   pose    — one of: animating | standing | curled | alert | walking | warning
- *   width   — optional css width  (default 360px)
- *   height  — optional css height (default 240px)
+ *   animal    — registered animal name (e.g. "cat", "dog", "raccoon", "parrot", "snake")
+ *   pose      — one of: animating | standing | curled | alert | walking | warning
+ *   width     — optional css width  (default 360px)
+ *   height    — optional css height (default 240px)
+ *   charging  — boolean attribute. When present, swaps eye color via
+ *               --animal-eye → --animal-eye-charging (default yellow if the
+ *               animal doesn't supply its own charging palette). Pure CSS,
+ *               no re-render. Driven by attribute presence, not by value.
  *
  * Methods:
  *   .setAnimal(name)
@@ -458,10 +462,26 @@
         inner = renderQuadruped(def, pose);
       }
 
+      // Colors are emitted as :host custom properties (rather than inline on
+      // the SVG) so attribute-driven rules like :host([charging]) can override
+      // them. Inline element styles would otherwise beat any CSS rule.
       this._root.innerHTML = `
         <style>
-          :host { display: inline-block; line-height: 0; width: ${width}; height: ${height}; }
-          svg   { width: 100%; height: 100%; display: block; overflow: visible; }
+          :host {
+            display: inline-block;
+            line-height: 0;
+            width: ${width};
+            height: ${height};
+            ${colorStyle}
+          }
+          /* Charging override: animals can supply --animal-eye-charging in
+             their colors block; otherwise we fall back to a friendly yellow.
+             The eye paths use hsl(var(--animal-eye)), so this re-targets them
+             without any per-animal change. */
+          :host([charging]) {
+            --animal-eye: var(--animal-eye-charging, 50 100% 55%);
+          }
+          svg { width: 100%; height: 100%; display: block; overflow: visible; }
           ${KEYFRAMES_CSS}
           ${ANIMATION_CSS}
         </style>
@@ -470,7 +490,6 @@
           preserveAspectRatio="xMidYMid meet"
           xmlns="http://www.w3.org/2000/svg"
           class="pose-${pose}"
-          style="${colorStyle}"
         >${inner}</svg>
       `;
 

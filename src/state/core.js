@@ -72,6 +72,18 @@ export function applyCoreState(proto) {
   };
 
   /**
+   * Whether the vacuum is currently charging. Reads the integration's
+   * binary_sensor.<vacuum>_charging entity. Returns false (not null) when
+   * the sensor is unavailable so renderers can treat it as a clean boolean.
+   * @returns {boolean}
+   */
+  proto.isCharging = function () {
+    const objectId = this.vacuumObjectId();
+    if (!objectId) return false;
+    return this.stateOf(`binary_sensor.${objectId}_charging`) === "on";
+  };
+
+  /**
    * User-friendly vacuum name. Priority: friendly_name attribute → formatted object_id.
    * @returns {string}
    */

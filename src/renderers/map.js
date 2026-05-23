@@ -282,6 +282,9 @@ export function applyMapRenderers(proto) {
     const isDocked = pose === "curled";
     const animal   = state.mapAnimalSelection?.() ?? "cat";
     const scale    = state.mapAnimalScale?.()     ?? 1.0;
+    // Charging is an auxiliary visual signal independent of pose. The animal
+    // expresses it however its definition chooses (default: eye color swap).
+    const charging = state.isCharging?.() === true;
 
     // Anchor key: prefer room ID; fall back to segment ID so unlinked
     // segments can still have user-placed anchors.
@@ -298,7 +301,7 @@ export function applyMapRenderers(proto) {
       data-action="map-dot-click"
       data-anchor-key="${this.escapeHtml(anchorKey)}"
       title="Drag to reposition"
-    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px"></animal-svg></div>`;
+    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px"${charging ? ' charging' : ''}></animal-svg></div>`;
   };
 
   /* =========================================================
