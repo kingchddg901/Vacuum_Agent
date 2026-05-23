@@ -329,6 +329,17 @@ element it'll respond automatically. To express charging more elaborately
 in a custom animal, add your own CSS rule scoped to `:host([charging]) .your-class`
 or read the `charging` attribute inside your render callback.
 
+## Contributing or making your own
+
+The five bundled animals are placeholder quality — built to validate the
+framework, not to look polished. A separate guide,
+[CONTRIBUTING.md](./CONTRIBUTING.md), covers what "good" means here (pose
+silhouette, palette intent, stroke hierarchy, warning expression) and how
+to submit improvements or new animals. Read it before opening a PR or
+shipping a custom animal for your own install — the technical contract in
+this README tells you what works; CONTRIBUTING.md tells you what looks
+finished.
+
 ## Debugging
 
 Open `demo.html` in a browser (use the HA file editor or any static-file
