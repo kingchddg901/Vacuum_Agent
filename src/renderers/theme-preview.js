@@ -334,23 +334,25 @@ export function applyThemePreviewRenderers(proto) {
     `;
   };
 
-  proto._renderThemePreviewAnimalCompanion = function () {
-    // Build a battery-state × animal matrix so users see exactly what each
-    // token controls. Animals come from the live AnimalSVG registry — if
-    // the module hasn't finished loading the cells will render the
-    // built-in "unknown animal" fallback, which is itself a useful signal.
-    const BATTERY_STATES = [
-      { id: "good",     label: "Good",     hint: "battery > 50%" },
-      { id: "mid",      label: "Mid",      hint: "25–50%" },
-      { id: "warn",     label: "Warn",     hint: "15–25%" },
-      { id: "low",      label: "Low",      hint: "≤ 15%" },
-      { id: "charging", label: "Charging", hint: "pulses" },
-    ];
+  // Shared battery-state row config for all animal previews.
+  const _ANIMAL_PREVIEW_BATTERY_STATES = [
+    { id: "good",     label: "Good",     hint: "battery > 50%" },
+    { id: "mid",      label: "Mid",      hint: "25–50%" },
+    { id: "warn",     label: "Warn",     hint: "15–25%" },
+    { id: "low",      label: "Low",      hint: "≤ 15%" },
+    { id: "charging", label: "Charging", hint: "pulses" },
+  ];
 
-    const animals = (window.AnimalSVG && window.AnimalSVG.list)
-      ? window.AnimalSVG.list()
-      : ["cat", "dog", "raccoon", "parrot", "snake"];
-
+  /**
+   * Renders the battery-state × animal preview grid. The parent
+   * "Animal Companion" preview passes all registered animals; each
+   * per-animal sub-group preview passes a single-element list.
+   *
+   * @private
+   * @param {string[]} animals   list of animal names (columns)
+   * @param {string}  noteHtml   contextual footer note for this group
+   */
+  proto._renderAnimalPreviewGrid = function (animals, noteHtml) {
     const headerRow = `
       <div class="evcc-theme-preview-animal-row evcc-theme-preview-animal-row--header">
         <div class="evcc-theme-preview-animal-rowlabel"></div>
@@ -360,7 +362,7 @@ export function applyThemePreviewRenderers(proto) {
       </div>
     `;
 
-    const bodyRows = BATTERY_STATES.map(({ id, label, hint }) => `
+    const bodyRows = _ANIMAL_PREVIEW_BATTERY_STATES.map(({ id, label, hint }) => `
       <div class="evcc-theme-preview-animal-row">
         <div class="evcc-theme-preview-animal-rowlabel">
           <span class="evcc-theme-preview-animal-rowlabel-title">${this.escapeHtml(label)}</span>
@@ -372,24 +374,63 @@ export function applyThemePreviewRenderers(proto) {
               animal="${this.escapeHtml(a)}"
               pose="standing"
               battery-state="${this.escapeHtml(id)}"
-              width="80px"
-              height="55px"></animal-svg>
+              width="${animals.length === 1 ? "140" : "80"}px"
+              height="${animals.length === 1 ? "96" : "55"}px"></animal-svg>
           </div>
         `).join("")}
       </div>
     `).join("");
 
     return `
-      <div class="evcc-theme-preview-animal-grid">
+      <div class="evcc-theme-preview-animal-grid${animals.length === 1 ? " evcc-theme-preview-animal-grid--single" : ""}">
         ${headerRow}
         ${bodyRows}
       </div>
-      <div class="evcc-theme-preview-animal-note">
-        Eye-color tokens (<code>--evcc-animal-eye-*</code>) drive the rows.
-        Palette tokens (<code>--evcc-animal-fur</code>, <code>--evcc-animal-pupil</code>, etc.)
-        drive the bodies. Charging row pulses brightness; static screenshot won't show it.
-      </div>
+      <div class="evcc-theme-preview-animal-note">${noteHtml}</div>
     `;
+  };
+
+  proto._renderThemePreviewAnimalCompanion = function () {
+    // Parent group preview: every registered animal in a column. If the
+    // animal-svg module hasn't finished loading the cells render the
+    // built-in "unknown animal" fallback — itself a useful signal.
+    const animals = (window.AnimalSVG && window.AnimalSVG.list)
+      ? window.AnimalSVG.list()
+      : ["cat", "dog", "raccoon", "parrot", "snake"];
+    return this._renderAnimalPreviewGrid(
+      animals,
+      `Tokens in this <em>parent</em> group apply across <strong>every</strong>
+       animal. The five eye-color tokens (<code>--evcc-animal-eye-*</code>) drive
+       the rows; the global palette tokens (<code>--evcc-animal-fur</code>,
+       <code>--evcc-animal-pupil</code>, etc.) drive every body. Use the
+       per-animal sub-groups below to override for a single animal.`
+    );
+  };
+
+  // Per-animal previews. Each passes the matching animal name (and the
+  // corresponding per-animal token prefix in the footer note) to the
+  // shared renderer.
+  function _animalNote(name, prefix) {
+    return `Tokens in this sub-group (prefixed
+      <code>${prefix}-…</code>) override the global Animal Companion tokens for
+      just the ${name}. Leave any token unset to inherit the parent value
+      (or the ${name}'s own built-in default if no theme value is set).`;
+  }
+
+  proto._renderThemePreviewAnimalCat = function () {
+    return this._renderAnimalPreviewGrid(["cat"], _animalNote("cat", "--evcc-animal-cat"));
+  };
+  proto._renderThemePreviewAnimalDog = function () {
+    return this._renderAnimalPreviewGrid(["dog"], _animalNote("dog", "--evcc-animal-dog"));
+  };
+  proto._renderThemePreviewAnimalRaccoon = function () {
+    return this._renderAnimalPreviewGrid(["raccoon"], _animalNote("raccoon", "--evcc-animal-raccoon"));
+  };
+  proto._renderThemePreviewAnimalParrot = function () {
+    return this._renderAnimalPreviewGrid(["parrot"], _animalNote("parrot", "--evcc-animal-parrot"));
+  };
+  proto._renderThemePreviewAnimalSnake = function () {
+    return this._renderAnimalPreviewGrid(["snake"], _animalNote("snake", "--evcc-animal-snake"));
   };
 
   proto._renderThemePreviewSharedFoundations = function () {

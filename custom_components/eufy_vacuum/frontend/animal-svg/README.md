@@ -177,24 +177,31 @@ through pose × battery-state combinations.
 ### Theme integration
 
 Every color the animal-svg framework consumes is theme-overridable. The
-shadow root wraps each per-animal default as:
+shadow root wraps each per-animal default as a **two-level** fallback:
 
 ```css
---animal-X: var(--evcc-animal-X, <animal default>);
+--animal-X: var(--evcc-animal-<name>-X, var(--evcc-animal-X, <animal default>));
 ```
 
-A theme that sets `--evcc-animal-X` on the card host (or any ancestor of
-`<animal-svg>`) overrides the animal's default for every animal. Two
-classes of token exist:
+Override priority, highest first:
 
-- **Per-state eye colors:** `--evcc-animal-eye-good/mid/warn/low/charging`.
-  Drive the colored-eye banding described above.
-- **Per-animal palette:** `--evcc-animal-fur`, `--evcc-animal-fur-shadow`,
-  `--evcc-animal-fur-highlight`, `--evcc-animal-pupil`, `--evcc-animal-nose`,
-  `--evcc-animal-whisker`, `--evcc-animal-ear-inner`, `--evcc-animal-white-tip`.
-  Reskin every animal that consumes the matching `--animal-X` color.
+1. **Per-animal theme token** — `--evcc-animal-cat-fur`, `--evcc-animal-dog-eye-warn`, etc.
+2. **Global animal token** — `--evcc-animal-fur`, `--evcc-animal-eye-warn`, etc.
+3. **Animal's own default** — the value baked into the animal's `colors` block.
 
-The theme editor surfaces these under the **Animal Companion** group.
+A theme that just wants "all forest dark" sets the global tokens once.
+A theme that wants per-animal character (cat black, dog brown, parrot bright)
+sets per-animal tokens. Both layers can coexist — per-animal wins where set,
+global fills in everywhere else.
+
+The theme editor surfaces these in six groups:
+
+- **Animal Companion** — global tokens (5 eye-state colors + 9 palette
+  fallbacks). Bulk-override every animal at once.
+- **Animal Companion — Cat / Dog / Raccoon / Parrot / Snake** — per-animal
+  overrides. Each sub-group has 14 tokens (5 eye-state + 9 palette). Each
+  also has its own preview showing just that animal in all five battery
+  states, so it's clear what each token controls before you save.
 
 ## Wiring to HA state (standalone usage)
 

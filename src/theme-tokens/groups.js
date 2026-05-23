@@ -40,5 +40,10 @@ export const THEME_GROUPS = [
   "Learning & Metrics",
   "Modals & Overlays",
   "Animal Companion",
+  "Animal Companion — Cat",
+  "Animal Companion — Dog",
+  "Animal Companion — Raccoon",
+  "Animal Companion — Parrot",
+  "Animal Companion — Snake",
   "Shared Foundations",
 ];

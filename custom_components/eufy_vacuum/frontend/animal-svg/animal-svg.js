@@ -278,31 +278,45 @@
 
   // === SVG STRING BUILDERS ===================================================
 
-  function colorVarsStyle(colors) {
-    // Wrap each --animal-X default as var(--evcc-animal-X, <default>) so the
-    // outer theme system can override the entire animal palette by setting
-    // --evcc-animal-* tokens on the card host. The animal's own value is the
-    // fallback when no theme override exists.
+  function colorVarsStyle(colors, animalName) {
+    // Wrap each --animal-X default in a two-level theme fallback:
+    //   --animal-X: var(--evcc-animal-<name>-X, var(--evcc-animal-X, <default>));
+    //
+    // Override priority (high → low):
+    //   1. Per-animal theme token  (--evcc-animal-cat-fur)
+    //   2. Global animal token     (--evcc-animal-fur)
+    //   3. Animal's own default    (value from colors block)
+    //
+    // A theme that just wants "all dark animals" sets only the global token
+    // (#2) once. A theme that wants per-animal personality (cat black, dog
+    // brown) sets the per-animal tokens (#1). Both can coexist.
+    const safeName = String(animalName || '').replace(/[^a-z0-9-]/gi, '');
     return Object.entries(colors).map(([k, v]) => {
-      const themeKey = k.replace(/^--animal-/, '--evcc-animal-');
-      return `${k}: var(${themeKey}, ${v});`;
+      const suffix      = k.replace(/^--animal-/, '');
+      const perAnimalKey = `--evcc-animal-${safeName}-${suffix}`;
+      const globalKey    = `--evcc-animal-${suffix}`;
+      return `${k}: var(${perAnimalKey}, var(${globalKey}, ${v}));`;
     }).join('');
   }
 
-  // Battery-state defaults. These are the framework-supplied defaults for
-  // each of the five battery states; themes override via the matching
-  // --evcc-animal-eye-* token. Animal definitions can ALSO supply their own
-  // per-animal defaults for these by including the keys in their `colors`
-  // block (in which case the animal default wins over the framework default
-  // but a theme override still wins over both).
-  const BATTERY_STATE_DEFAULTS_CSS = `
-    :host {
-      --animal-eye-good:     var(--evcc-animal-eye-good,     142 71% 45%);
-      --animal-eye-mid:      var(--evcc-animal-eye-mid,       50 100% 55%);
-      --animal-eye-warn:     var(--evcc-animal-eye-warn,      30 100% 50%);
-      --animal-eye-low:      var(--evcc-animal-eye-low,        0 80% 50%);
-      --animal-eye-charging: var(--evcc-animal-eye-charging, 210 100% 55%);
-    }
+  // Battery-state defaults. Same two-level fallback as colorVarsStyle:
+  //   per-animal token → global token → framework default.
+  // Per-animal token: --evcc-animal-<name>-eye-good (etc.)
+  // Global token:     --evcc-animal-eye-good
+  function batteryStateDefaultsCss(animalName) {
+    const safeName = String(animalName || '').replace(/[^a-z0-9-]/gi, '');
+    const band = (suffix, hslDefault) =>
+      `--animal-eye-${suffix}: ` +
+      `var(--evcc-animal-${safeName}-eye-${suffix}, ` +
+      `var(--evcc-animal-eye-${suffix}, ${hslDefault}));`;
+    return `
+      :host {
+        ${band('good',     '142 71% 45%')}
+        ${band('mid',       '50 100% 55%')}
+        ${band('warn',      '30 100% 50%')}
+        ${band('low',        '0 80% 50%')}
+        ${band('charging', '210 100% 55%')}
+      }
     :host([battery-state="good"])     { --animal-eye: var(--animal-eye-good); }
     :host([battery-state="mid"])      { --animal-eye: var(--animal-eye-mid); }
     :host([battery-state="warn"])     { --animal-eye: var(--animal-eye-warn); }
@@ -321,6 +335,7 @@
       animation: evcc-animal-eye-pulse 1.2s ease-in-out infinite alternate;
     }
   `;
+  }
 
   /**
    * Build the SVG inner markup for a quadruped (cat, dog, raccoon).
@@ -499,7 +514,7 @@
         return;
       }
 
-      const colorStyle = colorVarsStyle(def.colors || {});
+      const colorStyle = colorVarsStyle(def.colors || {}, name);
 
       let inner = '';
       if (def.type === 'parrot') {
@@ -524,7 +539,7 @@
             height: ${height};
             ${colorStyle}
           }
-          ${BATTERY_STATE_DEFAULTS_CSS}
+          ${batteryStateDefaultsCss(name)}
           svg { width: 100%; height: 100%; display: block; overflow: visible; }
           ${KEYFRAMES_CSS}
           ${ANIMATION_CSS}

@@ -139,3 +139,4 @@ export const learningToken      = makeTypedGroupToken("Learning & Metrics",     
 export const modalToken         = makeTypedGroupToken("Modals & Overlays",            "color");
 export const foundationToken    = makeTypedGroupToken("Shared Foundations",           "size");
 export const animalToken        = makeTypedGroupToken("Animal Companion",              "color");
+// Per-animal helpers live in animals.js, following the floor-textures pattern.

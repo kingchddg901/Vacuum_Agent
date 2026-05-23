@@ -571,6 +571,21 @@ export const themePreviewStyles = `
     gap: 8px;
   }
 
+  /* Single-animal (sub-group) preview: one larger cell, centred. */
+  .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-row {
+    grid-template-columns: 90px 1fr;
+  }
+
+  .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-cell {
+    min-height: 110px;
+    padding: 8px;
+  }
+
+  .evcc-theme-preview-animal-grid--single .evcc-theme-preview-animal-collabel {
+    text-align: left;
+    padding-left: 8px;
+  }
+
   .evcc-theme-preview-animal-row--header {
     border-bottom: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
     padding-bottom: 6px;

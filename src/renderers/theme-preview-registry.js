@@ -102,7 +102,32 @@ export const THEME_PREVIEW_REGISTRY = Object.freeze({
   "Animal Companion": {
     method: "_renderThemePreviewAnimalCompanion",
     title: "Animal Companion Preview",
-    description: "Every registered animal in standing pose across all five battery-state bands. Eye-color tokens drive the columns; palette tokens drive the bodies.",
+    description: "Every registered animal in standing pose across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
+  },
+  "Animal Companion — Cat": {
+    method: "_renderThemePreviewAnimalCat",
+    title: "Cat Preview",
+    description: "The cat across all five battery-state bands. Tokens in this group override the global Animal Companion palette and eye-state colors for just the cat.",
+  },
+  "Animal Companion — Dog": {
+    method: "_renderThemePreviewAnimalDog",
+    title: "Dog Preview",
+    description: "The dog across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the dog.",
+  },
+  "Animal Companion — Raccoon": {
+    method: "_renderThemePreviewAnimalRaccoon",
+    title: "Raccoon Preview",
+    description: "The raccoon across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the raccoon.",
+  },
+  "Animal Companion — Parrot": {
+    method: "_renderThemePreviewAnimalParrot",
+    title: "Parrot Preview",
+    description: "The parrot across all five battery-state bands. Tokens in this group override the global palette and eye-state colors for just the parrot.",
+  },
+  "Animal Companion — Snake": {
+    method: "_renderThemePreviewAnimalSnake",
+    title: "Snake Preview",
+    description: "The snake across all five battery-state bands. Procedural renderer; the eye color and palette tokens still apply via CSS inheritance.",
   },
   "Modals & Overlays": {
     method: "_renderThemePreviewModalsOverlays",
