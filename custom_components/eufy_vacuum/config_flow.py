@@ -46,14 +46,20 @@ class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
-        return EufyVacuumOptionsFlow(config_entry)
+        # HA >= 2024.12: do NOT pass config_entry to the OptionsFlow constructor.
+        # The framework auto-attaches it as a read-only property; assigning it
+        # in __init__ raises AttributeError on the property setter.
+        return EufyVacuumOptionsFlow()
 
 
 class EufyVacuumOptionsFlow(OptionsFlow):
-    """Options flow allowing the user to edit the notes field after initial setup."""
+    """Options flow allowing the user to edit the notes field after initial setup.
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
-        self.config_entry = config_entry
+    No __init__: ``self.config_entry`` is set automatically by HA on the
+    OptionsFlow base class as of 2024.12. Defining our own __init__ that
+    assigns ``self.config_entry`` raises ``AttributeError: property
+    'config_entry' of 'EufyVacuumOptionsFlow' object has no setter``.
+    """
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None

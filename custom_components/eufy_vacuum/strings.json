@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Eufy Vacuum Manager",
-        "description": "{context}",
+        "description": "Creates the Eufy Vacuum Manager config entry. After it finishes, open the **Eufy Vacuum** panel in the sidebar to add your vacuum and import its current map.",
         "data": {
           "tested_model": "Tested model",
           "notes": "Notes",
