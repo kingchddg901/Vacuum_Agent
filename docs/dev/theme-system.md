@@ -496,45 +496,59 @@ The group name string must match exactly between `THEME_GROUPS`, the `group` fie
 
 ---
 
-## 9. Theme-driven assets (`animal-svg`)
+## 9. Animal companion (`animal-svg`) — not theme-driven
 
-A standalone web component lives at `/config/www/animal-svg/` (served `/local/animal-svg/`) for use as a future theme element on the map view. It is **not** part of `eufy_vacuum` — it's a self-registering free-standing resource that the card can `import` and drive from vacuum state.
+The `<animal-svg>` web component renders the map view's animal companion.
+It now ships **inside the integration** at
+`custom_components/eufy_vacuum/frontend/animal-svg/` and is served by the
+integration's static-path registration at `/eufy_vacuum/frontend/animal-svg/`.
+The card loads it via a dynamic import in `src/main.js` during first render.
 
-Files:
+The full component + integration contract — attribute table, allowed poses,
+the state→pose mapping the panel uses, the `charging` hook, how to author a
+creature pack — is in
+[`custom_components/eufy_vacuum/frontend/animal-svg/README.md`](../../custom_components/eufy_vacuum/frontend/animal-svg/README.md).
+That file is the canonical reference; this section only covers the
+relationship with the theme system.
 
-```
-config/www/animal-svg/
-├── animal-svg.js     custom element + registry + shared keyframes
-├── manifest.js       loads animal-svg.js then each animal file
-├── animals/
-│   ├── cat.js
-│   ├── dog.js
-│   ├── raccoon.js
-│   ├── parrot.js
-│   └── snake.js
-└── README.md         contract for adding/removing animals
-```
+### Why this is in the theme doc
 
-Usage from the card (or anywhere in HA):
+Earlier scoping treated animal selection as a theme concern (mascot token,
+theme-driven pose mapping). That design is **not** what shipped. Instead:
 
-```html
-<animal-svg animal="cat" pose="walking"></animal-svg>
-```
+- **Mascot choice (`animal` attribute) is per-map, not per-theme.** Stored
+  via `state.mapAnimalSelection()` / `setMapAnimalSelection()`, not in the
+  theme token registry. A user can swap from cat to raccoon without touching
+  themes.
+- **Pose mapping is hardcoded.** Defined once in
+  `src/renderers/map.js::_vacuumStateToPose`. The six HA vacuum-platform
+  states map to fixed poses; themes don't customize this.
+- **Charging state goes through a presence attribute, not a token.** The
+  panel reads `binary_sensor.<vacuum>_charging` via `state.isCharging()` and
+  sets the `charging` attribute on `<animal-svg>`. Animals override
+  `--animal-eye-charging` in their own colors block if they want a custom
+  charging look — that's per-animal, not per-theme.
 
-**Attributes (observed):** `animal`, `pose`, `width`, `height`. Poses: `animating | standing | curled | alert | walking | warning`. Adding a new animal = a self-registering JS file in `animals/` plus a line in `manifest.js`.
+### Theme system overlap: zero (currently)
 
-**Why it exists separately:** the resource is reusable across themes, vacuums, integrations. Bundling it into the card would force a card rebuild every time someone adds an animal. Keeping it standalone lets users edit the animal set without touching the integration.
+There is no animal-related token in `theme-tokens/groups.js`. Themes do not
+control animal selection, pose mapping, or charging colors. The two systems
+are independent.
 
-### Wiring it into a theme (planned, not yet implemented)
+### If a future theme-mascot integration ever happens
 
-Future direction:
+The path is straightforward but unimplemented:
 
-1. Add a `mascot` token to `theme-tokens/groups.js` — value is one of the registered animal names.
-2. In `applyDynamicTheme`, render `<animal-svg animal="${mascot}" pose="${derived_pose}">` in the map view.
-3. Derive `pose` from vacuum state — e.g. `docked → curled`, `cleaning → walking`, `error → warning`.
-4. The pose mapping itself becomes a theme-token (`mascot_pose_map`), letting different themes drive different mascot behaviours from the same state.
+1. Add a `mascot` token to `SHELL_TOKENS` (or its own group), value =
+   registered animal name.
+2. Resolve the token in `mapAnimalSelection()` with theme-token override
+   priority over the per-map setting (or vice versa — design call).
+3. Optionally promote `--animal-eye-charging` to a theme token so charging
+   color can be themed.
 
-The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.
+No protocol or backend changes would be needed; this is entirely a card-side
+concern. There's no current plan to do it — the per-map selection has been
+sufficient.
 
 ---
 
