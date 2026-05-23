@@ -507,7 +507,7 @@ The card loads it via a dynamic import in `src/main.js` during first render.
 The full component + integration contract — attribute table, allowed poses,
 the state→pose mapping the panel uses, the `battery-state` bands, how to
 author a creature pack — is in
-[`custom_components/eufy_vacuum/frontend/animal-svg/README.md`](../../custom_components/eufy_vacuum/frontend/animal-svg/README.md).
+[`animal-svg.md`](./animal-svg.md) (in this directory).
 That file is the canonical reference; this section covers only the
 relationship with the theme system.
 

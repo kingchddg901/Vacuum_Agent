@@ -134,6 +134,7 @@ references:
 - [room-rules-system.md](room-rules-system.md) — blocker/modifier rule evaluation
 - [battery-system.md](battery-system.md) — battery health subsystem
 - [theme-system.md](theme-system.md) — token-based theme engine
+- [animal-svg.md](animal-svg.md) — animal companion web component (contract + integration + theme)
 - [ha-integration.md](ha-integration.md) — HA platforms, services, events
 - [adapter-config-reference.md](adapter-config-reference.md) — per-vacuum brand schema
 - [porting-guide.md](porting-guide.md) — workflow for non-Eufy brands

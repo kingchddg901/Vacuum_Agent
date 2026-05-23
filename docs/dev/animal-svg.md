@@ -1,10 +1,14 @@
 # animal-svg
 
-Standalone `<animal-svg>` web component for Home Assistant. No React, no build
-step, no dependencies. Animals self-register via a small JS API; the element
-re-renders on attribute change.
+The `<animal-svg>` web component renders the map view's animal companion
+(cat/dog/raccoon/parrot/snake by default; any registered animal). It is a
+standalone web component — no React, no build step, no dependencies — with
+animals that self-register via a small JS API. The element re-renders on
+attribute change.
 
-This folder is the contract document for two audiences:
+Source lives at
+[`custom_components/eufy_vacuum/frontend/animal-svg/`](../../custom_components/eufy_vacuum/frontend/animal-svg/);
+this document is the contract reference for two audiences:
 
 - **Integration authors** who use `<animal-svg>` to express device state.
 - **Creature-pack authors** who add new animals.
@@ -398,12 +402,12 @@ attribute inside your render callback.
 
 The five bundled animals are placeholder quality — built to validate the
 framework, not to look polished. A separate guide,
-[CONTRIBUTING.md](./CONTRIBUTING.md), covers what "good" means here (pose
-silhouette, palette intent, stroke hierarchy, warning expression) and how
-to submit improvements or new animals. Read it before opening a PR or
-shipping a custom animal for your own install — the technical contract in
-this README tells you what works; CONTRIBUTING.md tells you what looks
-finished.
+[CONTRIBUTING.md](../../custom_components/eufy_vacuum/frontend/animal-svg/CONTRIBUTING.md)
+(co-located with the animal source files), covers what "good" means here
+(pose silhouette, palette intent, stroke hierarchy, warning expression)
+and how to submit improvements or new animals. Read it before opening a
+PR or shipping a custom animal for your own install — this doc tells you
+what works; the contributing guide tells you what looks finished.
 
 ## Debugging
 
