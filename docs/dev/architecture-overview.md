@@ -137,9 +137,13 @@ references:
 - [animal-svg.md](animal-svg.md) — animal companion web component (contract + integration + theme)
 - [ha-integration.md](ha-integration.md) — HA platforms, services, events
 - [adapter-config-reference.md](adapter-config-reference.md) — per-vacuum brand schema
-- [porting-guide.md](porting-guide.md) — workflow for non-Eufy brands
 - [card-architecture.md](card-architecture.md) — frontend / Lovelace integration (incl. mobile shell, §7)
 - [data-model.md](data-model.md) — canonical stored-data shapes
+
+Contribution-style guides live one level up in [`docs/contributing/`](../contributing/):
+
+- [porting-guide.md](../contributing/porting-guide.md) — adding support for a non-Eufy vacuum brand
+- [mascot-authoring.md](../contributing/mascot-authoring.md) — visual standards for animal-svg mascots
 
 ```
 eufy_vacuum/
@@ -164,7 +168,7 @@ eufy_vacuum/
 │       ├── entities.py         brand creates a parallel sub-folder; framework
 │       ├── constants.py        code never imports from here. See
 │       ├── model_catalog.py    docs/dev/adapter-config-reference.md and
-│       ├── maintenance_components.py   docs/dev/porting-guide.md.
+│       ├── maintenance_components.py   docs/contributing/porting-guide.md.
 │       ├── upkeep_catalog.py
 │       ├── upkeep_guides.py
 │       └── water_config.py
@@ -819,7 +823,7 @@ payload field names and value vocabularies — is read at runtime from
 
 See:
 
-- [porting-guide.md](porting-guide.md) — the workflow and a worked
+- [porting-guide.md](../contributing/porting-guide.md) — the workflow and a worked
   brand catalog (Eufy / Roborock / Dreame / Narwal) covering the
   dispatch shape, lifecycle vocabulary translation, capability
   declarations, and testing.

@@ -148,7 +148,8 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
 - [Developer docs](docs/dev/architecture-overview.md) — architecture, data model, internals
 - [Adapter config reference](docs/dev/adapter-config-reference.md) — the schema for per-vacuum brand config
-- [Porting guide](docs/dev/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
+- [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
+- [Mascot authoring guide](docs/contributing/mascot-authoring.md) — visual standards for adding or improving the map view's animal companions
 - [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — standalone, domain-agnostic guide to the runtime-configurable adapter pattern this integration is built on. Useful if you want to apply the same approach to a non-vacuum HA integration.
 
 ## For developers and porters
@@ -157,7 +158,7 @@ Under the hood the integration is **adapter-driven**: every brand-specific fact 
 
 The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for a different vacuum brand is a config-only change: write a parallel `adapters/<brand>/` folder, declare what your brand exposes, register the adapter at integration setup. The framework, the card, the learning system, and the dispatch path all consume whatever the adapter declares.
 
-See the [porting guide](docs/dev/porting-guide.md) for the vacuum-specific workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs. For the general pattern as a reusable architecture — applicable to any multi-vendor HA integration — see [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
+See the [porting guide](docs/contributing/porting-guide.md) for the vacuum-specific workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs. For the general pattern as a reusable architecture — applicable to any multi-vendor HA integration — see [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
 
 ## Acknowledgements
 

@@ -12,7 +12,7 @@ something to aim at.
 
 The technical contract (definition shape, coordinate space, allowed poses,
 battery-state hook, theme tokens) lives in the integration's
-[animal-svg dev doc](../../../../docs/dev/animal-svg.md). This file is purely
+[animal-svg dev doc](../dev/animal-svg.md). This file is purely
 about *making them look good*.
 
 ## What "good" means here

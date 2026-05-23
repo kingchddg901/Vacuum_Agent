@@ -39,7 +39,7 @@ whose deep reference lives in a subsystem doc link out.
 **Maintenance and errors**
 `reset_maintenance` · `acknowledge_error` · `get_recent_errors`
 
-**Setup (card-level Eufy onboarding — refactor candidate, see [porting-guide.md §9](../dev/porting-guide.md#9-what-still-might-require-framework-work))**
+**Setup (card-level Eufy onboarding — refactor candidate, see [porting-guide.md §9](../contributing/porting-guide.md#9-what-still-might-require-framework-work))**
 `setup_get_status` · `setup_add_vacuum` · `setup_import_active_map` · `setup_get_map_rooms` · `setup_save_rooms` · `setup_delete_map` · `setup_reject_rooms` · `setup_force_remove_room`
 
 **Backend, battery, and diagnostics**

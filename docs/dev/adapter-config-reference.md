@@ -7,7 +7,7 @@ about a managed vacuum. The schema is defined in code at
 explains each section in human terms with examples and UI-builder notes.
 
 Read [architecture-overview.md](architecture-overview.md) first for
-context, and [porting-guide.md](porting-guide.md) for the workflow of
+context, and [porting-guide.md](../contributing/porting-guide.md) for the workflow of
 adding a new brand.
 
 ---
@@ -281,7 +281,7 @@ editors.
 
 **How to discover the right strings:** the reliable way is to record
 a real clean cycle and read the values directly off an HA recorder
-trace. See [porting-guide.md §4](porting-guide.md#recommended-capture-a-real-clean-cycle-with-the-timeline-card)
+trace. See [porting-guide.md §4](../contributing/porting-guide.md#recommended-capture-a-real-clean-cycle-with-the-timeline-card)
 for the recommended workflow using the `ha-state-timeline-card`.
 
 ---
@@ -582,7 +582,7 @@ framework makes when starting a room-clean job. For the actual wire
 shape and value vocabularies the framework produces from this
 config, see [queue-engine.md](queue-engine.md); for worked dispatch
 blocks for Eufy, Roborock, Dreame, and Narwal, see
-[porting-guide.md §3](porting-guide.md#3-brand-catalog).
+[porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
 
 ### Schema
 
@@ -783,7 +783,7 @@ A Roborock dispatch block illustrates the full feature:
 
 The full Eufy reference adapter and brand catalog for Roborock,
 Dreame, and Narwal live in
-[porting-guide.md §3](porting-guide.md#3-brand-catalog).
+[porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
 
 ### Implementation status
 

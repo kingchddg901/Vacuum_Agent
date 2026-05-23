@@ -4,8 +4,8 @@ This guide is for developers who want to use eufy_vacuum's framework
 to manage a vacuum from a different brand — Roborock, Dreame, Narwal,
 or anything else Home Assistant can talk to.
 
-Read [architecture-overview.md](architecture-overview.md) first if you
-haven't, and keep [adapter-config-reference.md](adapter-config-reference.md)
+Read [architecture-overview.md](../dev/architecture-overview.md) first if you
+haven't, and keep [adapter-config-reference.md](../dev/adapter-config-reference.md)
 open in another tab — it's the canonical schema reference and this
 guide will link to it constantly.
 
@@ -44,7 +44,7 @@ for the target brand and calls `register_adapter_config()` with it.
    specific rooms".
 2. **Discover the entity IDs** the framework needs (task_status,
    dock_status, battery, charging, water_level, etc.) — see
-   [adapter-config-reference.md §5](adapter-config-reference.md#5-entities--the-role-to-entity-id-map).
+   [adapter-config-reference.md §5](../dev/adapter-config-reference.md#5-entities--the-role-to-entity-id-map).
 3. **Translate the brand vocabulary** to the framework's canonical
    states. Lifecycle uses `cleaning`/`returning`/`paused`/`error` from
    the HA standard; the rest (dock_status strings, task_status
@@ -69,7 +69,7 @@ the steps above.
 
 Worked dispatch examples for the four most common brands. Each section
 shows just the `dispatch` block — see
-[adapter-config-reference.md §13](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job)
+[adapter-config-reference.md §13](../dev/adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job)
 for what the full adapter config looks like.
 
 > **Caveat on these examples:** vacuum integrations vary across
@@ -320,7 +320,7 @@ adapter is responsible for mapping each brand's raw `task_status` and
 `dock_status` strings to the right canonical state.
 
 This mapping is the `vocabulary` block in the adapter config — see
-[adapter-config-reference.md §6](adapter-config-reference.md#6-vocabulary--raw-and-normalized-state-strings).
+[adapter-config-reference.md §6](../dev/adapter-config-reference.md#6-vocabulary--raw-and-normalized-state-strings).
 
 ### Recommended: capture a real clean cycle with the timeline card
 
@@ -395,7 +395,7 @@ A Roborock adapter that declares a 5th fan-speed entry with Max+ gets
 a 5-chip fan-speed picker automatically; a Dreame port that omits
 `clean_intensity_options` hides the intensity row.
 
-See [adapter-config-reference.md §6](adapter-config-reference.md#6-vocabulary--raw-and-normalized-state-strings)
+See [adapter-config-reference.md §6](../dev/adapter-config-reference.md#6-vocabulary--raw-and-normalized-state-strings)
 for the full schema and worked examples. **Without these, the room
 editor's dropdowns will be empty for your brand.**
 
@@ -428,7 +428,7 @@ The framework gates optional payload fields on per-vacuum capability
 flags. Set these in the adapter config's `capabilities` block based on
 known hardware support; the framework also probes entity presence as a
 fallback. See
-[adapter-config-reference.md §14](adapter-config-reference.md#14-capabilities--explicit-capability-flags).
+[adapter-config-reference.md §14](../dev/adapter-config-reference.md#14-capabilities--explicit-capability-flags).
 
 For a port, the practical decisions:
 
@@ -456,7 +456,7 @@ the framework just sends the same value for every room).
 If you want the maintenance/upkeep view to work for your brand, fill
 in the `maintenance_components` and `upkeep_catalog` blocks of the
 adapter config. Both are pure data — see
-[adapter-config-reference.md §§15-16](adapter-config-reference.md#15-maintenance_components--replacement-counter-catalog).
+[adapter-config-reference.md §§15-16](../dev/adapter-config-reference.md#15-maintenance_components--replacement-counter-catalog).
 
 This is verbose to author by hand. The pragmatic order:
 
@@ -477,7 +477,7 @@ This is verbose to author by hand. The pragmatic order:
 If you want the water-usage estimator to track actual tank-level
 deltas (not just flow-rate-based estimates), fill in
 `water_model_configs` with **measured** values per model. See
-[adapter-config-reference.md §17](adapter-config-reference.md#17-water_model_configs--per-model-tank-measurements).
+[adapter-config-reference.md §17](../dev/adapter-config-reference.md#17-water_model_configs--per-model-tank-measurements).
 
 This is optional. Without it, the estimator falls back to flow-rate
 estimates only — the rest of the learning system still works.
@@ -576,14 +576,14 @@ Cases where the schema can't yet express what you need:
 > upload guide written by someone who actually has the hardware.
 > This is a documentation gap, not a code one: the
 > `save_map_image` / `upload_map_image` services accept any PNG and
-> don't care about the source. See [mapping-system.md §2 + §11](mapping-system.md)
+> don't care about the source. See [mapping-system.md §2 + §11](../dev/mapping-system.md)
 > for what happens once the image is in.
 
 > **Image segmentation is now pluggable.** Earlier drafts of this
 > guide flagged Eufy-biased segmentation as a hard porting problem.
 > The framework's response is a pluggable engine seam in
 > `mapping/segmenter_engines.py` — see
-> [mapping-system.md §2.0](mapping-system.md#20-the-segmenter-engine-seam)
+> [mapping-system.md §2.0](../dev/mapping-system.md#20-the-segmenter-engine-seam)
 > for the full protocol. Adapters declare which engine they want via
 > `adapter_config["mapping"]["segmenter_engine"]`; the framework
 > dispatches uniformly and consumes the canonical `SegmentationResult`
@@ -600,7 +600,7 @@ Cases where the schema can't yet express what you need:
 >      `segmenter_engine` if your vendor provides no usable map
 >      image. The card stops rendering polygonal overlays; trace-
 >      based room bounds keep working off vacuum-space coordinates
->      (see [mapping-system.md §3](mapping-system.md#3-room-bounds-from-traces)).
+>      (see [mapping-system.md §3](../dev/mapping-system.md#3-room-bounds-from-traces)).
 >      This is the safe degradation path — core automations, queue,
 >      job lifecycle, and room presence detection are unaffected.
 >   3. **A deterministic engine** — for vendors that stream structured
@@ -616,7 +616,7 @@ Cases where the schema can't yet express what you need:
 > framework's two consumer call sites (`get_image_segment_suggestions`
 > in `manager.py`, `_handle_analyze_map_image` in `mapping_services.py`)
 > change nothing. See
-> [mapping-system.md §2.0b](mapping-system.md#20b-adding-a-new-engine)
+> [mapping-system.md §2.0b](../dev/mapping-system.md#20b-adding-a-new-engine)
 > for the recipe.
 
 None of these are blocking for the four common brands at runtime —

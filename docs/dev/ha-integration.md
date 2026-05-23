@@ -19,7 +19,7 @@ entity_id = config.get("entities", {}).get("task_status")
 
 Or via the `_get_adapter_value(vacuum_entity_id, *path, fallback=...)` helper for nested lookups with a default.
 
-The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for another vacuum brand is a config-only change — see [adapter-config-reference.md](adapter-config-reference.md) for the schema and [porting-guide.md](porting-guide.md) for the workflow.
+The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for another vacuum brand is a config-only change — see [adapter-config-reference.md](adapter-config-reference.md) for the schema and [porting-guide.md](../contributing/porting-guide.md) for the workflow.
 
 > The architectural pattern itself — runtime-configurable adapter configs, entity-by-role resolution, dispatch-driven payloads, capability gating — is documented separately in [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) as a domain-agnostic guide. This integration is the reference implementation; that repo is the general pattern.
 

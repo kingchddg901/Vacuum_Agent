@@ -37,7 +37,7 @@ service. For Eufy this is `vacuum.send_command` with
 shape, field names, and value vocabularies all come from the
 adapter's `dispatch` config block — see
 [adapter-config-reference.md §13](adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job)
-and [porting-guide.md §3](porting-guide.md#3-brand-catalog) for the
+and [porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog) for the
 non-Eufy shapes (Roborock, Dreame, Narwal).
 
 ---

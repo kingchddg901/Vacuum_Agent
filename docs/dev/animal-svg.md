@@ -402,7 +402,7 @@ attribute inside your render callback.
 
 The five bundled animals are placeholder quality — built to validate the
 framework, not to look polished. A separate guide,
-[CONTRIBUTING.md](../../custom_components/eufy_vacuum/frontend/animal-svg/CONTRIBUTING.md)
+[CONTRIBUTING.md](../contributing/mascot-authoring.md)
 (co-located with the animal source files), covers what "good" means here
 (pose silhouette, palette intent, stroke hierarchy, warning expression)
 and how to submit improvements or new animals. Read it before opening a
