@@ -2941,7 +2941,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
           </button>
         </div>
       </div>
-    `},i._safeColorInputValue=function(e){let t=String(e||"").trim();return/^#[0-9a-fA-F]{6}$/.test(t)?t:/^#[0-9a-fA-F]{8}$/.test(t)?`#${t.slice(1,7)}`:"#000000"}}var qr=Object.freeze({"App Shell & Typography":{method:"_renderThemePreviewShellTypography",title:"Shell & Typography Preview",description:"Accent, heading, and body text examples show the shell voice this group controls."},"Cards & Surfaces":{method:"_renderThemePreviewCardsSurfaces",title:"Cards & Surfaces Preview",description:"Shared card, panel, and input surfaces show the base material language for the editor."},"Borders & Shadows":{method:"_renderThemePreviewBordersShadows",title:"Borders & Shadows Preview",description:"Border strength and elevation samples reveal separation, depth, and hover lift."},Chips:{method:"_renderThemePreviewChips",title:"Chip Preview",description:"A compact chip matrix highlights default, active, hover, success, warning, and excluded states."},"Room Cards":{method:"_renderThemePreviewRoomCards",title:"Room Card Preview",description:"Mini room cards expose profile chips, room chips, and room-surface treatment together."},"Floor Textures":{method:"_renderThemePreviewFloorTextures",title:"Floor Texture Preview",description:"Live swatches show each material's overlay on the card surface. Opacity, scale, and tint tokens update in real time."},"Floor Textures \u2014 Tile":{method:"_renderThemePreviewFloorTextureTile",title:"Tile Floor Preview",description:"Base and accent colors control the grout lines and tile face on card and map surfaces."},"Floor Textures \u2014 Wood":{method:"_renderThemePreviewFloorTextureWood",title:"Wood Floor Preview",description:"Base and accent colors control the wood grain, seam lines, and directional depth layers."},"Floor Textures \u2014 Marble":{method:"_renderThemePreviewFloorTextureMarble",title:"Marble Floor Preview",description:"Base and accent colors control the marble field and vein layers."},"Floor Textures \u2014 Concrete":{method:"_renderThemePreviewFloorTextureConcrete",title:"Concrete Floor Preview",description:"Base and accent colors control the micro-texture and broad variation layers."},"Floor Textures \u2014 Carpet Low":{method:"_renderThemePreviewFloorTextureCarpetLow",title:"Carpet Low Pile Preview",description:"Base color tints the low-pile carpet texture layer on the card surface."},"Floor Textures \u2014 Carpet High":{method:"_renderThemePreviewFloorTextureCarpetHigh",title:"Carpet High Pile Preview",description:"Base color tints the high-pile carpet texture layer on the card surface."},"Floor Textures \u2014 Granite":{method:"_renderThemePreviewFloorTextureGranite",title:"Granite Floor Preview",description:"Base color tints the granite texture layer on the card surface."},"Queue & Ordering":{method:"_renderThemePreviewQueueOrdering",title:"Queue & Ordering Preview",description:"Queue strip, order chips, and drag feedback samples show sequencing and reorder states."},"Status, Confidence & Alerts":{method:"_renderThemePreviewStatusAlerts",title:"Status & Alerts Preview",description:"Status dots, confidence badges, and alert surfaces show semantic state color relationships."},"Learning & Metrics":{method:"_renderThemePreviewLearningMetrics",title:"Learning & Metrics Preview",description:"Estimate badges and learning panels preview predictive and analytical surfaces."},"Modals & Overlays":{method:"_renderThemePreviewModalsOverlays",title:"Modal & Overlay Preview",description:"A modal shell sample isolates overlay surfaces, chips, warning states, and backdrop treatment."},"Shared Foundations":{method:"_renderThemePreviewSharedFoundations",title:"Shared Foundations Preview",description:"A mixed control-surface preview shows spacing, radius, motion, and typography primitives together."}});function Gr(i){i._renderThemePreviewPane=function(){let e=this.card._state.currentThemePreviewGroup(),t=qr[e];if(!t)return"";let r=typeof this[t.method]=="function"?this[t.method]():"";return r?`
+    `},i._safeColorInputValue=function(e){let t=String(e||"").trim();return/^#[0-9a-fA-F]{6}$/.test(t)?t:/^#[0-9a-fA-F]{8}$/.test(t)?`#${t.slice(1,7)}`:"#000000"}}var qr=Object.freeze({"App Shell & Typography":{method:"_renderThemePreviewShellTypography",title:"Shell & Typography Preview",description:"Accent, heading, and body text examples show the shell voice this group controls."},"Cards & Surfaces":{method:"_renderThemePreviewCardsSurfaces",title:"Cards & Surfaces Preview",description:"Shared card, panel, and input surfaces show the base material language for the editor."},"Borders & Shadows":{method:"_renderThemePreviewBordersShadows",title:"Borders & Shadows Preview",description:"Border strength and elevation samples reveal separation, depth, and hover lift."},Chips:{method:"_renderThemePreviewChips",title:"Chip Preview",description:"A compact chip matrix highlights default, active, hover, success, warning, and excluded states."},"Room Cards":{method:"_renderThemePreviewRoomCards",title:"Room Card Preview",description:"Mini room cards expose profile chips, room chips, and room-surface treatment together."},"Floor Textures":{method:"_renderThemePreviewFloorTextures",title:"Floor Texture Preview",description:"Live swatches show each material's overlay on the card surface. Opacity, scale, and tint tokens update in real time."},"Floor Textures \u2014 Tile":{method:"_renderThemePreviewFloorTextureTile",title:"Tile Floor Preview",description:"Base and accent colors control the grout lines and tile face on card and map surfaces."},"Floor Textures \u2014 Wood":{method:"_renderThemePreviewFloorTextureWood",title:"Wood Floor Preview",description:"Base and accent colors control the wood grain, seam lines, and directional depth layers."},"Floor Textures \u2014 Marble":{method:"_renderThemePreviewFloorTextureMarble",title:"Marble Floor Preview",description:"Base and accent colors control the marble field and vein layers."},"Floor Textures \u2014 Concrete":{method:"_renderThemePreviewFloorTextureConcrete",title:"Concrete Floor Preview",description:"Base and accent colors control the micro-texture and broad variation layers."},"Floor Textures \u2014 Carpet Low":{method:"_renderThemePreviewFloorTextureCarpetLow",title:"Carpet Low Pile Preview",description:"Base color tints the low-pile carpet texture layer on the card surface."},"Floor Textures \u2014 Carpet High":{method:"_renderThemePreviewFloorTextureCarpetHigh",title:"Carpet High Pile Preview",description:"Base color tints the high-pile carpet texture layer on the card surface."},"Floor Textures \u2014 Granite":{method:"_renderThemePreviewFloorTextureGranite",title:"Granite Floor Preview",description:"Base color tints the granite texture layer on the card surface."},"Queue & Ordering":{method:"_renderThemePreviewQueueOrdering",title:"Queue & Ordering Preview",description:"Queue strip, order chips, and drag feedback samples show sequencing and reorder states."},"Status, Confidence & Alerts":{method:"_renderThemePreviewStatusAlerts",title:"Status & Alerts Preview",description:"Status dots, confidence badges, and alert surfaces show semantic state color relationships."},"Learning & Metrics":{method:"_renderThemePreviewLearningMetrics",title:"Learning & Metrics Preview",description:"Estimate badges and learning panels preview predictive and analytical surfaces."},"Animal Companion":{method:"_renderThemePreviewAnimalCompanion",title:"Animal Companion Preview",description:"Every registered animal in standing pose across all five battery-state bands. Eye-color tokens drive the columns; palette tokens drive the bodies."},"Modals & Overlays":{method:"_renderThemePreviewModalsOverlays",title:"Modal & Overlay Preview",description:"A modal shell sample isolates overlay surfaces, chips, warning states, and backdrop treatment."},"Shared Foundations":{method:"_renderThemePreviewSharedFoundations",title:"Shared Foundations Preview",description:"A mixed control-surface preview shows spacing, radius, motion, and typography primitives together."}});function Gr(i){i._renderThemePreviewPane=function(){let e=this.card._state.currentThemePreviewGroup(),t=qr[e];if(!t)return"";let r=typeof this[t.method]=="function"?this[t.method]():"";return r?`
       <aside class="evcc-theme-preview-column">
         <section class="evcc-theme-preview-pane">
           <div class="evcc-theme-preview-header">
@@ -3161,6 +3161,40 @@ config/eufy_vacuum/battery/${this.escapeHtml(S)}/samples.jsonl</pre>
             <span class="evcc-chip evcc-chip--save">Confirm</span>
           </div>
         </div>
+      </div>
+    `},i._renderThemePreviewAnimalCompanion=function(){let e=[{id:"good",label:"Good",hint:"battery > 50%"},{id:"mid",label:"Mid",hint:"25\u201350%"},{id:"warn",label:"Warn",hint:"15\u201325%"},{id:"low",label:"Low",hint:"\u2264 15%"},{id:"charging",label:"Charging",hint:"pulses"}],t=window.AnimalSVG&&window.AnimalSVG.list?window.AnimalSVG.list():["cat","dog","raccoon","parrot","snake"],r=`
+      <div class="evcc-theme-preview-animal-row evcc-theme-preview-animal-row--header">
+        <div class="evcc-theme-preview-animal-rowlabel"></div>
+        ${t.map(n=>`
+          <div class="evcc-theme-preview-animal-collabel">${this.escapeHtml(n)}</div>
+        `).join("")}
+      </div>
+    `,a=e.map(({id:n,label:c,hint:s})=>`
+      <div class="evcc-theme-preview-animal-row">
+        <div class="evcc-theme-preview-animal-rowlabel">
+          <span class="evcc-theme-preview-animal-rowlabel-title">${this.escapeHtml(c)}</span>
+          <span class="evcc-theme-preview-animal-rowlabel-hint">${this.escapeHtml(s)}</span>
+        </div>
+        ${t.map(o=>`
+          <div class="evcc-theme-preview-animal-cell">
+            <animal-svg
+              animal="${this.escapeHtml(o)}"
+              pose="standing"
+              battery-state="${this.escapeHtml(n)}"
+              width="80px"
+              height="55px"></animal-svg>
+          </div>
+        `).join("")}
+      </div>
+    `).join("");return`
+      <div class="evcc-theme-preview-animal-grid">
+        ${r}
+        ${a}
+      </div>
+      <div class="evcc-theme-preview-animal-note">
+        Eye-color tokens (<code>--evcc-animal-eye-*</code>) drive the rows.
+        Palette tokens (<code>--evcc-animal-fur</code>, <code>--evcc-animal-pupil</code>, etc.)
+        drive the bodies. Charging row pulses brightness; static screenshot won't show it.
       </div>
     `},i._renderThemePreviewSharedFoundations=function(){return`
       <div class="evcc-theme-preview-grid">
@@ -9920,6 +9954,85 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
     50% {
       opacity: 1;
     }
+  }
+
+  /* ------------------------------------------------------------------
+     Animal Companion preview grid
+     ------------------------------------------------------------------
+     5 battery-state rows \xD7 N animal columns. Each cell is a thumbnail
+     <animal-svg>. The grid inherits the card's draft theme tokens via
+     CSS custom-property cascade \u2014 no JS wiring needed to make the
+     previews react to token edits.
+  ----------------------------------------------------------------- */
+  .evcc-theme-preview-animal-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--evcc-surface-panel, var(--evcc-panel-bg, #1c2127));
+    border: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    border-radius: var(--evcc-radius-card, 16px);
+    padding: 14px;
+  }
+
+  .evcc-theme-preview-animal-row {
+    display: grid;
+    grid-template-columns: 90px repeat(auto-fit, minmax(80px, 1fr));
+    align-items: center;
+    gap: 8px;
+  }
+
+  .evcc-theme-preview-animal-row--header {
+    border-bottom: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+  }
+
+  .evcc-theme-preview-animal-rowlabel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 12px;
+    color: var(--evcc-text-primary, #e6e6e6);
+  }
+
+  .evcc-theme-preview-animal-rowlabel-title {
+    font-weight: 600;
+  }
+
+  .evcc-theme-preview-animal-rowlabel-hint {
+    font-size: 10px;
+    color: var(--evcc-text-muted, #9ca3af);
+  }
+
+  .evcc-theme-preview-animal-collabel {
+    font-size: 11px;
+    text-align: center;
+    text-transform: capitalize;
+    color: var(--evcc-text-secondary, #c7c9d1);
+  }
+
+  .evcc-theme-preview-animal-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.03));
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .evcc-theme-preview-animal-note {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--evcc-text-muted, #9ca3af);
+    margin-top: 8px;
+  }
+
+  .evcc-theme-preview-animal-note code {
+    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.06));
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10.5px;
   }
 
   @media (max-width: 1100px) {

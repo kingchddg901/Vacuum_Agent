@@ -334,6 +334,64 @@ export function applyThemePreviewRenderers(proto) {
     `;
   };
 
+  proto._renderThemePreviewAnimalCompanion = function () {
+    // Build a battery-state × animal matrix so users see exactly what each
+    // token controls. Animals come from the live AnimalSVG registry — if
+    // the module hasn't finished loading the cells will render the
+    // built-in "unknown animal" fallback, which is itself a useful signal.
+    const BATTERY_STATES = [
+      { id: "good",     label: "Good",     hint: "battery > 50%" },
+      { id: "mid",      label: "Mid",      hint: "25–50%" },
+      { id: "warn",     label: "Warn",     hint: "15–25%" },
+      { id: "low",      label: "Low",      hint: "≤ 15%" },
+      { id: "charging", label: "Charging", hint: "pulses" },
+    ];
+
+    const animals = (window.AnimalSVG && window.AnimalSVG.list)
+      ? window.AnimalSVG.list()
+      : ["cat", "dog", "raccoon", "parrot", "snake"];
+
+    const headerRow = `
+      <div class="evcc-theme-preview-animal-row evcc-theme-preview-animal-row--header">
+        <div class="evcc-theme-preview-animal-rowlabel"></div>
+        ${animals.map((a) => `
+          <div class="evcc-theme-preview-animal-collabel">${this.escapeHtml(a)}</div>
+        `).join("")}
+      </div>
+    `;
+
+    const bodyRows = BATTERY_STATES.map(({ id, label, hint }) => `
+      <div class="evcc-theme-preview-animal-row">
+        <div class="evcc-theme-preview-animal-rowlabel">
+          <span class="evcc-theme-preview-animal-rowlabel-title">${this.escapeHtml(label)}</span>
+          <span class="evcc-theme-preview-animal-rowlabel-hint">${this.escapeHtml(hint)}</span>
+        </div>
+        ${animals.map((a) => `
+          <div class="evcc-theme-preview-animal-cell">
+            <animal-svg
+              animal="${this.escapeHtml(a)}"
+              pose="standing"
+              battery-state="${this.escapeHtml(id)}"
+              width="80px"
+              height="55px"></animal-svg>
+          </div>
+        `).join("")}
+      </div>
+    `).join("");
+
+    return `
+      <div class="evcc-theme-preview-animal-grid">
+        ${headerRow}
+        ${bodyRows}
+      </div>
+      <div class="evcc-theme-preview-animal-note">
+        Eye-color tokens (<code>--evcc-animal-eye-*</code>) drive the rows.
+        Palette tokens (<code>--evcc-animal-fur</code>, <code>--evcc-animal-pupil</code>, etc.)
+        drive the bodies. Charging row pulses brightness; static screenshot won't show it.
+      </div>
+    `;
+  };
+
   proto._renderThemePreviewSharedFoundations = function () {
     return `
       <div class="evcc-theme-preview-grid">

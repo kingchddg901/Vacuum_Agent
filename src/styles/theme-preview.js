@@ -546,6 +546,85 @@ export const themePreviewStyles = `
     }
   }
 
+  /* ------------------------------------------------------------------
+     Animal Companion preview grid
+     ------------------------------------------------------------------
+     5 battery-state rows × N animal columns. Each cell is a thumbnail
+     <animal-svg>. The grid inherits the card's draft theme tokens via
+     CSS custom-property cascade — no JS wiring needed to make the
+     previews react to token edits.
+  ----------------------------------------------------------------- */
+  .evcc-theme-preview-animal-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--evcc-surface-panel, var(--evcc-panel-bg, #1c2127));
+    border: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    border-radius: var(--evcc-radius-card, 16px);
+    padding: 14px;
+  }
+
+  .evcc-theme-preview-animal-row {
+    display: grid;
+    grid-template-columns: 90px repeat(auto-fit, minmax(80px, 1fr));
+    align-items: center;
+    gap: 8px;
+  }
+
+  .evcc-theme-preview-animal-row--header {
+    border-bottom: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    padding-bottom: 6px;
+    margin-bottom: 2px;
+  }
+
+  .evcc-theme-preview-animal-rowlabel {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    font-size: 12px;
+    color: var(--evcc-text-primary, #e6e6e6);
+  }
+
+  .evcc-theme-preview-animal-rowlabel-title {
+    font-weight: 600;
+  }
+
+  .evcc-theme-preview-animal-rowlabel-hint {
+    font-size: 10px;
+    color: var(--evcc-text-muted, #9ca3af);
+  }
+
+  .evcc-theme-preview-animal-collabel {
+    font-size: 11px;
+    text-align: center;
+    text-transform: capitalize;
+    color: var(--evcc-text-secondary, #c7c9d1);
+  }
+
+  .evcc-theme-preview-animal-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.03));
+    border-radius: 8px;
+    min-height: 60px;
+  }
+
+  .evcc-theme-preview-animal-note {
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--evcc-text-muted, #9ca3af);
+    margin-top: 8px;
+  }
+
+  .evcc-theme-preview-animal-note code {
+    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.06));
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 10.5px;
+  }
+
   @media (max-width: 1100px) {
     .evcc-theme-editor-pane {
       flex-direction: column;

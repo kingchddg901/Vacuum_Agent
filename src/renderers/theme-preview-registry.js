@@ -99,6 +99,11 @@ export const THEME_PREVIEW_REGISTRY = Object.freeze({
     title: "Learning & Metrics Preview",
     description: "Estimate badges and learning panels preview predictive and analytical surfaces.",
   },
+  "Animal Companion": {
+    method: "_renderThemePreviewAnimalCompanion",
+    title: "Animal Companion Preview",
+    description: "Every registered animal in standing pose across all five battery-state bands. Eye-color tokens drive the columns; palette tokens drive the bodies.",
+  },
   "Modals & Overlays": {
     method: "_renderThemePreviewModalsOverlays",
     title: "Modal & Overlay Preview",
