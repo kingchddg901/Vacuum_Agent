@@ -1,0 +1,19 @@
+services:
+  ha:
+    # Cold-install test harness. Spins up a clean Home Assistant against
+    # the integration source in this repo, so the install path can be
+    # walked end-to-end before tagging a release. See RELEASE_CHECKLIST.md.
+    image: homeassistant/home-assistant:stable
+    container_name: eufy-vacuum-manager-test-ha
+    restart: "no"
+    ports:
+      - "8123:8123"
+    volumes:
+      # Persistent HA config across runs. Lives in .test-config/ at the
+      # repo root and is gitignored. Delete the folder to start fresh.
+      - ./.test-config:/config
+      # Bind-mount the integration source so edits to custom_components/
+      # show up in the container on HA restart — no rebuild needed.
+      - ./custom_components/eufy_vacuum:/config/custom_components/eufy_vacuum:ro
+    environment:
+      - TZ=America/Los_Angeles

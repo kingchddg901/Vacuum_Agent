@@ -153,6 +153,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - [Adapter config reference](docs/dev/adapter-config-reference.md) — the schema for per-vacuum brand config
 - [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
 - [Mascot authoring guide](docs/contributing/mascot-authoring.md) — visual standards for adding or improving the map view's animal companions
+- [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual used before tagging any release
 - [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — standalone, domain-agnostic guide to the runtime-configurable adapter pattern this integration is built on. Useful if you want to apply the same approach to a non-vacuum HA integration.
 
 ## For developers and porters

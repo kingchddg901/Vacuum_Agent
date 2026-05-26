@@ -40,3 +40,7 @@ COMMIT_MSG*
 
 # Claude Code settings
 .claude/
+
+# Docker cold-install harness — persistent HA config from docker-compose.yml.
+# Wipe the folder to test a fresh-from-zero install.
+.test-config/
