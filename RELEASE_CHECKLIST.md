@@ -116,11 +116,39 @@ brand-new HA. Wipe it before any release-blocker test.
 
 ```bash
 # In custom_components/eufy_vacuum/manifest.json:
-"version": "0.9.X"   # bump per semver — patch for bugfix-only, minor for features
+"version": "0.9.X"   # see scheme below
 ```
 
 Stage but don't commit yet — the version bump rides with the release
 commit at the end.
+
+### Choosing the version
+
+HACS reads `manifest.json` and uses Python's `packaging` library to compare,
+which supports PEP 440. That gives more options than strict semver:
+
+| Change | Bump | Example |
+|---|---|---|
+| User-noticeable bug fix | Patch | `0.9.4 → 0.9.5` |
+| Pure polish (a-different-pixel tweak, comment-only docs) | 4-segment polish | `0.9.4 → 0.9.4.1` |
+| New capability (mostly additive) | Minor | `0.9.5 → 0.10.0` |
+| Breaking change someone could hit | Minor while pre-1.0; major once 1.0+ | `0.10.0 → 0.11.0` / `1.2.0 → 2.0.0` |
+
+The 4-segment scheme (`0.9.4.1`) is the safety valve for fixes too small to
+feel like a real patch release — a CSS tweak, a typo, a one-line guard. PEP
+440 sorts them correctly (`0.9.4 < 0.9.4.1 < 0.9.5`) and HACS shows the
+update either way. Don't overuse it; the rule of thumb is "if a user would
+say 'oh that's nice they fixed it' when they update, it's a real patch
+(0.9.5). If they wouldn't notice, it's a polish (0.9.4.1)."
+
+The 4-segment is slightly nonstandard — most HA integrations stick to
+3-segment. Some external tooling could choke on it (HACS doesn't). Worth
+the tradeoff for keeping patch numbers reserved for things users care about.
+
+**Whichever scheme you pick: tagged releases are non-negotiable.** Anything
+pushed to master without a tag is invisible to HACS users — they keep
+running the previous tag. The whole loop only closes when step 4 (commit +
+tag + push) actually runs.
 
 ---
 
