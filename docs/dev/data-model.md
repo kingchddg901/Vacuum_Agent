@@ -38,7 +38,6 @@ This document is the canonical shape reference for every major object in the euf
   "analytics":        dict                                      # reserved; always {}
   "maintenance":      dict                                      # reserved; always {}
   "dock_events":      dict                                      # reserved; always {}
-  "icons":            dict                                      # reserved; always {}
   "onboarding":       dict                                      # reserved; always {}
   "capabilities":     dict[vacuum_entity_id, CapabilityBucket] # seeded by async_initialize
   "room_history":     dict                                      # seeded by async_initialize

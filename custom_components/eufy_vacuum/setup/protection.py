@@ -75,17 +75,6 @@ def evaluate_map_protection(
             "message": f"This map has cleaning history for {len(map_history)} room(s).",
         })
 
-    map_icons = (
-        manager.data.get("icons", {})
-        .get(vacuum_entity_id, {})
-        .get(map_id_str)
-    )
-    if map_icons:
-        reasons.append({
-            "code":    "has_image_data",
-            "message": "This map has a stored map image or calibration data.",
-        })
-
     has_rules = any(
         room.get("rules") for room in rooms.values()
     )

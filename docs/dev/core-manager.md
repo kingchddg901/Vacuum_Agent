@@ -285,7 +285,7 @@ The file is divided into clearly commented sections. This is the logical map:
 | Theme management | `get_theme_library`, `save_theme_as_new`, `overwrite_theme`, `rename_theme`, `delete_theme`, `set_active_theme`, `update_working_draft`, `revert_draft`, `export_theme`, `import_theme` |
 | Room cleaning history | `get_room_cleaning_history`, `async_preload_room_history_cache`, `_ingest_completed_job_into_room_history` |
 | Room rule status | `get_room_rule_status`, `get_runtime_path_block_report`, `_update_room_rule_status_snapshot` |
-| Icon storage / dock events | `get_icon_value`, `set_icon_value`, `record_dock_event`, `get_dock_events`, `set_dock_event_count` |
+| Dock events | `record_dock_event`, `get_dock_events`, `set_dock_event_count` |
 | Singleton helpers | `get_known_vacuum_ids`, `get_known_map_ids` |
 
 ---

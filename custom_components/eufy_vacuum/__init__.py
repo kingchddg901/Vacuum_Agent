@@ -92,7 +92,6 @@ PLATFORMS: list[str] = [
     "binary_sensor",
     "button",
     "switch",
-    "select",
     "number",
     "sensor",
 ]
@@ -1268,6 +1267,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Reload the entry whenever options change so a new vacuum_entity_id
     # (or notes update) takes effect without a full HA restart.
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
+    # One-time cleanup: remove orphaned icon-select entities from earlier
+    # versions. The "select" platform was dropped (the card stopped surfacing
+    # those pickers), and without removing the registry entries HA would show
+    # them as "unavailable" forever. Match by unique_id prefix the deleted
+    # EufyVacuumIconSelect class used.
+    try:
+        from homeassistant.helpers import entity_registry as _er
+        registry = _er.async_get(hass)
+        _orphans = [
+            entry_id
+            for entry_id, ent in registry.entities.items()
+            if ent.platform == DOMAIN and (ent.unique_id or "").startswith("eufy_vacuum_icon_")
+        ]
+        for _entry_id in _orphans:
+            registry.async_remove(_entry_id)
+        if _orphans:
+            _LOGGER.info(
+                "eufy_vacuum: removed %d orphaned icon-select entit%s from earlier versions",
+                len(_orphans),
+                "y" if len(_orphans) == 1 else "ies",
+            )
+    except Exception:
+        _LOGGER.debug("eufy_vacuum: icon-select cleanup pass failed", exc_info=True)
 
     # Load stored adapter configs (UI-configured brands) before code
     # adapter registration. Code adapters registered below will overwrite

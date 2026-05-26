@@ -751,6 +751,12 @@ class EufyVacuumManager:
         self.data.setdefault("room_history", {})
         self.data.setdefault("room_rule_status", {})
 
+        # Drop the deprecated "icons" storage block. The icon-selects platform
+        # was removed (the card no longer surfaces those entities); leaving the
+        # block intact just bloats the storage file on existing installs.
+        if "icons" in self.data:
+            self.data.pop("icons", None)
+
         # Seed theme structure once so _get_theme_data() never iterates preloaded specs.
         self.data.setdefault("theme", {})
         self.data["theme"].setdefault("library", {})
@@ -3707,7 +3713,6 @@ class EufyVacuumManager:
             "history_removed": False,
             "rule_status_removed": False,
             "discovery_removed": False,
-            "icons_removed": False,
             "active_job_cleared": False,
         }
 
@@ -3731,11 +3736,6 @@ class EufyVacuumManager:
         if map_id_str in rule_st:
             del rule_st[map_id_str]
             removed["rule_status_removed"] = True
-
-        icons = self.data.get("icons", {}).get(vacuum_entity_id, {})
-        if map_id_str in icons:
-            del icons[map_id_str]
-            removed["icons_removed"] = True
 
         # Reset the active-job slot to a blank state rather than deleting it,
         # so callers can always find a key for any known vacuum/map pair.
@@ -8895,18 +8895,8 @@ class EufyVacuumManager:
         return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
 
     # ------------------------------------------------------------------
-    # Icon storage / dock events
+    # Dock events
     # ------------------------------------------------------------------
-
-    def get_icon_value(self, *, category: str, slot: str) -> str | None:
-        """Return the stored icon value for one slot, or None if not set."""
-        return self.data.get("icons", {}).get(category, {}).get(slot)
-
-    def set_icon_value(self, *, category: str, slot: str, value: str) -> None:
-        """Persist an icon selection for one slot."""
-        self.data.setdefault("icons", {})
-        self.data["icons"].setdefault(category, {})
-        self.data["icons"][category][slot] = value
 
     # Noisy states (e.g. "Washing") flip 1-2 times within ~30s per actual
     # cycle. Debounce per-event-type counters with this window so each real

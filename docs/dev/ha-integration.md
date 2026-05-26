@@ -311,7 +311,6 @@ Calls `self._store.async_load()`. Returns the stored dict if it exists, or the d
     "analytics": {},
     "maintenance": {},
     "dock_events": {},
-    "icons": {},
     "onboarding": {},
     "error_tracker": {},
 }

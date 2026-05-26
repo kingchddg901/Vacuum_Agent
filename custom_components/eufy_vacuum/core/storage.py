@@ -33,7 +33,6 @@ class EufyVacuumStorage:
                 "analytics": {},
                 "maintenance": {},
                 "dock_events": {},
-                "icons": {},
                 "onboarding": {},
                 # Per-vacuum error_tracker state:
                 #   {<vacuum_entity_id>: {active_run_error, last_device_error, recent_errors}}
