@@ -1,10 +1,28 @@
 /**
  * ============================================================
- * STYLES: MODALS
+ * STYLES: MODALS  ⚠️ DEPRECATED — DO NOT EDIT
  * ============================================================
  *
- * PURPOSE
- * -------
+ * STATUS
+ * ------
+ * This file is bundled into the shadow-root stylesheet (STYLES) but
+ * its rules never match anything. All modal markup is mounted to
+ * document.body via _renderModals() in main.js, so styles that live
+ * in the card's shadow root can't reach them.
+ *
+ * The LIVE modal styles are MODAL_HOST_STYLES in src/styles/index.js,
+ * injected into the body-mounted modal host directly. If you're trying
+ * to fix a modal styling bug, edit THAT file, not this one.
+ *
+ * This file is kept for one release cycle so anything that turns out
+ * to depend on it (theme override targeting a specific selector via
+ * the wrong stylesheet, etc.) can be caught. Delete in v0.10.0+ along
+ * with the import in src/styles/index.js.
+ *
+ * ============================================================
+ *
+ * Historical PURPOSE (no longer accurate)
+ * ---------------------------------------
  * Styles for all modal overlays in the card.
  *
  * This file owns:
