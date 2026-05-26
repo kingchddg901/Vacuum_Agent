@@ -134,12 +134,29 @@ which supports PEP 440. That gives more options than strict semver:
 | New capability (mostly additive) | Minor | `0.9.5 → 0.10.0` |
 | Breaking change someone could hit | Minor while pre-1.0; major once 1.0+ | `0.10.0 → 0.11.0` / `1.2.0 → 2.0.0` |
 
-The 4-segment scheme (`0.9.4.1`) is the safety valve for fixes too small to
-feel like a real patch release — a CSS tweak, a typo, a one-line guard. PEP
-440 sorts them correctly (`0.9.4 < 0.9.4.1 < 0.9.5`) and HACS shows the
-update either way. Don't overuse it; the rule of thumb is "if a user would
-say 'oh that's nice they fixed it' when they update, it's a real patch
-(0.9.5). If they wouldn't notice, it's a polish (0.9.4.1)."
+The 4-segment scheme (`0.9.4.1`) is the safety valve for two cases where a
+real patch bump would feel inflated:
+
+1. **Too small to notice** — a CSS tweak, a typo, a one-line guard, a polish
+   pass on something no one was actively complaining about.
+2. **Too narrow to matter to most users** — a fix that only manifests in one
+   user's specific environment (one device model, one OS, one rare config
+   path). The fix is real and important to that user, but the rest of the
+   user base would never hit the bug and wouldn't notice the fix.
+
+At this project's scale (small handful of confirmed users), the second case
+comes up often — most "bug fixes" are really "fix the thing affecting the
+one person who filed an issue." That doesn't always merit consuming a patch
+number that other users will see as a real release.
+
+PEP 440 sorts both schemes correctly (`0.9.4 < 0.9.4.1 < 0.9.5`) and HACS
+shows the update either way. Rule of thumb:
+
+- **Real patch (`0.9.5`)** — most users would either notice the fix or care
+  about it if told. Issue reports from multiple users on different hardware
+  point here.
+- **Polish (`0.9.4.1`)** — only the reporting user would notice, OR no user
+  would notice but you want the change to land for whoever's next.
 
 The 4-segment is slightly nonstandard — most HA integrations stick to
 3-segment. Some external tooling could choke on it (HACS doesn't). Worth
