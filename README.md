@@ -43,8 +43,11 @@ If you run this on another model, please [open an issue](https://github.com/king
 3. Add `https://github.com/kingchddg901/eufy-vacuum-manager` as an **Integration** type repository.
 4. Search for **Eufy Vacuum Manager** in HACS and install it.
 5. Restart Home Assistant.
-6. Go to **Settings → Devices & Services → Add Integration** and search for **Eufy Vacuum Manager** to complete setup.
-7. A **Eufy Vacuum** item will appear in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
+6. Go to **Settings → Devices & Services → Add Integration** and search for **Eufy Vacuum Manager**.
+7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by [eufy-clean](https://github.com/jeppesens/eufy-clean) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
+8. A **Eufy Vacuum** item appears in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
+
+If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Eufy Vacuum Manager → Configure** to add it.
 
 ## What's included
 
