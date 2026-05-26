@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Set up Eufy Vacuum Manager",
-        "description": "Creates the Eufy Vacuum Manager config entry. After it finishes, open the **Eufy Vacuum** panel in the sidebar to add your vacuum and import its current map.",
+        "description": "Pick the vacuum entity this integration should manage. The Vacuum field is optional during initial setup — you can leave it blank and fill it in later via Configure → Options.",
         "data": {
           "tested_model": "Tested model",
           "notes": "Notes",
@@ -26,8 +26,9 @@
     "step": {
       "init": {
         "title": "Eufy Vacuum Manager Settings",
-        "description": "To add or rebuild rooms, use Settings \u2192 Repairs.",
+        "description": "Pick the vacuum entity this integration should manage. Changing the Vacuum value reloads the integration so the new vacuum's panel appears in the sidebar.",
         "data": {
+          "vacuum_entity_id": "Vacuum",
           "notes": "Notes"
         }
       }

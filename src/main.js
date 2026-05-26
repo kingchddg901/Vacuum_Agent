@@ -117,10 +117,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * @param {object} config - Lovelace card config; must include vacuum_entity_id.
    */
   setConfig(config) {
+    // Fallback panel mode: the integration registered this panel with an
+    // empty config because no managed vacuum exists yet. Render a setup
+    // placeholder pointing the user back to Settings → Devices & Services
+    // → Eufy Vacuum Manager → Configure to add their vacuum. Don't init
+    // any state machinery — there's no vacuum to bind to.
     if (!config?.vacuum_entity_id) {
-      throw new Error(
-        "[eufy-vacuum-command-center] vacuum_entity_id is required in card config."
-      );
+      this._config = config ?? {};
+      this._renderNoVacuumPlaceholder();
+      return;
     }
 
     this._config = config;
@@ -176,9 +181,111 @@ class EufyVacuumCommandCenter extends HTMLElement {
   /** Panel mode setter — ha-panel-custom pushes config through this property. */
   set panel(panel) {
     this._panel = panel;
-    if (panel?.config?.vacuum_entity_id) {
+    // Note: setConfig now accepts empty config and renders a setup
+    // placeholder instead of throwing, so pass through unconditionally.
+    if (panel?.config !== undefined) {
       this.setConfig(panel.config);
     }
+  }
+
+  /**
+   * Self-contained "no vacuum configured" placeholder. Rendered when the
+   * integration's fallback panel ships an empty config to the card on
+   * fresh installs. Doesn't touch the state machinery, theme system, or
+   * any external dependency — just dumps a static message into the
+   * shadow root with enough styling to look like an HA panel.
+   */
+  _renderNoVacuumPlaceholder() {
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          width: 100%;
+          min-height: 100%;
+          background: var(--primary-background-color, #111);
+          color: var(--primary-text-color, #e6e6e6);
+          font-family: var(--paper-font-body1_-_font-family, system-ui, sans-serif);
+        }
+        .evcc-setup-wrap {
+          max-width: 640px;
+          margin: 0 auto;
+          padding: 48px 24px;
+          line-height: 1.55;
+        }
+        .evcc-setup-title {
+          font-size: 1.6em;
+          font-weight: 600;
+          margin: 0 0 12px 0;
+        }
+        .evcc-setup-lede {
+          font-size: 1.05em;
+          color: var(--secondary-text-color, #9aa0a6);
+          margin: 0 0 24px 0;
+        }
+        .evcc-setup-card {
+          background: var(--card-background-color, #1c2127);
+          border: 1px solid var(--divider-color, rgba(255, 255, 255, 0.12));
+          border-radius: 12px;
+          padding: 20px 22px;
+          margin: 0 0 16px 0;
+        }
+        .evcc-setup-card h3 {
+          margin: 0 0 8px 0;
+          font-size: 1.05em;
+          font-weight: 600;
+        }
+        .evcc-setup-card p, .evcc-setup-card ol {
+          margin: 0 0 8px 0;
+        }
+        .evcc-setup-card ol {
+          padding-left: 22px;
+        }
+        .evcc-setup-card li + li {
+          margin-top: 4px;
+        }
+        code {
+          background: rgba(255, 255, 255, 0.06);
+          padding: 1px 5px;
+          border-radius: 3px;
+          font-size: 0.9em;
+        }
+        a {
+          color: var(--primary-color, #3b82f6);
+        }
+      </style>
+      <div class="evcc-setup-wrap">
+        <h1 class="evcc-setup-title">Eufy Vacuum Manager — setup needed</h1>
+        <p class="evcc-setup-lede">
+          The integration is installed but no vacuum is configured yet, so
+          the panel can't show your rooms, jobs, or controls until you
+          point it at your vacuum.
+        </p>
+        <div class="evcc-setup-card">
+          <h3>Add your vacuum</h3>
+          <ol>
+            <li>Open <strong>Settings → Devices &amp; Services</strong></li>
+            <li>Find <strong>Eufy Vacuum Manager</strong></li>
+            <li>Click <strong>Configure</strong></li>
+            <li>Pick your <code>vacuum.*</code> entity from the dropdown and submit</li>
+          </ol>
+          <p>
+            The integration will reload and this page will turn into the
+            full Eufy Vacuum panel with your rooms, learning history, and
+            controls.
+          </p>
+        </div>
+        <div class="evcc-setup-card">
+          <h3>If you don't see a vacuum entity in the dropdown</h3>
+          <p>
+            This integration sits on top of
+            <a href="https://github.com/jeppesens/eufy-clean" target="_blank" rel="noopener">eufy-clean</a>
+            — make sure your vacuum is set up and producing a working
+            <code>vacuum.*</code> entity there first, then come back here
+            and choose it.
+          </p>
+        </div>
+      </div>
+    `;
   }
 
   set narrow(narrow) {
@@ -191,6 +298,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
    */
   set hass(hass) {
     this._hass = hass;
+
+    // Setup-placeholder mode: no vacuum configured yet, the static
+    // placeholder is already in the DOM, and we have no state to sync.
+    // Bail before any of the refresh schedulers run (they all assume
+    // _state exists).
+    if (!this._config?.vacuum_entity_id) return;
 
     if (this._state)   this._state.sync(hass, this._config);
     if (this._actions) this._actions.sync?.(hass, this._state);

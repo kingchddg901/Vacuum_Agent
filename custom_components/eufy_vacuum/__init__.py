@@ -23,6 +23,7 @@ from homeassistant.helpers.event import async_call_later, async_track_state_chan
 
 from ._frontend_url import panel_js_url
 from .const import (
+    CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
     DATA_ADAPTER_COORDINATOR,
     DATA_ERROR_TRACKER,
@@ -1243,6 +1244,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     manager = EufyVacuumManager(hass)
     await manager.async_initialize()
 
+    # If the config entry carries a vacuum_entity_id (collected by the
+    # config flow or set later via options), make sure it shows up as a
+    # managed vacuum so panel registration can find it. Options override
+    # data so users can change their pick via Configure.
+    configured_vacuum = entry.options.get(
+        CONF_VACUUM_ENTITY_ID,
+        entry.data.get(CONF_VACUUM_ENTITY_ID),
+    )
+    if configured_vacuum:
+        try:
+            manager.ensure_vacuum_record(vacuum_entity_id=configured_vacuum)
+            _LOGGER.debug(
+                "eufy_vacuum: ensured managed-vacuum record for %s from config entry",
+                configured_vacuum,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "eufy_vacuum: failed to register config-entry vacuum %s",
+                configured_vacuum,
+            )
+
+    # Reload the entry whenever options change so a new vacuum_entity_id
+    # (or notes update) takes effect without a full HA restart.
+    entry.async_on_unload(entry.add_update_listener(_async_update_listener))
+
     # Load stored adapter configs (UI-configured brands) before code
     # adapter registration. Code adapters registered below will overwrite
     # stored configs for the same vacuum — code adapters always win.
@@ -1356,9 +1382,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except ValueError:
             _LOGGER.debug("eufy_vacuum: panel /%s already registered", panel_url)
 
+    # Fallback panel for fresh installs that haven't pointed at a vacuum
+    # yet. Without this, users see no sidebar entry at all and have no
+    # in-UI affordance to add their vacuum. The card detects an empty
+    # `vacuum_entity_id` config and renders a setup placeholder that
+    # points back at Settings → Devices & Services → Configure.
+    if not registered_panels:
+        fallback_panel_url = "eufy-vacuum"
+        try:
+            await panel_custom.async_register_panel(
+                hass,
+                frontend_url_path=fallback_panel_url,
+                webcomponent_name="eufy-vacuum-command-center",
+                js_url=panel_js_url(),
+                sidebar_title="Eufy Vacuum",
+                sidebar_icon="mdi:robot-vacuum",
+                config={},  # no vacuum_entity_id — card renders setup placeholder
+                require_admin=False,
+                embed_iframe=False,
+            )
+            registered_panels.append(fallback_panel_url)
+            _LOGGER.debug(
+                "eufy_vacuum: no managed vacuums yet — registered fallback /%s panel",
+                fallback_panel_url,
+            )
+        except ValueError:
+            _LOGGER.debug("eufy_vacuum: fallback panel /%s already registered", fallback_panel_url)
+
     hass.data[DOMAIN][f"_panels_{entry.entry_id}"] = registered_panels
 
     return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload the config entry when options change.
+
+    Triggered by adding/changing the vacuum_entity_id via Configure → Options.
+    The reload re-runs async_setup_entry, which adds the new vacuum to the
+    manager and registers the per-vacuum panel (and removes the fallback).
+    """
+    await hass.config_entries.async_reload(entry.entry_id)
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

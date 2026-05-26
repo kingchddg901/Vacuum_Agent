@@ -18,6 +18,7 @@ from .adapters.eufy.const import (
 
 CONF_TESTED_MODEL = "tested_model"
 CONF_NOTES = "notes"
+CONF_VACUUM_ENTITY_ID = "vacuum_entity_id"
 
 # ----------------------
 # Service names

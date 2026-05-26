@@ -1,4 +1,11 @@
-"""Config flow for Eufy Vacuum Manager — creates the config entry and directs users to the panel for full setup."""
+"""Config flow for Eufy Vacuum Manager.
+
+Collects the user's vacuum entity (so the integration knows which device
+to manage) plus an optional tested-model string and free-text notes.
+The vacuum picker is OPTIONAL during initial setup — leaving it blank
+still creates the config entry; the user can fill it in later via
+Configure → Options.
+"""
 
 from __future__ import annotations
 
@@ -8,33 +15,46 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_NOTES,
     CONF_TESTED_MODEL,
+    CONF_VACUUM_ENTITY_ID,
     DEFAULT_TITLE,
     DOMAIN,
     SUPPORTED_TESTED_MODEL,
 )
 
 
+_VACUUM_SELECTOR = selector.EntitySelector(
+    selector.EntitySelectorConfig(domain="vacuum"),
+)
+
+
 class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Minimal config flow — creates the entry and directs user to the panel."""
+    """Initial setup flow — collects vacuum entity, model identifier, and notes."""
 
     VERSION = 1
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Single step: collect model identifier + optional notes, then finish."""
+        """Single step: collect vacuum entity + model + optional notes, then finish."""
         if user_input is not None:
             await self.async_set_unique_id(DOMAIN)
             self._abort_if_unique_id_configured()
+            # Drop the vacuum field from data if blank — keeps the config-entry
+            # data clean and the integration's setup_entry can detect "no
+            # vacuum chosen yet" by checking for key absence.
+            if not user_input.get(CONF_VACUUM_ENTITY_ID):
+                user_input.pop(CONF_VACUUM_ENTITY_ID, None)
             return self.async_create_entry(title=DEFAULT_TITLE, data=user_input)
 
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
+                vol.Optional(CONF_VACUUM_ENTITY_ID): _VACUUM_SELECTOR,
                 vol.Required(CONF_TESTED_MODEL, default=SUPPORTED_TESTED_MODEL): str,
                 vol.Optional(CONF_NOTES, default=(
                     "Open the Eufy Vacuum panel in the sidebar to add your vacuum "
@@ -53,7 +73,12 @@ class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class EufyVacuumOptionsFlow(OptionsFlow):
-    """Options flow allowing the user to edit the notes field after initial setup.
+    """Options flow for editing the vacuum entity and notes after initial setup.
+
+    The vacuum entity field here is the recovery path for users who installed
+    before the field existed in the config flow (or skipped it during initial
+    setup). Saving a new value reloads the config entry, which in turn
+    registers the panel for the chosen vacuum.
 
     No __init__: ``self.config_entry`` is set automatically by HA on the
     OptionsFlow base class as of 2024.12. Defining our own __init__ that
@@ -64,19 +89,32 @@ class EufyVacuumOptionsFlow(OptionsFlow):
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Show the notes edit form and persist changes on submit."""
+        """Show the options edit form and persist changes on submit."""
         if user_input is not None:
-            return self.async_create_entry(title="", data={
-                CONF_NOTES: user_input.get(CONF_NOTES, ""),
-            })
+            data = {CONF_NOTES: user_input.get(CONF_NOTES, "")}
+            vacuum_entity_id = user_input.get(CONF_VACUUM_ENTITY_ID)
+            if vacuum_entity_id:
+                data[CONF_VACUUM_ENTITY_ID] = vacuum_entity_id
+            return self.async_create_entry(title="", data=data)
 
+        current_vacuum = self.config_entry.options.get(
+            CONF_VACUUM_ENTITY_ID,
+            self.config_entry.data.get(CONF_VACUUM_ENTITY_ID, ""),
+        )
         current_notes = self.config_entry.options.get(
             CONF_NOTES, self.config_entry.data.get(CONF_NOTES, ""),
         )
 
+        schema: dict[Any, Any] = {}
+        if current_vacuum:
+            schema[vol.Optional(CONF_VACUUM_ENTITY_ID, default=current_vacuum)] = (
+                _VACUUM_SELECTOR
+            )
+        else:
+            schema[vol.Optional(CONF_VACUUM_ENTITY_ID)] = _VACUUM_SELECTOR
+        schema[vol.Optional(CONF_NOTES, default=current_notes)] = str
+
         return self.async_show_form(
             step_id="init",
-            data_schema=vol.Schema({
-                vol.Optional(CONF_NOTES, default=current_notes): str,
-            }),
+            data_schema=vol.Schema(schema),
         )
