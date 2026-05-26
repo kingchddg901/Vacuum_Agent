@@ -798,15 +798,12 @@ export const MOBILE_STYLES = `
   /* ===========================================================
      MODALS / SHEETS
      -----------------------------------------------------------
-     Desktop modals are typically centered ~560px wide. On
-     mobile they should fill the screen with small inset and
-     allow the body to scroll vertically.
+     Mobile modal styling lives in src/styles/index.js inside
+     MODAL_HOST_STYLES under a @media (max-width: 600px) block,
+     not here. The modal host is mounted on document.body (so the
+     shell can be cleanly destroyed without ripping open modals),
+     which means shell-data-attribute selectors here can't reach
+     it across the document tree boundary. The viewport media
+     query inside MODAL_HOST_STYLES is the right hook.
      =========================================================== */
-
-  .evcc-shell[data-viewport="mobile"] ~ .evcc-modal-host .evcc-modal,
-  .evcc-shell[data-viewport="mobile"] ~ .evcc-modal-host > * {
-    max-width:  calc(100vw - 24px);
-    max-height: calc(100vh - 48px);
-    width:      calc(100vw - 24px);
-  }
 `;

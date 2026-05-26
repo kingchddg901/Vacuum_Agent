@@ -511,4 +511,85 @@ export const MODAL_HOST_STYLES = `
         rgba(15, 23, 42, 0.28));
     }
   }
+
+  /* =========================================================
+     MOBILE — bottom-sheet layout
+     =========================================================
+     At phone widths the centered desktop modal wastes vertical
+     space and crops content that exceeds 85vh without an obvious
+     scroll affordance. Switch to a bottom-sheet pattern:
+     full-width, pinned to bottom, drag handle, sticky header +
+     footer so the user always sees where they are.
+
+     The @media query lives inside MODAL_HOST_STYLES rather than
+     in mobile.js because the modal host is mounted on document.body
+     (not inside the card shadow root), so the shell-data-attribute
+     selectors in mobile.js never reach it.
+     ========================================================= */
+  @media (max-width: 600px) {
+    .evcc-modal-backdrop {
+      /* Pin to bottom — modal rises from the edge of the screen.
+         Zero padding so the sheet can use the full width and
+         extend to viewport bottom for a true bottom-sheet feel. */
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .evcc-modal {
+      max-width:    100%;
+      width:        100%;
+      max-height:   92vh;
+      border-radius: 16px 16px 0 0;
+      border-bottom-left-radius:  0;
+      border-bottom-right-radius: 0;
+      border-bottom-width: 0;
+      box-shadow:   0 -8px 32px rgba(0, 0, 0, 0.55);
+      /* Pad bottom for iOS home-indicator safe area. */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Drag-handle pill above the header — pure visual affordance
+       that says "this is a sheet you can dismiss." We don't
+       actually wire swipe-to-dismiss; the close button (X) is
+       still the canonical close path. */
+    .evcc-modal::before {
+      content:       "";
+      display:       block;
+      flex-shrink:   0;
+      width:         40px;
+      height:        4px;
+      margin:        8px auto 0;
+      border-radius: 2px;
+      background:    var(--evcc-modal-border, rgba(255, 255, 255, 0.28));
+    }
+
+    /* Sticky header — title + close button stay visible while
+       the body scrolls. Background matches modal so scrolled
+       content doesn't bleed through. */
+    .evcc-modal-header {
+      position:  sticky;
+      top:       0;
+      z-index:   2;
+      background: var(--evcc-modal-bg, #1c2127);
+    }
+
+    /* Sticky footer — action buttons stay reachable without
+       scrolling down. Top border separates from scrolled content. */
+    .evcc-modal-footer {
+      position:  sticky;
+      bottom:    0;
+      z-index:   2;
+      background: var(--evcc-modal-bg, #1c2127);
+      border-top:
+        1px solid var(--evcc-modal-border-subtle,
+        var(--evcc-border-default, rgba(255, 255, 255, 0.12)));
+    }
+
+    /* Body: a touch of extra bottom padding so the last row of
+       content doesn't sit flush against the sticky footer when
+       scrolled to the bottom. */
+    .evcc-modal-body {
+      padding-bottom: 20px;
+    }
+  }
 `;

@@ -12690,17 +12690,14 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
   /* ===========================================================
      MODALS / SHEETS
      -----------------------------------------------------------
-     Desktop modals are typically centered ~560px wide. On
-     mobile they should fill the screen with small inset and
-     allow the body to scroll vertically.
+     Mobile modal styling lives in src/styles/index.js inside
+     MODAL_HOST_STYLES under a @media (max-width: 600px) block,
+     not here. The modal host is mounted on document.body (so the
+     shell can be cleanly destroyed without ripping open modals),
+     which means shell-data-attribute selectors here can't reach
+     it across the document tree boundary. The viewport media
+     query inside MODAL_HOST_STYLES is the right hook.
      =========================================================== */
-
-  .evcc-shell[data-viewport="mobile"] ~ .evcc-modal-host .evcc-modal,
-  .evcc-shell[data-viewport="mobile"] ~ .evcc-modal-host > * {
-    max-width:  calc(100vw - 24px);
-    max-height: calc(100vh - 48px);
-    width:      calc(100vw - 24px);
-  }
 `;var qa=[Ra,Ea,ka,Ta,Ma,$a,Aa,Ia,tt,rt,Ca,La,Oa,Pa,Na,Fa,Ha,Da,Ba,za,ja,Va].join(`
 `);function it(i,e){if(!i||!e)return;let{tokens:t}=e,r=i;de.forEach(a=>{(!Object.prototype.hasOwnProperty.call(t,a.key)||t[a.key]===null||t[a.key]===void 0||t[a.key]==="")&&r.style.removeProperty(a.key)}),Object.entries(t).forEach(([a,n])=>{n!=null&&n!==""&&r.style.setProperty(a,n)})}var Ga=`
   * {
@@ -13105,6 +13102,87 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
       background:
         var(--evcc-modal-backdrop-bg,
         rgba(15, 23, 42, 0.28));
+    }
+  }
+
+  /* =========================================================
+     MOBILE \u2014 bottom-sheet layout
+     =========================================================
+     At phone widths the centered desktop modal wastes vertical
+     space and crops content that exceeds 85vh without an obvious
+     scroll affordance. Switch to a bottom-sheet pattern:
+     full-width, pinned to bottom, drag handle, sticky header +
+     footer so the user always sees where they are.
+
+     The @media query lives inside MODAL_HOST_STYLES rather than
+     in mobile.js because the modal host is mounted on document.body
+     (not inside the card shadow root), so the shell-data-attribute
+     selectors in mobile.js never reach it.
+     ========================================================= */
+  @media (max-width: 600px) {
+    .evcc-modal-backdrop {
+      /* Pin to bottom \u2014 modal rises from the edge of the screen.
+         Zero padding so the sheet can use the full width and
+         extend to viewport bottom for a true bottom-sheet feel. */
+      align-items: flex-end;
+      padding: 0;
+    }
+
+    .evcc-modal {
+      max-width:    100%;
+      width:        100%;
+      max-height:   92vh;
+      border-radius: 16px 16px 0 0;
+      border-bottom-left-radius:  0;
+      border-bottom-right-radius: 0;
+      border-bottom-width: 0;
+      box-shadow:   0 -8px 32px rgba(0, 0, 0, 0.55);
+      /* Pad bottom for iOS home-indicator safe area. */
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+
+    /* Drag-handle pill above the header \u2014 pure visual affordance
+       that says "this is a sheet you can dismiss." We don't
+       actually wire swipe-to-dismiss; the close button (X) is
+       still the canonical close path. */
+    .evcc-modal::before {
+      content:       "";
+      display:       block;
+      flex-shrink:   0;
+      width:         40px;
+      height:        4px;
+      margin:        8px auto 0;
+      border-radius: 2px;
+      background:    var(--evcc-modal-border, rgba(255, 255, 255, 0.28));
+    }
+
+    /* Sticky header \u2014 title + close button stay visible while
+       the body scrolls. Background matches modal so scrolled
+       content doesn't bleed through. */
+    .evcc-modal-header {
+      position:  sticky;
+      top:       0;
+      z-index:   2;
+      background: var(--evcc-modal-bg, #1c2127);
+    }
+
+    /* Sticky footer \u2014 action buttons stay reachable without
+       scrolling down. Top border separates from scrolled content. */
+    .evcc-modal-footer {
+      position:  sticky;
+      bottom:    0;
+      z-index:   2;
+      background: var(--evcc-modal-bg, #1c2127);
+      border-top:
+        1px solid var(--evcc-modal-border-subtle,
+        var(--evcc-border-default, rgba(255, 255, 255, 0.12)));
+    }
+
+    /* Body: a touch of extra bottom padding so the last row of
+       content doesn't sit flush against the sticky footer when
+       scrolled to the bottom. */
+    .evcc-modal-body {
+      padding-bottom: 20px;
     }
   }
 `;function ce(i){let e=i._state;if(!e||typeof e.resolvedTheme!="function")return;let t=e.resolvedTheme();it(i,t),i._modalHost&&document.body.contains(i._modalHost)&&it(i._modalHost,t)}function hn(i){if(!i)return null;let e=i.match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);if(!e)return null;let[,t,r,a]=e;return"#"+[t,r,a].map(n=>parseInt(n,10).toString(16).padStart(2,"0")).join("")}var Ua=new Set(["--evcc-accent","--evcc-surface-base","--evcc-text-primary","--evcc-radius-card"]),fn=300,Wa=6;function Ja(i){i._bindThemeEditor=function(){this._bindThemeTabs(),this._bindThemePresets(),this._bindThemeGroupFilters(),this._bindThemeGroupToggles(),this._bindThemeGlobalSearch(),this._bindThemeGroupSearch(),this._bindThemeTokenEdits(),this._bindThemeAlphaEdits(),this._bindThemeColorMixEdits(),this._bindThemeTokenResets(),this._bindThemeGroupResets(),this._bindThemeColorPickerFromAlphaInput(),this._bindThemeActions()},i._bindThemeTabs=function(){this.card._onAll("[data-theme-tab]","click",e=>{let t=e.currentTarget.dataset.themeTab;this.card._state.setThemeSubTab(t),this.card._scheduleRender()})},i._bindThemePresets=function(){this.card._onAll("[data-theme-preset]","click",async e=>{let t=e.currentTarget.dataset.themePreset;if(!t)return;let r=await this.card._actions.setActiveTheme(this.card._config.vacuum_entity_id,t);if(r?.ok===!1){alert(r.reason||"Unable to select theme.");return}let a=r?.active_theme_id??r?.theme_id??t;this.card._state.applyThemeActivation(a,{clearDraft:r?.draft_dirty===!1}),ce(this.card),this.card._scheduleRender(),await this._refreshThemeFromBackend({fallbackActiveThemeId:a,fallbackDraftDirty:!1})})},i._bindThemeGroupFilters=function(){this.card._onAll("[data-theme-group-filter]","click",e=>{let t=e.currentTarget.dataset.themeGroupFilter||"all";this.card._state.setThemeGroupFilter(t),ee.includes(t)&&this.card._state.setThemeFocusedGroup(t),this._autoOpenMatchingThemeGroups(),this.card._scheduleRender()})},i._bindThemeGroupToggles=function(){this.card._onAll("[data-theme-group-toggle]","click",e=>{let t=e.currentTarget.dataset.themeGroupToggle;t&&(this.card._state.setThemeFocusedGroup(t),this.card._state.toggleThemeGroup(t),this.card._scheduleRender())})},i._bindThemeGlobalSearch=function(){this.card._on(this.card.$("[data-theme-search]"),"input",e=>{this.card._state.setThemeSearchQuery(e.target.value),this._autoOpenMatchingThemeGroups(),this.card._scheduleRender()}),this.card._on(this.card.$("[data-theme-modified-only]"),"change",e=>{this.card._state.setThemeModifiedOnly(e.target.checked),this._autoOpenMatchingThemeGroups(),this.card._scheduleRender()})},i._bindThemeGroupSearch=function(){this.card._onAll("[data-theme-group-search]","input",e=>{let t=e.currentTarget.dataset.themeGroupSearch;t&&(this.card._state.setThemeFocusedGroup(t),this.card._state.setThemeGroupSearchQuery(t,e.target.value),this.card._scheduleRender())})},i._bindThemeTokenEdits=function(){this.card._onAll("[data-theme-token]","input",async e=>{let t=e.currentTarget.dataset.themeToken,r=be[t];if(!r)return;let a=e.currentTarget.type==="range",n=e.currentTarget.value;this.card._state.setThemeFocusedGroup(r.group),this._syncThemeRowInputs(e.currentTarget,t),this._isScalarThemeType(r.type)&&(n=this._formatScalarThemeValue(n,r,e.currentTarget));let c=this._buildDraftPayload(t,n,r);if(!Object.keys(c).length)return;!a&&this._isSettledThemeValue(n,r)&&await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,c),this.card._state.applyThemeDraftPatch(c),ce(this.card)}),this.card._onAll("[data-theme-color-input]","change",async e=>{let t=e.currentTarget.dataset.themeColorInput,r=be[t];if(!r)return;let a=e.currentTarget.value||"";this.card._state.setThemeFocusedGroup(r.group),this._syncThemeRowInputs(e.currentTarget,t,a);let n=this._buildDraftPayload(t,a,r);Object.keys(n).length&&(await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,n),this.card._state.applyThemeDraftPatch(n),ce(this.card),this.card._scheduleDeferredRender?.())}),this.card._onAll("[data-theme-token]","change",async e=>{if(e.currentTarget.type==="range"){let r=e.currentTarget.dataset.themeToken,a=be[r];if(a){let n=e.currentTarget.value;this._isScalarThemeType(a.type)&&(n=this._formatScalarThemeValue(n,a,e.currentTarget));let c=this._buildDraftPayload(r,n,a);Object.keys(c).length&&(await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,c),this.card._state.applyThemeDraftPatch(c),ce(this.card))}}this.card._scheduleDeferredRender?.()})},i._bindThemeAlphaEdits=function(){this.card._onAll("[data-theme-alpha]","input",e=>{let t=e.currentTarget.dataset.themeAlpha;if(!t)return;let r=be[t];r?.group&&this.card._state.setThemeFocusedGroup(r.group);let a=this._clampThemeAlphaPercent(e.currentTarget.value);this._syncThemeAlphaControls(t,a,e.currentTarget),this.card._state.applyThemeDraftPatch({alpha:{[t]:a/100}}),ce(this.card)}),this.card._onAll("[data-theme-alpha]","change",async e=>{let t=e.currentTarget.dataset.themeAlpha;if(!t)return;let r=this._clampThemeAlphaPercent(e.currentTarget.value);await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,{alpha:{[t]:r/100}}),ce(this.card),this.card._scheduleDeferredRender?.()})},i._clampThemeAlphaPercent=function(e){let t=Number(e);return Number.isNaN(t)?100:Math.max(0,Math.min(100,Math.round(t)))},i._syncThemeAlphaControls=function(e,t,r=null){let a=r?r.closest(".evcc-token-row"):this.card.shadowRoot?.querySelector(`[data-theme-alpha="${e}"]`)?.closest(".evcc-token-row");if(!a)return;let n=a.querySelector(`[data-theme-alpha="${e}"]`),c=a.querySelector(`[data-theme-alpha-bubble="${e}"]`),s=a.querySelector(`[data-theme-alpha-indicator="${e}"]`),o=a.querySelector(".token-alpha-shell"),l=a.querySelector(".token-alpha-rail");if(n&&(n.value=String(t)),!n)return;let d=Number(n.min)||0,u=Number(n.max)||100,m=Number(n.value)||0,v=u===d?0:(m-d)/(u-d);if(s&&l){let p=l.clientWidth,f=v*p;s.style.left=`${f}px`}if(c&&o){let p=o.clientWidth,f=v*p;c.style.left=`${f}px`,c.textContent=`${m}%`}},i._syncThemeRowInputs=function(e,t,r=null){let a=e.closest(".evcc-token-row");if(!a)return;let n=r??e.value;a.querySelectorAll(`[data-theme-token="${t}"], [data-theme-color-input="${t}"]`).forEach(c=>{c!==e&&(c.value=n)}),this._syncThemeScalarControls(a,t,n)},i._syncThemeScalarControls=function(e,t,r){if(!e)return;let a=e.querySelector(`[data-theme-slider-bubble="${t}"]`);if(!a)return;let n=e.dataset.themeTokenUnit||"",c=e.querySelector(`input[type="range"][data-theme-token="${t}"]`);c&&(c.value=r),a.textContent=`${r}${n}`},i._isSettledThemeValue=function(e,t){if(!t||t.type!=="color")return!0;let r=String(e||"").trim();return!!(!r||/^#[0-9a-fA-F]{6}$/.test(r)||/^#[0-9a-fA-F]{8}$/.test(r)||/^color-mix\(.*%.*\)$/is.test(r)||/^var\(--[\w-]+\)$/.test(r))},i._isScalarThemeType=function(e){return e==="size"||e==="number"||e==="duration"},i._extractThemeScalarUnit=function(e,t=""){let r=String(t||"").trim();if(e?.type==="duration"){let a=r.match(/^-?\d*\.?\d+\s*(ms|s)$/i);return a?a[1].toLowerCase():"ms"}if(e?.type==="size"){let a=r.match(/^-?\d*\.?\d+\s*(px|rem|em|%|vh|vw|vmin|vmax|ch|ex)$/i);return a?a[1].toLowerCase():"px"}return""},i._formatScalarThemeValue=function(e,t,r=null){let a=parseFloat(String(e||"").trim());if(Number.isNaN(a))return"";if(t?.type==="number")return`${a}`;let n=r?.closest(".evcc-token-row")||null,c=n?.dataset.themeTokenUnit?`${a}${n.dataset.themeTokenUnit}`:e,s=this._extractThemeScalarUnit(t,c);return`${a}${s}`},i._buildDraftPayload=function(e,t,r=null){let a=r||be[e];return a?a.type==="color"?{tokens:{[e]:t},colors:{[e]:t}}:a.type==="alpha"?{alpha:{[e]:t}}:{tokens:{[e]:t}}:{}},i._bindThemeColorMixEdits=function(){this.card._onAll("[data-theme-colormix][data-colormix-part='ratio']","input",e=>{let t=e.currentTarget.dataset.themeColormix;if(!t)return;let r=e.currentTarget.closest(".evcc-token-row");if(!r)return;let a=Math.max(0,Math.min(100,Math.round(Number(e.currentTarget.value)))),n=r.querySelector(`[data-colormix-ratio-label="${t}"]`);n&&(n.textContent=`${a}%`);let c=this._readColorMixExpr(r,t,{ratio:a});c&&(this.card._state.applyThemeDraftPatch({tokens:{[t]:c},colors:{[t]:c}}),ce(this.card),this._syncColorMixPreview(r,c))}),this.card._onAll("[data-theme-colormix][data-colormix-part='ratio']","change",async e=>{let t=e.currentTarget.dataset.themeColormix;if(!t)return;let r=e.currentTarget.closest(".evcc-token-row"),a=Math.max(0,Math.min(100,Math.round(Number(e.currentTarget.value)))),n=this._readColorMixExpr(r,t,{ratio:a});if(!n)return;let c={tokens:{[t]:n},colors:{[t]:n}};await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,c),this.card._state.applyThemeDraftPatch(c),ce(this.card),this.card._scheduleDeferredRender?.()}),this.card._onAll("[data-theme-colormix][data-colormix-part='color1'], [data-theme-colormix][data-colormix-part='color2']","change",async e=>{let t=e.currentTarget.dataset.themeColormix;if(!t)return;let r=e.currentTarget.closest(".evcc-token-row"),a=this._readColorMixExpr(r,t);if(!a)return;let n={tokens:{[t]:a},colors:{[t]:a}};await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,n),this.card._state.applyThemeDraftPatch(n),ce(this.card),this._syncColorMixPreview(r,a),this.card._scheduleDeferredRender?.()}),this.card._onAll("[data-theme-colormix][data-colormix-part='color1'], [data-theme-colormix][data-colormix-part='color2']","input",e=>{let t=e.currentTarget.dataset.themeColormix;if(!t)return;let r=e.currentTarget.closest(".evcc-token-row"),a=this._readColorMixExpr(r,t);a&&this._syncColorMixPreview(r,a)})},i._readColorMixExpr=function(e,t,r={}){if(!e)return null;let a=e.querySelector('[data-colormix-part="color1"]'),n=e.querySelector('[data-colormix-part="color2"]'),c=e.querySelector('[data-colormix-part="ratio"]');if(!a||!n||!c)return null;let s=(a.value||"").trim(),o=(n.value||"").trim(),l="ratio"in r?r.ratio:Math.max(0,Math.min(100,Math.round(Number(c.value))));return!s||!o?null:`color-mix(in srgb, ${s} ${l}%, ${o} ${100-l}%)`},i._syncColorMixPreview=function(e,t){if(!e||!t)return;let r=e.querySelector(".token-colormix-preview");r&&(r.style.background=t)},i._bindThemeTokenResets=function(){this.card._onAll("[data-theme-reset]","click",async e=>{let t=e.currentTarget.dataset.themeReset,r=be[t];if(!r)return;this.card._state.setThemeFocusedGroup(r.group);let a=this._buildDraftResetPayload(t,r);Object.keys(a).length&&(await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,a),this.card._state.applyThemeDraftPatch(a),await this._refreshThemeFromBackend())})},i._buildDraftResetPayload=function(e,t){return t.type==="color"?{tokens:{[e]:null},colors:{[e]:null},alpha:{[e]:null}}:t.type==="alpha"?{alpha:{[e]:null}}:{tokens:{[e]:null}}},i._bindThemeGroupResets=function(){this.card._onAll("[data-theme-group-reset]","click",async e=>{e.stopPropagation();let t=e.currentTarget.dataset.themeGroupReset;if(!t)return;this.card._state.setThemeFocusedGroup(t);let r=this._buildThemeGroupResetPayload(t);r&&(await this.card._actions.updateWorkingDraft(this.card._config.vacuum_entity_id,r),await this._refreshThemeFromBackend())})},i._buildThemeGroupResetPayload=function(e){let t=this.card._state.filteredThemeTokensForGroup(e,de,{excludeKeys:Ua}),{sources:r}=this.card._state.resolvedTheme(),a={},n={},c={},s=!1;if(t.forEach(l=>{(r[l.key]||"ha")==="draft"&&(l.type==="color"?(a[l.key]=null,n[l.key]=null,c[l.key]=null,s=!0):l.type==="alpha"?(c[l.key]=null,s=!0):(a[l.key]=null,s=!0))}),!s)return null;let o={};return Object.keys(a).length&&(o.tokens=a),Object.keys(n).length&&(o.colors=n),Object.keys(c).length&&(o.alpha=c),o},i._bindThemeColorPickerFromAlphaInput=function(){this._alphaTapMap||(this._alphaTapMap=new Map);let e=this._alphaTapMap;this.card._onAll("[data-color-swatch]","pointerdown",t=>{let a=t.currentTarget.dataset.colorSwatch;if(!a)return;let n=t.clientX,c=t.clientY,s=!1,o=m=>{let v=Math.abs(m.clientX-n),p=Math.abs(m.clientY-c);(v>Wa||p>Wa)&&(s=!0)},l=()=>{window.removeEventListener("pointermove",o),window.removeEventListener("pointerup",d),window.removeEventListener("pointercancel",u)},d=()=>{let m=Date.now(),v=e.get(a)||0,p=!s&&m-v<fn;if(e.set(a,m),p){let h=this.card.shadowRoot?.querySelector(`[data-theme-alpha="${a}"]`)?.closest(".evcc-token-row")?.querySelector(`[data-theme-color-input="${a}"]`);if(h){let _=this._resolveTokenColorHex(a);_&&(h.value=_),h.click()}}l()},u=()=>{l()};window.addEventListener("pointermove",o),window.addEventListener("pointerup",d),window.addEventListener("pointercancel",u)})},i._resolveTokenColorHex=function(e){let t=this.card.shadowRoot;if(!t)return null;try{let r=document.createElement("div");r.style.cssText=`
