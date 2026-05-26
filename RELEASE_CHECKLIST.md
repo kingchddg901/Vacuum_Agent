@@ -51,6 +51,37 @@ from your real HA doesn't bleed in.
 - ☐ The placeholder renders correctly at both desktop and mobile
   viewport widths (resize the browser to ~390px width to check)
 
+### 1d-bonus (optional). Full happy-path test with a real vacuum
+
+The default harness doesn't include the upstream eufy-clean integration, so the
+vacuum-picker dropdown is empty and only the fallback-panel path can be tested.
+To also exercise the happy path (real vacuum picked → per-vacuum panel registers
+→ rooms/maps/dispatch all work):
+
+1. Make sure the upstream is cloned at `../eufy-clean/custom_components/robovac_mqtt`
+   (the path the docker-compose mount expects). If your sibling clone is somewhere
+   else, edit the mount line in `docker-compose.yml`.
+2. The mount is already declared in `docker-compose.yml`; restart the container
+   if it was already running: `docker compose down && docker compose up`
+3. In the test HA: **Settings → Devices & Services → + Add Integration →
+   "Eufy Robovac MQTT"**, log in with Eufy credentials
+4. Wait for the vacuum entity to appear (check **Developer Tools → States**
+   for a `vacuum.*` row)
+5. Back in **Eufy Vacuum Manager → Configure**, pick the vacuum from the
+   now-populated dropdown
+6. After reload, the sidebar should swap from the fallback panel to the
+   per-vacuum panel — verify Rooms / Setup / Maintenance tabs all render
+
+⚠️ **Side-effects to be aware of:**
+- Logging into Eufy from the test container creates a second session against
+  the cloud. It doesn't kick out your real HA's session, but if you start a
+  clean job from the test container it will run on the *real* vacuum in your
+  house.
+- Recommendation: don't push any "Start" button from the test container
+  unless you mean to start cleaning. The happy-path test is about verifying
+  the panel renders and Configure works, not about test-running the vacuum.
+- If you have a throwaway/secondary Eufy account, prefer that for testing.
+
 ### 1e. Walk the Options-flow recovery path
 
 - **Settings → Devices & Services → Eufy Vacuum Manager → Configure**

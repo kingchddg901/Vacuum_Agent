@@ -15,5 +15,13 @@ services:
       # Bind-mount the integration source so edits to custom_components/
       # show up in the container on HA restart — no rebuild needed.
       - ./custom_components/eufy_vacuum:/config/custom_components/eufy_vacuum:ro
+      # Upstream eufy-clean / robovac_mqtt — the integration that exposes
+      # the vacuum.* entity our integration manages. Only needed for
+      # happy-path tests where you want to log in to a real Eufy account
+      # and pick a real vacuum in the picker. Optional: comment out for
+      # cold-install / fallback-panel testing only.
+      # Path assumes the upstream is cloned at the sibling directory
+      # shown below; adjust if yours lives elsewhere.
+      - ../eufy-clean/custom_components/robovac_mqtt:/config/custom_components/robovac_mqtt:ro
     environment:
       - TZ=America/Los_Angeles
