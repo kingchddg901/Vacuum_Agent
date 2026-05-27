@@ -4,7 +4,14 @@
  * ============================================================
  *
  * Wires DOM interactions in the Maintenance view — inner tab
- * switching, maintenance item modal open/close, and reset flow.
+ * switching, maintenance item modal open/close, reset flow, and
+ * the per-component interval editor (Save / Restore-default).
+ *
+ * The interval editor writes through eufy_vacuum.set_maintenance_interval,
+ * which stores into the same data["maintenance"][vacuum][component]
+ * slot as the EufyVacuumMaintenanceIntervalNumber HA entity — so any
+ * value the user sets here is immediately reflected on number.*
+ * entities and vice-versa.
  *
  * ============================================================
  */
@@ -70,6 +77,70 @@ export function applyMaintenanceBindings(proto) {
       this.card._on(el, "click", () => {
         this.card._state.cancelMaintenanceResetConfirmation?.();
         this.card._scheduleRender();
+      });
+    });
+
+    host.querySelectorAll("[data-action='save-maintenance-interval']").forEach((el) => {
+      this.card._on(el, "click", async () => {
+        const input = host.querySelector("[data-role='maintenance-interval-input']");
+        if (!input) return;
+
+        const raw = String(input.value ?? "").trim();
+        const value = Number(raw);
+        if (!Number.isFinite(value) || value <= 0) {
+          console.warn("[eufy-vacuum-command-center] interval must be > 0", { raw });
+          return;
+        }
+
+        const maxAttr = input.getAttribute("max");
+        const maxVal = Number(maxAttr);
+        if (Number.isFinite(maxVal) && maxVal > 0 && value > maxVal) {
+          console.warn("[eufy-vacuum-command-center] interval exceeds max", { value, max: maxVal });
+          return;
+        }
+
+        const vacuumEntityId = input.dataset?.vacuumEntityId;
+        const component = input.dataset?.component;
+        if (!vacuumEntityId || !component) return;
+
+        const result = await this.card._actions.callNamedService?.(
+          "eufy_vacuum.set_maintenance_interval",
+          {
+            vacuum_entity_id: vacuumEntityId,
+            component,
+            interval_hours: value,
+          },
+          true
+        );
+
+        if (result === null) {
+          console.warn("[eufy-vacuum-command-center] set_maintenance_interval failed");
+          return;
+        }
+
+        await this.card.refreshDashboardSnapshot?.();
+
+        const active = this.card._state.activeMaintenanceModalItem?.();
+        if (active) {
+          const refreshed = this.card._state.findUpkeepItem?.(
+            active.kind,
+            active.component,
+            active.entity_id
+          );
+          if (refreshed) this.card._state.openMaintenanceModal?.(refreshed);
+        }
+        this.card._scheduleRender();
+      });
+    });
+
+    host.querySelectorAll("[data-action='reset-maintenance-interval-default']").forEach((el) => {
+      this.card._on(el, "click", () => {
+        const input = host.querySelector("[data-role='maintenance-interval-input']");
+        if (!input) return;
+        const def = Number(input.dataset?.default);
+        if (Number.isFinite(def) && def > 0) {
+          input.value = String(def);
+        }
       });
     });
 

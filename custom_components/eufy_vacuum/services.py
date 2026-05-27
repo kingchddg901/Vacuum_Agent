@@ -67,6 +67,7 @@ from .const import (
     SERVICE_UPDATE_ROOM_FIELDS,
     SERVICE_WASH_MOP,
     SERVICE_RESET_MAINTENANCE,
+    SERVICE_SET_MAINTENANCE_INTERVAL,
     SERVICE_SET_DOCK_EVENT_COUNT,
     SERVICE_APPLY_RUN_PROFILE,
     SERVICE_DELETE_RUN_PROFILE,
@@ -390,6 +391,16 @@ RESET_MAINTENANCE_SCHEMA = vol.Schema(
     }
 )
 
+SET_MAINTENANCE_INTERVAL_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("component"): cv.string,
+        vol.Required("interval_hours"): vol.All(
+            vol.Coerce(float), vol.Range(min=0.0)
+        ),
+    }
+)
+
 SET_DOCK_EVENT_COUNT_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
@@ -700,6 +711,37 @@ async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> d
     return payload
 
 
+async def _handle_set_maintenance_interval(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Persist a user-configured maintenance interval for one component.
+
+    Writes into manager.data["maintenance"][<vacuum>][<component>]["interval_hours"]
+    — same slot the EufyVacuumMaintenanceIntervalNumber entity writes to,
+    so the card-side editor and the HA number entity stay in sync. The
+    interval is clamped to MAINTENANCE_INTERVAL_MIN/MAX at the entity
+    level but the service trusts its caller (the card validates against
+    the adapter's declared min/max before submitting).
+    """
+    manager = _get_manager(hass)
+    vacuum_entity_id = call.data["vacuum_entity_id"]
+    component = call.data["component"]
+    interval_hours = round(float(call.data["interval_hours"]), 1)
+
+    manager.data.setdefault("maintenance", {})
+    manager.data["maintenance"].setdefault(vacuum_entity_id, {})
+    manager.data["maintenance"][vacuum_entity_id].setdefault(component, {})
+    manager.data["maintenance"][vacuum_entity_id][component]["interval_hours"] = interval_hours
+    await manager.async_save()
+
+    payload = {
+        "saved": True,
+        "vacuum_entity_id": vacuum_entity_id,
+        "component": component,
+        "interval_hours": interval_hours,
+    }
+    _LOGGER.debug("set_maintenance_interval: %s", payload)
+    return payload
+
+
 async def _handle_set_dock_event_count(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite a dock event counter to a specific value."""
     payload = _get_manager(hass).set_dock_event_count(**call.data)
@@ -944,6 +986,9 @@ async def async_register_services(hass: HomeAssistant) -> None:
 
     async def reset_maintenance(call: ServiceCall) -> dict:
         return await _handle_reset_maintenance(hass, call)
+
+    async def set_maintenance_interval(call: ServiceCall) -> dict:
+        return await _handle_set_maintenance_interval(hass, call)
 
     async def set_dock_event_count(call: ServiceCall) -> dict:
         return await _handle_set_dock_event_count(hass, call)
@@ -1230,6 +1275,13 @@ async def async_register_services(hass: HomeAssistant) -> None:
         SERVICE_RESET_MAINTENANCE,
         reset_maintenance,
         schema=RESET_MAINTENANCE_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SET_MAINTENANCE_INTERVAL,
+        set_maintenance_interval,
+        schema=SET_MAINTENANCE_INTERVAL_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(
@@ -1835,6 +1887,7 @@ async def async_unregister_services(hass: HomeAssistant) -> None:
         SERVICE_EMPTY_DUST,
         SERVICE_STOP_DRY_MOP,
         SERVICE_RESET_MAINTENANCE,
+        SERVICE_SET_MAINTENANCE_INTERVAL,
         SERVICE_GET_ROOM_PROFILES,
         SERVICE_SAVE_USER_ROOM_PROFILE,
         SERVICE_OVERWRITE_ROOM_PROFILE,

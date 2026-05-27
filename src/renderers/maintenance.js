@@ -405,7 +405,14 @@ export function applyMaintenanceRenderers(proto) {
      ========================================================= */
 
   /**
-   * Render the maintenance item detail modal with guide steps, notes, and reset flow.
+   * Render the maintenance item detail modal with guide steps, notes,
+   * the user-adjustable interval editor (maintenance items only), and
+   * reset flow.
+   *
+   * The interval editor surfaces the adapter-declared default/max bounds
+   * (default_interval_hours / max_interval_hours on the item) so the
+   * input can validate before submitting through
+   * eufy_vacuum.set_maintenance_interval.
    *
    * @param {object} ctx - Render context containing `state`.
    * @returns {string} HTML string, or empty string if no modal item is active.
@@ -481,6 +488,56 @@ export function applyMaintenanceRenderers(proto) {
                 </div>
               </div>
             ` : ""}
+
+            ${kind === "maintenance" ? (() => {
+              const currentInterval = Number(item?.interval_hours);
+              const defaultInterval = Number(item?.default_interval_hours);
+              const maxInterval = Number(item?.max_interval_hours);
+              const vacuumEntityId = item?.reset_service_data?.vacuum_entity_id ?? "";
+              const compKey = item?.component ?? "";
+              const inputValue = Number.isFinite(currentInterval) && currentInterval > 0
+                ? currentInterval
+                : (Number.isFinite(defaultInterval) ? defaultInterval : "");
+              const hintParts = [];
+              if (Number.isFinite(defaultInterval) && defaultInterval > 0) hintParts.push(`Default ${defaultInterval}h`);
+              if (Number.isFinite(maxInterval) && maxInterval > 0) hintParts.push(`Max ${maxInterval}h`);
+              return `
+                <div class="evcc-editor-field-group">
+                  <div class="evcc-field-label">Interval</div>
+                  <div class="evcc-maintenance-interval-row">
+                    <input
+                      type="number"
+                      class="evcc-maintenance-interval-input"
+                      data-role="maintenance-interval-input"
+                      min="1"
+                      ${Number.isFinite(maxInterval) && maxInterval > 0 ? `max="${maxInterval}"` : ""}
+                      step="0.5"
+                      value="${this.escapeHtml(String(inputValue))}"
+                      data-default="${this.escapeHtml(String(defaultInterval || 0))}"
+                      data-vacuum-entity-id="${this.escapeHtml(String(vacuumEntityId))}"
+                      data-component="${this.escapeHtml(String(compKey))}"
+                    />
+                    <span class="evcc-maintenance-interval-unit">hours</span>
+                    <button
+                      type="button"
+                      class="evcc-chip evcc-chip--save"
+                      data-action="save-maintenance-interval"
+                    >Save</button>
+                    ${Number.isFinite(defaultInterval) && defaultInterval > 0 ? `
+                      <button
+                        type="button"
+                        class="evcc-chip"
+                        data-action="reset-maintenance-interval-default"
+                        title="Restore manufacturer default (${defaultInterval}h)"
+                      >Default</button>
+                    ` : ""}
+                  </div>
+                  ${hintParts.length ? `
+                    <div class="evcc-maintenance-interval-hint">${this.escapeHtml(hintParts.join(" · "))}</div>
+                  ` : ""}
+                </div>
+              `;
+            })() : ""}
 
             ${canInvokeReset ? `
               <div class="evcc-editor-field-group">

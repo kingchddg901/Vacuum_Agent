@@ -37,7 +37,7 @@ whose deep reference lives in a subsystem doc link out.
 `wash_mop` · `dry_mop` · `stop_dry_mop` · `empty_dust` · `get_dock_action_status` · `set_dock_event_count`
 
 **Maintenance and errors**
-`reset_maintenance` · `acknowledge_error` · `get_recent_errors`
+`reset_maintenance` · `set_maintenance_interval` · `acknowledge_error` · `get_recent_errors`
 
 **Setup (card-level Eufy onboarding — refactor candidate, see [porting-guide.md §9](../contributing/porting-guide.md#9-what-still-might-require-framework-work))**
 `setup_get_status` · `setup_add_vacuum` · `setup_import_active_map` · `setup_get_map_rooms` · `setup_save_rooms` · `setup_delete_map` · `setup_reject_rooms` · `setup_force_remove_room`
@@ -946,6 +946,7 @@ Per-component maintenance reset and the error-tracker surface.
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
 | `reset_maintenance` | Reset the manual-reset counter for one consumable component (brush, filter, mop pad, etc.). The component key must match `adapter_config.maintenance_components`. | `vacuum_entity_id`, `component: str` | (none) | yes — `{ok, component, reset_at}` |
+| `set_maintenance_interval` | Override the maintenance interval (in hours) for one component. Writes the same storage slot as the `number.*_maintenance_interval` entity, so the card editor and the entity stay in sync. The card's modal editor surfaces the adapter-declared default/max bounds and validates before submitting. | `vacuum_entity_id`, `component: str`, `interval_hours: float` | (none) | yes — `{saved, vacuum_entity_id, component, interval_hours}` |
 | `acknowledge_error` | Clear an active-run error latch or the last-device error latch (or both). | `vacuum_entity_id` | `scope: "active_run" \| "last_device" \| "both"` (default `both`) | yes — `{ok, cleared: [...]}` |
 | `get_recent_errors` | Return the most recent error entries from the per-device ring buffer. | `vacuum_entity_id` | `limit: int` (1-50, default 20) | yes — `{vacuum_entity_id, errors: [...], count}` |
 

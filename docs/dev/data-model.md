@@ -36,7 +36,7 @@ This document is the canonical shape reference for every major object in the euf
   "maps":             dict[vacuum_entity_id, dict[map_id, MapBucket]]  # required; {} on first boot
   "theme":            ThemeRoot                                 # required; seeded by async_initialize
   "analytics":        dict                                      # reserved; always {}
-  "maintenance":      dict                                      # reserved; always {}
+  "maintenance":      dict[vacuum_entity_id, dict[component, MaintenanceRecord]]  # reset timestamps + user interval overrides
   "dock_events":      dict                                      # reserved; always {}
   "onboarding":       dict                                      # reserved; always {}
   "capabilities":     dict[vacuum_entity_id, CapabilityBucket] # seeded by async_initialize

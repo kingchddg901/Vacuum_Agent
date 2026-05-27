@@ -1307,6 +1307,41 @@ reset_maintenance:
       selector:
         text: {}
 
+set_maintenance_interval:
+  name: Set maintenance interval
+  description: >
+    Override the maintenance interval (in hours) for a specific component.
+    Writes to the same storage slot as the number.* maintenance interval
+    entity, so the card editor and the entity stay in sync. Card-side UI
+    validates against the adapter's declared default/max before submitting.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    component:
+      name: Component
+      description: >
+        The maintenance component whose interval to override.
+        Valid values: brush, side_brush, filter, mop, sensor.
+      required: true
+      selector:
+        text: {}
+    interval_hours:
+      name: Interval (hours)
+      description: >
+        New maintenance interval in hours. Rounded to one decimal place.
+        Must be greater than zero.
+      required: true
+      selector:
+        number:
+          min: 0
+          step: 0.5
+          mode: box
+          unit_of_measurement: h
+
 # ============================================================
 # LEARNING
 # ============================================================

@@ -69,7 +69,16 @@ Below that:
 
 - **Steps** — model-aware service instructions, shown as a numbered list. If the integration does not have steps for your model, the modal says so.
 - **Notes** — any supplementary notes from the integration's guidance data.
+- **Interval** — appears only on integration-managed maintenance items (not device-reported replacements). Lets you override how often the integration flags this component for service.
 - **Reset** — appears only on items that support a reset action (`can_reset: true`).
+
+#### Adjusting the Interval
+
+The **Interval** section shows the current maintenance interval (in hours) for the item along with the manufacturer-recommended default and the maximum allowed override. Enter a new value and click **Save** to persist it; click **Default** to put the manufacturer's recommended interval back into the input (you still need to click **Save** to commit).
+
+Intervals are stored per vacuum per component and persist across restarts. The value is shared with the matching `number.<vacuum>_<component>_maintenance_interval` entity, so changes made on the card show up on the entity (and the reverse). Editing the interval does not reset the counter — the new value takes effect immediately and the "remaining" figure recalculates from current usage.
+
+Use this when the default cleaning frequency does not suit your environment — for example, lowering the filter interval in a pet household, or raising the brush interval if your floors stay clean enough that the default warning fires too soon.
 
 #### Using the Reset action
 

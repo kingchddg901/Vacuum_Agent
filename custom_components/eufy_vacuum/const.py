@@ -61,6 +61,7 @@ SERVICE_DRY_MOP = "dry_mop"
 SERVICE_STOP_DRY_MOP = "stop_dry_mop"
 SERVICE_EMPTY_DUST = "empty_dust"
 SERVICE_RESET_MAINTENANCE = "reset_maintenance"
+SERVICE_SET_MAINTENANCE_INTERVAL = "set_maintenance_interval"
 SERVICE_SET_DOCK_EVENT_COUNT = "set_dock_event_count"
 
 SERVICE_GET_ROOM_PROFILES = "get_room_profiles"

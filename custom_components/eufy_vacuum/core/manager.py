@@ -7053,6 +7053,13 @@ class EufyVacuumManager:
                 "remaining_hours": maintenance.get("remaining_hours"),
                 "used_since_reset_hours": maintenance.get("used_since_reset_hours"),
                 "interval_hours": maintenance.get("interval_hours"),
+                # Surface the adapter-declared bounds so the card's maintenance
+                # modal can render an interval editor with the right defaults
+                # and validation cap. Per maintenance_components.py: default is
+                # the manufacturer recommendation; max is the absolute ceiling
+                # for a user override (set generously, e.g. 720h for filter).
+                "default_interval_hours": float(meta.get("default_interval_hours", 0.0) or 0.0),
+                "max_interval_hours": float(meta.get("max_interval_hours", 0.0) or 0.0),
                 "current_usage_hours": maintenance.get("current_usage_hours"),
                 "reset_at": maintenance.get("reset_at"),
                 "remaining_percent": remaining_percent,

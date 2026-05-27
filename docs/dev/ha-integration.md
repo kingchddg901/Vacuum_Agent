@@ -255,7 +255,7 @@ Handlers dispatch via `**_resolved_call_data(hass, call)` rather than `**call.da
 | Job control | `get_start_status`, `start_selected_rooms`, `start_run_profile`, `pause_active_job`, `resume_active_job`, `cancel_active_job`, `get_active_job`, `get_job_progress_snapshot`, `get_job_control_state`, `clear_active_job`, `get_pause_timeout_settings`, `set_pause_timeout_settings` | Active job lifecycle. |
 | Dock actions | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `get_dock_action_status` | Gated dock commands. All `supports_response=True`. |
 | Snapshots | `get_lifecycle_state`, `get_dashboard_snapshot`, `get_upkeep_snapshot` | Unified card data snapshots. |
-| Maintenance | `reset_maintenance`, `set_dock_event_count` | Upkeep counter management. |
+| Maintenance | `reset_maintenance`, `set_maintenance_interval`, `set_dock_event_count` | Upkeep counter management. `set_maintenance_interval` writes the same storage slot as the `number.*` interval entity. |
 | Errors | `acknowledge_error`, `get_recent_errors` | ErrorTracker latches and recent-errors ring buffer. `vacuum_entity_id` only — these are per-device, not per-map. |
 | Room profiles | `get_room_profiles`, `save_user_room_profile`, `overwrite_room_profile`, `save_room_profile_from_room`, `overwrite_room_profile_from_room`, `rename_room_profile`, `delete_room_profile`, `apply_room_profile` | Named cleaning profile CRUD. |
 | Run profiles | `get_saved_run_profiles`, `save_run_profile`, `apply_run_profile`, `overwrite_run_profile`, `rename_run_profile`, `delete_run_profile` | Saved run configuration CRUD. |
