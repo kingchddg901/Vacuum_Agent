@@ -221,7 +221,7 @@ export function applyOrderBindings(proto) {
   proto.bindOrderEvents = function (root) {
     if (!root) return;
 
-    root.addEventListener("click", (event) => {
+    this.card._on(root, "click", (event) => {
       const target = event.target.closest("[data-action]");
       if (!target) return;
 
@@ -257,7 +257,7 @@ export function applyOrderBindings(proto) {
       }
     });
 
-    root.addEventListener("dragstart", (event) => {
+    this.card._on(root, "dragstart", (event) => {
       const target = event.target.closest("[data-order-drag-item]");
       if (!target) return;
 
@@ -277,7 +277,7 @@ export function applyOrderBindings(proto) {
       this._applyDragVisualState(scope, itemId, itemId);
     });
 
-    root.addEventListener("dragover", (event) => {
+    this.card._on(root, "dragover", (event) => {
       const target = event.target.closest("[data-order-drop-target]");
       if (!target) return;
 
@@ -295,7 +295,7 @@ export function applyOrderBindings(proto) {
       );
     });
 
-    root.addEventListener("drop", (event) => {
+    this.card._on(root, "drop", (event) => {
       const target = event.target.closest("[data-order-drop-target]");
       if (!target) return;
 
@@ -308,7 +308,7 @@ export function applyOrderBindings(proto) {
       this.confirmDraggedOrderWithFlip(scope, targetId);
     });
 
-    root.addEventListener("dragend", () => {
+    this.card._on(root, "dragend", () => {
       this.card._state.clearOrderDrag();
       this._clearDragVisualState();
     });

@@ -26,7 +26,7 @@ export function applyRoomRulesBindings(proto) {
        SUB-TAB SELECTION
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='set-room-rules-tab']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const roomId = btn.dataset.roomId;
         if (!roomId) return;
         this.card._state.setRoomRulesActiveRoom?.(roomId);
@@ -38,7 +38,7 @@ export function applyRoomRulesBindings(proto) {
        OPEN NEW RULE FORM
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='open-new-rule']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this.card._state.openNewRuleDraft?.();
         this.card._scheduleRender();
       });
@@ -48,7 +48,7 @@ export function applyRoomRulesBindings(proto) {
        EDIT EXISTING RULE
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='edit-rule']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const ruleId = btn.dataset.ruleId;
         const room = this.card._state.resolvedRoomRulesRoom?.();
         if (!room) return;
@@ -66,7 +66,7 @@ export function applyRoomRulesBindings(proto) {
        DELETE RULE
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='delete-rule']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const ruleId = btn.dataset.ruleId;
         const room = this.card._state.resolvedRoomRulesRoom?.();
         if (!room || !ruleId) return;
@@ -88,7 +88,7 @@ export function applyRoomRulesBindings(proto) {
        CANCEL RULE EDITOR
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='cancel-rule-editor']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this.card._state.closeRulesDraft?.();
         this.card._scheduleRender();
       });
@@ -98,7 +98,7 @@ export function applyRoomRulesBindings(proto) {
        RULE FIELD CHIP CLICKS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-field]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const field = btn.dataset.ruleField;
         let rawValue = btn.dataset.ruleValue;
         if (field == null) return;
@@ -125,12 +125,12 @@ export function applyRoomRulesBindings(proto) {
        RULE TEXT INPUTS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-input]").forEach((input) => {
-      input.addEventListener("input", () => {
+      this.card._on(input, "input", () => {
         const field = input.dataset.ruleInput;
         if (!field) return;
         this.card._state.updateRuleDraftField?.(field, input.value);
       });
-      input.addEventListener("change", () => {
+      this.card._on(input, "change", () => {
         this.card._scheduleRender();
       });
     });
@@ -139,7 +139,7 @@ export function applyRoomRulesBindings(proto) {
        RULE SELECT INPUTS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-select]").forEach((input) => {
-      input.addEventListener("change", () => {
+      this.card._on(input, "change", () => {
         const field = input.dataset.ruleSelect;
         if (!field) return;
         this.card._state.updateRuleDraftField?.(field, input.value || null);
@@ -151,7 +151,7 @@ export function applyRoomRulesBindings(proto) {
        RULE NUMBER INPUTS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-number-input]").forEach((input) => {
-      input.addEventListener("input", () => {
+      this.card._on(input, "input", () => {
         const field = input.dataset.ruleNumberInput;
         if (!field) return;
         const rawValue = input.value;
@@ -160,7 +160,7 @@ export function applyRoomRulesBindings(proto) {
           rawValue === "" ? null : Number(rawValue)
         );
       });
-      input.addEventListener("change", () => {
+      this.card._on(input, "change", () => {
         this.card._scheduleRender();
       });
     });
@@ -169,7 +169,7 @@ export function applyRoomRulesBindings(proto) {
        RULE MULTI-SELECT VALUE CHIPS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-multivalue]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const rawValue = String(btn.dataset.ruleMultivalue ?? "").trim();
         if (!rawValue) return;
 
@@ -188,7 +188,7 @@ export function applyRoomRulesBindings(proto) {
        RULE ENTITY SEARCH RESULTS
        ------------------------------------------------------- */
     root.querySelectorAll("[data-rule-entity-select]").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const entityId = String(btn.dataset.ruleEntitySelect ?? "").trim();
         if (!entityId) return;
         this.card._state.updateRuleDraftField?.("entity_id", entityId);
@@ -200,7 +200,7 @@ export function applyRoomRulesBindings(proto) {
        SAVE RULE
        ------------------------------------------------------- */
     root.querySelectorAll("[data-action='save-rule']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const state = this.card._state;
         if (!state.roomRulesDraftIsValid?.()) return;
 

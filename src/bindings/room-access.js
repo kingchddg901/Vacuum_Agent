@@ -25,7 +25,7 @@ export function applyRoomAccessBindings(proto) {
     if (!host) return;
 
     host.querySelectorAll("[data-action='open-room-access']").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      this.card._on(btn, "click", (e) => {
         e.stopPropagation();
 
         const roomId = btn.dataset.roomId;
@@ -39,14 +39,14 @@ export function applyRoomAccessBindings(proto) {
     });
 
     host.querySelectorAll("[data-action='close-room-access']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this.card._state.closeRoomAccess?.();
         this.card._scheduleRender();
       });
     });
 
     host.querySelectorAll("[data-action='toggle-is-dock-room']").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      this.card._on(btn, "click", (e) => {
         e.stopPropagation();
         this.card._state.toggleIsDockRoomField?.();
         this.card._scheduleRender();
@@ -54,7 +54,7 @@ export function applyRoomAccessBindings(proto) {
     });
 
     host.querySelectorAll("[data-action='toggle-room-access-target']").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      this.card._on(btn, "click", (e) => {
         e.stopPropagation();
 
         const roomId = btn.dataset.roomId;
@@ -66,8 +66,7 @@ export function applyRoomAccessBindings(proto) {
     });
 
     const saveBtn = host.querySelector("[data-action='save-room-access']");
-    if (saveBtn) {
-      saveBtn.addEventListener("click", async () => {
+    this.card._on(saveBtn, "click", async () => {
         const room = this.card._state.activeAccessRoom?.();
         const fields = this.card._state.roomAccessFields?.();
         const validation = this.card._state.roomAccessValidation?.();
@@ -114,6 +113,5 @@ export function applyRoomAccessBindings(proto) {
           this.card._scheduleRender();
         }
       });
-    }
   };
 }

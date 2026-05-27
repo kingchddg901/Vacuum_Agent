@@ -53,28 +53,28 @@ export function applyMaintenanceBindings(proto) {
     if (!host) return;
 
     host.querySelectorAll("[data-action='close-maintenance-modal']").forEach((el) => {
-      el.addEventListener("click", () => {
+      this.card._on(el, "click", () => {
         this.card._state.closeMaintenanceModal?.();
         this.card._scheduleRender();
       });
     });
 
     host.querySelectorAll("[data-action='begin-maintenance-reset']").forEach((el) => {
-      el.addEventListener("click", () => {
+      this.card._on(el, "click", () => {
         this.card._state.beginMaintenanceResetConfirmation?.();
         this.card._scheduleRender();
       });
     });
 
     host.querySelectorAll("[data-action='cancel-maintenance-reset']").forEach((el) => {
-      el.addEventListener("click", () => {
+      this.card._on(el, "click", () => {
         this.card._state.cancelMaintenanceResetConfirmation?.();
         this.card._scheduleRender();
       });
     });
 
     host.querySelectorAll("[data-action='confirm-maintenance-reset']").forEach((el) => {
-      el.addEventListener("click", async () => {
+      this.card._on(el, "click", async () => {
         const item = this.card._state.activeMaintenanceModalItem?.();
         if (!item || !this.card._state.canInvokeMaintenanceReset?.(item)) return;
 

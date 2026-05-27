@@ -317,9 +317,7 @@ export function applyRoomEditorBindings(proto) {
 
   proto._bindRoomEditorClose = function () {
     const modal = this.card.$("[data-stop-propagation]");
-    if (modal) {
-      modal.addEventListener("click", (e) => e.stopPropagation());
-    }
+    this.card._on(modal, "click", (e) => e.stopPropagation());
 
     this.card._onAll("[data-action='close-room-editor']", "click", async () => {
       const shouldSkip = this.card._state.shouldSkipRefreshOnClose();

@@ -51,7 +51,7 @@ export function applyMapBindings(proto) {
 
   proto._bindMapViewToggle = function (root) {
     root.querySelectorAll("[data-action='set-map-view']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const active = btn.dataset.mapView === "true";
         this.card._state.setMapViewActive(active);
 
@@ -87,7 +87,7 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='toggle-segment']").forEach((el) => {
       let _clickTimer = null;
 
-      el.addEventListener("click", (e) => {
+      this.card._on(el, "click", (e) => {
         e.stopPropagation();
         if (this.card._mapDragOccurred) {
           this.card._mapDragOccurred = false;
@@ -168,10 +168,10 @@ export function applyMapBindings(proto) {
     const hide = () => tooltip.classList.remove("evcc-map-tooltip--visible");
 
     root.querySelectorAll("[data-action='toggle-segment']").forEach((el) => {
-      el.addEventListener("pointerenter", (e) => show(el, e));
-      el.addEventListener("pointermove",  (e) => move(e));
-      el.addEventListener("pointerleave", hide);
-      el.addEventListener("click",        hide);
+      this.card._on(el, "pointerenter", (e) => show(el, e));
+      this.card._on(el, "pointermove",  (e) => move(e));
+      this.card._on(el, "pointerleave", hide);
+      this.card._on(el, "click",        hide);
     });
   };
 
@@ -186,7 +186,7 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-chip-activate']").forEach((chip) => {
       let _clickTimer = null;
 
-      chip.addEventListener("click", (e) => {
+      this.card._on(chip, "click", (e) => {
         e.stopPropagation();
         const roomId = chip.dataset.roomId;
         if (!roomId) return;
@@ -215,7 +215,7 @@ export function applyMapBindings(proto) {
 
   proto._bindMapConfigEntry = function (root) {
     root.querySelectorAll("[data-action='open-map-config']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this._ensureMapSegments();
         this.card.setView(VIEWS.MAP_CONFIG);
       });
@@ -229,14 +229,14 @@ export function applyMapBindings(proto) {
   proto._bindMapConfig = function (root) {
     // Back button
     root.querySelectorAll("[data-action='map-config-back']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this.card.setView(VIEWS.ROOMS);
       });
     });
 
     // Segment selection (config mode)
     root.querySelectorAll("[data-action='config-select-segment']").forEach((el) => {
-      el.addEventListener("click", (e) => {
+      this.card._on(el, "click", (e) => {
         e.stopPropagation();
         const segId = el.dataset.segmentId;
         if (!segId) return;
@@ -249,20 +249,37 @@ export function applyMapBindings(proto) {
       });
     });
 
-    // Upload buttons — bind change handler fresh at click time so a
-    // re-render while the file picker is open doesn't orphan the listener.
+    // Upload buttons — open a fresh in-memory file input on each click.
+    //
+    // WHY a transient input (not the rendered <input> in the variant row):
+    // between input.click() returning and the user actually picking a file,
+    // HA pushes state updates (vacuum sync, etc.) that trigger card renders.
+    // A render replaces the variant row's innerHTML, orphaning the rendered
+    // <input> — when the picker finally fires `change`, browsers may not
+    // deliver the event to listeners on the detached element. The picker
+    // closes and the upload silently no-ops.
+    //
+    // Creating the input in-memory (detached from DOM) means no render can
+    // touch it. The closure here holds the only reference; it lives long
+    // enough for the picker + change event, then GCs once the handler
+    // resolves.
+    //
+    // Idempotency for this button is critical: rebinding stacks click
+    // handlers, causing the file picker to open N times per click.
+    // card._on() guards against that via a per-event dataset marker.
     root.querySelectorAll("[data-action='upload-map-variant']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const variant = btn.dataset.variant;
-        const input   = root.querySelector(`[data-variant-input="${variant}"]`);
-        if (!input) return;
+
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png,image/jpeg,image/webp,image/bmp";
 
         const handleChange = async () => {
           input.removeEventListener("change", handleChange);
 
           const file = input.files?.[0];
           if (!file) return;
-          input.value = "";
 
           const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
           const mapId = rooms[0]?.mapId ?? null;
@@ -281,7 +298,12 @@ export function applyMapBindings(proto) {
           try {
             const base64 = await _fileToBase64(file);
             await this.card._actions.uploadMapImage(mapId, base64, { variant });
-            this.card._state.setMapActionStatus({ type: "analyze", status: "busy" });
+            // Keep the variant in the status during analyze — the analyze
+            // step is the long one (Pillow/SciPy segmentation, 10-30s typical)
+            // and dropping the variant causes the per-variant button to
+            // revert to "Upload" even though work is still happening.
+            // Reads as a silent no-op to the user (reported indirectly on #2).
+            this.card._state.setMapActionStatus({ type: "analyze", variant, status: "busy" });
             this.card._scheduleRender();
             await this.card._actions.analyzeMapImage(mapId, { force_reanalyze: true });
             await this.card._actions.getMapSegments(mapId);
@@ -304,7 +326,7 @@ export function applyMapBindings(proto) {
 
     // Analyse button
     root.querySelectorAll("[data-action='analyze-map']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
         const mapId = rooms[0]?.mapId ?? null;
         if (!mapId) return;
@@ -330,7 +352,7 @@ export function applyMapBindings(proto) {
 
     // Nudge buttons
     root.querySelectorAll("[data-action='nudge-segment']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const segId = btn.dataset.segmentId;
         const dx    = Number(btn.dataset.dx ?? 0);
         const dy    = Number(btn.dataset.dy ?? 0);
@@ -350,7 +372,7 @@ export function applyMapBindings(proto) {
 
     // Reset adjustment
     root.querySelectorAll("[data-action='reset-segment-adjustment']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const segId = btn.dataset.segmentId;
         const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
         const mapId = rooms[0]?.mapId ?? this.card._state.activeMapId?.() ?? null;
@@ -381,7 +403,7 @@ export function applyMapBindings(proto) {
 
     // Edge adjust buttons
     root.querySelectorAll("[data-action='adjust-edge']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const segId  = btn.dataset.segmentId;
         const edge   = btn.dataset.edge;
         const delta  = Number(btn.dataset.delta ?? 0);
@@ -402,7 +424,7 @@ export function applyMapBindings(proto) {
 
     // Vertex select
     root.querySelectorAll("[data-action='select-vertex']").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      this.card._on(btn, "click", (e) => {
         e.stopPropagation();
         const idx = Number(btn.dataset.vertexIndex);
         const cur = this.card._state.configSelectedVertexIndex?.();
@@ -413,7 +435,7 @@ export function applyMapBindings(proto) {
 
     // Vertex nudge
     root.querySelectorAll("[data-action='nudge-vertex']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const segId  = btn.dataset.segmentId;
         const idx    = Number(btn.dataset.vertexIndex);
         const dx     = Number(btn.dataset.dx ?? 0);
@@ -436,7 +458,7 @@ export function applyMapBindings(proto) {
 
     // Vertex reset
     root.querySelectorAll("[data-action='reset-vertex']").forEach((btn) => {
-      btn.addEventListener("click", async () => {
+      this.card._on(btn, "click", async () => {
         const segId  = btn.dataset.segmentId;
         const idx    = Number(btn.dataset.vertexIndex);
         const rooms  = this.card._state.getRoomsForActiveMap?.() ?? [];
@@ -466,7 +488,7 @@ export function applyMapBindings(proto) {
     // local-only; card._actions.setSegmentRoomLink persists), so the
     // binding orchestrates both.
     root.querySelectorAll("[data-action='assign-segment-room']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         const segId  = btn.dataset.segmentId;
         const roomId = btn.dataset.roomId;
         if (!segId || !roomId) return;
@@ -525,7 +547,7 @@ export function applyMapBindings(proto) {
 
   proto._bindMapAnimalSelect = function (root) {
     root.querySelectorAll("[data-action='map-animal-select']").forEach((sel) => {
-      sel.addEventListener("change", () => {
+      this.card._on(sel, "change", () => {
         this.card._state.setMapAnimalSelection?.(sel.value);
         this.card._scheduleRender();
       });
@@ -533,7 +555,7 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-animal-scale']").forEach((slider) => {
       // input fires continuously while dragging — update state live.
       // change fires when the thumb is released — schedule a render then.
-      slider.addEventListener("input", () => {
+      this.card._on(slider, "input", () => {
         this.card._state.setMapAnimalScale?.(slider.value);
         // Live-update the animal element dimensions without a full re-render
         // so the icon resizes smoothly as the slider moves.
@@ -549,7 +571,7 @@ export function applyMapBindings(proto) {
           svg.setAttribute("height", H);
         }
       });
-      slider.addEventListener("change", () => {
+      this.card._on(slider, "change", () => {
         this.card._scheduleRender();
       });
     });
@@ -560,7 +582,7 @@ export function applyMapBindings(proto) {
       const layers = root.querySelector(".evcc-map-layers");
       if (!layers) return;
 
-      el.addEventListener("pointerdown", (e) => {
+      this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
         e.stopPropagation();   // prevent the pan handler from starting a drag
         e.preventDefault();    // prevent text selection, browser scroll takeover
@@ -662,13 +684,13 @@ export function applyMapBindings(proto) {
     };
 
     root.querySelectorAll("[data-action='map-zoom-in']").forEach((btn) => {
-      btn.addEventListener("click", (e) => { e.stopPropagation(); _stepZoom(1.25); });
+      this.card._on(btn, "click", (e) => { e.stopPropagation(); _stepZoom(1.25); });
     });
     root.querySelectorAll("[data-action='map-zoom-out']").forEach((btn) => {
-      btn.addEventListener("click", (e) => { e.stopPropagation(); _stepZoom(0.8); });
+      this.card._on(btn, "click", (e) => { e.stopPropagation(); _stepZoom(0.8); });
     });
     root.querySelectorAll("[data-action='map-zoom-fit']").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
+      this.card._on(btn, "click", (e) => {
         e.stopPropagation();
         this.card._state.resetMapTransform?.();
         applyTransform();
@@ -703,7 +725,7 @@ export function applyMapBindings(proto) {
     let _lastX = 0, _lastY = 0;
     let _moved  = false;
 
-    container.addEventListener("pointerdown", (e) => {
+    this.card._on(container, "pointerdown", (e) => {
       if (e.button !== 0) return;
       // Always reset drag flag so the next click starts clean.
       this.card._mapDragOccurred = false;
@@ -743,7 +765,7 @@ export function applyMapBindings(proto) {
     // ----------------------------------------------------------
     // Double-click on map background → reset transform
     // ----------------------------------------------------------
-    container.addEventListener("dblclick", (e) => {
+    this.card._on(container, "dblclick", (e) => {
       if (e.target.closest("[data-action='toggle-segment']")) return;
       this.card._state.resetMapTransform?.();
       applyTransform();
@@ -784,7 +806,7 @@ export function applyMapBindings(proto) {
       _lastPinchDist = dist;
     }, { passive: false });
 
-    container.addEventListener("touchend", (e) => {
+    this.card._on(container, "touchend", (e) => {
       Array.from(e.changedTouches).forEach((t) => {
         delete _activeTouches[t.identifier];
       });

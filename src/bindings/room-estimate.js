@@ -22,7 +22,7 @@ export function applyRoomEstimateBindings(proto) {
     if (!host) return;
 
     host.querySelectorAll("[data-action='close-room-estimate']").forEach((btn) => {
-      btn.addEventListener("click", () => {
+      this.card._on(btn, "click", () => {
         this.card._state.closeRoomEstimateModal?.();
         this.card._scheduleRender();
       });

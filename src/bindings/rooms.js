@@ -326,15 +326,15 @@ export function applyRoomsBindings(proto) {
         clearPressState();
       };
 
-      chip.addEventListener("pointerdown", startPress);
-      chip.addEventListener("pointerup", () => {
+      this.card._on(chip, "pointerdown", startPress);
+      this.card._on(chip, "pointerup", () => {
         chip.classList.remove("is-pressing");
         clearPressState();
       });
-      chip.addEventListener("pointerleave", cancelPress);
-      chip.addEventListener("pointercancel", cancelPress);
+      this.card._on(chip, "pointerleave", cancelPress);
+      this.card._on(chip, "pointercancel", cancelPress);
 
-      chip.addEventListener("click", (event) => {
+      this.card._on(chip, "click", (event) => {
         if (longPressTriggered) {
           event.preventDefault();
           event.stopPropagation();
@@ -355,7 +355,7 @@ export function applyRoomsBindings(proto) {
         }, DOUBLE_CLICK_DELAY_MS);
       });
 
-      chip.addEventListener("dblclick", (event) => {
+      this.card._on(chip, "dblclick", (event) => {
         event.preventDefault();
         event.stopPropagation();
 
@@ -375,7 +375,7 @@ export function applyRoomsBindings(proto) {
         this.card._scheduleRender();
       });
 
-      chip.addEventListener("contextmenu", (event) => {
+      this.card._on(chip, "contextmenu", (event) => {
         event.preventDefault();
       });
     });
