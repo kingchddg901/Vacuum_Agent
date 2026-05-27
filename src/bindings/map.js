@@ -703,7 +703,7 @@ export function applyMapBindings(proto) {
     // is left to the page (so scrolling the parent dashboard still
     // works); only Ctrl-modified wheel intercepts.
     // ----------------------------------------------------------
-    container.addEventListener("wheel", (e) => {
+    this.card._on(container, "wheel", (e) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
       const rect = container.getBoundingClientRect();
@@ -777,7 +777,7 @@ export function applyMapBindings(proto) {
     const _activeTouches = {};
     let _lastPinchDist = null;
 
-    container.addEventListener("touchstart", (e) => {
+    this.card._on(container, "touchstart", (e) => {
       Array.from(e.changedTouches).forEach((t) => {
         _activeTouches[t.identifier] = { x: t.clientX, y: t.clientY };
       });
@@ -787,7 +787,7 @@ export function applyMapBindings(proto) {
       }
     }, { passive: false });
 
-    container.addEventListener("touchmove", (e) => {
+    this.card._on(container, "touchmove", (e) => {
       Array.from(e.changedTouches).forEach((t) => {
         _activeTouches[t.identifier] = { x: t.clientX, y: t.clientY };
       });

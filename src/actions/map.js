@@ -116,6 +116,8 @@ export function applyMapActions(proto) {
       { vacuum_entity_id: vacuum, map_id: mapId, ...options },
       undefined, // target
       true,      // notifyOnError — let HA surface the toast too
+      true,      // returnResponse — service is registered supports_response=True;
+                 // modern HA silently rejects the call if the caller doesn't opt in.
     );
   };
 
@@ -130,6 +132,8 @@ export function applyMapActions(proto) {
       { vacuum_entity_id: vacuum, map_id: mapId, image_base64: imageBase64, ...options },
       undefined,
       true,
+      true,      // returnResponse — service is registered supports_response=True;
+                 // without this the call silently no-ops, file never gets written.
     );
   };
 
@@ -144,6 +148,7 @@ export function applyMapActions(proto) {
       { vacuum_entity_id: vacuum, map_id: mapId, segment_id: segmentId, ...adjustment },
       undefined,
       true,
+      true,      // returnResponse — same as upload/analyze above
     );
   };
 

@@ -481,9 +481,18 @@ export function applyMapRenderers(proto) {
   proto._renderVariantsSection = function (variants, summary, actionStatus) {
     const rows = _VARIANTS.map(({ key, label, hint }) => {
       const uploaded   = variants[key];
-      const isBusy     = actionStatus?.type === "upload" &&
-                         actionStatus?.variant === key &&
-                         actionStatus?.status === "busy";
+      // Treat both the upload phase and the (much longer) analyze phase
+      // as "busy" for this variant, so the button stays in a clear working
+      // state through the whole 10-30s round-trip. Dropping the indicator
+      // partway through the flow makes the slow analyze step read as a
+      // silent no-op to the user.
+      const isUploadBusy = actionStatus?.type === "upload" &&
+                           actionStatus?.variant === key &&
+                           actionStatus?.status === "busy";
+      const isAnalyzeBusy = actionStatus?.type === "analyze" &&
+                            actionStatus?.variant === key &&
+                            actionStatus?.status === "busy";
+      const isBusy = isUploadBusy || isAnalyzeBusy;
       const isError    = actionStatus?.type === "upload" &&
                          actionStatus?.variant === key &&
                          actionStatus?.status === "error";
@@ -494,6 +503,12 @@ export function applyMapRenderers(proto) {
       const statusCls  = uploaded
         ? "evcc-map-variant-status--ok"
         : "evcc-map-variant-status--missing";
+
+      // Label flips between upload (network transfer) and analyze
+      // (segmenter pipeline) so the user has some sense of what's happening.
+      const buttonLabel = isUploadBusy ? "Uploading…"
+                        : isAnalyzeBusy ? "Analyzing… (10-30s)"
+                        : "Upload";
 
       return `
         <div class="evcc-map-variant-row">
@@ -512,13 +527,10 @@ export function applyMapRenderers(proto) {
             data-action="upload-map-variant"
             data-variant="${key}"
             ${isBusy ? "disabled" : ""}
-          >${isBusy ? "Uploading…" : "Upload"}</button>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/bmp"
-            data-variant-input="${key}"
-            style="display:none"
-          >
+          >${buttonLabel}</button>
+          <!-- File input is created in-memory by the click binding (bindings/map.js).
+               Keeping it out of the DOM avoids re-render orphan issues when HA pushes
+               state updates between picker open and file selection. -->
         </div>
       `;
     }).join("");
