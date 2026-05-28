@@ -193,6 +193,15 @@ export const roomRulesStyles = `
   color:     var(--evcc-text-muted, rgba(240,242,245,0.48));
 }
 
+/* Rule fan-out badge on the rule card — small "→ also affects N rooms"
+   line under the effect summary so users can spot fan-out rules in the
+   list without opening the editor. */
+.evcc-rule-fan-out {
+  font-size:    0.74rem;
+  color:        var(--evcc-accent, #60a5fa);
+  margin-top:   2px;
+}
+
 .evcc-rule-disabled-tag {
   flex-shrink:   0;
   align-self:    center;

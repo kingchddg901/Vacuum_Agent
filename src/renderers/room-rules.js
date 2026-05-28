@@ -130,6 +130,14 @@ export function applyRoomRulesRenderers(proto) {
             ${rule.label ? `<div class="evcc-rule-entity">${this.escapeHtml(rule.entity_id)}</div>` : ""}
             <div class="evcc-rule-condition">${this.escapeHtml(condition)}</div>
             <div class="evcc-rule-effect">${this.escapeHtml(effect)}</div>
+            ${(() => {
+              const fanOutCount = Array.isArray(rule.fan_out_room_ids)
+                ? rule.fan_out_room_ids.length
+                : 0;
+              return fanOutCount > 0
+                ? `<div class="evcc-rule-fan-out">→ also affects ${fanOutCount} room${fanOutCount === 1 ? "" : "s"}</div>`
+                : "";
+            })()}
           </div>
 
           ${!rule.enabled ? `<span class="evcc-rule-disabled-tag">Disabled</span>` : ""}
@@ -278,6 +286,8 @@ export function applyRoomRulesRenderers(proto) {
           </div>
 
           ${isModifier ? this._renderModifierChanges(draft, state) : ""}
+
+          ${isModifier ? this._renderRuleFanOutSection(draft, state) : ""}
         </div>
 
         ${saveError ? `<div class="evcc-rule-editor-save-error">${this.escapeHtml(saveError)}</div>` : ""}
@@ -438,6 +448,52 @@ export function applyRoomRulesRenderers(proto) {
         ${draft.operator === "in" || draft.operator === "not_in"
           ? `<div class="evcc-rule-editor-help">Comma-separated list of values.</div>`
           : ""}
+      </div>
+    `;
+  };
+
+  /**
+   * Render the "Also apply to" multi-select picker for a modifier rule.
+   *
+   * Each candidate room is rendered as a toggle chip. The chip's active
+   * state mirrors membership in draft.fan_out_room_ids; tapping it
+   * dispatches data-rule-field="fan_out_room_ids" with the room id as
+   * the value. updateRuleDraftField handles the toggle semantics.
+   *
+   * Hidden when only the rule's own room exists on the map — fan-out
+   * needs at least one other room to be meaningful.
+   *
+   * @param {object} draft - Current rule draft.
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string, or empty when there are no candidates.
+   */
+  proto._renderRuleFanOutSection = function (draft, state) {
+    const candidates = state.availableFanOutTargets?.() ?? [];
+    if (!candidates.length) return "";
+
+    const selected = new Set(
+      (Array.isArray(draft.fan_out_room_ids) ? draft.fan_out_room_ids : [])
+        .map((id) => String(id))
+    );
+
+    return `
+      <div class="evcc-rule-editor-section">
+        <div class="evcc-field-label">Also apply to</div>
+        <div class="evcc-rule-editor-help">
+          When this rule fires, also apply its settings to the rooms below.
+          Each room's own rules still win for any fields they set; this
+          fills in fields the room hasn't already overridden.
+        </div>
+        <div class="evcc-chips">
+          ${candidates.map((room) => `
+            <button
+              type="button"
+              class="evcc-chip ${selected.has(String(room.id)) ? "active" : ""}"
+              data-rule-field="fan_out_room_ids"
+              data-rule-value="${this.escapeHtml(String(room.id))}"
+            >${this.escapeHtml(room.name)}</button>
+          `).join("")}
+        </div>
       </div>
     `;
   };

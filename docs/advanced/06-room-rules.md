@@ -57,6 +57,24 @@ Use a modifier when the room should still be cleaned but with different behavior
 
 Multiple modifier rules can match for the same room. When that happens, each matching rule's changes are merged in the order the rules are evaluated. Later rules overwrite earlier ones for the same setting. There is no explicit priority system — if you need a specific setting to "win," put that rule later in the room's rule list.
 
+#### Fan-out: apply a rule to additional rooms
+
+A modifier rule can optionally extend its effect to other rooms beyond the one that owns the rule. This is useful when one condition should change settings in several related rooms — for example, when "quiet mode" should affect not just the bedroom that authored the rule but also the hallway outside it and the adjacent bedroom.
+
+To configure fan-out, open the modifier rule's editor and use the **Also apply to** section. Tap any room to toggle whether it receives this rule's effect. Mobile users can pick from a chip list; desktop users see the same chips.
+
+How fan-out behaves:
+
+- **One authored rule, many effective consequences.** The rule is stored once on its owning room. The selected target rooms do not get a hidden duplicate rule — the effect is computed at run-planning time.
+- **The owning room's queue state is irrelevant to fan-out targets.** If the rule's condition is true, fan-out targets get the modifier regardless of whether the owning room is included in the current run.
+- **Each target room's own rules still win.** Fan-out fills in fields the target room hasn't already overridden through its own direct rules. If the bathroom has its own rule setting Fan Speed to Boost, a fan-out from the bedroom trying to set Fan Speed to Quiet on the bathroom will be ignored for that field — but other fields the bathroom doesn't override still apply.
+- **Blocked rooms are skipped.** A fan-out target that is excluded from the run by a blocker (its own, or via the access graph) does not receive the modifier — there's no point modifying a room that won't be cleaned.
+- **Fan-out is one level, not transitive.** Bedroom 1's rule can fan out to Hallway, but Hallway's own rules do not chain further on top of that fan-out.
+
+When a room appears in the pre-start "Modified Rooms" preview because of a fan-out, the entry says so — for example, `Hallway: fan_speed (via Bedroom 1's Quiet Mode)` — so the source rule is always traceable from the start-status panel.
+
+Fan-out is only available for modifier rules. Blockers already have transitive behavior through the access graph (if A is blocked and B requires A, B is blocked too); they do not need a separate fan-out mechanism.
+
 ---
 
 ## Operators

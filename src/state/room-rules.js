@@ -54,7 +54,29 @@ function blankDraft() {
       reason: "",
       changes: {},
     },
+    // Rule fan-out: optional list of additional room IDs this modifier
+    // rule applies to beyond the rule's owning room. Only meaningful
+    // for modifier kind; sanitizeRuleDraftForDescriptor strips this for
+    // blocker. Backend pass-2 expansion (core/manager.py) consumes it.
+    fan_out_room_ids: [],
   };
+}
+
+/**
+ * Toggle a room id in/out of a fan-out target list. Returns a new
+ * array; never mutates the input.
+ */
+function toggleFanOutTarget(current, roomId) {
+  const list = Array.isArray(current) ? current.map(Number).filter(Number.isFinite) : [];
+  const id = Number(roomId);
+  if (!Number.isFinite(id)) return list;
+  const idx = list.indexOf(id);
+  if (idx >= 0) {
+    list.splice(idx, 1);
+  } else {
+    list.push(id);
+  }
+  return list.sort((a, b) => a - b);
 }
 
 function isFiniteNumericValue(value) {
@@ -167,6 +189,25 @@ export function applyRoomRulesState(proto) {
   };
 
   /**
+   * Candidate rooms for the "Also apply to" multi-select picker in
+   * the rule editor. Returns every room on the active map except the
+   * one whose rule is being edited (a rule can't fan out to its own
+   * owning room — that's already covered by direct evaluation).
+   *
+   * Returns the rooms in their stored display order so the picker
+   * matches the room grid's ordering, which is how the user thinks
+   * about them.
+   *
+   * @returns {Array<{id, name, order}>}
+   */
+  proto.availableFanOutTargets = function () {
+    const rooms = this.getRoomsForActiveMap?.() ?? [];
+    const ownRoom = this.resolvedRoomRulesRoom?.();
+    if (!ownRoom) return rooms.slice();
+    return rooms.filter((r) => String(r.id) !== String(ownRoom.id));
+  };
+
+  /**
    * Returns the room object currently selected in the sub-tab.
    * Falls back to the first room if nothing is selected yet.
    */
@@ -226,6 +267,13 @@ export function applyRoomRulesState(proto) {
         reason: rule.effect?.reason ?? "",
         changes: { ...(rule.effect?.changes ?? {}) },
       },
+      // Rule fan-out: copy through any saved target room IDs so the
+      // editor's "Also apply to" picker reflects the stored selection.
+      // Filtered to numeric IDs to defend against legacy / corrupted
+      // stored values.
+      fan_out_room_ids: Array.isArray(rule.fan_out_room_ids)
+        ? rule.fan_out_room_ids.map(Number).filter(Number.isFinite)
+        : [],
     }, this.ruleEntityDescriptor(rule.entity_id ?? ""));
     this._roomRulesDraftMode = "edit";
     this._roomRulesSaveError = null;
@@ -251,6 +299,11 @@ export function applyRoomRulesState(proto) {
           // Clear changes when switching to blocker.
           changes: kind === "blocker" ? {} : this._roomRulesDraft.effect.changes,
         },
+        // Fan-out only makes sense for modifier rules; drop on switch
+        // to blocker so a stale list doesn't ride through the save.
+        fan_out_room_ids: kind === "modifier"
+          ? (this._roomRulesDraft.fan_out_room_ids ?? [])
+          : [],
       }, this.ruleEntityDescriptor(this._roomRulesDraft.entity_id));
 
     } else if (field === "operator") {
@@ -286,6 +339,19 @@ export function applyRoomRulesState(proto) {
       this._roomRulesDraft = {
         ...this._roomRulesDraft,
         effect: { ...this._roomRulesDraft.effect, changes },
+      };
+
+    } else if (field === "fan_out_room_ids") {
+      // Toggle semantics: value is the room ID to flip in/out of the
+      // current list. The renderer dispatches one of these per chip
+      // tap, so the same dispatcher handles "add" and "remove" without
+      // a separate action. Sorted ascending for deterministic storage.
+      this._roomRulesDraft = {
+        ...this._roomRulesDraft,
+        fan_out_room_ids: toggleFanOutTarget(
+          this._roomRulesDraft.fan_out_room_ids,
+          value
+        ),
       };
 
     } else {

@@ -317,6 +317,88 @@ This means the **last matching rule wins** for any field that appears in more th
 
 Example: if Rule 1 sets `fan_speed: "Quiet"` and Rule 2 (later) sets `fan_speed: "Max"`, the result is `fan_speed: "Max"`.
 
+### Rule fan-out — pass 2
+
+A modifier rule may carry an optional `fan_out_room_ids: list[int]` field. When present and non-empty, the run-planning pipeline executes a second modifier-resolution pass after the blocker resolution finalises `blocked_room_ids`. This pass extends the rule's effect to additional rooms beyond the rule's owning room.
+
+**Schema addition:**
+
+```json
+{
+  "id": "rule_abc",
+  "kind": "modifier",
+  "entity_id": "input_boolean.bedroom_quiet_mode",
+  "operator": "is_on",
+  "effect": { "changes": { "fan_speed": "quiet" } },
+  "fan_out_room_ids": [2, 3]
+}
+```
+
+Only valid on `kind: "modifier"`. The card UI strips the field when a rule's kind is flipped to `blocker`. Absent / empty array = pre-fan-out behaviour (zero-risk additive change).
+
+**Algorithm (pass 2):**
+
+```python
+selected_set = set(selected_room_ids)
+blocked_set = set(blocked_room_ids)
+
+for source_room_id in sorted(all_rooms_by_id.keys()):
+    for rule in all_rooms_by_id[source_room_id].get("rules", []):
+        if rule.kind != "modifier" or not rule.enabled: continue
+        if not rule.get("fan_out_room_ids"): continue
+        if not _room_rule_matches(rule): continue
+
+        change_set = rule.effect.get("changes", {})
+        if not change_set: continue
+
+        for target_id in rule["fan_out_room_ids"]:
+            if target_id not in all_rooms_by_id: continue   # runtime filter
+            if target_id == source_room_id: continue        # defensive
+            if target_id not in selected_set: continue
+            if target_id in blocked_set: continue
+
+            if target_id not in modifier_matches:
+                modifier_matches[target_id] = _build_modified_room_entry(
+                    room_id=target_id,
+                    name=all_rooms_by_id[target_id].get("name"),
+                    derived=True,
+                    source_room_id=source_room_id,
+                    source_room_name=...,
+                    source_rule_id=rule.id,
+                    source_rule_name=rule.label or rule.entity_id,
+                )
+
+            # Setdefault per field — direct rules win, fan-out fills gaps.
+            for field, value in change_set.items():
+                modifier_matches[target_id]["changes"].setdefault(field, value)
+
+            triggered = modifier_matches[target_id]["triggered_rule_ids"]
+            if rule.id not in triggered:
+                triggered.append(rule.id)
+```
+
+**Locked design decisions** (spec 2026-05-28):
+
+1. **The rule's condition is evaluated independently of the owning room's queue inclusion.** Whether Bedroom 1 itself is selected for the run has no effect on whether Bedroom 1's rule fans out to Hallway. The mental model is "when the trigger entity is on, those rooms get quieter" — orthogonal to which rooms the user picked for this specific run.
+2. **Direct rules win per field.** `setdefault` is the merge primitive (not `update`). A target room's own direct-rule fields are preserved; fan-out only fills in fields the target has not already overridden.
+3. **First-fan-out-wins among multiple sources** for the same target field. Source rooms are iterated in ascending `room_id` order so the result is deterministic regardless of `dict` insertion order. There is no priority knob.
+4. **Targets not in the selection are skipped.** No point applying a modifier to a room that won't be cleaned in this run.
+5. **Targets in `blocked_room_ids` are skipped.** Same logic as direct modifiers, which also bypass blocked rooms.
+6. **Self-fan-out is silently ignored.** The card UI prevents authoring it, this is defence in depth.
+7. **One level, not transitive.** Bedroom 1's rule fans out to Hallway. Hallway's own rules are evaluated in pass 1 (direct rules), not re-evaluated with fan-out semantics in pass 2. There is no recursion.
+
+**Reporting:**
+
+When an entry in `modifier_matches` is created entirely by pass 2 (no direct rule contributed first), the entry is flagged `derived: True` with `source_room_id`, `source_room_name`, `source_rule_id`, and `source_rule_name` populated. When a direct rule populated the entry in pass 1 first and pass 2 merges in additional fan-out fields, `derived` stays `False` — direct wins the entry-level attribution. Per-field provenance is intentionally out of scope; `triggered_rule_ids` lists every contributing rule for traceability.
+
+The card's pre-start "Modified Rooms" preview surfaces the derived attribution as `<changes> (via <source_room_name>'s <source_rule_name>)` so users can trace why a room they didn't author a rule for is being modified.
+
+**Out of scope:**
+
+- Per-field provenance ("this field came from fan-out, that field came from direct rule")
+- Fan-out for blockers (the access graph already handles transitive blocking)
+- Delete-time cascade cleanup of stale target IDs (the runtime filter at the top of the target loop catches unknown IDs cheaply enough that the cascade pass is unnecessary)
+
 ---
 
 ## 6. The 20%/40% confirmation threshold

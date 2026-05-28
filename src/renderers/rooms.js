@@ -445,12 +445,24 @@ proto.renderRoomsActionBar = function (
             <div class="evcc-start-preflight-section">
               <div class="evcc-start-preflight-title">Modified Rooms</div>
               <div class="evcc-start-preflight-list">
-                ${modifiedRooms.map((room) => `
-                  <div class="evcc-start-preflight-item">
-                    <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? "Room")}</span>
-                    <span class="evcc-start-preflight-reason">${this.escapeHtml(Object.keys(room.changes ?? {}).join(", ") || "Settings adjusted")}</span>
-                  </div>
-                `).join("")}
+                ${modifiedRooms.map((room) => {
+                  const changeLabel = Object.keys(room.changes ?? {}).join(", ") || "Settings adjusted";
+                  // Fan-out attribution: when this entry was created
+                  // purely by a rule fan-out (no direct rule on this
+                  // room contributed), the backend flags it with
+                  // derived: true and source_* fields. Surface the
+                  // source rule name so users see why a room they
+                  // didn't author a rule for is being modified.
+                  const derivedNote = room.derived && room.source_rule_name
+                    ? ` (via ${room.source_room_name ?? "another room"}'s ${room.source_rule_name})`
+                    : "";
+                  return `
+                    <div class="evcc-start-preflight-item">
+                      <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? "Room")}</span>
+                      <span class="evcc-start-preflight-reason">${this.escapeHtml(changeLabel + derivedNote)}</span>
+                    </div>
+                  `;
+                }).join("")}
               </div>
             </div>
           ` : ""}

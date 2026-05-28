@@ -5275,17 +5275,36 @@ class EufyVacuumManager:
         *,
         room_id: int,
         name: str | None,
+        derived: bool = False,
+        source_room_id: int | None = None,
+        source_room_name: str | None = None,
+        source_rule_id: str | None = None,
+        source_rule_name: str | None = None,
     ) -> dict[str, Any]:
         """Return an initial modified-room record.
 
         ``changes`` and ``triggered_rule_ids`` are populated incrementally
         as matching modifier rules are accumulated after construction.
+
+        Fan-out fields (``derived``, ``source_*``) are populated only when
+        the entry is created purely by a rule fan-out expansion (a rule
+        whose ``fan_out_room_ids`` includes this room, with no direct
+        rule on this room). When a direct rule later contributes to the
+        same entry, ``derived`` flips to False — direct rules win the
+        attribution at the entry level. Per-field provenance is out of
+        scope for now; ``triggered_rule_ids`` still lists every
+        contributing rule for traceability.
         """
         return {
             "room_id": room_id,
             "name": name,
             "changes": {},
             "triggered_rule_ids": [],
+            "derived": derived,
+            "source_room_id": source_room_id,
+            "source_room_name": source_room_name,
+            "source_rule_id": source_rule_id,
+            "source_rule_name": source_rule_name,
         }
 
     def _confirmation_token_for_preflight(
@@ -5595,6 +5614,104 @@ class EufyVacuumManager:
             blocked_room_ids.append(room_id)
 
         included_room_ids = [room_id for room_id in selected_room_ids if room_id not in set(blocked_room_ids)]
+
+        # ------------------------------------------------------------------
+        # Pass 2 — rule fan-out expansion.
+        #
+        # A modifier rule may declare ``fan_out_room_ids: [..]`` to apply
+        # its effect to additional rooms beyond the rule's owning room.
+        # The spec (rule fan-out, locked 2026-05-28) defines:
+        #
+        #   - The rule's trigger condition is evaluated independently of
+        #     whether the owning room is in the selection. If the user's
+        #     "quiet mode" toggle is on, fan-out targets get quiet
+        #     settings even if the source bedroom is excluded from this
+        #     run.
+        #   - Direct rules win per field. We merge with ``setdefault`` so
+        #     a target room's own direct-rule fields are preserved; only
+        #     fields the direct rules did NOT set get filled in by
+        #     fan-out.
+        #   - Among multiple fan-out sources hitting the same target,
+        #     iterate source rules in ascending source-room-id order
+        #     (deterministic; first-wins per field).
+        #   - Targets not in the current selection are skipped (no point
+        #     modifying a room that won't be cleaned).
+        #   - Targets in ``blocked_room_ids`` are skipped (same — direct
+        #     modifiers also skip blocked rooms).
+        #   - Self-fan-out is silently ignored; user-facing UI prevents
+        #     it from being authored, this is defense in depth.
+        #
+        # Reporting: when an entry is created purely by fan-out (no
+        # direct rule contributed first), the entry is flagged
+        # ``derived: True`` with ``source_*`` fields naming the rule and
+        # source room. When a direct rule already populated the entry
+        # before fan-out merges in, ``derived`` stays False — direct
+        # wins the entry-level attribution.
+        # ------------------------------------------------------------------
+        selected_set = set(selected_room_ids)
+        blocked_set = set(blocked_room_ids)
+
+        for source_room_id in sorted(all_rooms_by_id.keys()):
+            source_room = all_rooms_by_id[source_room_id]
+            for rule in source_room.get("rules", []):
+                if not isinstance(rule, dict) or not bool(rule.get("enabled", True)):
+                    continue
+                if rule.get("kind") != "modifier":
+                    continue
+                fan_out_raw = rule.get("fan_out_room_ids")
+                if not isinstance(fan_out_raw, list) or not fan_out_raw:
+                    continue
+                entity_id = str(rule.get("entity_id", "")).strip()
+                if not entity_id:
+                    continue
+                if not self._room_rule_matches(rule):
+                    continue
+
+                effect = rule.get("effect", {}) if isinstance(rule.get("effect"), dict) else {}
+                change_set = effect.get("changes", {}) if isinstance(effect.get("changes"), dict) else {}
+                if not change_set:
+                    continue
+
+                rule_id = str(rule.get("id"))
+                rule_name = rule.get("label") or entity_id
+                source_name = source_room.get("name")
+
+                for raw_target_id in fan_out_raw:
+                    # Runtime filter — unknown / non-numeric IDs are
+                    # silently dropped so stale references from before a
+                    # room delete don't error out the planning pass.
+                    try:
+                        target_id = int(raw_target_id)
+                    except (TypeError, ValueError):
+                        continue
+                    if target_id not in all_rooms_by_id:
+                        continue
+                    if target_id == source_room_id:
+                        continue
+                    if target_id not in selected_set:
+                        continue
+                    if target_id in blocked_set:
+                        continue
+
+                    target_room = all_rooms_by_id[target_id]
+                    if target_id not in modifier_matches:
+                        modifier_matches[target_id] = self._build_modified_room_entry(
+                            room_id=target_id,
+                            name=target_room.get("name"),
+                            derived=True,
+                            source_room_id=source_room_id,
+                            source_room_name=source_name,
+                            source_rule_id=rule_id,
+                            source_rule_name=rule_name,
+                        )
+
+                    existing_changes = modifier_matches[target_id]["changes"]
+                    for field_name, field_value in change_set.items():
+                        existing_changes.setdefault(field_name, field_value)
+
+                    triggered = modifier_matches[target_id]["triggered_rule_ids"]
+                    if rule_id not in triggered:
+                        triggered.append(rule_id)
 
         effective_rooms = {
             room_key: dict(room_data)

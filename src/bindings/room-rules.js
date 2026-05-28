@@ -298,6 +298,16 @@ function _buildRulePayload(draft, descriptor) {
       cleaned[key] = value;
     }
     payload.effect.changes = cleaned;
+
+    // Rule fan-out: pass through the saved target list, normalized to
+    // numeric IDs. Only set the field when non-empty so a brand-new
+    // rule with no fan-out doesn't carry an empty array around the
+    // wire — keeps stored rule shape clean.
+    const fanOutRaw = Array.isArray(draft.fan_out_room_ids) ? draft.fan_out_room_ids : [];
+    const fanOut = fanOutRaw.map(Number).filter((n) => Number.isFinite(n) && n > 0);
+    if (fanOut.length) {
+      payload.fan_out_room_ids = fanOut;
+    }
   }
 
   return payload;
