@@ -33,11 +33,16 @@ export function applyBaseStationBindings(proto) {
 
         if (payload) {
           this.card._state.setPauseTimeoutSettings?.(payload);
+          const label = minutes === 0 ? "Auto-cancel disabled" : `Pause timeout set to ${minutes} min`;
+          this.card.showToast?.(label, { kind: "success" });
+        } else {
+          this.card.showToast?.("Could not save pause timeout", { kind: "error" });
         }
 
         this.card._scheduleRender();
       } catch (err) {
         console.error("[eufy-vacuum-command-center] Failed to set pause timeout:", err);
+        this.card.showToast?.("Could not save pause timeout", { kind: "error" });
       }
     });
 
@@ -58,14 +63,29 @@ export function applyBaseStationBindings(proto) {
       this.card._state.beginDockAction?.(action);
       this.card._scheduleRender();
 
+      const labels = {
+        wash_mop: "Mop wash sent",
+        dry_mop: "Mop dry sent",
+        stop_dry_mop: "Stop drying sent",
+        empty_dust: "Dust empty sent",
+      };
+
+      let ok = false;
       try {
-        await this.card._actions[method]();
+        const result = await this.card._actions[method]();
+        ok = result !== null;
       } finally {
         this.card._state.endDockAction?.();
         await this.card.refreshDashboardSnapshot?.();
         await this.card.refreshDockActionStatus?.();
         this.card._scheduleRender();
       }
+
+      this.card.showToast?.(
+        ok ? (labels[action] ?? "Dock action sent")
+           : `Dock action failed (${action.replace(/_/g, " ")})`,
+        { kind: ok ? "success" : "error" }
+      );
     });
   };
 }

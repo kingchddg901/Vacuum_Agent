@@ -123,6 +123,7 @@ SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room"
 # ----------------------
 
 SERVICE_UPLOAD_MAP_IMAGE = "upload_map_image"
+SERVICE_DELETE_MAP_IMAGE = "delete_map_image"
 SERVICE_ANALYZE_MAP_IMAGE = "analyze_map_image"
 SERVICE_GET_MAP_SEGMENTS = "get_map_segments"
 SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"

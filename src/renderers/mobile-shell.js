@@ -82,6 +82,37 @@ function _statusDotClass(status) {
   }[status] || "";
 }
 
+// Defensive title-case fallback used only before the dashboard
+// snapshot has populated the backend-provided label. Once it has,
+// the renderer uses ctx.vacuumStatusLabel / ctx.dockStatusLabel
+// directly — adapter vocabulary stays server-side.
+function _fallbackTitleCase(raw) {
+  return String(raw ?? "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\w\S*/g, (word) =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    );
+}
+
+function _dockDotClass(dockStatus) {
+  const key = String(dockStatus ?? "").trim().toLowerCase();
+  return {
+    cleaning:  "cleaning",
+    washing:   "cleaning",
+    drying:    "returning",
+    emptying:  "returning",
+    charging:  "charging",
+    error:     "error",
+    fault:     "error",
+    offline:   "offline",
+    unavailable: "unavailable",
+    idle:      "docked",
+    standby:   "docked",
+  }[key] || "";
+}
+
 /* =========================================================
    PUBLIC API — applied to VacuumCardRenderers.prototype
    ========================================================= */
@@ -94,8 +125,12 @@ export function applyMobileShellRenderer(proto) {
    * bottom on mobile.
    */
   proto.renderMobileHeader = function (ctx) {
-    const { vacuumName, vacuumStatus, battery } = ctx;
+    const { vacuumName, vacuumStatus, vacuumStatusLabel,
+            dockStatus, dockStatusLabel, battery } = ctx;
     const batteryText = battery != null ? `${battery}%` : "";
+    const vacuumText = vacuumStatusLabel ?? _fallbackTitleCase(vacuumStatus);
+    const dockText = dockStatusLabel
+      ?? (dockStatus ? _fallbackTitleCase(dockStatus) : "");
 
     return `
       <div class="evcc-mobile-header">
@@ -105,12 +140,22 @@ export function applyMobileShellRenderer(proto) {
         <div class="evcc-mobile-vacuum-status">
           <span class="evcc-status-dot ${_statusDotClass(vacuumStatus)}"></span>
           <span class="evcc-mobile-vacuum-status-label">
-            ${this.escapeHtml(vacuumStatus)}
+            <span class="evcc-status-prefix">Vacuum Status:</span>
+            ${this.escapeHtml(vacuumText)}
           </span>
           ${batteryText
             ? `<span class="evcc-mobile-battery">${this.escapeHtml(batteryText)}</span>`
             : ""}
         </div>
+        ${dockText ? `
+          <div class="evcc-mobile-vacuum-status evcc-mobile-dock-status">
+            <span class="evcc-status-dot ${_dockDotClass(dockStatus)}"></span>
+            <span class="evcc-mobile-vacuum-status-label">
+              <span class="evcc-status-prefix">Dock Status:</span>
+              ${this.escapeHtml(dockText)}
+            </span>
+          </div>
+        ` : ""}
       </div>
     `;
   };

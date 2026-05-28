@@ -339,6 +339,27 @@ export const maintenanceStyles = `
     color: var(--evcc-text-secondary);
   }
 
+  /* Derived "Due in ~N days" projection. Card-side calc from
+     used_since_reset_hours / days_since_reset → hours_per_day. */
+  .evcc-maintenance-card-due {
+    display: inline-block;
+    align-self: flex-start;
+    margin-top: 4px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.74rem;
+    color: var(--evcc-text-secondary);
+    background: var(--evcc-surface-subtle, rgba(255,255,255,0.06));
+    border: 1px solid var(--evcc-border-subtle, rgba(255,255,255,0.08));
+  }
+
+  .evcc-maintenance-modal-hero-due {
+    margin-top: 6px;
+    font-size: 0.85rem;
+    color: var(--evcc-text-secondary);
+    opacity: 0.9;
+  }
+
   .evcc-maintenance-card-secondary {
     margin-top: auto;
     font-size: 0.78rem;

@@ -22,6 +22,7 @@ from ..const import (
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_UPLOAD_MAP_IMAGE,
+    SERVICE_DELETE_MAP_IMAGE,
 )
 from ..maps.map_manager import ensure_map_bucket
 from .manager import MappingManager
@@ -87,6 +88,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_REVIEW_TRACE_RUN,
     # Image analysis
     SERVICE_UPLOAD_MAP_IMAGE,
+    SERVICE_DELETE_MAP_IMAGE,
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_ADJUST_MAP_SEGMENT,
@@ -304,6 +306,14 @@ UPLOAD_MAP_IMAGE_SCHEMA = vol.Schema(
         vol.Optional("variant", default="default"): vol.In(["default", "dark", "light"]),
         vol.Optional("image_width"): vol.Coerce(int),
         vol.Optional("image_height"): vol.Coerce(int),
+    }
+)
+
+DELETE_MAP_IMAGE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light"]),
     }
 )
 
@@ -632,6 +642,78 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
         await manager.async_save()
 
     _LOGGER.debug("upload_map_image: %s", result)
+    return result
+
+
+async def _handle_delete_map_image(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Delete one image variant for a map.
+
+    Mirror of _handle_upload_map_image: removes the PNG from
+    eufy_vacuum/maps/{object_id}/map_{map_id}{suffix}.png and drops the
+    variant from data["maps"][vacuum][map_id]["image_variants"]. Used
+    by the card's per-variant trash button on the Map Configuration
+    panel so users can drop a bad upload without nuking the whole map.
+
+    Returns {"deleted": False, "reason": "not_found"} when the variant
+    isn't recorded; safe to call multiple times.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    variant: str = call.data.get("variant", "default")
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    variants: dict = map_bucket.get("image_variants", {}) or {}
+    entry = variants.get(variant)
+    if not isinstance(entry, dict):
+        return {
+            "deleted": False,
+            "reason": "not_found",
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": map_id,
+            "variant": variant,
+        }
+
+    object_id = vacuum_entity_id.split(".", 1)[1]
+    base_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps", object_id)
+    suffix = "" if variant == "default" else f"_{variant}"
+    file_path = entry.get("path") or os.path.join(base_dir, f"map_{map_id}{suffix}.png")
+
+    def _remove_file() -> bool:
+        try:
+            os.remove(file_path)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as exc:
+            _LOGGER.warning("delete_map_image: failed to remove %s: %s", file_path, exc)
+            return False
+
+    file_removed = await hass.async_add_executor_job(_remove_file)
+
+    variants.pop(variant, None)
+    if variants:
+        map_bucket["image_variants"] = variants
+    else:
+        # Empty dict is fine; consumers check `not variants` and the
+        # next variants payload will surface an empty IMAGE VARIANTS row.
+        map_bucket["image_variants"] = {}
+
+    await manager.async_save()
+
+    result = {
+        "deleted": True,
+        "file_removed": file_removed,
+        "vacuum_entity_id": vacuum_entity_id,
+        "map_id": map_id,
+        "variant": variant,
+        "remaining_variants": list(map_bucket["image_variants"].keys()),
+    }
+    _LOGGER.debug("delete_map_image: %s", result)
     return result
 
 
@@ -1413,9 +1495,16 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_companion_anchor(call: ServiceCall) -> dict:
         return await _handle_set_companion_anchor(hass, call)
 
+    async def delete_map_image(call: ServiceCall) -> dict:
+        return await _handle_delete_map_image(hass, call)
+
     hass.services.async_register(
         DOMAIN, SERVICE_UPLOAD_MAP_IMAGE, upload_map_image,
         schema=UPLOAD_MAP_IMAGE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_DELETE_MAP_IMAGE, delete_map_image,
+        schema=DELETE_MAP_IMAGE_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ANALYZE_MAP_IMAGE, analyze_map_image,

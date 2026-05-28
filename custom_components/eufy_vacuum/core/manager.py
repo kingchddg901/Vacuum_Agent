@@ -7025,7 +7025,25 @@ class EufyVacuumManager:
             }
             replacement_items.append(replacement_item)
 
-            interval_hours = float(meta.get("default_interval_hours", 0.0) or 0.0)
+            # Honor a user-saved interval override stored at
+            # data["maintenance"][vacuum][component]["interval_hours"]
+            # (written by set_maintenance_interval and by the
+            # EufyVacuumMaintenanceIntervalNumber entity). Fall back to
+            # the adapter-declared default when no override exists or
+            # the stored value can't be coerced. Same precedence the
+            # sensor entity uses — keeps card + entity + dashboard
+            # snapshot all reporting the same value.
+            default_interval = float(meta.get("default_interval_hours", 0.0) or 0.0)
+            override_raw = (
+                self.data.get("maintenance", {})
+                .get(vacuum_entity_id, {})
+                .get(component, {})
+                .get("interval_hours")
+            )
+            try:
+                interval_hours = float(override_raw) if override_raw is not None else default_interval
+            except (TypeError, ValueError):
+                interval_hours = default_interval
             maintenance = self.get_maintenance_remaining(
                 vacuum_entity_id=vacuum_entity_id,
                 component=component,

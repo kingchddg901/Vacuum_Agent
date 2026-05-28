@@ -39,6 +39,35 @@ export function applySharedRenderers(proto) {
       .replace(/'/g, "&#39;");
   };
 
+  /**
+   * Format an ISO timestamp (or anything Date.parse can consume) as a
+   * short "ago" string. Returns null when the input is missing or
+   * unparseable so callers can hide the pill entirely.
+   *
+   * Buckets: "<1m", "Nm", "Nh", "today", "yesterday", "Nd", "Nw", "Nmo".
+   *
+   * @param {string|number|null|undefined} value
+   * @returns {string|null}
+   */
+  proto.formatRelativeAgo = function (value) {
+    if (value == null || value === "") return null;
+    const t = Date.parse(String(value));
+    if (!Number.isFinite(t)) return null;
+    const diffMs = Date.now() - t;
+    if (diffMs < 0) return null;
+    const minutes = diffMs / 60000;
+    if (minutes < 1) return "just now";
+    if (minutes < 60) return `${Math.round(minutes)}m ago`;
+    const hours = minutes / 60;
+    if (hours < 24) return `${Math.round(hours)}h ago`;
+    const days = hours / 24;
+    if (days < 1.5) return "yesterday";
+    if (days < 7) return `${Math.round(days)}d ago`;
+    if (days < 30) return `${Math.round(days / 7)}w ago`;
+    if (days < 365) return `${Math.round(days / 30)}mo ago`;
+    return `${Math.round(days / 365)}y ago`;
+  };
+
   /* =========================================================
      GENERIC CONTROLS
      ========================================================= */

@@ -8,6 +8,7 @@ import {
   SERVICE_GET_MAP_SEGMENTS,
   SERVICE_ANALYZE_MAP_IMAGE,
   SERVICE_UPLOAD_MAP_IMAGE,
+  SERVICE_DELETE_MAP_IMAGE,
   SERVICE_ADJUST_MAP_SEGMENT,
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
@@ -135,6 +136,32 @@ export function applyMapActions(proto) {
       true,      // returnResponse — service is registered supports_response=True;
                  // without this the call silently no-ops, file never gets written.
     );
+  };
+
+  /**
+   * Delete a single uploaded map image variant. Mirrors uploadMapImage's
+   * direct hass.callService pattern — supports_response=True on the
+   * backend means we must opt into returnResponse or the call silently
+   * no-ops. Returns the response payload or null on failure.
+   */
+  proto.deleteMapImage = async function (mapId, variant = "default") {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+
+    try {
+      const result = await this.hass.callService(
+        DOMAIN,
+        SERVICE_DELETE_MAP_IMAGE,
+        { vacuum_entity_id: vacuum, map_id: mapId, variant },
+        undefined,
+        true,
+        true,
+      );
+      return result?.response ?? result ?? null;
+    } catch (err) {
+      console.error("[eufy-vacuum-command-center] deleteMapImage failed", err);
+      return null;
+    }
   };
 
   /** Nudge or resize a map segment. Direct hass.callService for the same reason as analyzeMapImage. */

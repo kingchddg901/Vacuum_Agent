@@ -96,6 +96,21 @@ export class VacuumCardBindings {
     this._bindSetup();
     this._bindMappingReview();
     this._bindMobileShell();
+    this._bindToasts();
+  }
+
+  /**
+   * Wire dismiss buttons on active toast pills. Each click drops the
+   * matching toast from the queue and schedules a re-render. Idempotent
+   * via card._onAll so re-binding across renders is safe.
+   */
+  _bindToasts() {
+    this.card._onAll("[data-action='dismiss-toast']", "click", (e) => {
+      const id = e.currentTarget?.dataset?.toastId;
+      if (!id) return;
+      this.card._state.dismissToast?.(id);
+      this.card._scheduleRender();
+    });
   }
 
   _bindOrder() {

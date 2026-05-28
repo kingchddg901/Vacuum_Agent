@@ -650,6 +650,35 @@ export const mapStyles = `
     cursor:  default;
   }
 
+  /* Per-variant delete button — flatter, error-tinted treatment to
+     keep the primary Upload button as the visual anchor of the row. */
+  .evcc-map-config-btn--danger {
+    background: color-mix(in srgb, var(--evcc-sem-error, #ef4444) 12%, transparent);
+    color:      var(--evcc-sem-error, #ef4444);
+    border-color: color-mix(in srgb, var(--evcc-sem-error, #ef4444) 36%, transparent);
+  }
+
+  .evcc-map-config-btn--danger:hover {
+    background:   color-mix(in srgb, var(--evcc-sem-error, #ef4444) 22%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-error, #ef4444) 56%, transparent);
+  }
+
+  /* Armed (second-click) state for the per-variant delete button.
+     Solid error fill + pulse so the user can't mistake it for a
+     primary action chip. Auto-clears after 5s (see bindings/map.js). */
+  .evcc-map-config-btn--confirm {
+    background:   var(--evcc-sem-error, #ef4444);
+    color:        var(--evcc-on-error, #fff);
+    border-color: var(--evcc-sem-error, #ef4444);
+    font-weight:  700;
+    animation:    evcc-variant-delete-pulse 1.1s ease-in-out infinite;
+  }
+
+  @keyframes evcc-variant-delete-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--evcc-sem-error, #ef4444) 55%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in srgb, var(--evcc-sem-error, #ef4444) 0%, transparent); }
+  }
+
   .evcc-map-action-status {
     font-size:   0.74rem;
     font-weight: 500;

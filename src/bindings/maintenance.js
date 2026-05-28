@@ -115,10 +115,12 @@ export function applyMaintenanceBindings(proto) {
 
         if (result === null) {
           console.warn("[eufy-vacuum-command-center] set_maintenance_interval failed");
+          this.card.showToast?.(`Could not save interval`, { kind: "error" });
           return;
         }
 
         await this.card.refreshDashboardSnapshot?.();
+        this.card.showToast?.(`Interval saved (${value}h)`, { kind: "success" });
 
         const active = this.card._state.activeMaintenanceModalItem?.();
         if (active) {
@@ -158,7 +160,9 @@ export function applyMaintenanceBindings(proto) {
         );
 
         if (result === null) {
-          this.card._state.setMaintenanceResetError?.(`Could not reset ${item.label ?? item.component ?? "item"}`);
+          const label = item.label ?? item.component ?? "item";
+          this.card._state.setMaintenanceResetError?.(`Could not reset ${label}`);
+          this.card.showToast?.(`Could not reset ${label}`, { kind: "error" });
           this.card._scheduleRender();
           return;
         }
@@ -168,6 +172,7 @@ export function applyMaintenanceBindings(proto) {
         const successMessage = String(item?.reset_kind ?? "").trim().toLowerCase() === "integration"
           ? "Maintenance reset saved"
           : "Replacement reset sent";
+        this.card.showToast?.(successMessage, { kind: "success" });
 
         const refreshedItem = this.card._state.findUpkeepItem?.(
           item.kind,

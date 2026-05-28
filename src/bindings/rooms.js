@@ -115,8 +115,15 @@ export function applyRoomsBindings(proto) {
     "click",
     async () => {
       if (this.card._state.cancelRunRequiresConfirmation?.()) {
+        // Swallow a confirmation click that lands within the 700 ms
+        // grace window — protects against a rapid double-tap of the
+        // primary button accidentally killing a running job.
+        if (this.card._state.cancelRunConfirmGuardActive?.()) {
+          return;
+        }
         await this.card._actions.cancelActiveRun();
         await this.card.refreshDashboardSnapshot?.();
+        this.card.showToast?.("Cancel sent — returning to dock", { kind: "info", ttl: 4000 });
         this.card._scheduleRender();
         return;
       }
@@ -178,6 +185,7 @@ export function applyRoomsBindings(proto) {
     "click",
     async () => {
       await this.card._actions.locateVacuum();
+      this.card.showToast?.("Locate sent — listen for the chirp", { kind: "info" });
       this.card._scheduleRender();
     }
   );
@@ -197,10 +205,27 @@ export function applyRoomsBindings(proto) {
     this.card.$("[data-action='clear-queue']"),
     "click",
     async () => {
-      this.card._state.clearStartConfirmation?.();
-      this.card._state.clearCancelRunConfirmation?.();
-      await this.card._actions.clearQueue();
-      await this.card.refreshDashboardSnapshot?.();
+      // Two-tap guard: same shape as cancel-run. First click arms,
+      // second click within the auto-clear window fires the service.
+      if (this.card._state.clearQueueRequiresConfirmation?.()) {
+        // Swallow rapid double-tap inside the 700 ms grace window.
+        if (this.card._state.clearQueueConfirmGuardActive?.()) {
+          return;
+        }
+        this.card._state.clearClearQueueConfirmation?.();
+        this.card._state.clearStartConfirmation?.();
+        this.card._state.clearCancelRunConfirmation?.();
+        await this.card._actions.clearQueue();
+        await this.card.refreshDashboardSnapshot?.();
+        this.card.showToast?.("Queue cleared", { kind: "success" });
+        this.card._scheduleRender();
+        return;
+      }
+
+      // 5s auto-clear is handled inside the confirmation registry;
+      // no per-card timer bookkeeping here.
+      this.card._state.requestClearQueueConfirmation?.();
+      this.card._scheduleRender();
     }
   );
 
@@ -238,16 +263,32 @@ export function applyRoomsBindings(proto) {
     "click",
     async () => {
       const missedRoomIds = this.card._state.incompleteRunMissedRoomIds?.() ?? [];
+      const count = missedRoomIds.length;
 
       // Always clear the banner first so it doesn't re-show on re-render.
       this.card._state.clearIncompleteRunLog?.();
       this.card._state.clearStartConfirmation?.();
       this.card._state.clearCancelRunConfirmation?.();
 
-      if (missedRoomIds.length > 0) {
-        await this.card._actions.retryMissedRooms(missedRoomIds);
-        await this.card.refreshDashboardSnapshot?.();
+      if (count === 0) {
+        this.card._scheduleRender();
+        return;
       }
+
+      let result;
+      try {
+        result = await this.card._actions.retryMissedRooms(missedRoomIds);
+        await this.card.refreshDashboardSnapshot?.();
+      } catch (err) {
+        console.error("[eufy-vacuum-command-center] retryMissedRooms failed", err);
+      }
+
+      const ok = result !== null && result !== undefined;
+      this.card.showToast?.(
+        ok ? `Re-queued ${count} missed room${count === 1 ? "" : "s"}`
+           : `Could not retry missed rooms`,
+        { kind: ok ? "success" : "error" }
+      );
 
       this.card._scheduleRender();
     }

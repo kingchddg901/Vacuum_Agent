@@ -323,16 +323,51 @@ export function applyRoomsState(proto) {
     );
   };
 
+  /* =========================================================
+     CANCEL-RUN / CLEAR-QUEUE CONFIRMATIONS
+     =========================================================
+     Both delegate to the generic confirmation registry in
+     state/confirmations.js. The accessor names below stay
+     as-is for backward compatibility — every renderer and
+     binding callsite continues to work without edits. setView()
+     drops them via disarmAllConfirmations() on nav.
+     ========================================================= */
+
+  // Cancel-run: only cleared by user action or view-leave; no TTL.
+  // The 700 ms grace window protects against rapid double-tap killing
+  // a job before the user can read the label flip.
   proto.requestCancelRunConfirmation = function () {
-    this._cancelRunConfirmation = true;
+    this.armConfirmation?.("rooms.cancel-run", { ttl: 0, grace: 700 });
   };
 
   proto.clearCancelRunConfirmation = function () {
-    this._cancelRunConfirmation = false;
+    this.disarmConfirmation?.("rooms.cancel-run");
   };
 
   proto.cancelRunRequiresConfirmation = function () {
-    return this._cancelRunConfirmation === true;
+    return this.isConfirmationArmed?.("rooms.cancel-run") === true;
+  };
+
+  proto.cancelRunConfirmGuardActive = function () {
+    return this.isConfirmationGuardActive?.("rooms.cancel-run") === true;
+  };
+
+  // Clear-queue: 5 s auto-clear (registry-managed; no more
+  // card._clearQueueArmTimer bookkeeping on the binding side).
+  proto.requestClearQueueConfirmation = function () {
+    this.armConfirmation?.("rooms.clear-queue", { ttl: 5000, grace: 700 });
+  };
+
+  proto.clearClearQueueConfirmation = function () {
+    this.disarmConfirmation?.("rooms.clear-queue");
+  };
+
+  proto.clearQueueRequiresConfirmation = function () {
+    return this.isConfirmationArmed?.("rooms.clear-queue") === true;
+  };
+
+  proto.clearQueueConfirmGuardActive = function () {
+    return this.isConfirmationGuardActive?.("rooms.clear-queue") === true;
   };
 
   proto.hasActiveRun = function () {
@@ -644,6 +679,14 @@ export function applyRoomsState(proto) {
     const rawRules = attrs.rules ?? attrs.automation_rules;
     const rules = Array.isArray(rawRules) ? rawRules : [];
 
+    // Last-cleaned timestamp lives on the room switch's extra state
+    // attributes (populated server-side from data["room_history"]).
+    // Card uses it to render a small "2d ago" pill on each room card.
+    const lastCleanedAt = attrs.last_cleaned_at ?? null;
+    const lastVacuumedAt = attrs.last_vacuumed_at ?? null;
+    const lastMoppedAt = attrs.last_mopped_at ?? null;
+    const lastJobMode = attrs.last_job_mode ?? null;
+
     return {
       id: roomId,
       mapId,
@@ -654,6 +697,10 @@ export function applyRoomsState(proto) {
       profileName,
       profileLabel,
       profileSubtitle,
+      lastCleanedAt,
+      lastVacuumedAt,
+      lastMoppedAt,
+      lastJobMode,
       floorType,
       floorTypeLabel,
       carpetType,

@@ -109,6 +109,7 @@ export const SERVICE_IMPORT_THEME           = "import_theme";
 
 // --- Map image ---
 export const SERVICE_UPLOAD_MAP_IMAGE       = "upload_map_image";
+export const SERVICE_DELETE_MAP_IMAGE       = "delete_map_image";
 export const SERVICE_ANALYZE_MAP_IMAGE      = "analyze_map_image";
 export const SERVICE_GET_MAP_SEGMENTS       = "get_map_segments";
 export const SERVICE_ADJUST_MAP_SEGMENT     = "adjust_map_segment";

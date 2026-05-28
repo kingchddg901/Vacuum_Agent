@@ -57,6 +57,23 @@ export function applyCoreState(proto) {
     return this.stateOf(entityId);
   };
 
+  /**
+   * Pre-formatted, display-ready vacuum state label sourced from the
+   * dashboard snapshot's lifecycle slice (server-side `_display_label`).
+   * Returns null when the snapshot hasn't landed yet — the header
+   * renderers fall back to title-casing the raw vacuumState() value.
+   *
+   * Mirrors the dock_status / dock_status_label pair so card-side
+   * vocabulary normalization is no longer needed for status display.
+   * Future multi-brand adapters can override vocabulary server-side
+   * without the card having to know.
+   *
+   * @returns {string|null}
+   */
+  proto.vacuumStateLabel = function () {
+    return this.dashboardLifecycle?.()?.vacuum_state_label ?? null;
+  };
+
   /** @returns {object} vacuum entity attributes (battery_level, fan_speed, etc.) */
   proto.vacuumAttrs = function () {
     const entityId = this.vacuumEntityId();

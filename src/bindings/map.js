@@ -324,6 +324,75 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Delete a single uploaded variant — two-tap guard. First click
+    // arms the variant; second click within the auto-clear window
+    // actually fires the service. Refetches segments so the IMAGE
+    // VARIANTS section reflects the removal immediately. Does NOT
+    // re-run analysis; the existing segmentation cache is left alone.
+    root.querySelectorAll("[data-action='delete-map-variant']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const variant = btn.dataset.variant;
+        const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
+        const mapId = rooms[0]?.mapId ?? null;
+        if (!variant || !mapId) return;
+
+        // First click on this variant — arm it and bail. The
+        // confirmation registry handles the 5s auto-clear and the
+        // re-render that follows (renderTrigger wired in main.js).
+        // The shim enforces single-arm semantics; any sibling
+        // variant arm is dropped automatically.
+        if (!this.card._state.isMapVariantDeleteArmed?.(variant)) {
+          this.card._state.armMapVariantDelete?.(variant);
+          this.card._scheduleRender();
+          return;
+        }
+
+        // Second click — actually delete. Drop the arm (registry
+        // cancels its auto-clear timer internally).
+        this.card._state.clearMapVariantDeleteArm?.();
+
+        this.card._state.setMapActionStatus?.({
+          type: "delete", variant, status: "busy",
+        });
+        this.card._scheduleRender();
+
+        try {
+          const result = await this.card._actions.deleteMapImage(mapId, variant);
+          await this.card._actions.getMapSegments(mapId);
+          this.card._state.clearMapActionStatus?.();
+
+          const ok = result && result.deleted !== false;
+          this.card.showToast?.(
+            ok ? `${variant.charAt(0).toUpperCase()}${variant.slice(1)} image deleted`
+               : `Could not delete ${variant} image`,
+            { kind: ok ? "success" : "error" }
+          );
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] deleteMapImage failed:", err);
+          this.card._state.setMapActionStatus?.({
+            type: "delete", variant, status: "error",
+            message: err?.message ?? "Delete failed",
+          });
+          this.card.showToast?.(`Could not delete ${variant} image`, { kind: "error" });
+        }
+
+        this.card._scheduleRender();
+      });
+    });
+
+    // Cancel an armed delete (inline Cancel button next to the
+    // pulsing "Confirm Delete" chip).
+    root.querySelectorAll("[data-action='cancel-delete-map-variant']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        if (this.card._mapVariantDeleteArmTimer) {
+          clearTimeout(this.card._mapVariantDeleteArmTimer);
+          this.card._mapVariantDeleteArmTimer = null;
+        }
+        this.card._state.clearMapVariantDeleteArm?.();
+        this.card._scheduleRender();
+      });
+    });
+
     // Analyse button
     root.querySelectorAll("[data-action='analyze-map']").forEach((btn) => {
       this.card._on(btn, "click", async () => {

@@ -17,6 +17,8 @@ import { applyMaintenanceState } from "./maintenance.js";
 import { applyThemeState } from "./theme.js";
 import { applyMapState   } from "./map.js";
 import { applyViewportState } from "./viewport.js";
+import { applyToastsState }   from "./toasts.js";
+import { applyConfirmationsState } from "./confirmations.js";
 
 // Learning is predictive, temporal, and controller-managed — applied after all structural modules.
 import { applyLearningState      } from "./learning.js";
@@ -53,6 +55,7 @@ export class VacuumCardState {
    core first, order before adapters, rooms before room-editor, learning last. */
 
 applyCoreState(VacuumCardState.prototype);
+applyConfirmationsState(VacuumCardState.prototype);
 applyDockState(VacuumCardState.prototype);
 applyMetricsState(VacuumCardState.prototype);
 applyOrderState(VacuumCardState.prototype);
@@ -69,6 +72,7 @@ applyMaintenanceState(VacuumCardState.prototype);
 applyThemeState(VacuumCardState.prototype);
 applyMapState(VacuumCardState.prototype);
 applyViewportState(VacuumCardState.prototype);
+applyToastsState(VacuumCardState.prototype);
 
 /* === LEARNING / SETUP / MAPPING (FINAL LAYERS) === */
 

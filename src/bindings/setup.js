@@ -257,8 +257,18 @@ export function applySetupBindings(proto) {
 
         if (result?.status === "success") {
           card._state.closeSetupDeleteConfirm?.();
+
+          // Clear cached map segments / image variants. The deleted map's
+          // image_variants would otherwise keep rendering in the Map
+          // Configuration view's IMAGE VARIANTS section (Dark/Light/Default
+          // sizes) until the next get_map_segments fetch. The setter
+          // handles null by resetting overlays and zoom transform; the
+          // next map-config nav will re-fetch fresh data.
+          card._state.setMapSegmentsData?.(null);
+
           const statusResult = await card._actions.getSetupStatus?.();
           card._state.setSetupStatus?.(statusResult);
+          card.showToast?.("Map deleted", { kind: "success" });
         } else {
           card._state.setSetupError?.(
             result?.message ?? "Failed to delete map."
@@ -270,6 +280,7 @@ export function applySetupBindings(proto) {
           `Failed to delete map: ${err?.message ?? String(err)}`
         );
         card._state.setSetupDeleteDeleting?.(false);
+        card.showToast?.("Map delete failed", { kind: "error" });
       } finally {
         card._scheduleRender();
       }

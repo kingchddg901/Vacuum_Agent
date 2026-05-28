@@ -128,6 +128,19 @@ export const roomStyles = `
     color:     var(--evcc-sem-warning);
   }
 
+  /* Inline banner shown while the cancel-run two-tap confirmation
+     is in flight. Pairs with the pulsing "Confirm Cancel" chip. */
+  .evcc-rooms-cancel-warning {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    background: color-mix(in srgb, var(--evcc-sem-error, #ef4444) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-sem-error, #ef4444) 38%, transparent);
+    color: var(--evcc-text-primary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
   .evcc-rooms-inline-actions {
     display: flex;
     align-items: center;
@@ -651,6 +664,14 @@ export const roomStyles = `
     color: var(--evcc-estimate-default-text);
     font-style: italic;
     opacity: 0.9;
+  }
+
+  /* "Last cleaned ~Nd ago" pill, sourced from room_history. */
+  .evcc-room-status--last-cleaned {
+    color: var(--evcc-text-muted);
+    background: var(--evcc-surface-subtle, rgba(255, 255, 255, 0.04));
+    border-color: var(--evcc-border-subtle, rgba(255, 255, 255, 0.06));
+    opacity: 0.85;
   }
 
   /* =========================================================

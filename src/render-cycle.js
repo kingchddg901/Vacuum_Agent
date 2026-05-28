@@ -48,10 +48,13 @@ export function buildRenderContext(card) {
     card,
     state,
     renderers,
-    vacuumName:   state.vacuumDisplayName(),
-    vacuumStatus: state.vacuumState() ?? "unknown",
-    battery:      state.batteryLevel(),
-    view:         card._view ?? VIEWS.ROOMS,
+    vacuumName:        state.vacuumDisplayName(),
+    vacuumStatus:      state.vacuumState() ?? "unknown",
+    vacuumStatusLabel: state.vacuumStateLabel?.() ?? null,
+    dockStatus:        state.dockStatus?.() ?? null,
+    dockStatusLabel:   state.dockStatusLabel?.() ?? null,
+    battery:           state.batteryLevel(),
+    view:              card._view ?? VIEWS.ROOMS,
   };
 }
 
@@ -69,6 +72,46 @@ function getStatusClass(status) {
   }[status] || "";
 }
 
+/**
+ * Defensive fallback for the brief window before the dashboard
+ * snapshot has populated vacuum_state_label / dock_status_label.
+ * Backend-provided labels are the source of truth; this exists so
+ * the header doesn't show a lowercase `docked` for one paint cycle.
+ *
+ * "docked" → "Docked", "returning_to_base" → "Returning To Base".
+ */
+function fallbackTitleCase(raw) {
+  return String(raw ?? "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\w\S*/g, (word) =>
+      word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    );
+}
+
+/**
+ * Map a dock status value (from the dock_status sensor) to a status dot
+ * class. Falls back to the empty string for unknown/idle so the dot uses
+ * the default muted colour.
+ */
+function getDockStatusClass(dockStatus) {
+  const key = String(dockStatus ?? "").trim().toLowerCase();
+  return {
+    cleaning:  "cleaning",
+    washing:   "cleaning",
+    drying:    "returning",
+    emptying:  "returning",
+    charging:  "charging",
+    error:     "error",
+    fault:     "error",
+    offline:   "offline",
+    unavailable: "unavailable",
+    idle:      "docked",
+    standby:   "docked",
+  }[key] || "";
+}
+
 /* =========================================================
    HEADER
    ========================================================= */
@@ -79,9 +122,18 @@ function getStatusClass(status) {
  * @returns {string} HTML string
  */
 export function renderHeader(ctx) {
-  const { renderers, vacuumName, vacuumStatus, battery, view } = ctx;
+  const { renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
+          dockStatus, dockStatusLabel, battery, view } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
+
+  // Prefer the backend-provided label (server-side _display_label) so
+  // adapter vocabulary stays the source of truth. Title-case fallback
+  // covers the first frame after mount, before the dashboard snapshot
+  // has populated.
+  const vacuumText = vacuumStatusLabel ?? fallbackTitleCase(vacuumStatus);
+  const dockText = dockStatusLabel
+    ?? (dockStatus ? fallbackTitleCase(dockStatus) : "");
 
   return `
     <div class="evcc-header">
@@ -93,11 +145,20 @@ export function renderHeader(ctx) {
 
         <div class="evcc-vacuum-status">
           <span class="evcc-status-dot ${getStatusClass(vacuumStatus)}"></span>
-          <span>${renderers.escapeHtml(vacuumStatus)}</span>
+          <span class="evcc-status-prefix">Vacuum Status:</span>
+          <span>${renderers.escapeHtml(vacuumText)}</span>
           ${batteryText
             ? `<span class="evcc-battery">${renderers.escapeHtml(batteryText)}</span>`
             : ""}
         </div>
+
+        ${dockText ? `
+          <div class="evcc-vacuum-status evcc-dock-status">
+            <span class="evcc-status-dot ${getDockStatusClass(dockStatus)}"></span>
+            <span class="evcc-status-prefix">Dock Status:</span>
+            <span>${renderers.escapeHtml(dockText)}</span>
+          </div>
+        ` : ""}
       </div>
 
     </div>

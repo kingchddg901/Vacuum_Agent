@@ -7,7 +7,7 @@ import { VacuumCardBindings }                 from "./bindings/index.js";
 import { VacuumCardActions }                  from "./actions/index.js";
 import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, VIEW_ORDER, VIEWS } from "./render-cycle.js";
-import { STYLES, MODAL_HOST_STYLES }          from "./styles/index.js";
+import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
@@ -70,6 +70,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._boundHandlePanelResume       = () => this._handlePanelResume();
     this._boundHandleLocationChanged   = () => this._handlePanelResume();
     this._boundHandlePageShow          = (e) => { if (e.persisted) this._handlePanelResume(); };
+    // ESC closes the topmost modal. One document-level listener;
+    // bindModalHostEvents would re-attach on every modal render,
+    // so we anchor it on connectedCallback instead and let the
+    // modal host's close action handle the actual close logic.
+    this._boundHandleKeydown = (e) => this._handleGlobalKeydown(e);
 
     /* =====================================================
        VIEWPORT HANDLER
@@ -308,6 +313,36 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (this._state)   this._state.sync(hass, this._config);
     if (this._actions) this._actions.sync?.(hass, this._state);
 
+    // Wire the confirmation registry's auto-clear render trigger
+    // exactly once. setConfirmationsRenderTrigger is idempotent — it
+    // just replaces the stored callback — but we only need to do
+    // this once per card instance.
+    if (this._state && !this._confirmationsWired) {
+      this._confirmationsWired = true;
+      this._state.setConfirmationsRenderTrigger?.(() => this._scheduleRender());
+    }
+
+    // Restore last-active view exactly once on first hass sync.
+    // Persisted under evcc_last_view_<vacuum_entity_id>; setView writes it.
+    this._restoreLastView();
+
+    // Detect active map id changes — happens after a map switch or
+    // after the active map is deleted. Any cached map-derived state
+    // (segments data, image variants, overlays, zoom transform) is
+    // now stale and would otherwise keep rendering the previous map's
+    // tiles. setMapSegmentsData(null) clears that whole slice; the
+    // next map-config navigation re-fetches fresh data.
+    if (this._state) {
+      const currentMapId = this._state.activeMapId?.();
+      if (currentMapId != null) {
+        if (this._lastSeenActiveMapId != null && this._lastSeenActiveMapId !== currentMapId) {
+          this._state.setMapSegmentsData?.(null);
+          this._incompleteRunLogLoaded = false;
+        }
+        this._lastSeenActiveMapId = currentMapId;
+      }
+    }
+
     /* -----------------------------------------------------
        LIVE THEME SENSOR SYNC
        -----------------------------------------------------
@@ -350,6 +385,40 @@ class EufyVacuumCommandCenter extends HTMLElement {
   /* =========================================================
      VIEW MANAGEMENT
      ========================================================= */
+  /**
+   * localStorage key for the per-vacuum last-active view. Scoped by
+   * vacuum_entity_id so a single browser viewing multiple cards keeps
+   * each card's view independently.
+   */
+  _viewStorageKey() {
+    const id = this._config?.vacuum_entity_id ?? "default";
+    return `evcc_last_view_${id}`;
+  }
+
+  /**
+   * One-shot restore on first hass sync. Reads the persisted view name
+   * and switches to it iff it's a real, currently-allowed view.
+   * Idempotent — flips `_viewRestored` so subsequent renders don't
+   * re-apply the stored value over a user-driven switch.
+   */
+  _restoreLastView() {
+    if (this._viewRestored) return;
+    this._viewRestored = true;
+
+    let stored;
+    try {
+      stored = localStorage.getItem(this._viewStorageKey());
+    } catch (_) {
+      stored = null;
+    }
+    if (!stored) return;
+    if (stored === this._view) return;
+    if (!Object.values(VIEWS).includes(stored)) return;
+    if (stored === VIEWS.MAPPING_ARCHIVE) return; // legacy, always rerouted to Rooms
+    this._view = stored;
+    this._scheduleRender();
+  }
+
   setView(view) {
     if (view === VIEWS.MAPPING_ARCHIVE) {
       view = VIEWS.ROOMS;
@@ -357,6 +426,19 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     if (this._view === view) return;
     this._view = view;
+    try {
+      localStorage.setItem(this._viewStorageKey(), String(view));
+    } catch (_) {}
+
+    // Drop every armed transient confirmation on nav. Registry-backed
+    // confirmations (cancel-run, clear-queue, per-variant delete) all
+    // disarm here in one call — including cancelling their auto-clear
+    // timers. start-confirmation and maintenance-reset live outside
+    // the registry (preflight workflow / modal-scoped) so they stay
+    // explicit.
+    this._state?.disarmAllConfirmations?.();
+    this._state?.clearStartConfirmation?.();
+    this._state?.cancelMaintenanceResetConfirmation?.();
     if (view === VIEWS.LEARNING_REVIEW) {
       this._scheduleLearningHistoryRefresh();
     }
@@ -793,6 +875,28 @@ class EufyVacuumCommandCenter extends HTMLElement {
     });
   }
 
+  /* =========================================================
+     TOASTS
+     =========================================================
+     Card-level convenience wrapper around state.pushToast that
+     also schedules a follow-up render after the TTL so expired
+     toasts disappear from the DOM without a click. Call sites:
+     any binding that wants to surface a service result as a
+     visible "did this land?" cue.
+     ========================================================= */
+  showToast(message, opts = {}) {
+    if (!this._state?.pushToast) return null;
+    const id = this._state.pushToast(message, opts);
+    this._scheduleRender();
+    const ttl = Number.isFinite(opts?.ttl) ? Math.max(1000, opts.ttl) : 3500;
+    setTimeout(() => {
+      // The renderer also filters expired toasts, but we still need a
+      // re-render to actually clear them from the DOM.
+      this._scheduleRender();
+    }, ttl + 80);
+    return id;
+  }
+
   /**
    * Deferred render — used by theme controls (color pickers, alpha sliders,
    * text token inputs) so that badge / modified-indicator updates happen
@@ -886,6 +990,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
       frame.mobileOverlay.innerHTML = mobileOverlayHtml;
       frame.mobileOverlay.dataset.renderedHtml = mobileOverlayHtml;
     }
+
+    // Toast stack — rendered into a body-level host so it always
+    // stacks above the modal host (which is also body-level).
+    // Inside the shadow root we couldn't out-stack a sibling div
+    // appended to document.body, hence the external host.
+    this._updateToastHost(ctx);
 
     frame.viewStage.dataset.view = ctx.view;
 
@@ -1038,6 +1148,88 @@ class EufyVacuumCommandCenter extends HTMLElement {
   }
 
   /* =========================================================
+     TOAST HOST
+     =========================================================
+     Body-level sibling of the modal host. Toasts MUST live above
+     the modal host in the document stacking order so save / reset
+     / dock-action feedback is visible while a modal is open.
+     Sharing the same shadow root with the card put them below
+     the modal host's z-index:9999. Hence the external host with
+     z-index:10000.
+     ========================================================= */
+  /* =========================================================
+     GLOBAL KEYDOWN
+     =========================================================
+     ESC closes whichever modal is currently rendered in the
+     body-level modal host. Each modal has its own state slice
+     and dedicated close method; we walk them in stacking order
+     (most recently opened wins) and call the first close that
+     actually has something to do.
+     ========================================================= */
+  _handleGlobalKeydown(event) {
+    if (event?.key !== "Escape") return;
+    if (!this._modalHost) return;
+    if (!this._state) return;
+
+    const closers = [
+      ["maintenance",   "activeMaintenanceModalItem", "closeMaintenanceModal"],
+      ["room-estimate", "isRoomEstimateModalOpen",    "closeRoomEstimateModal"],
+      ["room-access",   "isRoomAccessOpen",           "closeRoomAccess"],
+      ["order",         "isOrderSelectorOpen",        "closeOrderSelector"],
+      ["room-editor",   "isRoomEditorOpen",           "closeRoomEditor"],
+    ];
+
+    for (const [, isOpenKey, closeKey] of closers) {
+      const opener = this._state[isOpenKey];
+      const closer = this._state[closeKey];
+      if (typeof opener !== "function" || typeof closer !== "function") continue;
+      if (!opener.call(this._state)) continue;
+      closer.call(this._state);
+      this._scheduleRender();
+      event.preventDefault();
+      return;
+    }
+  }
+
+  _updateToastHost(ctx) {
+    const html = this._renderers.renderToasts?.(ctx) ?? "";
+
+    if (!html) {
+      if (this._toastHost) {
+        this._toastHost.remove();
+        this._toastHost = null;
+      }
+      return;
+    }
+
+    if (!this._toastHost) {
+      this._toastHost = document.createElement("div");
+      this._toastHost.className = "evcc-toast-host";
+      document.body.appendChild(this._toastHost);
+    }
+
+    const markup = `<style>${TOAST_HOST_STYLES}</style>${html}`;
+    if (this._toastHost.dataset.renderedHtml !== markup) {
+      this._toastHost.innerHTML = markup;
+      this._toastHost.dataset.renderedHtml = markup;
+    }
+
+    // Dismiss bindings — toast host lives outside shadow root, so
+    // the per-card _on / _onAll helpers don't see it. Wire dismiss
+    // here directly, idempotent via dataset marker.
+    this._toastHost.querySelectorAll("[data-action='dismiss-toast']").forEach((btn) => {
+      if (btn.dataset.evccBoundClick === "1") return;
+      btn.dataset.evccBoundClick = "1";
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.toastId;
+        if (!id) return;
+        this._state.dismissToast?.(id);
+        this._scheduleRender();
+      });
+    });
+  }
+
+  /* =========================================================
      LIFECYCLE
      ========================================================= */
 
@@ -1059,6 +1251,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.addEventListener("focus", this._boundHandlePanelResume);
     window.addEventListener("location-changed", this._boundHandleLocationChanged);
     window.addEventListener("pageshow", this._boundHandlePageShow);
+    document.addEventListener("keydown", this._boundHandleKeydown);
 
     // Initial viewport measurement. setConfig may have run before
     // connectedCallback (so _state already exists); re-measure now that
@@ -1118,6 +1311,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.removeEventListener("focus", this._boundHandlePanelResume);
     window.removeEventListener("location-changed", this._boundHandleLocationChanged);
     window.removeEventListener("pageshow", this._boundHandlePageShow);
+    document.removeEventListener("keydown", this._boundHandleKeydown);
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
@@ -1126,6 +1320,11 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (this._modalHost) {
       this._modalHost.remove();
       this._modalHost = null;
+    }
+
+    if (this._toastHost) {
+      this._toastHost.remove();
+      this._toastHost = null;
     }
 
     this._learningController?.disconnect();

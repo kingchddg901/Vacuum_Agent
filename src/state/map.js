@@ -249,6 +249,43 @@ export function applyMapState(proto) {
     this._mapActionStatus = null;
   };
 
+  /* =========================================================
+     PER-VARIANT DELETE CONFIRMATION
+     =========================================================
+     Backed by the confirmation registry. Keys take the shape
+     "map-config.delete-variant.<variant>", so multiple variants
+     could in theory be armed, but the shim enforces single-arm
+     semantics by clearing siblings before arming a new one.
+     The registry handles the 5 s auto-clear (no more
+     card._mapVariantDeleteArmTimer bookkeeping on the binding).
+     ========================================================= */
+  const VARIANT_DELETE_PREFIX = "map-config.delete-variant.";
+
+  proto.armMapVariantDelete = function (variant) {
+    const v = variant ? String(variant) : null;
+    if (!v) return;
+    // Only one variant armed at a time — drop any sibling first.
+    this.disarmConfirmationsWithPrefix?.(VARIANT_DELETE_PREFIX);
+    // No grace window — original code didn't have one for variant
+    // delete; the risk of accidental fire is lower than mid-job
+    // cancel because the file is recoverable via re-upload.
+    this.armConfirmation?.(`${VARIANT_DELETE_PREFIX}${v}`, { ttl: 5000, grace: 0 });
+  };
+
+  proto.clearMapVariantDeleteArm = function () {
+    this.disarmConfirmationsWithPrefix?.(VARIANT_DELETE_PREFIX);
+  };
+
+  proto.mapVariantDeleteArmed = function () {
+    const key = this.firstArmedConfirmationKey?.(VARIANT_DELETE_PREFIX);
+    return key ? key.slice(VARIANT_DELETE_PREFIX.length) : null;
+  };
+
+  proto.isMapVariantDeleteArmed = function (variant) {
+    if (!variant) return false;
+    return this.isConfirmationArmed?.(`${VARIANT_DELETE_PREFIX}${String(variant)}`) === true;
+  };
+
   proto.mapNudgeStep = function () {
     const variants = this._mapSegmentsData?.image_variants ?? {};
     const variant = variants.dark ?? variants.default ?? variants.light;

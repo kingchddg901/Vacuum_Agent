@@ -49,7 +49,8 @@ export class LearningController {
       this._unsubRoomCompleted ||
       this._unsubRoomStarted ||
       this._unsubRoomFinished ||
-      this._unsubJobFinished
+      this._unsubJobFinished ||
+      this._unsubRunIncomplete
     ) return;
 
     const hass = this.card?._hass;
@@ -74,6 +75,11 @@ export class LearningController {
       "eufy_vacuum_job_finished",
       "_unsubJobFinished",
       (event) => this._handleJobFinished(event)
+    );
+    this._subscribeEvent(
+      "eufy_vacuum_run_incomplete",
+      "_unsubRunIncomplete",
+      (event) => this._handleRunIncomplete(event)
     );
   }
 
@@ -110,11 +116,15 @@ export class LearningController {
     if (typeof this._unsubJobFinished === "function") {
       this._unsubJobFinished();
     }
+    if (typeof this._unsubRunIncomplete === "function") {
+      this._unsubRunIncomplete();
+    }
 
     this._unsubRoomCompleted = null;
     this._unsubRoomStarted = null;
     this._unsubRoomFinished = null;
     this._unsubJobFinished = null;
+    this._unsubRunIncomplete = null;
 
     this._stopBoundsExitPoll();
     this._stopProgressTicker();
@@ -216,6 +226,37 @@ export class LearningController {
     // Fire-and-forget — we don't need to await before re-rendering.
     this.card?.refreshIncompleteRunLog?.();
     this.card?.refreshTroubleRoomsLog?.();
+
+    this.card?._scheduleRender?.();
+  }
+
+  /**
+   * Handle eufy_vacuum_run_incomplete — fired by the backend right after
+   * a cancelled/failed/interrupted job leaves at least one queued room
+   * un-cleaned. Refreshes the incomplete-run log immediately (so the
+   * retry banner appears without waiting for the next dashboard poll)
+   * and surfaces a toast so the user notices even when they're on a
+   * non-Rooms view.
+   */
+  async _handleRunIncomplete(event) {
+    const data = event?.data ?? {};
+    const vacuumEntityId = this.card?._config?.vacuum_entity_id;
+    if (!vacuumEntityId || data.vacuum_entity_id !== vacuumEntityId) return;
+
+    // Force a refresh — the cached "loaded" flag would otherwise prevent it.
+    this.card._incompleteRunLogLoaded = false;
+    await this.card?.refreshIncompleteRunLog?.();
+
+    const missedCount = Array.isArray(data.missed_room_ids)
+      ? data.missed_room_ids.length
+      : (this.card?._state?.incompleteRunMissedRoomIds?.()?.length ?? 0);
+
+    if (missedCount > 0) {
+      this.card?.showToast?.(
+        `Run incomplete — ${missedCount} room${missedCount === 1 ? "" : "s"} missed. Open Rooms to retry.`,
+        { kind: "info", ttl: 6000 }
+      );
+    }
 
     this.card?._scheduleRender?.();
   }

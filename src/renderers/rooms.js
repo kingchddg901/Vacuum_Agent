@@ -24,6 +24,7 @@ export function applyRoomsRenderers(proto) {
     const { state } = ctx;
 
     const rooms = state.getRoomsForActiveMap();
+    const orderedRooms = this._withCurrentRoomPinned(rooms, state);
     const canStart = state.canStartCleaning();
     const blockedReason = state.startBlockedReason();
     const hasWarning = state.hasStartWarning();
@@ -75,7 +76,7 @@ export function applyRoomsRenderers(proto) {
                   ? this.renderMapRoomView(ctx)
                   : "")
               : `<div class="evcc-room-grid">
-                   ${rooms.map((room) => this.renderRoomCard(room, state)).join("")}
+                   ${orderedRooms.map((room) => this.renderRoomCard(room, state)).join("")}
                  </div>`}
           </div>
 
@@ -171,6 +172,32 @@ export function applyRoomsRenderers(proto) {
      Small inline panel shown when rooms have not been placed
      in the access tree yet (no inbound link, not dock room).
      ========================================================= */
+
+  /**
+   * Pin the currently-cleaning room to the top of the list during an
+   * active job. Returns the original list untouched when no job is
+   * running or no room is currently flagged. Stable for everything
+   * else — original order preserved.
+   *
+   * Bigger win on mobile (small viewport, lots of scroll) but also
+   * useful on desktop when the room grid wraps.
+   */
+  proto._withCurrentRoomPinned = function (rooms, state) {
+    if (!Array.isArray(rooms) || rooms.length < 2) return rooms;
+    const controller = this.card?._learningController;
+    if (!controller?.getRoomProgressSnapshot) return rooms;
+    if (!state?.hasActiveRun?.()) return rooms;
+
+    const currentIndex = rooms.findIndex((r) => {
+      const snap = controller.getRoomProgressSnapshot(r.id);
+      return Boolean(snap?.isCurrent);
+    });
+    if (currentIndex < 1) return rooms;   // 0 = already first, -1 = none
+    const reordered = rooms.slice();
+    const [pinned] = reordered.splice(currentIndex, 1);
+    reordered.unshift(pinned);
+    return reordered;
+  };
 
   proto._renderOrphanedRoomsPanel = function (state) {
     const orphaned = state.orphanedRooms?.() ?? [];
@@ -285,6 +312,7 @@ proto.renderRoomsActionBar = function (
   const startPreflight = cardState?.startPreflight?.() ?? startConfirmation?.preflight ?? null;
   const startRequiresConfirmation = Boolean(cardState?.startRequiresConfirmation?.());
   const cancelRequiresConfirmation = Boolean(cardState?.cancelRunRequiresConfirmation?.());
+  const clearQueueRequiresConfirmation = Boolean(cardState?.clearQueueRequiresConfirmation?.());
   const hasActiveRun = Boolean(cardState?.hasActiveRun?.());
   const canPauseRun = Boolean(cardState?.canPauseRun?.());
   const canResumeRun = Boolean(cardState?.canResumeRun?.());
@@ -356,14 +384,23 @@ proto.renderRoomsActionBar = function (
             Select All
           </button>
 
-          <button type="button" class="evcc-chip" data-action="clear-queue">
-            Clear Queue
-          </button>
+          <button
+            type="button"
+            class="evcc-chip ${clearQueueRequiresConfirmation ? "evcc-chip--start-warn evcc-chip--confirm-flash" : ""}"
+            data-action="clear-queue"
+          >${clearQueueRequiresConfirmation ? "Confirm Clear" : "Clear Queue"}</button>
         </div>
       </div>
 
       ${blockedReason && !canStart ? `
         <div class="evcc-rooms-block-reason">${this.escapeHtml(blockedReason)}</div>
+      ` : ""}
+
+      ${cancelRequiresConfirmation ? `
+        <div class="evcc-rooms-cancel-warning" role="alert">
+          Tap "Confirm Cancel" again to send the vacuum back to the dock,
+          or press <strong>Cancel</strong> to keep the job running.
+        </div>
       ` : ""}
 
       ${showPrimaryConfirmCancel ? `
@@ -725,6 +762,25 @@ proto.renderRoomCard = function (room, state) {
     }
   }
 
+  // "Last cleaned ~Nd ago" pill — pulled from room_history on the
+  // switch entity's attributes. Hide while a job is running on this
+  // room (the progress chip already covers that case) and when no
+  // timestamp is available (fresh install, or never cleaned).
+  let lastCleanedChip = "";
+  const lastCleanedAgoLabel = this.formatRelativeAgo?.(normalizedRoom.lastCleanedAt);
+  if (lastCleanedAgoLabel && !(progressSnapshot?.isCurrent)) {
+    const titleParts = [`Last cleaned: ${normalizedRoom.lastCleanedAt}`];
+    if (normalizedRoom.lastJobMode) {
+      titleParts.push(`Mode: ${String(normalizedRoom.lastJobMode)}`);
+    }
+    lastCleanedChip = `
+      <div
+        class="evcc-room-status evcc-room-status--last-cleaned"
+        title="${this.escapeHtml(titleParts.join(" | "))}"
+      >${this.escapeHtml(lastCleanedAgoLabel)}</div>
+    `;
+  }
+
   const progressMeta =
     learningJobActive &&
     progressSnapshot &&
@@ -853,6 +909,8 @@ proto.renderRoomCard = function (room, state) {
         ${confidenceChip}
 
         ${plannedWaterChip}
+
+        ${lastCleanedChip}
 
       </div>
 
@@ -986,6 +1044,8 @@ proto.renderRoomCard = function (room, state) {
         room?.resolved_profile_label ??
         null,
       profileSubtitle: room?.profile_subtitle ?? room?.profileSubtitle ?? null,
+      lastCleanedAt: room?.lastCleanedAt ?? room?.last_cleaned_at ?? null,
+      lastJobMode:   room?.lastJobMode   ?? room?.last_job_mode   ?? null,
       isCustomProfile: profileName.toLowerCase() === "custom",
       cleanMode,
       cleanModeLabel: room?.clean_mode_label ?? room?.cleanModeLabel ?? details?.clean_mode_label ?? null,

@@ -278,6 +278,7 @@ export function applyMaintenanceRenderers(proto) {
       : 0;
     const primaryValue = this._maintenancePrimaryValue(item);
     const secondaryValue = this._maintenanceSecondaryValue(item);
+    const dueInLabel = this._maintenanceDueInLabel(item);
     const guide = item?.guide?.display ?? null;
     const guideSummary = guide?.frequency || this._formatMaintenanceFrequency(guide?.frequency);
 
@@ -299,6 +300,10 @@ export function applyMaintenanceRenderers(proto) {
         <div class="evcc-maintenance-card-value">
           ${this.escapeHtml(primaryValue)}
         </div>
+
+        ${dueInLabel ? `
+          <div class="evcc-maintenance-card-due">${this.escapeHtml(dueInLabel)}</div>
+        ` : ""}
 
         <div class="evcc-maintenance-card-detail">
           ${this.escapeHtml(
@@ -463,6 +468,11 @@ export function applyMaintenanceRenderers(proto) {
               ${secondaryValue ? `
                 <div class="evcc-maintenance-modal-hero-detail">${this.escapeHtml(secondaryValue)}</div>
               ` : ""}
+
+              ${(() => {
+                const dueIn = this._maintenanceDueInLabel(item);
+                return dueIn ? `<div class="evcc-maintenance-modal-hero-due">${this.escapeHtml(dueIn)}</div>` : "";
+              })()}
             </div>
 
             ${guideSteps.length ? `
@@ -682,6 +692,61 @@ export function applyMaintenanceRenderers(proto) {
    * @param {object} item - Maintenance or replacement item.
    * @returns {string} Human-readable primary value string.
    */
+  /**
+   * Derive a "due in N days" estimate for a maintenance item by
+   * projecting forward at the average daily usage observed since the
+   * last reset.
+   *
+   * Math:
+   *   days_since_reset = (now - reset_at) / day
+   *   hours_per_day    = used_since_reset_hours / days_since_reset
+   *   days_remaining   = remaining_hours / hours_per_day
+   *
+   * Guards:
+   * - reset_at, used_since_reset_hours, remaining_hours must be present
+   * - need at least 3 days of usage history (otherwise the rate is noise)
+   * - need at least 0.1 h/day of usage (otherwise projected days
+   *   overflow into "due in 5000 days", which is meaningless)
+   * - replacement items skipped (their interval lives in firmware,
+   *   not in our reset_at slot)
+   *
+   * Returns a human label like "Due in ~12 days", "Due today", or
+   * "Overdue" — or `null` when the guards fail.
+   *
+   * @param {object} item - Maintenance or replacement item.
+   * @returns {string|null}
+   */
+  proto._maintenanceDueInLabel = function (item) {
+    if (!item || item.kind !== "maintenance") return null;
+
+    const remainingHours = Number(item.remaining_hours);
+    const usedSinceReset = Number(item.used_since_reset_hours);
+    const resetAtRaw = item.reset_at;
+    if (!Number.isFinite(remainingHours) || !Number.isFinite(usedSinceReset) || !resetAtRaw) {
+      return null;
+    }
+
+    const resetAt = Date.parse(String(resetAtRaw));
+    if (!Number.isFinite(resetAt)) return null;
+
+    const daysSinceReset = (Date.now() - resetAt) / 86_400_000;
+    if (!Number.isFinite(daysSinceReset) || daysSinceReset < 3) return null;
+
+    const hoursPerDay = usedSinceReset / daysSinceReset;
+    if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0.1) return null;
+
+    if (remainingHours <= 0) return "Overdue";
+
+    const daysRemaining = remainingHours / hoursPerDay;
+    if (!Number.isFinite(daysRemaining)) return null;
+
+    if (daysRemaining < 1) return "Due today";
+    if (daysRemaining < 2) return "Due tomorrow";
+    if (daysRemaining < 14) return `Due in ~${Math.round(daysRemaining)} days`;
+    if (daysRemaining < 60) return `Due in ~${Math.round(daysRemaining / 7)} weeks`;
+    return `Due in ~${Math.round(daysRemaining / 30)} months`;
+  };
+
   proto._maintenancePrimaryValue = function (item) {
     const explicitSummary = String(item?.remaining_summary ?? "").trim();
     if (explicitSummary) {

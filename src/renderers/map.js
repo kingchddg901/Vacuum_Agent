@@ -428,7 +428,7 @@ export function applyMapRenderers(proto) {
         </div>
 
         <div class="evcc-map-config-panel">
-          ${this._renderVariantsSection(variants, summary, actionStatus)}
+          ${this._renderVariantsSection(variants, summary, actionStatus, state)}
         </div>
 
       </div>
@@ -478,7 +478,8 @@ export function applyMapRenderers(proto) {
      VARIANTS SECTION
      ========================================================= */
 
-  proto._renderVariantsSection = function (variants, summary, actionStatus) {
+  proto._renderVariantsSection = function (variants, summary, actionStatus, state) {
+    const armedDelete = state?.mapVariantDeleteArmed?.() ?? null;
     const rows = _VARIANTS.map(({ key, label, hint }) => {
       const uploaded   = variants[key];
       // Treat both the upload phase and the (much longer) analyze phase
@@ -528,6 +529,36 @@ export function applyMapRenderers(proto) {
             data-variant="${key}"
             ${isBusy ? "disabled" : ""}
           >${buttonLabel}</button>
+          ${uploaded ? (() => {
+            const isArmed = armedDelete === key;
+            const isDeleteBusy = actionStatus?.type === "delete" &&
+                                 actionStatus?.variant === key &&
+                                 actionStatus?.status === "busy";
+            const btnLabel = isDeleteBusy ? "Deleting…"
+                           : isArmed ? "Confirm Delete"
+                           : "Delete";
+            const btnClass = "evcc-map-config-btn evcc-map-config-btn--danger"
+                           + (isArmed ? " evcc-map-config-btn--confirm" : "")
+                           + (isDeleteBusy ? " evcc-map-config-btn--busy" : "");
+            return `
+              <button
+                class="${btnClass}"
+                data-action="delete-map-variant"
+                data-variant="${key}"
+                title="${isArmed
+                  ? 'Click again to confirm — or click anywhere else to cancel'
+                  : 'Delete this image (does not affect the map itself)'}"
+                ${isDeleteBusy ? "disabled" : ""}
+              >${btnLabel}</button>
+              ${isArmed ? `
+                <button
+                  class="evcc-map-config-btn"
+                  data-action="cancel-delete-map-variant"
+                  title="Cancel the pending delete"
+                >Cancel</button>
+              ` : ""}
+            `;
+          })() : ""}
           <!-- File input is created in-memory by the click binding (bindings/map.js).
                Keeping it out of the DOM avoids re-render orphan issues when HA pushes
                state updates between picker open and file selection. -->

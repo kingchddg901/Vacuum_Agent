@@ -172,12 +172,29 @@ class EufyVacuumRoomEntity(Entity):
             get_adapter_config(self._vacuum_entity_id) or {}
         ).get("vocabulary", {}) or {}
 
+        # Surface the last-cleaned timestamp from room_history on every
+        # room entity so the card can render a "2d ago" pill on each
+        # room card without an extra service round-trip. data shape:
+        # data["room_history"][vacuum][map_id][room_id]["last_cleaned_at"]
+        history_entry = (
+            self.manager.data.get("room_history", {})
+            .get(self._vacuum_entity_id, {})
+            .get(str(self._map_id), {})
+            .get(str(self._room_id), {})
+        )
+        if not isinstance(history_entry, dict):
+            history_entry = {}
+
         return {
             "vacuum_entity_id": self._vacuum_entity_id,
             "map_id": self._map_id,
             "room_id": self._room_id,
             "room_name": room.get("name", self._room_name),
             "slug": room.get("slug", self._room_slug),
+            "last_cleaned_at": history_entry.get("last_cleaned_at"),
+            "last_vacuumed_at": history_entry.get("last_vacuumed_at"),
+            "last_mopped_at": history_entry.get("last_mopped_at"),
+            "last_job_mode": history_entry.get("last_job_mode"),
             "profile_name": room.get("profile_name", "vacuum_quick"),
             "floor_type": room.get("floor_type", "hardwood"),
             "clean_mode": effective.get("clean_mode"),

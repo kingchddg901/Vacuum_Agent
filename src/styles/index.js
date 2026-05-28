@@ -593,3 +593,86 @@ export const MODAL_HOST_STYLES = `
     }
   }
 `;
+
+/* =========================================================
+   TOAST HOST STYLES
+   =========================================================
+   Applied to the separate document.body toast host div. The
+   host's z-index sits above the modal host (9999) so success /
+   error feedback is visible while a modal is open. Pointer
+   events are off on the wrapper so toasts don't block clicks
+   inside the modal underneath; the per-toast dismiss button
+   re-enables them.
+   ========================================================= */
+export const TOAST_HOST_STYLES = `
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+  }
+
+  .evcc-toast-stack {
+    position:        fixed;
+    left:            0;
+    right:           0;
+    bottom:          24px;
+    display:         flex;
+    flex-direction:  column-reverse;
+    gap:             8px;
+    align-items:     center;
+    pointer-events:  none;
+    z-index:         10000;
+    font-family:     var(--evcc-font-family, var(--paper-font-body1_-_font-family, sans-serif));
+    font-size:       14px;
+  }
+
+  .evcc-toast {
+    pointer-events: auto;
+    display:        flex;
+    align-items:    center;
+    gap:            10px;
+    padding:        10px 14px;
+    border-radius:  10px;
+    font-size:      0.9rem;
+    background:     var(--evcc-surface-elevated, rgba(28, 28, 30, 0.96));
+    color:          var(--evcc-text-primary, #f0f2f5);
+    box-shadow:     0 6px 18px rgba(0, 0, 0, 0.4);
+    border:         1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.1));
+    min-width:      220px;
+    max-width:      90vw;
+    animation:      evcc-toast-host-in 160ms ease-out;
+  }
+
+  .evcc-toast--success { border-left: 3px solid var(--evcc-sem-success, #22c55e); }
+  .evcc-toast--error   { border-left: 3px solid var(--evcc-sem-error,   #ef4444); }
+  .evcc-toast--info    { border-left: 3px solid var(--evcc-accent,      #60a5fa); }
+
+  .evcc-toast-message {
+    flex: 1;
+    line-height: 1.3;
+  }
+
+  .evcc-toast-dismiss {
+    color:        var(--evcc-text-muted, rgba(255, 255, 255, 0.55));
+    font-size:    0.95rem;
+    padding:      0 6px;
+    line-height:  1;
+  }
+
+  .evcc-toast-dismiss:hover {
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
+
+  @keyframes evcc-toast-host-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+`;
