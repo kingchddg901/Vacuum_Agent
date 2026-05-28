@@ -675,7 +675,8 @@ anchoring, and image-segment analysis.
 | Service | Purpose | Required | Optional | Returns |
 |---------|---------|----------|----------|---------|
 | `save_map_image` | Store a base64-encoded PNG as the map image for one vacuum/map. | `vacuum_entity_id`, `map_id`, `image_base64: str` | `image_width: int`, `image_height: int`, `variant: str` | no |
-| `upload_map_image` | Accept a user-uploaded floor plan image for analysis (alternative entry point). | `vacuum_entity_id`, `map_id`, `image_base64: str` | (none) | no |
+| `upload_map_image` | Accept a user-uploaded floor plan image for analysis (alternative entry point). | `vacuum_entity_id`, `map_id`, `image_base64: str` | `variant: "default"\|"dark"\|"light"`, `image_width: int`, `image_height: int` | yes — `{saved, path, browser_url, variant, size_bytes, ...}` |
+| `delete_map_image` | Remove one uploaded image variant for a map. Unlinks the PNG from `eufy_vacuum/maps/<vacuum>/map_<id>{_variant}.png` and drops the variant from `data["maps"][vacuum][map_id]["image_variants"]`. Idempotent — returns `{deleted: false, reason: "not_found"}` when the variant isn't recorded. Does NOT clear the segmentation cache; re-upload + analyze is its own action. | `vacuum_entity_id`, `map_id` | `variant: "default"\|"dark"\|"light"` (default `default`) | yes — `{deleted, file_removed, vacuum_entity_id, map_id, variant, remaining_variants}` |
 | `analyze_map_image` | Dispatch to the adapter-declared segmenter engine (see §2.0). | `vacuum_entity_id` | `map_id` (auto), `force_reanalyze: bool`, plus tuning overrides that layer on top of `adapter_config.mapping.segmenter_tuning` (`expected_room_count`, `max_segments`, `min_area_pixels`, `simplify_epsilon`) | yes — canonical `SegmentationResult` with engine-specific diagnostics under `engine_diagnostics` |
 
 ### Room markers

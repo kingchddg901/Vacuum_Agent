@@ -36,7 +36,14 @@ vacuum_entity_id: vacuum.your_vacuum
 
 ## The card at a glance
 
-The card has a header strip at the top showing your vacuum's name, current status (cleaning, docked, paused, etc.), and battery level. Below that is a navigation bar with tabs that switch between panels:
+The card has a header strip at the top showing your vacuum's name, two status pills, and the current battery level:
+
+- **Vacuum Status** — what the vacuum entity itself reports (Docked, Cleaning, Returning, Paused, etc.).
+- **Dock Status** — what the dock entity reports (Idle, Washing, Drying, Emptying, Charging, etc.). Only shown when your model exposes a dock status.
+
+Both labels are formatted server-side, so any vocabulary the integration knows about is rendered consistently. A colored dot next to each one mirrors the state at a glance — green for active work, amber for transitional states, red for errors, muted grey for idle/offline.
+
+Below the header is a navigation bar with tabs that switch between panels:
 
 | Tab | What it does |
 |---|---|
@@ -50,4 +57,13 @@ The card has a header strip at the top showing your vacuum's name, current statu
 | **Map Bounds** | Review and adjust the boundary boxes the integration uses to track which room the vacuum is in. |
 | **Setup** | Add vacuums and import maps into the integration. |
 
-The card opens on the **Rooms** tab by default.
+The card opens on the **Rooms** tab the first time you load it. After that it remembers whichever tab you were on last per vacuum, so refreshing the browser doesn't lose your place.
+
+## Small conveniences
+
+A few interaction details that aren't tied to any one tab:
+
+- **Toast feedback.** Save / reset / dock-action / delete operations surface a short status pill near the bottom of the card. Successful actions get a green stripe, failures a red one, informational events a blue one. Each one auto-dismisses after a few seconds; click the ✕ to drop it sooner.
+- **ESC closes modals.** Any open modal (room editor, room access editor, run-estimate detail, maintenance item, order picker) closes on Escape.
+- **Two-tap destructive actions.** Cancel Run, Clear Queue, and Delete on a map image variant all require two clicks. The first click flips the button to a pulsing "Confirm" state; the second click commits. The confirmation auto-clears after a few seconds, and switching tabs also drops it so a pending confirm never surprises you when you come back.
+- **Incomplete run banner.** If a run ends with rooms unvisited, an alert banner appears at the top of the Rooms tab the moment the integration finalizes the job. A "Queue missed rooms" button kicks off a follow-up run with just the skipped rooms.

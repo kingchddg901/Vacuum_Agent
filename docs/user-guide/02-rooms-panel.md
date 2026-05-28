@@ -17,9 +17,10 @@ Each room card acts as a toggle. Click (or tap) a room card to include it in the
 
 You can also:
 - **Select All** — includes every room at once.
-- **Clear Queue** — removes all rooms from the queue.
+- **Clear Queue** — removes all rooms from the queue. Two-tap to fire: first click pulses "Confirm Clear", second click within five seconds actually clears. The pulse auto-clears if you walk away; navigating to another view also drops the pending confirmation.
+- **Locate** — sends a chirp to the vacuum so you can find it. A toast confirms the command was sent.
 
-Both buttons are in the action bar at the top.
+Both Select All and Clear Queue are in the action bar at the top.
 
 The action bar shows how many rooms are currently included (for example, "3 rooms included") and, once the system has learned timing data, an estimated total run time for the current selection.
 
@@ -77,7 +78,12 @@ Each room card shows:
 - A **time estimate chip** if the learning system has data for the room. Learned estimates show the time directly; fallback (default) estimates are prefixed with "~" to indicate they are approximate.
 - A **confidence chip** indicating how reliable the estimate is: "Reliable", "Learning", or "Uncertain" (or "Unlearned" if no data has been collected yet).
 - A **projected water use chip** when the room is set to a mop mode and the integration can calculate expected water consumption.
+- A **"Last cleaned ~Nd ago" pill** showing when the room was last actually cleaned, sourced from the integration's per-room history. Hover for the full timestamp and the cleaning mode used. The pill is suppressed for whichever room is *currently* being cleaned (the progress chip takes over there) and for rooms with no recorded history yet.
 - **Warning notes** at the bottom of the card when issues are detected (see below).
+
+### Sticky current room during a run
+
+While a job is running, whichever room is *currently being cleaned* is pinned to the top of the room grid (or to the first slot in the visible list on mobile). The original order is preserved for every other room — only the active one moves. As the vacuum advances to the next room the pin shifts with it, so you don't need to scroll to see what's underway.
 
 ## Room settings editor
 

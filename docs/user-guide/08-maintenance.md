@@ -42,6 +42,7 @@ Each item is shown as a card displaying:
 - Its current status (for example, "Good", "Warning", "Replace Soon", "Replace Now")
 - A primary value — either a summary from the backend, a percentage remaining, or an hours-remaining figure
 - A secondary value — either a usage summary, "N hours used of M hours" for replacements, or "N hours left of M hours" for maintenance items
+- A "Due in ~N days / weeks / months" projection pill (maintenance items only) — appears once enough history has built up since the last reset (at least three days at non-trivial daily usage). Calculated from your actual usage rate, not the manufacturer's interval. Hidden on freshly-reset items.
 - A guide frequency note if the integration has model-specific guidance for this item
 
 The card background fill reflects how much life remains, so you can see at a glance which items are running low.

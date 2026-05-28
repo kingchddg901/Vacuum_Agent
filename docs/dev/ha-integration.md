@@ -114,7 +114,7 @@ Six platforms are registered: `binary_sensor`, `button`, `switch`, `select`, `nu
 - Exposes a `manager` property that resolves the runtime manager at call time via `hass.data[DOMAIN]["runtime"]` — never cached.
 - Provides `_get_room_data()` (reads from `manager.data["maps"][vacuum_entity_id][map_id]["rooms"][room_id]`) and `_async_update_room(updates)` (writes, persists, and notifies).
 - Returns `available = False` if the room record no longer exists in storage (handles dynamic room removal).
-- `extra_state_attributes` returns a standard attribute set: `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `slug`, `profile_name`, `floor_type`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, `carpet`, `order`, `enabled`, `is_dock_room`, `grants_access_to`, `rules`, and `integration`.
+- `extra_state_attributes` returns a standard attribute set: `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `slug`, `profile_name`, `floor_type`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, `carpet`, `order`, `enabled`, `is_dock_room`, `grants_access_to`, `rules`, and `integration`. Also includes the latest cleaning-history pointers (`last_cleaned_at`, `last_vacuumed_at`, `last_mopped_at`, `last_job_mode`) sourced from `data["room_history"]`, so the card can render per-room "last cleaned" pills without a separate service round-trip.
 
 ### entity_helpers.py utilities
 

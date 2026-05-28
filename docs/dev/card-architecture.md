@@ -388,6 +388,8 @@ The `MAPPING_ARCHIVE` entry exists for backwards compatibility. Any call to `car
 | map | `state/map.js` | Map segments data |
 | setup | `state/setup.js` | Setup status; setup loading flag |
 | mapping-review | `state/mapping-review.js` | Room bounds snapshot |
+| toasts | `state/toasts.js` | Queue of transient feedback pills (success / error / info) for service results. Rendered into a body-level host above the modal host. |
+| confirmations | `state/confirmations.js` | Generic two-tap confirmation registry. Backs `cancelRunRequiresConfirmation`, `clearQueueRequiresConfirmation`, `isMapVariantDeleteArmed`, and similar shims. Owns per-key grace windows and auto-clear timers so individual binding callsites no longer maintain their own `setTimeout` bookkeeping. `setView` calls `disarmAllConfirmations()` so confirmations never survive a view change. |
 
 ### 4.2 Init shape and clear shape
 
