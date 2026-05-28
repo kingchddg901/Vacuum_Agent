@@ -371,10 +371,14 @@ export const MOBILE_STYLES = `
     gap: 4px;
   }
 
-  /* Slim down the Move button on mobile — the drag handle covers
-     the same affordance and saves a tap target's worth of width. */
+  /* Mobile reorder uses the Move button (opens the position picker
+     modal). The drag handle is hidden because HTML5 native drag
+     (draggable=true + dragstart) does not fire from touch events,
+     so the handle would be dead weight on touch devices. Earlier
+     version had this backwards — handle visible, Move hidden — which
+     left mobile users with no working reorder path. */
   .evcc-shell[data-viewport="mobile"] .evcc-room-card
-    .evcc-order-move-button {
+    .evcc-order-drag-handle {
     display: none;
   }
 

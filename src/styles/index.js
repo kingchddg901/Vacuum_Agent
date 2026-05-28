@@ -296,8 +296,12 @@ export const MODAL_HOST_STYLES = `
   }
 
   .evcc-room-editor-fields,
+  .evcc-editor-field-groups,
   .evcc-modal-body {
     flex:           1;
+    min-height:     0;       /* Required for flex children to actually
+                                shrink-and-scroll instead of growing
+                                past their parent's max-height. */
     overflow-y:     auto;
     padding:        var(--evcc-modal-padding, 20px);
     display:        flex;
@@ -548,20 +552,12 @@ export const MODAL_HOST_STYLES = `
       padding-bottom: env(safe-area-inset-bottom, 0px);
     }
 
-    /* Drag-handle pill above the header — pure visual affordance
-       that says "this is a sheet you can dismiss." We don't
-       actually wire swipe-to-dismiss; the close button (X) is
-       still the canonical close path. */
-    .evcc-modal::before {
-      content:       "";
-      display:       block;
-      flex-shrink:   0;
-      width:         40px;
-      height:        4px;
-      margin:        8px auto 0;
-      border-radius: 2px;
-      background:    var(--evcc-modal-border, rgba(255, 255, 255, 0.28));
-    }
+    /* No drag handle. An earlier version drew a pill at the top
+       of the sheet to signal "this is dismissible" but swipe-to-
+       dismiss was never wired, so the affordance promised a
+       gesture that didn't exist. Removed entirely; the X button
+       in the header is the canonical close path. Add back when /
+       if a real swipe gesture handler ships. */
 
     /* Sticky header — title + close button stay visible while
        the body scrolls. Background matches modal so scrolled
@@ -591,6 +587,63 @@ export const MODAL_HOST_STYLES = `
     .evcc-modal-body {
       padding-bottom: 20px;
     }
+  }
+
+  /* =========================================================
+     REORDER MODAL — current order + preview chip rows
+     =========================================================
+     "Currently" / "After move" sections in the position selector
+     modal show every item in the list as a small chip with its
+     position number. Active item is filled with the accent color
+     so the user can spot it instantly in both rows.
+
+     Rules live here (not in styles/order.js) because the modal
+     host is body-attached, outside the card shadow root.
+     ========================================================= */
+
+  .evcc-order-preview-row {
+    display:        flex;
+    flex-wrap:      wrap;
+    gap:            6px;
+  }
+
+  .evcc-order-preview-chip {
+    display:        inline-flex;
+    align-items:    center;
+    gap:            6px;
+    padding:        4px 10px 4px 4px;
+    border-radius:  999px;
+    font-size:      0.8rem;
+    line-height:    1.2;
+    background:     var(--evcc-surface-subtle, rgba(255,255,255,0.04));
+    border:         1px solid var(--evcc-border-subtle, rgba(255,255,255,0.10));
+    color:          var(--evcc-text-secondary);
+  }
+
+  .evcc-order-preview-chip-pos {
+    display:        inline-flex;
+    align-items:    center;
+    justify-content: center;
+    min-width:      18px;
+    height:         18px;
+    padding:        0 5px;
+    border-radius:  999px;
+    font-size:      0.72rem;
+    font-weight:    700;
+    background:     var(--evcc-surface-elevated, rgba(255,255,255,0.08));
+    color:          var(--evcc-text-muted);
+  }
+
+  .evcc-order-preview-chip--active {
+    background:     color-mix(in srgb, var(--evcc-accent, #60a5fa) 18%, transparent);
+    border-color:   color-mix(in srgb, var(--evcc-accent, #60a5fa) 60%, transparent);
+    color:          var(--evcc-text-primary);
+    font-weight:    600;
+  }
+
+  .evcc-order-preview-chip--active .evcc-order-preview-chip-pos {
+    background:     var(--evcc-accent, #60a5fa);
+    color:          var(--evcc-on-accent, #ffffff);
   }
 `;
 

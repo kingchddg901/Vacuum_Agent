@@ -196,4 +196,9 @@ export const orderStyles = `
       display: none;
     }
   }
+
 `;
+// Reorder modal preview chip styles deliberately live in MODAL_HOST_STYLES
+// (src/styles/index.js) because the modal host is mounted on document.body
+// outside the card shadow root. Rules added here only reach the shadow
+// root and would not apply to chips rendered into the modal.
