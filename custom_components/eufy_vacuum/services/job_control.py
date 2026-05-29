@@ -1,0 +1,275 @@
+"""Job control services — start / pause / resume / cancel / clear / inspect.
+
+Eleven services covering the active-job lifecycle:
+- get_start_status: pre-start readiness
+- start_selected_rooms: start the queued job
+- start_run_profile: apply + start a saved profile
+- pause_active_job / resume_active_job / cancel_active_job: lifecycle controls
+- clear_active_job: clear local state without device interaction
+- get_active_job / get_job_progress_snapshot / get_job_control_state /
+  get_lifecycle_state: read-only inspection
+
+cancel_active_job fires EVENT_JOB_FINISHED when the cancel actually
+finalizes a job; the other lifecycle controls don't fire that event
+themselves (the lifecycle listener / pause-timeout listener / path-
+blocker listener own those firings).
+"""
+
+from __future__ import annotations
+
+import logging
+
+import voluptuous as vol
+
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.helpers import config_validation as cv
+
+from ..const import (
+    DOMAIN,
+    EVENT_JOB_FINISHED,
+    SERVICE_CANCEL_ACTIVE_JOB,
+    SERVICE_CLEAR_ACTIVE_JOB,
+    SERVICE_GET_ACTIVE_JOB,
+    SERVICE_GET_JOB_CONTROL_STATE,
+    SERVICE_GET_JOB_PROGRESS_SNAPSHOT,
+    SERVICE_GET_LIFECYCLE_STATE,
+    SERVICE_GET_START_STATUS,
+    SERVICE_PAUSE_ACTIVE_JOB,
+    SERVICE_RESUME_ACTIVE_JOB,
+    SERVICE_START_RUN_PROFILE,
+    SERVICE_START_SELECTED_ROOMS,
+)
+from ._common import (
+    JOB_CONTROL_SCHEMA,
+    VACUUM_MAP_SCHEMA,
+    get_manager,
+    job_finished_event_payload,
+    resolved_call_data,
+)
+
+_LOGGER = logging.getLogger(__name__)
+
+
+SERVICES = (
+    SERVICE_GET_START_STATUS,
+    SERVICE_START_SELECTED_ROOMS,
+    SERVICE_START_RUN_PROFILE,
+    SERVICE_PAUSE_ACTIVE_JOB,
+    SERVICE_RESUME_ACTIVE_JOB,
+    SERVICE_CANCEL_ACTIVE_JOB,
+    SERVICE_CLEAR_ACTIVE_JOB,
+    SERVICE_GET_ACTIVE_JOB,
+    SERVICE_GET_JOB_PROGRESS_SNAPSHOT,
+    SERVICE_GET_JOB_CONTROL_STATE,
+    SERVICE_GET_LIFECYCLE_STATE,
+)
+
+
+_START_SELECTED_ROOMS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("map_id"): cv.string,
+        vol.Optional("confirm_reduced_run"): cv.boolean,
+        vol.Optional("confirm_token"): cv.string,
+        vol.Optional("path_block_action"): vol.In(
+            ["event_only", "pause_and_event", "cancel_and_event"]
+        ),
+        vol.Optional("pause_timeout_minutes_override"): vol.All(
+            vol.Coerce(int), vol.Range(min=0)
+        ),
+    }
+)
+
+_START_RUN_PROFILE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("map_id"): cv.string,
+        vol.Required("profile_id"): cv.string,
+        vol.Optional("confirm_reduced_run"): cv.boolean,
+        vol.Optional("confirm_token"): cv.string,
+        vol.Optional("path_block_action"): vol.In(
+            ["event_only", "pause_and_event", "cancel_and_event"]
+        ),
+        vol.Optional("pause_timeout_minutes_override"): vol.All(
+            vol.Coerce(int), vol.Range(min=0)
+        ),
+    }
+)
+
+
+async def _handle_get_start_status(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Check if start is allowed.
+
+    Must NOT use async_add_executor_job — get_start_status calls
+    hass.bus.async_fire internally (via _build_effective_start_plan →
+    _maybe_roll_current_room_by_timing) and must stay on the event loop.
+    """
+    payload = get_manager(hass).get_start_status(**resolved_call_data(hass, call))
+    _LOGGER.debug("get_start_status complete: %s", payload)
+    return payload
+
+
+async def _handle_start_selected_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Start cleaning selected rooms."""
+    payload = await get_manager(hass).start_selected_rooms(**resolved_call_data(hass, call))
+    _LOGGER.debug("start_selected_rooms complete: %s", payload)
+    await get_manager(hass).async_save()
+
+
+async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Apply and start one saved run profile."""
+    payload = await get_manager(hass).start_run_profile(**resolved_call_data(hass, call))
+    _LOGGER.debug("start_run_profile complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
+async def _handle_pause_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Pause one tracked active job and the underlying vacuum."""
+    payload = await get_manager(hass).async_pause_active_job(**resolved_call_data(hass, call))
+    _LOGGER.debug("pause_active_job complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
+async def _handle_resume_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Resume one tracked paused job and the underlying vacuum."""
+    payload = await get_manager(hass).async_resume_active_job(**resolved_call_data(hass, call))
+    _LOGGER.debug("resume_active_job complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
+async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Cancel one tracked job, return the vacuum to base, and finalize it."""
+    resolved = resolved_call_data(hass, call)
+    payload = await get_manager(hass).async_cancel_active_job(**resolved)
+    if payload.get("cancelled"):
+        hass.bus.async_fire(
+            EVENT_JOB_FINISHED,
+            job_finished_event_payload(
+                vacuum_entity_id=resolved.get("vacuum_entity_id"),
+                map_id=resolved.get("map_id"),
+                result=payload.get("finalize_result"),
+            ),
+        )
+    _LOGGER.debug("cancel_active_job complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
+async def _handle_clear_active_job(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Clear active job state."""
+    payload = get_manager(hass).clear_active_job(**resolved_call_data(hass, call))
+    _LOGGER.debug("clear_active_job complete: %s", payload)
+    await get_manager(hass).async_save()
+
+
+async def _handle_get_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Get current active job state."""
+    payload = get_manager(hass).get_active_job(**resolved_call_data(hass, call))
+    _LOGGER.debug("get_active_job complete: %s", payload)
+    return payload
+
+
+async def _handle_get_job_progress_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return canonical room-job progress state for the card."""
+    payload = get_manager(hass).get_job_progress_snapshot(**resolved_call_data(hass, call))
+    _LOGGER.debug("get_job_progress_snapshot complete: %s", payload)
+    return payload
+
+
+async def _handle_get_job_control_state(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return card-facing action state for one vacuum/map."""
+    payload = get_manager(hass).get_job_control_state(**resolved_call_data(hass, call))
+    _LOGGER.debug("get_job_control_state complete: %s", payload)
+    return payload
+
+
+async def _handle_get_lifecycle_state(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Get lifecycle state for vacuum."""
+    payload = get_manager(hass).get_lifecycle_state(**resolved_call_data(hass, call))
+    _LOGGER.debug("get_lifecycle_state complete: %s", payload)
+    return payload
+
+
+def register(hass: HomeAssistant) -> None:
+    """Register job-control services."""
+
+    async def get_start_status(call: ServiceCall) -> dict:
+        return await _handle_get_start_status(hass, call)
+
+    async def start_selected_rooms(call: ServiceCall) -> None:
+        await _handle_start_selected_rooms(hass, call)
+
+    async def start_run_profile(call: ServiceCall) -> dict:
+        return await _handle_start_run_profile(hass, call)
+
+    async def pause_active_job(call: ServiceCall) -> dict:
+        return await _handle_pause_active_job(hass, call)
+
+    async def resume_active_job(call: ServiceCall) -> dict:
+        return await _handle_resume_active_job(hass, call)
+
+    async def cancel_active_job(call: ServiceCall) -> dict:
+        return await _handle_cancel_active_job(hass, call)
+
+    async def clear_active_job(call: ServiceCall) -> None:
+        await _handle_clear_active_job(hass, call)
+
+    async def get_active_job(call: ServiceCall) -> dict:
+        return await _handle_get_active_job(hass, call)
+
+    async def get_job_progress_snapshot(call: ServiceCall) -> dict:
+        return await _handle_get_job_progress_snapshot(hass, call)
+
+    async def get_job_control_state(call: ServiceCall) -> dict:
+        return await _handle_get_job_control_state(hass, call)
+
+    async def get_lifecycle_state(call: ServiceCall) -> dict:
+        return await _handle_get_lifecycle_state(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_START_STATUS, get_start_status,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_SELECTED_ROOMS, start_selected_rooms,
+        schema=_START_SELECTED_ROOMS_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_RUN_PROFILE, start_run_profile,
+        schema=_START_RUN_PROFILE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_PAUSE_ACTIVE_JOB, pause_active_job,
+        schema=JOB_CONTROL_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RESUME_ACTIVE_JOB, resume_active_job,
+        schema=JOB_CONTROL_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CANCEL_ACTIVE_JOB, cancel_active_job,
+        schema=JOB_CONTROL_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAR_ACTIVE_JOB, clear_active_job,
+        schema=VACUUM_MAP_SCHEMA,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_ACTIVE_JOB, get_active_job,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_JOB_PROGRESS_SNAPSHOT, get_job_progress_snapshot,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_JOB_CONTROL_STATE, get_job_control_state,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_LIFECYCLE_STATE, get_lifecycle_state,
+        schema=VACUUM_MAP_SCHEMA, supports_response=True,
+    )
