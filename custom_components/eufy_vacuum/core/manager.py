@@ -1458,9 +1458,461 @@ class EufyVacuumManager:
             blocked_room_ids=blocked_room_ids,
         )
 
-    def _update_room_rule_status_snapshot(self, **kwargs):
-        """Delegate to RunPlanManager."""
-        return self.run_plan._update_room_rule_status_snapshot(**kwargs)
+    def _update_room_rule_status_snapshot(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, dict[str, Any]],
+        selected_room_ids: list[int],
+        included_room_ids: list[int],
+        blocked_rooms: list[dict[str, Any]],
+        modified_rooms: list[dict[str, Any]],
+        preflight: dict[str, Any],
+    ) -> None:
+        """Store a per-room rule/preflight evaluation snapshot and fire the update callback."""
+        selected_set = {int(room_id) for room_id in selected_room_ids}
+        included_set = {int(room_id) for room_id in included_room_ids}
+        blocked_by_room_id: dict[int, dict[str, Any]] = {
+            _safe_int(item.get("room_id"), -1): item
+            for item in blocked_rooms
+            if isinstance(item, dict) and _safe_int(item.get("room_id"), -1) > 0
+        }
+        modified_by_room_id: dict[int, dict[str, Any]] = {
+            _safe_int(item.get("room_id"), -1): item
+            for item in modified_rooms
+            if isinstance(item, dict) and _safe_int(item.get("room_id"), -1) > 0
+        }
+
+        evaluation_at = _iso_now()
+        status_root = self.data.setdefault("room_rule_status", {})
+        vacuum_status = status_root.setdefault(vacuum_entity_id, {})
+        map_status = vacuum_status.setdefault(str(map_id), {})
+
+        changed = False
+        for room_key, room in managed_rooms.items():
+            if not isinstance(room, dict):
+                continue
+            room_id = _safe_int(room.get("room_id", room_key), -1)
+            if room_id <= 0:
+                continue
+
+            blocked = blocked_by_room_id.get(room_id)
+            modified = modified_by_room_id.get(room_id)
+            selected = room_id in selected_set
+            included = room_id in included_set
+
+            if not selected:
+                result = "not_selected"
+            elif blocked and modified:
+                result = "blocked_and_modified"
+            elif blocked:
+                result = "blocked"
+            elif modified:
+                result = "modified"
+            else:
+                result = "allowed"
+
+            prior = map_status.get(str(room_id), {})
+            next_entry: dict[str, Any] = {
+                "room_id": room_id,
+                "map_id": str(map_id),
+                "room_name": str(room.get("name", f"Room {room_id}")).strip() or f"Room {room_id}",
+                "last_evaluated_at": evaluation_at,
+                "last_result": result,
+                "last_selected": selected,
+                "last_included": included,
+                "last_block_reason": blocked.get("reason") if blocked else None,
+                "last_block_source": blocked.get("source") if blocked else None,
+                "last_blocked_by_room_id": (
+                    str(blocked.get("blocked_by_room_id"))
+                    if blocked and blocked.get("blocked_by_room_id") not in (None, "")
+                    else None
+                ),
+                "last_blocked_by_room_name": blocked.get("blocked_by_room_name") if blocked else None,
+                "last_triggered_rule_ids": sorted(
+                    {
+                        str(v)
+                        for v in (
+                            ([blocked.get("triggered_rule_id")] if blocked and blocked.get("triggered_rule_id") else [])
+                            + (list(modified.get("triggered_rule_ids", [])) if modified else [])
+                        )
+                        if str(v).strip()
+                    }
+                ),
+                "last_modifier_changes": dict(modified.get("changes", {})) if modified else {},
+                "last_requires_confirmation": bool(preflight.get("requires_confirmation", False)),
+                "last_preflight_reason": str(preflight.get("reason", "ready")).strip() or "ready",
+                "last_warning_codes": (
+                    list(preflight.get("warnings", []))
+                    if isinstance(preflight.get("warnings"), list)
+                    else []
+                ),
+                "last_evaluation_scope": "start_preflight",
+            }
+
+            if next_entry != prior:
+                map_status[str(room_id)] = next_entry
+                changed = True
+
+        if changed:
+            self._notify_room_rule_status_updated(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+            )
+
+    def get_room_rule_status(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        room_id: int | str,
+    ) -> dict[str, Any]:
+        """Return the latest stored rule/preflight evaluation status for one room."""
+        map_id_str = str(map_id)
+        room_id_int = _safe_int(room_id, -1)
+        room = (
+            self.data.get("maps", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+            .get("rooms", {})
+            .get(str(room_id_int), {})
+        )
+        room_name = str(room.get("name", f"Room {room_id_int}")).strip() or f"Room {room_id_int}"
+
+        entry = (
+            self.data.get("room_rule_status", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+            .get(str(room_id_int), {})
+        )
+        if not isinstance(entry, dict):
+            entry = {}
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": map_id_str,
+            "room_id": str(room_id_int),
+            "room_name": room_name,
+            "last_evaluated_at": entry.get("last_evaluated_at"),
+            "last_result": entry.get("last_result", "never"),
+            "last_selected": bool(entry.get("last_selected", False)),
+            "last_included": bool(entry.get("last_included", False)),
+            "last_block_reason": entry.get("last_block_reason"),
+            "last_block_source": entry.get("last_block_source"),
+            "last_blocked_by_room_id": entry.get("last_blocked_by_room_id"),
+            "last_blocked_by_room_name": entry.get("last_blocked_by_room_name"),
+            "last_triggered_rule_ids": (
+                list(entry.get("last_triggered_rule_ids", []))
+                if isinstance(entry.get("last_triggered_rule_ids"), list)
+                else []
+            ),
+            "last_modifier_changes": (
+                dict(entry.get("last_modifier_changes", {}))
+                if isinstance(entry.get("last_modifier_changes"), dict)
+                else {}
+            ),
+            "last_requires_confirmation": bool(entry.get("last_requires_confirmation", False)),
+            "last_preflight_reason": entry.get("last_preflight_reason"),
+            "last_warning_codes": (
+                list(entry.get("last_warning_codes", []))
+                if isinstance(entry.get("last_warning_codes"), list)
+                else []
+            ),
+            "last_evaluation_scope": entry.get("last_evaluation_scope"),
+        }
+
+    # ------------------------------------------------------------------
+    # Room history cache and accessors
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _room_mode_uses_vacuum(clean_mode: Any) -> bool:
+        """Return whether one room clean mode includes vacuuming."""
+        mode = str(clean_mode or "").strip().lower()
+        return mode in {"vacuum", "vacuum_mop"} or "vacuum" in mode
+
+    @staticmethod
+    def _room_mode_uses_mop(clean_mode: Any) -> bool:
+        """Return whether one room clean mode includes mopping."""
+        mode = str(clean_mode or "").strip().lower()
+        return mode in {"mop", "vacuum_mop"} or "mop" in mode
+
+    def _ensure_room_history_cache(self, *, vacuum_entity_id: str) -> None:
+        """Schedule a room-history cache preload if one is not already in progress."""
+        vacuum_key = str(vacuum_entity_id)
+        if vacuum_key in self._room_history_cache_ready:
+            return
+        if vacuum_key in self._room_history_cache_loading:
+            return
+        self.hass.async_create_task(
+            self.async_preload_room_history_cache(vacuum_entity_id=vacuum_key)
+        )
+
+    def _load_room_history_cache_sync(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """Build and return room-history data from the learning store (executor thread).
+
+        All state is local until the caller writes the result back to self.data
+        on the event loop.
+        """
+        vacuum_key = str(vacuum_entity_id)
+        temp_root: dict[str, Any] = {vacuum_key: {}}
+        try:
+            from ..learning.history_store import LearningHistoryStore
+
+            store = LearningHistoryStore(self.hass)
+            index_payload = store.load_jobs_index(vacuum_entity_id=vacuum_key)
+            entries = (
+                index_payload.get("jobs", [])
+                if isinstance(index_payload, dict)
+                else []
+            )
+            _is_old_index_format = (
+                isinstance(entries, list)
+                and bool(entries)
+                and isinstance(entries[0], dict)
+                and "rooms" in entries[0]
+                and "status" not in entries[0]
+            )
+            loaded_from_index = False
+
+            if _is_old_index_format:
+                for entry in entries:
+                    self._ingest_jobs_index_entry_into_room_history(
+                        vacuum_entity_id=vacuum_key,
+                        index_entry=entry,
+                        _history_root=temp_root,
+                    )
+                loaded_from_index = True
+
+            if not loaded_from_index:
+                completed_jobs = store.load_all_completed_jobs(
+                    vacuum_entity_id=vacuum_key,
+                )
+                for completed_job in completed_jobs:
+                    self._ingest_completed_job_into_room_history(
+                        vacuum_entity_id=vacuum_key,
+                        completed_job=completed_job,
+                        _history_root=temp_root,
+                    )
+        except Exception:
+            _LOGGER.exception(
+                "Failed rebuilding room history cache for %s", vacuum_key
+            )
+        return temp_root.get(vacuum_key, {})
+
+    async def async_preload_room_history_cache(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> None:
+        """Load one vacuum's room-history cache without blocking the event loop."""
+        vacuum_key = str(vacuum_entity_id)
+        if vacuum_key in self._room_history_cache_ready:
+            return
+        if vacuum_key in self._room_history_cache_loading:
+            return
+        self._room_history_cache_loading.add(vacuum_key)
+        try:
+            vacuum_history = await self.hass.async_add_executor_job(
+                self._load_room_history_cache_sync,
+                vacuum_key,
+            )
+            self.data.setdefault("room_history", {})[vacuum_key] = vacuum_history
+            self._room_history_cache_ready.add(vacuum_key)
+            map_ids = list(
+                self.data.get("room_history", {}).get(vacuum_key, {}).keys()
+            ) or ["unknown"]
+            for map_id in map_ids:
+                self._notify_room_history_updated(
+                    vacuum_entity_id=vacuum_key,
+                    map_id=str(map_id),
+                )
+        finally:
+            self._room_history_cache_loading.discard(vacuum_key)
+
+    def _ingest_jobs_index_entry_into_room_history(
+        self,
+        *,
+        vacuum_entity_id: str,
+        index_entry: dict[str, Any],
+        _history_root: dict[str, Any] | None = None,
+    ) -> bool:
+        """Merge one jobs-index entry into the room-history cache."""
+        if not isinstance(index_entry, dict):
+            return False
+        ended_at = str(index_entry.get("ended_at") or "").strip()
+        ended_dt = parse_timestamp(ended_at)
+        if ended_dt is None:
+            return False
+        map_id = str(index_entry.get("map_id") or "unknown")
+        rooms = index_entry.get("rooms", [])
+        if not isinstance(rooms, list):
+            return False
+        history_root = (
+            _history_root if _history_root is not None
+            else self.data.setdefault("room_history", {})
+        )
+        vacuum_history = history_root.setdefault(str(vacuum_entity_id), {})
+        map_history = vacuum_history.setdefault(map_id, {})
+        updated = False
+        for room in rooms:
+            if not isinstance(room, dict):
+                continue
+            room_id = _safe_int(room.get("room_id", room.get("id")), -1)
+            if room_id <= 0:
+                continue
+            room_key = str(room_id)
+            current = dict(map_history.get(room_key, {}))
+            room_name = (
+                str(room.get("room_name", room.get("name", current.get("room_name", f"Room {room_id}")))).strip()
+                or f"Room {room_id}"
+            )
+
+            def _is_newer_idx(field_name: str) -> bool:
+                existing_dt = parse_timestamp(current.get(field_name))
+                return existing_dt is None or ended_dt >= existing_dt
+
+            next_entry = dict(current)
+            next_entry["room_id"] = room_id
+            next_entry["map_id"] = map_id
+            next_entry["room_name"] = room_name
+            if room.get("last_cleaned_at") and _is_newer_idx("last_cleaned_at"):
+                next_entry["last_cleaned_at"] = room["last_cleaned_at"]
+                next_entry["last_job_mode"] = room.get("clean_mode")
+            if room.get("last_vacuumed_at") and _is_newer_idx("last_vacuumed_at"):
+                next_entry["last_vacuumed_at"] = room["last_vacuumed_at"]
+            if room.get("last_mopped_at") and _is_newer_idx("last_mopped_at"):
+                next_entry["last_mopped_at"] = room["last_mopped_at"]
+            if next_entry != current:
+                map_history[room_key] = next_entry
+                updated = True
+        return updated
+
+    def _ingest_completed_job_into_room_history(
+        self,
+        *,
+        vacuum_entity_id: str,
+        completed_job: dict[str, Any],
+        _history_root: dict[str, Any] | None = None,
+    ) -> bool:
+        """Merge one successful completed job into the room-history cache."""
+        if not isinstance(completed_job, dict):
+            return False
+        if str(completed_job.get("record_type", "")).strip().lower() != "completed_job":
+            return False
+        outcome = completed_job.get("outcome", {})
+        if not isinstance(outcome, dict):
+            return False
+        if str(outcome.get("status", "")).strip().lower() != "completed":
+            return False
+        job_info = completed_job.get("job", {})
+        if not isinstance(job_info, dict):
+            job_info = {}
+        ended_at = str(
+            job_info.get("ended_at") or completed_job.get("finalized_at") or ""
+        ).strip()
+        ended_dt = parse_timestamp(ended_at)
+        if ended_dt is None:
+            return False
+        map_id = str(
+            completed_job.get("job_profile", {}).get("map_id")
+            or completed_job.get("queue", {}).get("map_id")
+            or "unknown"
+        )
+        resolved_rooms = completed_job.get("resolved_rooms", [])
+        if not isinstance(resolved_rooms, list):
+            return False
+        history_root = (
+            _history_root if _history_root is not None
+            else self.data.setdefault("room_history", {})
+        )
+        vacuum_history = history_root.setdefault(str(vacuum_entity_id), {})
+        map_history = vacuum_history.setdefault(map_id, {})
+        updated = False
+        for room in resolved_rooms:
+            if not isinstance(room, dict):
+                continue
+            room_id = _safe_int(room.get("room_id", room.get("id")), -1)
+            if room_id <= 0:
+                continue
+            room_key = str(room_id)
+            current = dict(map_history.get(room_key, {}))
+            room_name = (
+                str(room.get("name", current.get("room_name", f"Room {room_id}"))).strip()
+                or f"Room {room_id}"
+            )
+            clean_mode = str(room.get("clean_mode", "")).strip().lower() or None
+
+            def _is_newer_job(field_name: str) -> bool:
+                existing_dt = parse_timestamp(current.get(field_name))
+                return existing_dt is None or ended_dt >= existing_dt
+
+            next_entry = dict(current)
+            next_entry["room_id"] = room_id
+            next_entry["map_id"] = map_id
+            next_entry["room_name"] = room_name
+            if _is_newer_job("last_cleaned_at"):
+                next_entry["last_cleaned_at"] = ended_at
+                next_entry["last_job_mode"] = clean_mode
+            if clean_mode and self._room_mode_uses_vacuum(clean_mode) and _is_newer_job("last_vacuumed_at"):
+                next_entry["last_vacuumed_at"] = ended_at
+            if clean_mode and self._room_mode_uses_mop(clean_mode) and _is_newer_job("last_mopped_at"):
+                next_entry["last_mopped_at"] = ended_at
+            if next_entry != current:
+                map_history[room_key] = next_entry
+                updated = True
+        return updated
+
+    def get_room_cleaning_history(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        room_id: int | str,
+    ) -> dict[str, Any]:
+        """Return the current cleaning-history summary for one room."""
+        self._ensure_room_history_cache(vacuum_entity_id=vacuum_entity_id)
+        map_id_str = str(map_id)
+        room_id_int = _safe_int(room_id, -1)
+        room = (
+            self.data.get("maps", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+            .get("rooms", {})
+            .get(str(room_id_int), {})
+        )
+        room_name = str(room.get("name", f"Room {room_id_int}")).strip() or f"Room {room_id_int}"
+        entry = (
+            self.data.get("room_history", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+            .get(str(room_id_int), {})
+        )
+        if not isinstance(entry, dict):
+            entry = {}
+        now_dt = parse_timestamp(_iso_now())
+
+        def _hours_since(timestamp_value: Any) -> float | None:
+            if now_dt is None:
+                return None
+            value_dt = parse_timestamp(timestamp_value)
+            if value_dt is None:
+                return None
+            return round(max((now_dt - value_dt).total_seconds() / 3600.0, 0.0), 2)
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": map_id_str,
+            "room_id": str(room_id_int),
+            "room_name": room_name,
+            "last_cleaned_at": entry.get("last_cleaned_at"),
+            "last_vacuumed_at": entry.get("last_vacuumed_at"),
+            "last_mopped_at": entry.get("last_mopped_at"),
+            "hours_since_last_vacuum": _hours_since(entry.get("last_vacuumed_at")),
+            "hours_since_last_mop": _hours_since(entry.get("last_mopped_at")),
+            "last_job_mode": entry.get("last_job_mode"),
+        }
 
     def _build_effective_start_plan(self, *, vacuum_entity_id, map_id):
         """Delegate to RunPlanManager."""

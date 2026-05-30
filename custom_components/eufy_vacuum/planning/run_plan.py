@@ -647,20 +647,16 @@ class RunPlanManager:
         modified_rooms: list[dict[str, Any]],
         preflight: dict[str, Any],
     ) -> None:
-        """Persist room rule status snapshot and fire the update callback."""
-        self._manager.data.setdefault("room_rule_status", {})
-        self._manager.data["room_rule_status"].setdefault(vacuum_entity_id, {})
-        self._manager.data["room_rule_status"][vacuum_entity_id][str(map_id)] = {
-            "selected_room_ids": list(selected_room_ids),
-            "included_room_ids": list(included_room_ids),
-            "blocked_rooms": list(blocked_rooms),
-            "modified_rooms": list(modified_rooms),
-            "blocked": bool(preflight.get("blocked", False)),
-            "blocked_room_ids": list(preflight.get("blocked_room_ids", [])),
-            "updated_at": _iso_now(),
-        }
-        self._manager._notify_room_rule_status_updated(
-            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        """Persist per-room rule status snapshot — delegates to manager."""
+        self._manager._update_room_rule_status_snapshot(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            managed_rooms=managed_rooms,
+            selected_room_ids=selected_room_ids,
+            included_room_ids=included_room_ids,
+            blocked_rooms=blocked_rooms,
+            modified_rooms=modified_rooms,
+            preflight=preflight,
         )
 
     def _build_effective_start_plan(
