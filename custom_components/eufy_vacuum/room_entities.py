@@ -7,6 +7,7 @@ from typing import Any
 from homeassistant.helpers.entity import Entity
 
 from .adapters.registry import get_adapter_config
+from .const import DOMAIN
 from .entity_helpers import build_vacuum_device_info, make_room_unique_id
 
 
