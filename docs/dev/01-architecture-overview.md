@@ -395,7 +395,7 @@ To add Roborock support (for example), you would:
 3. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
    other files change.
 
-See `porting-guide.md` for the complete porting checklist.
+See the [porting guide](../contributing/porting-guide.md) for the complete porting checklist.
 
 ---
 
@@ -535,4 +535,4 @@ The adapter pattern means the only brand-specific files are:
 - `adapters/<brand>/` — entity IDs, vocabulary, maintenance components
 - `__init__.py` — one call to `register_<brand>_adapter_for_vacuum`
 
-See `porting-guide.md` for the detailed walkthrough.
+See the [porting guide](../contributing/porting-guide.md) for the detailed walkthrough.

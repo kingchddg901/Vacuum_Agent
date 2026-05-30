@@ -5,8 +5,8 @@ different vacuum brand. It covers both a generic port (any vacuum that has a
 Home Assistant entity) and a specific port to Roborock or Dreame, which already
 have mature HA integrations with a similar room-cleaning pattern.
 
-Read [architecture-overview.md](architecture-overview.md) and
-[queue-engine.md](queue-engine.md) before continuing here.
+Read [01-architecture-overview.md](../dev/01-architecture-overview.md) and
+[07-queue-engine.md](../dev/07-queue-engine.md) before continuing here.
 
 ---
 
@@ -250,7 +250,7 @@ The mapping tracker (`mapping/tracker.py`) reads two position sensors:
 - `sensor.<object_id>_robot_position_y_raw`
 
 These are robovac-mqtt-specific entity names. The coordinate space and units
-are also Eufy-specific (see [mapping-system.md](mapping-system.md)).
+are also Eufy-specific (see [11-mapping-system.md](../dev/11-mapping-system.md)).
 
 ---
 
@@ -590,7 +590,7 @@ reads and room configuration. No vacuum calls.
 from position sensor coordinates, the bounds editor, the calibration overlay.
 Reads `robot_position_x` and `robot_position_y` entities (entity IDs are
 configurable). The coordinate normalisation assumes a specific coordinate space
-(see [mapping-system.md](mapping-system.md)) — this is the only part that
+(see [11-mapping-system.md](../dev/11-mapping-system.md)) — this is the only part that
 may need adjustment if the target vacuum uses a different unit or origin.
 
 **HA entity layer** (`button.py`, `switch.py`, `number.py`, `sensor/`,

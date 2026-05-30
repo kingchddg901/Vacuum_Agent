@@ -303,4 +303,4 @@ To add a new brand adapter:
 4. Register via `register_adapter_config(vacuum_entity_id, config)` at startup.
 5. The adapter's `setup.steps` declaration controls which setup-wizard screens the user sees (see `setup/drift.py`).
 
-See `docs/dev/porting-guide.md` for the complete porting walkthrough.
+See the [porting guide](../contributing/porting-guide.md) for the complete porting walkthrough.

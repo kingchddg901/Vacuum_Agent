@@ -168,8 +168,8 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
 - [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](docs/dev/architecture-overview.md) — architecture, data model, internals
-- [Adapter config reference](docs/dev/adapter-config-reference.md) — the schema for per-vacuum brand config
+- [Developer docs](docs/dev/README.md) — reading-order index for all 24 dev docs
+- [Adapter config reference](docs/dev/22-adapter-config-reference.md) — the schema for per-vacuum brand config
 - [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
 - [Mascot authoring guide](docs/contributing/mascot-authoring.md) — visual standards for adding or improving the map view's animal companions
 - [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual used before tagging any release

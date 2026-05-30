@@ -256,7 +256,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |
 | `order` | int | 1-indexed dispatch order |
-| `rules` | list | Automation rules (see room-rules-system.md) |
+| `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 
 ---

@@ -6,7 +6,7 @@ about a managed vacuum. The schema is defined in code at
 `custom_components/eufy_vacuum/adapters/config_schema.py`; this doc
 explains each section in human terms with examples and UI-builder notes.
 
-Read [architecture-overview.md](architecture-overview.md) first for
+Read [01-architecture-overview.md](01-architecture-overview.md) first for
 context, and [porting-guide.md](../contributing/porting-guide.md) for the workflow of
 adding a new brand.
 
@@ -122,7 +122,7 @@ are the **specific entity IDs** that fulfill the role for this brand.
 Section 19 lists the framework modules that consume each role — useful
 when sizing the impact of an absent entity. The two wash-frequency
 keys are consumed by the timing estimator, documented in
-[learning-system.md](learning-system.md).
+[10-learning-system.md](10-learning-system.md).
 
 Every key is optional. Missing entities degrade the feature that
 depends on them — they never raise.
@@ -580,7 +580,7 @@ room_drift.removed_rooms, and a manual "rescan" button there.
 The most brand-specific section. Configures the HA service call the
 framework makes when starting a room-clean job. For the actual wire
 shape and value vocabularies the framework produces from this
-config, see [queue-engine.md](queue-engine.md); for worked dispatch
+config, see [07-queue-engine.md](07-queue-engine.md); for worked dispatch
 blocks for Eufy, Roborock, Dreame, and Narwal, see
 [porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
 
@@ -837,7 +837,7 @@ of input they consume (image bytes vs. structured wire data vs. nothing
 at all) but produce the same canonical `SegmentationResult`, so the
 rest of the framework doesn't have to know which engine is selected.
 
-See [mapping-system.md §2.0](mapping-system.md#20-the-segmenter-engine-seam)
+See [11-mapping-system.md §2.0](11-mapping-system.md#20-the-segmenter-engine-seam)
 for the full protocol, the three engine variants, and the
 `SegmentationResult` shape.
 
@@ -871,7 +871,7 @@ Unknown values fall back to `noop_fallback` with a logged warning,
 and `_validate_adapter` flags the unknown name as a validation issue
 at registration time. Add new engines by writing a class that
 satisfies the `MapSegmenter` protocol and registering it under a
-new name (see [mapping-system.md §2.0b](mapping-system.md#20b-adding-a-new-engine)).
+new name (see [11-mapping-system.md §2.0b](11-mapping-system.md#20b-adding-a-new-engine)).
 
 ### `segmenter_tuning` *(required when `mapping` is present, dict)*
 
@@ -882,7 +882,7 @@ values produce blocking errors. The framework's `_validate_adapter`
 delegates to the engine's validator at registration time.
 
 For `eufy_cv_v1`, the accepted keys mirror the kwargs of
-`detect_room_segments(...)` (see [mapping-system.md §2.1.1](mapping-system.md#211-input)):
+`detect_room_segments(...)` (see [11-mapping-system.md §2.1.1](11-mapping-system.md#211-input)):
 
 ```python
 "segmenter_tuning": {

@@ -336,7 +336,7 @@ or integration services. Direct edits produce `.corrupt` backup files.
 }
 ```
 
-See `data-model.md` for the complete shape of each key.
+See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
 ### What is stored vs runtime-only
 

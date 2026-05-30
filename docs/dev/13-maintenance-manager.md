@@ -243,7 +243,7 @@ The stored override takes **complete precedence** over the adapter default. The 
 
 ## 7. Dock Events Integration
 
-`get_upkeep_snapshot()` includes dock event counts and timestamps sourced from `DockManager.get_dock_events()`. The maintenance manager reads but never writes dock event state — DockManager owns that data (see `docs/dev/dock-manager.md`).
+`get_upkeep_snapshot()` includes dock event counts and timestamps sourced from `DockManager.get_dock_events()`. The maintenance manager reads but never writes dock event state — DockManager owns that data (see [14-dock-manager.md](14-dock-manager.md)).
 
 ---
 
