@@ -68,6 +68,12 @@ After the initial install, open **Settings → Devices & Services → Eufy Vacuu
 | **Vacuum** | Change which `vacuum.*` entity the integration manages. |
 | **Notes** | Update your notes. |
 
+## Removing the integration
+
+Go to **Settings → Devices & Services**, find **Eufy Vacuum Manager**, and delete it. No extra steps are required — all integration data is stored inside Home Assistant and is removed with the entry.
+
+Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides the underlying `vacuum.*` entity. Removing Eufy Vacuum Manager does not remove eufy-clean; remove that separately if you no longer need it.
+
 ## What's included
 
 - The `eufy_vacuum` custom integration (services, events, data layer).
