@@ -5,6 +5,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# Maintenance reset buttons are event-driven; run-profile buttons call the
+# manager directly. No polling in either case.
+PARALLEL_UPDATES = 0
+
 from homeassistant.components.button import ButtonEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

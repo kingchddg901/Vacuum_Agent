@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+# All number entities write directly to manager storage; no polling.
+PARALLEL_UPDATES = 0
+
 from homeassistant.components.number import NumberEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant

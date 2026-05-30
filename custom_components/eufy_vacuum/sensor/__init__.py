@@ -29,6 +29,9 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+# All sensors are event-driven; centralised callbacks handle data fetching.
+PARALLEL_UPDATES = 0
+
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback

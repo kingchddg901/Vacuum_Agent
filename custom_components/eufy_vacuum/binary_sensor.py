@@ -14,6 +14,9 @@ from __future__ import annotations
 
 from typing import Any
 
+# All binary sensors are event-driven; no polling.
+PARALLEL_UPDATES = 0
+
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,

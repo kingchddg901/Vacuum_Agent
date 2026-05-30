@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
+# Room switches write directly to manager storage via callbacks; no polling.
+PARALLEL_UPDATES = 0
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
