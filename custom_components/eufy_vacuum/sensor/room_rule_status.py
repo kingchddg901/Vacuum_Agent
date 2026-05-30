@@ -20,6 +20,7 @@ class EufyVacuumRoomRuleStatusSensor(EufyVacuumRoomEntity, SensorEntity):
 
     _attr_icon = "mdi:clipboard-text-clock-outline"
     _attr_should_poll = False
+    _attr_translation_key = "room_rule_status"
 
     def __init__(
         self,
@@ -37,7 +38,6 @@ class EufyVacuumRoomRuleStatusSensor(EufyVacuumRoomEntity, SensorEntity):
             map_id=map_id,
             room_id=room_id,
             room_data=room_data,
-            label="Rule Status",
             unique_suffix="rule_status",
         )
 

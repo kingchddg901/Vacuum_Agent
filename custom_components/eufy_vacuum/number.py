@@ -150,9 +150,11 @@ def _build_room_numbers(
 class EufyVacuumRoomOrderNumber(EufyVacuumRoomEntity, NumberEntity):
     """Number entity that controls the cleaning queue position of a room."""
 
+    _attr_translation_key = "room_order"
+
     def __init__(self, **kwargs: Any) -> None:
         """Initialize order number."""
-        super().__init__(label="2 Order", unique_suffix="order", **kwargs)
+        super().__init__(unique_suffix="order", **kwargs)
 
         self._attr_native_min_value = 0
         self._attr_native_max_value = 999
@@ -173,6 +175,7 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
     """Configurable maintenance interval (hours) for one vacuum component."""
 
     _attr_has_entity_name = True
+    _attr_translation_key = "maintenance_interval"
 
     def __init__(
         self,
@@ -190,7 +193,7 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
         self._component = component
         self._default_interval = default_interval
 
-        self._attr_name = f"{label} Maintenance Interval"
+        self._attr_name_placeholders = {"component": label}
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_interval"
         )

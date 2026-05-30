@@ -23,7 +23,7 @@ import voluptuous as vol
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
@@ -136,7 +136,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][DATA_ADAPTER_COORDINATOR] = coordinator
 
     manager = EufyVacuumManager(hass)
-    await manager.async_initialize()
+    try:
+        await manager.async_initialize()
+    except Exception as exc:
+        raise ConfigEntryNotReady(
+            f"eufy_vacuum: failed to initialise storage — will retry"
+        ) from exc
 
     # If the config entry carries a vacuum_entity_id (collected by the
     # config flow or set later via options), make sure it shows up as a
@@ -262,7 +267,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     position_y_entity_id=_y_entity,
                 )
         except Exception:
-            pass
+            _LOGGER.warning(
+                "eufy_vacuum: failed to register position tracker for %s — "
+                "map position tracking will be unavailable for this vacuum",
+                _vac,
+                exc_info=True,
+            )
 
     await async_register_services(hass)
     await async_register_learning_services(hass)
@@ -373,6 +383,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         await async_unregister_learning_services(hass)
         await async_unregister_theme_services(hass)
         await async_unregister_services(hass)
+        hass.services.async_remove(DOMAIN, "battery_rebaseline")
 
         domain_data = hass.data.get(DOMAIN, {})
         mapping_tracker = domain_data.pop("mapping_tracker", None)

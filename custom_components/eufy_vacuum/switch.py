@@ -98,9 +98,11 @@ async def async_setup_entry(
 class EufyVacuumRoomEnabledSwitch(EufyVacuumRoomEntity, SwitchEntity):
     """Switch that enables or disables a room for the next cleaning run."""
 
+    _attr_translation_key = "room_selected"
+
     def __init__(self, **kwargs: Any) -> None:
         """Initialize enabled switch."""
-        super().__init__(label="1 Selected for Cleaning", unique_suffix="enabled", **kwargs)
+        super().__init__(unique_suffix="enabled", **kwargs)
 
     @property
     def is_on(self) -> bool:

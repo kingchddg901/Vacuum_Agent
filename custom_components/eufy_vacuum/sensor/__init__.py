@@ -14,11 +14,13 @@ Per-entity submodules:
 - room_history.py        EufyVacuumRoomCleaningHistorySensor
 - room_rule_status.py    EufyVacuumRoomRuleStatusSensor
 - error.py               _ErrorTrackerSensorBase + ActiveRunError + LastDeviceError
+- lifecycle.py           EufyVacuumActiveJobSensor (per vacuum/map)
 
 The orchestrator wires four manager-callback paths for per-room sensors
 (room history sync/refresh, room rule-status sync/refresh), a theme
-update path, an EVENT_JOB_FINISHED listener, and an hourly safety-net
-tick. The battery sensors are built externally by
+update path, an EVENT_JOB_FINISHED listener (refreshes room history and
+auto-clears recovered error latches), and an hourly safety-net tick.
+The battery sensors are built externally by
 battery/sensors.py:build_battery_sensors and added to the same
 collection.
 """
@@ -41,6 +43,7 @@ from ..core.error_tracker import ErrorTracker
 from ..entity_helpers import sort_room_items
 from .dock_event import EufyVacuumDockEventSensor
 from .error import EufyVacuumActiveRunErrorSensor, EufyVacuumLastDeviceErrorSensor
+from .lifecycle import EufyVacuumActiveJobSensor
 from .maintenance import EufyVacuumMaintenanceRemainingSensor
 from .onboarding import EufyVacuumOnboardingSensor
 from .profile import EufyVacuumProfileSensor
@@ -78,6 +81,9 @@ async def async_setup_entry(
     room_history_entities: dict[str, SensorEntity] = {}
     room_rule_status_entities: dict[str, SensorEntity] = {}
     theme_sensor_by_vacuum: dict[str, EufyVacuumThemeStateSensor] = {}
+    # active_job_entities keyed by (vacuum_entity_id, map_id) so the
+    # job-finished handler can refresh the right sensor directly.
+    active_job_entities: dict[tuple[str, str], EufyVacuumActiveJobSensor] = {}
 
     maps = manager.data.get("maps", {})
     for vacuum_entity_id in maps.keys():
@@ -166,6 +172,15 @@ async def async_setup_entry(
 
         vacuum_maps = maps.get(vacuum_entity_id, {})
         for map_id, map_bucket in vacuum_maps.items():
+            # One active-job sensor per (vacuum, map).
+            _active_job_sensor = EufyVacuumActiveJobSensor(
+                manager=manager,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+            )
+            entities.append(_active_job_sensor)
+            active_job_entities[(vacuum_entity_id, str(map_id))] = _active_job_sensor
+
             rooms = map_bucket.get("rooms", {})
             if not isinstance(rooms, dict):
                 continue
@@ -349,15 +364,28 @@ async def async_setup_entry(
 
     @callback
     def _handle_job_finished(event) -> None:
-        """Refresh room history sensors when a vacuum job finishes."""
+        """Handle job-finished: refresh history sensors and auto-clear recovered error latch."""
         data = event.data if isinstance(event.data, dict) else {}
         vacuum_entity_id = str(data.get("vacuum_entity_id", "")).strip()
         map_id = str(data.get("map_id", "")).strip()
-        if vacuum_entity_id and map_id:
-            _refresh_room_history_entities(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id,
-            )
+        if not (vacuum_entity_id and map_id):
+            return
+
+        _refresh_room_history_entities(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+
+        # Auto-clear a recovered (sticky) error latch when the job ends.
+        # A latch in "recovered" state means current_message is blank but the
+        # latch dict exists — the error cleared mid-run and no new error fired.
+        # An "active" latch (current_message non-empty) is left in place so the
+        # user still sees the error after the job ends and must acknowledge it.
+        _error_tracker = hass.data[DOMAIN].get(DATA_ERROR_TRACKER)
+        if _error_tracker is not None:
+            latch = _error_tracker.get_active_run_latch(vacuum_entity_id)
+            if isinstance(latch, dict) and not latch.get("current_message"):
+                _error_tracker.acknowledge(vacuum_entity_id, scope="active_run")
 
     unsub_job_finished = hass.bus.async_listen(EVENT_JOB_FINISHED, _handle_job_finished)
     entry.async_on_unload(unsub_job_finished)

@@ -25,6 +25,7 @@ from ..const import (
     SERVICE_DELETE_MAP_IMAGE,
 )
 from ..maps.map_manager import ensure_map_bucket
+from ..timestamp_utils import utc_now_iso
 from .manager import MappingManager
 from .tracker import EVENT_BOUNDARY_SAVED
 
@@ -854,6 +855,7 @@ async def _handle_analyze_map_image(hass: HomeAssistant, call: ServiceCall) -> d
         )
 
     result = await hass.async_add_executor_job(_run)
+    result["analyzed_at"] = utc_now_iso()
     map_bucket["image_segments"] = result
     await manager.async_save()
 
@@ -921,6 +923,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
         "available": bool(raw.get("available", False)),
+        "analyzed_at": raw.get("analyzed_at"),
         "image": raw.get("image"),
         "image_variants": map_bucket.get("image_variants") or {},
         "summary": {

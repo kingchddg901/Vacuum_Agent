@@ -25,6 +25,7 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
     """
 
     _attr_has_entity_name = True
+    _attr_translation_key = "maintenance_remaining"
 
     def __init__(
         self,
@@ -42,7 +43,7 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._component = component
         self._default_interval = default_interval
 
-        self._attr_name = f"{label} Maintenance Remaining"
+        self._attr_name_placeholders = {"component": label}
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_remaining"
         )

@@ -21,7 +21,7 @@ import asyncio
 from collections import deque
 import logging
 from datetime import datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..adapters.eufy.charging import (
@@ -89,6 +89,11 @@ class ActiveJobTracker:
             manager: Parent manager; used to access data, hass, and peer methods.
         """
         self._manager = manager
+        # Sensor update callbacks — same pattern as ErrorTracker.add_update_listener.
+        # Fired with (vacuum_entity_id, map_id) on job status transitions.
+        self._update_listeners: list[Callable[[str, str], None]] = []
+
+    # -- state defaults & normalization ----------------------------------------
 
     def _parse_job_timestamp(self, value: str | None) -> datetime | None:
         """Parse persisted job timestamps."""
@@ -199,6 +204,8 @@ class ActiveJobTracker:
 
         return normalized
 
+    # -- timing helpers --------------------------------------------------------
+
     def _compute_current_room_elapsed_minutes(
         self,
         *,
@@ -238,6 +245,8 @@ class ActiveJobTracker:
             vacuum_state=vacuum_state,
             task_status=task_status,
         )
+
+    # -- observation recording -------------------------------------------------
 
     def update_active_job_recharge_observation(
         self,
@@ -428,6 +437,8 @@ class ActiveJobTracker:
                 return str(room.get("name", room.get("room_name", room.get("slug", "")))).strip() or None
 
         return None
+
+    # -- timing rollover + spatial detection -----------------------------------
 
     def _timing_completion_threshold_minutes(self, room: dict[str, Any]) -> float:
         """Return a conservative elapsed-minutes threshold for timing rollover."""
@@ -658,10 +669,6 @@ class ActiveJobTracker:
         self._manager.hass.async_create_task(self._manager._async_save_logged())
         return updated_active_job
 
-    # ------------------------------------------------------------------
-    # Transition-room position detection
-    # ------------------------------------------------------------------
-
     def _access_graph_path(
         self,
         managed_rooms: dict[str, Any],
@@ -808,6 +815,8 @@ class ActiveJobTracker:
 
         return None
 
+    # -- summaries & display helpers -------------------------------------------
+
     def _job_status_summary(
         self,
         *,
@@ -851,6 +860,36 @@ class ActiveJobTracker:
         """Generate stable job id."""
         return f"job_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
 
+    # -- sensor update listeners -----------------------------------------------
+
+    def add_update_listener(
+        self, cb: Callable[[str, str], None]
+    ) -> Callable[[], None]:
+        """Register a callback fired with (vacuum_entity_id, map_id) on job
+        status transitions (pause, resume, finalize, clear).
+
+        Returns an unregister callable — same pattern as ErrorTracker.
+        """
+        self._update_listeners.append(cb)
+
+        def _unsub() -> None:
+            try:
+                self._update_listeners.remove(cb)
+            except ValueError:
+                pass
+
+        return _unsub
+
+    def _notify(self, vacuum_entity_id: str, map_id: str) -> None:
+        """Fan out a status-change notification to all registered listeners."""
+        for cb in list(self._update_listeners):
+            try:
+                cb(vacuum_entity_id, str(map_id))
+            except Exception:  # pragma: no cover - defensive
+                _LOGGER.exception("active_job: update listener raised")
+
+
+    # -- job lifecycle CRUD ----------------------------------------------------
 
     def record_active_lifecycle_observed(
         self,
@@ -942,6 +981,7 @@ class ActiveJobTracker:
 
         runtime = self._manager.ensure_runtime(vacuum_entity_id)
         runtime.active_job_room_ids = []
+        self._notify(vacuum_entity_id, str(map_id))
 
         return self.get_active_job(
             vacuum_entity_id=vacuum_entity_id,
@@ -968,6 +1008,7 @@ class ActiveJobTracker:
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        self._notify(vacuum_entity_id, str(map_id))
         return active_job
 
     def resume_active_job(
@@ -1004,6 +1045,7 @@ class ActiveJobTracker:
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        self._notify(vacuum_entity_id, str(map_id))
         return active_job
 
     def record_completed_room(
@@ -1074,6 +1116,8 @@ class ActiveJobTracker:
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
         return active_job
 
+    # -- finalization & async orchestration ------------------------------------
+
     def mark_active_job_finalized(
         self,
         *,
@@ -1131,6 +1175,7 @@ class ActiveJobTracker:
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
         runtime = self._manager.ensure_runtime(vacuum_entity_id)
         runtime.active_job_room_ids = []
+        self._notify(vacuum_entity_id, str(map_id))
         return active_job
 
     async def async_pause_active_job(

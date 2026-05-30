@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from ..entity_helpers import build_vacuum_device_info
 from ..profiles.room_profiles import get_available_profiles
@@ -18,7 +19,8 @@ class EufyVacuumProfileSensor(SensorEntity):
     """Sensor reporting the count and details of available cleaning profiles for a vacuum."""
 
     _attr_has_entity_name = True
-    _attr_name = "Available Profiles"
+    _attr_translation_key = "available_profiles"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
 
     def __init__(
         self,

@@ -36,12 +36,12 @@ class _ErrorTrackerSensorBase(SensorEntity):
         *,
         tracker: ErrorTracker,
         vacuum_entity_id: str,
-        label: str,
+        translation_key: str,
         unique_suffix: str,
     ) -> None:
         self._tracker = tracker
         self._vacuum_entity_id = vacuum_entity_id
-        self._attr_name = label  # device name prepended by HA
+        self._attr_translation_key = translation_key
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{unique_suffix}"
         )
@@ -82,17 +82,29 @@ class _ErrorTrackerSensorBase(SensorEntity):
 
 
 class EufyVacuumActiveRunErrorSensor(_ErrorTrackerSensorBase):
-    """Active-run error message + full latch context.
+    """Active-run error latch as a clean three-value enum.
 
-    State semantics:
-    - ``"no_active_run"`` — no job in flight (latch can't form).
-    - ``"no_error_this_run"`` — active job, no errors yet.
-    - ``current_message`` — error currently active.
-    - ``current_message`` (last seen) with ``recovered: True`` attribute —
-      message cleared mid-run but the latch is sticky until job end.
+    State values
+    ~~~~~~~~~~~~
+    - ``"none"``      — no error latch for this vacuum (no active run, or
+                        active run with no errors yet, or latch cleared after
+                        job end).  Use ``sensor.<obj>_active_job`` to tell
+                        which sub-case applies.
+    - ``"active"``    — an error is currently active (``current_message``
+                        is non-empty).
+    - ``"recovered"`` — an error fired during the run but the device recovered
+                        mid-run; the latch is held until the job ends so the
+                        panel can show what happened.  Automatically cleared on
+                        ``EVENT_JOB_FINISHED`` (wired in ``sensor/__init__.py``).
 
-    Attributes carry the full latch shape; consumers (the panel card,
-    automations) read directly rather than rebuilding from state.
+    The actual error message and the full latch snapshot live in
+    ``extra_state_attributes`` rather than in the state string.  Automations
+    should pattern-match on the three-value enum and read ``message`` from
+    attributes when they need the text.
+
+    The companion ``binary_sensor.<obj>_active_run_has_error`` tracks only the
+    rising/falling edge and does not expose the message — use this sensor when
+    you need the message or the recovered state.
     """
 
     _attr_icon = "mdi:alert-circle-outline"
@@ -106,7 +118,7 @@ class EufyVacuumActiveRunErrorSensor(_ErrorTrackerSensorBase):
         super().__init__(
             tracker=tracker,
             vacuum_entity_id=vacuum_entity_id,
-            label="Active Run Error",
+            translation_key="active_run_error",
             unique_suffix="active_run_error",
         )
 
@@ -114,43 +126,32 @@ class EufyVacuumActiveRunErrorSensor(_ErrorTrackerSensorBase):
     def native_value(self) -> str:
         latch = self._tracker.get_active_run_latch(self._vacuum_entity_id)
         if not isinstance(latch, dict):
-            # Distinguish "no run" from "run with no errors" so the card can
-            # render differently. Latch only exists when an error has fired
-            # during a run, so absence of latch could mean either — fall
-            # back to the manager's active-jobs map to disambiguate.
-            manager = self._tracker._manager  # type: ignore[attr-defined]
-            active_jobs = manager.data.get("active_jobs", {})
-            per_map = active_jobs.get(self._vacuum_entity_id, {})
-            if isinstance(per_map, dict):
-                for state in per_map.values():
-                    if (
-                        isinstance(state, dict)
-                        and state.get("started_at")
-                        and not state.get("ended_at")
-                    ):
-                        return "no_error_this_run"
-            return "no_active_run"
-        message = latch.get("current_message")
-        if not message:
-            # Recovered-sticky mode — latch exists but current_message is
-            # blank. Fall back to the most recent error's message so the
-            # state line still tells the user what happened.
-            entries = latch.get("errors") or []
-            if entries:
-                last = entries[-1]
-                message = (
-                    last.get("message")
-                    if isinstance(last, dict)
-                    else None
-                )
-        return str(message or "no_error_this_run")
+            return "none"
+        if latch.get("current_message"):
+            return "active"
+        # Only "recovered" when at least one error actually fired this run.
+        # An empty/initialised latch (no errors list) must not read as recovered.
+        if latch.get("errors"):
+            return "recovered"
+        return "none"
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         latch = self._tracker.get_active_run_latch(self._vacuum_entity_id)
         if not isinstance(latch, dict):
             return {}
-        return dict(latch)
+        attrs = dict(latch)
+        # Surface the most recent error message as a top-level ``message``
+        # attribute so consumers don't have to dig into the ``errors`` list.
+        if not attrs.get("current_message"):
+            entries = latch.get("errors") or []
+            if entries:
+                last = entries[-1]
+                if isinstance(last, dict):
+                    attrs["message"] = last.get("message")
+        else:
+            attrs["message"] = attrs["current_message"]
+        return attrs
 
 
 class EufyVacuumLastDeviceErrorSensor(_ErrorTrackerSensorBase):
@@ -174,7 +175,7 @@ class EufyVacuumLastDeviceErrorSensor(_ErrorTrackerSensorBase):
         super().__init__(
             tracker=tracker,
             vacuum_entity_id=vacuum_entity_id,
-            label="Last Device Error",
+            translation_key="last_device_error",
             unique_suffix="last_device_error",
         )
 

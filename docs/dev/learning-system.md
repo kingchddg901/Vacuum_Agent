@@ -2,8 +2,6 @@
 
 > **Scope:** This document is a complete implementation reference for the eufy_vacuum learning system. Every formula, constant, threshold, and file path is derived directly from the source. A developer should be able to re-implement the system from this document alone.
 
-For when the learning system fires within a job's lifecycle, see [job-lifecycle.md](job-lifecycle.md). For the canonical on-disk shapes of stored data, see [data-model.md](data-model.md). For the wider architecture this subsystem plugs into, see [architecture-overview.md](architecture-overview.md).
-
 ---
 
 ## 1. Overview
@@ -26,6 +24,7 @@ The system is entirely optional. The core integration runs without it; the learn
 | `job_finalizer.py` | Finalizes a completed job: builds the payload, writes it, triggers a stats rebuild, updates trouble rooms. |
 | `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. |
 | `services.py` | HA service registration only. No math. Each handler validates inputs and delegates to `LearningManager`. |
+| `utils.py` | Shared helpers (`_safe_int`, `_safe_float`, `_safe_bool`, etc.) used across the learning package. |
 
 ---
 
@@ -337,24 +336,16 @@ total_minutes = room_minutes_total + overhead_minutes
 
 **Mop wash detail:**
 
-The wash mode and interval are read live from the HA entities the
-adapter declares under
-[`adapter_config.entities.wash_frequency_mode`](adapter-config-reference.md#5-entities--the-role-to-entity-id-map)
-and `adapter_config.entities.wash_frequency_value_time`. The estimator
-resolves entity IDs through the adapter registry — it does not
-construct them from naming conventions.
+The wash mode and interval are read live from HA entities derived from the vacuum entity ID:
 
-For the Eufy reference adapter these resolve to
-`select.{object_id}_wash_frequency_mode` and
-`number.{object_id}_wash_frequency_value_time` (e.g. `alfred` from
-`vacuum.alfred`), but any brand whose adapter declares the two
-entity keys works without code changes.
+```
+mode entity:     select.{object_id}_wash_frequency_mode
+interval entity: number.{object_id}_wash_frequency_value_time
+```
 
-The mode value is normalized through
-[`adapter_config.vocabulary.wash_frequency_mode_aliases`](adapter-config-reference.md#6-vocabulary--raw-and-normalized-state-strings)
-to canonical keys (`by_time`, `by_area`, `after_each_clean`). The
-interval is clamped to `[15.0, 25.0]` minutes and defaults to `20.0`
-when unavailable.
+Where `object_id` is the part of the vacuum entity id after the dot (e.g. `alfred` from `vacuum.alfred`).
+
+The interval is clamped to `[15.0, 25.0]` minutes and defaults to `20.0` when unavailable.
 
 Wash cycles are only counted when `mode == "by_time"` and `projected_mop_minutes > 0`:
 ```
@@ -366,7 +357,11 @@ mop_wash_minutes = wash_cycle_count * 1.5
 
 ### 5.4 Timeline reanchoring (`reanchor_timeline`)
 
-Called each time a `eufy_vacuum_room_completed` event fires mid-job. The algorithm replaces estimated durations for completed rooms with actual measurements, then recomputes remaining ETAs from the new elapsed total.
+Called from `EufyVacuumManager.get_job_progress_snapshot` on every snapshot
+poll after at least one room has completed (`completed_rooms` is non-empty).
+Reanchoring is NOT event-driven — it is recalculated on each card poll. The
+algorithm replaces estimated durations for completed rooms with actual
+measurements, then recomputes remaining ETAs from the new elapsed total.
 
 **Inputs:**
 - `original_estimate` — the full estimate dict produced at job start
@@ -628,46 +623,3 @@ Add a column to `_job_export_row` or `_room_export_rows` in `stats_rebuilder.py`
 | `estimator.py` `estimate` | Read from matched stats, add to timeline entry |
 | `history_store.py` CSV headers | Add column to jobs/rooms CSV schema |
 | `stats_rebuilder.py` `_job_export_row` / `_room_export_rows` | Add value to CSV rows |
-
----
-
-## 11. Services
-
-All learning services are registered in `learning/services.py` under
-the `eufy_vacuum.*` namespace. The central index of every integration
-service lives in [advanced/03-services.md](../advanced/03-services.md).
-
-### Job snapshot and finalization
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `save_learning_snapshot` | Capture the active job's start-time state for later estimation. Idempotent on `job_id`. | `vacuum_entity_id`, `started_at: str`, `battery_start: int` | `map_id` (auto), `job_id: str` | no |
-| `finalize_learning_job` | Complete the job record, optionally rebuild stats, optionally rebuild CSV exports. | `vacuum_entity_id`, `battery_start: int`, `battery_end: int`, `started_at: str` | `map_id` (auto), `ended_at: str`, `used_for_learning: bool`, `rebuild_stats: bool`, `rebuild_csv: bool` | yes — finalization result with outcome status |
-| `rebuild_learning_stats` | Recompute aggregate statistics for one vacuum from all archived job files. | `vacuum_entity_id` | `rebuild_csv: bool` | no |
-
-### Estimation
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `run_learning_estimate` | Full per-room ETA estimate with confidence scores and battery readiness for the current queue. | `vacuum_entity_id` | `map_id` (auto), `current_battery: float`, `charge_percent_per_minute: float`, `reserve_battery_percent: float`, `started_at: str` | yes — `{rooms: [...], total_minutes, completion_eta, ...}` |
-| `record_estimate_accuracy` | Log estimated vs actual durations post-job for accuracy tracking. Drives the per-room drift metric. | `vacuum_entity_id`, `room_actuals: list[dict]` | (none) | yes — `{ok, recorded_count}` |
-| `reanchor_learning_timeline` | Recalculate remaining-room ETAs from completed-room actuals mid-job. Called on every `room_completed` event. | `original_estimate: dict`, `completed_rooms: list[dict]` | `reanchor_at: str`, `current_battery: float`, `charge_percent_per_minute: float`, `reserve_battery_percent: float` | yes — re-anchored estimate dict |
-| `get_next_room` | Lightweight next-room lookup from a re-anchored estimate. Used by the card for the "now cleaning"/"next" tiles. | `reanchored_estimate: dict` | (none) | yes — `{current_room, next_room}` |
-| `get_room_learning_estimates` | Per-room estimates for every managed room (not just queue members). Useful for the room-detail view. | `vacuum_entity_id` | `map_id` (auto), `current_battery: float` | yes — `{rooms: {room_id: estimate, ...}}` |
-
-### History and diagnostics
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `get_learning_history_snapshot` | Paginated, filterable history of completed jobs. | `vacuum_entity_id` | `room_slug: str`, `profile_key: str`, `status: str`, `used_for_learning: bool`, `limit: int` | yes — `{jobs: [...], total_count}` |
-| `get_metrics_snapshot` | Card-facing metrics rollup (avg time, area, pass count per room/profile combination). | `vacuum_entity_id` | `room_slug: str`, `profile_key: str`, `status: str`, `used_for_learning: bool` | yes — aggregate stats by room/profile |
-| `get_incomplete_run_log` | Returns the most recent incomplete run (cancelled, errored, or timed out) for the missed-rooms-retry flow. | `vacuum_entity_id` | (none) | yes — `{last_incomplete_run: {...}}` |
-| `get_trouble_rooms_log` | Rooms with chronic miss patterns (`miss_count >= 2` AND `miss_rate >= 0.33`). See §7 for the math. | `vacuum_entity_id` | (none) | yes — `{rooms: [{room_id, name, miss_count, miss_rate, is_trouble}, ...]}` |
-| `retry_missed_rooms` | Re-queue rooms that were missed in the last incomplete run and immediately start cleaning. | `vacuum_entity_id` | `map_id` (auto — also falls back to incomplete-run log if missing), `confirm_reduced_run: bool`, `path_block_action: enum` | yes — start result |
-
-### Job-record management
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `exclude_learning_job` | Mark one archived job as excluded from aggregate statistics. Useful for filtering out anomalous test runs. | `vacuum_entity_id`, `job_id: str` | `reason: str`, `rebuild_csv: bool` | yes — `{ok, excluded}` |
-| `restore_learning_job` | Re-include a previously excluded job in aggregate statistics. | `vacuum_entity_id`, `job_id: str` | `rebuild_csv: bool` | yes — `{ok, restored}` |

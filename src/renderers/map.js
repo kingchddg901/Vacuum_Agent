@@ -364,7 +364,7 @@ export function applyMapRenderers(proto) {
     const selectedId     = state.configSelectedSegmentId();
     const selectedSeg    = state.configSelectedSegment();
     const variants       = segmentsData?.image_variants ?? {};
-    const summary        = segmentsData?.summary ?? {};
+    const summary        = { ...(segmentsData?.summary ?? {}), analyzed_at: segmentsData?.analyzed_at };
     const actionStatus   = state.mapActionStatus?.() ?? null;
 
     // Config mode shares the same zoom state as the rooms view — same
@@ -478,6 +478,21 @@ export function applyMapRenderers(proto) {
      VARIANTS SECTION
      ========================================================= */
 
+  function _formatAnalyzedAt(isoStr) {
+    if (!isoStr) return null;
+    const d = new Date(isoStr);
+    if (isNaN(d)) return null;
+    const diffMs  = Date.now() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1)  return "just now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24)   return `${diffH}h ago`;
+    const diffD = Math.floor(diffH / 24);
+    if (diffD < 14)   return `${diffD}d ago`;
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  }
+
   proto._renderVariantsSection = function (variants, summary, actionStatus, state) {
     const armedDelete = state?.mapVariantDeleteArmed?.() ?? null;
     const rows = _VARIANTS.map(({ key, label, hint }) => {
@@ -572,6 +587,7 @@ export function applyMapRenderers(proto) {
                          actionStatus?.status === "busy";
     const analyzeError = actionStatus?.type === "analyze" &&
                          actionStatus?.status === "error";
+    const analyzedAt   = _formatAnalyzedAt(summary.analyzed_at);
 
     return `
       <div class="evcc-map-config-section">
@@ -584,7 +600,7 @@ export function applyMapRenderers(proto) {
                    ${this.escapeHtml(actionStatus.message ?? "Analysis failed")}
                  </span>`
               : segCount > 0
-                ? `${segCount} segments${adjCount > 0 ? `, ${adjCount} adjusted` : ""}`
+                ? `${segCount} segments${adjCount > 0 ? `, ${adjCount} adjusted` : ""}${analyzedAt ? ` · ${analyzedAt}` : ""}`
                 : "No segments analysed"}
           </span>
           <button

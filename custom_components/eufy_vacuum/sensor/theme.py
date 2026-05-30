@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from ..entity_helpers import build_vacuum_device_info
 
@@ -24,7 +25,8 @@ class EufyVacuumThemeStateSensor(SensorEntity):
 
     _attr_should_poll = False
     _attr_has_entity_name = True
-    _attr_name = "Theme State"
+    _attr_translation_key = "theme_state"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:palette"
 
     def __init__(

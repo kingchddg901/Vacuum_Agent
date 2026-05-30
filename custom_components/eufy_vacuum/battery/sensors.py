@@ -44,21 +44,21 @@ def build_battery_sensors(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
             stat_key="rate_overall_per_min",
-            label="Charge Rate",
+            translation_key="charge_rate",
             unique_suffix="charge_rate",
         ),
         ChargeRateSensor(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
             stat_key="rate_low_zone_per_min",
-            label="Charge Rate (Low Zone)",
+            translation_key="charge_rate_low_zone",
             unique_suffix="charge_rate_low_zone",
         ),
         ChargeRateSensor(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
             stat_key="rate_high_zone_per_min",
-            label="Charge Rate (High Zone)",
+            translation_key="charge_rate_high_zone",
             unique_suffix="charge_rate_high_zone",
         ),
         LastChargeDurationSensor(manager=manager, vacuum_entity_id=vacuum_entity_id),
@@ -70,35 +70,35 @@ def build_battery_sensors(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
             stat_key="cc_charge_speed_pct",
             baseline_key="cc_min_per_pct",
-            label="CC Charge Speed",
+            translation_key="cc_charge_speed",
             unique_suffix="cc_charge_speed",
         ),
         RegimeChargeSpeedSensor(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
             stat_key="cv_charge_speed_pct",
             baseline_key="cv_min_per_pct",
-            label="CV Charge Speed",
+            translation_key="cv_charge_speed",
             unique_suffix="cv_charge_speed",
         ),
         # Job-level metrics — populated when a job completes.
         LastJobMetricSensor(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
             stat_key="drain_per_min",
-            label="Last Job Drain Rate",
+            translation_key="last_job_drain_rate",
             unique_suffix="last_job_drain_per_min",
             unit="%/min",
         ),
         LastJobMetricSensor(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
             stat_key="drain_per_hour",
-            label="Last Job Drain Per Hour",
+            translation_key="last_job_drain_per_hour",
             unique_suffix="last_job_drain_per_hour",
             unit="%/h",
         ),
         LastJobMetricSensor(
             manager=manager, vacuum_entity_id=vacuum_entity_id,
             stat_key="drain_per_m2",
-            label="Last Job Drain Per m²",
+            translation_key="last_job_drain_per_m2",
             unique_suffix="last_job_drain_per_m2",
             unit="%/m²",
         ),
@@ -119,12 +119,12 @@ class _BatteryBase(SensorEntity):
         *,
         manager: BatteryHealthManager,
         vacuum_entity_id: str,
-        label: str,
+        translation_key: str,
         unique_suffix: str,
     ) -> None:
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
-        self._attr_name = label  # device name prepended by HA
+        self._attr_translation_key = translation_key
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{unique_suffix}"
         )
@@ -191,7 +191,7 @@ class ChargeCyclesSensor(_BatteryBase):
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label="Charge Cycles",
+            translation_key="charge_cycles",
             unique_suffix="charge_cycles",
         )
 
@@ -223,13 +223,13 @@ class ChargeRateSensor(_BatteryBase):
         manager: BatteryHealthManager,
         vacuum_entity_id: str,
         stat_key: str,
-        label: str,
+        translation_key: str,
         unique_suffix: str,
     ) -> None:
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label=label,
+            translation_key=translation_key,
             unique_suffix=unique_suffix,
         )
         self._stat_key = stat_key
@@ -262,7 +262,7 @@ class LastChargeDurationSensor(_BatteryBase):
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label="Last Charge Duration",
+            translation_key="last_charge_duration",
             unique_suffix="last_charge_duration",
         )
 
@@ -296,7 +296,7 @@ class BatteryHealthSensor(_BatteryBase):
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label="Battery Health",
+            translation_key="battery_health",
             unique_suffix="battery_health",
         )
 
@@ -342,13 +342,13 @@ class RegimeChargeSpeedSensor(_BatteryBase):
         vacuum_entity_id: str,
         stat_key: str,
         baseline_key: str,
-        label: str,
+        translation_key: str,
         unique_suffix: str,
     ) -> None:
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label=label,
+            translation_key=translation_key,
             unique_suffix=unique_suffix,
         )
         self._stat_key = stat_key
@@ -387,14 +387,14 @@ class LastJobMetricSensor(_BatteryBase):
         manager: BatteryHealthManager,
         vacuum_entity_id: str,
         stat_key: str,
-        label: str,
+        translation_key: str,
         unique_suffix: str,
         unit: str,
     ) -> None:
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label=label,
+            translation_key=translation_key,
             unique_suffix=unique_suffix,
         )
         self._stat_key = stat_key
@@ -455,7 +455,7 @@ class MidJobRechargeRateSensor(_BatteryBase):
         super().__init__(
             manager=manager,
             vacuum_entity_id=vacuum_entity_id,
-            label="Mid-Job Recharge Rate",
+            translation_key="mid_job_recharge_rate",
             unique_suffix="mid_job_recharge_rate",
         )
 

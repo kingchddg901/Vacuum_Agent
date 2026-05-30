@@ -64,8 +64,8 @@ class ActiveRunHasErrorBinarySensor(BinarySensorEntity):
     _attr_should_poll = False
     _attr_has_entity_name = True
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_translation_key = "active_run_has_error"
     _attr_icon = "mdi:alert-circle"
-    _attr_name = "Active Run Has Error"
 
     def __init__(
         self,

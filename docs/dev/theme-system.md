@@ -184,7 +184,7 @@ There is no `created_at` field on theme entries. Theme IDs are timestamp-based (
 
 ### Built-in (preloaded) themes vs user-saved themes
 
-Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `manager.py` and seeded into storage once during `async_initialize()` by `_ensure_preloaded_theme_library()`. The current built-in themes are:
+Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `themes/preloaded.py` and seeded into storage once during `ThemeManager.initialize()` by `ensure_preloaded_theme_library()`. The current built-in themes are:
 
 | ID | Name |
 |---|---|
@@ -198,7 +198,7 @@ Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `manager.py` and seed
 
 **How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
 
-**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `_ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI should prevent this at the UI layer, but the backend does not enforce it.
+**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI should prevent this at the UI layer, but the backend does not enforce it.
 
 **The `theme_follow_ha` default:** If `default_theme_id` is missing or points to a nonexistent entry, it is reset to `theme_follow_ha` at seeding time. `theme_follow_ha` has empty `colors` and `tokens`, which means no `--evcc-` variables are injected — the card's CSS falls through to its static defaults.
 
@@ -295,7 +295,7 @@ The result is that the UI updates on every keypress / slider drag pixel without 
 
 ### What it exposes
 
-`EufyVacuumThemeStateSensor` in `sensor.py` is a `SensorEntity` with `_attr_should_poll = False` (it fires on push from manager callbacks). The sensor platform machinery that creates and registers this entity is covered in [ha-integration.md](ha-integration.md).
+`EufyVacuumThemeStateSensor` in `sensor/theme.py` is a `SensorEntity` with `_attr_should_poll = False` (it fires on push from manager callbacks).
 
 **State value:** the active theme's `name`, or `"none"` if no theme is selected.
 
@@ -341,81 +341,22 @@ if (sensor?.attributes) {
 
 ## 7. Import / Export
 
-The theme editor exposes four buttons in the view footer that map to two
-transport mechanisms (clipboard and file) and two operations (export and
-import). The clipboard path is for quick in-session moves; the file path
-is the supported route for three use cases:
+### Export
 
-1. **Sharing themes between users** — post the JSON file on a forum or
-   GitHub, anyone can download and upload it into their own install.
-2. **Backing up themes** before risky edits or migrations.
-3. **Migrating themes between major versions** of this integration —
-   download from the old install, upload to the new one.
-
-All three are the same mechanism. Themes are the most portable artifact
-in the system (token/color/alpha dicts with no entity refs, no brand
-vocabulary, no per-vacuum state), which is why the file path matters
-even though clipboard suffices for one-person/one-session edits.
-
-| Button | Transport | Operation |
-|--------|-----------|-----------|
-| Export | Clipboard | Read theme → JSON → `navigator.clipboard.writeText` |
-| Import | Clipboard | `prompt()` paste → `JSON.parse` → service |
-| Download | File | Read theme → JSON → Blob → triggered `<a download>` |
-| Upload | File | Hidden `<input type="file">` → file picker → JSON parse → service |
-
-### Export (clipboard)
-
-The "Export" button in the editor:
+The export flow triggered by the "Export Theme" button in the editor:
 
 1. The card calls `exportTheme(themeId)` → `eufy_vacuum.export_theme` service → `manager.export_theme()`.
 2. `export_theme()` returns the theme entry wrapped as `{ "theme": { name, tokens, colors, alpha } }`.
 3. The card serializes it with `JSON.stringify(result, null, 2)` and calls `navigator.clipboard.writeText()`.
-4. A fallback logs to the browser console if clipboard access is denied.
+4. There is no file download — the theme JSON is written to the clipboard only. A fallback logs to the browser console if clipboard access is denied.
 
-### Download (file)
+### Import
 
-The "Download" button reuses `exportTheme(themeId)` for the JSON payload
-but routes the result through a Blob and a hidden temporary anchor:
-
-1. Sanitize the theme name into a filesystem-safe slug; append the ISO
-   date. Final filename: `evcc-theme-<safe-name>-<YYYY-MM-DD>.json`.
-2. Wrap the JSON string in a `Blob` with type `application/json`,
-   `URL.createObjectURL`, attach to a temporary `<a download>` on
-   `document.body` (NOT the shadow root — browsers dispatch download
-   events from the top document), `.click()`, then remove the anchor
-   and `revokeObjectURL`.
-
-This is the supported migration path: download from one install,
-upload to another, theme survives intact regardless of version.
-
-### Import (clipboard)
-
-The "Import" button:
+The import flow triggered by the "Import Theme" button:
 
 1. The user is prompted to paste JSON via `prompt()`.
 2. The card JSON-parses the pasted string client-side. If `JSON.parse` throws, the operation is aborted with an alert.
 3. The parsed object is sent to `importTheme(payload)` → `eufy_vacuum.import_theme` service → `manager.import_theme()`.
-
-### Upload (file)
-
-The "Upload" button creates a hidden file input synchronously inside
-the click handler (browser security requires file-picker access to
-originate in a user-event stack) and routes the picked file through
-the same `importTheme` service:
-
-1. Create `<input type="file" accept=".json,application/json">` on
-   `document.body`, hidden.
-2. `input.click()` opens the OS file dialog.
-3. On `change`: read the file via `File.text()`, `JSON.parse`, call
-   `importTheme(payload)`, refresh the theme library from the backend,
-   show a success alert with the filename. Errors surface with a
-   descriptive alert.
-4. Clean up the input element from the DOM.
-
-Both upload and download append their helper elements to `document.body`
-rather than the card's shadow DOM — required for the browser's
-download dispatch and file-picker dialog to fire correctly.
 
 ### What is validated on import (`manager.import_theme()`)
 
@@ -472,7 +413,7 @@ The group name string must match exactly between `THEME_GROUPS`, the `group` fie
 
 ### How to add a new built-in theme
 
-1. Open `Z:\custom_components\eufy_vacuum\core\manager.py`.
+1. Open `custom_components/eufy_vacuum/themes/preloaded.py`.
 
 2. Add a new spec to `PRELOADED_THEME_SPECS`:
    ```python
@@ -490,172 +431,48 @@ The group name string must match exactly between `THEME_GROUPS`, the `group` fie
 
 3. The `id` must start with `theme_` and be unique. Use a short stable slug, not a timestamp, so it behaves as a preloaded entry (readable, not sortable with user themes).
 
-4. `_ensure_preloaded_theme_library()` only seeds an entry if the ID does not already exist in storage. A new built-in theme will appear for users on their next HA restart (or integration reload).
+4. `ensure_preloaded_theme_library()` only seeds an entry if the ID does not already exist in storage. A new built-in theme will appear for users on their next HA restart (or integration reload).
 
 5. `BASE_PRELOADED_THEME_SPEC` contains all the non-color layout/typography/motion token values. Override individual keys in the `tokens` dict if a theme needs different spacing or radius values.
 
 ---
 
-## 9. Animal companion (`animal-svg`) — palette is theme-driven
+## 9. Theme-driven assets (`animal-svg`)
 
-The `<animal-svg>` web component renders the map view's animal companion.
-It ships **inside the integration** at
-`custom_components/eufy_vacuum/frontend/animal-svg/` and is served by the
-integration's static-path registration at `/eufy_vacuum/frontend/animal-svg/`.
-The card loads it via a dynamic import in `src/main.js` during first render.
+A standalone web component lives at `/config/www/animal-svg/` (served `/local/animal-svg/`) for use as a future theme element on the map view. It is **not** part of `eufy_vacuum` — it's a self-registering free-standing resource that the card can `import` and drive from vacuum state.
 
-The full component + integration contract — attribute table, allowed poses,
-the state→pose mapping the panel uses, the `battery-state` bands, how to
-author a creature pack — is in
-[`animal-svg.md`](./animal-svg.md) (in this directory).
-That file is the canonical reference; this section covers only the
-relationship with the theme system.
+Files:
 
-### What themes control
-
-The animal subsystem mirrors the **floor-textures** pattern: one parent
-group with global tokens + per-animal sub-groups with animal-specific
-overrides. **The sub-groups are derived from the live AnimalSVG registry**
-— adding a new animal in `frontend/animal-svg/animals/` creates a new
-editor sub-group automatically; no `src/` edits.
-
-For the five bundled animals (cat, dog, raccoon, parrot, snake) the
-editor surfaces six groups in total.
-
-| Group | Token shape | Purpose |
-|-------|-------------|---------|
-| **Animal Companion** | `--evcc-animal-eye-{good,mid,warn,low,charging}` (5) + `--evcc-animal-{fur,fur-shadow,fur-highlight,eye,pupil,nose,whisker,ear-inner,white-tip}` (9) | Global tokens — set once, applies across every animal. |
-| **Animal Companion — Cat** | `--evcc-animal-cat-eye-*` (5) + `--evcc-animal-cat-*` palette (9) | Per-cat overrides. Win over the matching global token. |
-| **Animal Companion — Dog** | `--evcc-animal-dog-*` | Per-dog overrides. |
-| **Animal Companion — Raccoon** | `--evcc-animal-raccoon-*` | Per-raccoon overrides. |
-| **Animal Companion — Parrot** | `--evcc-animal-parrot-*` | Per-parrot overrides. |
-| **Animal Companion — Snake** | `--evcc-animal-snake-*` | Per-snake overrides. |
-
-### How the override actually reaches the SVG
-
-The animal-svg shadow root wraps each per-animal default as a **two-level**
-fallback:
-
-```css
-:host {
-  --animal-fur: var(--evcc-animal-cat-fur,
-                  var(--evcc-animal-fur,
-                    0 0% 7%));  /* cat's own default */
-  --animal-eye-good: var(--evcc-animal-cat-eye-good,
-                       var(--evcc-animal-eye-good,
-                         142 71% 45%));
-  /* ...one line per color in the animal's `colors` block + 5 eye-state bands */
-}
+```
+config/www/animal-svg/
+├── animal-svg.js     custom element + registry + shared keyframes
+├── manifest.js       loads animal-svg.js then each animal file
+├── animals/
+│   ├── cat.js
+│   ├── dog.js
+│   ├── raccoon.js
+│   ├── parrot.js
+│   └── snake.js
+└── README.md         contract for adding/removing animals
 ```
 
-Override priority, highest first:
-1. **Per-animal theme token** (`--evcc-animal-cat-fur`)
-2. **Global animal token** (`--evcc-animal-fur`)
-3. **Animal's hardcoded default** (from its `colors` block)
+Usage from the card (or anywhere in HA):
 
-The wrapping is generated by `colorVarsStyle(colors, animalName)` and
-`batteryStateDefaultsCss(animalName)` in `animal-svg.js`. Animal definition
-files don't change to gain theme support — the wrapping is mechanical and
-animal-name-aware.
+```html
+<animal-svg animal="cat" pose="walking"></animal-svg>
+```
 
-CSS custom-property inheritance carries the theme override (set on the
-card host by `applyThemeToCard()`) through the shadow boundary into the
-`:host` rule's `var()` lookups.
+**Attributes (observed):** `animal`, `pose`, `width`, `height`. Poses: `animating | standing | curled | alert | walking | warning`. Adding a new animal = a self-registering JS file in `animals/` plus a line in `manifest.js`.
 
-### Per-group previews
+**Why it exists separately:** the resource is reusable across themes, vacuums, integrations. Bundling it into the card would force a card rebuild every time someone adds an animal. Keeping it standalone lets users edit the animal set without touching the integration.
 
-Each animal sub-group has its own preview pane showing **just that animal**
-in all five battery states. The parent "Animal Companion" group shows all
-animals × all states. This means when an editor user is changing
-`--evcc-animal-snake-eye-low` they can see the snake's "low" battery
-appearance change live — they don't have to figure out which animal the
-token affects from the token name alone.
+### Wiring it into a theme (planned, not yet implemented)
 
-Previews are implemented as `<animal-svg>` elements directly embedded in
-the editor's preview pane. They inherit the working-draft tokens via the
-same CSS cascade that drives the live map view, so token edits update
-instantly without any JS wiring.
+Future direction:
 
-### Dynamic registry — how new mascots show up automatically
+1. Add a `mascot` token to `theme-tokens/groups.js` — value is one of the registered animal names.
+2. In `applyDynamicTheme`, render `<animal-svg animal="${mascot}" pose="${derived_pose}">` in the map view.
+3. Derive `pose` from vacuum state — e.g. `docked → curled`, `cleaning → walking`, `error → warning`.
+4. The pose mapping itself becomes a theme-token (`mascot_pose_map`), letting different themes drive different mascot behaviours from the same state.
 
-`AnimalSVG.register()` dispatches a `animal-svg-registered` document
-event whenever a new animal is registered. Two modules listen:
-
-- `src/theme-tokens/index.js` rebuilds `THEME_TOKEN_REGISTRY`,
-  `THEME_TOKEN_MAP`, `THEME_GROUP_MAP`, and `THEME_GROUPS` in place.
-  ESM live bindings make the new values visible to all consumers
-  without re-import.
-- `src/renderers/theme-preview-registry.js` rebuilds
-  `THEME_PREVIEW_REGISTRY` with a new entry for the new animal,
-  routing to the parameterized `_renderThemePreviewAnimal(name)`
-  method via a `methodArgs` field on the entry.
-
-Both modules build with a fallback list of bundled-animal names at
-JS-module-load time (since the bundle is parsed before animal-svg's
-dynamic import completes). The first `animal-svg-registered` event
-replaces the fallback with the real registry list. Adding new bundled
-animals doesn't strictly require updating the fallback — the rebuild
-runs anyway — but doing so avoids a brief window where the editor
-shows only the fallback animals.
-
-This is the same pattern used for theme overrides reaching the
-animal-svg shadow root: keep one canonical source of truth (the live
-registry) and have everything else reactively derive from it.
-
-### What themes do NOT control (still)
-
-- **Mascot choice** (`animal` attribute). Stored per-map via
-  `state.mapAnimalSelection()`, not in the theme registry. A user can swap
-  from cat to raccoon without touching themes — the choice persists across
-  theme changes.
-- **Pose mapping.** Defined once in `src/renderers/map.js::_vacuumStateToPose`.
-  Six HA vacuum states map to six fixed poses. Themes don't customize this.
-- **Battery thresholds.** The 50/25/15 percent boundaries that resolve
-  `battery-state` live in `state.batteryState()` and are not currently
-  theme-tunable. (They could be added as `--evcc-animal-threshold-*`
-  number tokens if the need ever materialises.)
-
-### How creature-pack authors interact with this
-
-A new animal's `colors` block sets per-animal defaults. Those defaults are
-automatically wrapped as theme-overridable fallbacks. No animal-file change
-is needed to make a new animal theme-aware — the wrapping is mechanical.
-
-An animal that wants to opt into the battery-state pulse on its eye
-elements adds `class="animal-eyes"` to whatever it draws as eyes. Declarative
-`quadruped`/`parrot` animals get this for free (the framework tags
-`parts.eyes` automatically). Procedural (`custom`) animals add the class
-themselves; see `animals/snake.js` for the reference pattern.
-
----
-
-## 10. Services
-
-All theme services are registered in `theme_services.py` under the
-`eufy_vacuum.*` namespace. The central index of every integration
-service lives in [advanced/03-services.md](../advanced/03-services.md).
-
-### Library management
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `get_theme_library` | Return every theme in the library (preloaded + user-saved) plus the default-theme ID. | (none) | (none) | yes — `{themes: [...], default_theme_id}` |
-| `save_theme_as_new` | Save the current vacuum's working draft as a new named theme in the library. | `vacuum_entity_id`, `name: str` | `set_as_default: bool` | yes — `{ok, theme_id, name}` |
-| `overwrite_theme` | Overwrite an existing theme with the current draft's values. | `vacuum_entity_id`, `theme_id: str` | (none) | yes — `{ok, theme_id}` |
-| `rename_theme` | Change a theme's display name. | `theme_id: str`, `name: str` | (none) | yes — `{ok, theme_id, name}` |
-| `delete_theme` | Remove a user theme from the library. Preloaded themes cannot be deleted. | `theme_id: str` | (none) | yes — `{ok}` |
-
-### Activation and editing
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `set_active_theme` | Apply a theme globally or per-vacuum. When `vacuum_entity_id` is provided, that vacuum's active theme is set; otherwise it's set as the global default. | `theme_id: str` | `vacuum_entity_id` | yes — `{ok, theme_id, scope}` |
-| `update_working_draft` | Merge token/color/alpha overrides into the vacuum's active working draft. The draft is what's rendered live until the user saves or reverts. | `vacuum_entity_id` | `tokens: dict`, `colors: dict`, `alpha: dict` | yes — `{ok, tokens, colors, alpha}` |
-| `revert_draft` | Discard the working draft and restore the active theme's saved values. | `vacuum_entity_id` | (none) | yes — `{ok}` |
-
-### Import / export
-
-| Service | Purpose | Required | Optional | Returns |
-|---------|---------|----------|----------|---------|
-| `export_theme` | Return a theme's complete data as a portable JSON payload. | `theme_id: str` | (none) | yes — `{theme_id, name, tokens, colors, alpha}` |
-| `import_theme` | Add a previously exported theme to the library. The payload must be the exact shape `export_theme` produces. | `payload: dict` | (none) | yes — `{ok, theme_id, name}` |
+The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.

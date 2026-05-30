@@ -10,8 +10,6 @@ This document defines the backend as a **contract**, not just a description of t
 
 All services live in the `eufy_vacuum` domain. Call them via `hass.callService(domain, service, data, target?, notifyOnError?, returnResponse?)`. Services marked **response** must be called with `returnResponse = true`; the result lives at `result.response`.
 
-> **`map_id` is optional on every service.** The integration auto-resolves it from the adapter's `entities.active_map` entity when omitted. The tables below list `map_id` next to the fields the card actually passes (the card always knows which map it's looking at), but the service surface itself accepts an omitted `map_id` and falls back to the active map. See [03-services.md](../advanced/03-services.md) for the user-facing details.
-
 #### State queries (read-only, response)
 
 | Service | Required fields | What it returns |
@@ -388,8 +386,6 @@ The `MAPPING_ARCHIVE` entry exists for backwards compatibility. Any call to `car
 | map | `state/map.js` | Map segments data |
 | setup | `state/setup.js` | Setup status; setup loading flag |
 | mapping-review | `state/mapping-review.js` | Room bounds snapshot |
-| toasts | `state/toasts.js` | Queue of transient feedback pills (success / error / info) for service results. Rendered into a body-level host above the modal host. |
-| confirmations | `state/confirmations.js` | Generic two-tap confirmation registry. Backs `cancelRunRequiresConfirmation`, `clearQueueRequiresConfirmation`, `isMapVariantDeleteArmed`, and similar shims. Owns per-key grace windows and auto-clear timers so individual binding callsites no longer maintain their own `setTimeout` bookkeeping. `setView` calls `disarmAllConfirmations()` so confirmations never survive a view change. |
 
 ### 4.2 Init shape and clear shape
 
@@ -443,7 +439,7 @@ If a binding needs a value from two different state modules, it calls each modul
 
 ## 5. Building a Different UI — What You Need
 
-This section specifies the minimum required for any UI (React app, Vue SPA, native app, CLI tool, etc.) that wants to drive a eufy_vacuum installation. The HA service contract that any UI must call into is documented in [core-manager.md](core-manager.md) and [ha-integration.md](ha-integration.md).
+This section specifies the minimum required for any UI (React app, Vue SPA, native app, CLI tool, etc.) that wants to drive a eufy_vacuum installation.
 
 ### 5.1 Minimum viable polling loop
 
@@ -682,137 +678,3 @@ _scheduleMyPanelRefresh() {
 ```
 
 Add `clearTimeout(this._myPanelTimer)` to `disconnectedCallback()` to prevent memory leaks.
-
----
-
-## 7. Mobile Shell
-
-Below 600px of rendered card width the card swaps its desktop chrome (top-tab nav across 10 views) for a mobile shell with a four-tab bottom nav plus a "More" overflow sheet. The shared view body — the per-view content renderers — runs in both shells unchanged. Only the surrounding chrome forks.
-
-### 7.1 Why fork the shell at all
-
-A single responsive layout couldn't reconcile the constraints. The desktop nav fits 10 tabs in one row because each gets ~120px at 1200px viewport. At 360px those tabs collapse to ~36px each — narrower than any sensible label, before considering touch-target minimums. Stacking them vertically as a "menu" is awkward and eats real estate that mobile users can't spare. The conventional mobile pattern — four primary tabs at the bottom + overflow drawer — is a structurally different layout, not a CSS adjustment.
-
-The fork is **chrome-only**. View content (Rooms grid, Map view, Metrics tables, etc.) is shared between shells. View state, scroll position, focus state all persist across viewport changes via the same view-root DOM persistence the desktop path uses.
-
-### 7.2 Viewport detection
-
-`src/state/viewport.js` owns the decision. One threshold (600px), three accessor methods:
-
-```js
-state.viewport()            // → "mobile" | "desktop"
-state.isMobileViewport()    // → boolean
-state.isCompactRender()     // → boolean (aliased to mobile today;
-                            //   separate getter so future "narrow
-                            //   embed" cases can opt in)
-```
-
-The card measures **its own rendered width**, not `window.innerWidth`. Lovelace can embed the card in a grid cell narrower than the browser viewport, in which case `innerWidth` lies. The card uses a `ResizeObserver` on the host element (`this`) and a `getBoundingClientRect`-based fallback for the initial measurement before the observer fires.
-
-The breakpoint is rechecked at three points:
-- Once in `setConfig` to seed initial viewport before the first render.
-- In `connectedCallback` once the element is in the DOM and laid out.
-- On every `ResizeObserver` callback (debounced by the change-detection in `setViewportFromWidth` — it returns `false` when the mobile/desktop boundary isn't crossed, so renders only fire on actual viewport changes).
-
-A defensive re-measurement at the start of `_render()` guards against initial-mount lifecycle races (e.g. setConfig running before the element is in the DOM, or HA reloading the card without re-running setConfig).
-
-### 7.3 Card config override
-
-For previewing without resizing:
-
-```yaml
-type: custom:eufy-vacuum-command-center
-vacuum_entity_id: vacuum.alfred
-mobile_shell: true     # force mobile
-# mobile_shell: false  # force desktop
-# mobile_shell: auto   # width-based detection (default)
-```
-
-When `mobile_shell` is `true` or `false`, the width-based detection in `_render` and the ResizeObserver are both suppressed. The user's choice sticks across resizes. Most useful during development or for users on devices where width detection produces the wrong answer (rare, but exists for kiosk-style installs).
-
-### 7.4 Shell-frame DOM
-
-The shell frame is built once in `_ensureShellFrame()` and persisted across renders. Mobile-specific slots are part of the frame on both viewports — they're populated only when mobile is active and hidden via CSS otherwise.
-
-```html
-<ha-card>
-  <div class="evcc-shell" data-viewport="mobile|desktop">
-
-    <div data-evcc-header-root></div>           <!-- header content -->
-
-    <div data-evcc-view-stage>
-      <div data-evcc-view-root="rooms"></div>
-      <div data-evcc-view-root="maintenance" hidden></div>
-      ...                                       <!-- one per VIEW -->
-    </div>
-
-    <div data-evcc-bottom-nav-root></div>       <!-- mobile only -->
-    <div data-evcc-mobile-overlay-root></div>   <!-- mobile only -->
-
-  </div>
-</ha-card>
-```
-
-Per-view DOM persistence is preserved on mobile — switching from Rooms to Maintenance keeps the Rooms scroll position intact when you come back to it, same as desktop.
-
-The header content forks by viewport:
-- Desktop: `renderHeader(ctx)` from `render-cycle.js` — vacuum name + status + 10-tab nav strip.
-- Mobile: `renderers.renderMobileHeader(ctx)` from `src/renderers/mobile-shell.js` — vacuum name + status only. The tabs live at the bottom on mobile.
-
-`_render()` writes one of the two into the same `[data-evcc-header-root]` slot based on `state.isMobileViewport()`. The bottom-nav and overlay slots get content only when mobile, empty string otherwise.
-
-### 7.5 Tab split
-
-Four primary tabs at the bottom, six overflow tabs in the More sheet:
-
-| Primary (always visible) | Overflow ("More" sheet) |
-|---|---|
-| Rooms | Learning Review |
-| Upkeep (Maintenance) | Room Rules |
-| Dock (Base Station) | Map Config |
-| Stats (Metrics) | Map Bounds (Mapping Review) |
-| More → | Setup |
-
-The split is hardcoded in `src/renderers/mobile-shell.js` as `PRIMARY_MOBILE_TABS` and `OVERFLOW_MOBILE_TABS`. Edit those arrays if usage data suggests a different ordering.
-
-Theme is **deliberately absent** from both lists. Its editor needs too many panels visible simultaneously (palette, tokens, previews, presets) to be usable at phone widths. Active themes still apply on mobile — only the editor is desktop-only. Re-add to `OVERFLOW_MOBILE_TABS` if/when a phone-tailored theme editor lands.
-
-### 7.6 Overflow sheet
-
-Opens when the More button in the bottom nav is tapped. State lives on the card instance as `_mobileMoreOpen` (boolean). Toggle, backdrop close, and item-select bindings live in `src/bindings/mobile-shell.js`. View switching itself runs through the standard `[data-view]` nav binding — the mobile bottom-nav tabs and overflow sheet items don't need their own handlers for view changes.
-
-The sheet is rendered inline in the shell (`data-evcc-mobile-overlay-root`) when `_mobileMoreOpen` is true. The backdrop tap and any sheet-item tap both close it; switching views from the sheet auto-closes via `data-action="mobile-more-select"`.
-
-### 7.7 Per-view mobile layout adjustments
-
-`src/styles/mobile.js` (loaded after all other styles so it wins specificity) contains all mobile overrides. Each rule is scoped to `.evcc-shell[data-viewport="mobile"]` so desktop is bit-for-bit unchanged.
-
-Major view-specific overrides:
-
-- **Rooms** — workspace stacks (rooms then run profiles); room grid forced to 1 column; Start button becomes full-width 48px tall; secondary chips wrap two-per-row; run profiles become a horizontal scroll strip with snap points (~2.2 visible per screen).
-- **Map Config** — body stacks (map ~55vh, side panel ~45vh); nudge buttons bumped 36→44 and 28→44 px; edge label/value columns widened for touch font size; zoom toolbar buttons bumped 28→40 px.
-- **Panel-style views** (Maintenance / Base Station / Metrics / Learning Review / Mapping Review) — panel padding 16→12; stat/card grids forced to 2 columns; inner cards 14→10 padding.
-- **Metrics tables** — `display: block` with `overflow-x: auto` so multi-column tables horizontal-scroll within their panel instead of overflowing the card. `thead/tbody/tr` forced back to `display: table` so columns stay aligned across rows.
-- **Generic touch sizing** — every `button` inside `.evcc-view-stage` gets a 44px min-height, with explicit exclusions for nav tabs, chips, room cards, and map nudge buttons that have their own sizing.
-- **Form inputs** — text/number/search/select get `font-size: 1rem` to defeat iOS auto-zoom-on-focus and 44px min-height.
-
-### 7.8 What's *not* responsive
-
-Several layouts knowingly stay desktop-shaped even at mobile width:
-
-- **Learning Review tables** — kept as horizontal-scroll tables rather than collapsing to per-row cards. The view's value is multi-column comparison; row-stacking would lose that. Recommended on phones in landscape.
-- **Theme editor** — hidden from the mobile menu (above).
-- **Active job mini-map** — renders inside the Rooms view's stacked layout; works but visual density is high.
-
-### 7.9 Testing the mobile shell
-
-Three viable paths:
-
-1. **Actual phone via HA companion app.** The integration's sidebar panel loads with `?v=<mtime>` cache-busting; reload the integration after any bundle deploy to refresh the URL.
-2. **Browser window resized below 600px** in any HA tab. The ResizeObserver fires; you should see the mobile shell take over within ~one frame.
-3. **`mobile_shell: true` in card config.** Bypasses width detection entirely. Test the mobile shell at desktop card width to verify layout, then remove the override.
-
-If the mobile shell doesn't appear when expected, the diagnosis steps in order:
-- Check `.evcc-shell` has `data-viewport="mobile"` in dev tools.
-- Check the bundle being served is current — there are two possible paths (`custom_components/eufy_vacuum/frontend/...` for the integration panel, `www/...` for legacy Lovelace resources). Both should hold the same file; if they drift, the resource path serves stale.
-- Verify `state.isMobileViewport()` returns true via the console.

@@ -176,6 +176,7 @@ class EufyVacuumMaintenanceResetButton(ButtonEntity):
     """Button to reset the maintenance snapshot for one component."""
 
     _attr_has_entity_name = True
+    _attr_translation_key = "maintenance_reset"
 
     def __init__(
         self,
@@ -191,7 +192,7 @@ class EufyVacuumMaintenanceResetButton(ButtonEntity):
         self._vacuum_entity_id = vacuum_entity_id
         self._component = component
 
-        self._attr_name = f"Reset {label} Maintenance"
+        self._attr_name_placeholders = {"component": label}
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_reset"
         )
@@ -244,11 +245,14 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
 
     @property
     def unique_id(self) -> str | None:
-        """Return the stable unique id."""
-        profile_name = str(self._profile.get("name", self._profile_id))
+        """Return the stable unique id.
+
+        Uses only the internal profile_id — not the user-visible name — so
+        renaming a saved profile never orphans the entity registry entry.
+        """
         return (
             f"{_run_profile_button_unique_prefix(vacuum_entity_id=self._vacuum_entity_id, map_id=self._map_id)}"
-            f"{_slugify_profile_name(profile_name)}_{self._profile_id}"
+            f"{self._profile_id}"
         )
 
     @property

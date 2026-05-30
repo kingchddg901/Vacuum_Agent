@@ -19,6 +19,7 @@ class EufyVacuumRoomCleaningHistorySensor(EufyVacuumRoomEntity, SensorEntity):
 
     _attr_icon = "mdi:history"
     _attr_should_poll = False
+    _attr_translation_key = "room_cleaning_history"
 
     def __init__(
         self,
@@ -36,7 +37,6 @@ class EufyVacuumRoomCleaningHistorySensor(EufyVacuumRoomEntity, SensorEntity):
             map_id=map_id,
             room_id=room_id,
             room_data=room_data,
-            label="Cleaning History",
             unique_suffix="cleaning_history",
         )
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.helpers.entity import EntityCategory
 
 from ..entity_helpers import build_vacuum_device_info
 
@@ -23,7 +24,8 @@ class EufyVacuumOnboardingSensor(SensorEntity):
     """
 
     _attr_has_entity_name = True
-    _attr_name = "Onboarding State"
+    _attr_translation_key = "onboarding_state"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:clipboard-check-outline"
 
     def __init__(

@@ -1,22 +1,26 @@
 # Architecture Overview
 
-This document describes the full system architecture of `eufy_vacuum` (the Home Assistant
-custom integration) and `eufy-vacuum-command-center` (the companion Lovelace card).
-It is written for developers who want to extend, contribute to, or port the system to a
-different vacuum ecosystem.
+This document describes the full system architecture of `eufy_vacuum` (the Home
+Assistant custom integration) and `eufy-vacuum-command-center` (the companion
+Lovelace card). It is written for developers who want to extend, contribute to,
+or port the system to a different vacuum ecosystem.
 
 ---
 
 ## Table of Contents
 
 1. [System Boundaries](#1-system-boundaries)
-2. [Full Stack Layer Diagram](#2-full-stack-layer-diagram)
-3. [Integration Internal Layers](#3-integration-internal-layers)
-4. [Data Flows](#4-data-flows)
-5. [State Persistence](#5-state-persistence)
-6. [Key Design Decisions](#6-key-design-decisions)
-7. [Concurrency & Thread Safety](#7-concurrency--thread-safety)
-8. [Extension Points](#8-extension-points)
+2. [Integration Internal Layers](#2-integration-internal-layers)
+3. [Subsystem Package Map](#3-subsystem-package-map)
+4. [Startup Sequence](#4-startup-sequence)
+5. [Data Flow — Job Start to Finish](#5-data-flow--job-start-to-finish)
+6. [State Persistence](#6-state-persistence)
+7. [The Adapter Pattern](#7-the-adapter-pattern)
+8. [Listener Architecture](#8-listener-architecture)
+9. [Service Layer](#9-service-layer)
+10. [Entity Layer](#10-entity-layer)
+11. [Concurrency & Thread Safety](#11-concurrency--thread-safety)
+12. [Extension Points](#12-extension-points)
 
 ---
 
@@ -24,9 +28,10 @@ different vacuum ecosystem.
 
 ### What the integration is
 
-`eufy_vacuum` is a Home Assistant custom integration that sits **on top of** the
-`robovac_mqtt` layer. Its purpose is to add a complete job-management, learning,
-and configuration layer that the bare `robovac_mqtt` entities do not provide.
+`eufy_vacuum` is a Home Assistant custom integration that sits **on top of** an
+upstream vacuum integration (currently Eufy via `robovac_mqtt`). Its purpose is
+to add a complete job-management, learning, and configuration layer that the bare
+upstream entities do not provide.
 
 It owns:
 
@@ -35,21 +40,20 @@ It owns:
 - Active job lifecycle tracking (start → monitor → auto-finalize)
 - A learning / ETA estimation system backed by per-job JSON files on disk
 - A theme system for the companion card
-- A mapping subsystem that tracks robot position during runs and learns room bounds
-- All the HA entities (sensors, buttons, selects, switches, numbers) that surface
-  integration state into the HA entity registry
+- A mapping subsystem (trace capture, image-based segmentation, room bounds)
+- Battery health tracking (cycle counts, charge rates, degradation metrics)
+- All HA entities that surface integration state into the entity registry
 - HA service endpoints consumed by the Lovelace card
 
 ### What the integration is not
 
 `eufy_vacuum` does **not**:
 
-- Communicate directly with the Eufy cloud or the vacuum hardware. All hardware
-  interaction goes through the underlying `robovac_mqtt` vacuum entity and its
-  companion sensor entities.
-- Replace `robovac_mqtt`. It subscribes to state changes on entities that
-  `robovac_mqtt` creates; it does not re-implement cloud or MQTT communication.
-- Bundle the Lovelace card. The card is a separate JavaScript project
+- Communicate directly with Eufy cloud or vacuum hardware. All hardware
+  interaction goes through the upstream vacuum entity and its companion sensors.
+- Replace the upstream integration. It subscribes to state-change events on
+  entities that the upstream integration creates.
+- Bundle the Lovelace card. The card is a separate JS project
   (`eufy-vacuum-command-center`). The integration serves the compiled card JS
   as a static file at `/eufy_vacuum/frontend/`, but the two projects are
   independently versioned.
@@ -58,782 +62,477 @@ It owns:
 
 | Dependency | Role |
 |---|---|
-| Home Assistant core | Config entry lifecycle, entity registry, service bus, storage helpers, static path serving |
-| `robovac_mqtt` (or compatible) | Provides `vacuum.*` entity + companion sensor entities (task_status, dock_status, active_cleaning_target, active_map, robot_position_x/y, water_level, etc.) |
-| Eufy cloud / robot hardware | Upstream of `robovac_mqtt`; invisible to this integration |
-| `eufy-vacuum-command-center` | Frontend that calls integration services; served from the integration's static path |
+| Upstream vacuum integration | Hardware control, raw position sensors, battery level |
+| HA `Store` helper | Persistent JSON storage at `.storage/eufy_vacuum` |
+| HA `async_add_executor_job` | Off-loop disk I/O for learning history files |
+| HA event bus | Inbound state changes; outbound job/room events |
+| HA service registry | All ~70 service endpoints |
+
+No third-party Python packages are required (`requirements` is empty).
 
 ---
 
-## 2. Full Stack Layer Diagram
+## 2. Integration Internal Layers
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  HARDWARE                                                               │
-│  Eufy vacuum robot (X10 Pro Omni or compatible)                         │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │ Wi-Fi / proprietary Eufy cloud protocol
-┌───────────────────────────────▼─────────────────────────────────────────┐
-│  EUFY CLOUD                                                             │
-│  Eufy mobile app backend; relays commands and telemetry                 │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │ MQTT / cloud API
-┌───────────────────────────────▼─────────────────────────────────────────┐
-│  robovac_mqtt  (third-party HA integration)                             │
-│  Owns: vacuum.* entity, sensor.*_task_status, sensor.*_dock_status,     │
-│        sensor.*_active_cleaning_target, sensor.*_active_map,            │
-│        sensor.*_robot_position_x/y, sensor.*_water_level, ...          │
-│  Exposes vacuum.send_command() for issuing clean payloads               │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │ HA entity state changes + service calls
-┌───────────────────────────────▼─────────────────────────────────────────┐
-│  eufy_vacuum  (this integration)                                        │
-│  Owns: room config, queue, job lifecycle, learning, mapping, themes,    │
-│        all eufy_vacuum.* HA services                                    │
-│  Internal layers detailed in §3                                         │
-└────────────┬────────────────────────────────────────┬────────────────────┘
-             │ HA entity state                        │ HA service responses
-             │ sensor.*_theme_state, etc.             │ (return payloads via
-             │                                        │  hass.services.call)
-┌────────────▼────────────────────────────────────────▼────────────────────┐
-│  eufy-vacuum-command-center  (Lovelace card)                            │
-│  Owns: all UI, view routing, theme rendering, user interactions          │
-│  Communicates exclusively through the HA service bus (no direct Python  │
-│  calls; no WebSocket subscriptions beyond standard hass object)         │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Lovelace Card  (eufy-vacuum-command-center)                        │
+│  JavaScript — actions / state / renderers / bindings / styles       │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │  HA WebSocket service calls
+┌────────────────────────▼────────────────────────────────────────────┐
+│  Service Layer  (services/, learning/services.py,                   │
+│                  themes/services.py, mapping/mapping_services.py)   │
+│  ~70 named services — validate input, call manager, return payload  │
+└────────────────────────┬────────────────────────────────────────────┘
+                         │  method calls
+┌────────────────────────▼────────────────────────────────────────────┐
+│  core/manager.py — EufyVacuumManager (orchestrator)                │
+│  Owns self.data (in-memory mirror of .storage), self.runtime        │
+│  Delegates deep logic to subsystem manager objects                  │
+│                                                                     │
+│  Subsystems (each a manager class, holds a back-reference):         │
+│  themes · maintenance · dock · onboarding · profiles                │
+│  access_graph · active_job · run_plan · room_map                    │
+└──┬───────────┬──────────┬────────────────────┬───────────────────┬──┘
+   │           │          │                    │                   │
+   ▼           ▼          ▼                    ▼                   ▼
+battery/   mapping/  learning/            listeners/         HA entities
+manager    manager   manager              (7 modules)        (sensor/,
+BatteryH   Mapping   LearningM            each owns          switch/,
+ealthMgr   Manager   anager               its listener       button/,
+                                          lifecycle)         number/,
+                                                             select/,
+                                                             binary_sensor)
 ```
 
-### What each layer owns
-
-**robovac_mqtt** owns the live vacuum state. It is the only layer that talks to the
-hardware. `eufy_vacuum` never directly issues MQTT or cloud calls; it issues
-`vacuum.send_command` service calls that `robovac_mqtt` translates.
-
-**eufy_vacuum** owns all higher-level logic: it decides *what* to clean, *when* to
-finalize, *how* to record history, and *how* to present configuration. It also serves
-the card's compiled JS bundle as a static HTTP path.
-
-**eufy-vacuum-command-center** owns all user-facing presentation. It is a completely
-passive consumer: it reads HA entity states (via the standard `hass` object passed to
-every Lovelace card) and calls `eufy_vacuum.*` services for everything else. This means
-the card has no privileged channel into the integration — everything the card can do, an
-automation script could also do using the same service calls.
+The key insight: **`EufyVacuumManager` is the only writer to `self.data`**, but
+it delegates the logic of what to write to subsystem manager objects. Subsystem
+managers hold a `self._manager` back-reference and call
+`self._manager.data[key]` directly — they are trusted collaborators, not
+external consumers.
 
 ---
 
-## 3. Integration Internal Layers
+## 3. Subsystem Package Map
 
-Each layer has its own deep-dive doc; this section is the map. Detailed
-references:
+Every directory under `custom_components/eufy_vacuum/` is either a HA platform
+module (flat file) or a subsystem package. Here is the full map:
 
-- [core-manager.md](core-manager.md) — `EufyVacuumManager` orchestrator
-- [queue-engine.md](queue-engine.md) — queue / payload / snapshot builders
-- [job-lifecycle.md](job-lifecycle.md) — lifecycle evaluation, finalization
-- [learning-system.md](learning-system.md) — ETA math, file-backed job store
-- [mapping-system.md](mapping-system.md) — room bounds learning, boundaries, segments
-- [room-rules-system.md](room-rules-system.md) — blocker/modifier rule evaluation
-- [battery-system.md](battery-system.md) — battery health subsystem
-- [theme-system.md](theme-system.md) — token-based theme engine
-- [animal-svg.md](animal-svg.md) — animal companion web component (contract + integration + theme)
-- [ha-integration.md](ha-integration.md) — HA platforms, services, events
-- [adapter-config-reference.md](adapter-config-reference.md) — per-vacuum brand schema
-- [card-architecture.md](card-architecture.md) — frontend / Lovelace integration (incl. mobile shell, §7)
-- [data-model.md](data-model.md) — canonical stored-data shapes
+### Core orchestration
 
-Contribution-style guides live one level up in [`docs/contributing/`](../contributing/):
-
-- [porting-guide.md](../contributing/porting-guide.md) — adding support for a non-Eufy vacuum brand
-- [mascot-authoring.md](../contributing/mascot-authoring.md) — visual standards for animal-svg mascots
-
-```
-eufy_vacuum/
-├── __init__.py             ← domain setup, config entry lifecycle,
-│                             all runtime event listeners (lifecycle,
-│                             dock events, path blockers, pause timeouts)
-│
-├── core/
-│   ├── manager.py          ← EufyVacuumManager — central orchestrator
-│   ├── storage.py          ← EufyVacuumStorage — HA Store wrapper
-│   ├── water_amendment.py  ← generic post-job mop-wash water amendment watcher
-│   ├── error_tracker.py    ← active-run error latching, falling-edge detection
-│   └── capabilities.py     ← entity-presence-based capability detection
-│
-├── adapters/               ← brand-config layer (data-driven, no logic)
-│   ├── registry.py         ← per-vacuum adapter config registry
-│   ├── config_schema.py    ← canonical ADAPTER_CONFIG_SCHEMA (source of truth)
-│   ├── config_loader.py    ← loads stored adapter configs at integration setup
-│   └── eufy/               ← reference adapter (entity patterns, vocabulary,
-│       ├── adapter.py          maintenance components, upkeep guides, water
-│       ├── vocabulary.py       configs, model catalog). A port to a different
-│       ├── entities.py         brand creates a parallel sub-folder; framework
-│       ├── constants.py        code never imports from here. See
-│       ├── model_catalog.py    docs/dev/adapter-config-reference.md and
-│       ├── maintenance_components.py   docs/contributing/porting-guide.md.
-│       ├── upkeep_catalog.py
-│       ├── upkeep_guides.py
-│       └── water_config.py
-│
-├── queue/
-│   └── queue_engine.py     ← pure queue/payload/snapshot builders (no IO);
-│                             payload shape is adapter-driven via dispatch
-│
-├── jobs/
-│   └── job_monitor.py      ← lifecycle evaluation, start-blocker logic
-│
-├── setup/                  ← onboarding, drift detection, lifecycle services
-│   ├── workflow.py         ← initial discovery + room onboarding flow
-│   ├── status.py           ← data-driven setup state machine (steps + drift)
-│   ├── drift.py            ← per-room missing-pass history + run_discovery_pass
-│   │                          + reject_rooms + force_remove_room helpers
-│   ├── protection.py       ← guards against partial / mid-setup operations
-│   └── delete.py           ← vacuum / map deletion services
-│
-├── learning/
-│   ├── manager.py          ← LearningManager — orchestrates learning subsystem
-│   ├── estimator.py        ← ETA math, confidence scoring
-│   ├── history_store.py    ← file-backed job JSON store
-│   ├── job_finalizer.py    ← per-job finalization, writes completed JSON
-│   └── stats_rebuilder.py  ← rebuilds aggregate stats from job files
-│
-├── battery/
-│   ├── manager.py          ← BatteryHealthManager — sampling, drain/charge zones, baseline
-│   ├── job_metrics.py      ← per-job drain ingestion + per-mode aggregates
-│   ├── sensors.py          ← battery health HA sensor entities
-│   └── store.py            ← JSON-on-disk persistence (separate from HA Store)
-│
-├── mapping/
-│   ├── manager.py          ← MappingManager — boundaries, bounds, trace pipeline
-│   ├── tracker.py          ← MappingTracker — live position tracking
-│   └── boundary.py         ← room boundary processing
-│
-├── rooms/
-│   ├── room_manager.py     ← managed-room build / selection summary
-│   └── room_discovery.py   ← discovers rooms from vacuum entity attributes
-│
-├── profiles/
-│   └── room_profiles.py    ← built-in and user room profiles, capability gating
-│
-├── models/
-│   └── models.py           ← VacuumRuntimeState dataclass
-│
-├── maps/
-│   └── map_manager.py      ← per-map "bucket" management (maps stored in storage)
-│
-├── sensor.py               ← HA sensor entities (theme_state, etc.)
-├── button.py               ← HA button entities
-├── select.py               ← HA select entities
-├── switch.py               ← HA switch entities
-├── number.py               ← HA number entities
-├── services.py             ← registers all core eufy_vacuum.* services
-├── learning/services.py    ← registers learning-specific services
-├── theme_services.py       ← registers theme-specific services
-└── mapping/mapping_services.py ← registers mapping-specific services
-```
-
-### How the layers relate
-
-```
-                    ┌─────────────────────────┐
-                    │   __init__.py            │
-                    │  (entry point, listeners)│
-                    └──────────┬──────────────┘
-                               │ owns / coordinates
-                    ┌──────────▼──────────────┐
-                    │   EufyVacuumManager      │  ← single instance per entry
-                    │   (core/manager.py)      │
-                    └──┬──────┬──────┬─────┬──┘
-                       │      │      │     │
-              ┌────────▼─┐ ┌──▼───┐ ┌▼──┐ ┌▼──────────────┐
-              │ Storage  │ │Queue │ │Job│ │ Learning       │
-              │ (HA Store│ │Engine│ │Mon│ │ Manager        │
-              │  wrapper)│ │(pure)│ │itor│ │(+ history,     │
-              └──────────┘ └──────┘ └───┘ │  estimator,    │
-                                          │  finalizer)    │
-                                          └────────────────┘
-                    ┌──────────────────────────┐
-                    │  MappingManager          │
-                    │  MappingTracker          │
-                    └──────────────────────────┘
-                    ┌──────────────────────────┐
-                    │  HA Entity Layer         │
-                    │  sensor / button /       │
-                    │  select / switch /number │
-                    └──────────────────────────┘
-```
-
-**EufyVacuumManager** is the single authoritative runtime object. It holds all
-in-memory integration state (rooms, queues, active jobs, maps, themes, capabilities)
-and exposes methods that every other subsystem calls. Services registered in
-`services.py`, `theme_services.py`, etc. resolve the manager from
-`hass.data[DOMAIN][DATA_RUNTIME]` and delegate to it.
-
-**EufyVacuumStorage** (`core/storage.py`) is a thin wrapper around HA's built-in
-`Store` helper. It serialises to `.storage/eufy_vacuum.storage` and owns the
-top-level schema shape (see §5). The manager calls it on every mutation.
-
-**Queue engine** (`queue/queue_engine.py`) is intentionally pure (no IO, no HA
-imports). It takes managed-room dicts as input and returns `QueueEntry`,
-`PayloadItem`, and `ActiveJobSnapshot` TypedDicts. Being pure makes it trivial to
-unit-test and reason about independently.
-
-**Job monitor** (`jobs/job_monitor.py`) evaluates the lifecycle state of an active
-job from a snapshot of entity states. It does not subscribe to state changes itself —
-`__init__.py` does the subscribing and calls `evaluate_job_lifecycle()` when relevant
-entities change.
-
-**LearningManager** orchestrates the optional learning system. It pulls payload state
-from the core manager, delegates estimation to `LearningEstimator`, and delegates
-persistence to `LearningHistoryStore` and `LearningJobFinalizer`. It never performs
-ETA math itself; that is isolated in `estimator.py`.
-
-**MappingManager** handles the room-shape pipeline: interactive boundary tracing,
-trace-based room bounds learning from cleaning runs, image-segment analysis, and
-storage of map images and overlays. **MappingTracker** holds the live in-memory
-position trace during an active job and feeds it to the manager on finalization.
-
-**HA Entity Layer** (`sensor.py`, `button.py`, etc.) creates standard HA entities that
-expose integration state. The `sensor.*_theme_state` entity is particularly important:
-the card reads it on every `hass` update to stay in sync with backend theme state
-without needing a separate service call.
-
----
-
-## 4. Data Flows
-
-### 4.1 Cleaning Job Flow
-
-From the moment a user presses "Start" in the card to the moment learning data is
-updated.
-
-```
-Card (browser)
-  │
-  │  1. User presses "Start" button in the Rooms view
-  │     VacuumCardActions.startSelectedRooms()
-  │     → calls hass.callService("eufy_vacuum", "start_selected_rooms", { vacuum_entity_id, map_id, room_ids })
-  │
-  ▼
-HA service bus
-  │
-  │  2. services.py handles "start_selected_rooms"
-  │     → resolves EufyVacuumManager from hass.data[DOMAIN][DATA_RUNTIME]
-  │     → manager.async_start_selected_rooms(vacuum_entity_id, map_id, room_ids)
-  │
-  ▼
-EufyVacuumManager.async_start_selected_rooms()
-  │
-  │  3. Retrieves managed rooms for (vacuum, map) from storage
-  │  4. Applies blocker rules: removes rooms where a "blocker" rule entity
-  │     is in its blocking state
-  │  5. Calls build_queue_from_managed_rooms() [queue_engine.py]
-  │     → returns QueueEntry list sorted by room order
-  │  6. Calls build_room_clean_payload() once with all enabled rooms
-  │     → applies capability gating (e.g. strips water_level if no mop)
-  │     → consumes the adapter's dispatch config to rename fields and
-  │       map values to the brand's wire vocabulary
-  │       (see docs/dev/adapter-config-reference.md §13)
-  │     → returns PayloadItem list (canonical, framework-internal names)
-  │       plus a wire-shape "payload" dict (brand-specific names)
-  │  7. Calls build_active_job_state() [queue_engine.py]
-  │     → freezes queue + payload into an ActiveJobSnapshot (immutable after this)
-  │     → assigns job_id (UUID), records started_at timestamp
-  │  8. Stores the snapshot as the active_job record in memory + saves to storage
-  │  9. Calls hass.services.async_call() with the service domain, name, and
-  │     envelope shape resolved from the adapter's dispatch config
-  │     (Eufy → vacuum.send_command with command=room_clean; other brands
-  │     resolve to their own service signature — see porting-guide.md §3)
-  │
-  ▼
-Upstream integration → vacuum hardware → robot starts moving
-  │
-  │  10. Robot state changes propagate back:
-  │      sensor.*_task_status, sensor.*_dock_status,
-  │      sensor.*_active_cleaning_target, vacuum.* all update in HA
-  │
-  ▼
-__init__._handle_lifecycle_change()  [registered by _register_lifecycle_listeners()]
-  │
-  │  11. Fires on every relevant entity state change
-  │  12. Calls manager.record_active_job_transition() to log state transition
-  │  13. Calls manager.get_lifecycle_state() → evaluate_job_lifecycle() [job_monitor.py]
-  │      → returns a lifecycle_state string:
-  │        "active_job_running" | "mid_job_service" | "returning_to_dock" | etc.
-  │  14. If lifecycle_state is in _ACTIVE_LIFECYCLE_STATES {"active_job_running",
-  │      "mid_job_service"}, calls manager.record_active_lifecycle_observed()
-  │      → sets has_observed_active_lifecycle = True on the active_job record
-  │      This flag prevents a stale pre-run dock state (e.g. "drying") from
-  │      immediately triggering finalization before the robot has moved.
-  │  15. MappingTracker.start_job() is called on first active lifecycle state
-  │      to begin collecting robot position samples
-  │  16. Checks completion signals: task_status == "completed" AND
-  │      active_cleaning_target is cleared AND has_observed_active_lifecycle
-  │
-  ▼  [on completion signals satisfied]
-manager.finalize_learning_for_active_job()
-  │
-  │  17. LearningManager.finalize() is called
-  │      → LearningJobFinalizer writes a completed-job JSON to:
-  │         config/eufy_vacuum/learning/{vacuum_slug}/jobs/{job_id}.json
-  │      → records outcome (status, rooms cleaned, duration, water usage, etc.)
-  │  18. LearningStatsRebuilder.rebuild() recalculates aggregate stats from
-  │      all job files for the vacuum (stats JSON written to disk)
-  │  19. Returns finalize_result dict including job_path and outcome
-  │
-  │  20. manager.mark_active_job_finalized() clears the active_job record
-  │  21. hass.bus.async_fire("eufy_vacuum_job_finished", payload)
-  │      → any automations or scripts listening to this event are notified
-  │  22. If the job had mop rooms: _register_post_job_water_amendment()
-  │      watches dock_status for the post-dock wash cycle (~2s after finalization)
-  │      and patches actual water usage into the completed-job JSON once the
-  │      mop wash completes (dock transitions to "drying")
-  │
-  ▼
-Learning data updated on disk; card will fetch updated metrics on next view
-```
-
-### 4.2 Theme Change Flow
-
-From the moment a user edits a color token in the Theme view to the card re-rendering
-with the new color.
-
-```
-Card (browser) — Theme view
-  │
-  │  1. User types a new hex value into a theme token input
-  │     (data-theme-token="--evcc-accent", data-theme-color-input="...")
-  │     VacuumCardBindings fires an "input" event handler
-  │
-  │  2. Handler reads all current token/color/alpha values from the DOM
-  │     and calls VacuumCardActions.updateWorkingDraft({
-  │       vacuum_entity_id, tokens: { "--evcc-accent": "#ff6b35", ... }
-  │     })
-  │     → calls hass.callService("eufy_vacuum", "update_working_draft", payload)
-  │
-  ▼
-HA service bus
-  │
-  │  3. theme_services.py handles "update_working_draft"
-  │     → resolves EufyVacuumManager
-  │     → manager.update_theme_working_draft(vacuum_entity_id, tokens, colors, alpha)
-  │
-  ▼
-EufyVacuumManager.update_theme_working_draft()
-  │
-  │  4. Merges the incoming token/color/alpha dicts into the "working_draft"
-  │     sub-key of the vacuum's theme record in storage
-  │  5. The working_draft is per-vacuum; it holds unsaved edits separately
-  │     from the committed theme library entries so the user can revert
-  │  6. Calls async_save() → EufyVacuumStorage.async_save()
-  │     → HA Store writes the updated dict to .storage/eufy_vacuum.storage
-  │  7. Triggers a write to the sensor.*_{objectId}_theme_state entity
-  │     by calling async_write_ha_state() on the ThemeStateSensor
-  │     → the sensor's state and attributes reflect the new working draft
-  │
-  ▼
-HA entity registry — sensor.*_theme_state updated
-  │
-  │  8. HA pushes the updated hass object to all connected Lovelace cards
-  │     (this is the standard HA hass update mechanism, not a special channel)
-  │
-  ▼
-EufyVacuumCommandCenter.set hass(hass)   [main.js]
-  │
-  │  9. _findThemeSensor(hass) locates the sensor.*_{objectId}_theme_state entity
-  │  10. state.setBackendThemeState(sensor.attributes)
-  │      → VacuumCardState stores the new token values in its internal state tree
-  │  11. _scheduleRender() queues a microtask render via Promise.resolve().then()
-  │
-  ▼
-EufyVacuumCommandCenter._render()
-  │
-  │  12. applyThemeToCard(this) reads current token values from state and
-  │      sets CSS custom properties on the shadow root host element:
-  │        this.style.setProperty("--evcc-accent", "#ff6b35")  (conceptually)
-  │  13. buildRenderContext(card) assembles the render context
-  │  14. renderView(ctx) calls the active view renderer — because the Theme
-  │      view is active, renderThemeView() re-renders the editor with the
-  │      new values reflected in the color inputs and preview swatches
-  │  15. The card compares the new HTML string against the previously rendered
-  │      HTML (stored in dataset.renderedHtml) and only writes innerHTML if
-  │      the content actually changed — preventing unnecessary DOM thrash
-  │
-  ▼
-User sees the updated color applied immediately in the preview
-```
-
-Note the asymmetry: the draft update path goes **card → service → storage → sensor →
-hass update → card**. The card never applies a theme change locally without going
-through the backend first. This ensures the backend is always the source of truth,
-meaning a page refresh or a second browser session will always see the same state.
-
----
-
-## 5. State Persistence
-
-Three distinct persistence tiers are used, each chosen for different access patterns
-and failure-isolation reasons.
-
-### 5.1 HA Storage (`eufy_vacuum.storage`)
-
-**Location:** `config/.storage/eufy_vacuum.storage` (managed by HA's `Store` helper)
-
-**Written by:** `EufyVacuumStorage.async_save()`, called by the manager after every
-mutation.
-
-**Schema root keys:**
-
-| Key | Contents |
+| Package / file | Role |
 |---|---|
-| `vacuums` | Per-vacuum config: managed rooms, active job snapshot, queue state, runtime transitions, maintenance counters, capabilities |
-| `maps` | Per-map "bucket": map metadata, room definitions keyed by map_id |
-| `theme` | Theme library (saved themes), per-vacuum working draft and active theme assignment |
-| `analytics` | Aggregate runtime analytics |
-| `maintenance` | Component wear counters and dock event timestamps |
-| `dock_events` | Timestamped records of mop wash, dust empty, and dry start events |
-| `icons` | User-assigned room icons |
-| `onboarding` | Setup workflow state |
-
-**Access pattern:** Read once on `async_initialize()`, then mutated in memory and
-flushed to disk on every service call that changes state. HA's `Store` batches writes
-automatically so rapid mutations do not hammer the filesystem.
-
-**Do not edit directly.** HA creates a `.corrupt` backup if the write is interrupted
-and will silently revert to that backup on next restart. Always use the HA UI or
-service calls to mutate this file.
-
-### 5.2 Flat Files on Disk — Learning System
-
-**Location:** `config/eufy_vacuum/learning/{vacuum_slug}/`
-
-**Written by:** `LearningHistoryStore`, `LearningJobFinalizer`, `LearningStatsRebuilder`
-
-**Directory structure:**
-
-```
-config/eufy_vacuum/learning/
-└── {vacuum_slug}/          e.g. alfred
-    ├── jobs/               one JSON file per finalized job
-    │   └── {job_id}.json
-    ├── learned/            per-room learned timing/area stats
-    │   └── stats.json
-    ├── live/               in-progress job snapshot (written during job)
-    └── exports/            optional CSV exports
-```
-
-**Why flat files instead of HA storage?** See §6.2.
-
-**Access pattern:** Written once per job finalization; read on demand when the card
-requests metrics or ETA estimates. The stats.json file is rebuilt from all job files
-by `LearningStatsRebuilder` after each finalization.
-
-### 5.3 Flat Files on Disk — Mapping System
-
-**Location:** `config/eufy_vacuum/mapping/`
-
-**Written by:** `MappingManager`
-
-**Contents:** Room boundary polygons, per-room job bounds history, and archived
-trace run JSON files. These are separate from learning data because they are spatial /
-geometric rather than temporal.
-
-**Location:** `config/eufy_vacuum/maps/` (served as static HTTP)
-
-Map images (PNG) are also stored on disk and served as static paths at
-`/eufy_vacuum/maps/`. This is registered in `async_setup()` so the card can reference
-them by URL without needing HA authentication.
-
-### 5.4 Runtime-Only (in-memory)
-
-The following state is held only in `EufyVacuumManager`'s Python object. It is
-lost if HA restarts, but it is either reconstructible or only meaningful for the
-duration of a running process:
-
-- `MappingTracker` position sample buffer (current-job trace in progress)
-- Resolved capability detection cache (rebuilt from entity registry on restart)
-- Event listener unsub handles
-- Render scheduling timers in the card
-
----
-
-## 6. Key Design Decisions
-
-### 6.1 Single central manager rather than per-entity classes
-
-A common HA integration pattern is to create one coordinator or entity class per
-device. `eufy_vacuum` deliberately uses a single `EufyVacuumManager` object for all
-vacuums registered in the same config entry.
-
-**Why:**
-
-A cleaning job touches many concerns simultaneously: the room config, the queue, the
-active job record, the lifecycle tracker, the learning system, and the HA entity state.
-If these were spread across per-entity classes, every cross-cutting operation (e.g.
-"finalize the job and update the theme sensor and save storage") would require either
-complex coordinator message-passing or shared mutable state anyway.
-
-The manager acts as a facade: service handlers resolve it from `hass.data` and call
-high-level methods like `async_start_selected_rooms()` or
-`finalize_learning_for_active_job()`. The manager is then responsible for sequencing
-all the sub-operations atomically from the caller's perspective.
-
-The trade-off is that `core/manager.py` is large. The queue engine and job monitor
-are extracted as separate pure modules precisely to keep the logic testable; the
-manager orchestrates them rather than duplicating their logic.
-
-### 6.2 Flat-file learning storage rather than HA storage
-
-Learning job records (the per-job JSON files) are stored as flat files rather than
-inside the HA `.storage` blob. The concrete file layout, schema versions, and
-rebuild path are documented in [learning-system.md](learning-system.md).
-
-**Why:**
-
-HA storage is designed for small configuration blobs that are loaded entirely into
-memory on startup. The learning system can accumulate hundreds of job records, each
-containing detailed per-room timing, water usage, mop wash counts, and transition
-history. Loading all of this into a single Store object on every HA restart would be
-expensive and the Store API offers no partial-load or streaming capability.
-
-Flat files also make the data directly inspectable and portable. A developer can open
-any `{job_id}.json` in a text editor, write a script to analyze trends, or delete
-individual records without touching the integration's configuration state. The learning
-data is informational and advisory (it feeds ETA estimates), so the cost of losing it
-on a filesystem failure is much lower than losing room configuration.
-
-The `LearningStatsRebuilder` exists specifically because of this design: if job files
-are deleted or corrupted, the stats can be rebuilt from whatever files remain by
-replaying them.
-
-### 6.3 Card uses a mixin/module pattern rather than a component framework
-
-The card is a plain Web Components `HTMLElement` subclass with no framework (no
-Lit, no React, no Vue). The behaviour is distributed across focused modules that are
-composed into the card class at construction time:
-
-- `VacuumCardState` — read-only HA state projection
-- `VacuumCardRenderers` — pure HTML string generators keyed by view name
-- `VacuumCardBindings` — event listener wiring (attaches after each render)
-- `VacuumCardActions` — HA service call wrappers
-- `LearningController` — learning-specific data fetch and presentation logic
-
-**Why not a framework?**
-
-Lovelace custom cards must be single-file bundles importable as ES modules without a
-build system *or* bundled with their own dependencies. Framework overhead (even Lit's
-~15 KB) adds to load time for something running inside the HA sidebar, and reactive
-frameworks introduce complex reconciliation paths that are hard to reason about when
-the data source (the `hass` object) is a single external push, not an internal signal
-store.
-
-The module pattern lets each concern be edited, tested, and reasoned about in
-isolation. The render cycle (`render-cycle.js`) is the single orchestration point:
-`buildRenderContext()` assembles a context object, `renderHeader()` and `renderView()`
-produce HTML strings, and the card's `_render()` method diffs those strings against
-the cached `dataset.renderedHtml` values before writing `innerHTML`. This is a
-hand-rolled virtual-DOM approach with deliberately minimal scope.
-
-**The trade-off:** Because there is no reactive framework, every path that changes
-displayed state must explicitly call `_scheduleRender()`. This is why the `set hass()`
-setter schedules multiple debounced refresh timers on every HA update — each one
-fetches a different data payload from the backend and then re-renders.
-
----
-
-## 7. Concurrency & Thread Safety
-
-The integration is single-process Python. Most code runs on Home Assistant's
-asyncio event loop, but a few intentional paths offload work to HA's
-**executor thread pool** (`hass.async_add_executor_job`) — for CPU-bound
-finalization, blocking file I/O, and anything that would otherwise stall
-the loop. Crossing that thread boundary is where bugs live.
-
-### 7.1 Rule
-
-**Calls into Home Assistant APIs must originate on the event loop thread.**
-Three calls are the most common offenders:
-
-| API | What goes wrong off-loop |
-|---|---|
-| `hass.async_create_task(coro)` | Logs a `helpers.frame` warning; in some HA builds, raises or schedules onto the wrong loop. |
-| `entity.async_write_ha_state()` | Silently no-ops or trips the same warning; the entity's state never updates from that call. |
-| Any `@callback`-decorated handler invoked directly | Same class of failure as above — `@callback` is a marker that the body assumes loop context. |
-
-If you must originate the call from a worker thread, route through one of the
-three bridges below.
-
-### 7.2 The three bridges
-
-```python
-# 1. Schedule a coroutine on the event loop, from any thread.
-asyncio.run_coroutine_threadsafe(coro, hass.loop)
-
-# 2. Run a sync @callback on the event loop, from any thread.
-hass.loop.call_soon_threadsafe(my_callback)
-
-# 3. Run a sync function on a worker thread, from the event loop.
-await hass.async_add_executor_job(blocking_func, *args)
-```
-
-Bridges 1 and 2 push *into* the loop. Bridge 3 pulls work *out* of it.
-
-### 7.3 Context detection pattern
-
-Helpers that may be called from either context (e.g. a manager method that
-fires from both a state-change listener on the loop *and* a finalizer running
-in an executor) detect their context and dispatch accordingly:
-
-```python
-import asyncio
-
-def _schedule(self, coro):
-    try:
-        running = asyncio.get_running_loop()
-    except RuntimeError:
-        running = None
-    if running is self._hass.loop:
-        self._hass.async_create_task(coro)
-    else:
-        asyncio.run_coroutine_threadsafe(coro, self._hass.loop)
-```
-
-`asyncio.get_running_loop()` raises `RuntimeError` when called from a thread
-with no running loop, which is exactly the worker-thread case.
-
-### 7.4 Listener fan-out pattern
-
-Manager classes that publish change notifications to many entities (the
-battery health manager and the theme sensor both do this) keep the iteration
-synchronous and let each listener handle its own dispatch. The publisher
-makes no assumption about who's listening:
-
-```python
-def _notify(self, vacuum_entity_id):
-    for cb in list(self._update_listeners):
-        try:
-            cb(vacuum_entity_id)
-        except Exception:
-            _LOGGER.exception("...")
-```
-
-Each listener wraps its own state write:
-
-```python
-def _on_manager_update(self, vacuum_entity_id):
-    if vacuum_entity_id != self._vacuum_entity_id:
-        return
-
-    @callback
-    def _write():
-        self.async_write_ha_state()
-
-    self.hass.loop.call_soon_threadsafe(_write)
-```
-
-This is more conservative than necessary when the publisher *always* runs on
-the loop, but keeps publishers simple and listeners independently safe — even
-new listeners added by other subsystems can't break the contract.
-
-### 7.5 Where this applies in the codebase
-
-| Subsystem | Off-loop entry point | Bridge used |
+| `core/manager.py` | `EufyVacuumManager` — singleton orchestrator, storage owner, callback hub |
+| `core/storage.py` | HA `Store` wrapper (`async_load` / `async_save`) |
+| `core/capabilities.py` | Reads upstream entities to populate `data["capabilities"]` |
+| `core/error_tracker.py` | `ErrorTracker` — latches vacuum errors, persists across restarts |
+| `core/water_amendment.py` | Mopping water-level protection rules |
+
+### Subsystem managers (all constructed in `manager.async_initialize()`)
+
+| Object | Package | Owns |
 |---|---|---|
-| Battery health (`battery/manager.py`) | `record_job_metrics` (called from `JobFinalizer.finalize_from_inputs` running in executor) | Context-detecting `_schedule_save`; `call_soon_threadsafe` in sensor listeners |
-| Battery health (`battery/sensors.py`) | Same as above (notify fan-out) | `call_soon_threadsafe` around `async_write_ha_state` |
-| Sensor platform (`sensor.py`) | Manager callbacks may fire from worker threads | `_request_entity_state_write()` helper at top of file — same pattern, integration-wide |
-| Learning system (`learning/job_finalizer.py`) | The whole finalize body runs in an executor | All HA-API calls inside it are routed through `hass.async_add_executor_job` boundaries or use thread-safe variants |
-| Mapping system (`mapping/`) | File I/O on disk (separate concern, not thread safety) | Tracked separately — see the issue tracker |
+| `manager.themes` | `themes/` | `data["theme"]` — library, working draft, active theme |
+| `manager.maintenance` | `maintenance/` | Upkeep metadata, replacement discovery, reset snapshots |
+| `manager.dock` | `dock/` | Dock action dispatch and dock event recording |
+| `manager.onboarding` | `onboarding/` | `data["onboarding"]`, setup progress state machine |
+| `manager.profiles` | `profiles/` | Room profiles and run profiles CRUD |
+| `manager.access_graph` | `rooms/access_graph.py` | Room-to-room access graph (grants_access_to) |
+| `manager.active_job` | `jobs/active_job.py` | Active job slot CRUD and finalization handoff |
+| `manager.run_plan` | `planning/run_plan.py` | Preflight rule evaluation, effective start plan |
+| `manager.room_map` | `rooms/room_crud.py` | Room and map CRUD operations |
 
-### 7.6 Detecting violations
+### Entry-point singletons (constructed in `__init__.async_setup_entry()`)
 
-HA's runtime will surface offenders as `homeassistant.helpers.frame`
-warnings:
+| Object | Key in `hass.data[DOMAIN]` | Role |
+|---|---|---|
+| `EufyVacuumManager` | `"runtime"` | Main orchestrator |
+| `LearningManager` | `"learning"` | Per-job finalization and ETA estimation |
+| `BatteryHealthManager` | `"battery"` | Cycle counting and charge rate tracking |
+| `ErrorTracker` | `"error_tracker"` | Active-run and last-device error state |
+| `AdapterCoordinator` | `"adapter_coordinator"` | Per-entry adapter config registry |
+| `MappingManager` | `"mapping_manager"` | Map image analysis and segment CRUD |
+| `MappingTracker` | `"mapping_tracker"` | Live position listener + trace capture |
 
-```
-Detected that custom integration 'eufy_vacuum' calls
-hass.async_create_task from a thread other than the event loop
-```
+### Stateless helper packages
 
-These never crash on their own but indicate a real bug. Treat any new
-warning of this shape as a regression even if the integration appears to
-work.
+| Package | Role |
+|---|---|
+| `adapters/` | Adapter config schema, `AdapterCoordinator`, Eufy-specific constants |
+| `queue/` | `build_queue_from_managed_rooms`, `build_room_clean_payload` |
+| `maps/` | `get_map_bucket`, `build_managed_rooms` — pure dict helpers |
+| `rooms/` | `room_manager.py`, `room_discovery.py`, `rooms/utils.py` — stateless |
+| `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
+| `mapping/` | Trace capture, segmentation, boundary estimation, image analysis |
+| `learning/` | Job finalization pipeline, history store, ETA estimator |
+| `setup/` | Setup workflow, drift detection, protection rules |
+| `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
+| `timestamp_utils.py` | `parse_timestamp`, `utc_now_iso` |
 
-There is **no static check** — the warning fires only when the offending
-path actually executes. If you add code that runs in an executor and
-touches HA APIs, exercise it locally before assuming it's safe.
+### HA platform modules
+
+`binary_sensor.py`, `button.py`, `number.py`, `select.py`, `sensor/`,
+`switch.py` — each owns its `async_setup_entry` and entity classes. Room
+entities share the base class in `room_entities.py`.
 
 ---
 
-## 8. Extension Points
+## 4. Startup Sequence
 
-### Adding a new HA service
+`async_setup_entry` in `__init__.py` runs the following in order:
 
-1. Define a new `SERVICE_*` constant in `const.py`.
-2. Add a Voluptuous schema and handler function in the appropriate `*_services.py` file
-   (or create a new one following the existing pattern).
-3. Register it in the module's `async_register_*_services()` function.
-4. Add the corresponding unregister call in `async_unregister_*_services()`.
-5. If the service needs to mutate manager state, add a method to
-   `EufyVacuumManager` and call it from the handler.
+1. **`AdapterCoordinator` construction** — must happen before any adapter
+   registration so `get_adapter_config` lookups route through the coordinator,
+   not the fallback module-level dict.
 
-### Adding a new HA entity type
+2. **`EufyVacuumManager` construction + `async_initialize()`** — loads
+   `.storage`, seeds top-level keys, runs schema migrations, constructs all
+   subsystem manager objects (themes through room_map), initialises callback
+   lists.
 
-1. Create or extend a platform file (`sensor.py`, `button.py`, etc.).
-2. Add the platform name to `PLATFORMS` in `__init__.py` if it is new.
-3. HA will call `async_setup_entry` on the platform automatically.
+3. **Orphaned entity cleanup** — removes legacy `eufy_vacuum_icon_*` entities
+   from the entity registry if found (silent no-op on clean installs).
 
-### Adding a new card view
+4. **Adapter registration** — `load_stored_adapter_configs` reads
+   `data["adapter_configs"]`; then `register_eufy_adapter_for_vacuum` registers
+   code adapters for each known vacuum (code adapters always win over stored).
 
-1. Add the view key to the `VIEWS` constant object in `render-cycle.js`.
-2. Add it to the `VIEW_ORDER` array (controls DOM order and tab order).
-3. Add a nav tab `<button>` in `renderHeader()`.
-4. Add a `case VIEWS.YOUR_VIEW:` branch in `renderView()` that delegates to
-   `renderers.renderYourView?.(ctx)`.
-5. Implement `renderYourView(ctx)` in an appropriate renderer module under
-   `src/renderers/` and export it from `src/renderers/index.js`.
-6. If the view needs backend data, add a `_scheduleYourDataRefresh()` method
-   following the debounce timer pattern used by `_scheduleMetricsRefresh()` and
-   call it from `set hass()` (or from `setView()` for on-demand fetches).
+5. **Singletons construction** — `LearningManager`, `BatteryHealthManager`,
+   `ErrorTracker` constructed and started. `MappingManager` and
+   `MappingTracker` constructed; position listeners registered for known vacuums.
 
-### Adding a new room rule kind
+6. **Service registration** — four service groups registered:
+   `async_register_services`, `async_register_learning_services`,
+   `async_register_theme_services`, `async_register_mapping_services`.
 
-Room rules are evaluated in the manager's `_normalized_managed_rooms_with_automation()`
-path. The existing kinds are `blocker` (prevents room from running when an entity is
-in a specified state) and `modifier` (overrides a room setting based on entity state).
+7. **Listener registration** — seven listener modules registered:
+   `lifecycle`, `job_metrics`, `dock_events`, `path_blockers`,
+   `pause_timeout`, `job_progress`, `discovery`.
 
-To add a new kind:
+8. **Platform forward** — `async_forward_entry_setups` triggers
+   `async_setup_entry` in all five platform modules, creating and registering
+   all HA entities.
 
-1. Define the kind string in `const.py` or the room profiles module.
-2. Add evaluation logic in the manager's rule resolution path.
-3. If the rule requires a runtime HA entity listener (like `blocker` does), register
-   it in `_register_path_blocker_listeners()` or add a parallel registration function
-   following the same pattern in `__init__.py`.
-4. Add editor UI for the new rule kind in the Room Rules view renderer in the card.
+9. **Panel registration** — one sidebar panel registered per managed vacuum
+   (`eufy-vacuum-{object_id}`), serving the compiled card JS.
 
-### Porting to a different vacuum ecosystem
+On unload the sequence reverses: services unregistered, listeners removed,
+platforms unloaded, singletons shut down, coordinator torn down.
 
-A port is one adapter config dict. **No framework code changes are
-required** for any of the four most common brands (Eufy, Roborock,
-Dreame, Narwal).
+---
 
-Every brand-specific fact — entity IDs, vocabulary, water tank
-measurements, upkeep guides, the service call envelope, the per-room
-payload field names and value vocabularies — is read at runtime from
-`get_adapter_config(vacuum_entity_id)`. The Eufy adapter at
-`adapters/eufy/adapter.py` is the reference implementation.
+## 5. Data Flow — Job Start to Finish
 
-See:
+This traces the complete path of a card-initiated "Start Selected Rooms" action:
 
-- [porting-guide.md](../contributing/porting-guide.md) — the workflow and a worked
-  brand catalog (Eufy / Roborock / Dreame / Narwal) covering the
-  dispatch shape, lifecycle vocabulary translation, capability
-  declarations, and testing.
-- [adapter-config-reference.md](adapter-config-reference.md) — the
-  canonical schema reference. Every section in the adapter config
-  is documented field-by-field with examples and UI-builder notes.
+```
+Card → eufy_vacuum.start_selected_rooms service call
+  │
+  ▼
+services/job_control.py
+  Validates vacuum_entity_id, map_id, room_ids
+  Calls manager.start_selected_rooms(...)
+  │
+  ▼
+core/manager.py — start_selected_rooms()
+  1. Builds managed_rooms from data["maps"]
+  2. Delegates to run_plan._build_effective_start_plan()
+     ├── Runs preflight rule evaluation (per-room blockers/modifiers)
+     ├── Calls manager._update_room_rule_status_snapshot() → data["room_rule_status"]
+     └── Returns queue, payload, preflight summary
+  3. Calls active_job.write_active_job_state(...)
+     └── Writes data["active_jobs"][vacuum][map_id]
+  4. Calls hass.services.async_call("vacuum", "send_command", payload)
+     └── Sends room_clean payload to upstream vacuum entity
+  5. Returns start summary to service caller → card displays result
+  │
+  ▼  (vacuum hardware begins cleaning)
+  │
+  ▼
+listeners/lifecycle.py  (state-change listener on vacuum entity)
+  Calls manager.handle_vacuum_state_change(state, attrs)
+  → Updates data["active_jobs"] lifecycle fields
+  → Fires EVENT_JOB_PROGRESS_TICK (every 5s while running)
+  │
+  ▼
+listeners/job_progress.py  (job progress tick listener)
+  Calls manager.get_job_progress_snapshot()
+  → Card receives tick, re-fetches snapshot, updates progress display
+  │
+  ▼  (vacuum returns to dock)
+  │
+  ▼
+listeners/dock_events.py  (state-change listener on dock sensors)
+  Calls manager.handle_dock_event(...)
+  → Records dock event in data["dock_events"]
+  → Triggers finalization
+  │
+  ▼
+listeners/lifecycle.py  (charging state detected)
+  Calls manager.async_finalize_completed_job(...)
+  │
+  ▼
+learning/job_finalizer.py — async_finalize_completed_job()
+  1. Reads active job, calculates duration
+  2. Writes completed_job record to disk (per-job JSON)
+  3. Updates learning stats
+  4. Returns completed_job dict
+  │
+  ▼
+core/manager.py — _ingest_completed_job_into_room_history()
+  Updates data["room_history"][vacuum][map_id][room_id]
+  Fires _notify_room_history_updated()
+  → Room history sensors refresh
+  │
+  ▼
+core/manager.py — fires EVENT_JOB_FINISHED on HA event bus
+  → Card receives event, refreshes dashboard
+```
 
-The queue engine, learning system, mapping subsystem, theme system,
-error tracker, water amendment watcher, and card are all
-vacuum-agnostic. The only remaining brand-specific surface (outside
-the adapter folder) is the integration's name, HA domain string
-(`eufy_vacuum`), and the frontend card filename — none of which are
-porting blockers.
+---
+
+## 6. State Persistence
+
+### `.storage/eufy_vacuum`
+
+The single source of truth for all persistent integration state. Managed by
+`core/storage.py` using HA's `Store` helper (atomic JSON writes, automatic
+backup). Loaded into `manager.data` on startup; all writes go through
+`manager.async_save()`.
+
+Top-level keys in `manager.data`:
+
+| Key | Content |
+|---|---|
+| `"vacuums"` | Per-vacuum config record (name, notes) |
+| `"capabilities"` | Discovered entity IDs and feature flags per vacuum |
+| `"maps"` | Per-vacuum, per-map bucket: rooms, summary, queue, payload, segment links |
+| `"active_jobs"` | Per-vacuum, per-map active job state (status, queue, progress) |
+| `"room_history"` | Per-vacuum, per-map, per-room last clean timestamps |
+| `"room_rule_status"` | Per-vacuum, per-map, per-room last rule evaluation result |
+| `"profiles"` | Room profiles library and run profiles library |
+| `"theme"` | Theme library (built-in + user), active theme ID, working draft |
+| `"maintenance"` | Per-vacuum, per-component reset snapshots and intervals |
+| `"onboarding"` | Discovery payloads (pre-approval room data) |
+| `"setup_progress"` | Per-vacuum setup state machine (completed steps) |
+| `"adapter_configs"` | User-built adapter overrides (stored adapter configs) |
+| `"dock_events"` | Recent dock event log per vacuum |
+
+### Learning history files
+
+Completed job records and derived stats live in
+`<config>/eufy_vacuum/<vacuum_key>/` as individual JSON files. Not part of
+`.storage` — written and read by `learning/history_store.py` via
+`async_add_executor_job`. This keeps large per-job payloads off the storage
+file while the `.storage` file stays fast to load.
+
+### Runtime state
+
+`manager.runtime` holds `VacuumRuntimeState` dicts keyed by `vacuum_entity_id`.
+Runtime state is never persisted; it is reconstructed from upstream entity states
+on each HA start. It includes: raw HA state string, battery level, charging
+flag, dock sensor values.
+
+---
+
+## 7. The Adapter Pattern
+
+The adapter pattern is the key seam that makes `eufy_vacuum` portable across
+vacuum brands. Every brand-specific piece of knowledge is encapsulated in an
+adapter config dict rather than hard-coded.
+
+### What an adapter config contains
+
+```python
+{
+    "entities": {
+        "vacuum": "vacuum.alfred",
+        "robot_position_x": "sensor.alfred_x",
+        "robot_position_y": "sensor.alfred_y",
+        "battery_level": "sensor.alfred_battery",
+        "error_message": "sensor.alfred_error_message",
+        # ... all upstream entity IDs
+    },
+    "maintenance_components": {
+        "brush": {"label": "Main Brush", "icon": "mdi:...", "default_interval_hours": 300},
+        # ...
+    },
+    "vocabulary": {
+        "clean_mode_options": [{"value": "vacuum", "label": "Vacuum"}, ...],
+        "fan_speed_options": [...],
+        "water_level_options": [...],
+        "clean_intensity_options": [...],
+    },
+    "charging_states": ["docked", "charging"],
+    "active_states": ["cleaning", "returning"],
+    # ...
+}
+```
+
+### How adapters are resolved
+
+`adapters/registry.py` exposes `get_adapter_config(vacuum_entity_id)`. The
+lookup chain is:
+
+1. `AdapterCoordinator` (per-config-entry; constructed in `async_setup_entry`)
+2. Module-level `_REGISTRY` fallback (legacy shim; stays empty in normal operation)
+
+The coordinator's registry is populated in two ways:
+- **Code adapters** — `adapters/eufy/adapter.py` registers the hardcoded Eufy
+  config at startup for each known Eufy vacuum.
+- **Stored adapters** — `adapters/config_loader.py` reads `data["adapter_configs"]`
+  and registers user-built configs. Code adapters always win if both exist for
+  the same vacuum.
+
+### Adding a new brand
+
+To add Roborock support (for example), you would:
+
+1. Create `adapters/roborock/` with `adapter.py`, `const.py`, and vocabulary
+   files mirroring the Eufy structure.
+2. Register it in `__init__.async_setup_entry` for each known Roborock vacuum.
+3. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
+   other files change.
+
+See `porting-guide.md` for the complete porting checklist.
+
+---
+
+## 8. Listener Architecture
+
+All upstream HA state changes are handled by the seven listener modules in
+`listeners/`. Each module owns its listener registration, unsubscription, and
+any private constants. None of them hold persistent state — they read from
+`manager.data` and call manager methods to mutate it.
+
+| Module | Listens to | Purpose |
+|---|---|---|
+| `lifecycle.py` | Vacuum entity state | Job start/stop/cancel detection, finalization trigger |
+| `job_metrics.py` | Battery + vacuum state | Battery readings during jobs |
+| `dock_events.py` | Dock sensor entities | Dock event recording (empty, wash, etc.) |
+| `path_blockers.py` | Rule trigger entities | Mid-job blocker rule evaluation |
+| `pause_timeout.py` | HA time + vacuum state | Auto-cancel on overlong pause |
+| `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
+| `discovery.py` | Vacuum entity state | Auto-discovery on first non-idle state |
+
+Registration pattern (all seven are identical):
+
+```python
+# In __init__.py
+lifecycle.register(hass)  # subscribes, stores unsub callable in hass.data
+# ...
+# On unload:
+lifecycle.remove(hass)    # calls unsub and cleans up
+```
+
+---
+
+## 9. Service Layer
+
+Services are the card's primary API surface. All ~70 services are registered in
+four groups:
+
+| Registration function | Module(s) | Domain |
+|---|---|---|
+| `async_register_services` | `services/*.py` | All core room/job/queue/setup services |
+| `async_register_learning_services` | `learning/services.py` | Finalization, stats, estimates |
+| `async_register_theme_services` | `themes/services.py` | Theme library CRUD |
+| `async_register_mapping_services` | `mapping/mapping_services.py` | Map image / segment services |
+
+Service modules in `services/` are split by domain:
+
+| File | Services |
+|---|---|
+| `job_control.py` | start, pause, resume, cancel, get lifecycle state |
+| `queue.py` | build queue, get queue/payload/active-job state |
+| `rooms.py` | discover, save, update room fields |
+| `room_profiles.py` | room profile CRUD + apply |
+| `run_profiles.py` | run profile CRUD + start |
+| `setup.py` | setup workflow (add vacuum, import map, save rooms, drift) |
+| `maintenance.py` | reset, set interval, get upkeep snapshot |
+| `dock.py` | wash mop, dry mop, empty dust, dock action status |
+| `access_graph.py` | room access graph editor |
+| `adapter_config.py` | save/delete/get adapter config, entity discovery |
+| `errors.py` | acknowledge error, get recent errors |
+| `snapshots.py` | dashboard snapshot, progress snapshot, job control state |
+
+All service handlers follow a three-step pattern:
+1. Extract and validate `call.data` fields
+2. Call one or more `manager.*` methods
+3. Fire `call.async_set_result(payload)` with a structured response dict
+
+---
+
+## 10. Entity Layer
+
+Five HA platforms create entities:
+
+| Platform | Entity classes |
+|---|---|
+| `sensor/` | Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×6), ActiveRunError, LastDeviceError |
+| `switch.py` | RoomEnabledSwitch (one per configured room) |
+| `number.py` | RoomOrderNumber (one per room), MaintenanceIntervalNumber (one per component) |
+| `button.py` | MaintenanceResetButton (one per component), SavedRunProfileButton (one per exposed profile) |
+| `binary_sensor.py` | ActiveRunHasErrorBinarySensor |
+
+All entity classes set `_attr_has_entity_name = True` and use
+`build_vacuum_device_info(vacuum_entity_id)` from `entity_helpers.py`. This
+groups all entities under a single HA device per vacuum ("Alfred" not "Alfred
+Rooms").
+
+Room entities inherit from `EufyVacuumRoomEntity` (`room_entities.py`), which
+provides `_get_room_data()`, `_async_update_room()`, `available`, and
+`extra_state_attributes`.
+
+Dynamic entities (room-based sensors/switches/numbers) are added and removed at
+runtime via `register_room_update_callback`. When `_notify_rooms_updated` fires,
+each platform's callback adds new entities and removes stale ones.
+
+---
+
+## 11. Concurrency & Thread Safety
+
+HA's event loop is single-threaded. All manager methods run on the event loop
+and do not need locking. The one exception is learning history I/O:
+`_load_room_history_cache_sync` runs in an executor thread via
+`async_add_executor_job`. That method is stateless — it returns a local dict and
+the caller writes the result back to `self.data` on the event loop.
+
+Callback lists (`_room_update_callbacks`, etc.) are mutated only from the event
+loop. Manager methods called from `hass.loop.call_soon_threadsafe` (the
+`_request_entity_state_write` pattern in sensor setup) are safe because
+`async_write_ha_state` is event-loop-safe.
+
+---
+
+## 12. Extension Points
+
+### Adding a room entity type
+
+1. Create a class in `sensor/` (or another platform) inheriting from
+   `EufyVacuumRoomEntity`.
+2. Add it to the platform's `async_setup_entry` loop.
+3. Add a stale/new sync callback in the platform's `_on_rooms_updated` handler.
+
+### Adding a service
+
+1. Add a constant to `const.py`.
+2. Add a handler to the appropriate `services/*.py` file.
+3. Register it in `async_register_services` (or the relevant group function).
+
+### Adding a subsystem manager
+
+1. Create a new package under `custom_components/eufy_vacuum/`.
+2. Expose a manager class with `__init__(self, manager)`.
+3. Instantiate it in `EufyVacuumManager.async_initialize()` and assign to
+   `self.<name>`.
+4. Add shim methods in `core/manager.py` that delegate to the subsystem.
+
+### Porting to a new brand
+
+The adapter pattern means the only brand-specific files are:
+- `adapters/<brand>/` — entity IDs, vocabulary, maintenance components
+- `__init__.py` — one call to `register_<brand>_adapter_for_vacuum`
+
+See `porting-guide.md` for the detailed walkthrough.

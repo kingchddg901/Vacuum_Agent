@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, NotRequired, Protocol, TypedDict
 
-from .image_segments import detect_room_segments, image_runtime_capabilities
+from ..adapters.eufy.segmentor import detect_room_segments, image_runtime_capabilities
 
 _LOGGER = logging.getLogger(__name__)
 

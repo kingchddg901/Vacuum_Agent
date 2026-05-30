@@ -23,7 +23,7 @@ class EufyVacuumDockEventSensor(SensorEntity):
     """
 
     _attr_has_entity_name = True
-    _attr_name = "Dock Events"
+    _attr_translation_key = "dock_events"
     _attr_icon = "mdi:dock-window"
 
     def __init__(
