@@ -24,7 +24,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import DATA_ERROR_TRACKER, DOMAIN
 from .core.error_tracker import ErrorTracker
-from .entity_helpers import build_entity_name
+from .entity_helpers import build_vacuum_device_info
 
 
 async def async_setup_entry(
@@ -62,8 +62,10 @@ class ActiveRunHasErrorBinarySensor(BinarySensorEntity):
     """
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_icon = "mdi:alert-circle"
+    _attr_name = "Active Run Has Error"
 
     def __init__(
         self,
@@ -73,15 +75,13 @@ class ActiveRunHasErrorBinarySensor(BinarySensorEntity):
     ) -> None:
         self._tracker = tracker
         self._vacuum_entity_id = vacuum_entity_id
-        self._attr_name = build_entity_name(
-            vacuum_entity_id, "Active Run Has Error"
-        )
         suffix = "active_run_has_error"
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{suffix}"
         )
         object_id = vacuum_entity_id.split(".", 1)[-1]
         self._attr_suggested_object_id = f"{object_id}_{suffix}"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._unsub: Any = None
 
     async def async_added_to_hass(self) -> None:

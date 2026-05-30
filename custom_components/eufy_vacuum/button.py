@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
-from .entity_helpers import build_entity_name
+from .entity_helpers import build_vacuum_device_info
 
 
 def _slugify_profile_name(value: str) -> str:
@@ -175,6 +175,8 @@ def _run_profile_button_unique_prefix(*, vacuum_entity_id: str, map_id: str) -> 
 class EufyVacuumMaintenanceResetButton(ButtonEntity):
     """Button to reset the maintenance snapshot for one component."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         *,
@@ -189,14 +191,12 @@ class EufyVacuumMaintenanceResetButton(ButtonEntity):
         self._vacuum_entity_id = vacuum_entity_id
         self._component = component
 
-        self._attr_name = build_entity_name(
-            vacuum_entity_id,
-            f"Reset {label} Maintenance",
-        )
+        self._attr_name = f"Reset {label} Maintenance"
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_reset"
         )
         self._attr_icon = icon
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     async def async_press(self) -> None:
         """Handle button press and snapshot current usage hours."""
@@ -212,6 +212,7 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
 
     _attr_icon = "mdi:play-circle-outline"
     _attr_should_poll = False
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -226,6 +227,7 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
         self._vacuum_entity_id = vacuum_entity_id
         self._map_id = str(map_id)
         self._profile_id = str(profile_id)
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     @property
     def _profile(self) -> dict[str, Any]:
@@ -251,9 +253,9 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
 
     @property
     def name(self) -> str | None:
-        """Return the dynamic button name."""
+        """Return the dynamic button name (device name is prepended by HA)."""
         profile_name = str(self._profile.get("name", "Saved Run"))
-        return build_entity_name(self._vacuum_entity_id, f"Run {profile_name}")
+        return f"Run {profile_name}"
 
     @property
     def available(self) -> bool:

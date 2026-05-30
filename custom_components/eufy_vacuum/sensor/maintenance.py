@@ -14,7 +14,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 
 
 class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
@@ -23,6 +23,8 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
     Computes: interval - (current_usage_hours - reset_snapshot).
     Reads usage_hours live from the source entity mapped in capabilities.
     """
+
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -40,14 +42,12 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._component = component
         self._default_interval = default_interval
 
-        self._attr_name = build_entity_name(
-            vacuum_entity_id,
-            f"{label} Maintenance Remaining",
-        )
+        self._attr_name = f"{label} Maintenance Remaining"
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_remaining"
         )
         self._attr_icon = icon
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._attr_native_unit_of_measurement = "h"
         self._attr_state_class = "measurement"
         self._attr_device_class = "duration"

@@ -12,7 +12,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
-from .entity_helpers import build_entity_name, sort_room_items
+from .entity_helpers import build_vacuum_device_info, sort_room_items
 from .room_entities import EufyVacuumRoomEntity
 
 
@@ -172,6 +172,8 @@ class EufyVacuumRoomOrderNumber(EufyVacuumRoomEntity, NumberEntity):
 class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
     """Configurable maintenance interval (hours) for one vacuum component."""
 
+    _attr_has_entity_name = True
+
     def __init__(
         self,
         *,
@@ -188,14 +190,12 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
         self._component = component
         self._default_interval = default_interval
 
-        self._attr_name = build_entity_name(
-            vacuum_entity_id,
-            f"{label} Maintenance Interval",
-        )
+        self._attr_name = f"{label} Maintenance Interval"
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_interval"
         )
         self._attr_icon = icon
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._attr_native_min_value = MAINTENANCE_INTERVAL_MIN
         self._attr_native_max_value = MAINTENANCE_INTERVAL_MAX
         self._attr_native_step = MAINTENANCE_INTERVAL_STEP

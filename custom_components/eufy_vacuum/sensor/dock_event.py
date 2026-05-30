@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 
 
 class EufyVacuumDockEventSensor(SensorEntity):
@@ -21,6 +21,10 @@ class EufyVacuumDockEventSensor(SensorEntity):
     All individual event timestamps and the last dry duration are
     exposed as attributes so the card can read each one independently.
     """
+
+    _attr_has_entity_name = True
+    _attr_name = "Dock Events"
+    _attr_icon = "mdi:dock-window"
 
     def __init__(
         self,
@@ -32,11 +36,10 @@ class EufyVacuumDockEventSensor(SensorEntity):
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
 
-        self._attr_name = build_entity_name(vacuum_entity_id, "Dock Events")
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_dock_events"
         )
-        self._attr_icon = "mdi:dock-window"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     def _get_events(self) -> dict[str, str | None]:
         """Return stored dock events for this vacuum."""

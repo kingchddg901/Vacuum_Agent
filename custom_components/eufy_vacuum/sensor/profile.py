@@ -10,12 +10,15 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 from ..profiles.room_profiles import get_available_profiles
 
 
 class EufyVacuumProfileSensor(SensorEntity):
     """Sensor reporting the count and details of available cleaning profiles for a vacuum."""
+
+    _attr_has_entity_name = True
+    _attr_name = "Available Profiles"
 
     def __init__(
         self,
@@ -29,11 +32,8 @@ class EufyVacuumProfileSensor(SensorEntity):
         self._vacuum_entity_id = vacuum_entity_id
         self._capabilities = capabilities
 
-        self._attr_name = build_entity_name(
-            vacuum_entity_id,
-            "Available Profiles",
-        )
         self._attr_unique_id = f"{vacuum_entity_id}_available_profiles"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     @property
     def native_value(self) -> str:

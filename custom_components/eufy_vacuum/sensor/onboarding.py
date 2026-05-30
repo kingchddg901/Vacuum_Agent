@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 
 
 class EufyVacuumOnboardingSensor(SensorEntity):
@@ -21,6 +21,10 @@ class EufyVacuumOnboardingSensor(SensorEntity):
               (worst-case status across all known maps)
     Attributes expose per-map detail so the card can guide the user.
     """
+
+    _attr_has_entity_name = True
+    _attr_name = "Onboarding State"
+    _attr_icon = "mdi:clipboard-check-outline"
 
     def __init__(
         self,
@@ -32,11 +36,10 @@ class EufyVacuumOnboardingSensor(SensorEntity):
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
 
-        self._attr_name = build_entity_name(vacuum_entity_id, "Onboarding State")
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_onboarding_state"
         )
-        self._attr_icon = "mdi:clipboard-check-outline"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     def _get_summary(self) -> dict[str, Any]:
         """Return the onboarding summary dict from the manager."""

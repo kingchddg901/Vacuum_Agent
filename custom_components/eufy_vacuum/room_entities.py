@@ -4,18 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity import Entity
 
 from .adapters.registry import get_adapter_config
-from .const import DOMAIN
-from .entity_helpers import make_room_entity_name, make_room_unique_id
+from .entity_helpers import build_vacuum_device_info, make_room_unique_id
 
 
 class EufyVacuumRoomEntity(Entity):
     """Base entity for a managed room."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -42,20 +41,10 @@ class EufyVacuumRoomEntity(Entity):
             room_id=self._room_id,
             suffix=unique_suffix,
         )
-        self._attr_name = make_room_entity_name(
-            vacuum_entity_id=vacuum_entity_id,
-            room_name=self._room_name,
-            label=label,
-        )
-
-        # Grouping under a device is required so entity unique IDs are scoped correctly in the registry.
-        vacuum_key = vacuum_entity_id.replace(".", "_")
-        friendly = vacuum_entity_id.split(".", 1)[1].replace("_", " ").title()
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, vacuum_key)},
-            name=f"{friendly} Rooms",
-            entry_type=DeviceEntryType.SERVICE,
-        )
+        # With has_entity_name=True, the device name is prepended by HA.
+        # Store only the room-specific suffix ("Kitchen Cleaning History").
+        self._attr_name = f"{self._room_name} {label}"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     @property
     def manager(self):

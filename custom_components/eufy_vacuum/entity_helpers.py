@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
+
+from .const import DOMAIN
 
 
 def _friendly_vacuum_name(vacuum_entity_id: str) -> str:
@@ -12,8 +16,26 @@ def _friendly_vacuum_name(vacuum_entity_id: str) -> str:
 
 
 def build_entity_name(vacuum_entity_id: str, suffix: str) -> str:
-    """Return a human-readable entity name derived from the vacuum entity_id and a suffix."""
+    """Return a human-readable entity name derived from the vacuum entity_id and a suffix.
+
+    .. deprecated::
+        Prefer ``has_entity_name = True`` + a plain suffix string. This helper
+        is kept for legacy call sites that have not yet been migrated.
+    """
     return f"{_friendly_vacuum_name(vacuum_entity_id)} {suffix}"
+
+
+def build_vacuum_device_info(vacuum_entity_id: str) -> DeviceInfo:
+    """Return a DeviceInfo that groups all entities for one vacuum under a service device.
+
+    All entity classes should attach this so HA can display per-vacuum device pages
+    and satisfy the ``has-entity-name`` quality-scale rule.
+    """
+    return DeviceInfo(
+        identifiers={(DOMAIN, vacuum_entity_id.replace(".", "_"))},
+        name=_friendly_vacuum_name(vacuum_entity_id),
+        entry_type=DeviceEntryType.SERVICE,
+    )
 
 
 def make_room_unique_id(

@@ -1,0 +1,104 @@
+rules:
+  # ── Bronze ────────────────────────────────────────────────────────────────
+
+  action-setup:
+    status: done
+    comment: >
+      All service actions are registered inside async_setup_entry via
+      async_register_services, async_register_learning_services,
+      async_register_theme_services, async_register_mapping_services,
+      and an inline battery_rebaseline registration. None are registered
+      in async_setup.
+
+  appropriate-polling:
+    status: exempt
+    comment: >
+      iot_class is local_push. The integration consumes state-change events
+      from the vacuum entity owned by the Eufy native integration; it does
+      not poll a remote or local API for data.
+
+  brands:
+    status: exempt
+    comment: >
+      This is a HACS custom integration and is not submitted to the
+      Home Assistant brands repository.
+
+  common-modules:
+    status: done
+    comment: >
+      Each entity family shares a base class: EufyVacuumRoomEntity for all
+      room entities, _BatteryBase for battery sensors,
+      _ErrorTrackerSensorBase for error sensors. The manager layer uses a
+      purpose-built orchestrator (EufyVacuumManager) with domain subsystems
+      rather than DataUpdateCoordinator — appropriate for the multi-vendor
+      adapter pattern where no single polling coordinator fits.
+
+  config-flow:
+    status: done
+
+  config-flow-test-coverage:
+    status: todo
+    comment: >
+      No automated tests exist yet. The config flow and options flow are
+      manually verified on every release.
+
+  dependency-transparency:
+    status: done
+    comment: >
+      requirements is empty — the integration uses only Home Assistant
+      built-in helpers and no third-party packages.
+
+  docs-actions:
+    status: todo
+    comment: >
+      Developer documentation pass is planned (12-file scope, tracked in
+      project memory). Service action reference is part of that pass.
+
+  docs-high-level-description:
+    status: todo
+    comment: Planned as part of the dev docs pass.
+
+  docs-installation-instructions:
+    status: todo
+    comment: Planned as part of the dev docs pass.
+
+  docs-removal-instructions:
+    status: todo
+    comment: Planned as part of the dev docs pass.
+
+  entity-event-setup:
+    status: done
+    comment: >
+      All entities that subscribe to update listeners (BatteryHealthSensor,
+      _ErrorTrackerSensorBase, _BatteryBase, ActiveRunHasErrorBinarySensor)
+      unsubscribe in async_will_remove_from_hass. Room-update and
+      run-profile-update callbacks registered in platform setup are
+      unregistered via entry.async_on_unload.
+
+  entity-unique-id:
+    status: done
+    comment: >
+      Every entity class sets _attr_unique_id in __init__ using a stable
+      pattern derived from vacuum_entity_id + suffix (non-room entities) or
+      vacuum_entity_id + map_id + room_id + suffix (room entities).
+
+  has-entity-name:
+    status: done
+    comment: >
+      All entity classes set _attr_has_entity_name = True and
+      _attr_device_info via build_vacuum_device_info(). Entity names are
+      pure suffixes; HA prepends the device (vacuum) name for display.
+
+  log-when-unavailable:
+    status: exempt
+    comment: >
+      The integration wraps entities provided by the Eufy native integration
+      rather than managing a direct network connection. There is no
+      connection lifecycle to manage; if the upstream vacuum entity becomes
+      unavailable, the integration's entities reflect that state naturally.
+
+  unique-config-entry:
+    status: done
+    comment: >
+      async_step_user calls async_set_unique_id(DOMAIN) followed by
+      _abort_if_unique_id_configured(), preventing duplicate entries.

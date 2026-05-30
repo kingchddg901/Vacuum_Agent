@@ -28,7 +28,7 @@ from typing import Any
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.core import callback
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 from .manager import BatteryHealthManager
 
 
@@ -112,6 +112,7 @@ class _BatteryBase(SensorEntity):
     """Shared boilerplate: pulls from manager record, subscribes to updates."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -123,7 +124,7 @@ class _BatteryBase(SensorEntity):
     ) -> None:
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
-        self._attr_name = build_entity_name(vacuum_entity_id, label)
+        self._attr_name = label  # device name prepended by HA
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{unique_suffix}"
         )
@@ -134,6 +135,7 @@ class _BatteryBase(SensorEntity):
         # "last_job_drain_per_min" produced two different ids).
         object_id = vacuum_entity_id.split(".", 1)[-1]
         self._attr_suggested_object_id = f"{object_id}_{unique_suffix}"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._unsub = None
 
     async def async_added_to_hass(self) -> None:

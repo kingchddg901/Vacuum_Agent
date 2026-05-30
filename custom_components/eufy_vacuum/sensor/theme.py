@@ -11,7 +11,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
-from ..entity_helpers import build_entity_name
+from ..entity_helpers import build_vacuum_device_info
 
 
 class EufyVacuumThemeStateSensor(SensorEntity):
@@ -23,6 +23,9 @@ class EufyVacuumThemeStateSensor(SensorEntity):
     """
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "Theme State"
+    _attr_icon = "mdi:palette"
 
     def __init__(
         self,
@@ -34,11 +37,10 @@ class EufyVacuumThemeStateSensor(SensorEntity):
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
 
-        self._attr_name = build_entity_name(vacuum_entity_id, "Theme State")
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_theme_state"
         )
-        self._attr_icon = "mdi:palette"
+        self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
 
     def _get_vac_theme(self) -> dict[str, Any]:
         """Return per-vacuum theme state safely."""
