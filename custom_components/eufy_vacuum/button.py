@@ -198,11 +198,7 @@ class EufyVacuumMaintenanceResetButton(ButtonEntity):
         )
         self._attr_icon = icon
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
-
-    @property
-    def name_placeholders(self) -> dict[str, str]:
-        """Return the component name placeholder for the translation key."""
-        return {"component": self._label}
+        self._attr_translation_placeholders = {"component": label}
 
     async def async_press(self) -> None:
         """Handle button press and snapshot current usage hours."""

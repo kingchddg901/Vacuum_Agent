@@ -52,11 +52,7 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._attr_native_unit_of_measurement = "h"
         self._attr_state_class = "measurement"
         self._attr_device_class = "duration"
-
-    @property
-    def name_placeholders(self) -> dict[str, str]:
-        """Return the component name placeholder for the translation key."""
-        return {"component": self._label}
+        self._attr_translation_placeholders = {"component": label}
 
     def _get_interval(self) -> float:
         """Return the current configured interval from storage."""

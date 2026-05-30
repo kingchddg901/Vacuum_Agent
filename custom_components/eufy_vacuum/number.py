@@ -203,11 +203,7 @@ class EufyVacuumMaintenanceIntervalNumber(NumberEntity):
         self._attr_native_step = MAINTENANCE_INTERVAL_STEP
         self._attr_native_unit_of_measurement = "h"
         self._attr_mode = "box"
-
-    @property
-    def name_placeholders(self) -> dict[str, str]:
-        """Return the component name placeholder for the translation key."""
-        return {"component": self._label}
+        self._attr_translation_placeholders = {"component": label}
 
     def _get_stored_interval(self) -> float:
         """Return persisted interval or the default."""
