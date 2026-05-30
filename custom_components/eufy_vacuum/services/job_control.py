@@ -22,6 +22,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -111,14 +112,20 @@ async def _handle_get_start_status(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_start_selected_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Start cleaning selected rooms."""
-    payload = await get_manager(hass).start_selected_rooms(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).start_selected_rooms(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to start cleaning: {err}") from err
     _LOGGER.debug("start_selected_rooms complete: %s", payload)
     await get_manager(hass).async_save()
 
 
 async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Apply and start one saved run profile."""
-    payload = await get_manager(hass).start_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).start_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to start run profile: {err}") from err
     _LOGGER.debug("start_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -126,7 +133,10 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_pause_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Pause one tracked active job and the underlying vacuum."""
-    payload = await get_manager(hass).async_pause_active_job(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_pause_active_job(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to pause job: {err}") from err
     _LOGGER.debug("pause_active_job complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -134,7 +144,10 @@ async def _handle_pause_active_job(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_resume_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Resume one tracked paused job and the underlying vacuum."""
-    payload = await get_manager(hass).async_resume_active_job(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_resume_active_job(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to resume job: {err}") from err
     _LOGGER.debug("resume_active_job complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -143,7 +156,10 @@ async def _handle_resume_active_job(hass: HomeAssistant, call: ServiceCall) -> d
 async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Cancel one tracked job, return the vacuum to base, and finalize it."""
     resolved = resolved_call_data(hass, call)
-    payload = await get_manager(hass).async_cancel_active_job(**resolved)
+    try:
+        payload = await get_manager(hass).async_cancel_active_job(**resolved)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to cancel job: {err}") from err
     if payload.get("cancelled"):
         hass.bus.async_fire(
             EVENT_JOB_FINISHED,
@@ -160,7 +176,10 @@ async def _handle_cancel_active_job(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_clear_active_job(hass: HomeAssistant, call: ServiceCall) -> None:
     """Clear active job state."""
-    payload = get_manager(hass).clear_active_job(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).clear_active_job(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to clear active job: {err}") from err
     _LOGGER.debug("clear_active_job complete: %s", payload)
     await get_manager(hass).async_save()
 

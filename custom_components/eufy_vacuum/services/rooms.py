@@ -14,6 +14,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -92,7 +93,10 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
     from ..setup.drift import run_discovery_pass
 
     manager = get_manager(hass)
-    payload = manager.discover_rooms(**resolved_call_data(hass, call))
+    try:
+        payload = manager.discover_rooms(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to discover rooms: {err}") from err
     _LOGGER.debug("discover_rooms complete: %s", payload)
 
     vacuum_entity_id = call.data.get("vacuum_entity_id")
@@ -110,7 +114,10 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
 
 async def _handle_save_managed_rooms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Save selected rooms as managed configuration."""
-    payload = get_manager(hass).save_managed_rooms(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).save_managed_rooms(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to save managed rooms: {err}") from err
     _LOGGER.debug("save_managed_rooms complete: %s", payload)
     await get_manager(hass).async_save()
 
@@ -126,21 +133,24 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
     """Apply per-room field overrides without a named profile."""
     manager = get_manager(hass)
     data = resolved_call_data(hass, call)
-    result = manager.update_room_fields(
-        vacuum_entity_id=data["vacuum_entity_id"],
-        map_id=data["map_id"],
-        room_id=int(data["room_id"]),
-        clean_mode=data.get("clean_mode"),
-        fan_speed=data.get("fan_speed"),
-        water_level=data.get("water_level"),
-        clean_intensity=data.get("clean_intensity"),
-        clean_passes=data.get("clean_passes"),
-        edge_mopping=data.get("edge_mopping"),
-        is_dock_room=data.get("is_dock_room"),
-        is_transition=data.get("is_transition"),
-        grants_access_to=data.get("grants_access_to"),
-        rules=data.get("rules"),
-    )
+    try:
+        result = manager.update_room_fields(
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
+            room_id=int(data["room_id"]),
+            clean_mode=data.get("clean_mode"),
+            fan_speed=data.get("fan_speed"),
+            water_level=data.get("water_level"),
+            clean_intensity=data.get("clean_intensity"),
+            clean_passes=data.get("clean_passes"),
+            edge_mopping=data.get("edge_mopping"),
+            is_dock_room=data.get("is_dock_room"),
+            is_transition=data.get("is_transition"),
+            grants_access_to=data.get("grants_access_to"),
+            rules=data.get("rules"),
+        )
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to update room fields: {err}") from err
     if result.get("updated"):
         await manager.async_save()
     _LOGGER.debug("update_room_fields: %s", result)

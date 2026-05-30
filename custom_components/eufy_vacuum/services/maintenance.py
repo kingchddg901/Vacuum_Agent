@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -51,7 +52,15 @@ _SET_MAINTENANCE_INTERVAL_SCHEMA = vol.Schema(
 
 async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Reset the maintenance counter for a specific component."""
-    payload = get_manager(hass).reset_maintenance(**call.data)
+    try:
+        payload = get_manager(hass).reset_maintenance(**call.data)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to reset maintenance: {err}") from err
+    if not payload.get("reset") and payload.get("reason") == "no_source_entity":
+        raise ServiceValidationError(
+            f"Component '{call.data.get('component')}' has no source entity "
+            f"for vacuum '{call.data.get('vacuum_entity_id')}'"
+        )
     _LOGGER.debug("reset_maintenance complete: %s", payload)
     if payload.get("reset"):
         await get_manager(hass).async_save()
@@ -73,11 +82,14 @@ async def _handle_set_maintenance_interval(hass: HomeAssistant, call: ServiceCal
     component = call.data["component"]
     interval_hours = round(float(call.data["interval_hours"]), 1)
 
-    manager.data.setdefault("maintenance", {})
-    manager.data["maintenance"].setdefault(vacuum_entity_id, {})
-    manager.data["maintenance"][vacuum_entity_id].setdefault(component, {})
-    manager.data["maintenance"][vacuum_entity_id][component]["interval_hours"] = interval_hours
-    await manager.async_save()
+    try:
+        manager.data.setdefault("maintenance", {})
+        manager.data["maintenance"].setdefault(vacuum_entity_id, {})
+        manager.data["maintenance"][vacuum_entity_id].setdefault(component, {})
+        manager.data["maintenance"][vacuum_entity_id][component]["interval_hours"] = interval_hours
+        await manager.async_save()
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to save maintenance interval: {err}") from err
 
     payload = {
         "saved": True,

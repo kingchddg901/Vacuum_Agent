@@ -13,6 +13,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -60,37 +61,63 @@ async def _handle_get_dock_action_status(hass: HomeAssistant, call: ServiceCall)
     return payload
 
 
+def _check_dock_action(action: str, payload: dict) -> None:
+    """Raise ServiceValidationError if a gated dock action was not allowed."""
+    if not payload.get("performed") and not payload.get("allowed", True):
+        msg = payload.get("message") or f"Dock action '{action}' is not available right now."
+        raise ServiceValidationError(msg)
+
+
 async def _handle_wash_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated wash-mop dock action."""
-    payload = await get_manager(hass).async_wash_mop(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_wash_mop(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to wash mop: {err}") from err
+    _check_dock_action("wash_mop", payload)
     _LOGGER.debug("wash_mop complete: %s", payload)
     return payload
 
 
 async def _handle_dry_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated dry-mop dock action."""
-    payload = await get_manager(hass).async_dry_mop(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_dry_mop(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to dry mop: {err}") from err
+    _check_dock_action("dry_mop", payload)
     _LOGGER.debug("dry_mop complete: %s", payload)
     return payload
 
 
 async def _handle_empty_dust(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated empty-dust dock action."""
-    payload = await get_manager(hass).async_empty_dust(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_empty_dust(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to empty dust: {err}") from err
+    _check_dock_action("empty_dust", payload)
     _LOGGER.debug("empty_dust complete: %s", payload)
     return payload
 
 
 async def _handle_stop_dry_mop(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Run gated stop-dry-mop dock action."""
-    payload = await get_manager(hass).async_stop_dry_mop(**resolved_call_data(hass, call))
+    try:
+        payload = await get_manager(hass).async_stop_dry_mop(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to stop dry mop: {err}") from err
+    _check_dock_action("stop_dry_mop", payload)
     _LOGGER.debug("stop_dry_mop complete: %s", payload)
     return payload
 
 
 async def _handle_set_dock_event_count(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite a dock event counter to a specific value."""
-    payload = get_manager(hass).set_dock_event_count(**call.data)
+    try:
+        payload = get_manager(hass).set_dock_event_count(**call.data)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to set dock event count: {err}") from err
     _LOGGER.debug("set_dock_event_count complete: %s", payload)
     if payload.get("updated"):
         await get_manager(hass).async_save()

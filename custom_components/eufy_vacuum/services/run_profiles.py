@@ -12,6 +12,7 @@ import logging
 import voluptuous as vol
 
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
 from ..const import (
@@ -84,7 +85,10 @@ async def _handle_get_saved_run_profiles(hass: HomeAssistant, call: ServiceCall)
 
 async def _handle_save_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Save current enabled-room run as a named reusable profile."""
-    payload = get_manager(hass).save_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).save_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to save run profile: {err}") from err
     _LOGGER.debug("save_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -92,7 +96,14 @@ async def _handle_save_run_profile(hass: HomeAssistant, call: ServiceCall) -> di
 
 async def _handle_apply_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Apply one saved run profile back onto room selections/settings."""
-    payload = get_manager(hass).apply_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).apply_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to apply run profile: {err}") from err
+    if not payload.get("applied") and payload.get("reason") == "profile_not_found":
+        raise ServiceValidationError(
+            f"Run profile '{call.data.get('profile_id')}' not found"
+        )
     _LOGGER.debug("apply_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -100,7 +111,14 @@ async def _handle_apply_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
 
 async def _handle_rename_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Rename one saved run profile."""
-    payload = get_manager(hass).rename_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).rename_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to rename run profile: {err}") from err
+    if not payload.get("renamed") and payload.get("reason") == "profile_not_found":
+        raise ServiceValidationError(
+            f"Run profile '{call.data.get('profile_id')}' not found"
+        )
     _LOGGER.debug("rename_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -108,7 +126,14 @@ async def _handle_rename_run_profile(hass: HomeAssistant, call: ServiceCall) -> 
 
 async def _handle_overwrite_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Overwrite one saved run profile from the current enabled-room snapshot."""
-    payload = get_manager(hass).overwrite_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).overwrite_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to overwrite run profile: {err}") from err
+    if not payload.get("overwritten") and payload.get("reason") == "profile_not_found":
+        raise ServiceValidationError(
+            f"Run profile '{call.data.get('profile_id')}' not found"
+        )
     _LOGGER.debug("overwrite_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
@@ -116,7 +141,14 @@ async def _handle_overwrite_run_profile(hass: HomeAssistant, call: ServiceCall) 
 
 async def _handle_delete_run_profile(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Delete one saved run profile."""
-    payload = get_manager(hass).delete_run_profile(**resolved_call_data(hass, call))
+    try:
+        payload = get_manager(hass).delete_run_profile(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to delete run profile: {err}") from err
+    if not payload.get("deleted") and payload.get("reason") == "profile_not_found":
+        raise ServiceValidationError(
+            f"Run profile '{call.data.get('profile_id')}' not found"
+        )
     _LOGGER.debug("delete_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
     return payload
