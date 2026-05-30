@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 
@@ -13,16 +13,6 @@ def _friendly_vacuum_name(vacuum_entity_id: str) -> str:
     """Return a title-cased display name derived from the vacuum entity_id's object_id."""
     object_id = vacuum_entity_id.split(".", 1)[1]
     return object_id.replace("_", " ").strip().title()
-
-
-def build_entity_name(vacuum_entity_id: str, suffix: str) -> str:
-    """Return a human-readable entity name derived from the vacuum entity_id and a suffix.
-
-    .. deprecated::
-        Prefer ``has_entity_name = True`` + a plain suffix string. This helper
-        is kept for legacy call sites that have not yet been migrated.
-    """
-    return f"{_friendly_vacuum_name(vacuum_entity_id)} {suffix}"
 
 
 def build_vacuum_device_info(vacuum_entity_id: str) -> DeviceInfo:
@@ -48,16 +38,6 @@ def make_room_unique_id(
     """Build a stable unique ID for a room entity."""
     vacuum_key = vacuum_entity_id.replace(".", "_")
     return f"{vacuum_key}_{map_id}_{room_id}_{suffix}"
-
-
-def make_room_entity_name(
-    *,
-    vacuum_entity_id: str,
-    room_name: str,
-    label: str,
-) -> str:
-    """Build a friendly room entity name that stays clear in multi-vacuum homes."""
-    return f"{_friendly_vacuum_name(vacuum_entity_id)} {room_name} {label}"
 
 
 def sort_room_items(
