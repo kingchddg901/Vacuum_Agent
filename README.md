@@ -16,7 +16,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - **Room rules** — attach per-room rules (e.g. mop-only, skip when occupied) that are applied automatically when a job is built.
 - **Learning system and ETA** — the integration records how long each room takes and uses that data to estimate job completion times. Estimates improve with each run.
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
-- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces ten sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
+- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces twelve sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
@@ -48,6 +48,25 @@ If you run this on another model, please [open an issue](https://github.com/king
 8. A **Eufy Vacuum** item appears in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
 
 If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Eufy Vacuum Manager → Configure** to add it.
+
+## Configuration
+
+### Setup form (initial install)
+
+| Field | Required | Description |
+|---|---|---|
+| **Vacuum** | Optional | The `vacuum.*` entity from [eufy-clean](https://github.com/jeppesens/eufy-clean). Leave blank to skip for now and set it later via **Configure**. |
+| **Tested model** | Required | The model you are setting up. Used to select the correct adapter config and capability declarations. Defaults to the currently tested model. |
+| **Notes** | Optional | Free-form text for your own reference. Shown in the integration entry in **Settings → Devices & Services**. |
+
+### Options flow (Configure button)
+
+After the initial install, open **Settings → Devices & Services → Eufy Vacuum Manager → Configure** to update:
+
+| Field | Description |
+|---|---|
+| **Vacuum** | Change which `vacuum.*` entity the integration manages. |
+| **Notes** | Update your notes. |
 
 ## What's included
 
@@ -144,7 +163,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 
 - [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
 - [Setup tab](docs/user-guide/11-setup.md) — initial setup wizard and ongoing drift review
-- [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the ten sensors, charting, raw CSV/JSONL access
+- [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
 - [Services reference](docs/advanced/03-services.md) — for use in automations
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)

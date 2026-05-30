@@ -165,7 +165,7 @@ Timestamps are shown in short-month format (for example, "Apr 18, 9:30 AM"). Fie
 
 ### Battery tab
 
-The Battery tab is a focused readout of the integration's battery health subsystem. It samples battery level on every state change, classifies charge sessions, and rolls everything up into ten sensors plus a per-job metrics block. The tab is the at-a-glance view; for the full feature explanation see [13. Battery health](13-battery-health.md).
+The Battery tab is a focused readout of the integration's battery health subsystem. It samples battery level on every state change, classifies charge sessions, and rolls everything up into twelve sensors plus a per-job metrics block. The tab is the at-a-glance view; for the full feature explanation see [13. Battery health](13-battery-health.md).
 
 **Top chips** — four headline numbers:
 
