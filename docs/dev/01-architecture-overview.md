@@ -176,6 +176,8 @@ module (flat file) or a subsystem package. Here is the full map:
 `switch.py` — each owns its `async_setup_entry` and entity classes. Room
 entities share the base class in `room_entities.py`.
 
+> **See also — subsystem deep dives:** [05-core-manager](05-core-manager.md) · [06-job-lifecycle](06-job-lifecycle.md) · [07-queue-engine](07-queue-engine.md) · [08-rooms-system](08-rooms-system.md) · [09-room-rules-system](09-room-rules-system.md) · [10-learning-system](10-learning-system.md) · [11-mapping-system](11-mapping-system.md) · [12-battery-system](12-battery-system.md) · [13-maintenance-manager](13-maintenance-manager.md) · [14-dock-manager](14-dock-manager.md) · [15-setup-system](15-setup-system.md) · [16-profile-manager](16-profile-manager.md) · [17-map-manager](17-map-manager.md) · [18-onboarding-manager](18-onboarding-manager.md) · [19-card-architecture](19-card-architecture.md) · [20-theme-system](20-theme-system.md) · [23-error-tracker](23-error-tracker.md)
+
 ---
 
 ## 4. Startup Sequence
@@ -219,6 +221,8 @@ entities share the base class in `room_entities.py`.
 
 On unload the sequence reverses: services unregistered, listeners removed,
 platforms unloaded, singletons shut down, coordinator torn down.
+
+> **See also:** [02-ha-integration](02-ha-integration.md) for the full config-entry lifecycle, platform setup, and entity registration detail; [04-listeners](04-listeners.md) for the listener registration and unsubscription pattern.
 
 ---
 
@@ -290,6 +294,8 @@ core/manager.py — fires EVENT_JOB_FINISHED on HA event bus
   → Card receives event, refreshes dashboard
 ```
 
+> **See also:** [06-job-lifecycle](06-job-lifecycle.md) for the complete per-step breakdown of this flow including all paths to job end; [07-queue-engine](07-queue-engine.md) for the payload construction at step 2; [09-room-rules-system](09-room-rules-system.md) §5 for `_build_effective_start_plan` at step 2; [10-learning-system](10-learning-system.md) and [12-battery-system](12-battery-system.md) for the two finalization hooks in the last step.
+
 ---
 
 ## 6. State Persistence
@@ -333,6 +339,8 @@ file while the `.storage` file stays fast to load.
 Runtime state is never persisted; it is reconstructed from upstream entity states
 on each HA start. It includes: raw HA state string, battery level, charging
 flag, dock sensor values.
+
+> **See also:** [03-data-model](03-data-model.md) for the complete schema of every key in `manager.data` including per-key ownership and storage path references.
 
 ---
 
@@ -397,6 +405,8 @@ To add Roborock support (for example), you would:
 
 See the [porting guide](../contributing/porting-guide.md) for the complete porting checklist.
 
+> **See also:** [21-adapter-system](21-adapter-system.md) for the registry, validation, and startup registration order; [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field schema of every block in the adapter config dict.
+
 ---
 
 ## 8. Listener Architecture
@@ -425,6 +435,8 @@ lifecycle.register(hass)  # subscribes, stores unsub callable in hass.data
 # On unload:
 lifecycle.remove(hass)    # calls unsub and cleans up
 ```
+
+> **See also:** [04-listeners](04-listeners.md) for the complete listener module breakdown — what each module subscribes to, what it calls, and how the unsubscription chain is managed.
 
 ---
 
@@ -462,6 +474,8 @@ All service handlers follow a three-step pattern:
 2. Call one or more `manager.*` methods
 3. Fire `call.async_set_result(payload)` with a structured response dict
 
+> **See also:** [advanced/03-services.md](../advanced/03-services.md) for the user-facing service reference (call shapes, parameters, and return payloads).
+
 ---
 
 ## 10. Entity Layer
@@ -489,6 +503,8 @@ Dynamic entities (room-based sensors/switches/numbers) are added and removed at
 runtime via `register_room_update_callback`. When `_notify_rooms_updated` fires,
 each platform's callback adds new entities and removes stale ones.
 
+> **See also:** [02-ha-integration](02-ha-integration.md) for entity registration detail and the platform `async_setup_entry` pattern; [19-card-architecture](19-card-architecture.md) for how the panel card reads entity state.
+
 ---
 
 ## 11. Concurrency & Thread Safety
@@ -503,6 +519,8 @@ Callback lists (`_room_update_callbacks`, etc.) are mutated only from the event
 loop. Manager methods called from `hass.loop.call_soon_threadsafe` (the
 `_request_entity_state_write` pattern in sensor setup) are safe because
 `async_write_ha_state` is event-loop-safe.
+
+> **See also:** [12-battery-system](12-battery-system.md) §14.3 for the primary real-world example of the `call_soon_threadsafe` pattern — the battery hook fires from the learning finalizer's executor thread.
 
 ---
 
