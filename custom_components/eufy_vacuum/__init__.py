@@ -67,7 +67,7 @@ from .mapping.mapping_services import (
 from .mapping.manager import MappingManager
 from .mapping.tracker import MappingTracker
 from .services import async_register_services, async_unregister_services
-from .theme_services import (
+from .themes import (
     async_register_theme_services,
     async_unregister_theme_services,
 )
@@ -209,6 +209,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
     hass.data[DOMAIN][DATA_RUNTIME] = manager
+    entry.runtime_data = manager  # Bronze: store runtime object in ConfigEntry.runtime_data
     hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
 
     battery_manager = BatteryHealthManager(hass, runtime_manager=manager)

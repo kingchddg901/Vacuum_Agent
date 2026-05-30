@@ -1,4 +1,11 @@
-"""HA service handlers for the Eufy Vacuum theme system — register and unregister all theme services."""
+"""HA service handlers for the Eufy Vacuum theme system.
+
+Absorbed from the standalone theme_services.py module.  Validation
+failures raise ``ServiceValidationError`` (HA Silver action-exceptions
+requirement) rather than returning ``{"ok": False, ...}``.  Pure data
+operations that cannot fail (get_library, update_draft, revert) return
+their dict directly.
+"""
 
 from __future__ import annotations
 
@@ -6,11 +13,11 @@ import logging
 
 import voluptuous as vol
 
-from homeassistant.components.persistent_notification import async_create as notify
 from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 
-from .const import (
+from ..const import (
     DATA_RUNTIME,
     DOMAIN,
     SERVICE_DELETE_THEME,
@@ -27,6 +34,9 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Schemas
+# ---------------------------------------------------------------------------
 
 GET_THEME_LIBRARY_SCHEMA = vol.Schema({})
 
@@ -92,122 +102,131 @@ IMPORT_THEME_SCHEMA = vol.Schema(
     }
 )
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+_THEME_NOT_FOUND_REASONS = frozenset({"theme_not_found"})
+_IMPORT_VALIDATION_REASONS = frozenset(
+    {"invalid_payload", "missing_theme", "missing_name", "invalid_tokens", "invalid_colors", "invalid_alpha"}
+)
+
 
 def _get_manager(hass: HomeAssistant):
     """Return the integration manager."""
     return hass.data[DOMAIN][DATA_RUNTIME]
 
 
+def _raise_if_failed(result: dict, *, operation: str) -> None:
+    """Raise ServiceValidationError when a theme operation returns ok=False."""
+    if not result.get("ok", True):
+        reason = result.get("reason", "unknown_error")
+        raise ServiceValidationError(
+            f"{operation} failed: {reason}",
+            translation_domain=DOMAIN,
+            translation_key="theme_operation_failed",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
+
+
 async def async_register_theme_services(hass: HomeAssistant) -> None:
     """Register all theme-related HA services with their schemas."""
 
     async def handle_get_theme_library(call: ServiceCall) -> dict:
-        """Return the full theme library."""
         result = _get_manager(hass).get_theme_library()
         _LOGGER.debug("get_theme_library complete: %s", result)
         return result
 
     async def handle_save_theme_as_new(call: ServiceCall) -> dict:
-        """Save the current working draft as a new named theme."""
-        result = _get_manager(hass).save_theme_as_new(
+        manager = _get_manager(hass)
+        result = manager.save_theme_as_new(
             vacuum_entity_id=call.data["vacuum_entity_id"],
             name=call.data["name"],
             set_as_default=call.data.get("set_as_default", False),
         )
         _LOGGER.debug("save_theme_as_new complete: %s", result)
-        await _get_manager(hass).async_save()
+        await manager.async_save()
         return result
 
     async def handle_overwrite_theme(call: ServiceCall) -> dict:
-        """Overwrite an existing theme with the current working draft."""
-        result = _get_manager(hass).overwrite_theme(
+        manager = _get_manager(hass)
+        result = manager.overwrite_theme(
             vacuum_entity_id=call.data["vacuum_entity_id"],
             theme_id=call.data["theme_id"],
         )
         _LOGGER.debug("overwrite_theme complete: %s", result)
-        if result.get("ok"):
-            await _get_manager(hass).async_save()
-        else:
-            notify(hass, f"overwrite_theme failed: {result.get('reason')}", title="Eufy Vacuum Theme")
+        _raise_if_failed(result, operation="overwrite_theme")
+        await manager.async_save()
         return result
 
     async def handle_rename_theme(call: ServiceCall) -> dict:
-        """Rename an existing theme in the library."""
-        result = _get_manager(hass).rename_theme(
+        manager = _get_manager(hass)
+        result = manager.rename_theme(
             theme_id=call.data["theme_id"],
             name=call.data["name"],
         )
         _LOGGER.debug("rename_theme complete: %s", result)
-        if result.get("ok"):
-            await _get_manager(hass).async_save()
-        else:
-            notify(hass, f"rename_theme failed: {result.get('reason')}", title="Eufy Vacuum Theme")
+        _raise_if_failed(result, operation="rename_theme")
+        await manager.async_save()
         return result
 
     async def handle_delete_theme(call: ServiceCall) -> dict:
-        """Delete a theme from the library."""
-        result = _get_manager(hass).delete_theme(theme_id=call.data["theme_id"])
+        manager = _get_manager(hass)
+        result = manager.delete_theme(theme_id=call.data["theme_id"])
         _LOGGER.debug("delete_theme complete: %s", result)
-        if result.get("ok"):
-            await _get_manager(hass).async_save()
-        else:
-            notify(hass, f"delete_theme failed: {result.get('reason')}", title="Eufy Vacuum Theme")
+        _raise_if_failed(result, operation="delete_theme")
+        await manager.async_save()
         return result
 
     async def handle_set_active_theme(call: ServiceCall) -> dict:
-        """Set the active theme for one or all vacuums."""
-        result = _get_manager(hass).set_active_theme(
+        manager = _get_manager(hass)
+        result = manager.set_active_theme(
             vacuum_entity_id=call.data.get("vacuum_entity_id"),
             theme_id=call.data["theme_id"],
         )
         _LOGGER.debug("set_active_theme complete: %s", result)
-        if result.get("ok"):
-            await _get_manager(hass).async_save()
-        else:
-            notify(hass, f"set_active_theme failed: {result.get('reason')}", title="Eufy Vacuum Theme")
+        _raise_if_failed(result, operation="set_active_theme")
+        await manager.async_save()
         return result
 
     async def handle_update_working_draft(call: ServiceCall) -> dict:
-        """Merge token/color/alpha overrides into the vacuum's working draft."""
-        result = _get_manager(hass).update_working_draft(
+        manager = _get_manager(hass)
+        result = manager.update_working_draft(
             vacuum_entity_id=call.data["vacuum_entity_id"],
             tokens=call.data.get("tokens"),
             colors=call.data.get("colors"),
             alpha=call.data.get("alpha"),
         )
         _LOGGER.debug("update_working_draft complete: %s", result)
-        await _get_manager(hass).async_save()
+        await manager.async_save()
         return result
 
     async def handle_revert_draft(call: ServiceCall) -> dict:
-        """Discard the working draft and revert to the active theme's values."""
-        result = _get_manager(hass).revert_draft(
+        manager = _get_manager(hass)
+        result = manager.revert_draft(
             vacuum_entity_id=call.data["vacuum_entity_id"],
         )
         _LOGGER.debug("revert_draft complete: %s", result)
-        await _get_manager(hass).async_save()
+        await manager.async_save()
         return result
 
     async def handle_export_theme(call: ServiceCall) -> dict:
-        """Export a theme as a portable payload dict."""
-        result = _get_manager(hass).export_theme(theme_id=call.data["theme_id"])
+        manager = _get_manager(hass)
+        result = manager.export_theme(theme_id=call.data["theme_id"])
         _LOGGER.debug("export_theme complete: %s", result)
-        if not result.get("ok", True):
-            notify(hass, f"export_theme failed: {result.get('reason')}", title="Eufy Vacuum Theme")
+        _raise_if_failed(result, operation="export_theme")
         return result
 
     async def handle_import_theme(call: ServiceCall) -> dict:
-        """Import a previously exported theme payload into the library."""
-        result = _get_manager(hass).import_theme(payload=call.data["payload"])
+        manager = _get_manager(hass)
+        result = manager.import_theme(payload=call.data["payload"])
         _LOGGER.debug("import_theme complete: %s", result)
-        if result.get("ok"):
-            await _get_manager(hass).async_save()
-        else:
-            notify(
-                hass,
-                f"import_theme failed: {result.get('reason')}",
-                title="Eufy Vacuum Theme",
-            )
+        _raise_if_failed(result, operation="import_theme")
+        await manager.async_save()
         return result
 
     hass.services.async_register(
