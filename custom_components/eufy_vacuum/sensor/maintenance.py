@@ -10,11 +10,14 @@ the adapter's declared default when no override exists.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.components.sensor import SensorEntity
 
 from ..entity_helpers import build_vacuum_device_info
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
@@ -22,6 +25,8 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
 
     Computes: interval - (current_usage_hours - reset_snapshot).
     Reads usage_hours live from the source entity mapped in capabilities.
+    Returns ``available = False`` (and ``native_value = None``) when the
+    source entity is unavailable so stale hours are never silently reported.
     """
 
     _attr_has_entity_name = True
@@ -53,6 +58,13 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._attr_state_class = "measurement"
         self._attr_device_class = "duration"
         self._attr_translation_placeholders = {"component": label}
+        # Availability tracking — updated on each poll via async_update().
+        self._attr_available = True
+        self._cached_result: dict[str, Any] = {}
+
+    async def async_added_to_hass(self) -> None:
+        """Warm the result cache before the first state write."""
+        self._refresh_cache()
 
     def _get_interval(self) -> float:
         """Return the current configured interval from storage."""
@@ -68,33 +80,51 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
                 pass
         return self._default_interval
 
-    @property
-    def native_value(self) -> float:
-        """Return remaining hours."""
-        interval = self._get_interval()
+    def _refresh_cache(self) -> None:
+        """Fetch fresh data, update availability, and log transitions."""
         result = self._manager.get_maintenance_remaining(
             vacuum_entity_id=self._vacuum_entity_id,
             component=self._component,
-            interval_hours=interval,
+            interval_hours=self._get_interval(),
         )
-        return result["remaining_hours"]
+        now_available = bool(result.get("source_available", True))
+        if self._attr_available and not now_available:
+            _LOGGER.warning(
+                "Maintenance sensor %s (%s): source entity unavailable",
+                self._vacuum_entity_id,
+                self._component,
+            )
+        elif not self._attr_available and now_available:
+            _LOGGER.debug(
+                "Maintenance sensor %s (%s): source entity available again",
+                self._vacuum_entity_id,
+                self._component,
+            )
+        self._attr_available = now_available
+        self._cached_result = result
+
+    async def async_update(self) -> None:
+        """Poll: refresh cached result and availability."""
+        self._refresh_cache()
+
+    @property
+    def native_value(self) -> float | None:
+        """Return remaining hours, or None when the source entity is unavailable."""
+        if not self._attr_available:
+            return None
+        return self._cached_result.get("remaining_hours")
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return detailed maintenance state."""
-        interval = self._get_interval()
-        result = self._manager.get_maintenance_remaining(
-            vacuum_entity_id=self._vacuum_entity_id,
-            component=self._component,
-            interval_hours=interval,
-        )
+        result = self._cached_result
         return {
             "component": self._component,
-            "used_since_reset_hours": result["used_since_reset_hours"],
-            "interval_hours": result["interval_hours"],
-            "current_usage_hours": result["current_usage_hours"],
-            "reset_at_usage_hours": result["reset_at_usage_hours"],
-            "reset_at": result["reset_at"],
-            "source_entity": result["source_entity"],
-            "source_available": result["source_available"],
+            "used_since_reset_hours": result.get("used_since_reset_hours"),
+            "interval_hours": result.get("interval_hours"),
+            "current_usage_hours": result.get("current_usage_hours"),
+            "reset_at_usage_hours": result.get("reset_at_usage_hours"),
+            "reset_at": result.get("reset_at"),
+            "source_entity": result.get("source_entity"),
+            "source_available": result.get("source_available"),
         }

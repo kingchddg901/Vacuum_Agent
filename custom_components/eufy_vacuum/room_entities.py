@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from homeassistant.helpers.entity import Entity
@@ -9,6 +10,8 @@ from homeassistant.helpers.entity import Entity
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
 from .entity_helpers import build_vacuum_device_info, make_room_unique_id
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class EufyVacuumRoomEntity(Entity):
@@ -48,6 +51,9 @@ class EufyVacuumRoomEntity(Entity):
         # stays dynamic.
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
         self._attr_translation_placeholders = {"room": self._room_name}
+        # Tracks previous availability so log-when-unavailable fires only once
+        # per state transition, not on every state write.
+        self._was_available: bool | None = None
 
     @property
     def manager(self):
@@ -133,8 +139,29 @@ class EufyVacuumRoomEntity(Entity):
 
     @property
     def available(self) -> bool:
-        """Return whether entity is available."""
-        return bool(self._get_room_data())
+        """Return whether entity is available.
+
+        Logs once on each unavailable / available-again transition so
+        operators can diagnose room-data gaps without log spam.
+        """
+        now_available = bool(self._get_room_data())
+        if self._was_available is not None and self._was_available != now_available:
+            if not now_available:
+                _LOGGER.warning(
+                    "Room entity %s/%s/room_%s is unavailable",
+                    self._vacuum_entity_id,
+                    self._map_id,
+                    self._room_id,
+                )
+            else:
+                _LOGGER.debug(
+                    "Room entity %s/%s/room_%s is available again",
+                    self._vacuum_entity_id,
+                    self._map_id,
+                    self._room_id,
+                )
+        self._was_available = now_available
+        return now_available
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
