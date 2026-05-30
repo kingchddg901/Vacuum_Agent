@@ -43,10 +43,14 @@ class EufyVacuumRoomEntity(Entity):
         )
         # With has_entity_name=True, the device name is prepended by HA.
         # Each room entity subclass declares _attr_translation_key; the room
-        # name is injected here as a placeholder so the label suffix stays in
+        # name is injected via name_placeholders so the label suffix stays in
         # translation files while the user-defined room name stays dynamic.
-        self._attr_name_placeholders = {"room": self._room_name}
         self._attr_device_info = build_vacuum_device_info(vacuum_entity_id)
+
+    @property
+    def name_placeholders(self) -> dict[str, str]:
+        """Return the room name placeholder for the translation key."""
+        return {"room": self._room_name}
 
     @property
     def manager(self):

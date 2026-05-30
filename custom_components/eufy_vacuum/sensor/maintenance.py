@@ -41,9 +41,9 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._manager = manager
         self._vacuum_entity_id = vacuum_entity_id
         self._component = component
+        self._label = label
         self._default_interval = default_interval
 
-        self._attr_name_placeholders = {"component": label}
         self._attr_unique_id = (
             f"{vacuum_entity_id.replace('.', '_')}_{component}_maintenance_remaining"
         )
@@ -52,6 +52,11 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._attr_native_unit_of_measurement = "h"
         self._attr_state_class = "measurement"
         self._attr_device_class = "duration"
+
+    @property
+    def name_placeholders(self) -> dict[str, str]:
+        """Return the component name placeholder for the translation key."""
+        return {"component": self._label}
 
     def _get_interval(self) -> float:
         """Return the current configured interval from storage."""
