@@ -1,12 +1,12 @@
 """Maintenance subsystem for the Eufy Vacuum integration.
 
 Exposes:
-- MaintenanceManager — owns maintenance state, reset snapshots, and
-  remaining-hours calculations.  Constructed inside EufyVacuumManager
-  after storage is loaded.
+- MaintenanceManager — owns upkeep model metadata, replacement entity
+  discovery, maintenance reset snapshots, remaining-hours calculations,
+  and the upkeep snapshot compositor.  Constructed inside
+  EufyVacuumManager after storage is loaded.
 - maintenance_status / replacement_status — pure-function status
-  bucket helpers also used by the upkeep snapshot composer in
-  core/manager.py.
+  bucket helpers also used by sensors and the services layer.
 """
 
 from __future__ import annotations
