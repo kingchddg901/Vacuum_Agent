@@ -17,6 +17,7 @@ Receives manager (EufyVacuumManager) parent reference.
 
 from __future__ import annotations
 
+import asyncio
 from collections import deque
 import logging
 from datetime import datetime
@@ -246,7 +247,7 @@ class ActiveJobTracker:
         observed_at: str | None = None,
     ) -> dict[str, Any]:
         """Record that the active job has actually entered a recharge-like state."""
-        active_job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
@@ -331,7 +332,7 @@ class ActiveJobTracker:
         window per actual wash cycle. A 60-second cooldown collapses those
         noise flips into a single counted event.
         """
-        active_job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
@@ -379,7 +380,7 @@ class ActiveJobTracker:
         changed_at: str | None = None,
     ) -> dict[str, Any]:
         """Append one relevant state transition to the tracked active job."""
-        active_job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
@@ -611,7 +612,7 @@ class ActiveJobTracker:
         completed_at = _iso_now()
         room_name = self._room_name_from_active_job(active_job, current_room_id)
         confidence_score = _safe_float(current_room.get("confidence_score"), 0.0)
-        updated_active_job = self._manager.record_completed_room(
+        updated_active_job = self.record_completed_room(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
             room_id=current_room_id,
@@ -845,3 +846,496 @@ class ActiveJobTracker:
         if lifecycle_name == "dock_drying":
             return "Dock drying"
         return str(lifecycle_state.get("message", "")).strip() or "Idle"
+
+    def _generate_job_id(self) -> str:
+        """Generate stable job id."""
+        return f"job_{datetime.now().strftime('%Y-%m-%dT%H-%M-%S')}"
+
+
+    def record_active_lifecycle_observed(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> None:
+        """Set ``has_observed_active_lifecycle`` on the stored active-job record.
+
+        This flag is the pre-condition for auto-finalization.  Callers that
+        hold a local copy returned by ``get_active_job()`` should set the flag
+        on their copy too, since ``get_active_job()`` returns a normalized copy
+        rather than a live reference.
+        """
+        self._manager.data.setdefault("active_jobs", {}).setdefault(vacuum_entity_id, {})
+        active_job = self._manager.data["active_jobs"][vacuum_entity_id].get(str(map_id))
+        if not isinstance(active_job, dict):
+            return
+        active_job["has_observed_active_lifecycle"] = True
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+
+    def get_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Return active job state for one vacuum/map."""
+        return self._normalize_active_job((
+            self._manager.data.get("active_jobs", {})
+            .get(vacuum_entity_id, {})
+            .get(
+                str(map_id),
+                self._default_active_job_state(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=map_id,
+                ),
+            )
+        ))
+
+    def record_active_job_sensor_value(
+        self,
+        *,
+        vacuum_entity_id: str,
+        key: str,
+        value: Any,
+    ) -> bool:
+        """Write a sensor-derived value into all in-flight active jobs for a vacuum.
+
+        Writes to every map bucket that has a started_at and no ended_at —
+        normally only one bucket is active at a time, but the loop is
+        defensive. Returns True if at least one job was updated.
+
+        Called from the job-metrics state listener in __init__.py whenever
+        a tracked sensor (cleaning_time, cleaning_area, etc.) changes during
+        a run. Finalization then reads from active_job_state instead of
+        issuing a live HA state read at job-end, avoiding the DPS timing race.
+        """
+        per_map = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
+        if not isinstance(per_map, dict):
+            return False
+        updated = False
+        for job in per_map.values():
+            if not isinstance(job, dict):
+                continue
+            if job.get("started_at") and not job.get("ended_at"):
+                job[key] = value
+                updated = True
+        if updated:
+            try:
+                self._manager.hass.async_create_task(self._manager.async_save())
+            except Exception:
+                pass
+        return updated
+
+    def clear_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Clear active job state for one vacuum/map."""
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = self._default_active_job_state(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+
+        runtime = self._manager.ensure_runtime(vacuum_entity_id)
+        runtime.active_job_room_ids = []
+
+        return self.get_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+
+    def pause_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        paused_at: str | None = None,
+    ) -> dict[str, Any]:
+        """Mark one active job as paused without losing elapsed runtime."""
+        active_job = self.get_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        if active_job.get("status") != "started":
+            return active_job
+
+        active_job["status"] = "paused"
+        active_job["paused_at"] = paused_at or _iso_now()
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        return active_job
+
+    def resume_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        resumed_at: str | None = None,
+    ) -> dict[str, Any]:
+        """Resume one paused job and accumulate paused wall-clock time."""
+        active_job = self.get_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        if active_job.get("status") != "paused":
+            return active_job
+
+        resumed_at_str = resumed_at or _iso_now()
+        paused_seconds = _safe_int(active_job.get("paused_duration_seconds"), 0)
+        paused_at_str = str(active_job.get("paused_at", "")).strip()
+        paused_dt = self._parse_job_timestamp(paused_at_str)
+        resumed_dt = self._parse_job_timestamp(resumed_at_str)
+        if paused_dt is not None and resumed_dt is not None:
+            pause_delta_seconds = max(int((resumed_dt - paused_dt).total_seconds()), 0)
+            paused_seconds += pause_delta_seconds
+            active_job["current_room_paused_seconds"] = max(
+                _safe_int(active_job.get("current_room_paused_seconds"), 0) + pause_delta_seconds,
+                0,
+            )
+
+        active_job["status"] = "started"
+        active_job["paused_at"] = None
+        active_job["paused_duration_seconds"] = paused_seconds
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        return active_job
+
+    def record_completed_room(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        room_id: int,
+        room_name: str | None = None,
+        actual_duration_minutes: float | None = None,
+        completed_at: str | None = None,
+        source: str = "event",
+        confidence: float | None = None,
+    ) -> dict[str, Any]:
+        """Record one room as completed for the tracked active job."""
+        active_job = self._normalize_active_job(
+            self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        )
+        if active_job.get("status") not in {"started", "paused"}:
+            return active_job
+
+        normalized_room_id = _safe_int(room_id, -1)
+        if normalized_room_id < 0:
+            return active_job
+
+        completed_ids = [
+            _safe_int(existing_room_id, -1)
+            for existing_room_id in active_job.get("completed_room_ids", [])
+            if _safe_int(existing_room_id, -1) >= 0
+        ]
+        if normalized_room_id not in completed_ids:
+            completed_ids.append(normalized_room_id)
+        active_job["completed_room_ids"] = completed_ids
+
+        # Upsert: strip any existing entry for this room then append the new one.
+        # De-duplication bounds the list to at most one entry per unique room ID,
+        # so the safety cap below matches the job's own room count.
+        _queue_room_count = len(active_job.get("queue_room_ids") or [])
+        _completed_rooms_cap = max(_queue_room_count + 1, 20)
+
+        completed_rooms = [
+            dict(entry)
+            for entry in active_job.get("completed_rooms", [])
+            if _safe_int(entry.get("room_id", -1), -1) != normalized_room_id
+        ]
+        entry = {
+            "room_id": normalized_room_id,
+            "slug": None,
+            "room_name": room_name,
+            "completed_at": completed_at or _iso_now(),
+            "source": source,
+        }
+        if actual_duration_minutes is not None:
+            entry["actual_duration_minutes"] = round(float(actual_duration_minutes), 2)
+        if confidence is not None:
+            entry["confidence"] = round(float(confidence), 4)
+        completed_rooms.append(entry)
+        active_job["completed_rooms"] = completed_rooms[-_completed_rooms_cap:]
+
+        next_room_id = self._derive_active_job_current_room_id(active_job)
+        active_job["current_room_id"] = next_room_id
+        active_job["current_room_started_at"] = (completed_at or _iso_now()) if next_room_id is not None else None
+        active_job["current_room_paused_seconds"] = 0
+        active_job["paused_at"] = None if active_job.get("status") != "paused" else active_job.get("paused_at")
+
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        return active_job
+
+    def mark_active_job_finalized(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        finalize_result: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """Mark one tracked job finalized in runtime storage."""
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        active_job = self._manager.data["active_jobs"][vacuum_entity_id].get(str(map_id), {})
+        if not isinstance(active_job, dict):
+            active_job = {}
+
+        active_job["status"] = "completed"
+        active_job["finalized"] = True
+        active_job["paused_at"] = None
+        active_job["has_observed_active_lifecycle"] = False
+        active_job["finalized_at"] = (
+            finalize_result.get("completed_job", {}).get("finalized_at")
+            if isinstance(finalize_result, dict)
+            else None
+        )
+        if isinstance(finalize_result, dict):
+            active_job["finalize_summary"] = {
+                "job_id": finalize_result.get("job_id"),
+                "job_path": finalize_result.get("job_path"),
+                "used_for_learning": (
+                    finalize_result.get("completed_job", {})
+                    .get("outcome", {})
+                    .get("used_for_learning")
+                ),
+                "sanity_passed": (
+                    finalize_result.get("completed_job", {})
+                    .get("outcome", {})
+                    .get("sanity_passed")
+                ),
+                "sanity_flags": (
+                    finalize_result.get("completed_job", {})
+                    .get("outcome", {})
+                    .get("sanity_flags")
+                ),
+                "learning_blockers": (
+                    finalize_result.get("completed_job", {})
+                    .get("outcome", {})
+                    .get("learning_blockers")
+                ),
+                "status": (
+                    finalize_result.get("completed_job", {})
+                    .get("outcome", {})
+                    .get("status")
+                ),
+            }
+
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        runtime = self._manager.ensure_runtime(vacuum_entity_id)
+        runtime.active_job_room_ids = []
+        return active_job
+
+    async def async_pause_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Pause the vacuum and mark the tracked job paused."""
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if active_job.get("status") != "started":
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "paused": False,
+                "reason": "no_started_job",
+                "active_job": active_job,
+            }
+
+        await self._manager.hass.services.async_call(
+            "vacuum",
+            "pause",
+            {"entity_id": vacuum_entity_id},
+            blocking=True,
+        )
+        paused_job = self.pause_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "paused": True,
+            "reason": "paused",
+            "active_job": paused_job,
+        }
+
+    async def async_resume_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Resume the vacuum and the tracked paused job."""
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if active_job.get("status") != "paused":
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "resumed": False,
+                "reason": "no_paused_job",
+                "active_job": active_job,
+            }
+
+        await self._manager.hass.services.async_call(
+            "vacuum",
+            "start",
+            {"entity_id": vacuum_entity_id},
+            blocking=True,
+        )
+        resumed_job = self.resume_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "resumed": True,
+            "reason": "resumed",
+            "active_job": resumed_job,
+        }
+
+    # How long to wait for the device to reach a terminal state after return_to_base.
+    _CANCEL_CONFIRM_TIMEOUT_S: int = 30
+    _CANCEL_POLL_INTERVAL_S: float = 2.0
+
+    async def async_cancel_active_job(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        forced_lifecycle_state: str | None = None,
+        forced_lifecycle_message: str | None = None,
+        cancel_reason: str | None = None,
+    ) -> dict[str, Any]:
+        """Cancel one tracked job by returning the vacuum to base and finalizing.
+
+        After ``return_to_base``, polls for a terminal device state (docked /
+        idle / task_status Completed) before writing the learning finalization
+        record.  This prevents recording a "cancelled" outcome against a
+        still-running session.  If the device does not confirm within
+        ``_CANCEL_CONFIRM_TIMEOUT_S`` seconds, logs a warning and finalizes
+        anyway so the active-job snapshot is never stuck in "started".
+        """
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if active_job.get("status") not in {"started", "paused"}:
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "cancelled": False,
+                "reason": "no_active_job",
+                "active_job": active_job,
+            }
+
+        await self._manager.hass.services.async_call(
+            "vacuum",
+            "return_to_base",
+            {"entity_id": vacuum_entity_id},
+            blocking=True,
+        )
+
+        task_status_entity_id = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("task_status")
+        deadline = self._manager.hass.loop.time() + self._CANCEL_CONFIRM_TIMEOUT_S
+        confirmed = False
+        last_vac_state: str | None = None
+        last_task_status: str | None = None
+
+        while self._manager.hass.loop.time() < deadline:
+            await asyncio.sleep(self._CANCEL_POLL_INTERVAL_S)
+            vac_state_obj = self._manager.hass.states.get(vacuum_entity_id)
+            last_vac_state = vac_state_obj.state if vac_state_obj else None
+            task_state_obj = self._manager.hass.states.get(task_status_entity_id)
+            last_task_status = task_state_obj.state if task_state_obj else None
+            task_lower = str(last_task_status or "").strip().lower()
+
+            if last_vac_state in {"docked", "idle"} or task_lower in {"completed", "complete"}:
+                confirmed = True
+                break
+
+        if not confirmed:
+            _LOGGER.warning(
+                "async_cancel_active_job: %s did not reach a terminal state within %ds "
+                "— finalizing anyway (task_status=%s, vacuum_state=%s)",
+                vacuum_entity_id,
+                self._CANCEL_CONFIRM_TIMEOUT_S,
+                last_task_status,
+                last_vac_state,
+            )
+
+        finalize_result = await self.finalize_learning_for_active_job(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            rebuild_stats=True,
+            rebuild_csv=False,
+            forced_outcome_status="cancelled",
+            forced_lifecycle_state=forced_lifecycle_state or "job_cancelled",
+            forced_lifecycle_message=(
+                forced_lifecycle_message or "Job was cancelled by return_to_base."
+            ),
+        )
+        self.mark_active_job_finalized(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            finalize_result=finalize_result,
+        )
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "cancelled": True,
+            "confirmed": confirmed,
+            "reason": str(cancel_reason or "cancelled"),
+            "finalize_result": finalize_result,
+        }
+
+    def get_paused_job_timeout_report(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        now: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Return a timeout report if a paused job has exceeded its limit."""
+        active_job = self._normalize_active_job(
+            self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        )
+        if active_job.get("status") != "paused":
+            return None
+
+        pause_timeout_minutes = _normalize_pause_timeout_minutes(
+            active_job.get("pause_timeout_minutes")
+        )
+        if pause_timeout_minutes <= 0:
+            return None
+
+        paused_at = str(active_job.get("paused_at", "")).strip()
+        paused_dt = self._parse_job_timestamp(paused_at)
+        now_dt = self._parse_job_timestamp(now or _iso_now())
+        if paused_dt is None or now_dt is None:
+            return None
+
+        paused_elapsed_seconds = max(int((now_dt - paused_dt).total_seconds()), 0)
+        pause_timeout_seconds = pause_timeout_minutes * 60
+        if paused_elapsed_seconds < pause_timeout_seconds:
+            return None
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "job_id": active_job.get("job_id"),
+            "pause_timeout_minutes": pause_timeout_minutes,
+            "paused_at": paused_at,
+            "paused_elapsed_seconds": paused_elapsed_seconds,
+            "forced_lifecycle_state": "pause_timeout_cancelled",
+            "forced_lifecycle_message": (
+                f"Paused for over {pause_timeout_minutes} minutes. Job canceled."
+            ),
+            "cancel_reason": "pause_timeout",
+        }
