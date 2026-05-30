@@ -288,6 +288,10 @@ class EufyVacuumManager:
         from ..dock import DockManager
         self.dock = DockManager(manager=self)
 
+        # Construct OnboardingManager - owns data["onboarding"] + room-discovery state.
+        from ..onboarding import OnboardingManager
+        self.onboarding = OnboardingManager(data=self.data, hass=self.hass)
+
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
         for _vac_maps in self.data.get("maps", {}).values():
@@ -6893,187 +6897,32 @@ class EufyVacuumManager:
         return self.maintenance.reset_maintenance(**kwargs)
 
     # ------------------------------------------------------------------
-    # Onboarding
+    # Onboarding — delegates to OnboardingManager
     # ------------------------------------------------------------------
 
-    def _get_onboarding_data(self) -> dict:
-        """Return root onboarding dict."""
-        self.data.setdefault("onboarding", {})
-        return self.data["onboarding"]
+    def get_onboarding_state(self, **kwargs) -> dict[str, Any]:
+        """Return full onboarding status — delegates to OnboardingManager."""
+        return self.onboarding.get_onboarding_state(**kwargs)
 
-    def _get_map_onboarding(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict:
-        """Return onboarding state for one vacuum/map, creating defaults if absent."""
-        ob = self._get_onboarding_data()
-        ob.setdefault(vacuum_entity_id, {})
-        ob[vacuum_entity_id].setdefault(
-            str(map_id),
-            {
-                "rooms_discovered": False,
-                "floor_types_confirmed": {},
-                "room_count_at_last_check": 0,
-                "discovery_notified": False,
-                "rebuild_notified": False,
-            },
-        )
-        return ob[vacuum_entity_id][str(map_id)]
+    def mark_rooms_discovered(self, **kwargs) -> None:
+        """Mark rooms as discovered — delegates to OnboardingManager."""
+        return self.onboarding.mark_rooms_discovered(**kwargs)
 
-    def get_onboarding_state(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Return full onboarding status for one vacuum/map."""
-        map_ob = self._get_map_onboarding(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
+    def confirm_floor_type(self, **kwargs) -> None:
+        """Mark a room's floor type as confirmed — delegates to OnboardingManager."""
+        return self.onboarding.confirm_floor_type(**kwargs)
 
-        map_bucket = self.data.get("maps", {}).get(
-            vacuum_entity_id, {}
-        ).get(str(map_id), {})
-        rooms = map_bucket.get("rooms", {})
+    def check_for_new_rooms(self, **kwargs) -> bool:
+        """Return True if room count has grown — delegates to OnboardingManager."""
+        return self.onboarding.check_for_new_rooms(**kwargs)
 
-        confirmed = map_ob.get("floor_types_confirmed", {})
-        enabled_rooms_needing_floor_type: list[str] = []
+    def get_rooms_onboarding_summary(self, **kwargs) -> dict[str, Any]:
+        """Return onboarding status across all maps — delegates to OnboardingManager."""
+        return self.onboarding.get_rooms_onboarding_summary(**kwargs)
 
-        for room_id_key, room_data in rooms.items():
-            if not room_data.get("enabled", False):
-                continue
-            if not confirmed.get(str(room_id_key), False):
-                enabled_rooms_needing_floor_type.append(str(room_id_key))
-
-        rooms_discovered = bool(map_ob.get("rooms_discovered", False)) and len(rooms) > 0
-        floor_types_complete = len(enabled_rooms_needing_floor_type) == 0
-        onboarding_complete = rooms_discovered and floor_types_complete
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "rooms_discovered": rooms_discovered,
-            "room_count": len(rooms),
-            "floor_types_complete": floor_types_complete,
-            "onboarding_complete": onboarding_complete,
-            "enabled_rooms_needing_floor_type": enabled_rooms_needing_floor_type,
-            "status": (
-                "complete" if onboarding_complete
-                else "floor_type_needed" if rooms_discovered
-                else "rooms_needed"
-            ),
-        }
-
-    def mark_rooms_discovered(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> None:
-        """Mark rooms as discovered for one map."""
-        map_ob = self._get_map_onboarding(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-        map_ob["rooms_discovered"] = True
-
-        rooms = (
-            self.data.get("maps", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id), {})
-            .get("rooms", {})
-        )
-        map_ob["room_count_at_last_check"] = len(rooms)
-
-    def confirm_floor_type(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-    ) -> None:
-        """Mark a room's floor type as explicitly confirmed by the user."""
-        map_ob = self._get_map_onboarding(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-        map_ob.setdefault("floor_types_confirmed", {})
-        map_ob["floor_types_confirmed"][str(room_id)] = True
-
-    def check_for_new_rooms(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> bool:
-        """Return True if room count has grown since last check."""
-        map_ob = self._get_map_onboarding(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
-
-        vacuum_state = self.hass.states.get(vacuum_entity_id)
-        if vacuum_state is None:
-            return False
-
-        segments = vacuum_state.attributes.get("segments")
-        if not isinstance(segments, list):
-            return False
-
-        current_count = len(segments)
-        last_count = int(map_ob.get("room_count_at_last_check", 0))
-
-        return current_count > last_count
-
-    def get_rooms_onboarding_summary(
-        self,
-        *,
-        vacuum_entity_id: str,
-    ) -> dict[str, Any]:
-        """Return onboarding status across all known maps for one vacuum."""
-        maps = self.data.get("maps", {}).get(vacuum_entity_id, {})
-        summaries = []
-        any_incomplete = False
-
-        for map_id in maps.keys():
-            state = self.get_onboarding_state(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-            summaries.append(state)
-            if not state["onboarding_complete"]:
-                any_incomplete = True
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "all_complete": not any_incomplete,
-            "maps": summaries,
-        }
-
-    def reset_onboarding(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Clear onboarding state for one map, forcing re-check on next evaluation."""
-        ob = self._get_onboarding_data()
-        ob.setdefault(vacuum_entity_id, {})
-        ob[vacuum_entity_id][str(map_id)] = {
-            "rooms_discovered": False,
-            "floor_types_confirmed": {},
-            "room_count_at_last_check": 0,
-            "discovery_notified": False,
-            "rebuild_notified": False,
-        }
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "reset": True,
-        }
+    def reset_onboarding(self, **kwargs) -> dict[str, Any]:
+        """Clear onboarding state for one map — delegates to OnboardingManager."""
+        return self.onboarding.reset_onboarding(**kwargs)
 
     # ------------------------------------------------------------------
     # Theme management - delegated to self.themes (ThemeManager)
