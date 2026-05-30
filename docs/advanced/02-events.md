@@ -212,6 +212,37 @@ condition:
 
 ---
 
+## eufy_vacuum_room_completed
+
+### When it fires
+
+Fires from the **mapping tracker** when the robot's live coordinates leave a room's stored boundary box. This is a position-based signal, distinct from the timing-rollover path that fires `eufy_vacuum_room_finished`. It requires the interactive map to be configured and the vacuum to expose a position entity (`robot_position_x` / `robot_position_y`).
+
+Because it is derived from coordinate tracking rather than learned timing, it can fire for rooms the learning system has no history for, and it fires independently of whether the room was part of the current queue.
+
+### Payload fields
+
+| Field | Type | Description |
+|---|---|---|
+| `vacuum_entity_id` | `str` | Entity ID of the vacuum |
+| `map_id` | `str` | Map ID the job is running on |
+| `room_id` | `int` | ID of the room whose boundary was exited |
+| `room_name` | `str` | Human-readable room name |
+
+### Example trigger
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_room_completed
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+```
+
+**Practical use:** Use as a position-accurate room-exit signal when the interactive map is configured. Pairs well with `eufy_vacuum_room_finished` for cross-validation — if one fires but not the other, the coordinate or timing model may need review.
+
+---
+
 ## eufy_vacuum_stall_detected
 
 ### When it fires

@@ -700,7 +700,7 @@ Returns a card-friendly snapshot of learned history including recent jobs, room 
 
 ## Dock Actions
 
-These services gate on dock and vacuum state before issuing the upstream command — they refuse silently when the dock is not in a valid state. Use `get_dock_action_status` first to check availability.
+These services gate on dock and vacuum state before issuing the upstream command. If the dock is not in a valid state the service raises a `ServiceValidationError` with a human-readable reason — it does **not** fail silently. The error surfaces in the HA service call UI and will propagate to automations that do not suppress errors. Use `get_dock_action_status` first to check availability before calling these from automations.
 
 ### `wash_mop`
 
