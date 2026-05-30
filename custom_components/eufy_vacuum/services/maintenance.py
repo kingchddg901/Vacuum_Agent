@@ -57,6 +57,11 @@ async def _handle_reset_maintenance(hass: HomeAssistant, call: ServiceCall) -> d
     except Exception as err:
         raise HomeAssistantError(f"Failed to reset maintenance: {err}") from err
     if not payload.get("reset") and payload.get("reason") == "no_source_entity":
+        _LOGGER.debug(
+            "reset_maintenance blocked: component=%s has no source entity for %s",
+            call.data.get("component"),
+            call.data.get("vacuum_entity_id"),
+        )
         raise ServiceValidationError(
             f"Component '{call.data.get('component')}' has no source entity "
             f"for vacuum '{call.data.get('vacuum_entity_id')}'"

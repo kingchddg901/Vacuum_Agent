@@ -65,6 +65,12 @@ def _check_dock_action(action: str, payload: dict) -> None:
     """Raise ServiceValidationError if a gated dock action was not allowed."""
     if not payload.get("performed") and not payload.get("allowed", True):
         msg = payload.get("message") or f"Dock action '{action}' is not available right now."
+        _LOGGER.debug(
+            "dock action '%s' blocked: reason=%s — %s",
+            action,
+            payload.get("reason"),
+            msg,
+        )
         raise ServiceValidationError(msg)
 
 

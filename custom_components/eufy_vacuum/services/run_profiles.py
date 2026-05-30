@@ -101,6 +101,10 @@ async def _handle_apply_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
     except Exception as err:
         raise HomeAssistantError(f"Failed to apply run profile: {err}") from err
     if not payload.get("applied") and payload.get("reason") == "profile_not_found":
+        _LOGGER.debug(
+            "apply_run_profile blocked: profile_id=%s not found",
+            call.data.get("profile_id"),
+        )
         raise ServiceValidationError(
             f"Run profile '{call.data.get('profile_id')}' not found"
         )
@@ -116,6 +120,10 @@ async def _handle_rename_run_profile(hass: HomeAssistant, call: ServiceCall) -> 
     except Exception as err:
         raise HomeAssistantError(f"Failed to rename run profile: {err}") from err
     if not payload.get("renamed") and payload.get("reason") == "profile_not_found":
+        _LOGGER.debug(
+            "rename_run_profile blocked: profile_id=%s not found",
+            call.data.get("profile_id"),
+        )
         raise ServiceValidationError(
             f"Run profile '{call.data.get('profile_id')}' not found"
         )
@@ -131,6 +139,10 @@ async def _handle_overwrite_run_profile(hass: HomeAssistant, call: ServiceCall) 
     except Exception as err:
         raise HomeAssistantError(f"Failed to overwrite run profile: {err}") from err
     if not payload.get("overwritten") and payload.get("reason") == "profile_not_found":
+        _LOGGER.debug(
+            "overwrite_run_profile blocked: profile_id=%s not found",
+            call.data.get("profile_id"),
+        )
         raise ServiceValidationError(
             f"Run profile '{call.data.get('profile_id')}' not found"
         )
@@ -146,6 +158,10 @@ async def _handle_delete_run_profile(hass: HomeAssistant, call: ServiceCall) -> 
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete run profile: {err}") from err
     if not payload.get("deleted") and payload.get("reason") == "profile_not_found":
+        _LOGGER.debug(
+            "delete_run_profile blocked: profile_id=%s not found",
+            call.data.get("profile_id"),
+        )
         raise ServiceValidationError(
             f"Run profile '{call.data.get('profile_id')}' not found"
         )
