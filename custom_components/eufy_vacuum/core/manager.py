@@ -48,6 +48,7 @@ from ..queue.queue_engine import (
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 from ..timestamp_utils import parse_timestamp, utc_now_iso
+from ..maintenance import maintenance_status as _maintenance_status, replacement_status as _replacement_status
 from .capabilities import detect_capabilities
 from .storage import EufyVacuumStorage
 
@@ -273,6 +274,14 @@ class EufyVacuumManager:
         # the data["theme"] sub-tree and holds the update-callback list.
         from ..themes import ThemeManager
         self.themes = ThemeManager(self.data)
+
+        # Construct MaintenanceManager - owns data["maintenance"] + remaining calcs.
+        from ..maintenance import MaintenanceManager
+        self.maintenance = MaintenanceManager(
+            data=self.data,
+            hass=self.hass,
+            get_capabilities=self.get_vacuum_capabilities,
+        )
 
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
@@ -1697,42 +1706,6 @@ class EufyVacuumManager:
         if lifecycle_name == "dock_drying":
             return "Dock drying"
         return str(lifecycle_state.get("message", "")).strip() or "Idle"
-
-    def _maintenance_status(
-        self,
-        *,
-        remaining_hours: float,
-        interval_hours: float,
-    ) -> str:
-        """Return maintenance status bucket for one item."""
-        if interval_hours <= 0:
-            return "unknown"
-        ratio = remaining_hours / interval_hours
-        if remaining_hours <= 0:
-            return "replace_now"
-        if ratio <= 0.1:
-            return "replace_soon"
-        if ratio <= 0.25:
-            return "warning"
-        return "good"
-
-    def _replacement_status(
-        self,
-        *,
-        state_value: Any,
-    ) -> str:
-        """Return replacement status bucket from upstream remaining value."""
-        try:
-            numeric = float(state_value)
-        except (TypeError, ValueError):
-            return "unknown"
-        if numeric <= 5:
-            return "replace_now"
-        if numeric <= 15:
-            return "replace_soon"
-        if numeric <= 30:
-            return "warning"
-        return "good"
 
     def _find_button_entity_by_tokens(
         self,
@@ -6568,7 +6541,7 @@ class EufyVacuumManager:
             if replacement_state is not None:
                 replacement_value = replacement_state.state
                 replacement_unit = replacement_state.attributes.get("unit_of_measurement")
-                replacement_status = self._replacement_status(state_value=replacement_state.state)
+                replacement_status = _replacement_status(state_value=replacement_state.state)
                 try:
                     usage_hours = float(replacement_state.attributes.get("usage_hours"))
                 except (TypeError, ValueError):
@@ -6658,7 +6631,7 @@ class EufyVacuumManager:
                 component=component,
                 interval_hours=interval_hours,
             )
-            maintenance_status = self._maintenance_status(
+            maintenance_status = _maintenance_status(
                 remaining_hours=float(maintenance.get("remaining_hours", 0.0) or 0.0),
                 interval_hours=float(maintenance.get("interval_hours", interval_hours) or interval_hours),
             )
@@ -7166,72 +7139,13 @@ class EufyVacuumManager:
             )
         return result
 
-    def get_maintenance_state(
-        self,
-        *,
-        vacuum_entity_id: str,
-    ) -> dict[str, Any]:
-        """Return current maintenance reset snapshots for one vacuum."""
-        self.data.setdefault("maintenance", {})
-        return self.data["maintenance"].setdefault(vacuum_entity_id, {})
+    def get_maintenance_state(self, **kwargs):
+        """Return maintenance reset snapshots -- delegates to MaintenanceManager."""
+        return self.maintenance.get_maintenance_state(**kwargs)
 
-    def reset_maintenance(
-        self,
-        *,
-        vacuum_entity_id: str,
-        component: str,
-    ) -> dict[str, Any]:
-        """Snapshot current usage_hours for a component as the new reset point."""
-        capabilities = self.get_vacuum_capabilities(
-            vacuum_entity_id=vacuum_entity_id,
-            refresh=False,
-        )
-        sources = capabilities.get("maintenance_sources", {})
-        source_entity = sources.get(component)
-
-        if source_entity is None:
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "component": component,
-                "reset": False,
-                "reason": "no_source_entity",
-            }
-
-        state = self.hass.states.get(source_entity)
-        if state is None:
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "component": component,
-                "reset": False,
-                "reason": "source_unavailable",
-                "source_entity": source_entity,
-            }
-
-        try:
-            usage_hours = float(state.attributes.get("usage_hours", 0))
-        except (TypeError, ValueError):
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "component": component,
-                "reset": False,
-                "reason": "invalid_usage_hours",
-                "source_entity": source_entity,
-            }
-
-        maintenance = self.get_maintenance_state(vacuum_entity_id=vacuum_entity_id)
-        maintenance[component] = {
-            "reset_at_usage_hours": usage_hours,
-            "reset_at": _iso_now(),
-        }
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "component": component,
-            "reset": True,
-            "reset_at_usage_hours": usage_hours,
-            "reset_at": maintenance[component]["reset_at"],
-            "source_entity": source_entity,
-        }
+    def reset_maintenance(self, **kwargs):
+        """Reset maintenance counter -- delegates to MaintenanceManager."""
+        return self.maintenance.reset_maintenance(**kwargs)
 
     # ------------------------------------------------------------------
     # Onboarding
@@ -7541,53 +7455,9 @@ class EufyVacuumManager:
         self.data.setdefault("dock_events", {})
         return self.data["dock_events"].get(vacuum_entity_id, {})
 
-    def get_maintenance_remaining(
-        self,
-        *,
-        vacuum_entity_id: str,
-        component: str,
-        interval_hours: float,
-    ) -> dict[str, Any]:
-        """Return remaining maintenance hours for one component."""
-        capabilities = self.get_vacuum_capabilities(
-            vacuum_entity_id=vacuum_entity_id,
-            refresh=False,
-        )
-        sources = capabilities.get("maintenance_sources", {})
-        source_entity = sources.get(component)
-
-        current_usage: float = 0.0
-        source_available = False
-
-        if source_entity:
-            state = self.hass.states.get(source_entity)
-            if state is not None:
-                try:
-                    current_usage = float(state.attributes.get("usage_hours", 0))
-                    source_available = True
-                except (TypeError, ValueError):
-                    pass
-
-        maintenance = self.get_maintenance_state(vacuum_entity_id=vacuum_entity_id)
-        component_data = maintenance.get(component, {})
-        reset_snapshot = float(component_data.get("reset_at_usage_hours", 0.0))
-        reset_at = component_data.get("reset_at")
-
-        used_since_reset = max(current_usage - reset_snapshot, 0.0)
-        remaining = max(interval_hours - used_since_reset, 0.0)
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "component": component,
-            "remaining_hours": round(remaining, 2),
-            "used_since_reset_hours": round(used_since_reset, 2),
-            "interval_hours": interval_hours,
-            "current_usage_hours": round(current_usage, 2),
-            "reset_at_usage_hours": reset_snapshot,
-            "reset_at": reset_at,
-            "source_entity": source_entity,
-            "source_available": source_available,
-        }
+    def get_maintenance_remaining(self, **kwargs):
+        """Return remaining maintenance hours -- delegates to MaintenanceManager."""
+        return self.maintenance.get_maintenance_remaining(**kwargs)
 
     # ------------------------------------------------------------------
     # Job start / run-profile start
