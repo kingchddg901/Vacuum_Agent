@@ -293,6 +293,9 @@ class EufyVacuumManager:
         from ..planning import RunPlanManager
         self.run_plan = RunPlanManager(manager=self)
 
+        from ..rooms import RoomMapManager
+        self.room_map = RoomMapManager(manager=self)
+
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
         for _vac_maps in self.data.get("maps", {}).values():
@@ -1175,258 +1178,29 @@ class EufyVacuumManager:
     # Room / map management
     # ------------------------------------------------------------------
 
-    def discover_rooms(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str | None = None,
-    ) -> dict[str, Any]:
-        """Discover rooms for one vacuum and cache them in ``data["discovery"]``.
+    def discover_rooms(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.discover_rooms(**kwargs)
 
-        Does not create a map bucket.  Map buckets are created only when
-        ``save_managed_rooms`` is called after the user confirms the room list.
-        """
-        self.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+    def save_managed_rooms(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.save_managed_rooms(**kwargs)
 
-        payload = discover_rooms_payload(
-            self.hass,
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=map_id,
-        )
+    def get_managed_rooms(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.get_managed_rooms(**kwargs)
 
-        _disc_map_id = str(payload.get("active_map_id") or map_id or "")
-        self.data.setdefault("discovery", {})
-        self.data["discovery"].setdefault(vacuum_entity_id, {})[_disc_map_id] = payload
+    def remove_map(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.remove_map(**kwargs)
 
-        runtime = self.ensure_runtime(vacuum_entity_id)
-        runtime.active_map_id = payload.get("active_map_id")
+    def get_vacuum_maps(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.get_vacuum_maps(**kwargs)
 
-        return payload
-
-    def save_managed_rooms(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        enabled_room_ids: list[int] | list[str] | None = None,
-        floor_types: dict[int, str] | None = None,
-    ) -> dict[str, Any]:
-        """Convert discovered rooms into managed room configuration and save it."""
-        self.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
-
-        discovery = (
-            self.data.get("discovery", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id), {})
-        )
-        discovered_rooms = discovery.get("rooms", [])
-
-        filtered_rooms = [
-            room for room in discovered_rooms if str(room.get("map_id")) == str(map_id)
-        ]
-
-        map_bucket = ensure_map_bucket(
-            data=self.data,
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-
-        existing_rooms = map_bucket.get("rooms", {})
-
-        managed_rooms = build_managed_rooms(
-            discovered_rooms=filtered_rooms,
-            existing_rooms=existing_rooms,
-            enabled_room_ids=enabled_room_ids,
-            floor_types=floor_types or {},
-        )
-
-        map_bucket["rooms"] = managed_rooms
-        summary = build_room_selection_summary(managed_rooms=managed_rooms)
-        map_bucket["summary"] = summary
-        self._refresh_room_derived_state(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-        self._room_history_cache_ready.discard(vacuum_entity_id)
-
-        runtime = self.ensure_runtime(vacuum_entity_id)
-        runtime.selected_map_id = str(map_id)
-
-        if managed_rooms:
-            self.mark_rooms_discovered(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-            for room_id_key in managed_rooms:
-                self.confirm_floor_type(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=str(map_id),
-                    room_id=room_id_key,
-                )
-
-        self._notify_rooms_updated(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "room_count": len(managed_rooms),
-            "rooms": managed_rooms,
-            "summary": summary,
-        }
-
-    def get_managed_rooms(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Return managed room config for one vacuum/map."""
-        map_bucket = get_map_bucket(
-            data=self.data,
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-
-        rooms = map_bucket.get("rooms", {})
-        summary = map_bucket.get("summary", build_room_selection_summary(managed_rooms=rooms))
-
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "room_count": len(rooms),
-            "rooms": {
-                key: {
-                    k: list(v) if isinstance(v, list) else v
-                    for k, v in value.items()
-                }
-                for key, value in rooms.items()
-                if isinstance(value, dict)
-            },
-            "summary": summary,
-            "metadata": {k: dict(v) if isinstance(v, dict) else v for k, v in map_bucket.get("metadata", {}).items()},
-        }
-
-    def remove_map(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Remove one imported map and all associated integration data.
-
-        Does not affect the upstream Eufy map.  Callers must fire
-        ``_notify_rooms_updated`` afterward so platform callbacks remove
-        stale entities.  Returns a summary of what was removed.
-        """
-        map_id_str = str(map_id)
-        removed: dict[str, Any] = {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": map_id_str,
-            "rooms_removed": 0,
-            "history_removed": False,
-            "rule_status_removed": False,
-            "discovery_removed": False,
-            "active_job_cleared": False,
-        }
-
-        vacuum_maps = self.data.get("maps", {}).get(vacuum_entity_id, {})
-        if map_id_str in vacuum_maps:
-            rooms = vacuum_maps[map_id_str].get("rooms", {})
-            removed["rooms_removed"] = len(rooms)
-            del vacuum_maps[map_id_str]
-
-        disc = self.data.get("discovery", {}).get(vacuum_entity_id, {})
-        if map_id_str in disc:
-            del disc[map_id_str]
-            removed["discovery_removed"] = True
-
-        hist = self.data.get("room_history", {}).get(vacuum_entity_id, {})
-        if map_id_str in hist:
-            del hist[map_id_str]
-            removed["history_removed"] = True
-
-        rule_st = self.data.get("room_rule_status", {}).get(vacuum_entity_id, {})
-        if map_id_str in rule_st:
-            del rule_st[map_id_str]
-            removed["rule_status_removed"] = True
-
-        # Reset the active-job slot to a blank state rather than deleting it,
-        # so callers can always find a key for any known vacuum/map pair.
-        vac_jobs = self.data.get("active_jobs", {}).get(vacuum_entity_id, {})
-        if map_id_str in vac_jobs:
-            vac_jobs[map_id_str] = self._default_active_job_state(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=map_id_str,
-            )
-            removed["active_job_cleared"] = True
-
-        # Drop stale room-id references from any remaining map's access graph.
-        remaining_maps = self.data.get("maps", {}).get(vacuum_entity_id, {})
-        for other_bucket in remaining_maps.values():
-            for room in other_bucket.get("rooms", {}).values():
-                gat = room.get("grants_access_to")
-                if isinstance(gat, list) and gat:
-                    room["grants_access_to"] = [
-                        rid for rid in gat
-                        if rid not in removed.get("_deleted_room_ids", set())
-                    ]
-
-        return removed
-
-    def get_vacuum_maps(
-        self,
-        *,
-        vacuum_entity_id: str,
-    ) -> dict[str, Any]:
-        """Return summary of known maps for one vacuum."""
-        return get_vacuum_maps_summary(
-            data=self.data,
-            vacuum_entity_id=vacuum_entity_id,
-        )
-
-    def rebuild_map(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        preserve_existing_settings: bool = True,
-    ) -> dict[str, Any]:
-        """Rebuild one map from the latest discovered rooms."""
-        discovery = (
-            self.data.get("discovery", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id), {})
-        )
-        discovered_rooms = discovery.get("rooms", [])
-
-        filtered_rooms = [
-            room for room in discovered_rooms if str(room.get("map_id")) == str(map_id)
-        ]
-
-        rebuilt = rebuild_map_bucket(
-            data=self.data,
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            discovered_rooms=filtered_rooms,
-            preserve_existing_settings=preserve_existing_settings,
-        )
-
-        runtime = self.ensure_runtime(vacuum_entity_id)
-        runtime.selected_map_id = str(map_id)
-
-        self._refresh_room_derived_state(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-        self._notify_rooms_updated(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-
-        return rebuilt
+    def rebuild_map(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.rebuild_map(**kwargs)
 
     # ------------------------------------------------------------------
     # Queue / payload building
