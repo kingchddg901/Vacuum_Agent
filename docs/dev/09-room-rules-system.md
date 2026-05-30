@@ -379,6 +379,8 @@ Mid-job re-evaluation is handled by `get_runtime_path_block_report`. It is calle
 
 The report is used to trigger pause, notify the user, or take an automated path-block action (configured per job via `path_block_action`). It does not mutate the job or payload.
 
+> **See also:** [06-job-lifecycle](06-job-lifecycle.md) §3 for the monitoring loop (`get_runtime_path_block_report`) that triggers mid-job rule checks and §1 Preflight for the job-start evaluation site; [08-rooms-system](08-rooms-system.md) §6 for the room data model that rules operate on.
+
 ---
 
 ## 8. Backend wire format

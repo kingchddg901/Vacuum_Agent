@@ -86,6 +86,8 @@ Returns `"success"` with room list in `data` and `next_actions=["configure_rooms
 
 **Upstream constraint:** Only the currently active map can be imported. This is a hard limitation of the upstream cloud API — there is no way to query alternate maps.
 
+> **See also:** [17-map-manager](17-map-manager.md) §3 for `ensure_map_bucket()` and `rebuild_map_bucket()` called during import; [08-rooms-system](08-rooms-system.md) §5 for `save_managed_rooms()` which writes the discovered rooms into the map bucket.
+
 ---
 
 ## 4. Setup Step Tracking (`drift.py`)

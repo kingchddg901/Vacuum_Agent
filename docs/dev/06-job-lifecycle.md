@@ -93,6 +93,8 @@ site is `get_runtime_path_block_report` for mid-job path changes). Steps:
    `blocked_ratio_rooms >= 0.40`. When confirmation is required, a
    `confirm_token` (opaque hash of the preflight parameters) is generated.
 
+> **See also:** [09-room-rules-system](09-room-rules-system.md) §5 for the full rule evaluation pipeline and operator reference; [07-queue-engine](07-queue-engine.md) §5 for the access graph data structure `_build_effective_start_plan` traverses to propagate indirect blocks.
+
 ---
 
 ## 2. Job Start
@@ -440,6 +442,8 @@ Normal completions (`outcome_status = "completed"`) are eligible.
 | Incomplete run log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/incomplete_run.json` |
 | Trouble rooms log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/trouble_rooms.json` |
 | Rebuilt stats | `<config>/eufy_vacuum/learning/<vacuum_slug>/learned_stats.json` |
+
+> **See also:** [10-learning-system](10-learning-system.md) §3 for learning eligibility rules and the full list of blocker strings; §8 for the stats rebuilder triggered at the end of `finalize_from_inputs`. [12-battery-system](12-battery-system.md) §14.3 for the battery metrics hook that runs inside the same finalizer call.
 
 ---
 

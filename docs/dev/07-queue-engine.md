@@ -218,6 +218,8 @@ any two rooms. BFS over `grants_map` edges, tracks full paths, returns
 Used by the transition-detection subsystem to determine which room the robot is
 currently traversing between queued rooms.
 
+> **See also:** [09-room-rules-system](09-room-rules-system.md) §5 for how `_build_effective_start_plan` uses the access graph to cascade blocker rules to indirectly blocked rooms; [08-rooms-system](08-rooms-system.md) §6 for the `grants_access_to` field on room objects that populates this graph.
+
 ---
 
 ## 6. Reduced Run Detection
@@ -298,6 +300,8 @@ modifier changes applied, then calls `build_queue_from_managed_rooms` and
 `build_room_clean_payload` on this effective room set. The resulting
 `queue_state` and `payload_state` are what actually get stored and sent to the
 vacuum.
+
+> **See also:** [06-job-lifecycle](06-job-lifecycle.md) §1 for when `build_queue` and `build_room_payload` are called from the manager and §1 Preflight for the full `_build_effective_start_plan` call site; [16-profile-manager](16-profile-manager.md) §6 for the profile finalization pipeline that runs inside `build_room_clean_payload`.
 
 ---
 

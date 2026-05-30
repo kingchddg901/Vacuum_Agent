@@ -272,3 +272,5 @@ Returns a summary with `applied_count`, `skipped_count` (rooms no longer on the 
 | Panel run profile tab | `get_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()` | Run profile CRUD |
 | `rooms/room_crud.py` | `_finalize_room_update()` | Every room settings write |
 | Panel initial map import | `_finalize_room_update()` (via save_managed_rooms) | Room creation on import |
+
+> **See also:** [08-rooms-system](08-rooms-system.md) §6 for the room data model that profiles are merged into; [07-queue-engine](07-queue-engine.md) §4 for how run profiles are resolved at queue build time before the payload is sent to the vacuum.

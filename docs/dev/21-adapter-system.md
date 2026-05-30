@@ -197,6 +197,8 @@ Boolean flags set by `detect_capabilities()` at adapter registration time:
 | `supports_robot_position` | Position X/Y sensors are present |
 | `supports_station_water` | Station water level sensor is present |
 
+> **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
+
 ---
 
 ## 4. Config Loader (`config_loader.py`)

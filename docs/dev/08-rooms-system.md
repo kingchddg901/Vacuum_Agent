@@ -270,3 +270,5 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `setup/drift.py` | reads discovery cache via `run_discovery_pass()` | Drift tracking |
 | `rooms/room_crud.py` | `remove_map()` | Map delete workflow |
 | Panel room editor | `save_managed_rooms()` | Room settings save |
+
+> **See also:** [09-room-rules-system](09-room-rules-system.md) for rule evaluation over the room data model; [16-profile-manager](16-profile-manager.md) §6 for the finalization pipeline applied to each room on every write; [07-queue-engine](07-queue-engine.md) §5 for the access graph stored on room objects and how it cascades blocks; [17-map-manager](17-map-manager.md) for the map bucket that rooms live inside.

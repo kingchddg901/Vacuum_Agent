@@ -159,6 +159,8 @@ The cancel detection blockers (`floor_time_too_short`, `early_return_likely_canc
 
 Manual exclusion via the `exclude_learning_job` service adds two additional blockers: `manually_excluded` and whatever reason string was passed (default `manual_exclusion`).
 
+> **See also:** [06-job-lifecycle](06-job-lifecycle.md) §7 for the finalization pipeline that evaluates these blockers and writes `used_for_learning` onto the completed job record.
+
 ---
 
 ## 4. Confidence Scoring — Full Math

@@ -8,7 +8,8 @@ explains each section in human terms with examples and UI-builder notes.
 
 Read [01-architecture-overview.md](01-architecture-overview.md) first for
 context, and [porting-guide.md](../contributing/porting-guide.md) for the workflow of
-adding a new brand.
+adding a new brand. See [21-adapter-system.md](21-adapter-system.md) for the registry,
+validation, and startup registration order that consumes this config.
 
 ---
 

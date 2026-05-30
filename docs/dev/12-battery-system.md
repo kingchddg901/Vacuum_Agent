@@ -681,6 +681,8 @@ top-level read is the only one that actually fires.
 
 The `try/except` is defensive — a failure here must not block job finalization.
 
+> **See also:** [06-job-lifecycle](06-job-lifecycle.md) §7 for the learning finalizer that calls this hook and the surrounding finalization flow; [10-learning-system](10-learning-system.md) §3 for comparison — the learning eligibility gate runs in the same call before the battery metrics hook executes.
+
 ---
 
 ## 15. Restart safety

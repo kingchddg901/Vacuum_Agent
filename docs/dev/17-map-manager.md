@@ -163,3 +163,5 @@ Maps with empty `rooms` dicts are excluded from the summary.
 | `setup/status.py` | `get_vacuum_maps_summary()` | `get_setup_status()` |
 | `setup/workflow.py` | `get_map_bucket()` | `import_active_map()` existence check |
 | `setup/delete.py` | reads `data["maps"]` directly | `delete_map()` protection evaluation |
+
+> **See also:** [15-setup-system](15-setup-system.md) §3 for the `import_active_map` workflow that calls `ensure_map_bucket()` and `rebuild_map_bucket()`; [08-rooms-system](08-rooms-system.md) §5 for `RoomMapManager` which reads and writes the rooms dict inside each map bucket.

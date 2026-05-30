@@ -192,3 +192,5 @@ Overwrites a counter to a specific value. Used by the panel's maintenance tab to
 | Panel dock status API | `get_dock_action_status()` | On panel render |
 | Panel maintenance tab | `set_dock_event_count()` | User corrects counter |
 | `maintenance/manager.py` | reads `data["dock_events"]` directly | `get_upkeep_snapshot()` |
+
+> **See also:** [13-maintenance-manager](13-maintenance-manager.md) §7 for how dock event counts are consumed to compute maintenance remaining hours; [22-adapter-config-reference](22-adapter-config-reference.md) §vocabulary for the `dock_status` state strings that trigger event detection.

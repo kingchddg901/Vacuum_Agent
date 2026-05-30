@@ -245,6 +245,8 @@ The stored override takes **complete precedence** over the adapter default. The 
 
 `get_upkeep_snapshot()` includes dock event counts and timestamps sourced from `DockManager.get_dock_events()`. The maintenance manager reads but never writes dock event state — DockManager owns that data (see [14-dock-manager.md](14-dock-manager.md)).
 
+> **See also:** [14-dock-manager](14-dock-manager.md) §8 for the dock event recording pipeline (`record_dock_event`, trigger detection, `set_dock_event_count`) that produces the counts read here.
+
 ---
 
 ## 8. Integration Points
@@ -255,3 +257,5 @@ The stored override takes **complete precedence** over the adapter default. The 
 | Panel reset action | `reset_maintenance(vacuum_entity_id, component_id)` | User presses reset |
 | Panel interval override | `set_interval_override(vacuum_entity_id, component_id, hours)` | User saves interval |
 | Learning job finalizer | `get_component_catalog(vacuum_entity_id)` | Job health context |
+
+> **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) §maintenance_components for the adapter config that declares component IDs, default intervals, and labels consumed here; [14-dock-manager](14-dock-manager.md) §8 for dock event recording that feeds `get_upkeep_snapshot()`.
