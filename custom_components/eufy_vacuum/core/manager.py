@@ -290,6 +290,9 @@ class EufyVacuumManager:
         from ..rooms import AccessGraphManager
         self.access_graph = AccessGraphManager(data=self.data, hass=self.hass)
 
+        from ..jobs import ActiveJobTracker
+        self.active_job = ActiveJobTracker(manager=self)
+
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
         for _vac_maps in self.data.get("maps", {}).values():
@@ -954,765 +957,99 @@ class EufyVacuumManager:
         }
 
     # ------------------------------------------------------------------
-    # Active job tracking
+    # Active job tracking — delegates to ActiveJobTracker
     # ------------------------------------------------------------------
 
-    def _parse_job_timestamp(self, value: str | None) -> datetime | None:
-        """Parse persisted job timestamps."""
-        return parse_timestamp(value)
+    def _parse_job_timestamp(self, value):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._parse_job_timestamp(value)
 
-    def _default_active_job_state(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-    ) -> dict[str, Any]:
-        """Return the default active-job structure."""
-        return {
-            "vacuum_entity_id": vacuum_entity_id,
-            "map_id": str(map_id),
-            "queue_room_ids": [],
-            "queue_stable_keys": [],
-            "queue_rooms": [],
-            "payload": {"map_id": str(map_id), "rooms": []},
-            "resolved_rooms": [],
-            "room_count": 0,
-            "status": "idle",
-            "paused_at": None,
-            "paused_duration_seconds": 0,
-            "completed_room_ids": [],
-            "completed_rooms": [],
-            "current_room_id": None,
-            "current_room_started_at": None,
-            "current_room_paused_seconds": 0,
-            "observed_mid_job_recharge": False,
-            "observed_mid_job_recharge_started_at": None,
-            "observed_mid_job_recharge_count": 0,
-            "recharge_seconds_accumulated": 0,
-            "pending_mid_job_recharge_return": False,
-            "pending_mid_job_recharge_return_at": None,
-            "observed_mop_wash_count": 0,
-            "observed_mop_wash_last_at": None,
-            # Per-cycle observation log. List of {"observed_at": <iso ts>}.
-            # Tracks individual wash events (vs. the rollup count above) so
-            # post-job analysis can correlate wash cadence with mop minutes.
-            "observed_mop_wash_cycles": [],
-            "state_transitions": [],
-            "water_estimate": None,
-            "path_block_action": "event_only",
-            "pause_timeout_minutes": 0,
-            "has_observed_active_lifecycle": False,
-        }
+    def _default_active_job_state(self, *, vacuum_entity_id: str, map_id: str):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._default_active_job_state(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
 
-    def _derive_active_job_current_room_id(self, active_job: dict[str, Any]) -> int | None:
-        """Return the next unresolved room id for an active job."""
-        completed_ids = {
-            _safe_int(room_id, -1)
-            for room_id in active_job.get("completed_room_ids", [])
-            if _safe_int(room_id, -1) >= 0
-        }
+    def _derive_active_job_current_room_id(self, active_job):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._derive_active_job_current_room_id(active_job)
 
-        for room in active_job.get("resolved_rooms", []):
-            room_id = _safe_int(room.get("room_id", room.get("id", -1)), -1)
-            if room_id >= 0 and room_id not in completed_ids:
-                return room_id
+    def _normalize_active_job(self, active_job):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._normalize_active_job(active_job)
 
-        for room_id in active_job.get("queue_room_ids", []):
-            normalized = _safe_int(room_id, -1)
-            if normalized >= 0 and normalized not in completed_ids:
-                return normalized
+    def _compute_current_room_elapsed_minutes(self, *, active_job, now=None):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._compute_current_room_elapsed_minutes(active_job=active_job, now=now)
 
-        return None
+    def _is_charging(self, vacuum_entity_id: str):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._is_charging(vacuum_entity_id)
 
-    def _normalize_active_job(self, active_job: dict[str, Any]) -> dict[str, Any]:
-        """Ensure an active-job record contains progress fields."""
-        normalized = dict(active_job) if isinstance(active_job, dict) else {}
-        normalized.setdefault("queue_room_ids", [])
-        normalized.setdefault("queue_stable_keys", [])
-        normalized.setdefault("queue_rooms", [])
-        normalized.setdefault("payload", {})
-        normalized.setdefault("resolved_rooms", [])
-        normalized.setdefault("room_count", 0)
-        normalized.setdefault("status", "idle")
-        normalized.setdefault("paused_at", None)
-        normalized.setdefault("paused_duration_seconds", 0)
-        normalized.setdefault("completed_room_ids", [])
-        normalized.setdefault("completed_rooms", [])
-        normalized.setdefault("current_room_paused_seconds", 0)
-        normalized.setdefault("observed_mid_job_recharge", False)
-        normalized.setdefault("observed_mid_job_recharge_started_at", None)
-        normalized.setdefault("observed_mid_job_recharge_count", 0)
-        normalized.setdefault("recharge_seconds_accumulated", 0)
-        normalized.setdefault("pending_mid_job_recharge_return", False)
-        normalized.setdefault("pending_mid_job_recharge_return_at", None)
-        normalized.setdefault("observed_mop_wash_count", 0)
-        normalized.setdefault("observed_mop_wash_last_at", None)
-        normalized.setdefault("observed_mop_wash_cycles", [])
-        normalized.setdefault("state_transitions", [])
-        normalized.setdefault("water_estimate", None)
-        normalized.setdefault("has_observed_active_lifecycle", False)
-        normalized["path_block_action"] = _normalize_path_block_action(
-            normalized.get("path_block_action")
-        )
-        normalized["pause_timeout_minutes"] = _normalize_pause_timeout_minutes(
-            normalized.get("pause_timeout_minutes")
-        )
-
-        if "current_room_id" not in normalized:
-            normalized["current_room_id"] = self._derive_active_job_current_room_id(normalized)
-
-        if "current_room_started_at" not in normalized:
-            normalized["current_room_started_at"] = normalized.get("started_at")
-
-        return normalized
-
-    def _compute_current_room_elapsed_minutes(
-        self,
-        *,
-        active_job: dict[str, Any],
-        now: str | None = None,
-    ) -> float:
-        """Return elapsed active minutes for the current room, excluding pauses."""
-        current_started_at = str(active_job.get("current_room_started_at", "")).strip()
-        started_dt = self._parse_job_timestamp(current_started_at)
-        now_dt = self._parse_job_timestamp(now or _iso_now())
-        if started_dt is None or now_dt is None:
-            return 0.0
-
-        elapsed_seconds = max(int((now_dt - started_dt).total_seconds()), 0)
-        paused_seconds = max(_safe_int(active_job.get("current_room_paused_seconds"), 0), 0)
-        paused_at = str(active_job.get("paused_at", "")).strip()
-        paused_dt = self._parse_job_timestamp(paused_at)
-        if paused_dt is not None and active_job.get("status") == "paused":
-            paused_seconds += max(int((now_dt - paused_dt).total_seconds()), 0)
-
-        return round(max((elapsed_seconds - paused_seconds) / 60.0, 0.0), 2)
-
-    def _is_charging(self, vacuum_entity_id: str) -> bool:
-        """Definitive "is the vacuum charging right now" check."""
-        return _is_charging_impl(self.hass, vacuum_entity_id)
-
-    def _is_low_battery_return_state(
-        self,
-        *,
-        current_battery: int,
-        vacuum_state: str | None,
-        task_status: str | None,
-    ) -> bool:
-        """Return whether the robot is returning to dock due to low battery."""
-        return _is_low_battery_return_state_impl(
+    def _is_low_battery_return_state(self, *, current_battery, vacuum_state, task_status):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._is_low_battery_return_state(
             current_battery=current_battery,
             vacuum_state=vacuum_state,
             task_status=task_status,
         )
 
-    def update_active_job_recharge_observation(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        observed_at: str | None = None,
-    ) -> dict[str, Any]:
-        """Record that the active job has actually entered a recharge-like state."""
-        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        if active_job.get("status") not in {"started", "paused"}:
-            return active_job
+    def update_active_job_recharge_observation(self, **kwargs):
+        """Record a recharge observation — delegates to ActiveJobTracker."""
+        return self.active_job.update_active_job_recharge_observation(**kwargs)
 
-        vacuum_state = self.hass.states.get(vacuum_entity_id)
-        _recharge_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
-        task_status_state = self.hass.states.get(_recharge_entities.get("task_status"))
-        current_battery = self._get_battery_level(vacuum_entity_id)
-        observed_at_value = observed_at or _iso_now()
+    def update_active_job_mop_wash_observation(self, **kwargs):
+        """Record a mop-wash observation — delegates to ActiveJobTracker."""
+        return self.active_job.update_active_job_mop_wash_observation(**kwargs)
 
-        if self._is_low_battery_return_state(
-            current_battery=current_battery,
-            vacuum_state=vacuum_state.state if vacuum_state is not None else None,
-            task_status=task_status_state.state if task_status_state is not None else None,
-        ):
-            if not bool(active_job.get("pending_mid_job_recharge_return", False)):
-                active_job["pending_mid_job_recharge_return"] = True
-                active_job["pending_mid_job_recharge_return_at"] = observed_at_value
+    def record_active_job_transition(self, **kwargs):
+        """Append one state transition to the active job — delegates to ActiveJobTracker."""
+        return self.active_job.record_active_job_transition(**kwargs)
 
-        if not bool(active_job.get("pending_mid_job_recharge_return", False)):
-            self.data.setdefault("active_jobs", {})
-            self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-            self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-            return active_job
+    def _room_name_from_active_job(self, active_job, room_id):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._room_name_from_active_job(active_job, room_id)
 
-        if not self._is_charging(vacuum_entity_id):
-            self.data.setdefault("active_jobs", {})
-            self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-            self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-            return active_job
+    def _timing_completion_threshold_minutes(self, room):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._timing_completion_threshold_minutes(room)
 
-        tracker = self.hass.data.get(DOMAIN, {}).get("mapping_tracker")
-
-        if bool(active_job.get("observed_mid_job_recharge", False)):
-            # Recharge already in progress — check if it ended (vacuum resumed cleaning).
-            if not self._is_charging(vacuum_entity_id):
-                started_str = str(active_job.get("observed_mid_job_recharge_started_at") or "").strip()
-                if started_str:
-                    started_dt = parse_timestamp(started_str)
-                    ended_dt = parse_timestamp(observed_at_value)
-                    if started_dt and ended_dt and ended_dt > started_dt:
-                        elapsed = int((ended_dt - started_dt).total_seconds())
-                        current = max(_safe_int(active_job.get("recharge_seconds_accumulated"), 0), 0)
-                        active_job["recharge_seconds_accumulated"] = current + elapsed
-                active_job["observed_mid_job_recharge"] = False
-                active_job["observed_mid_job_recharge_started_at"] = None
-                if tracker is not None:
-                    tracker.resume_sampling(vacuum_entity_id)
-            self.data.setdefault("active_jobs", {})
-            self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-            self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-            return active_job
-
-        active_job["observed_mid_job_recharge"] = True
-        active_job["observed_mid_job_recharge_started_at"] = observed_at_value
-        active_job["observed_mid_job_recharge_count"] = max(
-            _safe_int(active_job.get("observed_mid_job_recharge_count"), 0),
-            0,
-        ) + 1
-        active_job["pending_mid_job_recharge_return"] = False
-        active_job["pending_mid_job_recharge_return_at"] = None
-
-        if tracker is not None:
-            tracker.pause_sampling(vacuum_entity_id)
-
-        self.data.setdefault("active_jobs", {})
-        self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-        self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-        return active_job
-
-    _MOP_WASH_DEBOUNCE_SECONDS = 60
-
-    def update_active_job_mop_wash_observation(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        observed_at: str | None = None,
-    ) -> dict[str, Any]:
-        """Record a debounced mop-wash event on the active job.
-
-        The dock_status "Washing" state flips 1-2 times within a ~30-second
-        window per actual wash cycle. A 60-second cooldown collapses those
-        noise flips into a single counted event.
-        """
-        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        if active_job.get("status") not in {"started", "paused"}:
-            return active_job
-
-        now_str = observed_at or _iso_now()
-        last_at = active_job.get("observed_mop_wash_last_at")
-
-        if last_at:
-            try:
-                last_dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
-                now_dt = datetime.fromisoformat(now_str.replace("Z", "+00:00"))
-                if (now_dt - last_dt).total_seconds() < self._MOP_WASH_DEBOUNCE_SECONDS:
-                    return active_job
-            except Exception:
-                pass
-
-        active_job["observed_mop_wash_count"] = (
-            _safe_int(active_job.get("observed_mop_wash_count"), 0) + 1
-        )
-        active_job["observed_mop_wash_last_at"] = now_str
-
-        # Append per-cycle timestamp. Capped at 50 to bound storage in case
-        # dock_status oscillates beyond what the 60s debounce above catches —
-        # a real mop-heavy job has 5-10 wash cycles, so this is wildly more
-        # than expected.
-        cycles = [
-            entry for entry in (active_job.get("observed_mop_wash_cycles") or [])
-            if isinstance(entry, dict)
-        ]
-        cycles.append({"observed_at": now_str})
-        active_job["observed_mop_wash_cycles"] = cycles[-50:]
-
-        self.data.setdefault("active_jobs", {})
-        self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-        self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-        return active_job
-
-    def record_active_job_transition(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        entity_id: str,
-        from_state: str | None,
-        to_state: str | None,
-        changed_at: str | None = None,
-    ) -> dict[str, Any]:
-        """Append one relevant state transition to the tracked active job."""
-        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        if active_job.get("status") not in {"started", "paused"}:
-            return active_job
-
-        from_state_n = str(from_state or "").strip()
-        to_state_n = str(to_state or "").strip()
-        if not to_state_n or from_state_n == to_state_n:
-            return active_job
-
-        transitions = [
-            dict(entry)
-            for entry in active_job.get("state_transitions", [])
-            if isinstance(entry, dict)
-        ]
-        transitions.append(
-            {
-                "entity_id": entity_id,
-                "from_state": from_state_n,
-                "to_state": to_state_n,
-                "changed_at": changed_at or _iso_now(),
-            }
-        )
-        active_job["state_transitions"] = transitions[-12:]
-
-        self.data.setdefault("active_jobs", {})
-        self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-        self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-        return active_job
-
-    def _room_name_from_active_job(self, active_job: dict[str, Any], room_id: int | None) -> str | None:
-        """Return room name for one room id from active-job state."""
-        if room_id is None:
-            return None
-        normalized_room_id = _safe_int(room_id, -1)
-        if normalized_room_id < 0:
-            return None
-
-        for room in active_job.get("resolved_rooms", []):
-            candidate = _safe_int(room.get("room_id", room.get("id", -1)), -1)
-            if candidate == normalized_room_id:
-                return str(room.get("name", room.get("room_name", room.get("slug", "")))).strip() or None
-
-        for room in active_job.get("queue_rooms", []):
-            candidate = _safe_int(room.get("room_id", room.get("id", -1)), -1)
-            if candidate == normalized_room_id:
-                return str(room.get("name", room.get("room_name", room.get("slug", "")))).strip() or None
-
-        return None
-
-    def _timing_completion_threshold_minutes(self, room: dict[str, Any]) -> float:
-        """Return a conservative elapsed-minutes threshold for timing rollover."""
-        estimated_minutes = max(_safe_float(room.get("minutes"), 0.0), 1.0)
-        confidence_score = max(min(_safe_float(room.get("confidence_score"), 0.0), 1.0), 0.0)
-        sample_count = max(_safe_int(room.get("sample_count"), 0), 0)
-        drift_ratio = max(_safe_float(room.get("accuracy_drift_ratio"), 0.0), 0.0)
-
-        if confidence_score >= 0.85:
-            overrun_ratio = 0.06
-        elif confidence_score >= 0.65:
-            overrun_ratio = 0.10
-        elif confidence_score >= 0.45:
-            overrun_ratio = 0.15
-        else:
-            overrun_ratio = 0.22
-
-        slack_minutes = max(0.75, estimated_minutes * overrun_ratio)
-
-        if sample_count <= 1:
-            slack_minutes += 1.0
-        elif sample_count <= 3:
-            slack_minutes += 0.5
-
-        if drift_ratio > 0:
-            slack_minutes += min(estimated_minutes * drift_ratio * 0.25, 1.5)
-
-        slack_minutes = min(slack_minutes, max(4.0, estimated_minutes * 0.35))
-        return round(estimated_minutes + slack_minutes, 2)
-
-    # Floor on elapsed-cleaning time before the mapping tracker's
-    # fast-rollover signal is acted on. Calibrated to the smallest room
-    # in a representative install with no floor blockers — anything
-    # finished faster than this is much more likely a transit through
-    # the room than a genuine clean. The tracker's own time/movement-
-    # factor model already filters most noise; this is a final floor.
-    _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER = 1.5  # 90 s
-
-    def _robot_outside_room_bounds(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: int,
-    ) -> bool | None:
-        """Return True/False if the robot's current position is outside the
-        room's learned bounds, or None when either the position or the
-        bounds aren't available (caller should treat as "unknown" — neither
-        triggers nor blocks rollover).
-        """
-        pos = self._get_robot_position(vacuum_entity_id)
-        if pos is None:
-            return None
-
-        mapping_manager = self.hass.data.get(DOMAIN, {}).get("mapping_manager")
-        if mapping_manager is None:
-            return None
-
-        try:
-            bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-        except Exception:
-            _LOGGER.debug(
-                "EufyManager: bounds snapshot fetch failed (vacuum=%s room=%s)",
-                vacuum_entity_id, room_id,
-            )
-            return None
-
-        room_bounds = (
-            bounds_snapshot.get("rooms", {})
-            .get(str(room_id), {})
-            .get("bounds")
-        )
-        if room_bounds is None:
-            return None
-
-        vx, vy = pos
-        inside = (
-            room_bounds["min_x"] <= vx <= room_bounds["max_x"]
-            and room_bounds["min_y"] <= vy <= room_bounds["max_y"]
-        )
-        return not inside
-
-    def _maybe_roll_current_room_by_timing(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        active_job: dict[str, Any],
-        raw_timeline: list[dict[str, Any]],
-        current_room_id: int | None,
-        current_room_elapsed_minutes: float,
-        completed_room_ids: list[int],
-    ) -> dict[str, Any]:
-        """Advance one room when elapsed time + bounds together justify rollover.
-
-        Two paths:
-          - **Slow room**: timing has reached or exceeded the per-room
-            learned threshold AND the robot has left the room's bounds
-            (single-sample bounds check — we already waited for timing).
-            Fires ``EVENT_ROOM_FINISHED`` with ``source="timing_rollover"``.
-          - **Fast room**: the mapping tracker's confidence model has
-            decided the robot finished and exited the room (set via the
-            ``_pending_fast_rollover`` flag on active_job — see
-            ``MappingTracker._signal_fast_rollover``). The tracker's
-            time-in-room - movement-count threshold filters doorway
-            transits; we additionally require ``elapsed >=
-            _MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER`` as a final floor.
-            Fires ``EVENT_ROOM_FINISHED`` with ``source="bounds_exit_early"``.
-        """
-        if active_job.get("status") != "started":
-            return active_job
-        if current_room_id is None:
-            return active_job
-
-        unresolved_room_ids = [
-            _safe_int(room.get("room_id", -1), -1)
-            for room in raw_timeline
-            if _safe_int(room.get("room_id", -1), -1) not in completed_room_ids
-        ]
-        if current_room_id not in unresolved_room_ids:
-            return active_job
-
-        current_index = unresolved_room_ids.index(current_room_id)
-        if current_index >= len(unresolved_room_ids) - 1:
-            return active_job
-
-        current_room = next(
-            (
-                dict(room)
-                for room in raw_timeline
-                if _safe_int(room.get("room_id", -1), -1) == current_room_id
-            ),
-            None,
-        )
-        if not current_room:
-            return active_job
-
-        threshold_minutes = self._timing_completion_threshold_minutes(current_room)
-        elapsed = current_room_elapsed_minutes
-
-        if elapsed < threshold_minutes:
-            # Fast-room path: only the mapping tracker's confidence
-            # signal can advance us before the timing threshold. The
-            # signal lives on active_job as _pending_fast_rollover and
-            # is consumed (popped) when we act on it.
-            pending = active_job.get("_pending_fast_rollover")
-            if not isinstance(pending, dict):
-                return active_job
-            try:
-                signalled_room_id = int(pending.get("room_id"))
-            except (TypeError, ValueError):
-                signalled_room_id = None
-            if signalled_room_id != current_room_id:
-                # Stale signal for a room the queue has already moved
-                # past — leave it; the next confident exit overwrites.
-                return active_job
-            if elapsed < self._MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER:
-                return active_job
-
-            # Consume the signal so it can't trigger again on the next tick.
-            active_job.pop("_pending_fast_rollover", None)
-            rollover_source = "bounds_exit_early"
-        else:
-            # Slow-room path: timing has reached threshold; require the
-            # robot to be outside bounds before allowing rollover. A
-            # single sample is sufficient here because the room already
-            # ran long — we're confirming completion, not detecting it.
-            # When bounds are unavailable, timing alone wins (matches
-            # pre-existing behaviour).
-            outside = self._robot_outside_room_bounds(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                room_id=current_room_id,
-            )
-            if outside is False:
-                return active_job
-            rollover_source = "timing_rollover"
-
-        completed_at = _iso_now()
-        room_name = self._room_name_from_active_job(active_job, current_room_id)
-        confidence_score = _safe_float(current_room.get("confidence_score"), 0.0)
-        updated_active_job = self.record_completed_room(
+    def _robot_outside_room_bounds(self, *, vacuum_entity_id: str, map_id: str, room_id: int):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._robot_outside_room_bounds(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
-            room_id=current_room_id,
-            room_name=room_name,
-            actual_duration_minutes=current_room_elapsed_minutes,
-            completed_at=completed_at,
-            source=rollover_source,
-            confidence=confidence_score if confidence_score > 0 else None,
+            room_id=room_id,
         )
 
-        self.hass.bus.async_fire(
-            EVENT_ROOM_FINISHED,
-            {
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "job_id": updated_active_job.get("job_id"),
-                "room_id": str(current_room_id),
-                "room_name": room_name,
-                "completed_at": completed_at,
-                "source": rollover_source,
-                "actual_duration_minutes": round(current_room_elapsed_minutes, 2),
-                "confidence": round(confidence_score, 4) if confidence_score > 0 else None,
-                "completed_room_ids": updated_active_job.get("completed_room_ids", []),
-            },
-        )
+    def _maybe_roll_current_room_by_timing(self, **kwargs):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._maybe_roll_current_room_by_timing(**kwargs)
 
-        next_room_id = _safe_int(updated_active_job.get("current_room_id"), -1)
-        if next_room_id >= 0:
-            self.hass.bus.async_fire(
-                EVENT_ROOM_STARTED,
-                {
-                    "vacuum_entity_id": vacuum_entity_id,
-                    "map_id": str(map_id),
-                    "job_id": updated_active_job.get("job_id"),
-                    "room_id": str(next_room_id),
-                    "room_name": self._room_name_from_active_job(updated_active_job, next_room_id),
-                    "started_at": updated_active_job.get("current_room_started_at"),
-                    "source": rollover_source,
-                    "completed_room_ids": updated_active_job.get("completed_room_ids", []),
-                },
-            )
+    def _get_robot_position(self, vacuum_entity_id: str):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._get_robot_position(vacuum_entity_id)
 
-        self.hass.async_create_task(self._async_save_logged())
-        return updated_active_job
+    def _access_graph_path(self, managed_rooms, from_room_id: int, to_room_id: int):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._access_graph_path(managed_rooms, from_room_id, to_room_id)
 
-    # ------------------------------------------------------------------
-    # Transition-room position detection
-    # ------------------------------------------------------------------
-
-    def _access_graph_path(
-        self,
-        managed_rooms: dict[str, Any],
-        from_room_id: int,
-        to_room_id: int,
-    ) -> list[int]:
-        """Return intermediate room IDs on the access-graph path from → to.
-
-        Performs a BFS over ``grants_access_to`` edges.  Returns only the
-        rooms that lie *between* from_room_id and to_room_id (neither
-        endpoint is included).  Returns [] when the rooms are directly
-        adjacent or no path exists.
-        """
-        rooms = managed_rooms.get("rooms", managed_rooms)
-
-        # Build adjacency map: room_id → [granted_room_id, ...]
-        grants_map: dict[int, list[int]] = {}
-        for room_id_key, room in rooms.items():
-            if not isinstance(room, dict):
-                continue
-            room_id = _safe_int(room.get("room_id", room_id_key), -1)
-            if room_id <= 0:
-                continue
-            raw_grants = room.get("grants_access_to") or []
-            neighbors = [_safe_int(g, -1) for g in raw_grants if _safe_int(g, -1) > 0]
-            grants_map[room_id] = neighbors
-
-        if from_room_id not in grants_map:
-            return []
-
-        # BFS — track full paths so we can extract intermediate rooms.
-        from collections import deque
-        queue: deque[list[int]] = deque([[from_room_id]])
-        visited: set[int] = {from_room_id}
-
-        while queue:
-            path = queue.popleft()
-            current = path[-1]
-            if current == to_room_id:
-                return path[1:-1]   # strip from/to endpoints
-            for neighbor in grants_map.get(current, []):
-                if neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(path + [neighbor])
-
-        return []   # no path found
-
-    def _get_robot_position(self, vacuum_entity_id: str) -> tuple[float, float] | None:
-        """Read the current robot X/Y from HA sensor entities.
-
-        Returns (vx, vy) in the vacuum's native coordinate space, or None
-        when the sensors are unavailable or report a non-numeric state.
-        """
-        caps = self.get_vacuum_capabilities(
-            vacuum_entity_id=vacuum_entity_id,
-            refresh=False,
-        )
-        entities = caps.get("entities", {})
-        x_entity_id = entities.get("robot_position_x")
-        y_entity_id = entities.get("robot_position_y")
-        if not x_entity_id or not y_entity_id:
-            return None
-
-        x_state = self.hass.states.get(x_entity_id)
-        y_state = self.hass.states.get(y_entity_id)
-        if x_state is None or y_state is None:
-            return None
-
-        try:
-            vx = float(x_state.state)
-            vy = float(y_state.state)
-        except (ValueError, TypeError):
-            return None
-
-        return (vx, vy)
-
-    def _detect_transition_room_from_position(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        from_room_id: int | None,
-        to_room_id: int | None,
-    ) -> int | None:
-        """Return the transition room the robot is currently in, or None.
-
-        Called when the robot has finished a queued room (by timing) but has
-        not yet entered the next queued room.  Walks the access-graph path
-        between the two rooms and checks the robot's live position against
-        each intermediate room's learned bounds.
-
-        Returns None when:
-        - robot position is unavailable
-        - no transition path exists in the access graph
-        - robot is not detected inside any transition room's bounds
-        """
-        if from_room_id is None or to_room_id is None:
-            return None
-
-        pos = self._get_robot_position(vacuum_entity_id)
-        if pos is None:
-            return None
-        vx, vy = pos
-
-        managed_rooms = self.get_managed_rooms(
+    def _detect_transition_room_from_position(self, *, vacuum_entity_id: str, map_id: str, from_room_id, to_room_id):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._detect_transition_room_from_position(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
-        )
-        transition_ids = self._access_graph_path(managed_rooms, from_room_id, to_room_id)
-        if not transition_ids:
-            return None
-
-        # Fetch room bounds from the mapping manager.
-        mapping_manager = self.hass.data.get(DOMAIN, {}).get("mapping_manager")
-        if mapping_manager is None:
-            return None
-
-        try:
-            bounds_snapshot = mapping_manager.get_room_bounds_snapshot(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-        except Exception:
-            _LOGGER.debug(
-                "EufyManager: failed to read room bounds for transition detection "
-                "(vacuum=%s map=%s)",
-                vacuum_entity_id,
-                map_id,
-            )
-            return None
-
-        map_rooms = bounds_snapshot.get("rooms", {})
-
-        for t_id in transition_ids:
-            bounds = map_rooms.get(str(t_id), {}).get("bounds")
-            if not bounds:
-                continue
-            # Inline AABB check — mirrors MappingManager._point_in_bounds()
-            if (
-                bounds["min_x"] <= vx <= bounds["max_x"]
-                and bounds["min_y"] <= vy <= bounds["max_y"]
-            ):
-                return t_id
-
-        return None
-
-    def _job_status_summary(
-        self,
-        *,
-        active_job: dict[str, Any],
-        lifecycle_state: dict[str, Any] | None = None,
-        progress_snapshot: dict[str, Any] | None = None,
-    ) -> str:
-        """Return a concise card-facing job summary."""
-        lifecycle_state = lifecycle_state or {}
-        progress_snapshot = progress_snapshot or {}
-        status = str(active_job.get("status", "idle")).strip().lower()
-        room_name = self._room_name_from_active_job(
-            active_job,
-            _safe_int(progress_snapshot.get("current_room_id", active_job.get("current_room_id")), -1),
+            from_room_id=from_room_id,
+            to_room_id=to_room_id,
         )
 
-        if status == "paused":
-            return f"Paused in {room_name}" if room_name else "Job paused"
-        if status == "started":
-            return f"Cleaning {room_name}" if room_name else "Cleaning in progress"
-        if status == "completed":
-            outcome_status = (
-                str(active_job.get("finalize_summary", {}).get("status", "")).strip().lower()
-            )
-            if outcome_status == "cancelled":
-                return "Job cancelled"
-            if outcome_status == "failed":
-                return "Job failed"
-            if outcome_status == "interrupted":
-                return "Job interrupted"
-            return "Job completed"
+    def _job_status_summary(self, *, active_job, lifecycle_state=None, progress_snapshot=None):
+        """Delegate to ActiveJobTracker."""
+        return self.active_job._job_status_summary(
+            active_job=active_job,
+            lifecycle_state=lifecycle_state,
+            progress_snapshot=progress_snapshot,
+        )
 
-        lifecycle_name = str(lifecycle_state.get("lifecycle_state", "")).strip().lower()
-        if lifecycle_name == "ready":
-            return "Ready to start"
-        if lifecycle_name == "dock_drying":
-            return "Dock drying"
-        return str(lifecycle_state.get("message", "")).strip() or "Idle"
+
 
     def _find_button_entity_by_tokens(
         self,
