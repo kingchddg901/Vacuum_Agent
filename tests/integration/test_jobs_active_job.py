@@ -14,12 +14,18 @@ Coverage targets
 [AJI-8]  add_update_listener + _notify fires the callback.
 [AJI-9]  update_active_job_recharge_observation: idle job → returned unchanged.
 [AJI-10] update_active_job_recharge_observation: started job persists + returns.
+[AJI-11] recharge: low-battery return sets pending; not charging → returns.
+[AJI-12] recharge: pending + charging + not observed → starts recharge, pauses sampling.
+[AJI-13] recharge: in-progress recharge that ends accumulates seconds, resumes sampling.
 """
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
 import pytest
 
+from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
 
 
@@ -168,3 +174,55 @@ def test_recharge_started_persists(tracker, manager):
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
     assert result["status"] == "started"
     assert _MAP in manager.data["active_jobs"][_VAC]
+
+
+# ---------------------------------------------------------------------------
+# recharge state machine
+# ---------------------------------------------------------------------------
+
+def test_recharge_low_battery_sets_pending(tracker, manager, monkeypatch):
+    """[AJI-11] low-battery return arms pending; not charging yet → returns."""
+    _seed(manager)
+    monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
+    monkeypatch.setattr(tracker, "_is_charging", lambda v: False)
+    result = tracker.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["pending_mid_job_recharge_return"] is True
+
+
+def test_recharge_starts_and_pauses(hass, tracker, manager, monkeypatch):
+    """[AJI-12] pending + charging + not yet observed → recharge begins, sampling pauses."""
+    _seed(manager)
+    monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: True)
+    monkeypatch.setattr(tracker, "_is_charging", lambda v: True)
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    result = tracker.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["observed_mid_job_recharge"] is True
+    assert result["observed_mid_job_recharge_count"] == 1
+    assert result["pending_mid_job_recharge_return"] is False
+    fake_tracker.pause_sampling.assert_called_once_with(_VAC)
+
+
+def test_recharge_ends_accumulates(hass, tracker, manager, monkeypatch):
+    """[AJI-13] an in-progress recharge that has ended accumulates seconds + resumes."""
+    _seed(
+        manager,
+        pending_mid_job_recharge_return=True,
+        observed_mid_job_recharge=True,
+        observed_mid_job_recharge_started_at="2026-01-01T09:00:00+00:00",
+        recharge_seconds_accumulated=0,
+    )
+    monkeypatch.setattr(tracker, "_is_low_battery_return_state", lambda **kw: False)
+    # First charging check (gate) True; second (recharge-ended check) False.
+    monkeypatch.setattr(tracker, "_is_charging", MagicMock(side_effect=[True, False]))
+    fake_tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = fake_tracker
+
+    result = tracker.update_active_job_recharge_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:05:00+00:00")
+    assert result["observed_mid_job_recharge"] is False
+    assert result["recharge_seconds_accumulated"] == 300  # 5 min
+    fake_tracker.resume_sampling.assert_called_once_with(_VAC)

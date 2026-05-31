@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 577 | 64% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
+| `active_job.py` | 577 | 70% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
 
 ---
 
@@ -91,12 +91,12 @@ a stubbed position read: `_get_robot_position` (sensor read + missing/non-numeri
 
 ## Known gaps
 
-What's left in `active_job.py` (36%) is the multi-step
-`update_active_job_recharge_observation` charging state machine (mid-job recharge
-start/end transitions, needs staged charging + battery states) and the
-sensor-fallback / finalization-input collection helpers. The transition-room
-graph walk is now covered. All remaining paths are reachable with a fuller
-fixture; none blocking.
+`active_job.py` (70%) is considered **done** for this subsystem. The transition-room
+graph walk and the recharge state machine (pending / start / in-progress→ended
+accumulation) are now covered. What remains is deliberately left: defensive
+`except` paths, the finalization-input collection helper (covered indirectly via
+the learning finalize suite), and a couple of dead/edge branches in the recharge
+re-check. Not worth chasing — see the project note on coverage vs. bug-find rate.
 
 ---
 
