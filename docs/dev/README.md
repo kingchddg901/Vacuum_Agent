@@ -87,3 +87,10 @@ Not numbered — separate audience.
 
 - [porting-guide](../contributing/porting-guide.md) — end-to-end workflow for adding a new vacuum brand
 - [mascot-authoring](../contributing/mascot-authoring.md) — visual standards for adding or improving animal companions
+
+## Testing docs
+
+How the test suite is structured, how to run it (Docker-based), the available
+fixtures and seeding helpers, and copy-paste templates for new tests.
+
+- [testing/README](../testing/README.md) — index and reading order
