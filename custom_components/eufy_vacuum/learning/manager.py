@@ -783,21 +783,53 @@ class LearningManager:
         )
         exact_room_stats = room_stats.get("room_stats", []) if isinstance(room_stats.get("room_stats"), list) else []
         room_baselines = room_stats.get("room_baselines", []) if isinstance(room_stats.get("room_baselines"), list) else []
-        accuracy_rooms = (
-            accuracy_stats.get("rooms", [])
-            if isinstance(accuracy_stats.get("rooms"), list)
-            else []
-        )
+        # accuracy_stats["rooms"] is canonically a dict keyed by room_key (see
+        # estimator.record_estimate_accuracy / _auto_record_accuracy). Older or
+        # externally-produced payloads may use a list, so accept both. Each entry
+        # is normalized into the field shape build_trust_metrics expects: the
+        # writer stores mean_abs_pct_error as a *fraction* (0.0 = perfect) and
+        # does not track confidence_weight, whereas build_trust_metrics reads
+        # avg_abs_error_percent (a percent) and confidence_weight.
+        raw_accuracy_rooms = accuracy_stats.get("rooms")
+        if isinstance(raw_accuracy_rooms, dict):
+            accuracy_entries: list[Any] = list(raw_accuracy_rooms.values())
+        elif isinstance(raw_accuracy_rooms, list):
+            accuracy_entries = raw_accuracy_rooms
+        else:
+            accuracy_entries = []
+
         accuracy_by_slug: dict[str, dict[str, Any]] = {}
-        for entry in accuracy_rooms:
+        for entry in accuracy_entries:
             if not isinstance(entry, dict):
                 continue
             slug = str(entry.get("slug", "")).strip().lower()
             if not slug:
                 continue
+            sample_count = max(_safe_int(entry.get("sample_count"), 0), 0)
+            # Prefer an explicit percent if present; otherwise derive it from the
+            # canonical fractional mean_abs_pct_error.
+            if entry.get("avg_abs_error_percent") is not None:
+                avg_abs_error_percent = _safe_float(entry.get("avg_abs_error_percent"), 0.0)
+            else:
+                avg_abs_error_percent = round(
+                    _safe_float(entry.get("mean_abs_pct_error"), 0.0) * 100.0, 2
+                )
+            # The writer doesn't track confidence_weight; synthesize it from the
+            # accuracy sample count (capped at the /5 saturation point used by
+            # build_trust_metrics) when absent.
+            if entry.get("confidence_weight") is not None:
+                confidence_weight = _safe_float(entry.get("confidence_weight"), 0.0)
+            else:
+                confidence_weight = float(min(sample_count, 5))
+            normalized = {
+                "slug": slug,
+                "sample_count": sample_count,
+                "avg_abs_error_percent": avg_abs_error_percent,
+                "confidence_weight": confidence_weight,
+            }
             current = accuracy_by_slug.get(slug)
-            if current is None or _safe_int(entry.get("sample_count"), 0) > _safe_int(current.get("sample_count"), 0):
-                accuracy_by_slug[slug] = entry
+            if current is None or sample_count > _safe_int(current.get("sample_count"), 0):
+                accuracy_by_slug[slug] = normalized
 
         def build_trust_metrics(
             *,
@@ -965,7 +997,7 @@ class LearningManager:
         ]
         filtered_accuracy_rooms = [
             dict(entry)
-            for entry in accuracy_rooms
+            for entry in accuracy_entries
             if isinstance(entry, dict)
             and (not room_slug_filter or str(entry.get("slug", "")).strip().lower() == room_slug_filter)
         ]
