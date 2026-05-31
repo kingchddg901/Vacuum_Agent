@@ -30,6 +30,15 @@ inside a Linux container.
 |---|------|----------------|
 | 06 | [recipes](06-recipes.md) | Copy-paste templates: a service test, an entity test, a unit test, a finalize test, an adapter-config test |
 
+## Subsystem test maps
+
+Per-subsystem "what's tested and how" — start from the learning map (the template).
+
+| Doc | What it covers |
+|-----|----------------|
+| [subsystems/](subsystems/README.md) | Index of per-subsystem test maps |
+| [subsystems/learning](subsystems/learning.md) | The learning subsystem — coverage map, behaviors, setup patterns, gaps (**template**) |
+
 ---
 
 ## TL;DR
