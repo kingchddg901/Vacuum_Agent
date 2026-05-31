@@ -3,7 +3,7 @@
 The jobs subsystem owns active-job state and the start-time lifecycle gate:
 `job_monitor.py` evaluates whether the vacuum is ready to start, and
 `active_job.py` tracks an in-flight job (room rollover, recharge/mop-wash
-observations, transition-room detection). Covered by **76 tests across 2 files**.
+observations, transition-room detection). Covered by **86 tests across 3 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
 Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycle.md)
@@ -12,10 +12,10 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 
 ## Coverage map
 
-| Source module | Stmts | Cov | Test file | Layer |
-|---------------|------:|----:|-----------|-------|
+| Source module | Stmts | Cov | Test file(s) | Layer |
+|---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 576 | 25% | `tests/unit/test_jobs_active_job.py` | unit (pure helpers + mock-manager methods) |
+| `active_job.py` | 577 | 41% | `test_jobs_active_job.py` (unit) + `tests/integration/test_jobs_active_job.py` | unit + integration |
 
 ---
 
@@ -35,21 +35,26 @@ The whole module is pure, so coverage is near-total:
   lifecycle state plus the pre-checks (no map, map mismatch, empty queue,
   invalid payload) and the canned-message fallback.
 
-### `active_job.py` — active-job tracking (prefix `AJ`, 40 tests)
+### `active_job.py` — active-job tracking (prefixes `AJ` unit, `AJI` integration)
 `active_job.py` is mostly a 1,400-line `ActiveJobTracker` bound to the manager
-and hass. The tests cover the **deterministic, hass-free** surface:
-- Module helpers: `_safe_int`, `_safe_float`, `_normalize_path_block_action`,
-  `_normalize_pause_timeout_minutes`.
-- Pure tracker methods (constructed with a `MagicMock` manager):
+and hass. Two layers:
+- **`AJ` (unit, `MagicMock` manager)** — module helpers (`_safe_int`,
+  `_normalize_path_block_action`, …) and the pure tracker methods:
   `_default_active_job_state`, `_derive_active_job_current_room_id`,
-  `_normalize_active_job`, `_compute_current_room_elapsed_minutes`
-  (including live-pause subtraction), `_room_name_from_active_job`, and the
-  `_timing_completion_threshold_minutes` slack model.
+  `_normalize_active_job`, `_compute_current_room_elapsed_minutes`,
+  `_room_name_from_active_job`, `_timing_completion_threshold_minutes`.
+- **`AJI` (integration, real `manager` fixture + seeded active job)** —
+  `get_active_job`, the mop-wash observation (count + 60s debounce),
+  `record_active_job_transition` (append/ignore-noise/cap-12),
+  `record_active_lifecycle_observed`, `record_active_job_sensor_value`,
+  `add_update_listener`/`_notify`, and `update_active_job_recharge_observation`.
 
-The 25% module number reflects that the rest — recharge/mop-wash observation,
-spatial transition-room detection, robot-position reads, and the job-lifecycle
-event emission — depends on a live hass with adapter entities and robot-position
-sensors. See **Known gaps**.
+> The recharge test surfaced a real bug: the method called
+> `hass.states.get(None)` when the adapter has no `task_status` entity. Fixed
+> with the same `if entity_id else None` guard already applied in `core/manager`
+> and `run_plan`.
+
+The remaining ~59% is the spatial pipeline — see **Known gaps**.
 
 ---
 
@@ -77,18 +82,19 @@ deterministic without mocking the clock.
 
 ---
 
-## Known gaps (deferred to a later integration pass)
+## Known gaps
 
-`active_job.py`'s hass-dependent core is not yet covered:
-- `update_active_job_recharge_observation`, `update_active_job_mop_wash_observation`
-- `record_active_job_transition`, `_maybe_roll_current_room_by_timing`
-- `_robot_outside_room_bounds`, `_get_robot_position`,
-  `_detect_transition_room_from_position`
-- `_is_charging` / `_is_low_battery_return_state` (delegate to adapter charging)
-- listener registration + `_notify`
+What remains in `active_job.py` is the **spatial transition-room pipeline**,
+which needs robot-position sensor entities + a wired mapping manager and adapter
+charging vocabulary:
+- `_maybe_roll_current_room_by_timing`, `_robot_outside_room_bounds`,
+  `_get_robot_position`, `_detect_transition_room_from_position`
+- the charging/low-battery branches inside
+  `update_active_job_recharge_observation` (delegate to adapter `is_charging` /
+  `is_low_battery_return_state`)
 
-These need a real `hass` with robot-position sensors and a wired mapping manager
-— an integration fixture, not the pure-method approach used here.
+These are reachable with a fuller fixture (seeded `robot_position_x/y` entities +
+an adapter config exposing them) — a natural next increment.
 
 ---
 

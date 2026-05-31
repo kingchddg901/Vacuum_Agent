@@ -5,9 +5,9 @@ boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →
 `trace_segmentation` → `trace_review`), an image-segmentation stack
 (`segment_primitives`, `segmenter_engines`), a coordinate tracker
 (`tracker`), and two large orchestrators (`manager`, `mapping_services`).
-Covered by **207 tests across 11 files** (the trace/image primitives are
-near-fully covered; the two orchestrators have their pure helpers covered with
-the hass-bound bodies deferred).
+Covered by **~240 tests across 14 files** — the trace/image primitives are
+near-fully covered, and the tracker + two orchestrators now have both their pure
+helpers (unit) and their hass-bound bodies (integration) covered.
 
 Source: `custom_components/eufy_vacuum/mapping/`
 Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-system.md)
@@ -25,9 +25,9 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 239 | 91% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 134 | 87% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 84% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
-| `tracker.py` | 353 | 45% | `tests/unit/test_mapping_tracker.py` | unit (pure state + `tmp_path` files) |
-| `manager.py` | 963 | 24% | `tests/unit/test_mapping_manager_helpers.py` | unit (module helpers only) |
-| `mapping_services.py` | 650 | 29% | `tests/unit/test_mapping_services_helpers.py` | unit (pure helpers only) |
+| `tracker.py` | 353 | 73% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `manager.py` | 963 | 53% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` | unit + integration |
+| `mapping_services.py` | 650 | 53% | `test_mapping_services_helpers.py` + `test_mapping_services.py` | unit + integration |
 
 ---
 
@@ -55,19 +55,27 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
   the no-image/noop unavailable paths. The CV pipeline body (`detect_room_segments`)
   is exercised only through its failure paths.
 
-### The tracker (partial)
-- **`tracker`** (`MT`) — pure `_RoomConfidenceState` (movement/time confidence,
-  resets) and the file-backed helpers (active-samples flush/load/delete, the
-  raw-samples JSONL archive, exclusion flagging, archive-rebuild delegation).
+### The tracker
+- **`tracker`** (`MT`, unit) — pure `_RoomConfidenceState` and the file-backed
+  helpers (active-samples flush/load/delete, the raw-samples JSONL archive,
+  exclusion flagging).
+- **`tracker`** (`MTE`, integration) — the job lifecycle: register/unregister,
+  `start_job`/`end_job` (room-bounds write + raw-sample archive),
+  pause/resume sampling, `_handle_position_update` (accumulate/dedup/pause), and
+  the confidence-threshold room-exit firing `eufy_vacuum_room_completed`.
 
-### The orchestrators (helpers only)
-- **`manager`** (`MM`) — the module-level pure helpers: slug/coercion,
-  `_deep_merge_dict`, `_percentile_trim`, point/variant normalization,
-  `_normalize_segment_adjustments`, `_adjust_polygon_pixel`,
-  `_bbox_from_polygon_pixel`.
-- **`mapping_services`** (`MS`) — `_apply_segment_adjustments`,
+### The orchestrators
+- **`manager`** (`MM`, unit) — the module-level pure helpers. **`MGR`,
+  integration** — the `MappingManager` class against a real hass: room-bounds
+  attribution/snapshot/clear, exclude/restore job bounds, the trace-capture and
+  boundary-trace lifecycles, dock anchor/room, and `get_mapping_state`.
+- **`mapping_services`** (`MS`, unit) — `_apply_segment_adjustments`,
   `_build_segments_response`, and the module-local geometry helpers (which
   differ subtly from the manager copies — strict `int()`, no `+1` on bbox).
+  **`MSH`, integration** — the service handlers via
+  `async_register_mapping_services`: `get_map_segments`, `adjust_map_segment`,
+  `set_segment_room_link` (set/clear/1:1), `set_companion_anchor`,
+  `delete_map_image`.
 
 ---
 
@@ -96,21 +104,19 @@ Four patterns, same as elsewhere in the suite:
 
 ---
 
-## Known gaps (deferred to a later integration pass)
+## Known gaps
 
-The two orchestrators and the tracker's event pipeline are the bulk of the
-remaining lines, all hass-bound:
-- **`manager.py`** (24%) — the `MappingManager` class methods: bounds learning,
-  room-bounds CRUD, image-segment caching, snapshot building. Needs a real hass
-  + `tmp_path` config dir and seeded map data.
-- **`mapping_services.py`** (29%) — the async service handlers
-  (`_handle_upload_map_image`, `_handle_analyze_map_image`, segment link/anchor
-  handlers) and `async_register_mapping_services`. Needs `hass` + the mapping
-  manager wired; note these register via their **own**
-  `async_register_mapping_services`, not the domain `async_register_services`.
-- **`tracker.py`** (45%) — `register_vacuum` and the position-sensor state-change
-  callbacks that drive room-confidence firing. Needs real robot-position
-  entities and `async_track_state_change_event`.
+What remains is the image/CV-heavy surface and a few defensive branches:
+- **`manager.py`** (53%) — the image-segmentation pipeline:
+  `get_image_segment_suggestions`, `translate_image_segment`, `save_map_image`,
+  and mapping-package normalization. These need real map-image files + the
+  scipy/Pillow CV stack (`detect_room_segments`).
+- **`mapping_services.py`** (53%) — the image handlers
+  (`_handle_upload_map_image`, `_handle_analyze_map_image`) and the registration
+  wiring for the non-segment services. Image handlers need base64 map images.
+- **`tracker.py`** (73%) — the multi-room `end_job` archive attribution, the
+  periodic flush-to-disk task, and `_get_raw_position` (the full capability
+  stack). The single-room lifecycle is covered.
 - **`trace_segmentation`** soft-signal branches (speed/density/boundary-crossing
   detection) — reachable only with elaborate synthetic multi-signal traces.
 
