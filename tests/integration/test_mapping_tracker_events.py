@@ -1,0 +1,162 @@
+"""Integration tests for mapping/tracker.py — the job-lifecycle + position
+event pipeline. Uses a real hass + real MappingManager; the raw-position read
+(which needs the full capability stack) is patched so the accumulation and
+confidence logic can be driven deterministically.
+
+Coverage targets
+----------------
+[MTE-1]  register_vacuum populates listeners + confidence; idempotent; unregister clears.
+[MTE-2]  unregister_all clears every vacuum.
+[MTE-3]  start_job seeds active-job state and resets confidence/samples.
+[MTE-4]  pause_sampling / resume_sampling toggle the paused set.
+[MTE-5]  _handle_position_update accumulates, dedups, and respects pause.
+[MTE-6]  end_job writes accumulated samples into room bounds via the manager.
+[MTE-7]  end_job archives raw samples for a single-room job.
+[MTE-8]  confidence threshold + room exit fires eufy_vacuum_room_completed.
+"""
+
+from __future__ import annotations
+
+from datetime import timedelta
+
+import pytest
+
+from custom_components.eufy_vacuum.mapping.manager import MappingManager
+from custom_components.eufy_vacuum.mapping.tracker import (
+    EVENT_ROOM_COMPLETED,
+    MappingTracker,
+)
+from custom_components.eufy_vacuum.timestamp_utils import utc_now
+
+
+_VAC = "vacuum.alfred"
+_MAP = "6"
+_ROOMS = {"3": {"is_transition": False, "slug": "kitchen", "name": "Kitchen"}}
+
+
+@pytest.fixture
+def tracker(hass) -> MappingTracker:
+    return MappingTracker(hass, MappingManager(hass))
+
+
+def _register(tracker) -> None:
+    tracker.register_vacuum(
+        vacuum_entity_id=_VAC,
+        position_x_entity_id="sensor.alfred_x",
+        position_y_entity_id="sensor.alfred_y",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Registration
+# ---------------------------------------------------------------------------
+
+def test_register_unregister(tracker):
+    """[MTE-1]"""
+    _register(tracker)
+    _register(tracker)  # idempotent
+    assert _VAC in tracker._unsubs
+    assert _VAC in tracker._confidence
+    tracker.unregister_vacuum(_VAC)
+    assert _VAC not in tracker._unsubs
+    assert _VAC not in tracker._confidence
+
+
+def test_unregister_all(tracker):
+    """[MTE-2]"""
+    _register(tracker)
+    tracker.unregister_all()
+    assert tracker._unsubs == {}
+
+
+# ---------------------------------------------------------------------------
+# Job lifecycle
+# ---------------------------------------------------------------------------
+
+def test_start_job(tracker):
+    """[MTE-3]"""
+    _register(tracker)
+    tracker._confidence[_VAC].current_room_id = "9"  # stale state
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    assert tracker._active_job[_VAC]["map_id"] == _MAP
+    assert tracker._confidence[_VAC].current_room_id is None
+    assert tracker._samples_since_flush[_VAC] == 0
+
+
+def test_pause_resume_sampling(tracker):
+    """[MTE-4]"""
+    tracker.pause_sampling(_VAC)
+    assert _VAC in tracker._sampling_paused
+    tracker.resume_sampling(_VAC)
+    assert _VAC not in tracker._sampling_paused
+
+
+def test_handle_position_update_accumulates(tracker):
+    """[MTE-5]"""
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (10.0, 10.0)
+    tracker._handle_position_update(_VAC)
+    tracker._handle_position_update(_VAC)  # identical → deduped
+    assert tracker._job_samples[_VAC] == [(10.0, 10.0)]
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (20.0, 20.0)
+    tracker._handle_position_update(_VAC)
+    assert tracker._job_samples[_VAC] == [(10.0, 10.0), (20.0, 20.0)]
+
+    # paused → no accumulation
+    tracker.pause_sampling(_VAC)
+    tracker._get_raw_position = lambda vacuum_entity_id: (30.0, 30.0)
+    tracker._handle_position_update(_VAC)
+    assert (30.0, 30.0) not in tracker._job_samples[_VAC]
+
+
+def test_end_job_writes_bounds(tracker):
+    """[MTE-6]"""
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
+    tracker.end_job(vacuum_entity_id=_VAC)
+
+    snap = tracker._manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    bounds = snap["rooms"]["3"]["bounds"]
+    assert bounds["min_x"] == 0.0 and bounds["max_x"] == 20.0
+
+
+def test_end_job_archives_samples(tracker):
+    """[MTE-7]"""
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0)]
+    tracker.end_job(vacuum_entity_id=_VAC)
+    assert tracker._find_raw_samples_path(_VAC, "3") is not None
+
+
+# ---------------------------------------------------------------------------
+# Confidence + room_completed event
+# ---------------------------------------------------------------------------
+
+async def test_room_completed_event(hass, tracker):
+    """[MTE-8]"""
+    _register(tracker)
+    # Give room 3 learned bounds so position (10,10) is detected inside it.
+    tracker._manager.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"3": {"is_transition": False}})
+
+    events: list = []
+    hass.bus.async_listen(EVENT_ROOM_COMPLETED, lambda e: events.append(e.data))
+
+    job = {"map_id": _MAP, "rooms": _ROOMS}
+    # Enter room 3.
+    tracker._update_confidence(_VAC, 10.0, 10.0, job)
+    # Force high confidence + a real entry time so the exit fires the event.
+    conf = tracker._confidence[_VAC]
+    conf.confidence = 0.95
+    conf.entered_at = utc_now() - timedelta(seconds=45)
+    # Leave the room (far outside bounds).
+    tracker._update_confidence(_VAC, 5000.0, 5000.0, job)
+    await hass.async_block_till_done()
+
+    assert any(d["room_id"] == "3" and d["room_name"] == "Kitchen" for d in events)
