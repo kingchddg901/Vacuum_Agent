@@ -25,10 +25,10 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `trace_review.py` | 162 | 95% | `tests/unit/test_mapping_trace_review.py` | unit (pure) |
 | `segment_primitives.py` | 239 | 91% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 134 | 87% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
-| `trace_segmentation.py` | 314 | 84% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
+| `trace_segmentation.py` | 314 | 89% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
 | `tracker.py` | 353 | 73% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `manager.py` | 963 | 66% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 650 | 62% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `manager.py` | 963 | 70% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 650 | 72% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 
@@ -105,25 +105,32 @@ Four patterns, same as elsewhere in the suite:
 
 ---
 
-### Image/CV pipeline (`IMG`, integration)
-A synthetic Pillow PNG drives the real CV path end to end (nothing imports cv2 —
-the segmentor is numpy/scipy/Pillow only): `save_map_image` (valid + bad base64),
-the `analyze_map_image` service (image-not-found, pipeline run, cache),
-`get_image_segment_suggestions`, and `translate_image_segment`. This also covers
-`EufyCVSegmenter.segment_map_image`'s body.
+### Image/CV pipeline (`IMG`, integration — brand-agnostic)
+The framework's segment plumbing (`save_map_image`, `analyze_map_image`,
+`get_image_segment_suggestions`, `translate_image_segment`) is tested against a
+**registered fake segmenter engine** that returns a canned `SegmentationResult`
+— *not* a concrete brand engine. This proves the framework drives any adapter's
+CV pipeline without coupling to Eufy's. The real Eufy CV segmentor
+(`detect_room_segments`, HSV masks, `EufyCVSegmenter`) is tested **solo in
+`tests/adapters/eufy/test_segmentor.py`** (prefix `ECV`), where brand code
+belongs. See [feedback_brand_agnostic_tests](../../../) in memory for the rule.
+
+### Non-segment service handlers (`MSV`, integration)
+The boundary-trace, dock, trace-capture, mapping-state/package, room-bounds,
+save-package, trace-evidence, and review-trace-run service handlers, exercised
+through `async_register_mapping_services`.
 
 ## Known gaps
 
-What remains are mostly defensive branches and the heavier non-segment service
-wiring:
-- **`manager.py`** (66%) — boundary/package normalization edge branches and the
-  remaining image-package merge paths (2363-2436).
-- **`mapping_services.py`** (62%) — `_handle_upload_map_image`, the boundary/dock
-  service registration handlers, and the save/get-mapping-state services.
+What remains is mostly defensive `except` paths and a few image-specific edges:
+- **`manager.py`** (70%) — `_handle`-style boundary normalization edge branches,
+  the `save_map_image` www-path writes, and the vertex-move sub-branch of the
+  segment-adjust body (2387-2408).
+- **`mapping_services.py`** (72%) — `_handle_upload_map_image` (base64 image
+  upload) and `save_map_image` service body; both need real image bytes.
 - **`tracker.py`** (73%) — the multi-room `end_job` archive attribution, the
   periodic flush-to-disk task, and `_get_raw_position` (full capability stack).
-- **`trace_segmentation`** soft-signal branches (speed/density/boundary-crossing
-  detection) — reachable only with elaborate synthetic multi-signal traces.
+- **`trace_segmentation`** (89%) — a few merge-pass tie-break branches.
 
 ---
 

@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 577 | 57% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
+| `active_job.py` | 577 | 64% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
 
 ---
 
@@ -91,12 +91,12 @@ a stubbed position read: `_get_robot_position` (sensor read + missing/non-numeri
 
 ## Known gaps
 
-What's left in `active_job.py` (43%) is the deeper transition-room graph walk and
-the recharge state machine: the positive `_detect_transition_room_from_position`
-path (needs managed rooms + an access-graph path + intermediate bounds), the
-multi-step `update_active_job_recharge_observation` charging transitions, and the
-sensor-fallback / finalization-input collection helpers. All reachable with a
-fuller fixture; none blocking.
+What's left in `active_job.py` (36%) is the multi-step
+`update_active_job_recharge_observation` charging state machine (mid-job recharge
+start/end transitions, needs staged charging + battery states) and the
+sensor-fallback / finalization-input collection helpers. The transition-room
+graph walk is now covered. All remaining paths are reachable with a fuller
+fixture; none blocking.
 
 ---
 
