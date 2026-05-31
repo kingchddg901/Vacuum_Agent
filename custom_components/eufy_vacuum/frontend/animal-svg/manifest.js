@@ -1,9 +1,12 @@
 /**
  * Single entry point — loads the custom element, then every registered animal.
  *
- * To enable / disable an animal: comment out or remove its line.
- * To add a new animal: drop a file in animals/ that calls AnimalSVG.register(...)
- * and add a corresponding line below.
+ * To add a new animal: drop a .js file in animals/ that calls
+ * AnimalSVG.register(...) and restart Home Assistant. The integration
+ * generates animals/index.json at startup from whatever .js files exist
+ * in that directory — no edit to this file required.
+ *
+ * To remove an animal: delete its .js file and restart HA.
  *
  * Order matters only in that animal-svg.js MUST load first; among the animal
  * files, order is irrelevant.
@@ -33,11 +36,6 @@ async function loadScript(src) {
 // 1. Load the element + registry first.
 await loadScript('animal-svg.js');
 
-// 2. Load each animal. Edit this list to add/remove animals.
-await Promise.all([
-  loadScript('animals/cat.js'),
-  loadScript('animals/dog.js'),
-  loadScript('animals/raccoon.js'),
-  loadScript('animals/parrot.js'),
-  loadScript('animals/snake.js'),
-]);
+// 2. Load every animal listed in the auto-generated index.
+const animalFiles = await fetch(new URL('animals/index.json', BASE).href).then(r => r.json());
+await Promise.all(animalFiles.map(f => loadScript('animals/' + f)));

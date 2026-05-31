@@ -16,6 +16,7 @@ and the job-finished event payload builder.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 
@@ -105,6 +106,15 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
     os.makedirs(frontend_dir, exist_ok=True)
+
+    # Auto-generate animals/index.json so manifest.js can load all animal
+    # files without being edited — dropping a .js file into the animals/
+    # directory and restarting HA is sufficient to add a new animal.
+    animals_dir = os.path.join(frontend_dir, "animal-svg", "animals")
+    if os.path.isdir(animals_dir):
+        animal_files = sorted(f for f in os.listdir(animals_dir) if f.endswith(".js"))
+        with open(os.path.join(animals_dir, "index.json"), "w", encoding="utf-8") as _f:
+            json.dump(animal_files, _f)
 
     await hass.http.async_register_static_paths(
         [

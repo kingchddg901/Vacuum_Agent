@@ -236,10 +236,14 @@ content: |
 
 ## Adding / removing / editing an animal
 
-Each animal is its own self-registering file in `animals/`. To add one:
+Each animal is its own self-registering file in `animals/`. The integration
+generates `animals/index.json` at every HA startup by scanning that directory,
+so `manifest.js` never needs to be edited.
+
+To add one:
 
 1. Create `animals/myanimal.js` that calls `AnimalSVG.register('myanimal', { ... })`.
-2. Add `loadScript('animals/myanimal.js')` to the array in `manifest.js`.
+2. Restart Home Assistant.
 
 **That's it.** When the file's `register()` call fires, an
 `animal-svg-registered` document event tells the integration's theme
@@ -248,7 +252,7 @@ in the map view's animal selector, in the theme editor with its own
 sub-group of 14 tokens, and in the editor's per-animal preview pane.
 There are no `src/` edits to make.
 
-To remove one, delete its line from `manifest.js` (and optionally its file).
+To remove one, delete its `.js` file and restart HA.
 
 To edit colors only, change the `colors` block in the relevant file — no other
 files need to change.
