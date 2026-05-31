@@ -1,0 +1,193 @@
+"""Integration tests for jobs/active_job.py — the spatial / transition-room
+pipeline: robot-position reads, bounds checks, timing rollover, and charging.
+
+Driven by the `manager` fixture. The capability lookup is stubbed so
+_get_robot_position's entity-resolution + state-read logic is exercised without
+the full detection stack; the rollover paths use a seeded active job.
+
+Coverage targets
+----------------
+[AJS-1]  _get_robot_position: reads x/y sensors; None on missing/non-numeric.
+[AJS-2]  _robot_outside_room_bounds: inside → False, outside → True, no manager → None.
+[AJS-3]  _detect_transition_room_from_position: None guards.
+[AJS-4]  _maybe_roll_current_room_by_timing: slow-room rollover fires EVENT_ROOM_FINISHED.
+[AJS-5]  _maybe_roll_current_room_by_timing: fast-room (_pending_fast_rollover) fires.
+[AJS-6]  _maybe_roll_current_room_by_timing: not-started / last-room → no-op.
+[AJS-7]  _is_low_battery_return_state delegates to the adapter impl.
+[AJS-8]  _is_charging returns a bool.
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from custom_components.eufy_vacuum.const import DOMAIN
+from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
+from custom_components.eufy_vacuum.mapping.manager import MappingManager
+
+
+_VAC = "vacuum.alfred"
+_MAP = "6"
+_EVENT_ROOM_FINISHED = "eufy_vacuum_room_finished"
+
+
+@pytest.fixture
+def tracker(manager) -> ActiveJobTracker:
+    return ActiveJobTracker(manager)
+
+
+def _stub_caps(manager, monkeypatch, *, x="sensor.alfred_x", y="sensor.alfred_y"):
+    monkeypatch.setattr(
+        manager, "get_vacuum_capabilities",
+        lambda **kw: {"entities": {"robot_position_x": x, "robot_position_y": y}})
+
+
+# ---------------------------------------------------------------------------
+# _get_robot_position
+# ---------------------------------------------------------------------------
+
+def test_get_robot_position(hass, tracker, manager, monkeypatch):
+    """[AJS-1]"""
+    _stub_caps(manager, monkeypatch)
+    hass.states.async_set("sensor.alfred_x", "10")
+    hass.states.async_set("sensor.alfred_y", "20")
+    assert tracker._get_robot_position(_VAC) == (10.0, 20.0)
+
+
+def test_get_robot_position_non_numeric(hass, tracker, manager, monkeypatch):
+    """[AJS-1]"""
+    _stub_caps(manager, monkeypatch)
+    hass.states.async_set("sensor.alfred_x", "unknown")
+    hass.states.async_set("sensor.alfred_y", "20")
+    assert tracker._get_robot_position(_VAC) is None
+
+
+def test_get_robot_position_missing_entity(tracker, manager, monkeypatch):
+    """[AJS-1]"""
+    monkeypatch.setattr(manager, "get_vacuum_capabilities", lambda **kw: {"entities": {}})
+    assert tracker._get_robot_position(_VAC) is None
+
+
+# ---------------------------------------------------------------------------
+# _robot_outside_room_bounds
+# ---------------------------------------------------------------------------
+
+def test_robot_outside_room_bounds(hass, tracker, manager, monkeypatch):
+    """[AJS-2]"""
+    mm = MappingManager(hass)
+    mm.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"3": {"is_transition": False}})
+    hass.data[DOMAIN]["mapping_manager"] = mm
+
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
+    assert tracker._robot_outside_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is False
+
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (5000.0, 5000.0))
+    assert tracker._robot_outside_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is True
+
+
+def test_robot_outside_no_manager(tracker, monkeypatch):
+    """[AJS-2] no mapping manager registered → None."""
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
+    assert tracker._robot_outside_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=3) is None
+
+
+# ---------------------------------------------------------------------------
+# _detect_transition_room_from_position
+# ---------------------------------------------------------------------------
+
+def test_detect_transition_none_guards(tracker, monkeypatch):
+    """[AJS-3]"""
+    assert tracker._detect_transition_room_from_position(
+        vacuum_entity_id=_VAC, map_id=_MAP, from_room_id=None, to_room_id=2) is None
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: None)
+    assert tracker._detect_transition_room_from_position(
+        vacuum_entity_id=_VAC, map_id=_MAP, from_room_id=1, to_room_id=2) is None
+
+
+# ---------------------------------------------------------------------------
+# _maybe_roll_current_room_by_timing
+# ---------------------------------------------------------------------------
+
+def _active_job(**extra) -> dict:
+    return {
+        "status": "started", "job_id": "j1", "current_room_id": 1,
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Bath"}],
+        "queue_room_ids": [1, 2], "queue_rooms": [{"room_id": 1}, {"room_id": 2}],
+        "completed_room_ids": [], **extra,
+    }
+
+
+_TIMELINE = [
+    {"room_id": 1, "minutes": 5.0, "confidence_score": 0.5},
+    {"room_id": 2, "minutes": 5.0, "confidence_score": 0.5},
+]
+
+
+def _seed_job(manager, job) -> dict:
+    """Store the job so record_completed_room (which reads manager.data) sees it."""
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = job
+    return job
+
+
+async def test_maybe_roll_slow_path(hass, tracker, manager):
+    """[AJS-4] elapsed >> threshold, bounds unavailable → timing_rollover fires."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job())
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=100.0, completed_room_ids=[])
+    await hass.async_block_till_done()
+    assert 1 in result.get("completed_room_ids", [])
+    assert any(d["source"] == "timing_rollover" for d in events)
+
+
+async def test_maybe_roll_fast_path(hass, tracker, manager):
+    """[AJS-5] below threshold + a pending fast-rollover signal → bounds_exit_early."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job(_pending_fast_rollover={"room_id": 1}))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    await hass.async_block_till_done()
+    assert any(d["source"] == "bounds_exit_early" for d in events)
+    assert "_pending_fast_rollover" not in result
+
+
+def test_maybe_roll_noop(tracker):
+    """[AJS-6] not started, or current room is the last unresolved → unchanged."""
+    not_started = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=_active_job(status="idle"),
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=100.0, completed_room_ids=[])
+    assert not_started.get("completed_room_ids") == []
+
+    last = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=_active_job(current_room_id=2),
+        raw_timeline=_TIMELINE, current_room_id=2,
+        current_room_elapsed_minutes=100.0, completed_room_ids=[])
+    assert last.get("completed_room_ids") == []
+
+
+# ---------------------------------------------------------------------------
+# charging helpers
+# ---------------------------------------------------------------------------
+
+def test_is_low_battery_return_state(tracker):
+    """[AJS-7] delegates to the adapter impl (smoke over explicit args)."""
+    result = tracker._is_low_battery_return_state(
+        current_battery=15, vacuum_state="returning", task_status="recharge")
+    assert isinstance(result, bool)
+
+
+def test_is_charging(tracker):
+    """[AJS-8]"""
+    assert isinstance(tracker._is_charging(_VAC), bool)
