@@ -31,22 +31,21 @@
   <div id="err"></div>
   <div class="grid" id="grid"></div>
 
-  <!-- Plain scripts: load order is preserved, no module / import.meta needed. -->
-  <script src="./animal-svg.js"></script>
-  <script src="./animals/cat.js"></script>
-  <script src="./animals/dog.js"></script>
-  <script src="./animals/raccoon.js"></script>
-  <script src="./animals/parrot.js"></script>
-  <script src="./animals/snake.js"></script>
-
   <script>
-    (function () {
-      const err = document.getElementById('err');
-      if (!window.AnimalSVG) {
-        err.textContent = 'AnimalSVG did not load. Check the browser console — if this page is opened from a file share (file://) some browsers block local script loads. Try opening via http://<ha-host>:8123/local/animal-svg/demo.html instead.';
-        return;
-      }
+    // Dynamically load a script and return a promise.
+    function loadScript(src) {
+      return new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.async = false;
+        s.onload = resolve;
+        s.onerror = () => reject(new Error('Failed to load ' + s.src));
+        document.head.appendChild(s);
+      });
+    }
 
+    function buildGrid() {
+      const err = document.getElementById('err');
       const grid = document.getElementById('grid');
       const names = AnimalSVG.list();
       if (names.length === 0) {
@@ -77,6 +76,29 @@
         b.addEventListener('click', () => setActivePose(b.dataset.pose));
       });
       setActivePose('standing');
+    }
+
+    (async function () {
+      const err = document.getElementById('err');
+      try {
+        await loadScript('./animal-svg.js');
+      } catch (e) {
+        err.textContent = 'AnimalSVG did not load. Check the browser console — if this page is opened from a file share (file://) some browsers block local script loads. Try opening via http://<ha-host>:8123/eufy_vacuum/frontend/animal-svg/demo.html instead.';
+        return;
+      }
+
+      let files;
+      try {
+        const res = await fetch('./animals/index.json');
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        files = await res.json();
+      } catch (e) {
+        err.textContent = 'Could not load animals/index.json (' + e.message + '). This page must be opened via HA: http://<ha-host>:8123/eufy_vacuum/frontend/animal-svg/demo.html — fetch() is blocked when opened as a local file.';
+        return;
+      }
+
+      await Promise.all(files.map(f => loadScript('./animals/' + f)));
+      buildGrid();
     })();
   </script>
 </body>

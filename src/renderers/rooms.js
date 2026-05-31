@@ -147,8 +147,9 @@ export function applyRoomsRenderers(proto) {
           title="Companion animal"
           aria-label="Companion animal"
         >
-          ${["cat","dog","raccoon","parrot","snake"].map((a) => {
-            const label   = a.charAt(0).toUpperCase() + a.slice(1);
+          ${(window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"]).map((a) => {
+            const def     = window.AnimalSVG?.get?.(a);
+            const label   = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
             const current = state.mapAnimalSelection?.() ?? "cat";
             return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
           }).join("")}

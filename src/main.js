@@ -75,6 +75,13 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // so we anchor it on connectedCallback instead and let the
     // modal host's close action handle the actual close logic.
     this._boundHandleKeydown = (e) => this._handleGlobalKeydown(e);
+    // Re-render whenever a new animal registers so the animal companion
+    // dropdown always reflects the live AnimalSVG registry. Bound per-
+    // instance so it fires on the correct card regardless of which
+    // instance triggered the manifest.js load (static flag means only
+    // one instance fires _loadAnimalSvg().then(), but all instances need
+    // the updated list).
+    this._boundHandleAnimalRegistered  = () => this._scheduleRender();
 
     /* =====================================================
        VIEWPORT HANDLER
@@ -1252,6 +1259,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.addEventListener("location-changed", this._boundHandleLocationChanged);
     window.addEventListener("pageshow", this._boundHandlePageShow);
     document.addEventListener("keydown", this._boundHandleKeydown);
+    document.addEventListener("animal-svg-registered", this._boundHandleAnimalRegistered);
 
     // Initial viewport measurement. setConfig may have run before
     // connectedCallback (so _state already exists); re-measure now that
@@ -1312,6 +1320,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     window.removeEventListener("location-changed", this._boundHandleLocationChanged);
     window.removeEventListener("pageshow", this._boundHandlePageShow);
     document.removeEventListener("keydown", this._boundHandleKeydown);
+    document.removeEventListener("animal-svg-registered", this._boundHandleAnimalRegistered);
     if (this._resizeObserver) {
       this._resizeObserver.disconnect();
       this._resizeObserver = null;
