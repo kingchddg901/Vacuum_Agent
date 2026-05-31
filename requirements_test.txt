@@ -2,3 +2,12 @@ pytest>=9.0
 pytest-asyncio>=1.3
 pytest-cov
 pytest-homeassistant-custom-component>=0.13.332
+
+# Image-processing stack used by the mapping segmentor pipeline
+# (segment_primitives transforms, mask_edge_band, estimate_alignment, and the
+# eufy_cv segmentor). numpy arrives transitively via Home Assistant core, but
+# scipy and Pillow do not — without them the scipy/Pillow-dependent mapping
+# code can't be exercised. Matches the production HA install (scipy 1.17.x,
+# Pillow 12.x on Python 3.14).
+scipy>=1.14
+Pillow>=11

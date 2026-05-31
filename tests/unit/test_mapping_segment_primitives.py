@@ -22,6 +22,11 @@ Coverage targets
 [SP-17] component_overlap_ratio: per-mask overlap fractions.
 [SP-18] mask_left_right_counts: left/right pixel split.
 [SP-19] estimate_alignment: identical masks → score 1.0 at scale 1.0.
+[SP-20] transform_mask: unit-scale centering + shift; off-canvas → empty.
+[SP-21] transform_scalar_image: unit-scale centering of a float image.
+[SP-22] transform_color_image: per-channel transform preserves channel count.
+[SP-23] mask_edge_band: dilate-XOR-erode produces a non-empty edge ring (scipy).
+[SP-24] normalized_color_features: per-pixel chromaticity channels sum to 1.
 """
 
 from __future__ import annotations
@@ -38,13 +43,18 @@ from custom_components.eufy_vacuum.mapping.segment_primitives import (
     component_overlap_ratio,
     estimate_alignment,
     image_runtime_capabilities,
+    mask_edge_band,
     mask_iou,
     mask_left_right_counts,
     mask_perimeter,
     mask_to_polygon,
     normalize_polygon,
+    normalized_color_features,
     polygon_area,
     rdp,
+    transform_color_image,
+    transform_mask,
+    transform_scalar_image,
 )
 
 
@@ -204,3 +214,51 @@ def test_estimate_alignment_identical(np):
     result = estimate_alignment(ref, ref.copy())
     assert result["score"] == pytest.approx(1.0)
     assert result["scale"] == pytest.approx(1.0)
+
+
+def test_transform_mask_unit_scale(np):
+    """[SP-20] a 2x2 mask centered into a 6x6 canvas at unit scale."""
+    mask = np.ones((2, 2), dtype=bool)
+    out = transform_mask(mask, 1.0, 0, 0, (6, 6))
+    assert out.shape == (6, 6)
+    assert int(np.count_nonzero(out)) == 4
+    assert bool(out[2, 2]) and bool(out[3, 3])
+    # shifted entirely off the canvas → empty
+    off = transform_mask(mask, 1.0, 100, 100, (6, 6))
+    assert int(np.count_nonzero(off)) == 0
+
+
+def test_transform_scalar_image_unit_scale(np):
+    """[SP-21]"""
+    img = np.ones((2, 2), dtype=np.float32)
+    out = transform_scalar_image(img, 1.0, 0, 0, (6, 6))
+    assert out.shape == (6, 6)
+    assert out.sum() == pytest.approx(4.0)
+
+
+def test_transform_color_image(np):
+    """[SP-22] each channel is transformed; channel count preserved."""
+    img = np.ones((2, 2, 3), dtype=np.float32)
+    out = transform_color_image(img, 1.0, 0, 0, (6, 6))
+    assert out.shape == (6, 6, 3)
+    assert out.sum() == pytest.approx(12.0)  # 4 per channel * 3
+
+
+def test_mask_edge_band(np):
+    """[SP-23] requires scipy.ndimage for binary dilation/erosion."""
+    pytest.importorskip("scipy.ndimage")
+    mask = np.zeros((12, 12), dtype=bool)
+    mask[3:9, 3:9] = True  # solid 6x6
+    band = mask_edge_band(mask, iterations=1)
+    assert band.shape == mask.shape
+    assert band.any()
+    # the deep interior is neither newly dilated nor eroded away → not in band
+    assert not bool(band[6, 6])
+
+
+def test_normalized_color_features(np):
+    """[SP-24] per-pixel chromaticity: the three channels sum to 1.0."""
+    rgb = (np.ones((2, 2, 3), dtype=np.float32) * 100.0)
+    feats = normalized_color_features(rgb)
+    assert feats.shape == (2, 2, 3)
+    assert np.allclose(feats.sum(axis=2), 1.0)
