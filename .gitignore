@@ -30,6 +30,9 @@ desktop.ini
 # Staging / dev artifacts
 mapping_staging/
 
+# Auto-generated at HA startup by __init__.py — not a source file
+custom_components/eufy_vacuum/frontend/animal-svg/animals/index.json
+
 # Commit-message scratch files (used by `git commit -F` for long messages)
 .commit_msg*
 *.commit_msg
