@@ -333,7 +333,7 @@ class LearningJobFinalizer:
                     vacuum_entity_id,
                 )
 
-        self.hass.async_create_task(_write_snapshot())
+        self.hass.loop.call_soon_threadsafe(self.hass.async_create_task, _write_snapshot())
 
         return {
             "vacuum_entity_id": vacuum_entity_id,

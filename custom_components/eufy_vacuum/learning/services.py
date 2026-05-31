@@ -74,6 +74,7 @@ FINALIZE_LEARNING_JOB_SCHEMA = vol.Schema(
         vol.Optional("used_for_learning", default=True): cv.boolean,
         vol.Optional("rebuild_stats", default=True): cv.boolean,
         vol.Optional("rebuild_csv", default=False): cv.boolean,
+        vol.Optional("forced_outcome_status"): cv.string,
     }
 )
 
@@ -244,6 +245,7 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             used_for_learning=call.data["used_for_learning"],
             rebuild_stats=call.data["rebuild_stats"],
             rebuild_csv=call.data["rebuild_csv"],
+            forced_outcome_status=call.data.get("forced_outcome_status"),
         )
         hass.bus.async_fire(
             EVENT_JOB_FINISHED,

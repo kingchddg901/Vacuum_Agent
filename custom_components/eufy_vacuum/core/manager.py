@@ -2058,10 +2058,14 @@ class EufyVacuumManager:
 
         _lifecycle_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
         vacuum_state = self.hass.states.get(vacuum_entity_id)
-        task_status_state = self.hass.states.get(_lifecycle_entities.get("task_status"))
-        dock_status_state = self.hass.states.get(_lifecycle_entities.get("dock_status"))
-        active_map_state = self.hass.states.get(_lifecycle_entities.get("active_map"))
-        active_target_state = self.hass.states.get(_lifecycle_entities.get("active_cleaning_target"))
+        _ts = _lifecycle_entities.get("task_status")
+        task_status_state = self.hass.states.get(_ts) if _ts else None
+        _ds = _lifecycle_entities.get("dock_status")
+        dock_status_state = self.hass.states.get(_ds) if _ds else None
+        _am = _lifecycle_entities.get("active_map")
+        active_map_state = self.hass.states.get(_am) if _am else None
+        _at = _lifecycle_entities.get("active_cleaning_target")
+        active_target_state = self.hass.states.get(_at) if _at else None
 
         active_job = self.get_active_job(
             vacuum_entity_id=vacuum_entity_id,

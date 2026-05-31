@@ -279,8 +279,8 @@ class RunPlanManager:
         _wf_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
         mode_entity_id = _wf_entities.get("wash_frequency_mode")
         interval_entity_id = _wf_entities.get("wash_frequency_value_time")
-        mode_state = self._manager.hass.states.get(mode_entity_id)
-        interval_state = self._manager.hass.states.get(interval_entity_id)
+        mode_state = self._manager.hass.states.get(mode_entity_id) if mode_entity_id else None
+        interval_state = self._manager.hass.states.get(interval_entity_id) if interval_entity_id else None
 
         _wf_vocab = (_get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
         _wash_freq_aliases: dict[str, str] = _wf_vocab.get("wash_frequency_mode_aliases") or {}

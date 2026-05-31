@@ -138,6 +138,7 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
             vacuum_entity_id=data["vacuum_entity_id"],
             map_id=data["map_id"],
             room_id=int(data["room_id"]),
+            enabled=data.get("enabled"),
             clean_mode=data.get("clean_mode"),
             fan_speed=data.get("fan_speed"),
             water_level=data.get("water_level"),
