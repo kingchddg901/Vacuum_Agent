@@ -1,4 +1,4 @@
-"""Unit tests for adapters/eufy/model_catalog — pure Python, no HA dependency."""
+"""Adapter tests for adapters/eufy/model_catalog — pure Python, no HA dependency."""
 
 from __future__ import annotations
 

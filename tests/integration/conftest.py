@@ -1,4 +1,4 @@
-"""Phase 3 integration fixtures — manager construction without async_setup_entry."""
+"""Phase 3 + Phase 4 integration fixtures — manager and service test support."""
 
 from __future__ import annotations
 
@@ -70,3 +70,22 @@ def setup_map(
         map_id=str(map_id),
         enabled_room_ids=enabled_room_ids,
     )
+
+
+@pytest.fixture
+async def manager_with_services(hass, manager):
+    """Manager with all domain services registered.
+
+    Registers via async_register_services (same path as async_setup_entry)
+    and unregisters on teardown.  The ``manager`` fixture has already wired
+    hass.data[DOMAIN][DATA_RUNTIME], so service handlers can locate the
+    manager immediately.
+    """
+    from custom_components.eufy_vacuum.services import (
+        async_register_services,
+        async_unregister_services,
+    )
+
+    await async_register_services(hass)
+    yield manager
+    await async_unregister_services(hass)
