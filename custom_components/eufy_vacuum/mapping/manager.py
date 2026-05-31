@@ -1325,6 +1325,7 @@ class MappingManager:
         map_id: str,
         run_id: str,
         room_id: str,
+        segment_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Load a TraceRun and evaluate whether it is clean enough for transform fitting.
 
@@ -1354,7 +1355,7 @@ class MappingManager:
         room_entry = rooms.get(str(room_id), {})
         polygon_vacuum = room_entry.get("boundary", [])
 
-        return review_trace_run(run, polygon_vacuum)
+        return review_trace_run(run, polygon_vacuum, segment_metadata)
 
     # ------------------------------------------------------------------
     # Trace-based transform pipeline — Phase 3: Adaptive segmentation

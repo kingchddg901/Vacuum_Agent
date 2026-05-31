@@ -261,7 +261,7 @@ def test_set_dock_room(mapping_manager):
 def test_append_trace_evidence(mapping_manager):
     """[MGR-17]"""
     result = mapping_manager.append_mapping_trace_evidence(
-        vacuum_entity_id=_VAC, map_id="ev", evidence={"label": "doorway", "x": 1})
+        vacuum_entity_id=_VAC, map_id="evmgr", evidence={"label": "doorway", "x": 1})
     assert result["saved"] is True
     assert result["trace_count"] == 1
 
