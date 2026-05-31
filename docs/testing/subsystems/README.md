@@ -9,7 +9,7 @@ patterns specific to that subsystem, and records the deliberate gaps.
 | Learning | [learning](learning.md) | Complete — **the template** |
 | Mapping | [mapping](mapping.md) | Pure pipeline + helpers covered; orchestrators deferred |
 | Jobs | [jobs](jobs.md) | Start-gate + pure tracker helpers covered |
-| Battery | _todo_ | partial suite exists (`test_battery_metrics`, `test_battery_store`) |
+| Battery | [battery](battery.md) | Wear/health math + sensors covered; HA wiring deferred |
 | Rooms | _todo_ | partial suite exists (`test_room_manager`, `test_rooms_utils`, `test_services_rooms`) |
 | Themes | _todo_ | `test_themes_*` |
 | Setup | _todo_ | `test_setup_*` |

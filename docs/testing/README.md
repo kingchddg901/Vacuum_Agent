@@ -40,6 +40,7 @@ Per-subsystem "what's tested and how" — start from the learning map (the templ
 | [subsystems/learning](subsystems/learning.md) | The learning subsystem — coverage map, behaviors, setup patterns, gaps (**template**) |
 | [subsystems/mapping](subsystems/mapping.md) | The mapping subsystem — trace pipeline, image stack, tracker, orchestrators |
 | [subsystems/jobs](subsystems/jobs.md) | The jobs subsystem — start-gate evaluation + active-job tracking |
+| [subsystems/battery](subsystems/battery.md) | The battery subsystem — wear/health math, sensors, charge-session pipeline |
 
 ---
 
