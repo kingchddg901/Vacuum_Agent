@@ -153,9 +153,12 @@ focused.
 
 ### Adding a new animal
 
-1. Drop `animals/<yourname>.js` that calls `AnimalSVG.register('yourname',
-   {...})`.
-2. Add a line to `manifest.js` to load it.
+1. Drop `animals/<yourname>.js` that calls `AnimalSVG.register('yourname', {...})`.
+2. Restart Home Assistant.
+
+The integration generates `animals/index.json` at startup from whatever `.js` files are in that directory — no edit to `manifest.js` needed.
+
+**The ID passed to `register()` must be unique.** Use the filename (minus `.js`) as the ID. If two files register the same ID the second silently overwrites the first.
 
 **That is the entire change.** No edits to `src/`. The integration's theme
 token registry and editor preview pane both auto-derive from the live

@@ -259,6 +259,8 @@ files need to change.
 
 ## Definition shape
 
+The first argument to `AnimalSVG.register()` is the animal's **ID** — the value used in the `animal` attribute and stored in theme configs. **It must be unique across all loaded animal files.** If two files register the same ID, the second call silently overwrites the first and only one animal appears. Use the filename (minus `.js`) as the ID to make collisions obvious.
+
 ```js
 AnimalSVG.register('myanimal', {
   label: 'My Animal',
