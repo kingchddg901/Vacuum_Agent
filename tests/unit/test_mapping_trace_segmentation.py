@@ -19,6 +19,8 @@ Coverage targets
 [TS-15] segment_trace_run: < 2 samples → insufficient_samples error.
 [TS-16] segment_trace_run: pause gap counted as a hard boundary in diagnostics.
 [TS-17] segment_trace_run: well-formed result keys on a valid run.
+[TS-18] _find_split_points: speed_drop + boundary_crossing fire a soft split.
+[TS-19] _find_split_points: density_drop + boundary_crossing fire a soft split.
 """
 
 from __future__ import annotations
@@ -226,3 +228,44 @@ def test_segment_run_result_keys():
         assert key in result
     assert result["run_id"] == "r1"
     assert isinstance(result["segments"], list)
+
+
+# ---------------------------------------------------------------------------
+# Soft multi-signal splits (need 2+ signals agreeing over the sustain window)
+# ---------------------------------------------------------------------------
+
+_SQUARE = [[0.0, 0.0], [100.0, 0.0], [100.0, 100.0], [0.0, 100.0]]
+
+
+def _xy_samples(coords: list[tuple[float, float]], dt: float = 2.0) -> list[dict]:
+    """Build samples from explicit (x, y) coords spaced dt seconds apart."""
+    t = _T0
+    out = []
+    for x, y in coords:
+        out.append({"x": float(x), "y": float(y), "ts": t.isoformat()})
+        t = t + timedelta(seconds=dt)
+    return out
+
+
+def _soft_reasons(samples, poly):
+    sig = _compute_per_sample_signals(samples, poly)
+    splits = _find_split_points(samples, sig)
+    return [p["reason"] for p in splits if not p["reason"].startswith("pause:")]
+
+
+def test_find_split_speed_and_boundary():
+    """[TS-18] fast inside (x=95) then a slow exit past the right edge."""
+    coords = [(95.0, 10.0 if k % 2 == 0 else 90.0) for k in range(14)]   # fast, inside
+    coords += [(101.0, 90.0), (102.0, 90.0), (103.0, 90.0),
+               (104.0, 90.0), (105.0, 90.0)]                              # slow, outside
+    reasons = _soft_reasons(_xy_samples(coords), _SQUARE)
+    assert any("speed_drop" in r and "boundary_crossing" in r for r in reasons)
+
+
+def test_find_split_density_and_boundary():
+    """[TS-19] dense cluster inside then a fast, spread-out exit (low density)."""
+    coords = [(50.0 + (k % 2) * 10.0, 45.0 + (k % 4) * 3.0) for k in range(14)]  # dense, inside
+    coords += [(110.0, 50.0), (170.0, 50.0), (230.0, 50.0),
+               (290.0, 50.0), (350.0, 50.0)]                                     # sparse, outside
+    reasons = _soft_reasons(_xy_samples(coords), _SQUARE)
+    assert any("density_drop" in r and "boundary_crossing" in r for r in reasons)
