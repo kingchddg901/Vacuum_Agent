@@ -10,6 +10,7 @@ patterns specific to that subsystem, and records the deliberate gaps.
 | Mapping | [mapping](mapping.md) | Pure pipeline + helpers covered; orchestrators deferred |
 | Jobs | [jobs](jobs.md) | Start-gate + pure tracker helpers covered |
 | Battery | [battery](battery.md) | Wear/health math + sensors covered; HA wiring deferred |
+| Dock | [dock](dock.md) | Action gating + dispatch + event recording covered |
 | Rooms | _todo_ | partial suite exists (`test_room_manager`, `test_rooms_utils`, `test_services_rooms`) |
 | Themes | _todo_ | `test_themes_*` |
 | Setup | _todo_ | `test_setup_*` |
