@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 577 | 41% | `test_jobs_active_job.py` (unit) + `tests/integration/test_jobs_active_job.py` | unit + integration |
+| `active_job.py` | 577 | 57% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
 
 ---
 
@@ -82,19 +82,21 @@ deterministic without mocking the clock.
 
 ---
 
+### `active_job.py` spatial pipeline (`AJS`, integration)
+The transition-room/rollover surface is now covered with seeded capabilities +
+a stubbed position read: `_get_robot_position` (sensor read + missing/non-numeric),
+`_robot_outside_room_bounds` (inside/outside/no-manager), the
+`_maybe_roll_current_room_by_timing` slow- and fast-rollover paths (both firing
+`EVENT_ROOM_FINISHED`), and the charging delegates.
+
 ## Known gaps
 
-What remains in `active_job.py` is the **spatial transition-room pipeline**,
-which needs robot-position sensor entities + a wired mapping manager and adapter
-charging vocabulary:
-- `_maybe_roll_current_room_by_timing`, `_robot_outside_room_bounds`,
-  `_get_robot_position`, `_detect_transition_room_from_position`
-- the charging/low-battery branches inside
-  `update_active_job_recharge_observation` (delegate to adapter `is_charging` /
-  `is_low_battery_return_state`)
-
-These are reachable with a fuller fixture (seeded `robot_position_x/y` entities +
-an adapter config exposing them) — a natural next increment.
+What's left in `active_job.py` (43%) is the deeper transition-room graph walk and
+the recharge state machine: the positive `_detect_transition_room_from_position`
+path (needs managed rooms + an access-graph path + intermediate bounds), the
+multi-step `update_active_job_recharge_observation` charging transitions, and the
+sensor-fallback / finalization-input collection helpers. All reachable with a
+fuller fixture; none blocking.
 
 ---
 

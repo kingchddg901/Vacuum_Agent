@@ -5,9 +5,10 @@ boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →
 `trace_segmentation` → `trace_review`), an image-segmentation stack
 (`segment_primitives`, `segmenter_engines`), a coordinate tracker
 (`tracker`), and two large orchestrators (`manager`, `mapping_services`).
-Covered by **~240 tests across 14 files** — the trace/image primitives are
-near-fully covered, and the tracker + two orchestrators now have both their pure
-helpers (unit) and their hass-bound bodies (integration) covered.
+Covered by **~265 tests across 15 files** — the trace/image primitives are
+near-fully covered, the tracker + two orchestrators have both their pure helpers
+(unit) and hass-bound bodies (integration) covered, and the real
+detect_room_segments CV pipeline runs end to end against a synthetic image.
 
 Source: `custom_components/eufy_vacuum/mapping/`
 Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-system.md)
@@ -26,8 +27,8 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segmenter_engines.py` | 134 | 87% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 84% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
 | `tracker.py` | 353 | 73% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `manager.py` | 963 | 53% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` | unit + integration |
-| `mapping_services.py` | 650 | 53% | `test_mapping_services_helpers.py` + `test_mapping_services.py` | unit + integration |
+| `manager.py` | 963 | 66% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 650 | 62% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 
@@ -104,19 +105,23 @@ Four patterns, same as elsewhere in the suite:
 
 ---
 
+### Image/CV pipeline (`IMG`, integration)
+A synthetic Pillow PNG drives the real CV path end to end (nothing imports cv2 —
+the segmentor is numpy/scipy/Pillow only): `save_map_image` (valid + bad base64),
+the `analyze_map_image` service (image-not-found, pipeline run, cache),
+`get_image_segment_suggestions`, and `translate_image_segment`. This also covers
+`EufyCVSegmenter.segment_map_image`'s body.
+
 ## Known gaps
 
-What remains is the image/CV-heavy surface and a few defensive branches:
-- **`manager.py`** (53%) — the image-segmentation pipeline:
-  `get_image_segment_suggestions`, `translate_image_segment`, `save_map_image`,
-  and mapping-package normalization. These need real map-image files + the
-  scipy/Pillow CV stack (`detect_room_segments`).
-- **`mapping_services.py`** (53%) — the image handlers
-  (`_handle_upload_map_image`, `_handle_analyze_map_image`) and the registration
-  wiring for the non-segment services. Image handlers need base64 map images.
+What remains are mostly defensive branches and the heavier non-segment service
+wiring:
+- **`manager.py`** (66%) — boundary/package normalization edge branches and the
+  remaining image-package merge paths (2363-2436).
+- **`mapping_services.py`** (62%) — `_handle_upload_map_image`, the boundary/dock
+  service registration handlers, and the save/get-mapping-state services.
 - **`tracker.py`** (73%) — the multi-room `end_job` archive attribution, the
-  periodic flush-to-disk task, and `_get_raw_position` (the full capability
-  stack). The single-room lifecycle is covered.
+  periodic flush-to-disk task, and `_get_raw_position` (full capability stack).
 - **`trace_segmentation`** soft-signal branches (speed/density/boundary-crossing
   detection) — reachable only with elaborate synthetic multi-signal traces.
 
