@@ -1,0 +1,102 @@
+"""Unit tests for queue/queue_engine.py — pure queue + payload builders.
+
+Coverage targets
+----------------
+[QE-1]  get_enabled_rooms_in_order: filters disabled, sorts by order+name.
+[QE-2]  build_queue_from_managed_rooms: queue ids + rooms from enabled set.
+[QE-3]  _cast_map_id: int / str / auto.
+[QE-4]  _write_room_field: identity / omit (None) / value_map.
+[QE-5]  build_active_job_state: stable keys + current room + frozen status.
+[QE-6]  build_room_clean_payload: returns payload + resolved_rooms (smoke).
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from custom_components.eufy_vacuum.queue.queue_engine import (
+    _cast_map_id,
+    _write_room_field,
+    build_active_job_state,
+    build_queue_from_managed_rooms,
+    build_room_clean_payload,
+    get_enabled_rooms_in_order,
+)
+
+
+_VAC = "vacuum.alfred"
+_MAP = "6"
+
+
+def _rooms():
+    return {
+        "1": {"room_id": 1, "name": "Kitchen", "enabled": True, "order": 2},
+        "2": {"room_id": 2, "name": "Bath", "enabled": True, "order": 1},
+        "3": {"room_id": 3, "name": "Closet", "enabled": False, "order": 0},
+    }
+
+
+def test_enabled_in_order():
+    """[QE-1] enabled only, sorted by order → Bath(1) before Kitchen(2)."""
+    ordered = get_enabled_rooms_in_order(managed_rooms=_rooms())
+    assert [r["room_id"] for r in ordered] == [2, 1]
+
+
+def test_build_queue():
+    """[QE-2]"""
+    q = build_queue_from_managed_rooms(
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=_rooms())
+    assert q["room_count"] == 2
+    assert q["queue_room_ids"] == [2, 1]
+    assert q["queue_rooms"][0]["name"] == "Bath"
+
+
+@pytest.mark.parametrize("value,mtype,expected", [
+    ("6", "int", 6), ("6", "str", "6"), ("6", None, 6),
+    ("abc", "int", "abc"), ("abc", None, "abc"),
+])
+def test_cast_map_id(value, mtype, expected):
+    """[QE-3]"""
+    assert _cast_map_id(value, mtype) == expected
+
+
+def test_write_room_field():
+    """[QE-4]"""
+    # identity (no rename config)
+    room: dict = {}
+    _write_room_field(room, {}, "clean_mode", "vacuum")
+    assert room["clean_mode"] == "vacuum"
+    # omit when field_name is None
+    room2: dict = {}
+    _write_room_field(room2, {"clean_mode": {"field_name": None}}, "clean_mode", "vacuum")
+    assert "clean_mode" not in room2
+    # rename + value_map
+    room3: dict = {}
+    _write_room_field(
+        room3, {"clean_mode": {"field_name": "mode", "value_map": {"vacuum": 1}}},
+        "clean_mode", "vacuum")
+    assert room3 == {"mode": 1}
+
+
+def test_build_active_job_state():
+    """[QE-5]"""
+    state = build_active_job_state(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        queue_state={"queue_room_ids": [2, 1], "queue_rooms": [{"room_id": 2}]},
+        payload_state={"resolved_rooms": [{"room_id": 2}], "payload": {"x": 1}, "room_count": 2})
+    assert state["status"] == "started"
+    assert state["current_room_id"] == 2
+    assert state["queue_stable_keys"] == [f"{_VAC}:{_MAP}:2", f"{_VAC}:{_MAP}:1"]
+    assert state["completed_room_ids"] == []
+
+
+def test_build_room_clean_payload():
+    """[QE-6] smoke — minimal managed room yields payload + resolved rooms."""
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        managed_rooms={"1": {"room_id": 1, "name": "Kitchen", "enabled": True,
+                             "clean_mode": "vacuum", "fan_speed": "Max"}},
+        queue_room_ids=[1])
+    assert result["room_count"] >= 1
+    assert "payload" in result
+    assert isinstance(result["resolved_rooms"], list)
