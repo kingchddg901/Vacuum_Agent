@@ -109,6 +109,49 @@ def test_detect_transition_none_guards(tracker, monkeypatch):
         vacuum_entity_id=_VAC, map_id=_MAP, from_room_id=1, to_room_id=2) is None
 
 
+# room 1 → room 2 → room 3 access-graph chain
+_GRAPH = {"rooms": {
+    "1": {"room_id": 1, "grants_access_to": [2]},
+    "2": {"room_id": 2, "grants_access_to": [3]},
+    "3": {"room_id": 3, "grants_access_to": []},
+}}
+
+
+def test_detect_transition_positive(hass, tracker, manager, monkeypatch):
+    """[AJS-3] robot sits in the intermediate transition room (2) on the 1→3 path."""
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
+    monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: _GRAPH)
+
+    mm = MappingManager(hass)
+    mm.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id="trans",
+        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"2": {"is_transition": False}})
+    hass.data[DOMAIN]["mapping_manager"] = mm
+
+    result = tracker._detect_transition_room_from_position(
+        vacuum_entity_id=_VAC, map_id="trans", from_room_id=1, to_room_id=3)
+    assert result == 2
+
+
+def test_detect_transition_direct_adjacent(tracker, manager, monkeypatch):
+    """[AJS-3] directly adjacent rooms → no intermediate → None."""
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
+    monkeypatch.setattr(manager, "get_managed_rooms",
+                        lambda **kw: {"rooms": {"1": {"room_id": 1, "grants_access_to": [3]},
+                                                "3": {"room_id": 3, "grants_access_to": []}}})
+    assert tracker._detect_transition_room_from_position(
+        vacuum_entity_id=_VAC, map_id=_MAP, from_room_id=1, to_room_id=3) is None
+
+
+def test_detect_transition_no_bounds(hass, tracker, manager, monkeypatch):
+    """[AJS-3] a path exists but the transition room has no learned bounds → None."""
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))
+    monkeypatch.setattr(manager, "get_managed_rooms", lambda **kw: _GRAPH)
+    hass.data[DOMAIN]["mapping_manager"] = MappingManager(hass)  # empty, no bounds
+    assert tracker._detect_transition_room_from_position(
+        vacuum_entity_id=_VAC, map_id="nobounds", from_room_id=1, to_room_id=3) is None
+
+
 # ---------------------------------------------------------------------------
 # _maybe_roll_current_room_by_timing
 # ---------------------------------------------------------------------------
