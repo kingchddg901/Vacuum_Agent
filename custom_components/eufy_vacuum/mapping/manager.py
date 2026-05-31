@@ -2295,8 +2295,8 @@ class MappingManager:
                 "assist_image_url": assist_image_url,
                 "assist_variant": assist_variant,
                 "available_variants": sorted(images.keys()),
-                "width": analysis.get("image", {}).get("width", preferred_image.get("width") if isinstance(preferred_image, dict) else data.get("image_width")),
-                "height": analysis.get("image", {}).get("height", preferred_image.get("height") if isinstance(preferred_image, dict) else data.get("image_height")),
+                "width": (analysis.get("image") or {}).get("width", preferred_image.get("width") if isinstance(preferred_image, dict) else data.get("image_width")),
+                "height": (analysis.get("image") or {}).get("height", preferred_image.get("height") if isinstance(preferred_image, dict) else data.get("image_height")),
             },
             "segmentation": analysis.get("engine_diagnostics", {}).get("segmentation", {}),
             "summary": {
