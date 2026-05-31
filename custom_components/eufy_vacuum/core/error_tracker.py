@@ -764,12 +764,17 @@ class ErrorTracker:
 
     def _persist_and_notify(self, vacuum_entity_id: str) -> None:
         """Schedule a save and fan out the in-memory update notification."""
-        # Storage save — fire-and-forget. async_save is an async def, so the
-        # canonical pattern is async_create_task(coro). On a worker thread
-        # we'd need run_coroutine_threadsafe, but state-change callbacks
-        # always arrive on the loop, so async_create_task is correct here.
+        # Storage save — fire-and-forget. async_create_task is loop-thread-only,
+        # but _persist_and_notify is also reachable from a worker thread (the
+        # sync finalize path harvests the error latch from the JobFinalizer's
+        # executor pool). call_soon_threadsafe schedules the task on the loop
+        # from any thread; on the loop thread it just defers one tick. Without
+        # this, an off-loop call leaks the async_save coroutine un-awaited and
+        # the error-tracker state silently fails to persist.
         try:
-            self._hass.async_create_task(self._manager.async_save())
+            self._hass.loop.call_soon_threadsafe(
+                self._hass.async_create_task, self._manager.async_save()
+            )
         except Exception:  # pragma: no cover - defensive
             _LOGGER.debug("error_tracker: storage save scheduling failed", exc_info=True)
         self._notify(vacuum_entity_id)
