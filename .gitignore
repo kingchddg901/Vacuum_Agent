@@ -6,6 +6,12 @@ __pycache__/
 .Python
 *.egg-info/
 
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+
 # Node / card build
 node_modules/
 dist/
