@@ -1,23 +1,24 @@
-"""Integration tests for the image/CV segmentation pipeline.
+"""Integration tests for the brand-agnostic image-segmentation wiring.
 
-Exercises the real detect_room_segments path (numpy/scipy/Pillow — no cv2
-anywhere in the codebase) end to end: a synthetic PNG is generated with Pillow,
-saved through the mapping manager, then run through the analyze service and the
-get_image_segment_suggestions manager method.
+These cover the framework's segment plumbing (save_map_image,
+analyze_map_image, get_image_segment_suggestions, translate_image_segment)
+**without** coupling to any brand's CV implementation: a fake segmenter engine
+is registered like any adapter's engine and returns a canned SegmentationResult.
+This proves the framework drives *any* adapter's CV pipeline.
 
-Assertions are intentionally lenient about *how many* segments a synthetic image
-yields — the point is to drive the pipeline through without error and cover the
-CV code paths, not to validate the segmentor's tuning.
+The real Eufy CV segmentor (detect_room_segments / HSV masks) is tested
+separately in tests/adapters/eufy/test_segmentor.py.
 
 Coverage targets
 ----------------
 [IMG-1]  save_map_image: valid base64 PNG is written.
 [IMG-2]  save_map_image: invalid base64 → invalid_base64 reason.
 [IMG-3]  analyze_map_image: no image on disk → image_not_found.
-[IMG-4]  analyze_map_image: runs the CV pipeline and returns a segments payload.
+[IMG-4]  analyze_map_image: drives the (fake) engine and returns its segments.
 [IMG-5]  analyze_map_image: a second call returns the cached result.
-[IMG-6]  get_image_segment_suggestions: runs against the saved image.
-[IMG-7]  translate_image_segment: persists per-segment offsets.
+[IMG-6]  get_image_segment_suggestions: returns the fake engine's segments.
+[IMG-7]  translate_image_segment: missing segment_id → reason.
+[IMG-8]  translate_image_segment: persists offsets for a real (fake) segment.
 """
 
 from __future__ import annotations
@@ -27,10 +28,9 @@ import io
 
 import pytest
 
-from custom_components.eufy_vacuum.const import (
-    DOMAIN,
-    SERVICE_ANALYZE_MAP_IMAGE,
-)
+from custom_components.eufy_vacuum.const import DOMAIN, SERVICE_ANALYZE_MAP_IMAGE
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+from custom_components.eufy_vacuum.mapping import segmenter_engines
 from custom_components.eufy_vacuum.mapping.manager import MappingManager
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     _get_mapping_manager,
@@ -41,6 +41,48 @@ from custom_components.eufy_vacuum.mapping.mapping_services import (
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
+_FAKE_ENGINE = "test_fake"
+
+
+class _FakeSegmenter:
+    """A brand-neutral segmenter engine — returns one canned segment.
+
+    Mirrors the MapSegmenter protocol; ignores the image entirely so the test
+    is deterministic and independent of any brand's pixel heuristics.
+    """
+
+    engine_name = _FAKE_ENGINE
+
+    def validate_tuning(self, tuning):
+        return []
+
+    def segment_map_image(self, *, image_path, tuning, context=None):
+        return {
+            "available": True,
+            "reason": "ready",
+            "message": "",
+            "engine": self.engine_name,
+            "image": {"width": 100, "height": 100},
+            "segments": [{
+                "segment_id": "fake_1",
+                "polygon_pixel": [[10, 10], [40, 10], [40, 40], [10, 40]],
+                "bbox": {"x": 10, "y": 10, "width": 30, "height": 30},
+                "area_pixels": 900,
+                "area_percent": 9.0,
+                "center_pixel": [25.0, 25.0],
+                "confidence": 0.9,
+                "quality": "good",
+                "structural_role": "room",
+                "segmentation_state": "clean",
+                "edit_readiness": "ready",
+                "matched_room_id": None,
+                "matched_room_label": None,
+                "issues": [],
+            }],
+            "summary": {"segment_count": 1, "quality_counts": {"good": 1},
+                        "good_or_better_count": 1},
+            "engine_diagnostics": {},
+        }
 
 
 @pytest.fixture
@@ -48,31 +90,37 @@ def pil():
     return pytest.importorskip("PIL")
 
 
-def _png_b64(pil) -> str:
-    """A 200x200 dark canvas with two light rectangular 'rooms'."""
-    from PIL import Image, ImageDraw
+def _tiny_png_b64(pil) -> str:
+    from PIL import Image
 
-    img = Image.new("RGB", (200, 200), (30, 30, 30))
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([20, 20, 90, 90], fill=(220, 220, 220))
-    draw.rectangle([110, 110, 180, 180], fill=(220, 220, 220))
     buf = io.BytesIO()
-    img.save(buf, format="PNG")
+    Image.new("RGB", (8, 8), (40, 40, 40)).save(buf, format="PNG")
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
 @pytest.fixture
-async def mapping_services(hass, manager):
-    # _get_mapping_manager does not lazily create — wire one in explicitly.
+async def mapping_services(hass, manager, monkeypatch):
+    # Register the fake engine like any adapter's engine, and point the adapter
+    # config at it — exercises the real engine-selection path, brand-neutrally.
+    monkeypatch.setitem(segmenter_engines._SEGMENTER_ENGINES, _FAKE_ENGINE, _FakeSegmenter())
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "mapping": {"segmenter_engine": _FAKE_ENGINE, "segmenter_tuning": {}},
+    })
     hass.data[DOMAIN]["mapping_manager"] = MappingManager(hass)
     await async_register_mapping_services(hass)
     yield manager
     await async_unregister_mapping_services(hass)
 
 
+def _save_image(hass, pil, *, variant="primary"):
+    return _get_mapping_manager(hass).save_map_image(
+        vacuum_entity_id=_VAC, map_id=_MAP, image_base64=_tiny_png_b64(pil),
+        image_width=8, image_height=8, variant=variant)
+
+
 async def _analyze(hass, **overrides):
-    data = {"vacuum_entity_id": _VAC, "map_id": _MAP,
-            "min_area_pixels": 100, "force_reanalyze": True}
+    data = {"vacuum_entity_id": _VAC, "map_id": _MAP, "force_reanalyze": True}
     data.update(overrides)
     return await hass.services.async_call(
         DOMAIN, SERVICE_ANALYZE_MAP_IMAGE, data, blocking=True, return_response=True)
@@ -84,17 +132,12 @@ async def _analyze(hass, **overrides):
 
 def test_save_map_image(hass, mapping_services, pil):
     """[IMG-1]"""
-    mgr = _get_mapping_manager(hass)
-    result = mgr.save_map_image(
-        vacuum_entity_id=_VAC, map_id=_MAP, image_base64=_png_b64(pil),
-        image_width=200, image_height=200, variant="primary")
-    assert result["saved"] is True
+    assert _save_image(hass, pil)["saved"] is True
 
 
 def test_save_map_image_bad_base64(hass, mapping_services):
     """[IMG-2]"""
-    mgr = _get_mapping_manager(hass)
-    result = mgr.save_map_image(
+    result = _get_mapping_manager(hass).save_map_image(
         vacuum_entity_id=_VAC, map_id=_MAP, image_base64="!!!not-base64!!!")
     assert result["saved"] is False
     assert "invalid_base64" in result["reason"]
@@ -105,7 +148,7 @@ def test_save_map_image_bad_base64(hass, mapping_services):
 # ---------------------------------------------------------------------------
 
 async def test_analyze_image_not_found(hass, mapping_services):
-    """[IMG-3] a map with no saved image."""
+    """[IMG-3]"""
     result = await hass.services.async_call(
         DOMAIN, SERVICE_ANALYZE_MAP_IMAGE,
         {"vacuum_entity_id": _VAC, "map_id": "no_image", "force_reanalyze": True},
@@ -114,27 +157,23 @@ async def test_analyze_image_not_found(hass, mapping_services):
     assert result["reason"] == "image_not_found"
 
 
-async def test_analyze_runs_pipeline(hass, mapping_services, pil):
-    """[IMG-4] the CV pipeline runs and returns a well-formed segments payload."""
-    _get_mapping_manager(hass).save_map_image(
-        vacuum_entity_id=_VAC, map_id=_MAP, image_base64=_png_b64(pil),
-        image_width=200, image_height=200, variant="primary")
+async def test_analyze_runs_engine(hass, mapping_services, pil):
+    """[IMG-4] the framework drives the (fake) engine and surfaces its segments."""
+    _save_image(hass, pil)
     result = await _analyze(hass)
-    assert "segments" in result and isinstance(result["segments"], list)
-    assert "available" in result
+    assert result["available"] is True
+    assert any(s["segment_id"] == "fake_1" for s in result["segments"])
 
 
 async def test_analyze_caches(hass, mapping_services, pil):
-    """[IMG-5] without force_reanalyze the cached result is returned."""
-    _get_mapping_manager(hass).save_map_image(
-        vacuum_entity_id=_VAC, map_id=_MAP, image_base64=_png_b64(pil),
-        image_width=200, image_height=200, variant="primary")
-    await _analyze(hass)  # populate cache
+    """[IMG-5]"""
+    _save_image(hass, pil)
+    await _analyze(hass)
     cached = await hass.services.async_call(
         DOMAIN, SERVICE_ANALYZE_MAP_IMAGE,
         {"vacuum_entity_id": _VAC, "map_id": _MAP, "force_reanalyze": False},
         blocking=True, return_response=True)
-    assert isinstance(cached.get("segments"), list)
+    assert any(s["segment_id"] == "fake_1" for s in cached["segments"])
 
 
 # ---------------------------------------------------------------------------
@@ -143,19 +182,24 @@ async def test_analyze_caches(hass, mapping_services, pil):
 
 def test_get_image_segment_suggestions(hass, mapping_services, pil):
     """[IMG-6]"""
-    mgr = _get_mapping_manager(hass)
-    mgr.save_map_image(
-        vacuum_entity_id=_VAC, map_id=_MAP, image_base64=_png_b64(pil),
-        image_width=200, image_height=200, variant="primary")
-    result = mgr.get_image_segment_suggestions(vacuum_entity_id=_VAC, map_id=_MAP)
-    assert isinstance(result, dict)
-    assert "suggestions" in result or "available" in result
+    _save_image(hass, pil)
+    result = _get_mapping_manager(hass).get_image_segment_suggestions(
+        vacuum_entity_id=_VAC, map_id=_MAP)
+    seg_ids = {str(s.get("segment_id")) for s in result.get("suggestions", [])}
+    assert "fake_1" in seg_ids
 
 
-def test_translate_image_segment(hass, mapping_services):
+def test_translate_missing_id(hass, mapping_services):
     """[IMG-7]"""
-    mgr = _get_mapping_manager(hass)
-    result = mgr.translate_image_segment(
-        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="seg_1", delta_x=5, delta_y=-3)
-    assert isinstance(result, dict)
-    assert result.get("saved") is True or "reason" in result
+    result = _get_mapping_manager(hass).translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="   ")
+    assert result["saved"] is False
+    assert result["reason"] == "missing_segment_id"
+
+
+def test_translate_real_segment(hass, mapping_services, pil):
+    """[IMG-8] translate a segment the engine actually produced (covers 2363-2436)."""
+    _save_image(hass, pil)
+    result = _get_mapping_manager(hass).translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="fake_1", delta_x=5, delta_y=-3)
+    assert result["saved"] is True
