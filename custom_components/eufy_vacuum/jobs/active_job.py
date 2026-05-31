@@ -262,7 +262,10 @@ class ActiveJobTracker:
 
         vacuum_state = self._manager.hass.states.get(vacuum_entity_id)
         _recharge_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
-        task_status_state = self._manager.hass.states.get(_recharge_entities.get("task_status"))
+        _task_status_id = _recharge_entities.get("task_status")
+        task_status_state = (
+            self._manager.hass.states.get(_task_status_id) if _task_status_id else None
+        )
         current_battery = self._manager._get_battery_level(vacuum_entity_id)
         observed_at_value = observed_at or _iso_now()
 
