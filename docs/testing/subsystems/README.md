@@ -7,9 +7,10 @@ patterns specific to that subsystem, and records the deliberate gaps.
 | Subsystem | Test map | Status |
 |-----------|----------|--------|
 | Learning | [learning](learning.md) | Complete — **the template** |
+| Mapping | [mapping](mapping.md) | Pure pipeline + helpers covered; orchestrators deferred |
+| Jobs | [jobs](jobs.md) | Start-gate + pure tracker helpers covered |
 | Battery | _todo_ | partial suite exists (`test_battery_metrics`, `test_battery_store`) |
 | Rooms | _todo_ | partial suite exists (`test_room_manager`, `test_rooms_utils`, `test_services_rooms`) |
-| Mapping | _todo_ | `test_mapping_boundary` |
 | Themes | _todo_ | `test_themes_*` |
 | Setup | _todo_ | `test_setup_*` |
 | Profiles | _todo_ | `test_profiles_room_profiles`, `test_services_*_profiles` |

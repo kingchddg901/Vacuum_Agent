@@ -38,6 +38,8 @@ Per-subsystem "what's tested and how" — start from the learning map (the templ
 |-----|----------------|
 | [subsystems/](subsystems/README.md) | Index of per-subsystem test maps |
 | [subsystems/learning](subsystems/learning.md) | The learning subsystem — coverage map, behaviors, setup patterns, gaps (**template**) |
+| [subsystems/mapping](subsystems/mapping.md) | The mapping subsystem — trace pipeline, image stack, tracker, orchestrators |
+| [subsystems/jobs](subsystems/jobs.md) | The jobs subsystem — start-gate evaluation + active-job tracking |
 
 ---
 

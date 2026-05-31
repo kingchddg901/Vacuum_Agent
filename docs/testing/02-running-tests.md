@@ -89,6 +89,27 @@ scripts\test.bat tests/integration/test_learning_services.py tests/unit/test_lea
   --cov=custom_components/eufy_vacuum/learning/job_finalizer --cov-report=term-missing
 ```
 
+## The image-processing stack (numpy / scipy / Pillow)
+
+The mapping segmentor pipeline depends on numpy, scipy, and Pillow:
+
+- **numpy** arrives transitively through Home Assistant core, so it is always
+  present.
+- **scipy** and **Pillow** are **explicit entries in `requirements_test.txt`** —
+  they are not pulled in by HA core. Without them the scipy/Pillow-dependent
+  mapping code (`segment_primitives` transforms, `mask_edge_band`,
+  `estimate_alignment`, the `eufy_cv` segmentor) can't be exercised.
+
+Even so, scipy-only code paths should guard with
+`pytest.importorskip("scipy.ndimage")` so a test file degrades to a skip rather
+than an error if the stack is ever stripped from the environment:
+
+```python
+def test_mask_edge_band(np):
+    pytest.importorskip("scipy.ndimage")
+    ...
+```
+
 ## First run is slow
 
 The container does a fresh `pip install` on every invocation, so the first run
