@@ -57,13 +57,14 @@ def _square_trail(size: int = 100, step: int = 10) -> list[tuple[float, float]]:
 # ---------------------------------------------------------------------------
 
 def test_update_room_bounds_single_room(mapping_manager):
-    """[MGR-1]"""
+    """[MGR-1] dedicated map id — the shared config_dir means other test files
+    also write room 3 / map 6 bounds, which would widen this exact-bounds union."""
     mapping_manager.update_room_bounds(
-        vacuum_entity_id=_VAC, map_id=_MAP,
+        vacuum_entity_id=_VAC, map_id="mgr1bounds",
         samples=[(0.0, 0.0), (10.0, 10.0), (5.0, 5.0)],
         rooms={"3": {"is_transition": False}},
     )
-    snap = mapping_manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    snap = mapping_manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id="mgr1bounds")
     assert snap["available"] is True
     bounds = snap["rooms"]["3"]["bounds"]
     assert bounds["min_x"] == 0.0 and bounds["max_x"] == 10.0

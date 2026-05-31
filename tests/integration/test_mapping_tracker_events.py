@@ -113,13 +113,13 @@ def test_handle_position_update_accumulates(tracker):
 
 
 def test_end_job_writes_bounds(tracker):
-    """[MTE-6]"""
+    """[MTE-6] dedicated map id to keep the exact-bounds union isolated."""
     _register(tracker)
-    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte6bounds", rooms=_ROOMS)
     tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
     tracker.end_job(vacuum_entity_id=_VAC)
 
-    snap = tracker._manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    snap = tracker._manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id="mte6bounds")
     bounds = snap["rooms"]["3"]["bounds"]
     assert bounds["min_x"] == 0.0 and bounds["max_x"] == 20.0
 
