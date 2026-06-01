@@ -269,6 +269,58 @@ async def test_upload_bad_base64_service(hass, mapping_services):
     assert res["reason"] == "invalid_base64"
 
 
+def test_resolve_matches_fake_segment(hass, mapping_services, pil):
+    """[IMG-14] _resolve_trace_target_polygon_pixel returns a linked segment's
+    polygon from the (fake) engine output — the CV match path."""
+    mm = _get_mapping_manager(hass)
+    # a fresh map id avoids any segment_adjustments other tests persisted on "6"
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id="rsmap",
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="primary")
+    md = {"rooms": {"3": {}},
+          "package": {"room_definitions": {"3": {"suggestion_segment_id": "fake_1"}}}}
+    poly = mm._resolve_trace_target_polygon_pixel(
+        vacuum_entity_id=_VAC, map_id="rsmap", room_id="3", map_data=md)
+    assert poly == [[10.0, 10.0], [40.0, 10.0], [40.0, 40.0], [10.0, 40.0]]
+
+
+def test_translate_vertex_accumulation(hass, mapping_services, pil):
+    """[IMG-15] translate_image_segment accumulates per-vertex moves across calls."""
+    _save_image(hass, pil)
+    mm = _get_mapping_manager(hass)
+    r1 = mm.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="fake_1",
+        vertex_moves=[{"index": 0, "delta_x": 5, "delta_y": 5}])
+    assert r1["saved"] is True
+    # a second move on the same vertex accumulates onto the first
+    r2 = mm.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="fake_1",
+        vertex_moves=[{"index": 0, "delta_x": 3, "delta_y": -5}])
+    assert r2["saved"] is True
+
+
+def test_get_suggestions_enriches_matched_room(hass, mapping_services, pil):
+    """[IMG-16] get_image_segment_suggestions cross-links a matched segment: the
+    segment gains matched_room_id/label and the roster room gains the linked
+    suggestion_segment_id (the dual enrichment loops, segment + roster)."""
+    mm = _get_mapping_manager(hass)
+    _MM = "enrich"
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MM,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="primary")
+    # link room "3" to the fake engine's segment via the stored package
+    data = mm._ensure_map_data(_VAC, _MM)
+    data["rooms"] = {"3": {"room_id": 3, "name": "Office"}}
+    data["package"]["room_definitions"] = {"3": {"suggestion_segment_id": "fake_1"}}
+    mm._save_map_data(_VAC, _MM, data)
+
+    result = mm.get_image_segment_suggestions(vacuum_entity_id=_VAC, map_id=_MM)
+    matched = next(s for s in result["suggestions"] if s["segment_id"] == "fake_1")
+    assert str(matched["matched_room_id"]) == "3"
+    room = next(r for r in result["room_roster"] if str(r.get("room_id")) == "3")
+    assert room["suggestion_segment_id"] == "fake_1"
+
+
 async def test_upload_pil_read_fallback(hass, mapping_services, pil, monkeypatch):
     """[IMG-13] if measuring the saved image fails, dimensions fall back to the
     declared values in the RETURNED response (degraded response, not just a log)."""

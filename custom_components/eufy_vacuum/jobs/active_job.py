@@ -358,7 +358,13 @@ class ActiveJobTracker:
                 if (now_dt - last_dt).total_seconds() < self._MOP_WASH_DEBOUNCE_SECONDS:
                     return active_job
             except Exception:
-                pass
+                # Unparseable timestamp → fall through and count the wash. Log
+                # so a silent debounce break from a timestamp-format drift is
+                # detectable rather than invisible.
+                _LOGGER.debug(
+                    "mop-wash debounce: could not parse timestamps (last=%r now=%r)",
+                    last_at, now_str, exc_info=True,
+                )
 
         active_job["observed_mop_wash_count"] = (
             _safe_int(active_job.get("observed_mop_wash_count"), 0) + 1

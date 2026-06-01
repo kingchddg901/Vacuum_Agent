@@ -197,6 +197,20 @@ def test_segment_run(mapping_manager):
     assert out["error"] is None
     assert isinstance(out["segments"], list)
 
+    # with room_id + a stored boundary, the vacuum-space polygon is loaded so
+    # the BOUNDARY_CROSSING signal is enabled (the room_id branch).
+    _SR = "segrun"
+    mapping_manager.start_trace_capture(vacuum_entity_id=_VAC, map_id=_SR)
+    for i in range(12):
+        mapping_manager.append_trace_sample(vacuum_entity_id=_VAC, map_id=_SR, x=float(i), y=0.0)
+    rid = mapping_manager.stop_trace_capture(vacuum_entity_id=_VAC, map_id=_SR)["run_id"]
+    data = mapping_manager._ensure_map_data(_VAC, _SR)
+    data["rooms"] = {"3": {"boundary": [[0, 0], [20, 0], [20, 20], [0, 20]]}}
+    mapping_manager._save_map_data(_VAC, _SR, data)
+    bounded = mapping_manager.segment_trace_run_for_room(
+        vacuum_entity_id=_VAC, map_id=_SR, run_id=rid, room_id="3")
+    assert bounded["error"] is None
+
 
 # ---------------------------------------------------------------------------
 # Boundary trace lifecycle
@@ -428,6 +442,28 @@ def test_resolve_trace_target_polygon(mapping_manager):
     assert r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md3) == []
 
 
+def test_update_room_bounds_multi_room(mapping_manager):
+    """[MGR-31] multi-room job: samples are attributed to whichever trustworthy
+    room's existing bounds contain them (the else branch of update_room_bounds)."""
+    _MM = "mrb"
+    # give two rooms existing bounds + >= MULTI_ROOM_MIN_RUNS (4) history runs
+    e1 = [{"job_id": f"j{i}", "recorded_at": "t", "samples": [[0, 0], [10, 10]]}
+          for i in range(4)]
+    e2 = [{"job_id": f"k{i}", "recorded_at": "t", "samples": [[100, 100], [110, 110]]}
+          for i in range(4)]
+    mapping_manager.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=_MM, room_id="1", archived_entries=e1)
+    mapping_manager.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=_MM, room_id="2", archived_entries=e2)
+    # a multi-room job: one sample inside each room's box
+    mapping_manager.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MM,
+        samples=[(5.0, 5.0), (105.0, 105.0)],
+        rooms={"1": {"is_transition": False}, "2": {"is_transition": False}})
+    snap = mapping_manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MM)
+    assert "1" in snap["rooms"] and "2" in snap["rooms"]
+
+
 def test_coerce_polygon_points(mapping_manager):
     """[MGR-29] point validation: non-list, <3 valid, and per-point skips.
 
@@ -485,3 +521,18 @@ def test_adjust_polygon_pixel_guards():
     out = _adjust_polygon_pixel(
         _square(), **z, vertex_moves=[{"index": 99, "delta_x": 5}])
     assert out == _square()
+
+
+def test_normalize_package_dedups_shared_segment(mapping_manager):
+    """[MGR-32] when two room definitions claim the same suggestion_segment_id,
+    only the lowest-sorted room keeps the link; later rooms have it dropped to
+    None — one segment maps to one room (the dedup loop in package normalize)."""
+    pkg = {"room_definitions": {
+        "1": {"suggestion_segment_id": "seg_a"},
+        "2": {"suggestion_segment_id": "seg_a"},
+    }}
+    out = mapping_manager._normalize_mapping_package(
+        vacuum_entity_id=_VAC, map_id="dedup", package=pkg)
+    defs = out["room_definitions"]
+    assert defs["1"]["suggestion_segment_id"] == "seg_a"
+    assert defs["2"]["suggestion_segment_id"] is None
