@@ -325,3 +325,35 @@ def test_rebuild_all_with_csv(tmp_path):
     result = rebuilder.rebuild_all(vacuum_entity_id="vacuum.alfred", rebuild_csv=True)
     assert result["csv"] is not None
     assert result["csv"]["job_rows_written"] == 1
+
+
+def test_derive_water_allocations_skips_bad_entries(tmp_path):
+    """Per-room water allocation skips non-dict/no-slug entries, keeps valid ones."""
+    rb = _make_rebuilder(tmp_path)
+    job = {"water": {
+        "estimated_robot_water_used_ml": 100.0,
+        "estimated_dock_wash_water_used_ml": 20.0,
+        "estimated_dock_refill_water_used_ml": 0.0,
+        "rooms": [
+            "not-a-dict",                                  # skipped
+            {"estimated_robot_water_used_ml": 50.0},        # no slug → skipped
+            {"slug": "Kitchen", "estimated_robot_water_used_ml": 60.0,
+             "mop_active": True},
+        ],
+    }}
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum_mop", "water_level": "high"}]
+    per_room, _job_level = rb._derive_room_water_allocations(job=job, rooms=rooms)
+    assert per_room["kitchen"]["robot_water_used_ml"] == pytest.approx(60.0)
+
+
+def test_derive_water_allocations_robot_fallback(tmp_path):
+    """No explicit per-room robot water → split the job total across mop rooms."""
+    rb = _make_rebuilder(tmp_path)
+    job = {"water": {"estimated_robot_water_used_ml": 100.0, "rooms": []}}
+    rooms = [
+        {"slug": "kitchen", "clean_mode": "vacuum_mop", "water_level": "high"},
+        {"slug": "bath", "clean_mode": "vacuum_mop", "water_level": "low"},
+    ]
+    per_room, _job_level = rb._derive_room_water_allocations(job=job, rooms=rooms)
+    assert per_room["kitchen"]["robot_water_used_ml"] == pytest.approx(50.0)
+    assert per_room["bath"]["robot_water_used_ml"] == pytest.approx(50.0)
