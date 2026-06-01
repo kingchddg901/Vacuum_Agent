@@ -34,10 +34,12 @@ from custom_components.eufy_vacuum.const import (
     DATA_ERROR_TRACKER,
     DATA_RUNTIME,
     DOMAIN,
+    EVENT_JOB_FINISHED,
 )
 
 
 _VAC = "vacuum.alfred"
+_STORAGE_KEY = "eufy_vacuum.storage"
 
 
 def _patch_frontend():
@@ -143,6 +145,59 @@ async def test_setup_full_entity_stack(hass, mock_config_entry):
     # (maintenance numbers/buttons, status sensors, error binary_sensor)
     assert len(domains) >= 3
     assert "number" in domains and "button" in domains
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_setup_with_maps_and_rooms(hass, hass_storage, mock_config_entry):
+    """[INIT-5] boot with stored maps+rooms exercises the sensor orchestrator.
+
+    Pre-seeding storage means the per-map/room loop in sensor.async_setup_entry
+    runs (room history + rule-status sensors get built), and the registered
+    room-update / job-finished callbacks fire the sync + refresh paths.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "maps": {_VAC: {"6": {
+            "map_id": "6", "metadata": {}, "summary": {},
+            "rooms": {
+                "1": {"room_id": 1, "name": "Kitchen", "enabled": True},
+                "2": {"room_id": 2, "name": "Bath", "enabled": True},
+            }}}},
+        "error_tracker": {_VAC: {
+            # a recovered latch (blank current_message) → job-finished auto-clears it
+            "active_run_error": {"current_message": "", "recovered": True,
+                                 "errors": []},
+            "last_device_error": None, "recent_errors": []}},
+    }}
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    # room-scoped sensors got built from the stored rooms
+    assert any(
+        e.platform == DOMAIN and "_6_" in (e.unique_id or "")
+        for e in reg.entities.values()
+    )
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    # room-update notify → _sync_room_history/_rule_status callbacks
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="6")
+    await hass.async_block_till_done()
+    # drop a room then notify again → stale-removal branch
+    rt.data["maps"][_VAC]["6"]["rooms"].pop("2", None)
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="6")
+    await hass.async_block_till_done()
+
+    # job-finished → refresh history sensors + auto-clear the recovered latch
+    hass.bus.async_fire(EVENT_JOB_FINISHED,
+                        {"vacuum_entity_id": _VAC, "map_id": "6"})
+    await hass.async_block_till_done()
+    tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
+    assert tracker.get_active_run_latch(_VAC) is None
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
