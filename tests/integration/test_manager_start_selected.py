@@ -132,6 +132,32 @@ async def test_start_requires_confirmation(manager, hass):
     assert len(calls) == 1
 
 
+async def test_start_snapshot_error_degrades(manager, hass, monkeypatch):
+    """[SS-7] a failed learning snapshot still starts the job, but the result
+    carries a user-visible degraded learning_snapshot (saved False/snapshot_error).
+
+    This is the except at start_selected_rooms — it logs AND returns a degraded
+    response field to the caller (a supports_response service), not just metadata.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked")
+    _register_dispatch(hass)
+
+    def _boom(**kwargs):
+        raise RuntimeError("disk full")
+
+    monkeypatch.setattr(manager, "save_learning_snapshot_for_active_job", _boom)
+
+    result = await manager.start_selected_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+    # the job still starts despite the snapshot failure
+    assert result["started"] is True
+    # but the caller sees the degraded snapshot status
+    assert result["learning_snapshot"]["saved"] is False
+    assert result["learning_snapshot"]["reason"] == "snapshot_error"
+
+
 async def test_start_run_profile_not_found(manager, hass):
     """[SS-5]"""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
