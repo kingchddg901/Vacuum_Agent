@@ -279,3 +279,22 @@ async def test_wire_and_state_event(bm, hass):
     bm._on_state_event(MagicMock(data={"entity_id": "sensor.other"}))
     bm.stop()
     assert bm._vacuum_unsubs == {}
+
+
+# ---------------------------------------------------------------------------
+# _classify_session_kind — charge-session context tag
+# ---------------------------------------------------------------------------
+
+def test_classify_session_post_job_window(bm):
+    """[BM-19] a pending post-job recharge recorded within the link window → post_job."""
+    bm._pending_post_job[_VAC] = {"recorded_ts": datetime.now(timezone.utc)}
+    assert bm._classify_session_kind(_VAC) == "post_job"
+
+
+def test_classify_session_idle_when_stale_or_absent(bm):
+    """[BM-20] no pending recharge, or one older than the window → idle."""
+    assert bm._classify_session_kind(_VAC) == "idle"
+    bm._pending_post_job[_VAC] = {
+        "recorded_ts": datetime.now(timezone.utc) - timedelta(hours=5),
+    }
+    assert bm._classify_session_kind(_VAC) == "idle"

@@ -497,3 +497,63 @@ def test_timeout_report_unparseable_timestamp(tracker, manager):
           pause_timeout_minutes=30)
     assert tracker.get_paused_job_timeout_report(
         vacuum_entity_id=_VAC, map_id=_MAP, now="2026-01-01T10:00:00+00:00") is None
+
+
+# ---------------------------------------------------------------------------
+# _timing_completion_threshold_minutes — overrun-slack tiers (pure)
+# ---------------------------------------------------------------------------
+
+def test_timing_threshold_confidence_tiers(tracker):
+    """[AJI-34] lower confidence → a larger overrun slack (monotonic), and the
+    sample-count + drift bonuses push the threshold up further."""
+    def thr(**room):
+        base = {"minutes": 10, "sample_count": 10}
+        base.update(room)
+        return tracker._timing_completion_threshold_minutes(base)
+
+    high = thr(confidence_score=0.9)
+    mid = thr(confidence_score=0.7)
+    low = thr(confidence_score=0.5)
+    poor = thr(confidence_score=0.1)
+    # overrun_ratio grows as confidence drops → threshold grows
+    assert high < mid < low < poor
+    # all thresholds exceed the raw estimate (slack is always added)
+    assert high > 10
+    # a low sample count adds extra slack vs a well-sampled room
+    assert thr(confidence_score=0.9, sample_count=1) > thr(confidence_score=0.9, sample_count=10)
+    # an accuracy drift adds slack on top
+    assert thr(confidence_score=0.9, accuracy_drift_ratio=0.8) > high
+    # the total slack is capped (never exceeds est + max(4, est*0.35))
+    assert thr(confidence_score=0.0, sample_count=0, accuracy_drift_ratio=5.0) <= 10 + 4.0
+
+
+# ---------------------------------------------------------------------------
+# _job_status_summary — card-facing status string
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("active_job,lifecycle,expected", [
+    ({"status": "paused"}, {}, "Job paused"),
+    ({"status": "started"}, {}, "Cleaning in progress"),
+    ({"status": "completed", "finalize_summary": {"status": "cancelled"}}, {}, "Job cancelled"),
+    ({"status": "completed", "finalize_summary": {"status": "failed"}}, {}, "Job failed"),
+    ({"status": "completed", "finalize_summary": {"status": "interrupted"}}, {}, "Job interrupted"),
+    ({"status": "completed"}, {}, "Job completed"),
+    ({"status": "idle"}, {"lifecycle_state": "ready"}, "Ready to start"),
+    ({"status": "idle"}, {"lifecycle_state": "dock_drying"}, "Dock drying"),
+    ({"status": "idle"}, {"lifecycle_state": "other", "message": ""}, "Idle"),
+])
+def test_job_status_summary(tracker, active_job, lifecycle, expected):
+    """[AJI-35] the status string covers each lifecycle/outcome branch."""
+    assert tracker._job_status_summary(
+        active_job=active_job, lifecycle_state=lifecycle) == expected
+
+
+def test_job_status_summary_names_room(tracker):
+    """[AJI-36] a started job names the current room from resolved_rooms."""
+    active_job = {
+        "status": "started", "current_room_id": 1,
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}],
+    }
+    out = tracker._job_status_summary(
+        active_job=active_job, progress_snapshot={"current_room_id": 1})
+    assert out == "Cleaning Kitchen"

@@ -186,3 +186,38 @@ def test_upkeep_snapshot_with_component(mnt, manager, hass, monkeypatch):
     assert "main_brush" in items
     assert items["main_brush"]["status"] == "warning"
     assert snap["highest_priority_status"] in {"warning", "replace_soon", "replace_now"}
+
+
+def test_upkeep_item_guide_builds_sub_dicts(mnt):
+    """[MNT-13] _get_upkeep_item_guide enriches a library entry with source model
+    info + maintenance/replacement sub-dicts; display picks by item_kind."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "upkeep_catalog": {
+            "model_names": {"X8": "X8 Pro"},
+            "model_guide_families": {"X8": "x_series"},
+            "guide_family_names": {"x_series": "X Series"},
+            "guide_library": {"x_series": {"main_brush": {
+                "clean_frequency": "monthly",
+                "replace_frequency": "yearly",
+                "steps": ["pop the cover", "pull the brush"],
+                "notes": ["watch for hair"],
+            }}},
+        },
+    })
+    guide = mnt._get_upkeep_item_guide(
+        vacuum_entity_id=_VAC, model_code="X8",
+        component="main_brush", item_kind="replacement")
+    assert guide["available"] is True
+    assert guide["source_model_name"] == "X8 Pro"
+    assert guide["source_guide_family_name"] == "X Series"
+    assert guide["maintenance"]["frequency"] == "monthly"
+    assert guide["maintenance"]["available"] is True
+    assert guide["replacement"]["frequency"] == "yearly"
+    # item_kind=replacement → display mirrors the replacement sub-dict
+    assert guide["display"] == guide["replacement"]
+    # an unknown component has no library entry → None
+    assert mnt._get_upkeep_item_guide(
+        vacuum_entity_id=_VAC, model_code="X8",
+        component="ghost", item_kind="maintenance") is None
