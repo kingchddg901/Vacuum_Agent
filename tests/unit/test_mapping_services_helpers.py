@@ -16,11 +16,20 @@ Coverage targets
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
+
+import pytest
+
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     _adjust_polygon_pixel,
     _apply_segment_adjustments,
     _bbox_from_polygon_pixel,
     _build_segments_response,
+    _get_mapping_manager,
+    _get_room_name,
     _safe_int,
 )
 
@@ -115,3 +124,76 @@ def test_helpers_smoke():
     out = _adjust_polygon_pixel([[0, 0], [2, 2]], offset_x=1, offset_y=1,
                                 edge_left=0, edge_right=0, edge_top=0, edge_bottom=0)
     assert out[0] == [1, 1]
+
+
+# ---------------------------------------------------------------------------
+# Uncovered-branch coverage (guards, lookups, edge/vertex flags)
+# ---------------------------------------------------------------------------
+
+_Z = dict(offset_x=0, offset_y=0, edge_left=0, edge_right=0, edge_top=0, edge_bottom=0)
+
+
+def test_get_mapping_manager_missing_raises():
+    """[MS-9] no mapping manager registered → HomeAssistantError."""
+    hass = MagicMock()
+    hass.data = {}
+    with pytest.raises(HomeAssistantError):
+        _get_mapping_manager(hass)
+
+
+def test_get_room_name_no_core_returns_id():
+    """[MS-10] no runtime core → the room id itself."""
+    hass = MagicMock()
+    hass.data = {DOMAIN: {}}
+    assert _get_room_name(hass, "vacuum.alfred", "6", "3") == "3"
+
+
+def test_get_room_name_core_error_returns_id():
+    """[MS-10] a core that raises on lookup → falls back to the room id."""
+    core = MagicMock()
+    core.get_managed_rooms.side_effect = RuntimeError("boom")
+    hass = MagicMock()
+    hass.data = {DOMAIN: {DATA_RUNTIME: core}}
+    assert _get_room_name(hass, "vacuum.alfred", "6", "3") == "3"
+
+
+def test_bbox_empty_polygon_is_none():
+    """[MS-11] an empty polygon has no bounding box."""
+    assert _bbox_from_polygon_pixel([]) is None
+
+
+def test_adjust_polygon_guards():
+    """[MS-12] non-list / malformed-point / unparseable guards."""
+    assert _adjust_polygon_pixel("nope", **_Z) == []
+    assert _adjust_polygon_pixel([[1, 2], "x", [3]], **_Z) == [[1, 2]]
+    assert _adjust_polygon_pixel([["a", "b"]], **_Z) == []
+
+
+def test_adjust_polygon_vertex_moves():
+    """[MS-13] valid vertex move applies; bad/out-of-range moves ignored."""
+    out = _adjust_polygon_pixel(
+        [[0, 0], [10, 0], [10, 10], [0, 10]], **_Z,
+        vertex_moves=[{"index": 0, "delta_x": 5, "delta_y": 5},
+                      "notadict",
+                      {"index": 99, "delta_x": 1}])
+    assert out[0] == [5, 5]
+    assert out[1] == [10, 0]
+
+
+def test_apply_segment_adjustments_edge_and_vertex_flags():
+    """[MS-14] edge nudges + vertex moves set their manual-adjustment flags."""
+    segs = [{"segment_id": "s1", "polygon_pixel": [[0, 0], [10, 0], [10, 10], [0, 10]],
+             "center_pixel": [5, 5], "issues": []}]
+    adj = {"s1": {"offset_x": 1, "edge_left": 2,
+                  "vertex_moves": [{"index": 0, "delta_x": 1, "delta_y": 1}]}}
+    out = _apply_segment_adjustments(segs, adj)[0]
+    assert "edge_adjusted_manual" in out["issues"]
+    assert "vertex_adjusted_manual" in out["issues"]
+
+
+def test_apply_segment_adjustments_bad_center_swallowed():
+    """[MS-15] a non-numeric center is logged and left unchanged (no crash)."""
+    segs = [{"segment_id": "s1", "polygon_pixel": [[0, 0], [10, 0], [10, 10], [0, 10]],
+             "center_pixel": ["a", "b"], "issues": []}]
+    out = _apply_segment_adjustments(segs, {"s1": {"offset_x": 2}})[0]
+    assert out["center_pixel"] == ["a", "b"]
