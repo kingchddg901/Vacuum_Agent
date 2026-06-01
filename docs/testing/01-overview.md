@@ -74,8 +74,25 @@ explicitly when you want it (see [02](02-running-tests.md)).
 
 ## Coverage status
 
-Branch coverage is enabled. The learning subsystem is the most heavily covered
-(manager ~89%, job_finalizer ~86%). Coverage is a guide, not a target — the
-suite favors **precision** (each test maps to a named behavior, see
-[04](04-patterns-and-conventions.md)) over chasing the last few percent through
-mock-heavy tests of defensive `except` blocks.
+**Framework coverage: 93.6% statement** (90.8% with `--cov-branch`, which the
+default `addopts` enables), across the brand-agnostic core — the Eufy adapter is
+omitted via `.coveragerc` (see
+[subsystems/15-adapters](subsystems/15-adapters.md)). Most subsystems sit in the
+92–98% band; the per-subsystem breakdown lives in
+[subsystems/README](subsystems/README.md).
+
+Coverage is a guide, not a target — the suite favors **precision** (each test
+maps to a named behavior, see [04](04-patterns-and-conventions.md)) over chasing
+the last few percent. The remaining misses are, by design, one of:
+
+- **`# pragma: no cover`** — pure log-only / best-effort `except` blocks (I/O
+  writes, listener teardown). Never used where the failure path escapes into a
+  returned/persisted/user-visible value.
+- **Honest misses** (not tested, not pragma'd) — defensive `continue` /
+  `return []` guards (real control flow) and `async_setup_entry` boot wiring that
+  only runs under a full integration boot.
+
+See [subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere)
+for the full convention. 95% is not pursued: reaching it on this codebase would
+mean either pragma-bombing real control flow or writing tests that exist only to
+move a number.

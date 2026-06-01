@@ -3,9 +3,10 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **759 test functions** across **47 files** (11 unit,
-36 integration, plus the adapter suite), all green, running on Python 3.14
-inside a Linux container.
+The suite currently has **1,448 test functions** across **100 files** (30 unit,
+68 integration, 2 adapter), all green, running on Python 3.14 inside a Linux
+container. **Framework coverage is 93.6%** (90.8% with branch coverage); see the
+[subsystems index](subsystems/README.md) for the per-subsystem breakdown.
 
 ---
 
