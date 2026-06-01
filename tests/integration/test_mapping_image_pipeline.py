@@ -267,3 +267,22 @@ async def test_upload_bad_base64_service(hass, mapping_services):
         "image_base64": "!!!not-base64!!!"})
     assert res["saved"] is False
     assert res["reason"] == "invalid_base64"
+
+
+async def test_upload_pil_read_fallback(hass, mapping_services, pil, monkeypatch):
+    """[IMG-13] if measuring the saved image fails, dimensions fall back to the
+    declared values in the RETURNED response (degraded response, not just a log)."""
+    import PIL.Image
+
+    def _boom(*a, **k):
+        raise OSError("cannot read image")
+
+    # a valid PNG skips the conversion branch; PIL is only used to measure size
+    monkeypatch.setattr(PIL.Image, "open", _boom)
+    res = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    assert res["saved"] is True
+    # measurement failed → returned dims fall back to the declared ones
+    assert res["actual_width"] == 8
+    assert res["actual_height"] == 8

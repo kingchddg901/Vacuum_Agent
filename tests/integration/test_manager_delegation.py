@@ -138,3 +138,29 @@ def test_upkeep_delegations(mgr):
     assert isinstance(mgr._get_upkeep_model_meta(vacuum_entity_id=_VAC), dict)
     snap = mgr.get_upkeep_snapshot(vacuum_entity_id=_VAC)
     assert isinstance(snap, dict)
+
+
+@pytest.mark.parametrize("register,notify", [
+    ("register_room_update_callback", "_notify_rooms_updated"),
+    ("register_run_profile_update_callback", "_notify_run_profiles_updated"),
+    ("register_room_history_update_callback", "_notify_room_history_updated"),
+    ("register_room_rule_status_update_callback", "_notify_room_rule_status_updated"),
+])
+def test_notify_callback_resilience(manager, register, notify):
+    """[MD-7] a raising callback is logged and skipped; the others still fire.
+
+    Reclassified from logger-only SKIP: the except sits in a fan-out loop, so a
+    failing callback must not block the rest (skip-one-continue resilience).
+    """
+    seen = []
+
+    def bad(**kw):
+        raise RuntimeError("boom")
+
+    def good(**kw):
+        seen.append(kw)
+
+    getattr(manager, register)(bad)
+    getattr(manager, register)(good)
+    getattr(manager, notify)(vacuum_entity_id=_VAC, map_id="6")
+    assert seen, "the surviving callback should still fire after one raises"
