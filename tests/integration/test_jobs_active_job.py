@@ -395,3 +395,105 @@ async def test_cancel_timeout(tracker, manager, hass, monkeypatch):
     out = await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
     assert out["cancelled"] is True
     assert out["confirmed"] is False
+
+
+# ---------------------------------------------------------------------------
+# async_pause_active_job / async_resume_active_job — service-driven wrappers
+# ---------------------------------------------------------------------------
+
+def _register_vacuum(hass, service) -> list:
+    calls = []
+
+    async def _handler(call):
+        calls.append(call)
+
+    hass.services.async_register("vacuum", service, _handler)
+    return calls
+
+
+async def test_async_pause_no_started_job(tracker, manager):
+    """[AJI-25] nothing started → paused False, no_started_job, no service call."""
+    out = await tracker.async_pause_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["paused"] is False
+    assert out["reason"] == "no_started_job"
+
+
+async def test_async_pause_calls_service(tracker, manager, hass):
+    """[AJI-26] a started job → vacuum.pause dispatched + job marked paused."""
+    _seed(manager)
+    calls = _register_vacuum(hass, "pause")
+    out = await tracker.async_pause_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["paused"] is True
+    assert out["reason"] == "paused"
+    assert len(calls) == 1
+    assert calls[0].data["entity_id"] == _VAC
+    assert out["active_job"]["status"] == "paused"
+
+
+async def test_async_resume_no_paused_job(tracker, manager):
+    """[AJI-27] a non-paused job → resumed False, no_paused_job, no service call."""
+    _seed(manager)  # status started, not paused
+    out = await tracker.async_resume_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["resumed"] is False
+    assert out["reason"] == "no_paused_job"
+
+
+async def test_async_resume_calls_service(tracker, manager, hass):
+    """[AJI-28] a paused job → vacuum.start dispatched + job marked started."""
+    _seed(manager, status="paused", paused_at="2026-01-01T09:00:00+00:00")
+    calls = _register_vacuum(hass, "start")
+    out = await tracker.async_resume_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["resumed"] is True
+    assert out["reason"] == "resumed"
+    assert len(calls) == 1
+    assert out["active_job"]["status"] == "started"
+
+
+# ---------------------------------------------------------------------------
+# get_paused_job_timeout_report — paused-job timeout escalation
+# ---------------------------------------------------------------------------
+
+def test_timeout_report_not_paused(tracker, manager):
+    """[AJI-29] a started (non-paused) job has no timeout report."""
+    _seed(manager)
+    assert tracker.get_paused_job_timeout_report(
+        vacuum_entity_id=_VAC, map_id=_MAP) is None
+
+
+def test_timeout_report_disabled_when_zero(tracker, manager):
+    """[AJI-30] a paused job with a 0-minute timeout opts out → None."""
+    _seed(manager, status="paused", paused_at="2026-01-01T09:00:00+00:00",
+          pause_timeout_minutes=0)
+    assert tracker.get_paused_job_timeout_report(
+        vacuum_entity_id=_VAC, map_id=_MAP) is None
+
+
+def test_timeout_report_under_limit(tracker, manager):
+    """[AJI-31] paused but not yet over the limit → None."""
+    _seed(manager, status="paused", paused_at="2026-01-01T09:00:00+00:00",
+          pause_timeout_minutes=30)
+    out = tracker.get_paused_job_timeout_report(
+        vacuum_entity_id=_VAC, map_id=_MAP, now="2026-01-01T09:10:00+00:00")
+    assert out is None
+
+
+def test_timeout_report_exceeded(tracker, manager):
+    """[AJI-32] paused beyond the limit → a populated escalation report."""
+    _seed(manager, status="paused", job_id="j9",
+          paused_at="2026-01-01T09:00:00+00:00", pause_timeout_minutes=30)
+    out = tracker.get_paused_job_timeout_report(
+        vacuum_entity_id=_VAC, map_id=_MAP, now="2026-01-01T10:00:00+00:00")
+    assert out is not None
+    assert out["cancel_reason"] == "pause_timeout"
+    assert out["forced_lifecycle_state"] == "pause_timeout_cancelled"
+    assert out["pause_timeout_minutes"] == 30
+    assert out["paused_elapsed_seconds"] == 3600
+    assert out["job_id"] == "j9"
+
+
+def test_timeout_report_unparseable_timestamp(tracker, manager):
+    """[AJI-33] a paused job whose paused_at can't be parsed → None (no crash)."""
+    _seed(manager, status="paused", paused_at="not-a-timestamp",
+          pause_timeout_minutes=30)
+    assert tracker.get_paused_job_timeout_report(
+        vacuum_entity_id=_VAC, map_id=_MAP, now="2026-01-01T10:00:00+00:00") is None
