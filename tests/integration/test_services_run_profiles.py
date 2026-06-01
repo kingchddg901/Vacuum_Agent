@@ -17,7 +17,7 @@ Coverage targets
 from __future__ import annotations
 
 import pytest
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from custom_components.eufy_vacuum.const import DOMAIN
 
@@ -26,6 +26,29 @@ from .conftest import setup_map
 
 _VAC = "vacuum.alfred"
 _MAP = "1"
+
+
+@pytest.mark.parametrize("service,method,data", [
+    ("save_run_profile", "save_run_profile", {"name": "x"}),
+    ("apply_run_profile", "apply_run_profile", {"profile_id": "p"}),
+    ("rename_run_profile", "rename_run_profile", {"profile_id": "p", "name": "x"}),
+    ("overwrite_run_profile", "overwrite_run_profile", {"profile_id": "p"}),
+    ("delete_run_profile", "delete_run_profile", {"profile_id": "p"}),
+])
+async def test_run_profile_handler_wraps_manager_error(
+    hass, manager_with_services, monkeypatch, service, method, data
+):
+    """[SRN-11] a manager-layer failure surfaces to the caller as HomeAssistantError
+    (the HA Silver action-exception contract), not a raw traceback."""
+    def _boom(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(manager_with_services, method, _boom)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, service,
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, **data},
+            blocking=True, return_response=True)
 
 
 # ---------------------------------------------------------------------------

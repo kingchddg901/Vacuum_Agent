@@ -13,7 +13,7 @@ Coverage targets
 from __future__ import annotations
 
 import pytest
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 from custom_components.eufy_vacuum.const import DOMAIN
 
@@ -125,3 +125,31 @@ async def test_get_dashboard_snapshot_includes_required_keys(hass, manager_with_
     assert "start_status" in result
     assert "job_control" in result
     assert "upkeep" in result
+
+
+# ---------------------------------------------------------------------------
+# [MR-4/5] handler error-wrapping (HA Silver action-exception contract)
+# ---------------------------------------------------------------------------
+
+async def test_reset_maintenance_wraps_manager_error(hass, manager_with_services, monkeypatch):
+    """[MR-4] a manager failure in reset surfaces as HomeAssistantError."""
+    def _boom(**kwargs):
+        raise RuntimeError("boom")
+    monkeypatch.setattr(manager_with_services, "reset_maintenance", _boom)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "reset_maintenance",
+            {"vacuum_entity_id": _VAC, "component": "main_brush"},
+            blocking=True, return_response=True)
+
+
+async def test_set_maintenance_interval_wraps_save_error(hass, manager_with_services, monkeypatch):
+    """[MR-5] a failed async_save while persisting an interval → HomeAssistantError."""
+    async def _boom():
+        raise RuntimeError("disk full")
+    monkeypatch.setattr(manager_with_services, "async_save", _boom)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, "set_maintenance_interval",
+            {"vacuum_entity_id": _VAC, "component": "main_brush", "interval_hours": 150},
+            blocking=True, return_response=True)
