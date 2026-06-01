@@ -407,6 +407,26 @@ def test_apply_adjust_noop_and_passthrough(mapping_manager):
     assert out3 == ["not-a-dict"]
 
 
+def test_rebuild_room_bounds_from_archive(mapping_manager):
+    """[MGR-28] replay archived trace entries into the room's bounds history."""
+    entries = [
+        {"job_id": "j1", "recorded_at": "t1", "samples": [[0, 0], [10, 10]]},
+        {"job_id": "j2", "recorded_at": "t2",
+         "samples": [[5, 5], [20, 20]], "excluded": True},
+        {"job_id": "j3", "samples": []},            # empty samples → skipped
+        {"samples": [[1, 1]]},                       # no job_id → skipped
+        {"job_id": "j4", "samples": [["x", "y"]]},   # non-numeric → skipped
+    ]
+    result = mapping_manager.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", archived_entries=entries)
+    assert result["success"] is True
+    assert result["replayed"] == 2
+    assert result["skipped"] == 3
+    # bounds recomputed from the replayed (non-excluded) history
+    snap = mapping_manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert "3" in snap["rooms"]
+
+
 def test_translate_image_segment_guards(mapping_manager):
     """[MGR-27] translate_image_segment guard branches (no CV image needed)."""
     miss = mapping_manager.translate_image_segment(
