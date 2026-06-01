@@ -139,7 +139,21 @@ class AccessGraphManager:
                 if key in source_changes:
                     changes[key] = source_changes.get(key)
 
-        return {
+        # Modifier rules may fan their effect out to additional rooms. The
+        # field is authored by the card and must survive normalization, or
+        # _build_effective_start_plan never applies the fan-out (the rule it
+        # iterates is this normalized dict, not the raw stored one).
+        fan_out_room_ids: list[int] = []
+        if kind == "modifier":
+            seen_fan_out: set[int] = set()
+            for raw_target in (raw_rule.get("fan_out_room_ids") or []):
+                target_id = _safe_int(raw_target, -1)
+                if target_id <= 0 or target_id in seen_fan_out:
+                    continue
+                seen_fan_out.add(target_id)
+                fan_out_room_ids.append(target_id)
+
+        normalized_rule: dict[str, Any] = {
             "id": str(raw_rule.get("id") or self._generate_room_rule_id()).strip(),
             "label": str(raw_rule.get("label", "")).strip() or None,
             "entity_id": str(raw_rule.get("entity_id", "")).strip(),
@@ -153,6 +167,9 @@ class AccessGraphManager:
                 "changes": changes,
             },
         }
+        if fan_out_room_ids:
+            normalized_rule["fan_out_room_ids"] = fan_out_room_ids
+        return normalized_rule
 
     def _normalize_room_rules(self, raw_rules: Any) -> list[dict[str, Any]]:
         """Return canonical room automation rules."""

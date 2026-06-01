@@ -14,6 +14,7 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
 [SP-5]  valid graph + matching direct blocker → room in blocked_rooms + confirm.
 [SP-6]  valid graph + matching modifier → modified_rooms carries the changes.
 [SP-7]  access-dependency propagation: blocked parent blocks its child.
+[SP-8]  modifier fan-out: a rule's fan_out_room_ids apply to a derived target.
 """
 
 from __future__ import annotations
@@ -160,3 +161,27 @@ def test_access_dependency_propagates(rp, hass):
     child = next(b for b in pf["blocked_rooms"] if b["room_id"] == 3)
     assert child["source"] == "access_dependency"
     assert child["blocked_by_room_id"] == 2
+
+
+def test_modifier_fan_out(rp, hass):
+    """[SP-8] a modifier on the dock room fans its changes out to room 2."""
+    rp_, mgr = rp
+    fan_rule = {
+        "kind": "modifier", "id": "f1", "entity_id": "binary_sensor.quiet",
+        "operator": "is_on",
+        "fan_out_room_ids": [2],
+        "effect": {"action": "mutate", "changes": {"water_level": "low"}},
+    }
+    _seed(mgr, "spm8", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2],
+         "rules": [fan_rule]},
+        {"enabled": True},   # no direct rule → entry is purely fan-out-derived
+    ])
+    hass.states.async_set("binary_sensor.quiet", "on")
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm8")
+    pf = out["preflight"]
+    mod = next(m for m in pf["modified_rooms"] if m["room_id"] == 2)
+    assert mod["changes"]["water_level"] == "low"
+    assert mod["derived"] is True
+    assert mod["source_room_id"] == 1
+    assert "f1" in mod["triggered_rule_ids"]
