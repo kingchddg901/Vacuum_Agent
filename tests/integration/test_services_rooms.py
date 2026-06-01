@@ -6,16 +6,29 @@ Coverage targets
 [SR-2]  get_vacuum_maps service returns map list for a vacuum.
 [SR-3]  update_room_fields service updates a field and returns ok.
 [SR-4]  update_room_fields service returns error for unknown room.
+[SR-5]  discover_rooms handler: success → discover + drift pass + save.
+[SR-6]  handler exception wrapping: discover / save / update_room_fields.
+[SR-7]  update_room_fields handler: not-updated → no save.
 
-Note: discover_rooms service is excluded — it calls adapter entities and
-run_discovery_pass which require a real HA entity setup.
+The discover_rooms handler + the error-wrapping branches run through the
+module-level _handle_* coroutines with a mock manager (the real service path
+can't easily force those failures).
 """
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
-from custom_components.eufy_vacuum.const import DOMAIN
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
+from custom_components.eufy_vacuum.services.rooms import (
+    _handle_discover_rooms,
+    _handle_save_managed_rooms,
+    _handle_update_room_fields,
+)
 
 from .conftest import seed_discovery, make_rooms, setup_map
 
@@ -172,3 +185,61 @@ async def test_update_room_fields_service_unknown_room_returns_error(hass, manag
     )
     assert result["ok"] is False
     assert result["error"] == "room_not_found"
+
+
+# ---------------------------------------------------------------------------
+# [SR-5] — [SR-7] handler-level: discover + error wrapping (mock manager)
+# ---------------------------------------------------------------------------
+
+class _Call:
+    def __init__(self, data):
+        self.data = data
+
+
+@pytest.fixture
+def rmock(hass):
+    mgr = MagicMock()
+    mgr.data = {}
+    mgr.async_save = AsyncMock()
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = mgr
+    return hass, mgr
+
+
+def _c(**extra):
+    return _Call({"vacuum_entity_id": _VAC, "map_id": _MAP, **extra})
+
+
+async def test_discover_handler_success(rmock):
+    """[SR-5] discover delegates, runs the drift pass, and saves."""
+    hass, mgr = rmock
+    mgr.discover_rooms.return_value = {"room_count": 0}
+    await _handle_discover_rooms(hass, _c())
+    mgr.discover_rooms.assert_called_once()
+    mgr.async_save.assert_awaited_once()
+
+
+async def test_discover_handler_raises(rmock):
+    """[SR-6]"""
+    hass, mgr = rmock
+    mgr.discover_rooms.side_effect = RuntimeError("boom")
+    with pytest.raises(HomeAssistantError, match="Failed to discover rooms"):
+        await _handle_discover_rooms(hass, _c())
+
+
+async def test_save_handler_raises(rmock):
+    """[SR-6]"""
+    hass, mgr = rmock
+    mgr.save_managed_rooms.side_effect = ValueError("bad")
+    with pytest.raises(HomeAssistantError, match="Failed to save managed rooms"):
+        await _handle_save_managed_rooms(hass, _c())
+
+
+async def test_update_handler_raises_and_noop(rmock):
+    """[SR-6] + [SR-7] error wrap, and no save when nothing updated."""
+    hass, mgr = rmock
+    mgr.update_room_fields.return_value = {"updated": False}
+    await _handle_update_room_fields(hass, _c(room_id=1))
+    mgr.async_save.assert_not_awaited()
+    mgr.update_room_fields.side_effect = ValueError("bad")
+    with pytest.raises(HomeAssistantError, match="Failed to update room fields"):
+        await _handle_update_room_fields(hass, _c(room_id=1))

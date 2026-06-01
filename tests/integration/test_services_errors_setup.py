@@ -17,13 +17,18 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import (
     DATA_ERROR_TRACKER,
     DOMAIN,
     SERVICE_ACKNOWLEDGE_ERROR,
     SERVICE_GET_RECENT_ERRORS,
+    SERVICE_SETUP_ADD_VACUUM,
+    SERVICE_SETUP_DELETE_MAP,
+    SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_GET_MAP_ROOMS,
     SERVICE_SETUP_GET_STATUS,
+    SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
 )
 from .conftest import seed_discovery, make_rooms, setup_map
@@ -97,3 +102,71 @@ async def test_setup_save_rooms(hass, manager_with_services):
                          {"vacuum_entity_id": _VAC, "map_id": _MAP})
     assert result["status"] == "success"
     assert result["room_count"] == 3
+
+
+# ---------------------------------------------------------------------------
+# setup write-path service handlers (add / delete / reject / force-remove)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def _no_panel(monkeypatch):
+    async def _fake(*a, **k):
+        return None
+    import homeassistant.components.panel_custom as panel_custom
+    monkeypatch.setattr(panel_custom, "async_register_panel", _fake)
+
+
+async def test_setup_add_vacuum(hass, manager_with_services, _no_panel):
+    """[SVS-4] add_vacuum service records the vacuum + stamps the setup step."""
+    hass.states.async_set(_VAC, "docked")
+    result = await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
+    assert result["status"] == "success"
+    assert _VAC in manager_with_services.data.get("vacuums", {})
+    steps = manager_with_services.data["setup_progress"][_VAC]["completed_steps"]
+    assert "add_vacuum" in steps
+
+
+async def test_setup_import_active_map(hass, manager_with_services, _no_panel):
+    """[SVS-8] import_active_map service discovers + saves the active map."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"active_map": "sensor.alfred_active_map"},
+        "discovery": {
+            "room_list_entity": "vacuum_entity", "room_list_attribute": "segments",
+            "room_id_key": "id", "room_name_key": "name"},
+    })
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Bath"}]})
+    await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
+    hass.states.async_set("sensor.alfred_active_map", "svsimp")
+    result = await _call(hass, "setup_import_active_map", {"vacuum_entity_id": _VAC})
+    assert result["status"] == "success"
+    assert result["data"]["room_count"] == 2
+
+
+async def test_setup_delete_map(hass, manager_with_services):
+    """[SVS-5] delete_map service removes a map given a confirmation token."""
+    setup_map(manager_with_services, _VAC, "svsdel", count=2)
+    result = await _call(hass, SERVICE_SETUP_DELETE_MAP,
+                         {"vacuum_entity_id": _VAC, "map_id": "svsdel",
+                          "confirmation_token": "yes"})
+    assert result["status"] == "success"
+    assert "svsdel" not in manager_with_services.data.get("maps", {}).get(_VAC, {})
+
+
+async def test_setup_reject_rooms(hass, manager_with_services):
+    """[SVS-6] reject_rooms service strips rooms + reports the result."""
+    setup_map(manager_with_services, _VAC, "svsrej", count=3)
+    result = await _call(hass, SERVICE_SETUP_REJECT_ROOMS,
+                         {"vacuum_entity_id": _VAC, "room_ids": [1, 2]})
+    assert result["status"] == "success"
+    assert set(result["rejected"]) == {1, 2}
+
+
+async def test_setup_force_remove_room(hass, manager_with_services):
+    """[SVS-7] force_remove_room service bumps the missing-pass counter."""
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    result = await _call(hass, SERVICE_SETUP_FORCE_REMOVE_ROOM,
+                         {"vacuum_entity_id": _VAC, "room_id": 7})
+    assert result["status"] == "success"
+    assert result["room_id"] == 7
