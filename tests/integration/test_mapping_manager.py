@@ -30,11 +30,23 @@ from __future__ import annotations
 
 import pytest
 
-from custom_components.eufy_vacuum.mapping.manager import MappingManager
+from custom_components.eufy_vacuum.mapping.manager import (
+    MappingManager,
+    _adjust_polygon_pixel,
+)
 
 
 _VAC = "vacuum.alfred"
 _MAP = "6"
+
+
+def _square():
+    return [[0, 0], [10, 0], [10, 10], [0, 10]]
+
+
+def _seg(**extra):
+    return {"segment_id": "s1", "polygon_pixel": _square(),
+            "center_pixel": [5, 5], **extra}
 
 
 @pytest.fixture
@@ -333,3 +345,76 @@ def test_normalize_room_def_bad_shapes(mapping_manager):
     out2 = mapping_manager._normalize_room_definition(
         room_id="1", payload={"adjacent_room_ids": "x"}, roster_lookup={})
     assert out2["adjacent_room_ids"] == []
+
+
+# ---------------------------------------------------------------------------
+# _apply_segment_adjustments — manual polygon translation
+# ---------------------------------------------------------------------------
+
+def test_apply_adjust_none(mapping_manager):
+    """[MGR-22] no segment_adjustments in the package → segments returned as-is."""
+    segs = [_seg()]
+    assert mapping_manager._apply_segment_adjustments(
+        segments=segs, package={}) is segs
+
+
+def test_apply_adjust_offset(mapping_manager):
+    """[MGR-23] whole-shape translation shifts polygon, bbox, and center."""
+    out = mapping_manager._apply_segment_adjustments(
+        segments=[_seg()],
+        package={"segment_adjustments": {"s1": {"offset_x": 3, "offset_y": 4}}})
+    seg = out[0]
+    assert seg["polygon_pixel"] == [[3, 4], [13, 4], [13, 14], [3, 14]]
+    assert seg["center_pixel"] == [8, 9]
+    assert seg["translation_offset"] == [3, 4]
+    assert "translated_manual" in seg["issues"]
+    # bbox = {x, y, width, height}; shifted square origin is (3,4), 11px wide
+    assert seg["bbox"]["x"] == 3 and seg["bbox"]["y"] == 4
+    assert seg["bbox"]["width"] == 11
+
+
+def test_apply_adjust_edge_and_vertex(mapping_manager):
+    """[MGR-24] edge nudge + vertex move tag their respective issue flags."""
+    out = mapping_manager._apply_segment_adjustments(
+        segments=[_seg()],
+        package={"segment_adjustments": {"s1": {
+            "edge_left": 5,
+            "vertex_moves": [{"index": 2, "delta_x": 1, "delta_y": 1}]}}})
+    seg = out[0]
+    assert "edge_adjusted_manual" in seg["issues"]
+    assert "vertex_adjusted_manual" in seg["issues"]
+    # left-band points (x<=2) shifted +5; vertex 2 nudged +1,+1
+    assert seg["polygon_pixel"][0] == [5, 0]
+    assert seg["polygon_pixel"][2] == [11, 11]
+
+
+def test_apply_adjust_noop_and_passthrough(mapping_manager):
+    """[MGR-25] all-zero adjustment + non-matching/non-dict segments pass through."""
+    # all-zero adjustment → segment unchanged (no issues added)
+    out = mapping_manager._apply_segment_adjustments(
+        segments=[_seg()],
+        package={"segment_adjustments": {"s1": {"offset_x": 0, "offset_y": 0}}})
+    assert "issues" not in out[0]
+    # a segment with no matching adjustment id passes through untouched
+    out2 = mapping_manager._apply_segment_adjustments(
+        segments=[_seg(segment_id="other")],
+        package={"segment_adjustments": {"s1": {"offset_x": 3}}})
+    assert out2[0]["polygon_pixel"] == _square()
+    # non-dict segment passes through
+    out3 = mapping_manager._apply_segment_adjustments(
+        segments=["not-a-dict"],
+        package={"segment_adjustments": {"s1": {"offset_x": 3}}})
+    assert out3 == ["not-a-dict"]
+
+
+def test_adjust_polygon_pixel_guards():
+    """[MGR-26] _adjust_polygon_pixel degrades on bad input + ignores bad moves."""
+    z = dict(offset_x=0, offset_y=0, edge_left=0, edge_right=0,
+             edge_top=0, edge_bottom=0)
+    assert _adjust_polygon_pixel("not-a-list", **z) == []
+    # malformed points are skipped; nothing valid → []
+    assert _adjust_polygon_pixel([[1], "x", 5], **z) == []
+    # out-of-range vertex move index is ignored, polygon otherwise intact
+    out = _adjust_polygon_pixel(
+        _square(), **z, vertex_moves=[{"index": 99, "delta_x": 5}])
+    assert out == _square()
