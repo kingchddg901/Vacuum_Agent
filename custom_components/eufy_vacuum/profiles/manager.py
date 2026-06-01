@@ -111,6 +111,25 @@ class ProfileManager:
         """Normalize room/profile values before preset matching."""
         if value is None:
             return None
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return float(value)
+
+        text = str(value).strip()
+        lowered = text.lower()
+
+        if lowered == "off":
+            return "off"
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+
+        try:
+            return float(text)
+        except (TypeError, ValueError):
+            return lowered
 
     def _match_profile_from_fields(self, room: dict[str, Any]) -> str | None:
         """Return matching profile name if protected room fields match a preset."""
