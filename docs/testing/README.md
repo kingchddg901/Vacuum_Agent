@@ -34,14 +34,17 @@ inside a Linux container.
 
 Per-subsystem "what's tested and how" — start from the learning map (the template).
 
+**All 18 subsystems are mapped** (core + every package + the HA-facing layers),
+numbered by the start pipeline then peripherals — see the
+[subsystems index](subsystems/README.md) for the full table and per-subsystem
+coverage. Highlights:
+
 | Doc | What it covers |
 |-----|----------------|
-| [subsystems/](subsystems/README.md) | Index of per-subsystem test maps |
-| [subsystems/learning](subsystems/learning.md) | The learning subsystem — coverage map, behaviors, setup patterns, gaps (**template**) |
-| [subsystems/mapping](subsystems/mapping.md) | The mapping subsystem — trace pipeline, image stack, tracker, orchestrators |
-| [subsystems/jobs](subsystems/jobs.md) | The jobs subsystem — start-gate evaluation + active-job tracking |
-| [subsystems/battery](subsystems/battery.md) | The battery subsystem — wear/health math, sensors, charge-session pipeline |
-| [subsystems/dock](subsystems/dock.md) | The dock subsystem — action gating, dispatch, event recording |
+| [subsystems/](subsystems/README.md) | Index of all per-subsystem test maps + coverage conventions |
+| [subsystems/01-core](subsystems/01-core.md) | The orchestrator — lifecycle, job progress, start-status, delegation seams, errors, storage |
+| [subsystems/06-learning](subsystems/06-learning.md) | The learning subsystem — coverage map, behaviors, setup patterns, gaps (**detailed template**) |
+| [subsystems/10-dock](subsystems/10-dock.md) | The dock subsystem — action gating, dispatch, event recording (**compact template**) |
 
 ---
 
