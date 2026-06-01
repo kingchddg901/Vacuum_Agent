@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [master]
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pytest:
     name: pytest
@@ -23,5 +27,9 @@ jobs:
       - name: Install test dependencies
         run: pip install -r requirements_test.txt
 
-      - name: Run tests
-        run: pytest --tb=short
+      # The behavior gate, matching the local one: pass `tests` explicitly so the
+      # adapter suite (tests/adapters, not in pytest.ini testpaths) is gated too,
+      # and --no-cov so the run is the canonical pass/fail gate (coverage is
+      # inspection-only; CV instrumentation under --cov is a separate artifact).
+      - name: Run test suite (behavior gate)
+        run: python -m pytest tests --no-cov -p no:cacheprovider --tb=short
