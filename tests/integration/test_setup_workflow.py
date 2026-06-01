@@ -232,6 +232,19 @@ def test_force_remove_room(manager):
     assert entry["missing_passes"] == 3
 
 
+def test_run_discovery_pass(manager, hass):
+    """[SD-5] run_discovery_pass reads the adapter room list + updates drift."""
+    _discovery_adapter()
+    hass.states.async_set(_VAC, "docked", {"segments": [
+        {"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Bath"}]})
+    result = drift_mod.run_discovery_pass(hass, manager, _VAC)
+    assert set(result["discovered_room_ids"]) == {1, 2}
+    assert result["updated_at"]
+    # drift history now tracks the discovered rooms
+    hist = manager.data["setup_progress"][_VAC]["room_drift_history"]
+    assert "1" in hist and "2" in hist
+
+
 def test_compute_room_drift_removed(manager):
     """[SD-4] a configured room missing for >= threshold passes → removed."""
     setup_map(manager, _VAC, "sddrift", count=2)

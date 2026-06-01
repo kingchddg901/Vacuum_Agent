@@ -214,6 +214,31 @@ def test_format_access_graph_issue(ag):
     assert unknown["code"] == "weird"
 
 
+@pytest.mark.parametrize("issue,code,must_contain", [
+    ({"type": "missing_room", "room_id": 1, "target_room_id": 9},
+     "missing_room", "Kitchen"),
+    ({"type": "duplicate_edge", "room_id": 1, "target_room_id": 2},
+     "duplicate_edge", "Kitchen"),
+    ({"type": "multiple_inbound", "room_id": 2, "source_room_ids": [1, 3]},
+     "multiple_inbound", "Bath"),
+    ({"type": "missing_dock_room"}, "missing_dock_room", "dock room"),
+    ({"type": "multiple_dock_rooms", "rooms": [1, 2]},
+     "multiple_dock_rooms", "Kitchen"),
+    ({"type": "missing_dependency", "room_id": 2, "dock_room_id": 1},
+     "missing_dependency", "Bath"),
+    ({"type": "unreachable_from_dock", "room_id": 2, "dock_room_id": 1},
+     "unreachable_from_dock", "Bath"),
+])
+def test_format_access_graph_issue_all_types(ag, issue, code, must_contain):
+    """[AG-9b] every issue type formats to its code + a human message."""
+    g, _ = ag
+    out = g._format_access_graph_issue(
+        issue=issue, room_names={1: "Kitchen", 2: "Bath", 3: "Den"})
+    assert out["code"] == code
+    assert must_contain in out["message"]
+    assert isinstance(out["room_ids"], list)
+
+
 # ---------------------------------------------------------------------------
 # public contracts
 # ---------------------------------------------------------------------------

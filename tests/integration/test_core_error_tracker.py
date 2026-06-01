@@ -306,6 +306,19 @@ async def test_wired_event_routing(tracker, hass):
     t.stop()
 
 
+def test_secondary_error_via_task_status(tracker, hass):
+    """[ET-14] task_status in 'error' counts as a secondary error channel."""
+    t, mgr = tracker
+    t._vacuum_entities[_VAC] = {"error_message": "sensor.alfred_err",
+                                "task_status": "sensor.alfred_task"}
+    hass.states.async_set(_VAC, "docked")          # vacuum NOT in error
+    hass.states.async_set("sensor.alfred_task", "error")  # but task_status is
+    assert t._is_in_secondary_error(_VAC) is True
+    # both channels clear → no secondary error
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    assert t._is_in_secondary_error(_VAC) is False
+
+
 async def test_secondary_clear_emits_falling_edge(tracker, hass):
     """[ET-12] secondary channels clear with empty message → falling edge fires."""
     t, mgr = tracker
