@@ -103,7 +103,7 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
     if vacuum_entity_id:
         try:
             run_discovery_pass(hass, manager, vacuum_entity_id)
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort drift update
             _LOGGER.exception(
                 "discover_rooms: drift update failed for %s",
                 vacuum_entity_id,

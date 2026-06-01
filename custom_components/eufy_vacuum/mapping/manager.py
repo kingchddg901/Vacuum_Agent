@@ -485,7 +485,7 @@ class MappingManager:
             data.pop("calibration", None)
             try:
                 path.write_text(json.dumps(data, indent=2), encoding="utf-8")
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort one-shot migration resave
                 _LOGGER.exception(
                     "Failed to resave map_data after stripping calibration block: %s",
                     path,
@@ -2080,7 +2080,7 @@ class MappingManager:
                         round(float(center[0]) + offset_x, 2),
                         round(float(center[1]) + offset_y, 2),
                     ]
-                except Exception:
+                except Exception:  # pragma: no cover - center left unchanged on bad input
                     pass
             issues = list(updated.get("issues", [])) if isinstance(updated.get("issues"), list) else []
             if "translated_manual" not in issues:

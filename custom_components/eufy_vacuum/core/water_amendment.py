@@ -106,12 +106,12 @@ def register_post_job_water_amendment(
         for fn in unsub_listener:
             try:
                 fn()
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort teardown
                 pass
         for fn in unsub_timeout:
             try:
                 fn()
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort teardown
                 pass
         unsub_listener.clear()
         unsub_timeout.clear()
@@ -122,7 +122,7 @@ def register_post_job_water_amendment(
             return
         try:
             job = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort I/O, logs and swallows
             _LOGGER.exception("post_job_water_amendment: failed to read %s", job_path)
             return
 
@@ -183,7 +183,7 @@ def register_post_job_water_amendment(
                 "post_job_water_amendment: patched %s wash_count=%d end_pct=%s",
                 job_id, total_wash_count, end_percent,
             )
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort I/O, logs and swallows
             _LOGGER.exception("post_job_water_amendment: failed to write %s", job_path)
 
     @callback

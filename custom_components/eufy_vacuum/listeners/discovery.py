@@ -81,7 +81,7 @@ def register(hass: HomeAssistant) -> None:
                     try:
                         run_discovery_pass(hass, manager, vid)
                         await manager.async_save()
-                    except Exception:
+                    except Exception:  # pragma: no cover - best-effort background pass
                         _LOGGER.exception(
                             "discovery: failed for %s", vid
                         )

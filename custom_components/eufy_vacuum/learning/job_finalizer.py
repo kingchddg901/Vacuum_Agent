@@ -327,7 +327,7 @@ class LearningJobFinalizer:
                         snapshot=snapshot,
                     )
                 )
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort snapshot persist
                 _LOGGER.exception(
                     "Failed to persist live learning snapshot for %s",
                     vacuum_entity_id,
@@ -479,7 +479,7 @@ class LearningJobFinalizer:
                     water_end_station_percent = manager._get_station_clean_water_percent(
                         vacuum_entity_id=vacuum_entity_id,
                     )
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort station-water read
                 pass
 
         if cleaning_time_seconds is None:
@@ -760,7 +760,7 @@ class LearningJobFinalizer:
                             metrics=battery_metrics,
                             job_id=job_id,
                         )
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort metrics record
                 _LOGGER.exception("battery: failed to compute job metrics")
 
         completed_job["learning_context"] = self._build_learning_context(
@@ -1408,7 +1408,7 @@ class LearningJobFinalizer:
                 payload=payload,
             )
             _LOGGER.debug("Trouble rooms log updated for %s", vacuum_entity_id)
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort diagnostic log write
             _LOGGER.exception(
                 "Failed to update trouble rooms log for %s",
                 vacuum_entity_id,

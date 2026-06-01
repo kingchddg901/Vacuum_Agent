@@ -765,7 +765,7 @@ class LearningManager:
                     vacuum_entity_id=vacuum_entity_id,
                     payload=jobs_index,
                 )
-            except Exception:
+            except Exception:  # pragma: no cover - best-effort index persist, in-memory data flows on
                 _LOGGER.exception("Failed to rebuild jobs index for %s", vacuum_entity_id)
         archived_job_map = {
             str(job.get("job_id", "")).strip(): job

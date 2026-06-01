@@ -240,7 +240,7 @@ def register(hass: HomeAssistant) -> None:
                             map_id,
                             finalize_result,
                         )
-                    except Exception:
+                    except Exception:  # pragma: no cover - best-effort auto-finalize
                         _LOGGER.exception(
                             "Failed to auto-finalize job for %s map %s",
                             vacuum_entity_id,

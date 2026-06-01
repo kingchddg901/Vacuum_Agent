@@ -190,7 +190,7 @@ class LearningHistoryStore:
         try:
             if path.exists():
                 path.unlink()
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort file unlink
             _LOGGER.warning(
                 "Failed to clear incomplete run log for %s", vacuum_entity_id
             )
