@@ -31,8 +31,9 @@ mapping) then peripheral subsystems and the HA-facing layers.
 **omitted** from the coverage number by `.coveragerc` and tested separately —
 see [15-adapters](15-adapters.md).
 
-**Framework total: 93.6% statement coverage** (90.8% with `--cov-branch`),
-1448 test functions across 100 files, all green.
+**Framework total: 93.6% statement coverage** (90.8% with `--cov-branch`) over
+the 131 source modules, driven by 1,448 test functions across 100 test files,
+all green.
 
 ## Writing / updating a test map
 
