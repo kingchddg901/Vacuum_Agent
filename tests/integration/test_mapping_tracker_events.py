@@ -18,6 +18,7 @@ Coverage targets
 from __future__ import annotations
 
 from datetime import timedelta
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -160,3 +161,61 @@ async def test_room_completed_event(hass, tracker):
     await hass.async_block_till_done()
 
     assert any(d["room_id"] == "3" and d["room_name"] == "Kitchen" for d in events)
+
+
+# ---------------------------------------------------------------------------
+# [MTE-9] _get_raw_position — capability/state read with all None branches
+# ---------------------------------------------------------------------------
+
+def _set_runtime(hass, caps, *, raises=False):
+    rt = MagicMock()
+    if raises:
+        rt.get_vacuum_capabilities.side_effect = RuntimeError("boom")
+    else:
+        rt.get_vacuum_capabilities.return_value = caps
+    hass.data.setdefault("eufy_vacuum", {})["runtime"] = rt
+    return rt
+
+
+_POS_CAPS = {"entities": {"robot_position_x": "sensor.alfred_x",
+                          "robot_position_y": "sensor.alfred_y"}}
+
+
+def test_get_raw_position_success(tracker, hass):
+    """[MTE-9] numeric x/y states → (vx, vy)."""
+    _set_runtime(hass, _POS_CAPS)
+    hass.states.async_set("sensor.alfred_x", "1.5")
+    hass.states.async_set("sensor.alfred_y", "2.5")
+    assert tracker._get_raw_position(_VAC) == (1.5, 2.5)
+
+
+def test_get_raw_position_no_runtime(tracker, hass):
+    """[MTE-9] no runtime manager → None."""
+    hass.data.setdefault("eufy_vacuum", {}).pop("runtime", None)
+    assert tracker._get_raw_position(_VAC) is None
+
+
+def test_get_raw_position_caps_raise(tracker, hass):
+    """[MTE-9] get_vacuum_capabilities raising → None."""
+    _set_runtime(hass, None, raises=True)
+    assert tracker._get_raw_position(_VAC) is None
+
+
+def test_get_raw_position_missing_entities(tracker, hass):
+    """[MTE-9] caps without position entities → None."""
+    _set_runtime(hass, {"entities": {}})
+    assert tracker._get_raw_position(_VAC) is None
+
+
+def test_get_raw_position_no_state(tracker, hass):
+    """[MTE-9] declared entities but no states yet → None."""
+    _set_runtime(hass, _POS_CAPS)
+    assert tracker._get_raw_position(_VAC) is None
+
+
+def test_get_raw_position_non_numeric(tracker, hass):
+    """[MTE-9] non-numeric state → None."""
+    _set_runtime(hass, _POS_CAPS)
+    hass.states.async_set("sensor.alfred_x", "unknown")
+    hass.states.async_set("sensor.alfred_y", "2.5")
+    assert tracker._get_raw_position(_VAC) is None
