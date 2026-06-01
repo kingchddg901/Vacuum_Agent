@@ -1436,6 +1436,10 @@ class EufyVacuumManager:
         """Delegate to RunPlanManager."""
         return self.run_plan._build_blocked_room_entry(**kwargs)
 
+    def get_runtime_path_block_report(self, **kwargs):
+        """Delegate to RunPlanManager."""
+        return self.run_plan.get_runtime_path_block_report(**kwargs)
+
     def _build_modified_room_entry(self, **kwargs):
         """Delegate to RunPlanManager."""
         return self.run_plan._build_modified_room_entry(**kwargs)

@@ -15,6 +15,8 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
 [SP-6]  valid graph + matching modifier → modified_rooms carries the changes.
 [SP-7]  access-dependency propagation: blocked parent blocks its child.
 [SP-8]  modifier fan-out: a rule's fan_out_room_ids apply to a derived target.
+[SP-9]  get_runtime_path_block_report exists on the real manager and reports a
+        mid-job blocker (regression guard for the method lost in the bundle-out).
 """
 
 from __future__ import annotations
@@ -185,3 +187,39 @@ def test_modifier_fan_out(rp, hass):
     assert mod["derived"] is True
     assert mod["source_room_id"] == 1
     assert "f1" in mod["triggered_rule_ids"]
+
+
+def test_runtime_path_block_report(rp, hass, manager):
+    """[SP-9] real-manager mid-job path-block re-evaluation.
+
+    Regression guard: get_runtime_path_block_report was lost in the bundle-out
+    refactor while path_blockers.py still called manager.get_runtime_path_block_
+    report(...). The listener test mocked the manager, so it never caught the
+    AttributeError. This drives the REAL manager delegation chain.
+    """
+    # method must exist on the real manager (not just a mock)
+    assert hasattr(manager, "get_runtime_path_block_report")
+
+    # valid graph (dock 1 -> 2) + an active job over both rooms; a blocker on
+    # room 2 fires mid-job.
+    _seed(mgr := manager, "spm9", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2],
+         "rules": [_blocker("binary_sensor.win")]},
+        {"enabled": True},
+    ])
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm9"] = {
+        "status": "started", "job_id": "j1",
+        "queue_room_ids": [1, 2], "completed_room_ids": [1],
+    }
+    hass.states.async_set("binary_sensor.win", "on")
+    report = manager.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm9",
+        trigger_entity_id="binary_sensor.win", trigger_entity_state="on")
+    assert report is not None
+    assert report["event_scope"] == "active_job_path_blocked"
+    assert "2" in report["affected_remaining_room_ids"]
+
+    # idle job → None
+    mgr.data["active_jobs"][_VAC]["spm9"]["status"] = "idle"
+    assert manager.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm9") is None

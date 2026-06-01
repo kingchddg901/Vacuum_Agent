@@ -1197,3 +1197,224 @@ class RunPlanManager:
             "payload_state": payload_state,
             "preflight": preflight,
         }
+
+    def get_runtime_path_block_report(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        trigger_entity_id: str | None = None,
+        trigger_entity_state: Any = None,
+    ) -> dict[str, Any] | None:
+        """Return a runtime path-block report for one active job, if relevant.
+
+        Re-evaluates blocker rules mid-job as entity states change. This is the
+        sibling rule-evaluation site to ``_build_effective_start_plan`` (which
+        runs at job start). Returns None when nothing actionable changed
+        (deduped by a per-job signature) so the caller only fires events on a
+        genuine new block.
+        """
+        active_job = self._manager._normalize_active_job(
+            self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        )
+        if active_job.get("status") not in {"started", "paused"}:
+            return None
+
+        managed_rooms = self._manager._normalized_managed_rooms_with_automation(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        validation = self._manager._validate_room_access_graph(managed_rooms=managed_rooms)
+        if self._manager._structural_access_graph_issues(validation):
+            return None
+
+        queue_room_ids = [
+            _safe_int(room_id, -1)
+            for room_id in active_job.get("queue_room_ids", [])
+            if _safe_int(room_id, -1) > 0
+        ]
+        if not queue_room_ids:
+            return None
+
+        completed_room_ids = {
+            _safe_int(room_id, -1)
+            for room_id in active_job.get("completed_room_ids", [])
+            if _safe_int(room_id, -1) > 0
+        }
+        remaining_room_ids = [
+            room_id for room_id in queue_room_ids if room_id not in completed_room_ids
+        ]
+        if not remaining_room_ids:
+            active_job.pop("last_path_block_signature", None)
+            return None
+
+        grants_map, requires_map = self._manager._build_room_access_views(
+            managed_rooms=managed_rooms
+        )
+        queue_room_id_set = set(queue_room_ids)
+
+        direct_blocked: dict[int, dict[str, Any]] = {}
+        room_names: dict[int, str] = {}
+        triggered_rule_ids: list[str] = []
+        blocker_rules_present = False
+
+        for room_id in queue_room_ids:
+            room = managed_rooms.get(str(room_id), {})
+            if not isinstance(room, dict):
+                continue
+            room_names[room_id] = (
+                str(room.get("name", f"Room {room_id}")).strip() or f"Room {room_id}"
+            )
+            for rule in room.get("rules", []):
+                if not isinstance(rule, dict) or not bool(rule.get("enabled", True)):
+                    continue
+                if str(rule.get("kind", "")).strip().lower() != "blocker":
+                    continue
+                blocker_rules_present = True
+                entity_id = str(rule.get("entity_id", "")).strip()
+                if not entity_id or not self._manager._room_rule_matches(rule):
+                    continue
+
+                effect = (
+                    rule.get("effect", {})
+                    if isinstance(rule.get("effect"), dict)
+                    else {}
+                )
+                direct_blocked.setdefault(
+                    room_id,
+                    self._build_blocked_room_entry(
+                        room_id=room_id,
+                        name=room_names[room_id],
+                        source="direct_rule",
+                        reason=str(
+                            effect.get("reason") or rule.get("label") or entity_id
+                        ).strip() or "rule_blocked",
+                        triggered_rule_id=str(rule.get("id", "")).strip() or None,
+                        trigger_entity_id=entity_id,
+                    ),
+                )
+                if str(rule.get("id", "")).strip():
+                    triggered_rule_ids.append(str(rule.get("id")).strip())
+
+        if blocker_rules_present and not any(
+            isinstance(room.get("grants_access_to"), list) and room.get("grants_access_to")
+            for room in managed_rooms.values()
+            if isinstance(room, dict)
+        ):
+            return None
+
+        accessible_room_ids = {
+            room_id
+            for room_id in queue_room_ids
+            if not requires_map.get(room_id)
+        }
+        accessible_room_ids -= set(direct_blocked)
+
+        changed = True
+        while changed:
+            changed = False
+            for room_id in queue_room_ids:
+                if room_id in accessible_room_ids or room_id in direct_blocked:
+                    continue
+                parent_ids = [
+                    parent_id
+                    for parent_id in requires_map.get(room_id, [])
+                    if parent_id in queue_room_id_set
+                ]
+                if parent_ids and any(
+                    parent_id in accessible_room_ids for parent_id in parent_ids
+                ):
+                    accessible_room_ids.add(room_id)
+                    changed = True
+
+        affected_remaining_rooms: list[dict[str, Any]] = []
+        directly_blocked_remaining_room_ids: list[int] = []
+        indirectly_blocked_remaining_room_ids: list[int] = []
+        for room_id in remaining_room_ids:
+            if room_id in direct_blocked:
+                affected_remaining_rooms.append(dict(direct_blocked[room_id]))
+                directly_blocked_remaining_room_ids.append(room_id)
+                continue
+            if room_id in accessible_room_ids:
+                continue
+
+            parent_ids = [
+                parent_id
+                for parent_id in requires_map.get(room_id, [])
+                if parent_id in queue_room_id_set
+            ]
+            blocked_by_room_id = parent_ids[0] if parent_ids else None
+            affected_remaining_rooms.append(
+                {
+                    "room_id": room_id,
+                    "name": room_names.get(room_id, f"Room {room_id}"),
+                    "source": "access_dependency",
+                    "reason": "access_blocked",
+                    "triggered_rule_id": None,
+                    "trigger_entity_id": trigger_entity_id,
+                    "blocked_by_room_id": blocked_by_room_id,
+                    "blocked_by_room_name": (
+                        room_names.get(blocked_by_room_id, f"Room {blocked_by_room_id}")
+                        if blocked_by_room_id is not None
+                        else None
+                    ),
+                }
+            )
+            indirectly_blocked_remaining_room_ids.append(room_id)
+
+        if not affected_remaining_rooms:
+            active_job.pop("last_path_block_signature", None)
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {}
+            )[str(map_id)] = active_job
+            return None
+
+        signature = hashlib.sha1(
+            "|".join(
+                [
+                    str(trigger_entity_id or ""),
+                    str(trigger_entity_state or ""),
+                    ",".join(str(room["room_id"]) for room in affected_remaining_rooms),
+                    ",".join(sorted(triggered_rule_ids)),
+                ]
+            ).encode("utf-8")
+        ).hexdigest()[:16]
+        if str(active_job.get("last_path_block_signature", "")).strip() == signature:
+            return None
+
+        active_job["last_path_block_signature"] = signature
+        self._manager.data.setdefault("active_jobs", {}).setdefault(
+            vacuum_entity_id, {}
+        )[str(map_id)] = active_job
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "job_id": active_job.get("job_id"),
+            "trigger_entity_id": trigger_entity_id,
+            "trigger_entity_state": trigger_entity_state,
+            "affected_remaining_room_ids": [
+                str(item["room_id"]) for item in affected_remaining_rooms
+            ],
+            "affected_remaining_room_names": [
+                str(item.get("name") or f"Room {item['room_id']}")
+                for item in affected_remaining_rooms
+            ],
+            "directly_blocked_room_ids": [
+                str(room_id) for room_id in directly_blocked_remaining_room_ids
+            ],
+            "indirectly_blocked_room_ids": [
+                str(room_id) for room_id in indirectly_blocked_remaining_room_ids
+            ],
+            "remaining_room_ids": [str(room_id) for room_id in remaining_room_ids],
+            "reason_codes": sorted(
+                {
+                    str(item.get("reason") or "").strip()
+                    for item in affected_remaining_rooms
+                    if str(item.get("reason") or "").strip()
+                }
+            ),
+            "affected_rooms": affected_remaining_rooms,
+            "requires_attention": True,
+            "event_scope": "active_job_path_blocked",
+        }
