@@ -288,6 +288,31 @@ def test_get_room_access_editor_stale_reference(ag):
     assert any(t["room_id"] == "88" for t in stale)
 
 
+def test_get_room_access_editor_target_would_cycle(ag):
+    """[AG-12] a target whose edge would close a loop is not selectable."""
+    g, data = ag
+    # 2 -> 1 already; adding 1 -> 2 (from room 1's editor) would create 1<->2
+    _seed_map(data, _rooms(_room(1, dock=True), _room(2, grants=[1])))
+    out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
+    t2 = next(t for t in out["editable_targets"] if t["room_id"] == "2")
+    assert t2["selectable"] is False
+    assert "loop" in t2["reason"].lower()
+
+
+def test_get_room_access_editor_target_not_selectable_fallback(ag):
+    """[AG-13] a candidate edge that makes the graph illegal without the issue
+    naming this room → not selectable with the generic legality reason."""
+    g, data = ag
+    # 3 -> 2 already; adding 1 -> 2 gives room 2 a second inbound edge. The
+    # resulting issue names room 2 (the target), not room 1, so the editor
+    # falls back to the generic legality reason.
+    _seed_map(data, _rooms(_room(1, dock=True), _room(2), _room(3, grants=[2])))
+    out = g.get_room_access_editor(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
+    t2 = next(t for t in out["editable_targets"] if t["room_id"] == "2")
+    assert t2["selectable"] is False
+    assert t2["reason"] == "Not selectable due to graph legality."
+
+
 # ---------------------------------------------------------------------------
 # rule evaluation (user-visible room-rule gating)
 # ---------------------------------------------------------------------------

@@ -96,3 +96,46 @@ def test_rebuild_map(rmm):
     rebuilt = rm.rebuild_map(vacuum_entity_id=_VAC, map_id=_MAP)
     assert rebuilt["room_count"] == 1
     assert set(rebuilt["rooms"]) == {"1"}
+
+
+def test_remove_map_clears_related_state(rmm):
+    """[RC-6] remove_map also clears history / rule-status / active-job slots and
+    walks remaining maps' access graphs."""
+    rm, mgr = rmm
+    _seed_discovery(mgr, _DISCOVERED)
+    rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
+    mgr.data.setdefault("room_history", {}).setdefault(_VAC, {})[_MAP] = {"1": {}}
+    mgr.data.setdefault("room_rule_status", {}).setdefault(_VAC, {})[_MAP] = {"x": 1}
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {"status": "started"}
+    # a second map remains, with an access-graph grant list to walk
+    mgr.data["maps"][_VAC]["7"] = {"rooms": {"5": {"grants_access_to": [1, 2]}}}
+
+    removed = rm.remove_map(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert removed["history_removed"] is True
+    assert removed["rule_status_removed"] is True
+    assert removed["active_job_cleared"] is True
+    # the remaining map's grant list is still present (walked without error)
+    assert mgr.data["maps"][_VAC]["7"]["rooms"]["5"]["grants_access_to"] == [1, 2]
+
+
+def test_discover_rooms_caches_payload(manager, hass):
+    """[RC-7] discover_rooms runs discovery, caches the payload, and points the
+    runtime at the active map."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {"room_list_entity": "vacuum_entity",
+                      "room_list_attribute": "segments",
+                      "room_id_key": "id", "room_name_key": "name"},
+    })
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set(_VAC, "docked",
+                          {"segments": [{"id": 1, "name": "Kitchen"},
+                                        {"id": 2, "name": "Bath"}]})
+    rm = RoomMapManager(manager)
+    payload = rm.discover_rooms(vacuum_entity_id=_VAC, map_id="6")
+    assert payload["room_count"] == 2
+    assert "6" in manager.data["discovery"][_VAC]
+    assert manager.ensure_runtime(_VAC).active_map_id == payload.get("active_map_id")
