@@ -117,6 +117,34 @@ def test_progress_stall(manager, hass):
     assert isinstance(snap["awaiting_bounds_exit"], bool)
 
 
+def test_progress_stall_fires_once(manager, hass):
+    """[PR-9] a single-room job stuck >= 2x its estimate fires EVENT_STALL_DETECTED
+    exactly once — a second snapshot does not re-fire for the same room.
+
+    Single-room so the timing engine has nowhere to roll the current room to;
+    elapsed (60m) >> 2x the 5m estimate → bounds-exit + stall.
+    """
+    _wire(manager, hass)
+    _seed_job(
+        manager, minutes_ago=60,
+        queue_room_ids=[1],
+        resolved_rooms=[{"room_id": 1, "name": "Kitchen", "minutes": 5,
+                         "clean_mode": "vacuum"}],
+    )
+    hass.states.async_set(_VAC, "cleaning")
+    events = []
+    hass.bus.async_listen(EVENT_STALL_DETECTED, lambda e: events.append(e))
+
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["stall_detected"] is True
+    assert snap["stall_ratio"] >= 2.0
+
+    # a second poll must NOT re-fire (dedup via _stall_notified_room_ids)
+    manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert len(events) == 1
+    assert events[0].data["room_id"] == 1
+
+
 async def test_finalize_no_learning(manager):
     """[PR-5] no learning manager wired → None."""
     # the manager fixture does not set DATA_LEARNING
