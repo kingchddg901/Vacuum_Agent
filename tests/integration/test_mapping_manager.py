@@ -407,6 +407,21 @@ def test_apply_adjust_noop_and_passthrough(mapping_manager):
     assert out3 == ["not-a-dict"]
 
 
+def test_coerce_polygon_points(mapping_manager):
+    """[MGR-29] point validation: non-list, <3 valid, and per-point skips.
+
+    Its real callers are CV-gated, so the loop body is otherwise never exercised
+    — but the logic is pure and directly testable.
+    """
+    c = mapping_manager._coerce_polygon_points
+    assert c("not-a-list") is not None and c("not-a-list") == []
+    assert c([[0, 0], [1, 1]]) == []                 # fewer than 3 valid → []
+    assert c([[0, 0], [1, 1], [2, 2]]) == [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]
+    # malformed points are skipped; 3 valid remain
+    mixed = c([[0, 0], "x", [1], [1, 1], ["a", "b"], [2, 2]])
+    assert mixed == [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]
+
+
 def test_rebuild_room_bounds_from_archive(mapping_manager):
     """[MGR-28] replay archived trace entries into the room's bounds history."""
     entries = [
