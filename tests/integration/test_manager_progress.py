@@ -145,3 +145,36 @@ async def test_finalize_main_path(manager, hass):
         vacuum_entity_id=_VAC, map_id=_MAP, battery_end=70)
     assert result is not None
     assert "completed_job" in result
+
+
+def test_ingest_jobs_index_into_room_history(manager):
+    """[PR-8] jobs-index → room-history merge with newer-wins + bad-row skips."""
+    ing = manager._ingest_jobs_index_entry_into_room_history
+    # guard branches
+    assert ing(vacuum_entity_id=_VAC, index_entry="nope") is False
+    assert ing(vacuum_entity_id=_VAC,
+               index_entry={"map_id": "6", "rooms": []}) is False  # no ended_at
+    assert ing(vacuum_entity_id=_VAC, index_entry={
+        "ended_at": "2026-01-01T10:00:00+00:00", "rooms": "notalist"}) is False
+
+    # valid entry: merges fields, skips bad rows
+    entry = {
+        "ended_at": "2026-01-01T10:00:00+00:00", "map_id": "6", "rooms": [
+            {"room_id": 1, "name": "Kitchen", "clean_mode": "vacuum",
+             "last_cleaned_at": "2026-01-01T10:00:00+00:00",
+             "last_vacuumed_at": "2026-01-01T10:00:00+00:00"},
+            {"room_id": 0, "name": "bad"},   # room_id <= 0 → skipped
+            "notadict",                       # non-dict row → skipped
+        ]}
+    assert ing(vacuum_entity_id=_VAC, index_entry=entry) is True
+    rh = manager.data["room_history"][_VAC]["6"]["1"]
+    assert rh["room_name"] == "Kitchen"
+    assert rh["last_cleaned_at"] == "2026-01-01T10:00:00+00:00"
+    assert rh["last_job_mode"] == "vacuum"
+
+    # an older entry must NOT overwrite the newer last_cleaned_at
+    older = {"ended_at": "2025-01-01T00:00:00+00:00", "map_id": "6", "rooms": [
+        {"room_id": 1, "last_cleaned_at": "2025-01-01T00:00:00+00:00"}]}
+    ing(vacuum_entity_id=_VAC, index_entry=older)
+    assert manager.data["room_history"][_VAC]["6"]["1"]["last_cleaned_at"] == \
+        "2026-01-01T10:00:00+00:00"
