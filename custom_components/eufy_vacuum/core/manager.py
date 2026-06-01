@@ -538,7 +538,7 @@ class EufyVacuumManager:
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=str(map_id),
             )
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort refresh, logs and swallows
             _LOGGER.exception(
                 "Failed refreshing derived room state for %s map %s",
                 vacuum_entity_id,
