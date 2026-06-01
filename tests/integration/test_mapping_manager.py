@@ -273,3 +273,63 @@ def test_get_mapping_state(mapping_manager):
     assert state["map_id"] == _MAP
     assert "package" in state
     assert "all_rooms" in state
+
+
+# ---------------------------------------------------------------------------
+# _normalize_room_definition — label cascade + field normalization
+# ---------------------------------------------------------------------------
+
+def test_normalize_room_def_full(mapping_manager):
+    """[MGR-19] a rich payload normalizes every field; unknown keys → extras."""
+    out = mapping_manager._normalize_room_definition(
+        room_id="3",
+        payload={
+            "custom_label": "  My Kitchen ", "room_label": "Kitchen",
+            "slug": "kitchen", "notes": " messy ", "labels": ["a", "", "b"],
+            "adjacent_room_ids": [2, " 4 ", ""], "confidence": "0.91234",
+            "segment_id": "seg7", "color": "#fff",
+            "weird_field": "keep", "null_field": None,
+        },
+        roster_lookup={},
+    )
+    assert out["room_id"] == "3" and out["room_id_int"] == 3
+    assert out["custom_label"] == "My Kitchen"
+    # display_label prefers custom over room_label
+    assert out["display_label"] == "My Kitchen"
+    assert out["labels"] == ["a", "b"]
+    assert out["adjacent_room_ids"] == ["2", "4"]
+    assert out["confidence"] == 0.9123
+    # suggestion_segment_id falls back to segment_id
+    assert out["suggestion_segment_id"] == "seg7"
+    # unknown non-None keys land in extras; None keys dropped. Note segment_id
+    # is consumed into suggestion_segment_id but is not a known key, so it also
+    # passes through to extras.
+    assert out["extras"] == {"segment_id": "seg7", "weird_field": "keep"}
+
+
+def test_normalize_room_def_label_from_roster(mapping_manager):
+    """[MGR-20] no custom/room label → cascades to roster, then slug, then id."""
+    # roster label wins when source has none
+    out = mapping_manager._normalize_room_definition(
+        room_id="5", payload={},
+        roster_lookup={"5": {"label": "Den", "slug": "den"}})
+    assert out["room_label"] == "Den"
+    assert out["display_label"] == "Den"   # no custom → room_label
+    assert out["slug"] == "den"
+    # nothing anywhere → falls back to str(room_id)
+    bare = mapping_manager._normalize_room_definition(
+        room_id="9", payload={}, roster_lookup={})
+    assert bare["room_label"] == "9"
+
+
+def test_normalize_room_def_bad_shapes(mapping_manager):
+    """[MGR-21] non-dict payload + non-list adjacency degrade gracefully."""
+    out = mapping_manager._normalize_room_definition(
+        room_id="1", payload="not-a-dict", roster_lookup={})
+    assert out["adjacent_room_ids"] == []
+    assert out["confidence"] is None
+    assert out["extras"] == {}
+    # non-list adjacency value → []
+    out2 = mapping_manager._normalize_room_definition(
+        room_id="1", payload={"adjacent_room_ids": "x"}, roster_lookup={})
+    assert out2["adjacent_room_ids"] == []
