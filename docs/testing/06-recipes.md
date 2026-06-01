@@ -250,6 +250,64 @@ a `mapping` block to skip segmenter validation.
 
 ---
 
+## Recipe F — Service error-wrapping contract
+
+For the `except Exception as err: raise HomeAssistantError(...)` wrappers in the
+service layer (the HA Silver action-exception contract). Force the manager call
+to raise, assert the wrapped type — don't test the happy path here.
+
+```python
+import pytest
+from homeassistant.exceptions import HomeAssistantError
+
+from custom_components.eufy_vacuum.const import DOMAIN
+
+_VAC = "vacuum.alfred"
+_MAP = "1"
+
+
+@pytest.mark.parametrize("service,method,data", [
+    ("save_run_profile", "save_run_profile", {"name": "x"}),
+    ("delete_run_profile", "delete_run_profile", {"profile_id": "p"}),
+])
+async def test_handler_wraps_manager_error(
+    hass, manager_with_services, monkeypatch, service, method, data
+):
+    """[XX-N] a manager-layer failure surfaces as HomeAssistantError."""
+    def _boom(**kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(manager_with_services, method, _boom)
+    with pytest.raises(HomeAssistantError):
+        await hass.services.async_call(
+            DOMAIN, service,
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, **data},
+            blocking=True, return_response=True)
+```
+
+For an `async_save` failure path, patch with an async stub instead:
+`monkeypatch.setattr(mgr, "async_save", _async_boom)`.
+
+---
+
+## Recipe G — Delegation smoke (the #11/#13 net)
+
+When a manager method is a thin forwarder (`return self.<subsystem>.x(...)`),
+prove it still forwards — a delegation lost in a refactor while a caller still
+uses it is a real bug class. Call each seam through the manager; the return value
+is incidental, the point is that it doesn't `AttributeError`.
+
+```python
+def test_seams_forward(mgr):
+    """[MD-N] manager seams forward to their subsystems."""
+    assert isinstance(mgr.get_maintenance_state(vacuum_entity_id=_VAC), dict)
+    mgr.pause_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    mgr.record_completed_room(vacuum_entity_id=_VAC, map_id=_MAP, room_id=1)
+    # … one line per seam; a missing/misrouted forwarder raises here.
+```
+
+---
+
 ## Where to look when stuck
 
 - An existing test in the same domain almost always has the seeding helper you

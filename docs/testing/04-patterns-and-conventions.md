@@ -146,11 +146,51 @@ assert result["overview"]["job_stats"]["total_jobs"] == 1
 
 The suite deliberately skips:
 
-- Defensive `except` blocks reachable only by mocking internals to raise.
-- Inactive/dead code paths (functions that currently always return early).
-- Anything that needs a real device or a live HA entity setup (e.g. the
-  `discover_rooms` service, which drives adapter entities — note its exclusion
-  in `test_services_rooms.py`).
+- **Pure log-only / best-effort `except` blocks** — a block whose *only* effect
+  is a log line (best-effort I/O writes, listener teardown). These carry
+  `# pragma: no cover` instead (see below).
+- **Inactive / dead code paths** — functions that currently always return early,
+  or guards whose conditions are mutually exclusive (e.g. the documented dead
+  branch in `core/manager.py`'s progress snapshot).
+- **A real device or live HA entity setup** — e.g. the `discover_rooms` service,
+  which drives adapter entities (note its exclusion in `test_services_rooms.py`),
+  and `async_setup_entry` boot wiring, which only runs under a full integration
+  boot.
+- **Defensive `continue` / `return []` normalization guards** — left as *honest
+  misses* (real control flow, so not pragma'd), since a test that feeds garbage
+  to assert it's skipped asserts plumbing, not behavior.
 
 Coverage of those costs more than it protects. Spend the effort on real
 behavior.
+
+### But DO test an `except` that changes the surfaced result
+
+The opposite of the first bullet: an `except` block is **behavior** — and worth
+a test — when it does more than log. Test it when the failure path:
+
+- **wraps the error** as `HomeAssistantError` / `ServiceValidationError` (the HA
+  Silver action-exception contract) — `monkeypatch` the manager method to raise,
+  then assert the wrapped type (see `test_services_run_profiles.py` `SRN-11`,
+  `test_services_maintenance_reset.py` `MR-4/5`);
+- **returns a degraded field** the caller sees (e.g. `start_selected_rooms`'
+  `learning_snapshot: {saved: False, reason: snapshot_error}`, `SS-7`);
+- **skips one item and continues** a fan-out loop (a failing update callback must
+  not block the rest — `MD-7`).
+
+The rule of thumb: *if removing the except would change what a caller observes,
+it's behavior; if it would only change the logs, it's a `# pragma: no cover`.*
+
+## Coverage exclusions (`# pragma: no cover`)
+
+`.coveragerc` excludes `pragma: no cover` lines. Put it on the **`except` line
+itself** (not the log line) so the whole branch drops, and append a short reason:
+
+```python
+except OSError as err:  # pragma: no cover - best-effort I/O, logs and swallows
+    _LOGGER.debug("…failed to write %s: %s", path, err)
+```
+
+Use it surgically, one audited block at a time — never a blanket `_LOGGER.*`
+regex, which would also silence the behavioral excepts above and leave
+half-excluded branches under `--cov-branch`. The full convention is in
+[subsystems/README](subsystems/README.md#coverage-conventions-apply-everywhere).

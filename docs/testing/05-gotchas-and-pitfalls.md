@@ -139,3 +139,29 @@ run **every** file that exercises it (unit + integration). See
 This is a project-wide rule, and it applies to tests too: drive state through
 the manager, the services, or the store API — never by hand-editing serialized
 HA storage. Direct edits produce hard-to-find `.corrupt` backups.
+
+## 9. `setup_map` / `save_managed_rooms` auto-confirms floor types
+
+To exercise the **onboarding-incomplete** path (e.g. the `get_start_status`
+`onboarding_required` gate), it is not enough to seed rooms and enable them —
+`save_managed_rooms` marks their floor types confirmed, so onboarding reads as
+complete. Clear the confirmations after seeding:
+
+```python
+setup_map(manager, _VAC, _MAP, count=2)
+for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
+    room["enabled"] = True
+# undo the auto-confirm so enabled rooms still need a floor type
+manager.data["onboarding"][_VAC][_MAP]["floor_types_confirmed"] = {}
+```
+
+## 10. Start gates fire in order — clear earlier gates to reach a later one
+
+`get_start_status` / `_build_effective_start_plan` evaluate gates in sequence
+(paused job → onboarding → access-graph-required → all-blocked → lifecycle).
+A rule-bearing room trips `access_graph_required_for_rules` **before** the
+all-selected-blocked branch is reached, so to test the later gate you must
+satisfy the earlier one — e.g. build a **complete** access graph (a dock room
+granting access to the others) so the rule-bearing rooms clear the graph gate,
+*then* assert `all_selected_rooms_blocked`. If a gate test returns an unexpected
+reason, it's usually an earlier gate firing first — check the order.
