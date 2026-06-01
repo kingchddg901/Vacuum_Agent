@@ -11,6 +11,9 @@ Coverage targets
         room and a timeline.
 [PR-3]  completed rooms → the reanchor timeline branch.
 [PR-4]  a long-overrun current room → awaiting_bounds_exit / stall signalling.
+[PR-5]  finalize_learning_for_active_job: no learning manager → None.
+[PR-6]  finalize_learning_for_active_job: missing started_at → not finalized.
+[PR-7]  finalize_learning_for_active_job: full job → completed_job result.
 """
 
 from __future__ import annotations
@@ -112,3 +115,33 @@ def test_progress_stall(manager, hass):
     # whichever path the timing engine takes, the snapshot stays well-formed
     assert "awaiting_bounds_exit" in snap
     assert isinstance(snap["awaiting_bounds_exit"], bool)
+
+
+async def test_finalize_no_learning(manager):
+    """[PR-5] no learning manager wired → None."""
+    # the manager fixture does not set DATA_LEARNING
+    result = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result is None
+
+
+async def test_finalize_missing_started_at(manager, hass):
+    """[PR-6] an active job with no started_at → not finalized."""
+    _wire(manager, hass)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started", "started_at": ""}
+    result = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result["finalized"] is False
+    assert result["reason"] == "missing_started_at"
+
+
+async def test_finalize_main_path(manager, hass):
+    """[PR-7] a full job finalizes into a completed_job record."""
+    _wire(manager, hass)
+    _seed_job(manager, battery_start=90)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 70})
+    result = await manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, battery_end=70)
+    assert result is not None
+    assert "completed_job" in result
