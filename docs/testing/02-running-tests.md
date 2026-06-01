@@ -13,16 +13,21 @@ There is a runner for this:
 scripts\test.bat
 ```
 
-It mounts the repo at `/workspace`, installs `requirements_test.txt`, and runs
-pytest with whatever arguments you pass through.
+It runs pytest in the **pre-baked `eufy-vacuum-test` image** (the HA test deps
+baked in — see [the locked-in image](#the-locked-in-image-no-pip-install-per-run)
+below), mounting the repo at `/workspace` and passing through whatever arguments
+you give it. No pip install per run.
 
 ```bat
 @echo off
+REM build the image once if it's missing, then reuse it
+docker image inspect eufy-vacuum-test >nul 2>&1
+if errorlevel 1 call "%~dp0build-test-image.bat" || exit /b 1
 docker run --rm ^
   -v "%~dp0..:/workspace" ^
   -w /workspace ^
-  python:3.14-slim ^
-  bash -c "pip install -r requirements_test.txt -q && python -m pytest %*"
+  eufy-vacuum-test ^
+  python -m pytest %*
 ```
 
 ### Examples
@@ -45,15 +50,19 @@ this machine:
    the container fails to find the working dir. Run Docker from PowerShell.
 2. **Quote the volume mount with the absolute Windows path.**
 
-A known-good PowerShell invocation:
+A known-good PowerShell invocation (against the pre-baked image, no pip install):
 
 ```powershell
 docker run --rm `
   -v "C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager:/workspace" `
   -w /workspace `
-  python:3.14-slim `
-  sh -c "pip install -q -r requirements_test.txt && python -m pytest tests/ -q --no-header"
+  eufy-vacuum-test `
+  python -m pytest tests/ -q --no-header
 ```
+
+(If you haven't built the image yet, run `scripts\build-test-image.bat` first,
+or swap `eufy-vacuum-test` for `python:3.14-slim` and prefix the command with
+`pip install -q -r requirements_test.txt &&` for a one-off zero-setup run.)
 
 ## Common flag recipes
 
@@ -110,10 +119,31 @@ def test_mask_edge_band(np):
     ...
 ```
 
-## First run is slow
+## The locked-in image (no pip install per run)
 
-The container does a fresh `pip install` on every invocation, so the first run
-(and any run after the base image is pulled) spends ~20-30s installing before a
-single test executes. The test execution itself is fast (the full suite runs in
-well under a minute). If you are iterating tightly, run a single file to keep
-the feedback loop short.
+Installing `requirements_test.txt` fresh in the container costs ~1-2 min — far
+longer than the suite itself (well under a minute). So the deps are **baked into
+a local image once** and reused:
+
+| File | Role |
+|------|------|
+| `scripts/test.Dockerfile` | `python:3.14-slim` + `pip install -r requirements_test.txt` |
+| `scripts/build-test-image.bat` | builds/rebuilds the `eufy-vacuum-test` image |
+| `scripts/test.bat` | runs pytest in that image (auto-builds it on first run) |
+
+Lifecycle:
+
+1. **First run** — `scripts\test.bat` sees no `eufy-vacuum-test` image and builds
+   it once (the only slow run).
+2. **Every run after** — reuses the image, so a test run is just `pytest` with no
+   install step.
+3. **After `requirements_test.txt` changes** — rebuild with
+   `scripts\build-test-image.bat` (or delete the image and let `test.bat`
+   rebuild it).
+
+The image is ~1.4 GB and lives only on your machine — it is not committed; only
+the Dockerfile + scripts are. Anyone who clones the repo gets the same baked
+environment from the first `scripts\test.bat`.
+
+> Iterating tightly? Run a single file (`scripts\test.bat tests/unit/test_x.py
+> --no-cov`) — the image is already warm, so the only cost is the test itself.
