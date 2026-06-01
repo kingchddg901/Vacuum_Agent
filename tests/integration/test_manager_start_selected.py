@@ -11,6 +11,8 @@ Coverage targets
 [SS-2]  blocked start (partial access graph) → started False, not dispatched.
 [SS-3]  vacuum entity missing → started False, reason vacuum_missing.
 [SS-4]  reduced run requires confirmation; confirm_reduced_run bypasses it.
+[SS-5]  start_run_profile: unknown profile → not applied, no dispatch.
+[SS-6]  start_run_profile: apply saved profile then dispatch the start.
 """
 
 from __future__ import annotations
@@ -127,4 +129,33 @@ async def test_start_requires_confirmation(manager, hass):
         vacuum_entity_id=_VAC, map_id=_MAP, confirm_reduced_run=True)
     await hass.async_block_till_done()
     assert done["started"] is True
+    assert len(calls) == 1
+
+
+async def test_start_run_profile_not_found(manager, hass):
+    """[SS-5]"""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked")
+    calls = _register_dispatch(hass)
+    res = await manager.start_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id="ghost")
+    assert res["started"] is False
+    assert res["reason"] == "profile_not_found"
+    assert calls == []
+
+
+async def test_start_run_profile_success(manager, hass):
+    """[SS-6] save a run profile, then start it through the protected path."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager)
+    hass.states.async_set(_VAC, "docked")
+    calls = _register_dispatch(hass)
+    pid = manager.save_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, name="Evening")["profile_id"]
+    res = await manager.start_run_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, profile_id=pid)
+    await hass.async_block_till_done()
+    assert res["started"] is True
+    assert res["profile_id"] == pid
     assert len(calls) == 1
