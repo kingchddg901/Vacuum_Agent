@@ -573,3 +573,26 @@ def test_build_completed_job_payload_vacuum_slug_in_name(tmp_path):
     store = _make_store(tmp_path)
     payload = store.build_completed_job_payload(**_make_build_args())
     assert payload["vacuum"]["name"] == "alfred"
+
+
+def test_append_job_csv_row(tmp_path):
+    """The jobs CSV export writes a header + the appended row."""
+    store = _make_store(tmp_path)
+    row = ["j1", "s", "e", "6", 2, 10, 90, 70, 20, "completed",
+           True, True, "", "", 0, 0, 0, 0, 0]
+    path = store.append_job_csv_row(vacuum_entity_id="vacuum.alfred", row=row)
+    content = Path(path).read_text(encoding="utf-8")
+    assert "job_id" in content        # header row written
+    assert "j1" in content            # data row written
+
+
+def test_append_room_csv_rows(tmp_path):
+    """The rooms CSV export writes a header + each appended row."""
+    store = _make_store(tmp_path)
+    rows = [["j1", "s", "e", "6", "kitchen", 1, 1, "vacuum", "vacuum", 1,
+             "Max", "Off", "Standard", False, False, 2, 10, 20, "completed",
+             True, True, "", "", 5, 10, 0, 0]]
+    path = store.append_room_csv_rows(vacuum_entity_id="vacuum.alfred", rows=rows)
+    content = Path(path).read_text(encoding="utf-8")
+    assert "room_slug" in content
+    assert "kitchen" in content
