@@ -81,7 +81,7 @@ def append_sample(
         line = json.dumps({k: sample.get(k) for k in _SAMPLES_FIELDS}, default=str)
         with open(path, "a", encoding="utf-8") as fh:
             fh.write(line + "\n")
-    except OSError as err:
+    except OSError as err:  # pragma: no cover - best-effort I/O, logs and swallows
         _LOGGER.debug("battery: failed to append sample for %s: %s", vacuum_entity_id, err)
 
 
@@ -102,7 +102,7 @@ def append_session(
             if write_header:
                 writer.writerow(_SESSION_HEADER)
             writer.writerow([_format_csv_value(session.get(f)) for f in _SESSION_HEADER])
-    except OSError as err:
+    except OSError as err:  # pragma: no cover - best-effort I/O, logs and swallows
         _LOGGER.debug("battery: failed to append session for %s: %s", vacuum_entity_id, err)
 
 

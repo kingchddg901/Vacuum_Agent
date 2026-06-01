@@ -1764,7 +1764,7 @@ class MappingManager:
             payload = json.loads(job_path.read_text(encoding="utf-8"))
             payload.setdefault("mapping", {})["room_bounds"] = job_bounds
             job_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort I/O, logs and swallows
             _LOGGER.exception("MappingManager: failed to write job bounds to job file")
 
     @staticmethod

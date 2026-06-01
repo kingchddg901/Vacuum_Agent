@@ -399,7 +399,7 @@ class LearningManager:
                     "adjacency": adjacency,
                 },
             )
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort debug write, logs and swallows
             _LOGGER.exception("Failed to write access graph debug file")
 
         return self.finalizer.save_live_snapshot(

@@ -633,7 +633,7 @@ class EufyVacuumManager:
         """Save persistent data, logging any storage failure."""
         try:
             await self.storage.async_save(self.data)
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort save, logs and swallows
             _LOGGER.exception("Failed to auto-save integration data")
 
     def _get_learning_manager(self):

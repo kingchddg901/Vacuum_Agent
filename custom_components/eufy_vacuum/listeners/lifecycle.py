@@ -65,7 +65,7 @@ def remove(hass: HomeAssistant) -> None:
     for unsub in unsubs:
         try:
             unsub()
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort teardown
             _LOGGER.exception("Failed to remove lifecycle listener")
 
 

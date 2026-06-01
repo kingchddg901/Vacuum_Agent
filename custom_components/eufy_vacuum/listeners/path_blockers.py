@@ -39,14 +39,14 @@ def remove(hass: HomeAssistant) -> None:
     if manager is not None and room_callback is not None:
         try:
             manager.unregister_room_update_callback(room_callback)
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort teardown
             _LOGGER.exception("Failed to unregister path blocker room callback")
 
     unsubs: list[Callable[[], None]] = domain_data.pop(_PATH_BLOCKER_UNSUBS, [])
     for unsub in unsubs:
         try:
             unsub()
-        except Exception:
+        except Exception:  # pragma: no cover - best-effort teardown
             _LOGGER.exception("Failed to remove path blocker listener")
 
 
