@@ -265,9 +265,13 @@ class RunPlanManager:
         model_meta = self._manager._get_upkeep_model_meta(vacuum_entity_id=vacuum_entity_id)
         model_code = model_meta.get("code")
         config = dict(_water_model_configs.get(model_code or "", {}))
+        # Capture availability before injecting meta keys — otherwise the
+        # model_code/model_name entries below make ``config`` truthy
+        # unconditionally and the model_unsupported guard becomes dead code.
+        available = bool(config)
         config["model_code"] = model_code
         config["model_name"] = model_meta.get("name")
-        config["available"] = bool(config)
+        config["available"] = available
         return config
 
     def _derive_wash_frequency_config(
