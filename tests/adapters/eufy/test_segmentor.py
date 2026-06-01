@@ -137,6 +137,83 @@ def test_detect_segments_max_segments_caps(tmp_path):
     assert len(result["segments"]) <= 1
 
 
+def _oversized_map_png(tmp_path) -> str:
+    """A single saturated room covering most of the frame (area% > 0.45).
+
+    Drives the in-pipeline 'oversized_region' / suspicious-merge branch and the
+    oversized drop path.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (200, 200), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([10, 10, 190, 190], fill=(60, 160, 90))  # ~81% of frame
+    path = os.path.join(tmp_path, "oversized.png")
+    img.save(path)
+    return path
+
+
+def _dumbbell_map_png(tmp_path) -> str:
+    """One single-hue room shaped like a dumbbell (two blobs + a thin neck).
+
+    Single colour => one hue cluster => one connected component whose
+    area_percent (>0.18) marks it suspicious; the erosion splitter then breaks
+    it in the pipeline, exercising the split-emit + dedup branches.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 240), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    color = (60, 160, 90)
+    draw.rectangle([30, 40, 110, 120], fill=color)    # blob A
+    draw.rectangle([30, 150, 110, 230], fill=color)   # blob B
+    draw.rectangle([62, 120, 78, 150], fill=color)    # thin neck
+    path = os.path.join(tmp_path, "dumbbell.png")
+    img.save(path)
+    return path
+
+
+def test_detect_segments_oversized_region(tmp_path):
+    """[ECV-7] an oversized single room triggers the suspicious/oversized path."""
+    path = _oversized_map_png(str(tmp_path))
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    # Pipeline completes; the oversized parent is flagged + dropped, so it must
+    # not survive as a clean segment.
+    assert result["available"] is True
+    assert isinstance(result["segments"], list)
+
+
+def test_detect_segments_dumbbell_split(tmp_path):
+    """[ECV-8] a suspicious dumbbell component is split inside the pipeline."""
+    path = _dumbbell_map_png(str(tmp_path))
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is True
+    assert isinstance(result["segments"], list)
+    assert "summary" in result
+
+
+def test_detect_segments_no_room_pixels(tmp_path):
+    """[ECV-9] a flat dark image has no room-like pixels -> structured miss."""
+    from PIL import Image
+
+    img = Image.new("RGB", (120, 120), (10, 10, 10))  # below value/sat floors
+    path = os.path.join(str(tmp_path), "dark.png")
+    img.save(path)
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is False
+    assert result["reason"] == "no_room_pixels_detected"
+
+
+def test_detect_segments_expected_room_count(tmp_path):
+    """[ECV-10] expected_room_count drives the deferred-region recovery loop."""
+    path = _map_png(str(tmp_path), saturated=True)
+    result = detect_room_segments(
+        image_path=path, min_area_pixels=200, expected_room_count=5
+    )
+    assert result["available"] is True
+    assert isinstance(result["segments"], list)
+
+
 # --- pure quality / role / state classifiers (no image needed) --------------
 
 
