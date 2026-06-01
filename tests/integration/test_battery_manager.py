@@ -23,6 +23,7 @@ Coverage targets
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -175,3 +176,106 @@ async def test_out_of_range_ignored(bm):
     _feed(bm, [(150, False, 0), (-5, False, 60)])
     rec = bm.get_record(_VAC)
     assert rec.get("last_battery_level") is None
+
+
+# ---------------------------------------------------------------------------
+# active-job / charging classification
+# ---------------------------------------------------------------------------
+
+def test_has_active_job(bm, manager):
+    """[BM-13]"""
+    assert bm._has_active_job(_VAC) is False
+    manager.data["active_jobs"] = {_VAC: {"6": {"started_at": "t", "ended_at": None}}}
+    assert bm._has_active_job(_VAC) is True
+    manager.data["active_jobs"][_VAC]["6"]["ended_at"] = "t2"
+    assert bm._has_active_job(_VAC) is False
+
+
+def test_is_charging_delegates_and_fallback(bm, manager, hass, monkeypatch):
+    """[BM-14] delegates to manager._is_charging; AttributeError → substring fallback."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"charging": "binary_sensor.alfred_charging"}})
+    hass.states.async_set("binary_sensor.alfred_charging", "on")
+    assert bm._is_charging(_VAC) is True
+    # fallback: manager._is_charging raises → substring check on vacuum state
+    monkeypatch.setattr(manager, "_is_charging",
+                        MagicMock(side_effect=AttributeError))
+    hass.states.async_set(_VAC, "charging")
+    assert bm._is_charging(_VAC) is True
+    hass.states.async_set(_VAC, "docked")
+    assert bm._is_charging(_VAC) is False
+
+
+# ---------------------------------------------------------------------------
+# stat helpers
+# ---------------------------------------------------------------------------
+
+def test_update_mid_job_rate_stat(bm):
+    """[BM-15] rolling mean of mid-job recharge rates."""
+    rec = {}
+    bm._update_mid_job_rate_stat(rec, 2.0)
+    bm._update_mid_job_rate_stat(rec, 4.0)
+    s = rec["mid_job_recharge_stats"]
+    assert s["count"] == 2
+    assert s["rate_mean_per_min"] == pytest.approx(3.0)
+    assert s["last_rate_per_min"] == pytest.approx(4.0)
+
+
+def test_lookup_vacuum_for_record(bm):
+    """[BM-16]"""
+    rec = bm.ensure_record(_VAC)
+    assert bm._lookup_vacuum_for_record(rec) == _VAC
+    assert bm._lookup_vacuum_for_record({"not": "stored"}) == "unknown"
+
+
+# ---------------------------------------------------------------------------
+# post-job charge linking
+# ---------------------------------------------------------------------------
+
+def test_attach_post_job_charge(bm):
+    """[BM-17] a charge session that opens shortly after a job links to it."""
+    rec = bm.ensure_record(_VAC)
+    rec["last_job"] = {"job_id": "j1"}
+    bm._pending_post_job[_VAC] = {"recorded_ts": _T0, "job_id": "j1"}
+    summary = {
+        "start_ts": (_T0 + timedelta(minutes=5)).isoformat(),
+        "end_ts": (_T0 + timedelta(minutes=65)).isoformat(),
+        "duration_min": 60, "delta_pct": 40, "avg_rate_per_min": 0.67,
+    }
+    bm._attach_post_job_charge_if_pending(vacuum_entity_id=_VAC, session_summary=summary)
+    assert rec["last_job"]["post_job_charge"]["job_id"] == "j1"
+    assert _VAC not in bm._pending_post_job
+
+
+def test_attach_post_job_charge_gates(bm):
+    """[BM-17] no pending → no-op; beyond the link window → dropped, no attach."""
+    bm._attach_post_job_charge_if_pending(
+        vacuum_entity_id=_VAC, session_summary={"start_ts": _T0.isoformat()})
+    rec = bm.ensure_record(_VAC)
+    rec["last_job"] = {"job_id": "j1"}
+    # session opens 5 hours later (> POST_JOB_CHARGE_LINK_HOURS=4) → dropped
+    bm._pending_post_job[_VAC] = {"recorded_ts": _T0, "job_id": "j1"}
+    bm._attach_post_job_charge_if_pending(
+        vacuum_entity_id=_VAC,
+        session_summary={"start_ts": (_T0 + timedelta(hours=5)).isoformat()})
+    assert "post_job_charge" not in rec["last_job"]
+    assert _VAC not in bm._pending_post_job
+
+
+# ---------------------------------------------------------------------------
+# HA wiring
+# ---------------------------------------------------------------------------
+
+async def test_wire_and_state_event(bm, hass):
+    """[BM-18] start wires listeners + samples; a state change routes a sample."""
+    hass.states.async_set("sensor.alfred_battery", "80")
+    bm.start([_VAC])
+    assert _VAC in bm._vacuum_unsubs
+    hass.states.async_set("sensor.alfred_battery", "79")
+    await hass.async_block_till_done()
+    # an unrelated entity is ignored
+    bm._on_state_event(MagicMock(data={"entity_id": "sensor.other"}))
+    bm.stop()
+    assert bm._vacuum_unsubs == {}
