@@ -87,6 +87,17 @@ def test_mop_wash_idle_noop(tracker, manager):
     assert result["observed_mop_wash_count"] == 0
 
 
+def test_mop_wash_malformed_timestamp_counts(tracker, manager):
+    """[AJI-24] an unparseable last-wash timestamp falls through the debounce
+    (except branch) and still counts the wash rather than crashing."""
+    _seed(manager, observed_mop_wash_last_at="not-a-timestamp",
+          observed_mop_wash_count=0)
+    job = tracker.update_active_job_mop_wash_observation(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        observed_at="2026-01-01T09:00:00+00:00")
+    assert job["observed_mop_wash_count"] == 1
+
+
 # ---------------------------------------------------------------------------
 # transitions
 # ---------------------------------------------------------------------------

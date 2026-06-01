@@ -89,6 +89,17 @@ def test_record_event_counts_with_debounce(dock, manager):
     assert dock.get_dock_events(vacuum_entity_id=_VAC)["mop_wash_count"] == 1
 
 
+def test_record_event_malformed_debounce_timestamp(dock, manager):
+    """[DK-2b] an unparseable last-counted timestamp falls through the debounce
+    (except branch) and still counts, rather than crashing."""
+    manager.data.setdefault("dock_events", {})[_VAC] = {
+        "last_mop_wash_last_counted_at": "not-a-timestamp",
+        "mop_wash_count": 0,
+    }
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    assert dock.get_dock_events(vacuum_entity_id=_VAC)["mop_wash_count"] == 1
+
+
 def test_record_event_dry_duration(dock):
     """[DK-3]"""
     dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_dry_start", dry_duration="2h")

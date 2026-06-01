@@ -401,7 +401,14 @@ class DockManager:
                         if (now_dt - last_dt).total_seconds() < debounce:
                             should_count = False
                     except Exception:
-                        pass
+                        # Unparseable timestamp → fall through and count the
+                        # event. Log so a silent debounce break from a
+                        # timestamp-format drift is detectable, not invisible.
+                        _LOGGER.debug(
+                            "dock-event debounce: could not parse timestamps "
+                            "(last=%r now=%r) for %s",
+                            last_counted, now, event_type, exc_info=True,
+                        )
             if should_count:
                 vacuum_events[counter_key] = (
                     _safe_int(vacuum_events.get(counter_key), 0) + 1
