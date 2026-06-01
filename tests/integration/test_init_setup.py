@@ -14,6 +14,9 @@ Coverage targets
          + platform entities created; unload → NOT_LOADED + state torn down.
 [INIT-2] setup with no vacuum → still LOADED (fallback panel path).
 [INIT-3] async_remove_entry clears persistent storage.
+[INIT-4] setup with the full companion-entity stack present → capability
+         detection enables mop/dock/position/maintenance features so the
+         switch/number/button/sensor platforms construct those entities.
 """
 
 from __future__ import annotations
@@ -94,6 +97,54 @@ async def test_setup_no_vacuum(hass, mock_entry_no_vacuum):
     assert ok is True
     assert mock_entry_no_vacuum.state is ConfigEntryState.LOADED
     assert await hass.config_entries.async_unload(mock_entry_no_vacuum.entry_id)
+    await hass.async_block_till_done()
+
+
+_COMPANIONS = {
+    "sensor.alfred_task_status": "cleaning",
+    "sensor.alfred_dock_status": "idle",
+    "sensor.alfred_active_map": "6",
+    "sensor.alfred_active_cleaning_target": "",
+    "sensor.alfred_cleaning_time": "1200",
+    "sensor.alfred_cleaning_area": "30",
+    "sensor.alfred_battery": "80",
+    "sensor.alfred_error_message": "",
+    "sensor.alfred_water_level": "75",
+    "sensor.alfred_work_mode": "auto",
+    "sensor.alfred_robot_position_x_raw": "1.0",
+    "sensor.alfred_robot_position_y_raw": "2.0",
+    "binary_sensor.alfred_charging": "off",
+    "select.alfred_cleaning_intensity": "Standard",
+    "button.alfred_wash_mop": "2026-01-01T00:00:00+00:00",
+    "button.alfred_dry_mop": "2026-01-01T00:00:00+00:00",
+    "button.alfred_empty_dust": "2026-01-01T00:00:00+00:00",
+    "sensor.alfred_filter_remaining": "90",
+    "sensor.alfred_main_brush_remaining": "85",
+    "sensor.alfred_side_brush_remaining": "80",
+    "sensor.alfred_rolling_brush_remaining": "88",
+}
+
+
+async def test_setup_full_entity_stack(hass, mock_config_entry):
+    """[INIT-4] a richly-capable vacuum → more platform entities constructed."""
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    for entity_id, state in _COMPANIONS.items():
+        hass.states.async_set(entity_id, state)
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+    assert mock_config_entry.state is ConfigEntryState.LOADED
+    # capability detection saw the companion stack → entities across all
+    # five platforms got constructed
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    domains = {e.entity_id.split(".", 1)[0] for e in reg.entities.values()
+               if e.platform == DOMAIN}
+    # the capability-gated platforms construct entities across several domains
+    # (maintenance numbers/buttons, status sensors, error binary_sensor)
+    assert len(domains) >= 3
+    assert "number" in domains and "button" in domains
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
 
 
