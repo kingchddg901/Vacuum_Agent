@@ -6,6 +6,7 @@ Coverage targets
 [ER-1]  ActiveRunError native: none / active / recovered enum.
 [ER-2]  ActiveRunError attributes surface the error message.
 [ER-3]  LastDeviceError native + attributes.
+[ER-4]  error sensor add/remove listener + vacuum-filtered update callback.
 [LC-1]  ActiveJob native: started / paused / finalized / cancelled / none.
 [LC-2]  ActiveJob attributes carry the job snapshot.
 [LC-3]  ActiveJob update callbacks write on a matching vacuum/map, skip otherwise.
@@ -79,6 +80,28 @@ def test_last_device_error():
     t.get_last_device_latch.return_value = None
     assert s.native_value == "none"
     assert s.extra_state_attributes == {}
+
+
+async def test_error_sensor_listener_and_callback():
+    """[ER-4] add/remove listener + the vacuum-filtered threadsafe write."""
+    unsub = MagicMock()
+    t = MagicMock()
+    t.get_active_run_latch.return_value = {}
+    t.add_update_listener.return_value = unsub
+    s = EufyVacuumActiveRunErrorSensor(tracker=t, vacuum_entity_id=_VAC)
+
+    await s.async_added_to_hass()
+    t.add_update_listener.assert_called_once()
+
+    s.hass = MagicMock()
+    s._on_tracker_update(_VAC)                 # matching vacuum → schedules write
+    assert s.hass.loop.call_soon_threadsafe.called
+    s.hass.loop.call_soon_threadsafe.reset_mock()
+    s._on_tracker_update("vacuum.other")        # wrong vacuum → skipped
+    assert not s.hass.loop.call_soon_threadsafe.called
+
+    await s.async_will_remove_from_hass()
+    unsub.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
