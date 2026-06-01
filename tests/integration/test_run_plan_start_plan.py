@@ -223,3 +223,71 @@ def test_runtime_path_block_report(rp, hass, manager):
     mgr.data["active_jobs"][_VAC]["spm9"]["status"] = "idle"
     assert manager.get_runtime_path_block_report(
         vacuum_entity_id=_VAC, map_id="spm9") is None
+
+
+def test_modifier_fan_out_guard_branches(rp, hass):
+    """[SP-10] the fan-out loop's per-target + matched-rule guards.
+
+    One matching fan rule whose fan_out_room_ids mix a non-numeric id, an
+    unknown id, the source room itself, a blocked room, and one valid target —
+    only the valid target gets the change. Sibling rules cover the no-entity,
+    no-match, and empty-changes early-continues.
+    """
+    rp_, mgr = rp
+    rules = [
+        {"kind": "modifier", "id": "g1", "entity_id": "binary_sensor.on",
+         "operator": "is_on", "fan_out_room_ids": ["xx", 99, 1, 2, 3],
+         "effect": {"action": "mutate", "changes": {"water_level": "low"}}},
+        # no entity_id → continue
+        {"kind": "modifier", "id": "g2", "entity_id": "", "operator": "is_on",
+         "fan_out_room_ids": [3], "effect": {"action": "mutate",
+                                             "changes": {"fan_speed": "Quiet"}}},
+        # entity off → rule does not match → continue
+        {"kind": "modifier", "id": "g3", "entity_id": "binary_sensor.off",
+         "operator": "is_on", "fan_out_room_ids": [3],
+         "effect": {"action": "mutate", "changes": {"fan_speed": "Quiet"}}},
+        # matches but empty changes → continue
+        {"kind": "modifier", "id": "g4", "entity_id": "binary_sensor.on",
+         "operator": "is_on", "fan_out_room_ids": [3],
+         "effect": {"action": "mutate", "changes": {}}},
+    ]
+    _seed(mgr, "spm10", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2, 3],
+         "rules": rules},
+        {"enabled": True, "rules": [_blocker("binary_sensor.on")]},  # room 2 blocked
+        {"enabled": True},                                           # room 3 valid target
+    ])
+    hass.states.async_set("binary_sensor.on", "on")
+    hass.states.async_set("binary_sensor.off", "off")
+    out = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm10")
+    pf = out["preflight"]
+    # only the valid, selected, unblocked target (room 3) receives the change
+    mod = next(m for m in pf["modified_rooms"] if m["room_id"] == 3)
+    assert mod["changes"]["water_level"] == "low"
+    assert mod["derived"] is True
+    # the blocked target (room 2) was skipped by the fan-out, not modified
+    assert 2 in pf["blocked_room_ids"]
+    assert all(m["room_id"] != 2 for m in pf["modified_rooms"])
+
+
+def test_path_block_directly_blocked_remaining(rp, hass, manager):
+    """[SP-11] a remaining room with its OWN blocker is classified directly
+    blocked, while a reachable sibling propagates accessible and is not flagged."""
+    mgr = manager
+    _seed(mgr, "spm11", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
+        {"enabled": True, "grants_access_to": [3]},
+        {"enabled": True, "rules": [_blocker("binary_sensor.win")]},  # room 3 own blocker
+    ])
+    mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm11"] = {
+        "status": "started", "job_id": "j2",
+        "queue_room_ids": [1, 2, 3], "completed_room_ids": [1],
+    }
+    hass.states.async_set("binary_sensor.win", "on")
+    report = manager.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm11",
+        trigger_entity_id="binary_sensor.win", trigger_entity_state="on")
+    assert report is not None
+    # room 3 is directly blocked; room 2 stayed reachable (not flagged)
+    assert "3" in report["directly_blocked_room_ids"]
+    assert "2" not in report["affected_remaining_room_ids"]

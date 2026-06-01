@@ -2,13 +2,25 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+from unittest.mock import MagicMock
+
 import pytest
 
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.learning.job_finalizer import (
+    LearningJobFinalizer,
     _apply_water_actuals,
     _compute_total_error_seconds,
     _parse_iso_to_utc,
 )
+
+
+@pytest.fixture
+def finalizer(tmp_path):
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+    return LearningJobFinalizer(hass)
 
 
 # ---------------------------------------------------------------------------
@@ -211,3 +223,102 @@ def test_apply_water_actuals_delta_computed():
     _apply_water_actuals(completed_job=job, end_percent=65.0, observed_mop_wash_count=2)
     # actual=450ml, estimated=450ml → delta=0
     assert job["water"]["actual_vs_estimated_delta_ml"] == pytest.approx(0.0)
+
+
+# ---------------------------------------------------------------------------
+# _apply_snapshot_estimates_to_completed_job — start-of-run estimate enrichment
+# ---------------------------------------------------------------------------
+
+def test_apply_snapshot_estimates_matches_by_id_and_slug(finalizer):
+    """[JF-1] resolved rooms gain estimate fields from the snapshot timeline,
+    matched first by room_id then by slug; unmatched rooms pass through."""
+    snapshot = {"planned_job_estimate": {"room_timeline": [
+        {"room_id": 1, "minutes": 5.0, "battery": 8.0,
+         "confidence_score": 0.9, "confidence_label": "high", "source": "learned"},
+        {"slug": "bath", "minutes": 3.0, "battery": 4.0},
+    ]}}
+    completed_job = {"resolved_rooms": [
+        {"room_id": 1, "name": "Kitchen"},          # matches by id
+        {"room_id": 7, "slug": "bath"},             # id miss → slug match
+        {"room_id": 9, "name": "Hall"},             # no match → passthrough
+    ]}
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=completed_job, snapshot=snapshot)
+    rooms = {r.get("room_id"): r for r in completed_job["resolved_rooms"]}
+    assert rooms[1]["estimated_minutes"] == 5.0
+    assert rooms[1]["estimate_confidence_label"] == "high"
+    assert rooms[7]["estimated_minutes"] == 3.0
+    assert "estimated_minutes" not in rooms[9]
+
+
+def test_apply_snapshot_estimates_guards(finalizer):
+    """[JF-2] missing/empty snapshot or timeline → completed_job untouched."""
+    job = {"resolved_rooms": [{"room_id": 1}]}
+    finalizer._apply_snapshot_estimates_to_completed_job(completed_job=job, snapshot=None)
+    finalizer._apply_snapshot_estimates_to_completed_job(
+        completed_job=job, snapshot={"planned_job_estimate": {"room_timeline": []}})
+    assert "estimated_minutes" not in job["resolved_rooms"][0]
+
+
+# ---------------------------------------------------------------------------
+# _detect_cancel_likely_run — learning-estimate path (1195-1218)
+# ---------------------------------------------------------------------------
+
+_VAC = "vacuum.alfred"
+
+
+def _cancel_state(returning_offset_min, paused_secs=0.0):
+    start = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    ret = start + timedelta(minutes=returning_offset_min)
+    return {
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}],
+        "paused_duration_seconds": paused_secs,
+        "state_transitions": [
+            {"entity_id": "sensor.alfred_task_status",
+             "from_state": "cleaning", "to_state": "returning",
+             "changed_at": ret.isoformat()},
+        ],
+    }, start.isoformat(), ret.isoformat()
+
+
+def test_detect_cancel_short_run_is_likely(finalizer):
+    """[JF-3] past the floor (2 min cleaned), a run far under the learned estimate
+    is flagged early_return_likely_cancelled."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"task_status": "sensor.alfred_task_status"},
+    })
+    state, started, ended = _cancel_state(returning_offset_min=2)
+    learning = MagicMock()
+    learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
+    manager = MagicMock()
+    manager._get_learning_manager.return_value = learning
+
+    out = finalizer._detect_cancel_likely_run(
+        manager=manager, vacuum_entity_id=_VAC, map_id="6",
+        battery_start=90, started_at=started, ended_at=ended,
+        active_job_state=state)
+    # 2 min actual >= 1.5 floor, but << 10 min estimate (short_threshold 4.0)
+    assert out["cancel_likely"] is True
+    assert out["reason"] == "early_return_likely_cancelled"
+
+
+def test_detect_cancel_estimate_error_then_long_enough(finalizer):
+    """[JF-4] when the learning estimate raises, expected falls to 0 → a 1.0 min
+    floor; a 2-min run clears it → duration_not_short (not a cancel)."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"task_status": "sensor.alfred_task_status"},
+    })
+    state, started, ended = _cancel_state(returning_offset_min=2)
+    learning = MagicMock()
+    learning.estimate_from_manager.side_effect = RuntimeError("boom")
+    manager = MagicMock()
+    manager._get_learning_manager.return_value = learning
+
+    out = finalizer._detect_cancel_likely_run(
+        manager=manager, vacuum_entity_id=_VAC, map_id="6",
+        battery_start=90, started_at=started, ended_at=ended,
+        active_job_state=state)
+    assert out["cancel_likely"] is False
+    assert out["reason"] == "duration_not_short"

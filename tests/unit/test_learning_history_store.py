@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -596,3 +597,74 @@ def test_append_room_csv_rows(tmp_path):
     content = Path(path).read_text(encoding="utf-8")
     assert "room_slug" in content
     assert "kitchen" in content
+
+
+# ---------------------------------------------------------------------------
+# build_completed_job_payload — single-room cleaning minutes + outcome class
+# ---------------------------------------------------------------------------
+
+_VAC = "vacuum.alfred"
+_START = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+
+
+def _payload(store, **over):
+    base = dict(
+        vacuum_entity_id=_VAC, job_id="j1",
+        started_at=_START.isoformat(),
+        ended_at=(_START + timedelta(minutes=8)).isoformat(),
+        battery_start=90, battery_end=70,
+        queue_state={},
+        payload_state={"resolved_rooms": [{"room_id": 1, "slug": "kitchen"}]},
+        active_job_state={"resolved_rooms": [{"room_id": 1, "slug": "kitchen"}]},
+    )
+    base.update(over)
+    return store.build_completed_job_payload(**base)
+
+
+def test_payload_single_room_actual_cleaning_minutes(tmp_path):
+    """[HS-1] a single-room job derives actual_cleaning_minutes from the last
+    Returning transition (cleaning time, excluding the return trip)."""
+    store = _make_store(tmp_path)
+    state = {
+        "resolved_rooms": [{"room_id": 1, "slug": "kitchen"}],
+        "state_transitions": [
+            {"to_state": "returning",
+             "changed_at": (_START + timedelta(minutes=5)).isoformat()},
+        ],
+    }
+    out = _payload(store, active_job_state=state)
+    assert out["job"]["actual_cleaning_minutes"] == 5.0
+
+
+def test_payload_single_room_no_returning_transition(tmp_path):
+    """[HS-2] no Returning transition → actual_cleaning_minutes stays None."""
+    store = _make_store(tmp_path)
+    state = {"resolved_rooms": [{"room_id": 1, "slug": "kitchen"}],
+             "state_transitions": [{"to_state": "cleaning", "changed_at": _START.isoformat()}]}
+    out = _payload(store, active_job_state=state)
+    assert out["job"]["actual_cleaning_minutes"] is None
+
+
+def test_payload_cancel_detection_forces_cancelled(tmp_path):
+    """[HS-3] a cancel_detection that flags cancel_likely flips the outcome to
+    cancelled and blocks learning."""
+    store = _make_store(tmp_path)
+    out = _payload(store, extra_outcome={
+        "cancel_detection": {"cancel_likely": True,
+                             "reason": "early_return_likely_cancelled"}})
+    oc = out["outcome"]
+    assert oc["status"] == "cancelled"
+    assert oc["used_for_learning"] is False
+    assert oc["was_cancelled"] is True
+    # extra_outcome is merged in, carrying the cancel-detection detail
+    assert oc["cancel_detection"]["reason"] == "early_return_likely_cancelled"
+
+
+def test_payload_failed_status_blocks_learning(tmp_path):
+    """[HS-4] was_failed escalates status to failed + adds the job_failed blocker."""
+    store = _make_store(tmp_path)
+    out = _payload(store, was_failed=True)
+    oc = out["outcome"]
+    assert oc["status"] == "failed"
+    assert oc["used_for_learning"] is False
+    assert "job_failed" in oc["learning_blockers"]
