@@ -401,6 +401,47 @@ async def test_rebuild_room_bounds_service(hass, mapping_services):
     assert tracker.rebuild_calls == [(_VAC, "rbsvc", "3")]
 
 
+def _tiny_jpeg_b64(pil) -> str:
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (8, 8), (40, 40, 40)).save(buf, format="JPEG")
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+async def test_upload_non_png_is_converted(hass, mapping_services, pil):
+    """[IMG-20] a valid non-PNG image is transcoded to PNG and saved."""
+    res = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_jpeg_b64(pil), "image_width": 8, "image_height": 8,
+        "variant": "default"})
+    assert res["saved"] is True
+
+
+async def test_upload_unsupported_format(hass, mapping_services):
+    """[IMG-21] base64 that decodes but isn't an image → unsupported_format."""
+    res = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": base64.b64encode(b"hello world").decode("ascii")})
+    assert res["saved"] is False
+    assert res["reason"] == "unsupported_format"
+
+
+async def test_translate_vertex_accumulation_via_service(hass, mapping_services, pil):
+    """[IMG-22] the translate service accumulates per-vertex moves across calls
+    (the handler-side vertex merge, distinct from the manager method)."""
+    await _svc(hass, SERVICE_SAVE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    r1 = await _svc(hass, SERVICE_TRANSLATE_IMAGE_SEGMENT, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "fake_1",
+        "vertex_moves": [{"index": 0, "delta_x": 5, "delta_y": 5}]})
+    assert r1["saved"] is True
+    r2 = await _svc(hass, SERVICE_TRANSLATE_IMAGE_SEGMENT, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "fake_1",
+        "vertex_moves": [{"index": 0, "delta_x": 3, "delta_y": -5}]})
+    assert r2["saved"] is True
+
+
 async def test_upload_pil_read_fallback(hass, mapping_services, pil, monkeypatch):
     """[IMG-13] if measuring the saved image fails, dimensions fall back to the
     declared values in the RETURNED response (degraded response, not just a log)."""

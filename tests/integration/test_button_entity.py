@@ -20,11 +20,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import custom_components.eufy_vacuum.button as button_mod
 from custom_components.eufy_vacuum.button import (
     EufyVacuumMaintenanceResetButton,
     EufyVacuumSavedRunProfileButton,
     _slugify_profile_name,
 )
+
+from .conftest import setup_map
 
 
 _VAC = "vacuum.alfred"
@@ -211,3 +214,56 @@ async def test_run_button_async_press_calls_start_run_profile(hass):
 def test_slugify_profile_name(value, expected):
     """[BE-10] _slugify_profile_name lowercases and collapses non-alphanumeric to underscores."""
     assert _slugify_profile_name(value) == expected
+
+
+# ---------------------------------------------------------------------------
+# [BE-11] async_setup_entry + dynamic run-profile button reconciliation
+# ---------------------------------------------------------------------------
+
+_REAL_MAP = "6"
+
+
+async def test_run_profile_button_reconciliation_adds_exposed(hass, manager):
+    """[BE-11] async_setup_entry wires the update callback; exposing a saved
+    profile makes the callback build + add a new run button for it."""
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
+
+    entry = MagicMock()
+    entry.async_on_unload = MagicMock()
+    captured: list = []
+
+    def _add(entities, *args, **kwargs):
+        captured.extend(entities)
+
+    await button_mod.async_setup_entry(hass, entry, _add)
+    base_count = len(captured)   # no exposed run profiles yet → no run buttons
+
+    # expose a saved profile → the update callback builds a new button
+    pid = manager.save_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name="Evening")["profile_id"]
+    manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = True
+    manager._notify_run_profiles_updated(vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP)
+    await hass.async_block_till_done()
+
+    assert len(captured) == base_count + 1
+    assert captured[-1].available is True
+
+
+async def test_run_profile_button_built_at_setup(hass, manager):
+    """[BE-12] a profile exposed before setup is built into the initial entities."""
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
+    pid = manager.save_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name="Morning")["profile_id"]
+    manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = True
+
+    entry = MagicMock()
+    entry.async_on_unload = MagicMock()
+    captured: list = []
+    await button_mod.async_setup_entry(
+        hass, entry, lambda entities, *a, **k: captured.extend(entities))
+
+    run_buttons = [e for e in captured if isinstance(e, EufyVacuumSavedRunProfileButton)]
+    assert len(run_buttons) == 1
+    assert run_buttons[0].available is True

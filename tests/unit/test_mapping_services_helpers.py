@@ -109,6 +109,19 @@ def test_build_response_companion_anchors():
     assert resp["companion_anchors"] == {"3": {"pct_x": 0.5, "pct_y": 0.5}}
 
 
+def test_build_response_non_dict_overlays_default_empty():
+    """[MS-16] non-dict segment_room_links / companion_anchors are coerced to {}."""
+    bucket = {
+        "image_segments": {"segments": [{"segment_id": "s1"}]},
+        "segment_room_links": "nope",     # non-dict → {}
+        "companion_anchors": ["bad"],      # non-dict → {}
+    }
+    resp = _build_segments_response(bucket)
+    # links coerced empty → no room_id injected; anchors coerced empty
+    assert "room_id" not in resp["segments"][0]
+    assert resp["companion_anchors"] == {}
+
+
 # ---------------------------------------------------------------------------
 # Duplicated geometry helpers (smoke)
 # ---------------------------------------------------------------------------
