@@ -407,6 +407,17 @@ def test_apply_adjust_noop_and_passthrough(mapping_manager):
     assert out3 == ["not-a-dict"]
 
 
+def test_translate_image_segment_guards(mapping_manager):
+    """[MGR-27] translate_image_segment guard branches (no CV image needed)."""
+    miss = mapping_manager.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="")
+    assert miss["saved"] is False and miss["reason"] == "missing_segment_id"
+    # a real segment_id but no image → empty suggestions → segment_not_found
+    nf = mapping_manager.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MAP, segment_id="ghost", delta_x=5)
+    assert nf["saved"] is False and nf["reason"] == "segment_not_found"
+
+
 def test_adjust_polygon_pixel_guards():
     """[MGR-26] _adjust_polygon_pixel degrades on bad input + ignores bad moves."""
     z = dict(offset_x=0, offset_y=0, edge_left=0, edge_right=0,
