@@ -407,6 +407,27 @@ def test_apply_adjust_noop_and_passthrough(mapping_manager):
     assert out3 == ["not-a-dict"]
 
 
+def test_resolve_trace_target_polygon(mapping_manager):
+    """[MGR-30] _resolve_trace_target_polygon_pixel branch coverage.
+
+    Takes map_data directly, so the boundary-pixel and no-link branches are
+    testable without the CV pipeline; the linked-segment path falls back to []
+    when no image/segments are available.
+    """
+    r = mapping_manager._resolve_trace_target_polygon_pixel
+    # 1. an explicit boundary_pixel on the room → returned directly
+    md = {"rooms": {"3": {"boundary_pixel": [[0, 0], [10, 0], [10, 10], [0, 10]]}}}
+    out = r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md)
+    assert out == [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
+    # 2. no boundary + no linked segment → []
+    md2 = {"rooms": {"3": {}}, "package": {"room_definitions": {"3": {}}}}
+    assert r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md2) == []
+    # 3. a linked segment but no image/segments available → []
+    md3 = {"rooms": {"3": {}},
+           "package": {"room_definitions": {"3": {"suggestion_segment_id": "seg1"}}}}
+    assert r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md3) == []
+
+
 def test_coerce_polygon_points(mapping_manager):
     """[MGR-29] point validation: non-list, <3 valid, and per-point skips.
 
