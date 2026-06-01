@@ -28,11 +28,19 @@ import io
 
 import pytest
 
-from custom_components.eufy_vacuum.const import DOMAIN, SERVICE_ANALYZE_MAP_IMAGE
+from custom_components.eufy_vacuum.const import (
+    DOMAIN,
+    SERVICE_ANALYZE_MAP_IMAGE,
+    SERVICE_DELETE_MAP_IMAGE,
+)
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.mapping import segmenter_engines
 from custom_components.eufy_vacuum.mapping.manager import MappingManager
 from custom_components.eufy_vacuum.mapping.mapping_services import (
+    SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+    SERVICE_SAVE_MAP_IMAGE,
+    SERVICE_TRANSLATE_IMAGE_SEGMENT,
+    SERVICE_UPLOAD_MAP_IMAGE,
     _get_mapping_manager,
     async_register_mapping_services,
     async_unregister_mapping_services,
@@ -203,3 +211,59 @@ def test_translate_real_segment(hass, mapping_services, pil):
     result = _get_mapping_manager(hass).translate_image_segment(
         vacuum_entity_id=_VAC, map_id=_MAP, segment_id="fake_1", delta_x=5, delta_y=-3)
     assert result["saved"] is True
+
+
+# ---------------------------------------------------------------------------
+# [IMG-9+] the CV service-handler wrappers (call through the service layer)
+# ---------------------------------------------------------------------------
+
+async def _svc(hass, service, data):
+    return await hass.services.async_call(
+        DOMAIN, service, data, blocking=True, return_response=True)
+
+
+async def test_save_map_image_service(hass, mapping_services, pil):
+    """[IMG-9] handle_save_map_image wrapper."""
+    res = await _svc(hass, SERVICE_SAVE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    assert res["saved"] is True
+
+
+async def test_get_suggestions_and_translate_services(hass, mapping_services, pil):
+    """[IMG-10] handle_get_image_segment_suggestions + handle_translate_image_segment."""
+    await _svc(hass, SERVICE_SAVE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    sug = await _svc(hass, SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+                     {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert any(str(s.get("segment_id")) == "fake_1"
+               for s in sug.get("suggestions", []))
+    tr = await _svc(hass, SERVICE_TRANSLATE_IMAGE_SEGMENT, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segment_id": "fake_1", "delta_x": 4})
+    assert tr["saved"] is True
+
+
+async def test_upload_and_delete_map_image_service(hass, mapping_services, pil):
+    """[IMG-11] upload_map_image writes a variant + delete_map_image removes it."""
+    up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8,
+        "variant": "default"})
+    assert up["saved"] is True
+    assert up["actual_width"] == 8
+    # the file now exists → delete removes it
+    deleted = await _svc(hass, SERVICE_DELETE_MAP_IMAGE,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "variant": "default"})
+    assert isinstance(deleted, dict)
+
+
+async def test_upload_bad_base64_service(hass, mapping_services):
+    """[IMG-12] upload_map_image with garbage base64 → invalid_base64."""
+    res = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "image_base64": "!!!not-base64!!!"})
+    assert res["saved"] is False
+    assert res["reason"] == "invalid_base64"

@@ -334,3 +334,53 @@ def test_mark_finalized_without_result(tracker, manager):
     assert job["finalized"] is True
     assert job["finalized_at"] is None
     assert "finalize_summary" not in job
+
+
+# ---------------------------------------------------------------------------
+# async_cancel_active_job — return-to-base + terminal-state polling
+# ---------------------------------------------------------------------------
+
+def _register_rtb(hass) -> list:
+    calls = []
+
+    async def _handler(call):
+        calls.append(call)
+
+    hass.services.async_register("vacuum", "return_to_base", _handler)
+    return calls
+
+
+async def test_cancel_no_active_job(tracker):
+    """[AJI-21] idle job → cancelled False, no_active_job."""
+    out = await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["cancelled"] is False
+    assert out["reason"] == "no_active_job"
+
+
+async def test_cancel_confirmed(tracker, manager, hass, monkeypatch):
+    """[AJI-22] device reaches a terminal state → confirmed cancel + finalize."""
+    monkeypatch.setattr(type(tracker), "_CANCEL_CONFIRM_TIMEOUT_S", 1)
+    monkeypatch.setattr(type(tracker), "_CANCEL_POLL_INTERVAL_S", 0.01)
+    _seed(manager, queue_room_ids=[1])
+    hass.states.async_set(_VAC, "docked")   # terminal on the first poll
+    calls = _register_rtb(hass)
+
+    out = await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["cancelled"] is True
+    assert out["confirmed"] is True
+    assert len(calls) == 1
+    # active job marked finalized
+    assert manager.data["active_jobs"][_VAC][_MAP]["finalized"] is True
+
+
+async def test_cancel_timeout(tracker, manager, hass, monkeypatch):
+    """[AJI-23] no terminal state within the window → finalize anyway, confirmed False."""
+    monkeypatch.setattr(type(tracker), "_CANCEL_CONFIRM_TIMEOUT_S", 0.05)
+    monkeypatch.setattr(type(tracker), "_CANCEL_POLL_INTERVAL_S", 0.01)
+    _seed(manager, queue_room_ids=[1])
+    hass.states.async_set(_VAC, "cleaning")  # never reaches docked/idle
+    _register_rtb(hass)
+
+    out = await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["cancelled"] is True
+    assert out["confirmed"] is False

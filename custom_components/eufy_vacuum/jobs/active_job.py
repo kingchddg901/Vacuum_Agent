@@ -1300,7 +1300,11 @@ class ActiveJobTracker:
             await asyncio.sleep(self._CANCEL_POLL_INTERVAL_S)
             vac_state_obj = self._manager.hass.states.get(vacuum_entity_id)
             last_vac_state = vac_state_obj.state if vac_state_obj else None
-            task_state_obj = self._manager.hass.states.get(task_status_entity_id)
+            task_state_obj = (
+                self._manager.hass.states.get(task_status_entity_id)
+                if task_status_entity_id
+                else None
+            )
             last_task_status = task_state_obj.state if task_state_obj else None
             task_lower = str(last_task_status or "").strip().lower()
 
@@ -1318,7 +1322,7 @@ class ActiveJobTracker:
                 last_vac_state,
             )
 
-        finalize_result = await self.finalize_learning_for_active_job(
+        finalize_result = await self._manager.finalize_learning_for_active_job(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
             rebuild_stats=True,
