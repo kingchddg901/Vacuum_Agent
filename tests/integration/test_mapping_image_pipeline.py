@@ -37,7 +37,10 @@ from custom_components.eufy_vacuum.adapters.registry import register_adapter_con
 from custom_components.eufy_vacuum.mapping import segmenter_engines
 from custom_components.eufy_vacuum.mapping.manager import MappingManager
 from custom_components.eufy_vacuum.mapping.mapping_services import (
+    SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+    SERVICE_REBUILD_ROOM_BOUNDS,
+    SERVICE_RESTORE_ROOM_JOB_BOUNDS,
     SERVICE_SAVE_MAP_IMAGE,
     SERVICE_TRANSLATE_IMAGE_SEGMENT,
     SERVICE_UPLOAD_MAP_IMAGE,
@@ -319,6 +322,83 @@ def test_get_suggestions_enriches_matched_room(hass, mapping_services, pil):
     assert str(matched["matched_room_id"]) == "3"
     room = next(r for r in result["room_roster"] if str(r.get("room_id")) == "3")
     assert room["suggestion_segment_id"] == "fake_1"
+
+
+class _RecordingTracker:
+    """Records the tracker-coupling calls the bounds handlers make."""
+
+    def __init__(self) -> None:
+        self.exclusion_calls: list = []
+        self.rebuild_calls: list = []
+
+    def update_raw_samples_exclusion(self, vac, room_id, job_id, excluded):
+        self.exclusion_calls.append((vac, room_id, job_id, excluded))
+
+    def rebuild_room_bounds_from_archive(self, *, vacuum_entity_id, map_id, room_id):
+        self.rebuild_calls.append((vacuum_entity_id, map_id, room_id))
+        return {"success": True, "room_id": room_id, "rebuilt": True}
+
+    def _find_raw_samples_path(self, vac, room_id):
+        return None
+
+
+def _seed_job_bounds(mm, map_id):
+    """Seed two archived job-bounds entries (with job_ids) for room '3'."""
+    entries = [
+        {"job_id": f"jb{i}", "recorded_at": "t", "samples": [[0, 0], [9, 9]]}
+        for i in range(2)
+    ]
+    mm.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=map_id, room_id="3", archived_entries=entries)
+
+
+async def test_exclude_room_job_bounds_service(hass, mapping_services):
+    """[IMG-17] handle_exclude_room_job_bounds: on success it tells the tracker to
+    exclude that job's raw samples (excluded=True)."""
+    mm = _get_mapping_manager(hass)
+    _seed_job_bounds(mm, "exsvc")
+    tracker = _RecordingTracker()
+    hass.data[DOMAIN]["mapping_tracker"] = tracker
+    res = await _svc(hass, SERVICE_EXCLUDE_ROOM_JOB_BOUNDS, {
+        "vacuum_entity_id": _VAC, "map_id": "exsvc", "room_id": "3", "job_index": 0})
+    assert res["success"] is True
+    assert tracker.exclusion_calls
+    vac, room_id, job_id, excluded = tracker.exclusion_calls[0]
+    assert room_id == "3" and excluded is True and job_id
+
+
+async def test_restore_room_job_bounds_service(hass, mapping_services):
+    """[IMG-18] handle_restore_room_job_bounds: on success it tells the tracker to
+    re-include that job's raw samples (excluded=False)."""
+    mm = _get_mapping_manager(hass)
+    _seed_job_bounds(mm, "rssvc")
+    mm.exclude_room_job_bounds(
+        vacuum_entity_id=_VAC, map_id="rssvc", room_id="3", job_index=0)
+    tracker = _RecordingTracker()
+    hass.data[DOMAIN]["mapping_tracker"] = tracker
+    res = await _svc(hass, SERVICE_RESTORE_ROOM_JOB_BOUNDS, {
+        "vacuum_entity_id": _VAC, "map_id": "rssvc", "room_id": "3", "job_index": 0})
+    assert res["success"] is True
+    assert tracker.exclusion_calls
+    _, room_id, _, excluded = tracker.exclusion_calls[0]
+    assert room_id == "3" and excluded is False
+
+
+async def test_rebuild_room_bounds_service(hass, mapping_services):
+    """[IMG-19] handle_rebuild_room_bounds: tracker_unavailable guard, then delegate."""
+    # no tracker registered → guard
+    hass.data[DOMAIN].pop("mapping_tracker", None)
+    guard = await _svc(hass, SERVICE_REBUILD_ROOM_BOUNDS, {
+        "vacuum_entity_id": _VAC, "map_id": "rbsvc", "room_id": "3"})
+    assert guard["success"] is False
+    assert guard["reason"] == "tracker_unavailable"
+    # tracker present → delegates to its archive rebuild
+    tracker = _RecordingTracker()
+    hass.data[DOMAIN]["mapping_tracker"] = tracker
+    ok = await _svc(hass, SERVICE_REBUILD_ROOM_BOUNDS, {
+        "vacuum_entity_id": _VAC, "map_id": "rbsvc", "room_id": "3"})
+    assert ok["rebuilt"] is True
+    assert tracker.rebuild_calls == [(_VAC, "rbsvc", "3")]
 
 
 async def test_upload_pil_read_fallback(hass, mapping_services, pil, monkeypatch):

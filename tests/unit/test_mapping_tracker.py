@@ -216,3 +216,38 @@ def test_rebuild_from_archive(tracker):
     out = tracker.rebuild_room_bounds_from_archive(_VAC, _MAP, "3")
     assert out is sentinel
     tracker._manager.rebuild_room_bounds_from_archive.assert_called_once()
+
+
+def test_end_job_multi_room_attribution(tmp_path: Path):
+    """[MT-17] a multi-room job attributes each sample to the room whose bounds
+    contain it, then archives only rooms above the min-runs confidence gate.
+
+    Room 1 has 4 archived runs (>= MULTI_ROOM_MIN_RUNS) → its sample is archived.
+    Room 2 has a single run (< gate) → it acts as an attribution trap and is
+    skipped, exercising the low-confidence continue.
+    """
+    from custom_components.eufy_vacuum.mapping.manager import MappingManager
+
+    hass = MagicMock()
+    hass.config.config_dir = str(tmp_path)
+    mgr = MappingManager(hass)
+    tracker = MappingTracker(hass, mgr)
+
+    _MM = "mr"
+    runs_1 = [{"job_id": f"a{i}", "recorded_at": "t", "samples": [[0, 0], [10, 10]]}
+              for i in range(4)]
+    runs_2 = [{"job_id": "b0", "recorded_at": "t", "samples": [[100, 100], [110, 110]]}]
+    mgr.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=_MM, room_id="1", archived_entries=runs_1)
+    mgr.rebuild_room_bounds_from_archive(
+        vacuum_entity_id=_VAC, map_id=_MM, room_id="2", archived_entries=runs_2)
+
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MM,
+                      rooms={"1": {"name": "Kitchen"}, "2": {"name": "Bath"}})
+    # one sample inside room 1's box, one inside room 2's box
+    tracker._job_samples[_VAC] = [(5.0, 5.0), (105.0, 105.0)]
+    tracker.end_job(vacuum_entity_id=_VAC)
+
+    # room 1 cleared the gate → raw samples archived; room 2 (1 run) was skipped
+    assert tracker._find_raw_samples_path(_VAC, "1") is not None
+    assert tracker._find_raw_samples_path(_VAC, "2") is None
