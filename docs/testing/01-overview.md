@@ -49,8 +49,15 @@ tests/
     test_themes_*.py
     ...
   adapters/
-    eufy/
+    conftest.py               # adapter-suite fixtures
+    test_adapter_contract.py  # brand-agnostic conformance harness
+    eufy/                     # concrete-adapter tests (omitted from coverage %)
       test_model_catalog.py
+      test_discovery.py
+      test_lifecycle.py
+      test_buttons_entities.py
+      test_segmentor.py
+      test_segmentor_splitters.py
 ```
 
 ## Toolchain

@@ -32,7 +32,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 see [15-adapters](15-adapters.md).
 
 **Framework total: 93.6% statement coverage** (90.8% with `--cov-branch`) over
-the 131 source modules, driven by 1,448 test functions across 100 test files,
+the 131 source modules, driven by 1,578 test functions across 107 test files,
 all green.
 
 ## Writing / updating a test map

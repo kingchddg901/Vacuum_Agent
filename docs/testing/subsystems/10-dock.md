@@ -3,7 +3,7 @@
 The dock subsystem owns mop-wash / mop-dry / dust-empty actions: it resolves the
 upstream button entity per action, **gates** each action against capability,
 dock state, and job state, dispatches the gated action, and records dock-event
-timestamps + debounced counters. Covered by **24 tests in 1 file**.
+timestamps + debounced counters. Covered by **18 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/dock/`
 Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.md)
@@ -36,8 +36,9 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
 - **Dispatch** — `_async_run_dock_action` + the four `async_*` wrappers: an
   allowed action presses the button (`performed=True`), a gated action returns
   `performed=False` with the gate reason.
-- **Entity resolution** — `_get_dock_action_entity` resolves a present button by
-  candidate id.
+- **Entity resolution** — `_get_dock_action_entity` resolves a present button
+  from the adapter's `dock_events.action_buttons` (the test registers a config
+  with `entity_suffixes`); an action absent from that map resolves to `None`.
 
 ---
 
