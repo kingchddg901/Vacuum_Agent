@@ -1,763 +1,281 @@
-# Porting Guide
+# Porting Guide — Adding a Vacuum Brand
 
-This guide is for developers who want to adapt eufy_vacuum to work with a
-different vacuum brand. It covers both a generic port (any vacuum that has a
-Home Assistant entity) and a specific port to Roborock or Dreame, which already
-have mature HA integrations with a similar room-cleaning pattern.
+This guide is for developers adapting eufy_vacuum to a different vacuum brand
+that has a Home Assistant integration exposing named-room cleaning (Roborock,
+Ecovacs, Dreame, etc.).
 
-Read [01-architecture-overview.md](../dev/01-architecture-overview.md) and
-[07-queue-engine.md](../dev/07-queue-engine.md) before continuing here.
+Read [01-architecture-overview.md](../dev/01-architecture-overview.md),
+[21-adapter-system.md](../dev/21-adapter-system.md), and
+[22-adapter-config-reference.md](../dev/22-adapter-config-reference.md) first —
+this guide is the workflow; those are the reference.
 
 ---
 
-## 1. What this system actually is
+## 1. What you're actually doing
 
 eufy_vacuum is not fundamentally a Eufy integration. It is a
 **room-management, queue-orchestration, learning, and automation layer** that
-sits on top of any HA vacuum entity capable of cleaning named rooms.
+sits on top of any HA vacuum entity capable of cleaning named rooms. Roughly
+all of the framework and all of the frontend have zero brand knowledge.
 
-The vacuum brand is almost incidental to the vast majority of the codebase.
-Roughly 95% of the Python and all of the frontend JavaScript have no Eufy
-knowledge whatsoever. Only two narrow seams connect the generic layer to
-the specific hardware:
+Everything brand-specific lives in a **per-vacuum adapter config** — a single
+dict the framework reads from the *adapter registry* at runtime. Porting a new
+brand means **writing an adapter** (a config dict plus a few small brand
+modules) and **registering it** at setup. You do **not** edit core files, and
+you do **not** maintain a fork — the brand-adapter abstraction already exists.
 
-1. **The queue payload format** — the data structure the vacuum's clean service
-   expects to receive when a room-clean job is dispatched.
-2. **The lifecycle state names** — the raw strings the vacuum entity and its
-   companion sensors report, which the system normalises into its own internal
-   lifecycle vocabulary.
-
-Everything else — learning, rules, profiles, the card, the map trace engine —
-operates entirely on the internal vocabulary produced by those two seams.
+The reference adapter lives at `custom_components/eufy_vacuum/adapters/eufy/`.
+A new brand is a sibling package, `adapters/<brand>/`, that produces the same
+config shape.
 
 ---
 
-## 2. The two coupling points in detail
+## 2. The adapter, end to end
 
-### 2.1 The queue payload format
+An adapter is a small package mirroring `adapters/eufy/`:
 
-The actual HA service call that dispatches a room-clean job is in
-`core/manager.py` within `start_selected_rooms()`:
+| File (eufy) | Purpose |
+|---|---|
+| `adapter.py` | Builds the config dict and calls `register_adapter_config(...)`. Entry point: `register_eufy_adapter_for_vacuum(hass, vacuum_entity_id)`. |
+| `entities.py` | Entity-ID naming convention (role → entity_id). |
+| `vocabulary.py` | Brand state-string vocabulary sets. |
+| `discovery.py` | How the room list is read from the integration. |
+| `lifecycle.py` | Brand lifecycle signal helpers. |
+| `charging.py` | Battery/charging reads. |
+| `buttons.py` | Dock-action button candidate lists. |
+| `maintenance_components.py`, `upkeep_catalog.py`, `water_config.py`, `model_catalog.py`, `constants.py` | Static per-model catalogs and tuned constants. |
+| `segmentor.py` | (Optional) brand CV map segmentor. |
+
+The config dict it builds must match the schema in
+`adapters/config_schema.py`. Registration is one call:
 
 ```python
-await self.hass.services.async_call(
-    "vacuum",
-    "send_command",
-    {
-        "entity_id": vacuum_entity_id,
-        "command": "room_clean",
-        "params": payload,
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+register_adapter_config(vacuum_entity_id, config)
+```
+
+`async_setup_entry` calls your adapter's `register_*_for_vacuum` per managed
+vacuum. `registry._validate_adapter(config)` runs at registration and returns a
+list of issue strings (logged as warnings); a declared `dispatch.template` that
+doesn't resolve to a registered engine, or a bad `mapping.segmenter_engine`, is
+flagged here.
+
+---
+
+## 3. The config blocks you fill in
+
+These are the real "coupling points" — all data, no code in core. Every field
+is documented in [22-adapter-config-reference.md](../dev/22-adapter-config-reference.md);
+this is the orientation.
+
+| Block | Required | What it carries |
+|---|---|---|
+| `adapter_id`, `source` | yes | identity (`source: "code"` for a shipped adapter) |
+| `entities` | yes | role → HA entity-ID map (`task_status`, `dock_status`, `active_map`, `battery`, `charging`, `robot_position_x/y`, …). Absent entities degrade the dependent feature; they never raise. |
+| `dispatch` | yes | how to send a clean job (§4) |
+| `vocabulary` + `completion` | no (recommended) | the raw state strings your vacuum reports (§5) |
+| `capabilities` | no | feature flags (§6) |
+| `discovery` | no | how the room list is exposed (§7) |
+| `mapping` | no | pluggable map segmenter (§8) |
+| `dock_events`, `post_job_wash_amendment`, `error_tracking`, `maintenance_components`, `upkeep_catalog`, `water_model_configs` | no | dock/error/maintenance catalogs — graceful degradation when absent |
+
+---
+
+## 4. Dispatch — pick (or add) an engine
+
+`dispatch.template` selects a **dispatch engine** in
+`queue/dispatch_engines.py`. Each engine produces a different payload
+**structure** (not just renamed fields); the per-room field vocabulary
+(`room_fields`: rename + value_map) is shared across all of them.
+
+| Template | Wire structure | Brands |
+|---|---|---|
+| `eufy_room_clean` | **rows** — list of per-room dicts | Eufy |
+| `roborock_segment_clean` | **flat ids + batch scalar** — `{segments:[ints], repeat:n}` | Roborock |
+| `generic_room_ids` | flat ids + batch scalar (e.g. Ecovacs `{rooms:[ints], cleanings:n}`) | Ecovacs / fallback |
+| `dreame_room_clean` | **columns** — positional parallel arrays | Dreame |
+
+**If your brand fits an existing shape**, just configure the field names /
+value maps — no new code. Roborock (`app_segment_clean`):
+
+```python
+"dispatch": {
+    "template": "roborock_segment_clean",
+    "service_domain": "vacuum", "service_name": "send_command",
+    "command": "app_segment_clean",
+    "rooms_field": "segments", "clean_passes_field": "repeat",
+},
+# → {"command": "app_segment_clean", "params": {"segments": [16, 17], "repeat": 2}}
+```
+
+Dreame (`vacuum_clean_segment`, parallel arrays via a `room_fields` transpose):
+
+```python
+"dispatch": {
+    "template": "dreame_room_clean",
+    "service_domain": "dreame_vacuum", "service_name": "vacuum_clean_segment",
+    "rooms_field": "segments", "clean_passes_field": "repeats",
+    "room_fields": {
+        "fan_speed":   {"field_name": "suction_level",
+                        "value_map": {"Quiet": 0, "Standard": 1, "Turbo": 2, "Max": 3}},
+        "water_level": {"field_name": "water_volume",
+                        "value_map": {"Low": 1, "Medium": 2, "High": 3}},
+        "clean_mode": {"field_name": None}, "clean_intensity": {"field_name": None},
+        "edge_mopping": {"field_name": None}, "path_type": {"field_name": None},
     },
-    blocking=True,
-)
+},
+# → {"segments": [3, 2], "suction_level": [0, 3], "water_volume": [1, 3], "repeats": [1, 2]}
 ```
 
-`payload` is the `dict` produced by `queue/queue_engine.py ::
-build_room_clean_payload()`. Its structure is:
+The send-site envelope is also config-driven: a `command` produces the wrapped
+`{command, params}` shape (Eufy/Roborock); omitting it merges the payload into
+the service data directly (Dreame).
 
-```python
-{
-    "map_id": int | str,   # e.g. 6  (Eufy uses an integer map ID)
-    "rooms": [
-        {
-            "id": int,                 # Eufy room ID (1–11 for this installation)
-            "clean_times": int,        # number of passes
-            "fan_speed": str,          # "Standard", "Boost", etc.
-            "clean_mode": str,         # "vacuum", "mop", "vacuum_mop"
-            "clean_intensity": str,
-            # conditionally present:
-            "water_level": str,        # only for mop/vacuum_mop + supports_water_control
-            "edge_mopping": bool,      # only for mop/vacuum_mop + supports_edge_mopping
-            "path_type": str,          # only when supports_path_control
-        },
-        ...
-    ]
-}
-```
+**If your wire shape is genuinely new**, add an engine in
+`queue/dispatch_engines.py` (subclass the closest one, override `build_payload`)
+and register it under a new `template` name. `build_room_clean_payload` in
+`queue/queue_engine.py` is the shared *resolver* (profile resolution +
+capability gating + canonical `resolved_rooms`) that engines reuse — you do not
+replace it.
 
-This is a Eufy-specific format. `robovac_mqtt` (the underlying Eufy cloud
-integration) interprets `room_clean` with this schema and translates it into
-the Eufy protocol. No other part of the eufy_vacuum codebase reads or produces
-this structure — `build_room_clean_payload()` is the single place it is
-assembled, and the `vacuum.send_command` call within `start_selected_rooms()`
-is the single place it is sent.
-
-### 2.2 The lifecycle state names
-
-The lifecycle watcher in `__init__.py` reads five HA entities derived from the
-vacuum's `object_id`:
-
-| Role | Entity |
-|---|---|
-| Vacuum state | `vacuum.<object_id>` |
-| Task status | `sensor.<object_id>_task_status` |
-| Dock status | `sensor.<object_id>_dock_status` |
-| Active cleaning target | `sensor.<object_id>_active_cleaning_target` |
-| Active map | `sensor.<object_id>_active_map` |
-
-These are Eufy/robovac-mqtt sensor names. The raw state strings that the system
-responds to (matched case-insensitively after `.strip().lower()`) are:
-
-**Vacuum entity states consumed:**
-- `docked`, `idle`, `paused` — treated as "ready to accept a job"
-- `cleaning`, `returning`, `error` — treated as "active or faulted"
-
-**task_status strings consumed** (in `job_monitor.py :: evaluate_job_lifecycle`):
-- `completed` — the primary signal that a job finished successfully
-- `cleaning`, `room cleaning`, `spot cleaning`, `returning`, `resuming`,
-  `navigating` — treated as active_run_states
-- `washing`, `washing mop`, `recycling waste water`, `recycling wastewater`,
-  `emptying dust`, `emptying dust bin`, `dust emptying` — hard blockers
-- `drying`, `drying mop`, `drying pads`, `mop drying` — warning-only (drying)
-
-**dock_status strings consumed:**
-- Same washing/drying/emptying sets as above, but sourced from the dock sensor
-- Additionally, transitions to `washing` or `washing mop` trigger the
-  post-job mop-wash water amendment in `__init__.py`
-
-**active_cleaning_target:**
-- Any non-empty, non-sentinel value means cleaning is in progress
-- Sentinel values: `""`, `"unknown"`, `"unavailable"`, `"none"`, `"null"`
-
-**Completion condition** (all three must be true simultaneously):
-1. `task_status == "completed"`
-2. `active_cleaning_target` is cleared (sentinel value)
-3. `has_observed_active_lifecycle` flag set (confirms the job actually moved)
-
-The `_ACTIVE_LIFECYCLE_STATES` constant in `__init__.py` lists the two
-internal states that set this flag:
-```python
-_ACTIVE_LIFECYCLE_STATES = {
-    "active_job_running",   # vacuum is actively cleaning
-    "mid_job_service",      # dock is servicing mid-job
-}
-```
-
-These are *internal* names produced by `evaluate_job_lifecycle()` in
-`job_monitor.py`, not raw sensor values.
-
-### 2.3 Capability detection
-
-`core/capabilities.py :: detect_capabilities()` is also Eufy-specific. It
-derives entity names by appending well-known suffixes to `object_id`, detects
-model family from Eufy product codes (T2351, T2320, etc.) and name hints
-(x10, x8, l60, …), and sets capability flags.
-
-Flags use one of two detection strategies:
-
-- **Entity presence** — check whether the upstream integration registered the
-  entity (state machine or registry). No model knowledge required.
-- **Model family** — infer from the product code or name hint. Used when the
-  capability corresponds to a payload field or behaviour that has no
-  representative entity to probe.
-
-Where model family is the primary signal, an entity-based fallback is applied
-wherever a corresponding button entity can be probed. This prevents a legitimate
-device from losing capabilities solely because its product code was not in
-`MODEL_CODE_FAMILIES`.
-
-#### MODEL_CODE_FAMILIES mapping
-
-Product code → family name. A product code is the raw string from the vacuum's
-`detected_model` attribute (e.g. `"T2351"`). Unrecognised codes fall back to
-`"generic"`.
-
-| Product code | Family |
-|---|---|
-| T2351 | x10 |
-| T2320 | x10 |
-| T2261 | x8 |
-| T2262 | x8 |
-| T2266 | x8 |
-| T2276 | x8 |
-| T2267 | l60 |
-| T2268 | l60 |
-| T2277 | l60 |
-| T2278 | l60 |
-| T2280 | c20 |
-| T2080 | s1 |
-| T2071 | s1 |
-| T2210 | g50 |
-| T2255 | g40 |
-| T2256 | g40 |
-| T2192 | lr30 |
-| T2193 | lr30 |
-| T2181 | lr30 |
-| T2194 | lr30 |
-| T2182 | lr30 |
-
-If the raw code is not in this table, `_detect_model_family` falls back to
-`MODEL_FAMILY_HINTS`, which matches substrings (case-insensitive) in the full
-model string: `"x10"`, `"x8"`, `"l60"`, `"l50"`, `"g50"`, `"g40"`, `"lr30"`.
-If neither matches, the family is `"generic"`.
-
-#### Capability flags
-
-Each flag is a `bool` in the returned capabilities dict. The table below shows
-how each flag is set and what it controls downstream.
-
-Flags marked **model + entity fallback** use model family as the primary check
-and additionally probe for the presence of the corresponding upstream button
-entity in the HA registry. If the model resolves to `"generic"` but the button
-exists, the capability is still `True`.
-
-Flags marked **model only** have no representative entity to probe — they gate
-payload fields sent to the vacuum, not HA entities. An unrecognised model that
-needs these features must be added to `MODEL_CODE_FAMILIES`.
-
-| Flag | Detection | What it controls |
-|---|---|---|
-| `supports_mop_features` | Model family (`x10`, `x8`, `l60`, `l50`) **or** `water_level` entity present | Enables mop-related clean modes (`"mop"`, `"vacuum_mop"`) in the profile system and card UI |
-| `supports_water_control` | Alias for `supports_mop_features` | Gates the `water_level` field in the queue payload (added only for mop/vacuum_mop modes) |
-| `supports_path_control` | Model + entity fallback — `x10`/`x8` or `select.*_cleaning_intensity` present (eufy-clean exposes this with options `Normal`, `Narrow`, `Quick` on path-capable hardware) | Gates the `path_type` field in the queue payload (added regardless of clean mode) |
-| `supports_edge_mopping` | Always `True` — eufy-clean passes the field through without validation; firmware ignores it on unsupported hardware | Gates the `edge_mopping` field in the queue payload (added only for mop/vacuum_mop modes when explicitly set on a room profile) |
-| `supports_passes` | Always `True` | Enables the `clean_times` field in the payload; reserved for future per-model restriction |
-| `supports_mop_wash` | Model + entity fallback — `x10`/`x8` or `button.*_wash_mop` / `button.*_mop_wash` present | Enables dock mop-wash service calls and dock event recording for `last_mop_wash` |
-| `supports_mop_dry` | Model + entity fallback — `x10`/`x8` or `button.*_dry_mop` / `button.*_mop_dry` present | Enables dock mop-dry service calls |
-| `supports_empty_dust` | Model + entity fallback — `x10`/`x8`/`l60`/`l50` or `button.*_empty_dust` / `button.*_empty_dust_bin` present | Enables dock dust-empty service calls |
-| `supports_robot_position` | Entity presence — both position entities registered | Enables trace-based room bounds derivation in the mapping subsystem |
-| `supports_station_water` | Entity presence — `water_level` entity registered | Used by the card to display station water level |
-| `supports_dock_status` | Entity presence — dock status entity registered | Used by lifecycle watcher to monitor dock state |
-| `supports_task_status` | Entity presence — task status entity registered | Required for the completion detection logic in `__init__.py` |
-| `supports_cleaning_stats` | Entity presence — `cleaning_area` or `cleaning_time` registered | Enables area/time display in the card |
-
-#### How capability flags gate the queue payload
-
-`build_room_clean_payload()` in `queue/queue_engine.py` reads the flags and
-conditionally adds fields to each room's payload entry:
-
-| Payload field | Always present | Condition for inclusion |
-|---|---|---|
-| `id` | Yes | — |
-| `clean_times` | Yes | — (always included; `supports_passes` is currently always `True`) |
-| `fan_speed` | Yes | — |
-| `clean_mode` | Yes | — |
-| `clean_intensity` | Yes | — |
-| `water_level` | No | `supports_water_control` is `True` **and** `clean_mode` is `"mop"` or `"vacuum_mop"` |
-| `edge_mopping` | No | `supports_edge_mopping` is `True` **and** `clean_mode` is `"mop"` or `"vacuum_mop"` |
-| `path_type` | No | `supports_path_control` is `True` (added regardless of clean mode) |
-
-The capability flags themselves (`supports_mop_features`,
-`supports_water_control`, `supports_path_control`, `supports_edge_mopping`,
-`supports_passes`) are used by `build_room_clean_payload()` to gate optional
-payload fields. These flags are brand-agnostic in meaning; only the detection
-logic is Eufy-specific.
-
-### 2.4 Position tracking
-
-The mapping tracker (`mapping/tracker.py`) reads two position sensors:
-- `sensor.<object_id>_robot_position_x_raw`
-- `sensor.<object_id>_robot_position_y_raw`
-
-These are robovac-mqtt-specific entity names. The coordinate space and units
-are also Eufy-specific (see [11-mapping-system.md](../dev/11-mapping-system.md)).
+**Job model.** Engines declare `job_model` (`atomic_batch` default, or
+`sequenced` for sweep-all-then-mop-all style multi-dispatch jobs via
+`build_phases`). See [07-queue-engine.md](../dev/07-queue-engine.md) and
+[22 §13](../dev/22-adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
 
 ---
 
-## 3. Generic port — what to replace
+## 5. Lifecycle vocabulary
 
-### 3.1 The queue payload builder
+The framework normalizes your vacuum's raw state strings into its internal
+lifecycle vocabulary **from the adapter config** — you do not edit
+`listeners/lifecycle.py` or `core/manager.py`.
 
-`queue/queue_engine.py :: build_room_clean_payload()` must be replaced (or
-made brand-aware via a strategy object). The function's contract with the rest
-of the system is:
+- `entities.task_status` / `dock_status` / `active_cleaning_target` /
+  `active_map` point at the companion sensors.
+- `vocabulary` declares the raw strings: `active_run_task_states`,
+  `hard_service_states` (wash/recycle/empty — hard block), `drying_states`
+  (warning-only), `blocked_work_mode_states`, etc.
+- `completion.task_status_value` is the normalized "done" value (default
+  `"completed"`); `completion.secondary_clear_sentinels` are the values that
+  count the secondary signal as cleared.
 
-**Inputs** (all keyword arguments):
-- `vacuum_entity_id: str`
-- `map_id: str`
-- `managed_rooms: dict[str, dict]` — the rooms config from storage
-- `queue_room_ids: list[int] | None` — the subset of room IDs to include
-- `stored_profiles: dict[str, dict] | None` — named room profiles
-- `capabilities: dict[str, Any] | None` — capability flags dict
-
-**Required output shape:**
-```python
-{
-    "vacuum_entity_id": str,
-    "map_id": str,
-    "payload": dict,       # the brand-specific service call data
-    "resolved_rooms": list[dict],  # one entry per room, for job tracking
-    "room_count": int,
-}
-```
-
-`resolved_rooms` is consumed by the learning system and job tracking. Each
-entry must contain at minimum: `room_id`, `name`, `slug`, `clean_mode`,
-`fan_speed`, `clean_passes`. The other fields (`water_level`, `path_type`,
-etc.) can be omitted if the target vacuum does not support them.
-
-`payload` is opaque to the rest of the system — only the single service call
-site in `manager.py` reads it.
-
-### 3.2 The service call itself
-
-In `core/manager.py`, the service call:
-
-```python
-await self.hass.services.async_call(
-    "vacuum",
-    "send_command",
-    {"entity_id": vacuum_entity_id, "command": "room_clean", "params": payload},
-    blocking=True,
-)
-```
-
-must be replaced with whatever service and data structure the target vacuum
-integration expects. This is a single call site. No other code dispatches to
-the vacuum hardware.
-
-### 3.3 The lifecycle state mapping
-
-Replace the raw state strings in `job_monitor.py :: evaluate_job_lifecycle()`
-with the strings your target vacuum reports. The function must continue to
-produce the same output dictionary shape with the same `lifecycle_state` keys:
-`"ready"`, `"active_job_running"`, `"mid_job_service"`, `"dock_drying"`,
-`"vacuum_busy"`, `"map_mismatch"`.
-
-The completion detection logic in `__init__.py` looks for:
-- `task_status == "completed"` (exact normalised string)
-- `active_cleaning_target` cleared
-
-If your target vacuum does not have an `active_cleaning_target` concept,
-clear the sentinel artificially when the vacuum entity returns to `docked`
-and `task_status` reaches its equivalent of "completed".
-
-### 3.4 Capability detection
-
-Replace `core/capabilities.py :: detect_capabilities()` with a version that:
-1. Discovers the correct companion sensor entity IDs for your vacuum.
-2. Sets capability flags based on your vacuum's actual hardware.
-3. Returns a dict with the same keys — particularly `supports_mop_features`,
-   `supports_water_control`, `supports_path_control`, `supports_edge_mopping`,
-   `supports_passes`, and the `entities` sub-dict.
-
-For flags that correspond to dock action buttons (`supports_mop_wash`,
-`supports_mop_dry`, `supports_empty_dust`), prefer probing entity registry
-presence over a hardcoded model name. If entity presence is the primary check,
-an unrecognised model that actually has the button still gets the capability
-set correctly rather than silently disabled. Use `_state_exists` or
-`_registry_entry_exists` from `capabilities.py` for this.
-
-For `supports_path_control`, eufy-clean exposes `select.*_cleaning_intensity`
-on path-capable hardware — probe that entity as a fallback.
-
-`supports_edge_mopping` is always `True` and requires no porting — eufy-clean
-passes the field through to the device without validating it, and the firmware
-ignores it on hardware that does not support edge mopping. For a different
-target ecosystem, verify whether the upstream integration behaves the same way
-before keeping it always-on.
-
-The `entities` sub-dict keys consumed elsewhere are: `task_status`,
-`dock_status`, `active_map`, `active_cleaning_target`, `robot_position_x`,
-`robot_position_y`.
-
-### 3.5 The watched entity list
-
-`__init__.py :: _get_lifecycle_watch_entities()` constructs entity IDs from
-`object_id` using Eufy/robovac-mqtt naming conventions. Replace with your
-target entity IDs.
-
-### 3.6 robovac_mqtt dependency
-
-The robovac-mqtt HACS integration provides:
-- The `vacuum.<object_id>` entity with `send_command` support and the
-  `room_clean` command
-- All the companion sensors (`_task_status`, `_dock_status`, `_active_map`,
-  `_active_cleaning_target`, `_robot_position_x_raw`,
-  `_robot_position_y_raw`, etc.)
-- The Eufy cloud connection and protocol translation
-
-A port to another brand replaces the entire robovac-mqtt layer with whatever
-HA integration the target brand uses. eufy_vacuum itself has no direct
-dependency on robovac-mqtt's Python package — it only depends on HA entities
-being present with the right names and states.
-
-### 3.7 Map image format
-
-The card can display a map image behind the room bounds overlay. eufy_vacuum
-does not process the map image itself — it serves whatever image file is placed
-at `<config_dir>/eufy_vacuum/maps/<map_id>.png`. The image is sourced manually
-or by a robovac-mqtt helper script. For a Roborock/Dreame port, see section
-4.5 below.
-
-### 3.8 Writing a custom room segmentor
-
-`mapping/image_segments.py` implements the Eufy-specific segmentor. If you
-want the map-image overlay to work correctly on a different brand's maps, you
-will need to write a brand-specific segmentor. The starting point is
-`mapping/segment_primitives.py`.
-
-`segment_primitives.py` is the brand-agnostic primitive surface shared across
-all segmentors. It contains:
-
-- Optional-dependency setup (`numpy`, `Pillow`, `scipy`) — import `np`,
-  `_NDIMAGE`, `_PIL_SCIPY_READY` from here rather than repeating the guard
-  pattern.
-- `image_runtime_capabilities()` — report library availability at runtime.
-- Polygon geometry: `rdp`, `polygon_area`, `normalize_polygon`, `bbox_from_stats`
-- Mask–polygon conversion: `mask_to_polygon`, `mask_perimeter`
-- Shape metrics: `compactness`, `aspect_ratio`
-- Mask comparison: `mask_iou`, `agreement_score`, `component_overlap_ratio`,
-  `mask_left_right_counts`, `mask_edge_band`
-- Image transforms: `transform_mask`, `transform_scalar_image`,
-  `transform_color_image`
-- Multi-image alignment: `estimate_alignment`
-- Color features: `normalized_color_features`
-
-**Typical import pattern for a new segmentor:**
-
-```python
-from ..mapping.segment_primitives import (
-    np, _NDIMAGE, _PIL_SCIPY_READY,
-    image_runtime_capabilities,
-    mask_to_polygon, mask_iou, estimate_alignment,
-    rdp, compactness, aspect_ratio,
-)
-```
-
-**How to write a new segmentor:**
-
-1. Copy the structure of `image_segments.py` as a reference implementation.
-2. Replace `_build_room_mask_from_hsv` and `_build_light_wall_mask` with mask
-   builders that suit your brand's map image palette (colour model, thresholds,
-   morphological parameters).
-3. The scoring heuristics (`_issue_quality`, `_structural_role`,
-   `_segmentation_state`, `_component_should_keep`) embed Eufy-calibrated numeric
-   thresholds — treat these as starting values and tune them against sample maps
-   from your target brand.
-4. The split-strategy cascade (`_split_suspicious_component` and its helpers)
-   is independent of the map palette; these functions use `segment_primitives`
-   operations and can often be reused with minimal changes.
-5. The public entry point must match the signature of
-   `detect_room_segments()` — this is the contract that the rest of the system
-   calls.
+Completion fires when `task_status` reaches the completion value, the secondary
+target is cleared, and the job was observed active at least once. If your brand
+has no `active_cleaning_target` concept, point `completion.secondary_clear_entity`
+elsewhere or rely on `task_status` alone (it degrades gracefully).
 
 ---
 
-## 4. Roborock and Dreame specific port
+## 6. Capabilities
 
-Roborock and Dreame both have maintained HA integrations and a similar
-room-cleaning model. The mapping below applies to the official `roborock`
-integration (available in HA core since 2023.3) and to Dreame via
-`hacs/dreame-vacuum`.
+Declare feature flags in the `capabilities` block:
+`supports_mop_features`, `supports_water_control`, `supports_path_control`,
+`supports_edge_mopping`, `supports_mop_wash`, `supports_mop_dry`,
+`supports_empty_dust`, `supports_robot_position`, `supports_station_water`.
+They gate payload fields, dock actions, and card UI.
 
-### 4.1 HA entities exposed
-
-**Roborock (official integration):**
-| Entity | Role |
-|---|---|
-| `vacuum.<name>` | Main vacuum entity |
-| `sensor.<name>_status` | Equivalent to task_status |
-| `sensor.<name>_dock_status` | Dock status (S7 MaxV Ultra, Q Revo, etc.) |
-| Various `sensor.*` | Battery, area, time |
-
-**Dreame (dreame-vacuum):**
-| Entity | Role |
-|---|---|
-| `vacuum.<name>` | Main vacuum entity |
-| `sensor.<name>_task_status` or `sensor.<name>_status` | Task status |
-| `sensor.<name>_dock_status` | Present on stations with mop wash |
-
-Neither integration exposes an `active_cleaning_target` sensor. For the
-completion logic, the most reliable substitute is to treat
-`active_cleaning_target` as cleared when the vacuum state returns to
-`docked` and status reaches the "completed" equivalent.
-
-### 4.2 Room-cleaning service call — Roborock
-
-The official Roborock integration exposes rooms as segments. The service to
-clean specific segments is:
-
-```yaml
-service: vacuum.send_command
-data:
-  entity_id: vacuum.<name>
-  command: app_segment_clean
-  params:
-    segments: [3, 5, 7]   # list of segment IDs
-    repeat: 1              # number of passes
-```
-
-For a Roborock port, `build_room_clean_payload()` must produce a `payload`
-containing a segment list and repeat count. Per-room fan speed overrides
-are supported on some models via:
-
-```yaml
-params:
-  segments:
-    - id: 3
-      fan_power: 102    # Roborock fan speed integer values
-    - id: 5
-      fan_power: 102
-  repeat: 1
-```
-
-The map concept in Roborock is a "floor" — `map_id` can be mapped to the
-Roborock floor/map index. Multi-floor support requires selecting the active
-floor before cleaning, which Roborock exposes as a select entity.
-
-### 4.3 Room-cleaning service call — Dreame
-
-The dreame-vacuum integration uses a different command:
-
-```yaml
-service: vacuum.send_command
-data:
-  entity_id: vacuum.<name>
-  command: start_sweep_with_room_id
-  params:
-    rooms: [3, 5, 7]
-```
-
-Some Dreame models support per-room settings via the
-`vacuum.set_room_settings` service. For a Dreame port, `build_room_clean_payload()`
-produces a rooms list (integer segment IDs) plus an optional settings block.
-
-### 4.4 Lifecycle state mapping
-
-**Roborock vacuum entity states:** `cleaning`, `returning`, `docked`, `idle`,
-`paused`, `error`. These match the eufy_vacuum internal expectations almost
-exactly — `evaluate_job_lifecycle()` already handles `docked` and `idle` as
-"ready" and `cleaning`/`returning` as active.
-
-**Roborock task status equivalents:**
-| eufy_vacuum internal state | Roborock sensor value |
-|---|---|
-| `completed` | `"Idle"` when vacuum returns to dock after segment clean |
-| active_run_states | `"Segment cleaning"`, `"Returning home"` |
-| hard_service_states | `"Washing"`, `"Drying"` (S7/Q Revo dock sensors) |
-
-For Roborock, completion detection cannot rely on a
-`task_status == "completed"` string. Instead, monitor the vacuum entity state
-transitioning to `docked` while `active_cleaning_target` is cleared (or
-there is no such concept and the job count is satisfied).
-
-**Dreame:** Similar to Roborock. The dreame-vacuum integration does expose a
-`task_status` sensor with values like `"idle"`, `"cleaning"`, `"returning"`.
-Map to `completed` when `task_status` is `"idle"` and `vacuum` is `docked`.
-
-### 4.5 Map handling
-
-Both Roborock and Dreame use cloud-hosted map images, served as camera entities
-by their HA integrations. These are rendered SVG or PNG overlays generated from
-the vacuum's own map data.
-
-eufy_vacuum's map display uses static PNG files placed in
-`<config_dir>/eufy_vacuum/maps/`. For Roborock/Dreame, the simplest approach
-is:
-
-1. Capture a screenshot of the camera entity's current map image using an HA
-   automation or script.
-2. Save it to the maps directory at the correct path for the map_id.
-3. Use the bounds calibration tool in the card (see
-   [map-bounds-review.md](../advanced/07-map-bounds-review.md)) to align the
-   overlay with the saved image.
-
-The `image_segments` pipeline runs entirely on the saved PNG and does not
-require an active camera feed. It operates on pixel coordinates and produces
-room polygon bounds. The pipeline itself (`mapping/image_segments.py`) is
-Eufy-specific — its HSV thresholds and scoring heuristics were calibrated on
-Eufy map imagery. For a Roborock or Dreame port, write a replacement segmentor
-using `mapping/segment_primitives.py` as the primitive baseline (see
-section 3.8).
-
-Alternatively, skip the map image entirely. The card renders room bounds
-boxes even without a background image, using colour-coded overlays only.
+The Eufy adapter auto-populates these by calling
+`core/capabilities.py::detect_capabilities()` (Eufy-specific: entity-presence
+probes + product-code/name model families). For a new brand, the simplest path
+is to **set the flags statically** in your config's `capabilities` block based
+on the hardware; provide brand-specific detection only if you need it. Either
+way the flags' *meaning* is brand-agnostic — only detection is brand-specific.
 
 ---
 
-## 5. What ports for free
+## 7. Discovery
 
-The following subsystems require zero changes to port to a different vacuum
-brand. They operate entirely on the internal data model and HA service calls
-that are not vacuum-specific.
+The `discovery` block tells the framework how the room list is exposed:
 
-**Learning system** (`learning/`) — records per-room timing observations,
-computes confidence scores, detects trouble rooms, estimates future job
-duration. Consumes the `resolved_rooms` list from the payload builder and
-job lifecycle events from the watcher. Brand-agnostic.
+- `room_list_entity` — `"vacuum_entity"` to read an attribute off the vacuum
+  entity (Eufy `segments`, Ecovacs `rooms`), or a full entity ID.
+- `room_list_attribute`, `room_id_key`, `room_name_key` — where the id/name live
+  in each room dict.
 
-**Queue engine logic** (`queue/queue_engine.py`) — room ordering, enabled-room
-filtering, access graph evaluation, blocker/modifier rule processing, start
-protection checks. Has no vacuum knowledge beyond the capability flags passed
-to it.
-
-**Room rules system** (`rooms/`, `queue/`) — blocker rules, modifier rules,
-the access graph, preflight evaluation. Operates entirely on HA entity state
-reads and room configuration. No vacuum calls.
-
-**Mapping/bounds system** (`mapping/`) — trace-based room boundary derivation
-from position sensor coordinates, the bounds editor, the calibration overlay.
-Reads `robot_position_x` and `robot_position_y` entities (entity IDs are
-configurable). The coordinate normalisation assumes a specific coordinate space
-(see [11-mapping-system.md](../dev/11-mapping-system.md)) — this is the only part that
-may need adjustment if the target vacuum uses a different unit or origin.
-
-**HA entity layer** (`button.py`, `switch.py`, `number.py`, `sensor/`,
-`select.py`) — all HA platform entities. These call internal manager methods;
-they have no vacuum brand knowledge.
-
-**Card frontend** (`frontend/`) — the entire Lit-based card. It calls
-`eufy_vacuum.*` HA services and reads `eufy_vacuum.*` sensor/switch entities.
-It has no knowledge of the underlying vacuum brand. No changes required for
-any port.
-
-**Theme system** — CSS custom property injection, theme profiles, colour
-tokens. Entirely UI-layer, brand-agnostic.
-
-**Profile system** (`profiles/`) — named room profiles (`vacuum_quick`,
-`vacuum_deep`, etc.), capability gating, floor-type overrides. The profile
-names and settings map to payload fields — these will need to match whatever
-settings the target vacuum accepts, but the profile resolution logic itself
-is brand-agnostic.
+Brands that expose rooms via a service (Roborock `vacuum.get_maps`) or via HA
+Areas (the 2026.3 `vacuum.clean_area` integrations) read those instead — no CV
+segmentation needed. The Eufy CV segmentor exists because Eufy exposes no
+structured room geometry.
 
 ---
 
-## 6. Port checklist
+## 8. Map segmentor (optional)
 
-Follow these steps in order. Each step is independently testable before
-proceeding to the next.
+`mapping.segmenter_engine` selects a map-image segmenter by name from
+`mapping/segmenter_engines.py` (`eufy_cv_v1`, or `noop_fallback` to disable the
+polygonal overlay while trace-based bounds keep working). The Eufy CV pipeline
+lives in `adapters/eufy/segmentor.py` (`detect_room_segments`) and is built on
+the brand-agnostic primitives in `mapping/segment_primitives.py`.
 
-### Step 1 — Map the vacuum's HA entities
-
-Identify the equivalent of each entity that eufy_vacuum watches:
-
-- `vacuum.<object_id>` — must support `send_command` or an equivalent service
-- `sensor.*_task_status` — reports task phase; must eventually reach a
-  "completed" or "idle" state when a clean finishes
-- `sensor.*_dock_status` — reports dock activity (wash, dry, empty); may be
-  absent on simpler stations
-- `sensor.*_active_cleaning_target` — optional; the current room/segment
-  being cleaned; cleared on finish
-- `sensor.*_active_map` — the currently loaded floor map; required for
-  multi-floor setups
-- `sensor.*_robot_position_x_raw` and `*_y_raw` — position coordinates for
-  trace-based bounds; optional (skip if not available)
-
-Document these entity IDs before writing any code.
-
-### Step 2 — Map lifecycle states
-
-For each raw state string your vacuum reports across all five entities, decide
-which internal lifecycle category it belongs to:
-
-| Internal state | Meaning | Sets `has_observed_active_lifecycle` |
-|---|---|---|
-| `ready` | Vacuum is docked/idle, safe to start | No |
-| `active_job_running` | Vacuum is actively cleaning | **Yes** |
-| `mid_job_service` | Dock is washing/emptying mid-job | **Yes** |
-| `dock_drying` | Dock is drying; start still allowed | No |
-| `vacuum_busy` | Vacuum is busy for an unrelated reason | No |
-| `map_mismatch` | Selected floor ≠ active floor | No |
-
-Produce a table mapping every raw sensor value you observe to one of these.
-The completion signal requires `has_observed_active_lifecycle` to have been
-set at least once during the job — ensure at least one of your vacuum's states
-maps to `active_job_running` or `mid_job_service`.
-
-### Step 3 — Write a new queue payload builder
-
-Create a new `build_room_clean_payload()` implementation that:
-
-1. Accepts the same input signature as the existing function.
-2. Iterates over `managed_rooms`, filters by `queue_room_ids`, resolves
-   profiles, applies capability gating.
-3. Produces a `payload` dict in the format your vacuum's service expects.
-4. Returns the full output shape (`payload`, `resolved_rooms`, `room_count`).
-
-The `resolved_rooms` list must contain each room's `room_id`, `name`, `slug`,
-`clean_mode`, and `fan_speed` at minimum — these are read by the learning
-system and job tracking.
-
-### Step 4 — Update the service call and watched entities
-
-In `core/manager.py`, replace the `vacuum.send_command` / `room_clean` call
-with your target service.
-
-In `__init__.py`, replace `_get_lifecycle_watch_entities()` to return the
-entity IDs you documented in step 1.
-
-In `core/capabilities.py`, replace `detect_capabilities()` to discover your
-vacuum's entities and set appropriate capability flags.
-
-### Step 5 — Verify with learning disabled
-
-Set `learning_enabled: false` in the integration config and run a complete job:
-
-1. Confirm the service call reaches the vacuum and cleaning starts.
-2. Confirm `has_observed_active_lifecycle` gets set (check via the job sensor
-   or logs).
-3. Confirm the job auto-finalizes when cleaning completes.
-4. Confirm the active job record clears correctly.
-
-Resolve any entity naming or state-string mismatches before enabling learning.
-
-### Step 6 — Enable learning and verify timing data
-
-Enable learning and run several complete jobs. Verify:
-
-1. Job files are written to `<config_dir>/eufy_vacuum/jobs/`.
-2. Per-room timing observations accumulate in the stats file.
-3. Expected duration estimates appear in the card.
-
-If timing data is absent, check that `resolved_rooms` in the payload output
-contains valid `room_id` values matching the room IDs in storage.
-
-### Step 7 — Map image calibration (optional)
-
-If you want the map image overlay:
-
-1. Obtain a PNG of your vacuum's floor map at a known, stable zoom level.
-2. Place it at `<config_dir>/eufy_vacuum/maps/<map_id>.png`.
-3. Use the bounds calibration tool in the card to set the pixel-to-coordinate
-   transform for each corner of the map.
-4. Verify room bounds overlay correctly on the image.
-
-If position sensors are not available, you can draw room bounds manually
-using the bounds editor — the image still displays correctly.
+A new brand that ships structured room geometry (most lidar brands) does not
+need a CV segmentor at all — declare `noop_fallback`. If you do want an
+image-based overlay, write a new segmenter engine using `segment_primitives.py`
+(polygon math, mask ops, HSV helpers, alignment) and register it; copy
+`adapters/eufy/segmentor.py` as the reference and re-tune its HSV thresholds /
+scoring heuristics for your brand's map palette.
 
 ---
 
-## 7. Maintaining a fork
+## 9. What ports for free (zero changes)
 
-### Upstream sync strategy
+These subsystems operate entirely on the internal data model / HA service calls
+and need no brand work:
 
-The two coupling-point files are the most likely to diverge from upstream:
-- `core/manager.py` (the service call site and job start logic)
-- `__init__.py` (entity watch list and completion signals)
-- `core/capabilities.py` (entity discovery and capability flags)
+- **Learning** (`learning/`) — consumes canonical `resolved_rooms` + lifecycle
+  events.
+- **Queue engine** (`queue/queue_engine.py`) — ordering, enabled-room filtering,
+  access graph, blocker/modifier rules, start protection.
+- **Room rules** (`rooms/`, `queue/`) — blockers, modifiers, access graph,
+  preflight. HA state reads only.
+- **Mapping/bounds** (`mapping/`) — trace-based bounds from position sensors
+  (coordinate units may need adjustment per brand).
+- **HA entity platforms** — `button.py`, `switch.py`, `number.py`, `sensor/`
+  (the integration registers **five** platforms: `binary_sensor`, `button`,
+  `switch`, `number`, `sensor` — there is no `select` platform).
+- **Listeners** (`listeners/` package) — lifecycle/finalize, job progress, dock
+  events, path blockers, pause timeout. Driven by adapter config.
+- **Card frontend, theme system, profile system** — fully brand-agnostic.
 
-Keep your modifications in clearly marked sections or extract them into a
-`core/brand_adapter.py` module that the above files import from. This makes
-rebasing onto upstream straightforward — your changes are isolated to the
-adapter module.
+---
 
-### What is safe to customise locally without conflict risk
+## 10. Validate with the contract harness
 
-- `core/capabilities.py` — this file has no upstream PR activity that would
-  affect a brand other than Eufy
-- Additional sensor entity IDs in `_get_lifecycle_watch_entities()` — additive
-  changes that don't remove the existing sensor set
-- Post-job water amendment logic in `__init__.py` — this is X10-specific and
-  can be stubbed out with a no-op for vacuums that don't have mop stations
-- `MODEL_CODE_FAMILIES` and `MODEL_FAMILY_HINTS` in `capabilities.py` — adding
-  your brand's model codes is safe and non-conflicting
+There is no fork to maintain. The brand-agnostic **adapter conformance suite**
+(`tests/adapters/test_adapter_contract.py`) validates *any* adapter's config
+against the documented schema and runtime expectations. Add your brand to the
+`ADAPTER_BUILDERS` registry in `tests/adapters/conftest.py` and the entire
+contract suite runs against it automatically — schema conformance, dispatch
+shape, entity-ID format, registry validation. Brand-specific deep tests (your
+CV segmentor, your model catalog) live under `tests/adapters/<brand>/`.
 
-### What will conflict on upstream updates
+---
 
-- The `payload` dict format in `build_room_clean_payload()` — upstream may
-  add new optional fields (e.g. if Eufy adds a new capability); your override
-  will not receive these changes automatically. Run the test suite after each
-  rebase to catch shape mismatches.
-- `_ACTIVE_LIFECYCLE_STATES` in `__init__.py` — if upstream adds a new
-  lifecycle state here, your fork needs to evaluate whether your vacuum can
-  produce the equivalent.
-- `evaluate_job_lifecycle()` in `job_monitor.py` — the normalised state string
-  sets in this function may grow. Review diffs here after each rebase.
+## 11. Port checklist
 
-### Forking vs contributing
+Each step is independently testable.
 
-If the target brand has a significant user base, consider contributing a
-brand-adapter protocol upstream (a `BrandAdapter` abstract base or similar)
-rather than maintaining a fork. The existing structure strongly suggests this
-abstraction would be clean — the seams are already narrow and well-defined.
+1. **Map the HA entities** your vacuum exposes to the `entities` role keys
+   (`task_status`, `dock_status`, `active_map`, `battery`, position sensors, …).
+   Document the IDs before writing code.
+2. **Write the `vocabulary` + `completion` blocks** — every raw state string,
+   sorted into `active_run_task_states` / `hard_service_states` / `drying_states`
+   / blocked sets, and the completion value. Ensure at least one state marks the
+   job "observed active."
+3. **Choose a `dispatch.template`.** If an existing shape fits, configure field
+   names + value maps. If not, add an engine in `dispatch_engines.py`.
+4. **Set `capabilities`** flags for the hardware. Set `discovery` for how rooms
+   are listed. Set `mapping` to `noop_fallback` unless you wrote a segmentor.
+5. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
+   from `async_setup_entry`.
+6. **Add the brand to `ADAPTER_BUILDERS`** and run `pytest tests/adapters` — the
+   conformance suite must pass.
+7. **Run a real job with learning disabled**: confirm the dispatch reaches the
+   vacuum, the job is observed active, it auto-finalizes, and the active-job
+   record clears. Then enable learning and confirm per-room timing accumulates.
+8. **(Optional) Map overlay**: place a PNG at the maps path and use the card's
+   bounds calibration, or rely on colour-coded bounds boxes with no image.
+
+If the brand has a real user base, ship the adapter upstream as a new
+`adapters/<brand>/` package rather than keeping it local — that is the whole
+point of the adapter boundary.
