@@ -972,8 +972,11 @@ class LearningHistoryStore:
                 }
             ),
             "payload": (
+                # Brand-agnostic "is this payload populated?" check — room_count
+                # is set by every dispatch engine, vs. the old literal "rooms"
+                # key which only existed for the Eufy payload shape.
                 payload_state.get("payload", {})
-                if isinstance(payload_state, dict) and payload_state.get("payload", {}).get("rooms")
+                if isinstance(payload_state, dict) and payload_state.get("payload") and payload_state.get("room_count")
                 else (active_job_state.get("payload", {}) if isinstance(active_job_state, dict) else {})
             ),
             "resolved_rooms": resolved_rooms,

@@ -84,6 +84,7 @@ from homeassistant.core import HomeAssistant, State, callback
 from homeassistant.helpers.event import async_track_state_change_event
 
 from . import store as raw_store
+from ..adapters.registry import get_adapter_config
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -327,7 +328,13 @@ class BatteryHealthManager:
             return
 
         object_id = vacuum_entity_id.split(".", 1)[-1]
-        battery_sensor_id = f"sensor.{object_id}_battery"
+        # Prefer the adapter's declared battery entity; fall back to the Eufy
+        # suffix convention only if the adapter isn't registered yet (setup
+        # ordering) or doesn't declare one.
+        battery_sensor_id = (
+            (get_adapter_config(vacuum_entity_id) or {}).get("entities", {}).get("battery")
+            or f"sensor.{object_id}_battery"
+        )
 
         self._battery_to_vacuum[battery_sensor_id] = vacuum_entity_id
         self._battery_to_vacuum[vacuum_entity_id] = vacuum_entity_id

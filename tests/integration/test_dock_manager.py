@@ -166,6 +166,18 @@ def test_gate_not_docked(dock, manager, hass, monkeypatch):
 
 def test_gate_action_specific(dock, manager, hass, monkeypatch):
     """[DK-11]"""
+    # Per-action service-state gating reads dock_events.triggers from the
+    # adapter (core has no brand fallback), so register them like the real
+    # Eufy adapter does.
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "dock_events": {"triggers": {
+            "last_mop_wash": ["washing"],
+            "last_dry_start": ["drying"],
+            "last_dust_empty": ["emptying dust"],
+        }},
+    })
     _ready(dock, manager, hass, monkeypatch, dock_status="washing")
     status = dock.get_dock_action_status(vacuum_entity_id=_VAC, map_id=_MAP)
     assert status["actions"]["wash_mop"]["reason"] == "already_washing"

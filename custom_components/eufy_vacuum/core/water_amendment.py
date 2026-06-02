@@ -90,13 +90,21 @@ def register_post_job_water_amendment(
         registered_jobs.discard(job_id)
         return
 
-    _raw_triggers = _amendment_cfg.get("trigger_states") or ["washing", "washing mop"]
+    # Trigger/commit states are adapter-driven — no brand fallback. An adapter
+    # that enables this amendment but declares no states gets a no-op (fail-safe)
+    # rather than silently inheriting Eufy's dock vocabulary.
     _trigger_states: frozenset[str] = frozenset(
-        str(s).strip().lower() for s in _raw_triggers
+        str(s).strip().lower() for s in (_amendment_cfg.get("trigger_states") or [])
     )
-    _commit_state: str = str(
-        _amendment_cfg.get("commit_state") or "drying"
-    ).strip().lower()
+    _commit_state: str = str(_amendment_cfg.get("commit_state") or "").strip().lower()
+    if not _trigger_states or not _commit_state:
+        _LOGGER.debug(
+            "post_job_water_amendment: adapter declared no trigger_states/commit_state "
+            "for %s — skipping",
+            vacuum_entity_id,
+        )
+        registered_jobs.discard(job_id)
+        return
 
     amendment_state: dict = {"wash_count": 0, "committed": False, "last_wash_at": 0.0}
     unsub_listener: list[Callable] = []

@@ -159,15 +159,12 @@ class DockManager:
                 return frozenset(str(s).strip().lower() for s in raw)
             return frozenset()
 
-        _wash_states: frozenset[str] = _vocab_set("last_mop_wash") or frozenset(
-            {"washing", "washing mop"}
-        )
-        _dry_states: frozenset[str] = _vocab_set("last_dry_start") or frozenset(
-            {"drying", "drying mop", "drying pads", "mop drying"}
-        )
-        _empty_states: frozenset[str] = _vocab_set("last_dust_empty") or frozenset(
-            {"emptying dust", "emptying dust bin", "dust emptying"}
-        )
+        # Adapter-driven only (from dock_events.triggers) — no brand fallback.
+        # An adapter that omits a trigger set gets an empty set (no detection)
+        # rather than inheriting Eufy's dock vocabulary.
+        _wash_states: frozenset[str] = _vocab_set("last_mop_wash")
+        _dry_states: frozenset[str] = _vocab_set("last_dry_start")
+        _empty_states: frozenset[str] = _vocab_set("last_dust_empty")
         _hard_service_states: frozenset[str] = frozenset(
             str(s).strip().lower()
             for s in _adapter_vocab.get("hard_service_states", [])

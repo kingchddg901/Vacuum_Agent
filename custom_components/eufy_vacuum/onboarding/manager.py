@@ -20,6 +20,8 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 
+from ..adapters.registry import get_adapter_config
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -170,11 +172,18 @@ class OnboardingManager:
             map_id=map_id,
         )
 
-        vacuum_state = self._hass.states.get(vacuum_entity_id)
-        if vacuum_state is None:
+        # Room list source is adapter-driven (mirrors rooms/room_discovery.py).
+        # Defaults preserve Eufy behavior: the vacuum entity's "segments" attr.
+        discovery = (get_adapter_config(vacuum_entity_id) or {}).get("discovery", {})
+        list_entity = discovery.get("room_list_entity") or "vacuum_entity"
+        source_entity = vacuum_entity_id if list_entity == "vacuum_entity" else list_entity
+        attribute = discovery.get("room_list_attribute") or "segments"
+
+        source_state = self._hass.states.get(source_entity)
+        if source_state is None:
             return False
 
-        segments = vacuum_state.attributes.get("segments")
+        segments = source_state.attributes.get(attribute)
         if not isinstance(segments, list):
             return False
 
