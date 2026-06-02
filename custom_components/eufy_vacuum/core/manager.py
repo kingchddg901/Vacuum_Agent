@@ -33,6 +33,7 @@ from ..maps.map_manager import (
 )
 from ..models.models import VacuumRuntimeState
 from ..queue.queue_engine import (
+    advance_active_job_phase,
     build_active_job_state,
     build_queue_from_managed_rooms,
     build_room_clean_payload,
@@ -3175,6 +3176,64 @@ class EufyVacuumManager:
     # Job start / run-profile start
     # ------------------------------------------------------------------
 
+    async def _dispatch_clean_payload(
+        self,
+        *,
+        vacuum_entity_id: str,
+        payload: dict[str, Any],
+    ) -> None:
+        """Send one clean payload to the vacuum service using the adapter's envelope.
+
+        Reads dispatch config for service_domain/service_name/command. Two
+        envelope shapes: wrapped ``{command, params}`` (Eufy/Roborock/Ecovacs
+        send_command) when a ``command`` is declared, else direct merge-into-data
+        (Dreame's vacuum_clean_segment). Shared by job start and phase advance.
+        """
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        domain = cfg.get("service_domain", "vacuum")
+        name = cfg.get("service_name", "send_command")
+        command = cfg.get("command", "room_clean")
+        if command:
+            data = {"entity_id": vacuum_entity_id, "command": command, "params": payload}
+        else:
+            data = {"entity_id": vacuum_entity_id, **payload}
+        await self.hass.services.async_call(domain, name, data, blocking=True)
+
+    async def maybe_advance_phase(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> bool:
+        """For a sequenced job at phase completion, advance + re-dispatch instead
+        of finalizing.
+
+        Returns True when the job advanced to a next phase (the caller must skip
+        finalization); False for an atomic job or the final phase (the caller
+        finalizes exactly as today). The completion hook calls this right before
+        it would finalize.
+        """
+        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        advanced = advance_active_job_phase(active_job)
+        if advanced is None:
+            return False
+
+        advanced["current_room_started_at"] = _iso_now()
+        self.data.setdefault("active_jobs", {})
+        self.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
+
+        await self._dispatch_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            payload=advanced.get("payload", {}),
+        )
+        _LOGGER.debug(
+            "Advanced sequenced job for %s map %s to phase %s/%s",
+            vacuum_entity_id, map_id,
+            advanced.get("current_phase_index"), advanced.get("phase_count"),
+        )
+        return True
+
     async def start_selected_rooms(
         self,
         *,
@@ -3247,40 +3306,20 @@ class EufyVacuumManager:
         battery_start = self._get_battery_level(vacuum_entity_id)
         job_id = self._generate_job_id()
 
-        # Read dispatch config so the service call honors brand-specific
-        # service_domain/service_name/command. Eufy-shape defaults preserve
-        # legacy behavior when no adapter is registered.
-        _dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
-        _service_domain = _dispatch_cfg.get("service_domain", "vacuum")
-        _service_name = _dispatch_cfg.get("service_name", "send_command")
-        _command = _dispatch_cfg.get("command", "room_clean")
-
-        # Two envelope shapes — switched by whether the adapter declared
-        # a `command` field. Wrapped form is the HA send_command pattern
-        # (Eufy, Roborock); direct form is the merge-payload-into-data
-        # pattern used by integrations like dreame_vacuum that expose
-        # their own vacuum_clean_segment service.
-        if _command:
-            _service_data = {
-                "entity_id": vacuum_entity_id,
-                "command": _command,
-                "params": payload,
-            }
-        else:
-            _service_data = {"entity_id": vacuum_entity_id, **payload}
-
-        await self.hass.services.async_call(
-            _service_domain,
-            _service_name,
-            _service_data,
-            blocking=True,
+        await self._dispatch_clean_payload(
+            vacuum_entity_id=vacuum_entity_id, payload=payload
         )
 
+        # Attach the phase sequence only for a genuine sequenced job (>1 phase).
+        # Atomic jobs (every adapter today) leave the phase keys absent, keeping
+        # the active-job snapshot byte-identical to pre-sequencing.
+        _phases = start_plan.get("phases") or []
         active_job = build_active_job_state(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             queue_state=queue_state,
             payload_state=payload_state,
+            phases=_phases if len(_phases) > 1 else None,
         )
         active_job["job_metadata"] = build_job_metadata_from_payload(payload_state)
         active_job["job_id"] = job_id

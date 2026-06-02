@@ -57,6 +57,9 @@ def _mgr(hass):
     m.async_save = AsyncMock()
     m.get_known_vacuum_ids.return_value = [_VAC]
     m.get_known_map_ids.return_value = [_MAP]
+    # Atomic jobs never advance a phase — the completion hook awaits this and
+    # finalizes when it returns False.
+    m.maybe_advance_phase = AsyncMock(return_value=False)
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = m
     return m
 

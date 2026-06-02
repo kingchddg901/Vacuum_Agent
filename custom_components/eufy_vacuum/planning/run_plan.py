@@ -17,10 +17,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..entity_helpers import get_floor_type_label
-from ..queue.queue_engine import (
-    build_queue_from_managed_rooms,
-    build_room_clean_payload,
-)
+from ..queue.queue_engine import build_queue_from_managed_rooms
+from ..queue.dispatch_engines import get_dispatch_engine
 from ..timestamp_utils import utc_now_iso
 
 if TYPE_CHECKING:
@@ -663,6 +661,35 @@ class RunPlanManager:
             preflight=preflight,
         )
 
+    def _build_dispatch_phases(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, Any],
+        queue_room_ids: list[int],
+    ) -> list[dict[str, Any]]:
+        """Resolve the brand's dispatch engine and return its phase list.
+
+        For atomic engines (every adapter today) this is a single phase whose
+        ``[0]`` element is byte-identical to ``build_room_clean_payload`` — so
+        ``phases[0]`` is a drop-in for the old ``payload_state``.
+        """
+        dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        engine = get_dispatch_engine(dispatch_cfg.get("template"))
+        return engine.build_phases(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            managed_rooms=managed_rooms,
+            queue_room_ids=queue_room_ids,
+            stored_profiles=self._manager.data.get("profiles", {}).get("room_profiles", {}),
+            capabilities=self._manager.get_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id,
+                refresh=False,
+            ),
+            dispatch=dispatch_cfg,
+        )
+
     def _build_effective_start_plan(
         self,
         *,
@@ -772,18 +799,12 @@ class RunPlanManager:
                     map_id=str(map_id),
                     managed_rooms=managed_rooms,
                 ),
-                "payload_state": build_room_clean_payload(
+                "payload_state": self._build_dispatch_phases(
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=str(map_id),
                     managed_rooms=managed_rooms,
                     queue_room_ids=selected_room_ids,
-                    stored_profiles=self._manager.data.get("profiles", {}).get("room_profiles", {}),
-                    capabilities=self._manager.get_vacuum_capabilities(
-                        vacuum_entity_id=vacuum_entity_id,
-                        refresh=False,
-                    ),
-                    dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
-                ),
+                )[0],
                 "preflight": preflight,
             }
 
@@ -842,18 +863,12 @@ class RunPlanManager:
                     map_id=str(map_id),
                     managed_rooms=managed_rooms,
                 ),
-                "payload_state": build_room_clean_payload(
+                "payload_state": self._build_dispatch_phases(
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=str(map_id),
                     managed_rooms=managed_rooms,
                     queue_room_ids=selected_room_ids,
-                    stored_profiles=self._manager.data.get("profiles", {}).get("room_profiles", {}),
-                    capabilities=self._manager.get_vacuum_capabilities(
-                        vacuum_entity_id=vacuum_entity_id,
-                        refresh=False,
-                    ),
-                    dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
-                ),
+                )[0],
                 "preflight": preflight,
             }
 
@@ -1087,15 +1102,13 @@ class RunPlanManager:
             map_id=str(map_id),
             managed_rooms=effective_rooms,
         )
-        payload_state = build_room_clean_payload(
+        phases = self._build_dispatch_phases(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             managed_rooms=effective_rooms,
             queue_room_ids=queue_state.get("queue_room_ids", []),
-            stored_profiles=self._manager.data.get("profiles", {}).get("room_profiles", {}),
-            capabilities=capabilities,
-            dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
         )
+        payload_state = phases[0]
 
         room_minutes_map = self._room_estimate_minutes_map(
             vacuum_entity_id=vacuum_entity_id,
@@ -1195,6 +1208,7 @@ class RunPlanManager:
             "effective_rooms": effective_rooms,
             "queue_state": queue_state,
             "payload_state": payload_state,
+            "phases": phases,
             "preflight": preflight,
         }
 

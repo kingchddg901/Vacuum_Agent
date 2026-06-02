@@ -171,6 +171,54 @@ async def test_start_run_profile_not_found(manager, hass):
     assert calls == []
 
 
+async def test_maybe_advance_phase_sequenced(manager, hass):
+    """[SS-8] a sequenced job advances + re-dispatches the next phase, then on the
+    final phase returns False so the caller finalizes."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    calls = _register_dispatch(hass)
+
+    phase0 = {"resolved_rooms": [{"room_id": 1}], "payload": {"phase": 0}, "room_count": 1}
+    phase1 = {"resolved_rooms": [{"room_id": 2}], "payload": {"phase": 1}, "room_count": 1}
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [phase0, phase1], "current_phase_index": 0,
+        "resolved_rooms": phase0["resolved_rooms"], "payload": phase0["payload"],
+        "completed_room_ids": [1], "current_room_id": None,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    # phase 0 complete -> advance to phase 1 + re-dispatch
+    advanced = await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP)
+    await hass.async_block_till_done()
+    assert advanced is True
+    assert len(calls) == 1                                   # next phase dispatched
+    job = manager.data["active_jobs"][_VAC][_MAP]
+    assert job["current_phase_index"] == 1
+    assert job["current_room_id"] == 2                       # swapped to phase 1's rooms
+    assert job["completed_room_ids"] == []                   # per-phase progress reset
+    assert job["has_observed_active_lifecycle"] is False     # fresh sub-job
+
+    # final phase -> no advance; caller finalizes, no extra dispatch
+    again = await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert again is False
+    assert len(calls) == 1
+
+
+async def test_maybe_advance_phase_atomic_is_noop(manager, hass):
+    """[SS-9] an atomic job (no phases) never advances -> caller finalizes."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    calls = _register_dispatch(hass)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "resolved_rooms": [{"room_id": 1}], "completed_room_ids": [1],
+        "current_room_id": None, "job_id": "j1",
+    }
+    assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is False
+    assert calls == []
+
+
 async def test_start_run_profile_success(manager, hass):
     """[SS-6] save a run profile, then start it through the protected path."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)

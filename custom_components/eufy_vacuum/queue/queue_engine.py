@@ -432,4 +432,8 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     advanced["current_room_started_at"] = None
     advanced["current_room_paused_seconds"] = 0
     advanced["status"] = "started"
+    # Each phase is a fresh atomic sub-job: the next phase must be observed
+    # active again before it can finalize, so the stale completion signal from
+    # the phase that just ended can't immediately re-finalize it.
+    advanced["has_observed_active_lifecycle"] = False
     return advanced

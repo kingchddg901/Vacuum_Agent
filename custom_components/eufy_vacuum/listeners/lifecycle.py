@@ -226,6 +226,17 @@ def register(hass: HomeAssistant) -> None:
                     if not should_finalize_completed:
                         continue
 
+                    # Sequenced job model: a completed phase advances to the next
+                    # phase (re-dispatch) instead of finalizing. Atomic jobs —
+                    # every adapter today — return False here and finalize as
+                    # before. Each phase finalizes only when it is the last.
+                    if await manager_local.maybe_advance_phase(
+                        vacuum_entity_id=vacuum_entity_id,
+                        map_id=map_id,
+                    ):
+                        any_changes = True
+                        continue
+
                     finalize_result = None
                     try:
                         finalize_result = await manager_local.finalize_learning_for_active_job(
