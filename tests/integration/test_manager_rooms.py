@@ -166,6 +166,30 @@ async def test_update_room_fields_clean_mode(manager):
     assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["clean_mode"] == "mop"
 
 
+async def test_update_room_fields_invalid_access_graph_rejected(manager):
+    """[MR-10b] a structurally-illegal access-graph change (a second dock room)
+    is rejected with an error payload AND the room is rolled back, not saved."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    # Room 1 becomes the dock room — a single dock room is valid.
+    ok = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, is_dock_room=True
+    )
+    assert ok.get("ok") is not False
+
+    # Making room 2 a second dock room is structurally illegal.
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=2, is_dock_room=True
+    )
+    assert result["ok"] is False
+    assert result["error"] == "invalid_access_graph"
+    assert result["updated"] is False
+    assert isinstance(result["issues"], list) and result["issues"]
+    # rollback: room 2 was NOT persisted as a dock room
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["2"].get("is_dock_room") is not True
+    # room 1 (the legitimate dock room) is untouched
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["is_dock_room"] is True
+
+
 # ---------------------------------------------------------------------------
 # [MR-11] — [MR-12] set_rooms_enabled_subset
 # ---------------------------------------------------------------------------
