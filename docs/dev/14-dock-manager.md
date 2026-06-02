@@ -201,7 +201,7 @@ manager.record_dock_event(
 Called by `listeners/dock_events.py` when the dock status transitions through a trigger state. Behavior:
 
 1. Always writes the current ISO timestamp to the `{event_type}` field.
-2. **Debounce check** (counter only) — if `event_type` is in `_DOCK_EVENT_DEBOUNCE_SECONDS`, the matching counter increment is skipped when less than `debounce_seconds` have elapsed since the last *counted* event of this type. The timestamp from step 1 is still written regardless.
+2. **Debounce check** (counter only) — the cooldown for `event_type` is read from the adapter's `dock_events.debounce_seconds` map; the matching counter increment is skipped when less than that many seconds have elapsed since the last *counted* event of this type (absent key or `0` = no debounce). The timestamp from step 1 is still written regardless.
 3. Increments the matching counter (`mop_wash_count`, `dust_empty_count`, or `dry_start_count`) when not debounced.
 4. For `last_dry_start` with a non-`None` `dry_duration`, also stores it (as a string) at `last_dry_duration`.
 

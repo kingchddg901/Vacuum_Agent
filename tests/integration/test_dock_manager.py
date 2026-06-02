@@ -80,6 +80,11 @@ def test_display_label():
 
 def test_record_event_counts_with_debounce(dock, manager):
     """[DK-2]"""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"debounce_seconds": {"last_mop_wash": 60}},
+    })
     dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
     events = dock.get_dock_events(vacuum_entity_id=_VAC)
     assert events["last_mop_wash"]  # timestamp set
@@ -234,7 +239,14 @@ async def test_dispatch_gated(dock, monkeypatch):
 
 
 def test_get_action_entity_resolves(dock, hass):
-    """[DK-15] a present button entity is resolved by its candidate id."""
+    """[DK-15] a present button entity is resolved by its adapter suffix."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"action_buttons": {
+            "wash_mop": {"entity_suffixes": ["wash_mop", "mop_wash"], "token_sets": []},
+        }},
+    })
     hass.states.async_set("button.alfred_wash_mop", "idle")
     assert dock._get_dock_action_entity(
         vacuum_entity_id=_VAC, action="wash_mop") == "button.alfred_wash_mop"

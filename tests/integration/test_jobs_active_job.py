@@ -65,6 +65,11 @@ def test_get_active_job_default(tracker):
 
 def test_mop_wash_count_and_debounce(tracker, manager):
     """[AJI-2]"""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"debounce_seconds": {"last_mop_wash": 60}},
+    })
     _seed(manager)
     tracker.update_active_job_mop_wash_observation(
         vacuum_entity_id=_VAC, map_id=_MAP, observed_at="2026-01-01T09:00:00+00:00")

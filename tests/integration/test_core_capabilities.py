@@ -106,17 +106,19 @@ def test_detect_robot_position_needs_both(hass):
 
 
 def test_detect_maintenance_sources(hass):
-    """[CAP-5] suffix entity resolves; None suffix → None; swivel proxies filter."""
+    """[CAP-5] full-suffix entity resolves; None suffix → None; proxy_for wins."""
     hass.states.async_set("sensor.alfred_main_brush_remaining", "90")
     hass.states.async_set("sensor.alfred_filter_remaining", "75")
     sources = _detect_maintenance_sources(
         hass,
         object_id="alfred",
         maintenance_components={
-            "main_brush": {"sensor_suffix": "main_brush"},
-            "side_brush": {"sensor_suffix": "side_brush"},   # no entity → None
-            "no_suffix": {"sensor_suffix": None},             # None suffix → None
-            "swivel_wheel": {"sensor_suffix": "swivel_wheel"},  # proxies filter
+            "main_brush": {"sensor_suffix": "main_brush_remaining"},
+            "side_brush": {"sensor_suffix": "side_brush_remaining"},  # no entity → None
+            "no_suffix": {"sensor_suffix": None},                     # None suffix → None
+            "filter": {"sensor_suffix": "filter_remaining"},
+            # proxies filter when present
+            "swivel_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
         },
     )
     assert sources["main_brush"] == "sensor.alfred_main_brush_remaining"
@@ -127,11 +129,13 @@ def test_detect_maintenance_sources(hass):
 
 
 def test_detect_maintenance_swivel_own_fallback(hass):
-    """[CAP-5] no filter entity → swivel falls back to its own sensor."""
+    """[CAP-5] proxy target absent → component falls back to its own sensor."""
     hass.states.async_set("sensor.alfred_swivel_wheel_remaining", "60")
     sources = _detect_maintenance_sources(
         hass, object_id="alfred",
-        maintenance_components={"swivel_wheel": {"sensor_suffix": "swivel_wheel"}},
+        maintenance_components={
+            "swivel_wheel": {"sensor_suffix": "swivel_wheel_remaining", "proxy_for": "filter"},
+        },
     )
     assert sources["swivel_wheel"] == "sensor.alfred_swivel_wheel_remaining"
 

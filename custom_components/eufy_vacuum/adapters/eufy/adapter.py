@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, STORAGE_KEY
 from .constants import (
+    DOCK_EVENT_MOP_WASH_DEBOUNCE_SECONDS,
     LOW_BATTERY_THRESHOLD_PERCENT,
     POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS,
     POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
@@ -203,6 +204,13 @@ def register_eufy_adapter_for_vacuum(
             # explain a short early return as a service event, not a manual cancel.
             # Sourced from vocabulary.py CANCEL_SERVICE_EXCLUSION_STATES.
             "cancel_service_exclusion_states": sorted(CANCEL_SERVICE_EXCLUSION_STATES),
+            # Normalized task_status transition strings for cancel detection.
+            # Eufy normalizes to the HA-standard activity terms.
+            "cancel_detection_states": {
+                "active": "cleaning",
+                "returning": "returning",
+                "paused": "paused",
+            },
             # Alias maps — normalize brand-specific display strings to canonical keys.
             # Sourced from vocabulary.py WATER_LEVEL_ALIASES / WASH_FREQUENCY_MODE_ALIASES.
             "water_level_aliases": dict(WATER_LEVEL_ALIASES),
@@ -287,6 +295,33 @@ def register_eufy_adapter_for_vacuum(
             "triggers": {
                 event_type: sorted(trigger_states)
                 for event_type, trigger_states in DOCK_EVENT_TRIGGERS.items()
+            },
+            # Noisy dock states flip 1-2x within ~30s per actual cycle; the
+            # cooldown collapses them into one counted event. Also gates the
+            # active-job mop-wash observation. See constants.py.
+            "debounce_seconds": {
+                "last_mop_wash": DOCK_EVENT_MOP_WASH_DEBOUNCE_SECONDS,
+            },
+            # Upstream button resolution per dock action. entity_suffixes are
+            # tried first (appended to 'button.{object_id}_'); token_sets are
+            # all-tokens-must-match registry fallbacks for version drift.
+            "action_buttons": {
+                "wash_mop": {
+                    "entity_suffixes": ["wash_mop", "mop_wash"],
+                    "token_sets": [["wash", "mop"]],
+                },
+                "dry_mop": {
+                    "entity_suffixes": ["dry_mop", "mop_dry"],
+                    "token_sets": [["dry", "mop"], ["dry", "pad"]],
+                },
+                "stop_dry_mop": {
+                    "entity_suffixes": ["stop_dry_mop", "stop_mop_dry"],
+                    "token_sets": [["stop", "dry", "mop"], ["stop", "dry", "pad"]],
+                },
+                "empty_dust": {
+                    "entity_suffixes": ["empty_dust", "empty_dust_bin"],
+                    "token_sets": [["empty", "dust"]],
+                },
             },
         },
 
@@ -419,6 +454,7 @@ def register_eufy_adapter_for_vacuum(
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
                 "proxy_for": component.get("proxy_for"),
+                "reset_button": component.get("reset_button"),
                 "default_interval_hours": component["default_interval_hours"],
                 "max_interval_hours": component["max_interval_hours"],
                 "label": component["label"],

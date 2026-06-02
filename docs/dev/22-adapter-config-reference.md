@@ -205,6 +205,7 @@ title-cased firmware strings exactly as they appear in HA.
 | `blocked_task_status_states` | `list[str]` (**raw**) | `task_status` values that block job start. Title-cased firmware strings. |
 | `blocked_dock_status_states` | `list[str]` (**raw**) | `dock_status` values that block job start. Title-cased firmware strings. |
 | `cancel_service_exclusion_states` | `list[str]` (normalized) | If any of these appear in the `task_status` transition history of a very short job, the cancel detector treats the early return as a service event (low-battery, mop wash, dust empty) rather than a manual cancel. |
+| `cancel_detection_states` | `dict[str, str]` (normalized) | Normalized `task_status` transition strings the cancel detector matches. Keys: `active`, `returning`, `paused`. A cancel-like transition is `active`→`returning` or `paused`→`returning`. Defaults to the HA-standard `cleaning`/`returning`/`paused`. |
 | `water_level_aliases` | `dict[str, str]` | Maps lowercased water-level display strings to canonical keys (`low`/`medium`/`high`) for water-rate lookup. |
 | `wash_frequency_mode_aliases` | `dict[str, str]` | Maps lowercased wash-frequency mode strings to canonical keys (`by_time`/`by_area`/`after_each_clean`). |
 | `clean_mode_options` | `list[dict]` | User-facing dropdown options for clean mode. Each entry is `{value, label}`. Read by the card's room editor and rule editor to populate the cleaning-mode picker. Eufy: 3 entries (vacuum/mop/vacuum_mop). |
@@ -224,6 +225,7 @@ title-cased firmware strings exactly as they appear in HA.
     "blocked_task_status_states": ["Cleaning", "Returning", "Washing Mop"],
     "blocked_dock_status_states": ["Washing", "Recycling waste water"],
     "cancel_service_exclusion_states": ["returning to charge", "going to wash mop"],
+    "cancel_detection_states": {"active": "cleaning", "returning": "returning", "paused": "paused"},
     "water_level_aliases": {"small": "low", "standard": "medium", "large": "high"},
     "wash_frequency_mode_aliases": {"by time": "by_time", "by area": "by_area"},
     "clean_mode_options": [
@@ -388,6 +390,8 @@ Configures the dock event recorder (`last_mop_wash`, `last_dust_empty`,
 |-------|------|---------|---------|
 | `enabled` | `bool` | `False` | Whether to record dock events at all. Set `False` for brands with no dock actions. |
 | `triggers` | `dict[str, list[str]]` | – | Maps framework event type keys to the normalized `dock_status` strings that trigger them. |
+| `debounce_seconds` | `dict[str, float]` | `{}` | Per-event-type cooldown collapsing noisy `dock_status` flips into one counted event. Keys match `triggers`. Also gates the active-job mop-wash observation via `last_mop_wash`. Absent key (or `0`) = no debounce. |
+| `action_buttons` | `dict[str, dict]` | `{}` | Resolves the upstream button entity for each dock action (`wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`). Each value: `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets": [[str]]}` all-tokens-must-match registry fallbacks. Absent action = reported unavailable. |
 
 Framework event type keys: `last_mop_wash`, `last_dust_empty`,
 `last_dry_start`. Absent keys produce no events of that type.
@@ -401,6 +405,13 @@ Framework event type keys: `last_mop_wash`, `last_dust_empty`,
         "last_mop_wash": ["washing", "washing mop"],
         "last_dust_empty": ["emptying", "emptying dust"],
         "last_dry_start": ["drying"],
+    },
+    "debounce_seconds": {"last_mop_wash": 60},
+    "action_buttons": {
+        "wash_mop": {"entity_suffixes": ["wash_mop", "mop_wash"], "token_sets": [["wash", "mop"]]},
+        "dry_mop": {"entity_suffixes": ["dry_mop", "mop_dry"], "token_sets": [["dry", "mop"]]},
+        "stop_dry_mop": {"entity_suffixes": ["stop_dry_mop"], "token_sets": [["stop", "dry", "mop"]]},
+        "empty_dust": {"entity_suffixes": ["empty_dust", "empty_dust_bin"], "token_sets": [["empty", "dust"]]},
     },
 },
 ```
@@ -1042,8 +1053,9 @@ Top-level is `dict[component_id, ComponentEntry]`. Each entry:
 
 | Field | Type | Required | Purpose |
 |-------|------|----------|---------|
-| `sensor_suffix` | `str \| None` | yes | Suffix appended to `{object_id}_` to form the counter sensor entity ID. `None` when the component uses `proxy_for`. |
-| `proxy_for` | `str \| None` | no | Component ID to use as the sensor source. Used when firmware shares a counter between components (e.g. swivel_wheel proxies filter). |
+| `sensor_suffix` | `str \| None` | yes | Full suffix appended to `sensor.{object_id}_` to form the counter sensor entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). `None` when the component has no own counter and sources only via `proxy_for`. |
+| `proxy_for` | `str \| None` | no | Component ID whose sensor this component sources from when present, falling back to this component's own `sensor_suffix`. Used when firmware shares a counter between components (e.g. swivel_wheel proxies filter). |
+| `reset_button` | `dict` | no | Resolves the upstream replacement-counter reset button. `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets": [[str]]}` all-tokens-must-match registry fallbacks. Absent = no reset button. |
 | `default_interval_hours` | `float` | yes | Manufacturer guide recommendation. Reference anchor for the user's configured interval. |
 | `max_interval_hours` | `float` | yes | Ceiling for user-configured interval override. |
 | `label` | `str` | yes | Human-readable component name for display. |

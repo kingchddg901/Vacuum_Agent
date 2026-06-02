@@ -302,6 +302,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: uses framework defaults."
                 ),
             },
+            "cancel_detection_states": {
+                "type": "dict[str, str]",
+                "required": False,
+                "description": (
+                    "Normalized task_status transition strings the cancel "
+                    "detector matches against. Keys: 'active' (the cleaning "
+                    "state), 'returning' (the return-to-dock state), 'paused'. "
+                    "A cancel-like transition is active->returning or "
+                    "paused->returning on the task_status entity. "
+                    "Degradation: defaults to the HA-standard "
+                    "cleaning/returning/paused strings."
+                ),
+            },
             "water_level_aliases": {
                 "type": "dict[str, str]",
                 "required": False,
@@ -560,6 +573,31 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "('last_mop_wash', 'last_dust_empty', 'last_dry_start'). "
                     "Values are normalized dock_status strings. "
                     "Absent keys produce no events."
+                ),
+            },
+            "debounce_seconds": {
+                "type": "dict[str, float]",
+                "required": False,
+                "description": (
+                    "Per-event-type cooldown that collapses noisy dock_status "
+                    "flips into a single counted event. Keys are the same "
+                    "framework event type names as 'triggers'; values are "
+                    "minimum seconds between counted events. Also gates the "
+                    "active-job mop-wash observation via the 'last_mop_wash' "
+                    "key. Absent key (or 0) = no debounce, every flip counts."
+                ),
+            },
+            "action_buttons": {
+                "type": "dict[str, dict]",
+                "required": False,
+                "description": (
+                    "Resolves the upstream button entity for each dock action. "
+                    "Keyed by framework action name ('wash_mop', 'dry_mop', "
+                    "'stop_dry_mop', 'empty_dust'). Each value: "
+                    "{'entity_suffixes': [str] appended to 'button.{object_id}_' "
+                    "tried in order; 'token_sets': [[str]] each an all-tokens-"
+                    "must-match registry fallback}. Absent action = no button "
+                    "resolved (the action is reported unavailable)."
                 ),
             },
         },
@@ -926,18 +964,30 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "str | null",
                 "required": True,
                 "description": (
-                    "Suffix appended to '{object_id}_' to form the "
-                    "replacement counter sensor entity ID. "
-                    "Null when the component uses proxy_for."
+                    "Full suffix appended to 'sensor.{object_id}_' to form the "
+                    "replacement counter sensor entity ID (e.g. 'filter_remaining' "
+                    "-> sensor.{object_id}_filter_remaining). Null when the "
+                    "component has no own counter and sources only via proxy_for."
                 ),
             },
             "proxy_for": {
                 "type": "str | null",
                 "required": False,
                 "description": (
-                    "Component ID to use as the sensor source for this "
-                    "component. Used when the firmware shares a counter "
-                    "between components (e.g. swivel_wheel proxies filter)."
+                    "Component ID whose sensor this component sources from when "
+                    "present, falling back to this component's own sensor_suffix. "
+                    "Used when the firmware shares a counter between components "
+                    "(e.g. swivel_wheel proxies filter)."
+                ),
+            },
+            "reset_button": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "Resolves the upstream replacement-counter reset button. "
+                    "{'entity_suffixes': [str] appended to 'button.{object_id}_' "
+                    "tried in order; 'token_sets': [[str]] each an all-tokens-"
+                    "must-match registry fallback}. Absent = no reset button."
                 ),
             },
             "default_interval_hours": {

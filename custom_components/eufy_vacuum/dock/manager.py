@@ -28,12 +28,6 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Noisy dock states flip 1-2x within ~30s per actual cycle.
-# Debounce counters so each real dock action is counted once.
-_DOCK_EVENT_DEBOUNCE_SECONDS: dict[str, int] = {
-    "last_mop_wash": 60,
-}
-
 
 def _safe_int(value: Any, default: int = 0) -> int:
     try:
@@ -74,41 +68,32 @@ class DockManager:
         vacuum_entity_id: str,
         action: str,
     ) -> str | None:
-        """Return the upstream button entity for one dock action."""
+        """Return the upstream button entity for one dock action.
+
+        Resolution is adapter-driven: entity_suffixes (appended to
+        'button.{object_id}_') are tried first, then token_sets as registry
+        fallbacks. An action absent from dock_events.action_buttons resolves
+        to None (the action is reported unavailable).
+        """
+        from ..adapters.registry import get_adapter_config as _get_adapter_config
+
         object_id = vacuum_entity_id.split(".", 1)[1]
-        action_candidates: dict[str, list[str]] = {
-            "wash_mop": [
-                f"button.{object_id}_wash_mop",
-                f"button.{object_id}_mop_wash",
-            ],
-            "dry_mop": [
-                f"button.{object_id}_dry_mop",
-                f"button.{object_id}_mop_dry",
-            ],
-            "stop_dry_mop": [
-                f"button.{object_id}_stop_dry_mop",
-                f"button.{object_id}_stop_mop_dry",
-            ],
-            "empty_dust": [
-                f"button.{object_id}_empty_dust",
-                f"button.{object_id}_empty_dust_bin",
-            ],
-        }
-        token_candidates: dict[str, list[list[str]]] = {
-            "wash_mop": [["wash", "mop"]],
-            "dry_mop": [["dry", "mop"], ["dry", "pad"]],
-            "stop_dry_mop": [["stop", "dry", "mop"], ["stop", "dry", "pad"]],
-            "empty_dust": [["empty", "dust"]],
-        }
+        action_cfg = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("dock_events", {})
+            .get("action_buttons", {})
+            .get(action, {})
+        )
 
         registry = er.async_get(self._hass)
-        for entity_id in action_candidates.get(action, []):
+        for suffix in action_cfg.get("entity_suffixes", []):
+            entity_id = f"button.{object_id}_{suffix}"
             if self._hass.states.get(entity_id) is not None:
                 return entity_id
             if registry.async_get(entity_id) is not None:
                 return entity_id
 
-        for tokens in token_candidates.get(action, []):
+        for tokens in action_cfg.get("token_sets", []):
             entity_id = self._manager._find_button_entity_by_tokens(
                 object_id=object_id,
                 required_tokens=tokens,
@@ -385,7 +370,14 @@ class DockManager:
         }
         counter_key = counter_map.get(event_type)
         if counter_key:
-            debounce = _DOCK_EVENT_DEBOUNCE_SECONDS.get(event_type, 0)
+            from ..adapters.registry import get_adapter_config as _get_adapter_config
+
+            _debounce_cfg = (
+                (_get_adapter_config(vacuum_entity_id) or {})
+                .get("dock_events", {})
+                .get("debounce_seconds", {})
+            )
+            debounce = float(_debounce_cfg.get(event_type, 0) or 0)
             should_count = True
             if debounce > 0:
                 last_counted = vacuum_events.get(f"{event_type}_last_counted_at")

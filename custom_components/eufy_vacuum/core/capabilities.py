@@ -119,41 +119,30 @@ def _detect_maintenance_sources(
 
     maintenance_components is the adapter's component catalog dict:
     {component_id: {sensor_suffix, proxy_for, label, icon, …}}.
-    Swivel wheel uses filter_remaining as preferred proxy, falling back
-    to swivel_wheel_remaining if filter is unavailable.
+
+    ``sensor_suffix`` is the full suffix appended to ``sensor.{object_id}_`` to
+    form the counter entity ID — no brand naming is assumed here. A component
+    with ``proxy_for`` set sources from that component's sensor when present,
+    falling back to its own ``sensor_suffix`` (e.g. swivel_wheel -> filter).
     """
-    sources: dict[str, str | None] = {}
 
-    filter_entity = f"sensor.{object_id}_filter_remaining"
-    filter_available = _state_exists(hass, filter_entity) or _registry_entry_exists(
-        hass, filter_entity
-    )
-
-    for component, meta in maintenance_components.items():
-        suffix = meta.get("sensor_suffix")
-
-        if component == "swivel_wheel":
-            if filter_available:
-                sources[component] = filter_entity
-            else:
-                swivel_own = f"sensor.{object_id}_swivel_wheel_remaining"
-                if _state_exists(hass, swivel_own) or _registry_entry_exists(
-                    hass, swivel_own
-                ):
-                    sources[component] = swivel_own
-                else:
-                    sources[component] = None
-            continue
-
-        if suffix is None:
-            sources[component] = None
-            continue
-
-        candidate = f"sensor.{object_id}_{suffix}_remaining"
+    def _resolve(suffix: Any) -> str | None:
+        if not suffix:
+            return None
+        candidate = f"sensor.{object_id}_{suffix}"
         if _state_exists(hass, candidate) or _registry_entry_exists(hass, candidate):
-            sources[component] = candidate
+            return candidate
+        return None
+
+    sources: dict[str, str | None] = {}
+    for component, meta in maintenance_components.items():
+        own = _resolve(meta.get("sensor_suffix"))
+        proxy_id = meta.get("proxy_for")
+        if proxy_id:
+            proxy_meta = maintenance_components.get(proxy_id, {})
+            sources[component] = _resolve(proxy_meta.get("sensor_suffix")) or own
         else:
-            sources[component] = None
+            sources[component] = own
 
     return sources
 

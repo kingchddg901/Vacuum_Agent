@@ -4,7 +4,7 @@ Owns:
 - _parse_job_timestamp, _default_active_job_state, _derive_active_job_current_room_id
 - _normalize_active_job, _compute_current_room_elapsed_minutes
 - _is_charging, _is_low_battery_return_state
-- update_active_job_recharge_observation (_MOP_WASH_DEBOUNCE_SECONDS)
+- update_active_job_recharge_observation
 - update_active_job_mop_wash_observation, record_active_job_transition
 - _room_name_from_active_job
 - _timing_completion_threshold_minutes (_MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER)
@@ -338,8 +338,6 @@ class ActiveJobTracker:
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
         return active_job
 
-    _MOP_WASH_DEBOUNCE_SECONDS = 60
-
     def update_active_job_mop_wash_observation(
         self,
         *,
@@ -349,9 +347,10 @@ class ActiveJobTracker:
     ) -> dict[str, Any]:
         """Record a debounced mop-wash event on the active job.
 
-        The dock_status "Washing" state flips 1-2 times within a ~30-second
-        window per actual wash cycle. A 60-second cooldown collapses those
-        noise flips into a single counted event.
+        A dock's wash state can flip 1-2 times within a short window per
+        actual wash cycle. The cooldown (adapter ``dock_events.debounce_seconds``
+        keyed by ``last_mop_wash``; 0 = none) collapses those flips into one
+        counted event.
         """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if active_job.get("status") not in {"started", "paused"}:
@@ -360,11 +359,18 @@ class ActiveJobTracker:
         now_str = observed_at or _iso_now()
         last_at = active_job.get("observed_mop_wash_last_at")
 
+        _debounce_cfg = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("dock_events", {})
+            .get("debounce_seconds", {})
+        )
+        debounce_seconds = float(_debounce_cfg.get("last_mop_wash", 0) or 0)
+
         if last_at:
             try:
                 last_dt = datetime.fromisoformat(last_at.replace("Z", "+00:00"))
                 now_dt = datetime.fromisoformat(now_str.replace("Z", "+00:00"))
-                if (now_dt - last_dt).total_seconds() < self._MOP_WASH_DEBOUNCE_SECONDS:
+                if (now_dt - last_dt).total_seconds() < debounce_seconds:
                     return active_job
             except Exception:
                 # Unparseable timestamp → fall through and count the wash. Log

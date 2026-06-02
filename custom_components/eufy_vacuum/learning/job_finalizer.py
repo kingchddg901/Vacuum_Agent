@@ -1127,8 +1127,17 @@ class LearningJobFinalizer:
         if any(to_state in service_exclusion_states for _, _, to_state in transition_pairs):
             return {"cancel_likely": False, "reason": "service_state_explains_return"}
 
+        # Normalized task_status transition strings — adapter-configurable, with
+        # HA-standard defaults so an unconfigured adapter still detects cancels.
+        _cancel_states = _adapter_cfg.get("vocabulary", {}).get("cancel_detection_states", {})
+        _active_state = str(_cancel_states.get("active", "cleaning")).strip().lower()
+        _returning_state = str(_cancel_states.get("returning", "returning")).strip().lower()
+        _paused_state = str(_cancel_states.get("paused", "paused")).strip().lower()
+
         direct_returning = any(
-            entity_id == _task_status_entity and from_state == "cleaning" and to_state == "returning"
+            entity_id == _task_status_entity
+            and from_state == _active_state
+            and to_state == _returning_state
             for entity_id, from_state, to_state in transition_pairs
         )
         paused_then_returning = False
@@ -1138,7 +1147,7 @@ class LearningJobFinalizer:
             if entity_id == _task_status_entity
         ]
         for idx in range(len(recent_task_states) - 1):
-            if recent_task_states[idx] == "paused" and recent_task_states[idx + 1] == "returning":
+            if recent_task_states[idx] == _paused_state and recent_task_states[idx + 1] == _returning_state:
                 paused_then_returning = True
                 break
 
@@ -1150,7 +1159,7 @@ class LearningJobFinalizer:
         _MIN_FLOOR_MINUTES = 1.5
         actual_cleaning_minutes: float | None = None
         for t in reversed(transitions):
-            if str(t.get("to_state", "")).strip().lower() == "returning":
+            if str(t.get("to_state", "")).strip().lower() == _returning_state:
                 returning_ts = str(t.get("changed_at", "")).strip() or None
                 if returning_ts:
                     ret_dt = self.store._parse_timestamp(returning_ts)

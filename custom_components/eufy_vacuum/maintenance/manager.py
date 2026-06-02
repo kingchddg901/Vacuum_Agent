@@ -226,35 +226,32 @@ class MaintenanceManager:
         vacuum_entity_id: str,
         component: str,
     ) -> str | None:
-        """Return upstream replacement reset button entity for one component."""
+        """Return upstream replacement reset button entity for one component.
+
+        Resolution is adapter-driven from maintenance_components[component]
+        ['reset_button']: entity_suffixes (appended to 'button.{object_id}_')
+        first, then token_sets as registry fallbacks. Absent config = None.
+        """
+        from ..adapters.registry import get_adapter_config as _get_adapter_config
+
         object_id = vacuum_entity_id.split(".", 1)[1]
-        action_candidates: dict[str, list[str]] = {
-            "filter": [f"button.{object_id}_reset_filter"],
-            "sensor": [f"button.{object_id}_reset_sensors", f"button.{object_id}_reset_sensor"],
-            "side_brush": [f"button.{object_id}_reset_side_brush"],
-            "rolling_brush": [f"button.{object_id}_reset_rolling_brush"],
-            "mopping_cloth": [f"button.{object_id}_reset_mopping_cloth"],
-            "cleaning_tray": [f"button.{object_id}_reset_cleaning_tray"],
-            "swivel_wheel": [f"button.{object_id}_reset_swivel_replacement", f"button.{object_id}_reset_swivel_wheel"],
-        }
-        token_candidates: dict[str, list[list[str]]] = {
-            "filter": [["reset", "filter"]],
-            "sensor": [["reset", "sensor"], ["reset", "sensors"]],
-            "side_brush": [["reset", "side", "brush"]],
-            "rolling_brush": [["reset", "rolling", "brush"]],
-            "mopping_cloth": [["reset", "mopping", "cloth"], ["reset", "mop", "cloth"]],
-            "cleaning_tray": [["reset", "cleaning", "tray"]],
-            "swivel_wheel": [["reset", "swivel", "replacement"], ["reset", "swivel"]],
-        }
+        reset_cfg = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("maintenance_components", {})
+            .get(component, {})
+            .get("reset_button")
+            or {}
+        )
 
         registry = er.async_get(self._manager.hass)
-        for entity_id in action_candidates.get(component, []):
+        for suffix in reset_cfg.get("entity_suffixes", []):
+            entity_id = f"button.{object_id}_{suffix}"
             if self._manager.hass.states.get(entity_id) is not None:
                 return entity_id
             if registry.async_get(entity_id) is not None:
                 return entity_id
 
-        for tokens in token_candidates.get(component, []):
+        for tokens in reset_cfg.get("token_sets", []):
             entity_id = self._manager._find_button_entity_by_tokens(
                 object_id=object_id,
                 required_tokens=tokens,
