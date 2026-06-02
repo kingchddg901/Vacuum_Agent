@@ -487,7 +487,7 @@ Records that a maintenance component has been cleaned or replaced, resetting its
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"main_brush"`, `"filter"`). |
+| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"side_brush"`, `"filter"`). Valid values: `brush`, `side_brush`, `filter`, `mop`, `sensor`. |
 
 Supports response.
 
@@ -499,7 +499,7 @@ Persists a custom maintenance interval for one component, overriding the adapter
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
 | `component` | Yes | Component ID. |
-| `interval_hours` | Yes | Replacement interval in hours. Validated against the adapter's declared `max_interval_hours`. |
+| `interval_hours` | Yes | Replacement interval in hours. The backend handler trusts its caller and does **not** clamp this against any declared maximum — range validation against the adapter's default/max is done card-side in the UI before the service is called. (The backing number entity does clamp to its own min/max.) |
 
 Supports response.
 

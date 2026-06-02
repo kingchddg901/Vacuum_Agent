@@ -28,8 +28,8 @@ Fires after a cleaning job has been finalized. This covers every path to job com
 | `used_for_learning` | `bool \| null` | Whether this job was included in the learning system's stats; `null` when learning is not active |
 | `finalized_at` | `str \| null` | ISO 8601 timestamp of finalization |
 | `room_count` | `int \| null` | Number of rooms that were queued in the job |
-| `duration_minutes` | `float \| null` | Wall-clock duration of the job in minutes, net of pauses and recharges. Same value used by the post-job summary banner in the panel. |
-| `actual_cleaning_minutes` | `float \| null` | Time the robot actually spent cleaning, derived from the Returning state transition. Excludes the return-to-dock trip. Only set for single-room jobs; `null` for multi-room jobs (where it would not be meaningful). |
+| `duration_minutes` | `float \| null` | Wall-clock duration of the job in minutes, net of pauses and recharges. Same value used by the post-job summary banner in the panel. **Present only on the auto-finalize paths** (lifecycle/pause-timeout/path-blocker) — omitted from the payload when the job is finalized via the `eufy_vacuum.finalize_learning_job` service. |
+| `actual_cleaning_minutes` | `float \| null` | Time the robot actually spent cleaning, derived from the Returning state transition. Excludes the return-to-dock trip. Only set for single-room jobs; `null` for multi-room jobs (where it would not be meaningful). **Present only on the auto-finalize paths** (lifecycle/pause-timeout/path-blocker) — omitted from the payload when the job is finalized via the `eufy_vacuum.finalize_learning_job` service. |
 | `job_path` | `str \| null` | Filesystem path to the saved completed-job JSON file, or `null` if learning is not enabled |
 
 ### Example trigger
@@ -68,7 +68,8 @@ action:
 Fires when the integration determines the robot has begun cleaning a new room. There are two firing sites:
 
 - `source: "job_start"` — fired immediately after a job is started, for the first room in the queue
-- `source: "timing_rollover"` — fired after the previous room's timing threshold is exceeded and the integration advances to the next room in the queue
+- `source: "timing_rollover"` — fired when the previous room's timing threshold is exceeded and the integration advances to the next room in the queue
+- `source: "bounds_exit_early"` — fired when a confident coordinate signal advances to the next room before the timing threshold is reached
 
 ### Payload fields
 
@@ -80,7 +81,7 @@ Fires when the integration determines the robot has begun cleaning a new room. T
 | `room_id` | `str` | Room ID as a string |
 | `room_name` | `str` | Human-readable room name |
 | `started_at` | `str \| null` | ISO 8601 timestamp of when the room started |
-| `source` | `str` | Either `"job_start"` or `"timing_rollover"` |
+| `source` | `str` | One of `"job_start"`, `"timing_rollover"`, or `"bounds_exit_early"` |
 | `completed_room_ids` | `list[int]` | List of room IDs already completed in this job |
 
 ### Example trigger
@@ -114,7 +115,7 @@ action:
 
 ### When it fires
 
-Fires when a room's timing threshold is exceeded (the timing-rollover path that marks a room complete and advances to the next). This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room.
+Fires when the integration marks a room complete and advances to the next one. This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room. The rollover happens either because the room's timing threshold was exceeded (`source: "timing_rollover"`) or because a confident coordinate signal advanced past the room early (`source: "bounds_exit_early"`).
 
 ### Payload fields
 
@@ -126,7 +127,7 @@ Fires when a room's timing threshold is exceeded (the timing-rollover path that 
 | `room_id` | `str` | ID of the room that was just completed |
 | `room_name` | `str` | Human-readable name of the completed room |
 | `completed_at` | `str` | ISO 8601 timestamp of completion |
-| `source` | `str` | Always `"timing_rollover"` |
+| `source` | `str` | Either `"timing_rollover"` or `"bounds_exit_early"` |
 | `actual_duration_minutes` | `float` | How long the robot spent in the room, in minutes, rounded to 2 decimal places |
 | `confidence` | `float \| null` | Confidence score from the timing estimate, or `null` if no estimate was available |
 | `completed_room_ids` | `list[int]` | Full list of room IDs now completed in this job (includes the room just finished) |
@@ -226,8 +227,11 @@ Because it is derived from coordinate tracking rather than learned timing, it ca
 |---|---|---|
 | `vacuum_entity_id` | `str` | Entity ID of the vacuum |
 | `map_id` | `str` | Map ID the job is running on |
-| `room_id` | `int` | ID of the room whose boundary was exited |
+| `room_id` | `str` | ID of the room whose boundary was exited, as a string |
 | `room_name` | `str` | Human-readable room name |
+| `confidence` | `float` | Coordinate-tracking confidence score for the room exit |
+| `duration_seconds` | `float` | How long the robot was inside the room's boundary, in seconds, rounded to 1 decimal place |
+| `entered_at` | `str \| null` | ISO 8601 UTC timestamp of when the robot entered the room's boundary, or `null` if unknown |
 
 ### Example trigger
 

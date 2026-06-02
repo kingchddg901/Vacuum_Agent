@@ -104,7 +104,7 @@ A segment is a detected region in the map image — a polygon derived from color
 - A center point
 - Quality metadata (confidence, structural role, issues)
 
-Segments are extracted by the `detect_room_segments` function in `image_segments.py`, which uses a Pillow + NumPy + SciPy pipeline. The dark image variant is the primary input; the light variant assists with boundary detection when available.
+Segments are extracted by the `detect_room_segments` function in `adapters/eufy/segmentor.py` (re-exported through `mapping/segmenter_engines.py`), which uses a Pillow + NumPy + SciPy pipeline. The dark image variant is the primary input; the light variant assists with boundary detection when available.
 
 Segments are not rooms. A segment is a region the image analysis found in the floor plan. You link segments to rooms manually in the side panel.
 
