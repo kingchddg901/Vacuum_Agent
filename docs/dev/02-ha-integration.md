@@ -37,11 +37,14 @@ The main entry point. Called when the config entry is loaded. In order:
 6. Calls service registration functions: `async_register_services`,
    `async_register_learning_services`, `async_register_theme_services`,
    `async_register_mapping_services`.
-7. Registers background listeners: `_register_lifecycle_listeners`,
-   `_register_dock_event_listeners`, `_register_path_blocker_listeners`,
-   `_register_pause_timeout_listener`.
-8. Forwards setup to entity platforms: `button`, `switch`, `select`, `number`,
-   `sensor`, `binary_sensor`.
+7. Registers background listeners by calling each listener module's
+   `register(hass)`: `lifecycle.register(hass)`, `job_metrics.register(hass)`,
+   `dock_events.register(hass)`, `path_blockers.register(hass)`,
+   `pause_timeout.register(hass)`, `job_progress.register(hass)`,
+   `discovery.register(hass)`. See the `listeners/` package for the
+   per-group implementations.
+8. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
+   `number`, `sensor`.
 9. Registers one sidebar panel per managed vacuum via
    `panel_custom.async_register_panel`. Panel URLs are stored at
    `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
@@ -50,7 +53,8 @@ The main entry point. Called when the config entry is loaded. In order:
 
 1. Unloads all entity platforms.
 2. Removes each registered sidebar panel.
-3. Removes all background listeners.
+3. Removes all background listeners by calling each listener module's
+   `remove(hass)`.
 4. Calls all service unregistration functions.
 5. Calls `error_tracker.stop()`.
 6. Clears all runtime keys from `hass.data[DOMAIN]`.
@@ -93,8 +97,8 @@ config entry — all of that is in the storage layer.
 
 ## 3. Entity Platforms
 
-Eight platforms are registered: `button`, `switch`, `select`, `number`,
-`sensor`, and `binary_sensor`. All platform `async_setup_entry` functions pull
+Five platforms are registered: `binary_sensor`, `button`, `switch`, `number`,
+and `sensor`. All platform `async_setup_entry` functions pull
 the manager from `hass.data[DOMAIN]["runtime"]`.
 
 ### Base pattern: `EufyVacuumRoomEntity`
@@ -137,23 +141,17 @@ per-room entities. It:
 
 ### switch platform
 
-Per-room enable/disable toggles. One `EufyVacuumRoomEnableSwitch` per room per
+Per-room enable/disable toggles. One `EufyVacuumRoomEnabledSwitch` per room per
 map. State reflects `room_data["enabled"]`. Toggling calls
 `_async_update_room({"enabled": value})`.
 
-### select platform
-
-Per-room profile selectors. One `EufyVacuumRoomProfileSelect` per room per
-map. Options are available profile keys. Changing selection calls
-`_async_update_room({"profile_name": value})`.
-
 ### number platform
 
-Per-room clean pass count sliders. One `EufyVacuumRoomCleanPassesNumber` per
-room per map. Range 1–3. Changing calls
-`_async_update_room({"clean_passes": value})`.
+Per-room cleaning-queue position inputs. One `EufyVacuumRoomOrderNumber` per
+room per map. Range 0–999 (step 1, `box` mode). Changing calls
+`_async_update_room({"order": value})`.
 
-All per-room entities (switch, select, number) inherit from
+All per-room entities (switch, number) inherit from
 `EufyVacuumRoomEntity`. Room add/remove is handled dynamically via manager
 callbacks; stale entities are removed from both the platform and entity
 registry.
@@ -336,6 +334,13 @@ or integration services. Direct edits produce `.corrupt` backup files.
 }
 ```
 
+`async_initialize` (`core/manager.py`) only `setdefault`s four required
+top-level keys on load — `vacuums`, `capabilities`, `room_history`, and
+`room_rule_status`. The remaining keys shown above are created lazily by their
+owning subsystems the first time they write (e.g. the theme sub-tree is seeded
+by `ThemeManager`). Do not assume any key beyond those four exists on a fresh
+boot.
+
 See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
 ### What is stored vs runtime-only
@@ -359,11 +364,11 @@ constants in `const.py`.
 |---|---|---|---|
 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | `jobs/active_job.py` — job start and timing rollover | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source` |
 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | `jobs/active_job.py` — timing rollover or bounds exit | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source`, `actual_duration_minutes`, `confidence`, `completed_room_ids` |
-| `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `__init__.py`, `services/job_control.py`, `learning/services.py` | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
-| `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `__init__.py` path blocker listener | `vacuum_entity_id`, `map_id`, `trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, `path_block_action`, `action_taken` |
+| `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `services/job_control.py`, `learning/services.py` | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
+| `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | `vacuum_entity_id`, `map_id`, `trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, `path_block_action`, `action_taken` |
 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | `core/manager.py` inside `get_job_progress_snapshot` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | `learning/services.py` after finalization | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
-| `EVENT_JOB_PROGRESS_TICK` | `eufy_vacuum_job_progress_tick` | `jobs/job_monitor.py` periodic tick | `vacuum_entity_id`, `map_id` — lightweight polling signal for automations |
+| `EVENT_JOB_PROGRESS_TICK` | `eufy_vacuum_job_progress_tick` | `listeners/job_progress.py` periodic tick | `vacuum_entity_id`, `map_id` — lightweight polling signal for automations |
 
 ### Subscribing in automations
 
@@ -381,12 +386,15 @@ All events carry `vacuum_entity_id` so automations can filter by device.
 
 ## 8. Auto-Finalization
 
-`__init__.py` contains a state-change watcher that automatically finalizes a
-cleaning job when HA sensor states indicate the job is done.
+`listeners/lifecycle.py` registers a state-change watcher that automatically
+finalizes a cleaning job when HA sensor states indicate the job is done. (This
+logic previously lived in `__init__.py`; it moved into the `listeners/` package
+and is wired via `lifecycle.register(hass)`.)
 
 ### Watched entities
 
-`_get_lifecycle_watch_entities(vacuum_entity_id)` returns:
+`get_lifecycle_watch_entities(vacuum_entity_id)` (in `listeners/_common.py`)
+returns:
 - `vacuum.{object_id}`
 - `sensor.{object_id}_task_status`
 - `sensor.{object_id}_dock_status`
@@ -422,7 +430,7 @@ active job records when the vacuum was still returning.
 
 ### Pause timeout watchdog
 
-`_register_pause_timeout_listener` sets up a 1-minute
+`listeners/pause_timeout.py` (`pause_timeout.register(hass)`) sets up a 1-minute
 `async_track_time_interval`. On each tick it calls
 `manager.get_paused_job_timeout_report(...)` for each active map. If a timeout
 has been exceeded, it calls `manager.async_cancel_active_job(...)` and fires
@@ -432,10 +440,13 @@ has been exceeded, it calls `manager.async_cancel_active_job(...)` and fires
 
 ## 9. Dock Event Listeners
 
-`_register_dock_event_listeners` watches `sensor.{object_id}_dock_status`.
+`listeners/dock_events.py` (`dock_events.register(hass)`) watches
+`sensor.{object_id}_dock_status`. The trigger values are read from the adapter
+config at `dock_events.triggers` rather than a module-level constant — by
+default they map roughly as:
 
 ```python
-_DOCK_EVENT_TRIGGERS = {
+{
     "last_mop_wash":   {"washing", "washing mop"},
     "last_dust_empty": {"emptying dust", "emptying dust bin", "dust emptying"},
     "last_dry_start":  {"drying", "drying mop", "drying pads", "mop drying"},
@@ -444,8 +455,8 @@ _DOCK_EVENT_TRIGGERS = {
 
 When `dock_status` transitions to any trigger value:
 `manager.record_dock_event(vacuum_entity_id, event_type, dry_duration)` is
-called and the manager is saved. For `last_dry_start`, the current value of
-`select.{object_id}_dry_duration` is captured.
+called and the manager is saved. For `last_dry_start`, the current value of the
+dry-duration entity (adapter `entities.dry_duration`) is captured.
 
 Records are exposed through `EufyVacuumDockEventSensor`.
 

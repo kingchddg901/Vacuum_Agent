@@ -8,20 +8,22 @@
 
 The profile manager handles two distinct but related concepts:
 
-1. **Room profiles** — named presets for per-room cleaning settings (fan speed, clean mode, water level, etc.). Shared across all vacuums and maps. Built-in presets (Hardwood, Carpet, etc.) are protected and cannot be renamed or deleted.
+1. **Room profiles** — named presets for per-room cleaning settings (fan speed, clean mode, water level, etc.). Shared across all vacuums and maps. The four built-in presets (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`) are protected and cannot be renamed, deleted, or overwritten.
 
 2. **Run profiles** — snapshots of a complete room selection and its per-room settings for a specific (vacuum, map) pair. They let users save and restore multi-room job configurations with one tap.
 
 **Module:** `custom_components/eufy_vacuum/profiles/manager.py`
 
-**Built-in room profiles** defined in `profiles/room_profiles.py`:
+**Built-in room profiles** (`BUILT_IN_ROOM_PROFILES` in `profiles/room_profiles.py`):
 
-| Profile name | clean_mode | floor type |
-|---|---|---|
-| Hardwood | vacuum | hard |
-| Carpet | vacuum | carpet |
-| Mop | mop | hard |
-| Vacuum & Mop | vacuum_mop | hard |
+| Profile key | label | clean_mode | fan_speed | water_level | clean_intensity | path_type | clean_passes | edge_mopping | mop_required |
+|---|---|---|---|---|---|---|---|---|---|
+| `vacuum_quick` | Vacuum Only Quick | vacuum | Standard | Off | Quick | wide | 1 | False | False |
+| `vacuum_deep` | Vacuum Only Deep | vacuum | Max | Off | Deep | narrow | 2 | False | False |
+| `vacuum_mop_quick` | Quick | vacuum_mop | Standard | Medium | Quick | wide | 1 | False | True |
+| `vacuum_mop_deep` | Deep | vacuum_mop | Max | Medium | Deep | narrow | 2 | True | True |
+
+`get_default_room_profiles()` also seeds a legacy user slot `user_1` (from `DEFAULT_CUSTOM_ROOM_PROFILE`). Legacy aliases `vacuum_standard`→`vacuum_quick` and `vacuum_mop_standard`→`vacuum_mop_quick` are resolved at lookup time.
 
 ---
 
@@ -42,23 +44,29 @@ Timestamps are UTC-formatted at creation time. IDs are not guaranteed globally u
 
 ```
 data["profiles"]["room_profiles"] = {
-    "Hardwood":           { ...built-in fields... },
-    "Carpet":             { ...built-in fields... },
+    "user_1":             { ...user fields... },
     "user_20260530T...":  { ...user fields... },
 }
 ```
 
-Keys are the profile display names (used as both key and `profile_name` field). Built-in profiles are always present — they are seeded if missing.
+Only **user-created** profiles are stored here. The four built-ins are not persisted — `get_room_profiles()` merges them over the stored profiles at read time via `merge_profile_dicts()`. The store key is also the `profile_name`.
 
 ### 3.2 Run profiles
 
 ```
 data["run_profiles"][vacuum_entity_id][map_id_str][profile_id] = {
-    "profile_id":   str,
-    "label":        str,
-    "rooms":        [ { ...room snapshot... } ],
-    "created_at":   str,   # ISO timestamp
-    "updated_at":   str,   # ISO timestamp
+    "id":                str,        # == profile_id (the store key)
+    "name":              str,        # display name
+    "vacuum_entity_id":  str,
+    "map_id":            str,
+    "room_count":        int,
+    "room_ids":          list[int],
+    "room_names":        list[str],
+    "room_names_label":  str,        # ", "-joined room names
+    "expose_as_button":  bool,
+    "rooms":             [ { ...room snapshot... } ],
+    "created_at":        str,        # ISO timestamp
+    "updated_at":        str,        # ISO timestamp
 }
 ```
 
@@ -68,60 +76,95 @@ data["run_profiles"][vacuum_entity_id][map_id_str][profile_id] = {
 
 ```python
 _PROTECTED_ROOM_PROFILE_NAMES = frozenset(BUILT_IN_ROOM_PROFILES.keys())
-# → frozenset({"Hardwood", "Carpet", "Mop", "Vacuum & Mop"})
+# → frozenset({"vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep"})
 ```
 
-Any operation that would rename, delete, or overwrite a protected profile raises `ValueError`. This check applies to:
-- `delete_room_profile(profile_name)`
-- `rename_room_profile(old_name, new_name)` — both old name (if protected) and new name (if it would collide with a protected name)
-- `save_room_profile(profile_name, ...)` when `overwrite=False` and the name is protected
+Any operation that would rename, delete, or overwrite a protected profile **returns a result dict** with `reason="protected_profile"` and the relevant action flag set `False` (e.g. `{"deleted": False, "reason": "protected_profile", ...}`). These methods do **not** raise `ValueError`. The check applies to:
+- `delete_room_profile(*, profile_name)`
+- `rename_room_profile(*, profile_name, ...)` — both the source name (if protected) and a target name that would collide with a protected name
+- `save_user_room_profile(*, ..., profile_name=...)` and `overwrite_room_profile(*, profile_name, ...)` when the target name is protected
 
 ---
 
 ## 5. Room Profile Operations
 
+All room-profile CRUD methods are **keyword-only** and return **result dicts** (never raise for protected/not-found cases).
+
 ### 5.1 `get_room_profiles`
 
 ```python
-manager.get_room_profiles() -> dict[str, dict]
+manager.get_room_profiles() -> dict
+# → {
+#     "profile_count": int,
+#     "profiles": { profile_name: {label, clean_mode, fan_speed, ...}, ... },  # built-ins merged over stored
+#     "protected_profile_names": sorted(list[str]),
+#   }
 ```
 
-Returns all room profiles (built-ins + user-created) as a dict keyed by profile name. The built-ins are always present.
+Built-ins are merged over the stored user profiles via `merge_profile_dicts()`, so they are always present in `profiles`.
 
-### 5.2 `save_room_profile`
+### 5.2 `save_user_room_profile` / `overwrite_room_profile`
 
 ```python
-manager.save_room_profile(
-    profile_name: str,
-    fields: dict,
+manager.save_user_room_profile(
     *,
-    overwrite: bool = False,
-) -> str
+    label: str,
+    clean_mode: str,
+    fan_speed: str,
+    water_level: str,
+    clean_intensity: str,
+    clean_passes: int,
+    edge_mopping: bool,
+    profile_name: str | None = None,   # defaults to "user_1"
+) -> dict
+# → {"saved": True, "profile_name": str, "profile": dict}
+#   or {"saved": False, "reason": "protected_profile", ...}
 ```
 
-Creates a new room profile. If `overwrite=True`, replaces an existing user profile with the same name. Protected names always block overwrite.
+Writes a normalized profile into `data["profiles"]["room_profiles"]`. A protected `profile_name` is rejected with `reason="protected_profile"`.
 
-Returns the profile name (key).
+```python
+manager.overwrite_room_profile(
+    *,
+    profile_name: str,
+    label: str, clean_mode: str, fan_speed: str, water_level: str,
+    clean_intensity: str, clean_passes: int, edge_mopping: bool,
+) -> dict
+# → {"overwritten": bool, "profile_name": str, "profile": dict, "reason": ..., "message": ...}
+```
+
+Requires an existing editable profile — returns `reason="profile_not_found"` if absent, `reason="protected_profile"` if protected. Delegates the write to `save_user_room_profile()`.
+
+There are also `save_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, label, profile_name=None)` and `overwrite_room_profile_from_room(*, vacuum_entity_id, map_id, room_id, profile_name, label=None)`, which snapshot a room's current effective settings into a profile.
 
 ### 5.3 `rename_room_profile`
 
 ```python
-manager.rename_room_profile(old_name: str, new_name: str) -> None
+manager.rename_room_profile(
+    *,
+    profile_name: str,
+    new_profile_name: str | None = None,
+    label: str | None = None,
+) -> dict
+# → {"renamed": True, "profile_name": str, "previous_profile_name": str, "profile": dict}
+#   or {"renamed": False, "reason": ...}
 ```
 
-Renames a user profile:
-1. Rejects if `old_name` is protected.
-2. Rejects if `new_name` would collide with any existing profile (protected or user).
-3. Copies the dict to the new key, deletes the old key.
-4. Updates the `profile_name` field inside the dict.
+Renames a user profile and/or updates its display label:
+1. Rejects with `reason="protected_profile"` if `profile_name` is protected.
+2. Rejects with `reason="profile_not_found"` if no such editable profile exists.
+3. Rejects with `reason="protected_profile"` if `new_profile_name` collides with a protected name, or `reason="profile_name_exists"` if it collides with another stored profile.
+4. Copies the dict to the new key, deletes the old key, and (if `label` is given and non-empty) updates the `label` field.
 
 ### 5.4 `delete_room_profile`
 
 ```python
-manager.delete_room_profile(profile_name: str) -> None
+manager.delete_room_profile(*, profile_name: str) -> dict
+# → {"deleted": True, "profile_name": str}
+#   or {"deleted": False, "reason": "protected_profile" | "profile_not_found", ...}
 ```
 
-Deletes a user room profile. Raises `ValueError` for protected names.
+Deletes a user room profile. Returns `reason="protected_profile"` for built-ins, `reason="profile_not_found"` if absent.
 
 ---
 
@@ -131,22 +174,25 @@ When a room's settings are saved (via `update_room_settings()` or initial import
 
 ### Stage 1 — `_protected_room_config(room: dict) -> dict`
 
-Enforces carpet/mop invariants:
+Enforces carpet/mop invariants. Carpet is detected with `floor_type.startswith("carpet")` (canonical values `carpet_low_pile` / `carpet_high_pile`; bare `"carpet"` is a legacy value migrated elsewhere). Mop mode is detected as `"mop" in clean_mode or "wash" in clean_mode`.
 
 ```
-if room["floor_type"] == "carpet":
+is_carpet  = floor_type.startswith("carpet")
+is_mop_mode = ("mop" in clean_mode) or ("wash" in clean_mode)
+
+if is_carpet:
     if clean_mode in {"mop", "vacuum_mop"}:
-        clean_mode = "vacuum"         # downgrade to vacuum-only
+        clean_mode  = "vacuum"        # downgrade to vacuum-only
+        is_mop_mode = False
     water_level  = "Off"
     edge_mopping = False
 
-else (hard floor):
-    if clean_mode not in mop-capable modes:
-        water_level  = "Off"
-        edge_mopping = False
+if not is_mop_mode:                   # applies on ANY floor type
+    water_level  = "Off"
+    edge_mopping = False
 ```
 
-The rule is: carpet rooms can never mop. Non-mop modes on hard floors can never have water or edge mopping enabled.
+The rule is: carpet rooms can never mop (water/edge always cleared on carpet), and **any** non-mop mode — regardless of floor type — clears water and edge mopping.
 
 ### Stage 2 — `_finalize_room_update(room: dict) -> dict`
 
@@ -164,103 +210,132 @@ The rule is: carpet rooms can never mop. Non-mop modes on hard floors can never 
 
 ## 7. Run Profile Operations
 
-### 7.1 `get_run_profiles`
+All run-profile methods are **keyword-only** and return **result dicts**.
+
+### 7.1 `get_saved_run_profiles`
 
 ```python
-manager.get_run_profiles(
+manager.get_saved_run_profiles(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
-) -> dict[str, dict]
+    map_id: str,
+) -> dict
+# → {
+#     "vacuum_entity_id": str,
+#     "map_id": str,
+#     "profile_count": int,
+#     "profiles": [ {id, name, room_count, room_ids, room_names,
+#                    room_names_label, expose_as_button, created_at,
+#                    updated_at, summary}, ... ],   # sorted by name
+#     "library": { profile_id: {enriched profile}, ... },
+#   }
 ```
-
-Returns all run profiles for the (vacuum, map) pair. Returns `{}` if none exist.
 
 ### 7.2 `save_run_profile`
 
 ```python
 manager.save_run_profile(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
-    label: str,
-    rooms: list[dict],   # list of room dicts from current room selection
-) -> str
+    map_id: str,
+    name: str,
+    expose_as_button: bool = False,
+) -> dict
+# → {"saved": True, "profile_id": str, "profile": {enriched}}
+#   or {"saved": False, "reason": "missing_name" | "no_rooms_selected"}
 ```
 
-Creates a new run profile. Snapshots each selected room using `_snapshot_room_for_run_profile()`. Returns the new `profile_id`.
+The caller does **not** pass rooms — `save_run_profile` snapshots the **current enabled rooms** (in queue order) itself via `_current_enabled_rooms_for_run_profile()` + `_snapshot_room_for_run_profile()`. Returns `reason="no_rooms_selected"` when no rooms are enabled.
 
-**Room snapshot fields:**
+**Room snapshot fields** (from `_snapshot_room_for_run_profile`):
 
 | Field | Source |
 |---|---|
-| `room_id` | room dict |
+| `room_id` | room dict (`room_id` or `id`) |
 | `name` | room dict |
-| `profile_name` | room dict |
+| `profile_name` | room dict (default `"vacuum_quick"`) |
 | `clean_mode` | room dict |
 | `fan_speed` | room dict |
 | `water_level` | room dict |
 | `clean_intensity` | room dict |
 | `clean_passes` | room dict |
 | `edge_mopping` | room dict |
-| `order` | room dict (1-indexed) |
+| `order` | room dict (default 999) |
 
 ### 7.3 `overwrite_run_profile`
 
 ```python
 manager.overwrite_run_profile(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
+    map_id: str,
     profile_id: str,
-    rooms: list[dict],
-) -> None
+    name: str | None = None,
+    expose_as_button: bool | None = None,
+) -> dict
+# → {"overwritten": True, "profile_id": str, "profile": {enriched}}
+#   or {"overwritten": False, "reason": "profile_not_found" | "no_rooms_selected"}
 ```
 
-Replaces the rooms snapshot in an existing run profile. Preserves `label`, `profile_id`, and `created_at`. Updates `updated_at`.
+Re-snapshots the current enabled rooms into an existing run profile. Preserves `id` and `created_at`; updates `updated_at`. `name`/`expose_as_button` keep their existing value when passed `None`.
 
 ### 7.4 `rename_run_profile`
 
 ```python
 manager.rename_run_profile(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
+    map_id: str,
     profile_id: str,
-    new_label: str,
-) -> None
+    name: str,
+) -> dict
+# → {"renamed": True, "profile_id": str, "profile": {enriched}}
+#   or {"renamed": False, "reason": "profile_not_found"}
 ```
 
-Updates the `label` field. Raises `KeyError` if `profile_id` not found.
+Updates the `name` field (blank → `"Untitled"`) and `updated_at`. Returns `reason="profile_not_found"` if absent (does not raise).
 
 ### 7.5 `delete_run_profile`
 
 ```python
 manager.delete_run_profile(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
+    map_id: str,
     profile_id: str,
-) -> None
+) -> dict
+# → {"deleted": True, "profile_id": str}
+#   or {"deleted": False, "reason": "profile_not_found"}
 ```
-
-Removes the run profile from storage. No-ops if not found.
 
 ### 7.6 `apply_run_profile`
 
 ```python
 manager.apply_run_profile(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
+    map_id: str,
     profile_id: str,
 ) -> dict
+# → {
+#     "vacuum_entity_id": str,
+#     "map_id": str,
+#     "applied": bool,              # True if any room was applied
+#     "profile_id": str,
+#     "profile": dict,
+#     "applied_room_ids": list[int],
+#     "missing_room_ids": list[int],  # snapshot rooms no longer on the map
+#   }
+#   or {"applied": False, "reason": "profile_not_found", ...}
 ```
 
 Restores a saved room selection to the live room data:
 
 1. Disables **all** rooms for the (vacuum, map) pair.
-2. For each room in the profile's `rooms` list:
-   - Looks up the room by `room_id` in `data["maps"][vacuum][map_id]["rooms"]`.
-   - Enables the room.
-   - Restores saved settings: `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, `order`.
+2. For each room in the profile's `rooms` list (enumerated 1-indexed for `order`):
+   - Looks up the room by `room_id` in `data["maps"][vacuum][map_id]["rooms"]`. If absent, the id is added to `missing_room_ids` and skipped.
+   - Enables the room and restores saved settings: `profile_name`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, plus the enumeration `order`.
    - Runs `_finalize_room_update()` on the restored room.
-
-Returns a summary with `applied_count`, `skipped_count` (rooms no longer on the map), and `map_id`.
 
 ---
 
@@ -268,8 +343,8 @@ Returns a summary with `applied_count`, `skipped_count` (rooms no longer on the 
 
 | Caller | Method | When |
 |---|---|---|
-| Panel room editor | `get_room_profiles()`, `save_room_profile()`, `rename_room_profile()`, `delete_room_profile()` | Room settings save/edit |
-| Panel run profile tab | `get_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()` | Run profile CRUD |
+| Panel room editor | `get_room_profiles()`, `save_user_room_profile()`, `overwrite_room_profile()`, `rename_room_profile()`, `delete_room_profile()` | Room settings save/edit |
+| Panel run profile tab | `get_saved_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()` | Run profile CRUD |
 | `rooms/room_crud.py` | `_finalize_room_update()` | Every room settings write |
 | Panel initial map import | `_finalize_room_update()` (via save_managed_rooms) | Room creation on import |
 

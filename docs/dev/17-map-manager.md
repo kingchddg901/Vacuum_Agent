@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-`maps/map_manager.py` is a collection of **pure functions** with no class, no state, and no async operations. Every function takes `data` (the integration's live storage dict) as its first argument and operates on `data["maps"]` directly.
+`maps/map_manager.py` is a collection of **pure functions** with no class, no state, and no async operations. Every function is **keyword-only** (all parameters after `*`) and takes `data` (the integration's live storage dict), operating on `data["maps"]` directly.
 
 All mutations are in-place on the `data` dict. The caller is responsible for calling `manager.async_save()` after mutating.
 
@@ -20,16 +20,18 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
 
 ```python
 {
-    "map_id":   int | str,          # the map ID
+    "map_id":   str,                # the map ID, always stored as str(map_id)
     "metadata": {
-        "display_name":  str | None,   # human-readable map name (user-set or derived)
-        "discovered_at": str | None,   # ISO timestamp of first discovery
-        ...                            # arbitrary keys from discovery snapshot
+        "last_discovery":   dict,   # {active_map_id, room_count} from save_map_discovery_snapshot
+        "discovered_rooms": list,   # raw discovered room list from the snapshot
+        "last_rebuild":     dict,   # {map_id, room_count, preserve_existing_settings} from rebuild_map_bucket
     },
     "rooms":    dict[str, dict],    # room_id_str → managed room dict
     "summary":  dict,               # last-written summary snapshot
 }
 ```
+
+Metadata keys are written by `save_map_discovery_snapshot()` (`last_discovery`, `discovered_rooms`) and `rebuild_map_bucket()` (`last_rebuild`). There is no `display_name` or `discovered_at` field.
 
 ---
 
@@ -39,9 +41,10 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
 
 ```python
 ensure_map_bucket(
+    *,
     data: dict,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
 ) -> dict
 ```
 
@@ -50,7 +53,7 @@ Creates the map bucket at `data["maps"][vacuum_entity_id][str(map_id)]` if it do
 **Default shape on creation:**
 ```python
 {
-    "map_id":   map_id,
+    "map_id":   str(map_id),
     "metadata": {},
     "rooms":    {},
     "summary":  {},
@@ -63,9 +66,10 @@ Idempotent — safe to call even if the bucket already exists.
 
 ```python
 get_map_bucket(
+    *,
     data: dict,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
 ) -> dict
 ```
 
@@ -75,28 +79,34 @@ Returns the existing bucket at `data["maps"][vacuum_entity_id][str(map_id)]`, or
 
 ```python
 save_map_discovery_snapshot(
+    *,
     data: dict,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
     discovery_payload: dict,
-) -> None
+) -> dict
 ```
 
-Writes the raw discovery payload into the map bucket's `metadata` field:
+Calls `ensure_map_bucket()` first, then writes two metadata keys derived from `discovery_payload`:
 
 ```python
-bucket["metadata"] = discovery_payload
+bucket["metadata"]["last_discovery"] = {
+    "active_map_id": discovery_payload.get("active_map_id"),
+    "room_count":    discovery_payload.get("room_count", 0),
+}
+bucket["metadata"]["discovered_rooms"] = discovery_payload.get("rooms", [])
 ```
 
-Calls `ensure_map_bucket()` first to guarantee the bucket exists.
+Returns the map bucket. It does **not** assign `discovery_payload` directly to `metadata`.
 
 ### 3.4 `rebuild_map_bucket`
 
 ```python
 rebuild_map_bucket(
+    *,
     data: dict,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
     discovered_rooms: list[dict],
     preserve_existing_settings: bool = True,
 ) -> dict
@@ -106,12 +116,23 @@ Rebuilds the managed rooms in the bucket from a fresh discovery list:
 
 1. Calls `ensure_map_bucket()`.
 2. Reads existing rooms from the bucket.
-3. Calls `room_manager.build_managed_rooms()` with `preserve_existing_settings` controlling whether existing room settings are carried over.
-4. Writes the result back to `bucket["rooms"]`.
+3. Builds each managed room **inline** (1-indexed `order`), carrying over prior settings when `preserve_existing_settings=True`. (It does **not** call `room_manager.build_managed_rooms()`.)
+4. Writes the rebuilt rooms to `bucket["rooms"]`, sets `bucket["metadata"]["last_rebuild"]`, and writes `bucket["summary"]` (enabled/disabled counts + sorted enabled/disabled room lists).
 
-Returns the updated bucket dict.
+Returns a **summary dict** (not the bucket):
 
-When `preserve_existing_settings=True` (default), user settings (fan speed, clean mode, floor type, etc.) are preserved for rooms that still exist in the discovery list. New rooms get safe defaults.
+```python
+{
+    "vacuum_entity_id": str,
+    "map_id":           str,
+    "room_count":       int,
+    "rooms":            dict[str, dict],   # the rebuilt rooms
+    "summary":          dict,              # the bucket summary
+    "metadata":         dict,              # the bucket metadata
+}
+```
+
+When `preserve_existing_settings=True` (default), user settings (fan speed, clean mode, floor type, etc.) are preserved for rooms that still exist in the discovery list. New rooms get safe defaults. `floor_type` encodes carpet pile height in the value itself (e.g. `"carpet_low_pile"`); there is no separate `carpet_type` field.
 
 When `preserve_existing_settings=False`, all rooms are re-initialized with defaults — used for full reset flows.
 
@@ -119,25 +140,32 @@ When `preserve_existing_settings=False`, all rooms are re-initialized with defau
 
 ```python
 get_vacuum_maps_summary(
+    *,
     data: dict,
     vacuum_entity_id: str,
-) -> list[dict]
+) -> dict
 ```
 
-Returns a list of summary dicts, one per map bucket that has rooms:
+Returns a **dict** wrapping a list of per-map summaries (maps sorted by `str(map_id)`):
 
 ```python
-[
-    {
-        "map_id":       str,
-        "display_name": str,   # from metadata.display_name or "Map {map_id}"
-        "room_count":   int,
-    },
-    ...
-]
+{
+    "vacuum_entity_id": str,
+    "map_count":        int,
+    "maps": [
+        {
+            "map_id":              str,
+            "room_count":          int,
+            "enabled_room_count":  int,   # from summary.enabled_count
+            "disabled_room_count": int,   # from summary.disabled_count
+            "last_discovery":      dict,  # from metadata.last_discovery
+        },
+        ...
+    ],
+}
 ```
 
-Maps with empty `rooms` dicts are excluded from the summary.
+There is no `display_name` field. Maps with empty `rooms` dicts are **not** excluded — every map bucket is reported.
 
 ---
 
@@ -164,4 +192,4 @@ Maps with empty `rooms` dicts are excluded from the summary.
 | `setup/workflow.py` | `get_map_bucket()` | `import_active_map()` existence check |
 | `setup/delete.py` | reads `data["maps"]` directly | `delete_map()` protection evaluation |
 
-> **See also:** [15-setup-system](15-setup-system.md) §3 for the `import_active_map` workflow that calls `ensure_map_bucket()` and `rebuild_map_bucket()`; [08-rooms-system](08-rooms-system.md) §5 for `RoomMapManager` which reads and writes the rooms dict inside each map bucket.
+> **See also:** [15-setup-system](15-setup-system.md) §3 for the `import_active_map` workflow that calls `ensure_map_bucket()` and `rebuild_map_bucket()`; [08-rooms-system](08-rooms-system.md) §5 for `RoomMapManager` (`rooms/room_crud.py`) which reads and writes the rooms dict inside each map bucket.

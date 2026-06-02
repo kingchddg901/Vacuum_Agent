@@ -257,11 +257,11 @@ core/manager.py — start_selected_rooms()
 listeners/lifecycle.py  (state-change listener on vacuum entity)
   Calls manager.handle_vacuum_state_change(state, attrs)
   → Updates data["active_jobs"] lifecycle fields
-  → Fires EVENT_JOB_PROGRESS_TICK (every 5s while running)
   │
   ▼
-listeners/job_progress.py  (job progress tick listener)
+listeners/job_progress.py  (5s time-interval ticker)
   Calls manager.get_job_progress_snapshot()
+  → Fires EVENT_JOB_PROGRESS_TICK (every 5s while running)
   → Card receives tick, re-fetches snapshot, updates progress display
   │
   ▼  (vacuum returns to dock)

@@ -31,12 +31,14 @@ maintenance_status(*, remaining_hours: float, interval_hours: float) -> str
 Converts usage-hours tracking to a status bucket.
 
 ```
-ratio = remaining_hours / interval_hours   (safe: returns "good" if interval_hours == 0)
+if interval_hours <= 0:        → "unknown"   (cannot compute a ratio)
 
-if ratio <= 0:    → "replace_now"
-if ratio <= 0.15: → "replace_soon"
-if ratio <= 0.30: → "warning"
-else:             → "good"
+ratio = remaining_hours / interval_hours
+
+if remaining_hours <= 0: → "replace_now"
+if ratio <= 0.1:         → "replace_soon"
+if ratio <= 0.25:        → "warning"
+else:                    → "good"
 ```
 
 ### 2.2 `replacement_status`
@@ -48,7 +50,7 @@ replacement_status(*, state_value: str | float | None) -> str
 Converts an upstream percentage-remaining sensor state to a status bucket.
 
 ```
-pct = float(state_value)   (returns "good" if parse fails or value is None)
+pct = float(state_value)   (returns "unknown" if parse fails or value is None)
 
 if pct <= 5:  → "replace_now"
 if pct <= 15: → "replace_soon"
@@ -63,14 +65,16 @@ else:         → "good"
 Integration-managed maintenance intervals are stored at:
 
 ```
-data["maintenance"][vacuum_entity_id][component_id] = {
+data["maintenance"][vacuum_entity_id][component] = {
     "reset_at_usage_hours": float,   # vacuum usage hours at last reset
     "reset_at":             str,     # ISO timestamp of last reset
-    "interval_hours":       float,   # optional user override of adapter default
+    "interval_hours":       float,   # optional user override of adapter default (see note)
 }
 ```
 
 `data["maintenance"]` is created lazily. Missing keys default to "never reset" (treated as zero hours since reset in computations).
+
+`reset_maintenance()` writes **only** `reset_at_usage_hours` and `reset_at` — it does not write `interval_hours`. The optional `interval_hours` override key is written elsewhere (by `set_maintenance_interval` and the `EufyVacuumMaintenanceIntervalNumber` entity). `get_upkeep_snapshot()` reads that override key here when present, falling back to the adapter-declared `default_interval_hours` when it is absent or uncoercible (see §6).
 
 ---
 
@@ -109,135 +113,157 @@ The upkeep guide library maps per-model-family maintenance schedules (cleaning p
 ### 5.1 `get_upkeep_snapshot`
 
 ```python
-manager.get_upkeep_snapshot(vacuum_entity_id: str) -> dict
+manager.get_upkeep_snapshot(*, vacuum_entity_id: str) -> dict
 ```
 
-Returns a composite snapshot used by the panel's maintenance tab:
+Keyword-only. Returns a composite snapshot used by the panel's maintenance tab:
 
 ```python
 {
     "replacement_items": [
         {
-            "component_id": str,
+            "component":    str,
             "label":        str,
-            "icon":         str,
-            "status":       str,        # "replace_now" | "replace_soon" | "warning" | "good"
-            "pct_remaining": float | None,
-            "sensor_entity_id": str | None,
+            "status":       str,        # "unknown" | "replace_now" | "replace_soon" | "warning" | "good"
+            "remaining_percent": float | None,
+            "entity_id":    str | None,
+            # ... plus remaining_value, remaining_hours, usage_hours,
+            #     total_life_hours, reset metadata, guide, etc.
         },
         ...
     ],
     "maintenance_items": [
         {
-            "component_id":      str,
+            "component":         str,
             "label":             str,
-            "icon":              str,
             "status":            str,
             "remaining_hours":   float,
             "interval_hours":    float,
             "reset_at":          str | None,
-            "reset_at_usage_hours": float | None,
+            # ... plus used_since_reset_hours, current_usage_hours,
+            #     default/max_interval_hours, guide, etc.
         },
         ...
     ],
-    "attention_count":          int,    # count of items not in "good" status
+    "attention_count":          int,    # count of items in warning/replace_soon/replace_now
     "highest_priority_status":  str,    # worst status across all items
+    "station_water":            str | None,   # flat: raw station water state value
+    "station_water_label":      str | None,   # flat: "NN%" or display label
+    "station_water_entity":     str | None,
     "dock_events": {
-        "mop_wash_count":   int,
-        "dust_empty_count": int,
-        "dry_start_count":  int,
-        "last_mop_wash":    str | None,  # ISO timestamp
-        "last_dust_empty":  str | None,
-        "last_dry_start":   str | None,
+        "last_mop_wash":     str | None,  # ISO timestamp
+        "last_dust_empty":   str | None,
+        "last_dry_start":    str | None,
+        "last_dry_duration": str | None,
+        "mop_wash_count":    int,
+        "dust_empty_count":  int,
+        "dry_start_count":   int,
     },
-    "station_water": {
-        "pct":    float | None,
-        "status": str,
-    },
+    # ... plus vacuum_entity_id, dock_status[_label/_entity],
+    #     model_meta, attention_summary, updated_at.
 }
 ```
 
-**Status priority order** (for `highest_priority_status`): `"replace_now"` > `"replace_soon"` > `"warning"` > `"good"`.
+`station_water` is exposed as **flat keys** (`station_water`, `station_water_label`, `station_water_entity`) — not a `{pct, status}` sub-dict.
+
+**Status priority order** (for `highest_priority_status`): `"replace_now"` > `"replace_soon"` > `"warning"` > `"good"` > `"unknown"`.
 
 ### 5.2 `get_maintenance_remaining`
 
 ```python
 manager.get_maintenance_remaining(
+    *,
     vacuum_entity_id: str,
-    component_id: str,
-) -> float
+    component: str,
+    interval_hours: float,
+) -> dict
 ```
 
-Computes remaining integration-tracked hours:
+Keyword-only. The effective `interval_hours` is supplied by the **caller** (e.g.
+`get_upkeep_snapshot`, which resolves the override-vs-default precedence — see §6);
+this method does not read the override itself. Computes remaining integration-tracked hours:
 
 ```
-interval_hours = data["maintenance"][vacuum][component].get("interval_hours")
-                 or adapter default_interval_hours
-
 reset_usage    = data["maintenance"][vacuum][component].get("reset_at_usage_hours", 0.0)
-current_usage  = current vacuum usage_hours (from vacuum state attributes)
+current_usage  = source sensor usage_hours attribute (0.0 if unavailable)
 
 used_since_reset = max(current_usage - reset_usage, 0.0)
 remaining        = max(interval_hours - used_since_reset, 0.0)
 ```
 
-Returns `0.0` if no reset record exists (treated as fully elapsed).
+Returns a **dict**:
+
+```python
+{
+    "vacuum_entity_id":      str,
+    "component":             str,
+    "remaining_hours":       float,        # rounded to 2 dp
+    "used_since_reset_hours": float,
+    "interval_hours":        float,        # echoed back unchanged
+    "current_usage_hours":   float,
+    "reset_at_usage_hours":  float,
+    "reset_at":              str | None,
+    "source_entity":         str | None,
+    "source_available":      bool,
+}
+```
+
+When no reset record exists, `reset_at_usage_hours` defaults to `0.0` (so all current usage counts as elapsed).
 
 ### 5.3 `reset_maintenance`
 
 ```python
 manager.reset_maintenance(
+    *,
     vacuum_entity_id: str,
-    component_id: str,
-) -> None
+    component: str,
+) -> dict
 ```
 
-Records a reset event:
+Keyword-only. Snapshots the source sensor's current `usage_hours` as the new reset point and **replaces** the component's stored entry with exactly:
 
 ```python
-data["maintenance"][vacuum][component_id] = {
-    "reset_at_usage_hours": current_usage_hours,  # from vacuum.attributes
+data["maintenance"][vacuum][component] = {
+    "reset_at_usage_hours": usage_hours,   # from source sensor attributes
     "reset_at": iso_now(),
 }
 ```
 
-Does **not** overwrite an existing `interval_hours` override — that field is preserved.
+Because the entry is replaced wholesale, this write does **not** carry over any prior `interval_hours` override key. Returns a result dict (`reset: True` on success, or `reset: False` with a `reason` of `"no_source_entity"`, `"source_unavailable"`, or `"invalid_usage_hours"` on failure).
 
-### 5.4 `set_interval_override`
-
-```python
-manager.set_interval_override(
-    vacuum_entity_id: str,
-    component_id: str,
-    interval_hours: float,
-) -> None
-```
-
-Stores a user-specified interval. Clamped to `[1.0, max_interval_hours]` where `max_interval_hours` is read from the adapter component definition. Writes to `data["maintenance"][vacuum][component_id]["interval_hours"]`. Persists alongside any existing reset record.
-
-### 5.5 `get_component_catalog`
+### 5.4 `get_maintenance_state`
 
 ```python
-manager.get_component_catalog(vacuum_entity_id: str) -> dict
+manager.get_maintenance_state(*, vacuum_entity_id: str) -> dict
 ```
 
-Returns the adapter's full component definition dict for all maintenance components registered for the vacuum. Read-only — does not modify storage.
+Keyword-only. Returns the per-component maintenance reset snapshot dict for one vacuum
+(`data["maintenance"][vacuum_entity_id]`), creating the lazy `data["maintenance"]` and
+per-vacuum sub-dict if absent. This is the read/init accessor used by `reset_maintenance`
+and `get_maintenance_remaining`.
 
 ---
 
 ## 6. Interval Override Precedence
 
-When computing remaining hours, the effective interval is chosen as:
+`get_upkeep_snapshot()` resolves the effective interval before calling
+`get_maintenance_remaining()` (which itself just takes the resolved value):
 
 ```
 stored_override = data["maintenance"][vacuum][component].get("interval_hours")
-if stored_override is not None:
-    interval_hours = stored_override
-else:
-    interval_hours = adapter["maintenance_components"][component]["default_interval_hours"]
+try:
+    interval_hours = float(stored_override) if stored_override is not None
+                     else default_interval_hours
+except (TypeError, ValueError):
+    interval_hours = default_interval_hours   # uncoercible override → fall back
 ```
 
-The stored override takes **complete precedence** over the adapter default. The adapter's `max_interval_hours` is only enforced at write time (`set_interval_override`), not at read time.
+where `default_interval_hours` comes from `adapter["maintenance_components"][component]`.
+A coercible stored override takes **complete precedence** over the adapter default;
+an absent or uncoercible override falls back to the default. The adapter's
+`max_interval_hours` is surfaced in the snapshot for the card's interval editor and is
+enforced at write time (by `set_maintenance_interval` / the interval number entity),
+not at read time.
 
 ---
 
@@ -253,9 +279,8 @@ The stored override takes **complete precedence** over the adapter default. The 
 
 | Caller | Method | When |
 |---|---|---|
-| Panel maintenance tab | `get_upkeep_snapshot(vacuum_entity_id)` | On load / refresh |
-| Panel reset action | `reset_maintenance(vacuum_entity_id, component_id)` | User presses reset |
-| Panel interval override | `set_interval_override(vacuum_entity_id, component_id, hours)` | User saves interval |
-| Learning job finalizer | `get_component_catalog(vacuum_entity_id)` | Job health context |
+| Panel maintenance tab | `get_upkeep_snapshot(vacuum_entity_id=...)` | On load / refresh |
+| Panel reset action | `reset_maintenance(vacuum_entity_id=..., component=...)` | User presses reset |
+| Reset / remaining flow | `get_maintenance_state(vacuum_entity_id=...)` | Read/init reset snapshots |
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) §maintenance_components for the adapter config that declares component IDs, default intervals, and labels consumed here; [14-dock-manager](14-dock-manager.md) §8 for dock event recording that feeds `get_upkeep_snapshot()`.

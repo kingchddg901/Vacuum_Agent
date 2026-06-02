@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The error tracker observes vacuum error signals in real time and latches them into three per-device buffers so the learning system can harvest a meaningful error payload at job-end. It does **not** expose HA entities or fire events directly — it is an internal accumulator consumed by `learning/job_finalizer.py`.
+The error tracker observes vacuum error signals in real time and latches them into three per-device fields (two single-value latches plus one ring buffer — see §3) so the learning system can harvest a meaningful error payload at job-end. It does **not** expose HA entities or fire events directly — it is an internal accumulator consumed by `learning/job_finalizer.py`.
 
 **Design goals:**
 
@@ -31,36 +31,82 @@ The error tracker observes vacuum error signals in real time and latches them in
 
 ## 3. Storage Layout
 
-All state lives at `data["error_tracker"][vacuum_entity_id]`. The outer key is the vacuum entity ID string (`"vacuum.alfred"`). The inner dict has three keys:
+All state lives at `data["error_tracker"][vacuum_entity_id]`. The outer key is the vacuum entity ID string (`"vacuum.alfred"`). The inner record dict has three keys, **two of which are single values and one of which is a list**:
 
 ```
 data["error_tracker"]["vacuum.alfred"] = {
-    "active_run_error":  [...],   # errors latched during the current run
-    "last_device_error": [...],   # most recent error per device (persists across jobs)
-    "recent_errors":     [...],   # rolling window of all observed errors
+    "active_run_error":  {...} | None,   # single latch for the current run, or None
+    "last_device_error": {...} | None,   # single most-recent-error dict, or None
+    "recent_errors":     [...],          # rolling ring buffer of error dicts
 }
 ```
 
-Each buffer contains error record dicts. All three share the same record shape (see §4).
+`active_run_error` and `last_device_error` are each initialized to `None` (not a list). They hold a single dict when populated. `recent_errors` is the only list. The three values have **different shapes** — see §4.
 
-The tracker initializes the storage path lazily — `start()` creates the per-device dict for each vacuum ID if it does not already exist.
+The tracker initializes the per-device record lazily — `_ensure_record()` (called from `start()`, the read accessors, and every edge handler) creates the per-device dict with the three default keys (`None`, `None`, `[]`) if it does not already exist, and back-fills any missing key on an existing record.
 
 ---
 
-## 4. Error Record Shape
+## 4. Record Shapes
 
-When an error is finalized and written to a buffer, the record contains:
+The three values in a per-device record have distinct shapes.
+
+### 4.1 `active_run_error` — the run latch
+
+A single latch dict (or `None`). Formed on the first rising edge while a job is active, extended on subsequent rising edges, and nulled out on harvest. Fields:
 
 | Field | Type | Description |
 |---|---|---|
-| `vacuum_entity_id` | str | Which vacuum the error belongs to |
-| `job_id` | str \| None | Active job ID at time of error (None if no job was active) |
-| `error_message` | str | Human-readable error string (primary channel) or `"Unknown error during run"` if grace expired |
-| `error_code` | int \| None | Numeric error code from vacuum state attributes; attribute keys tried in order: `error_code`, `code`, `errorCode` — first non-zero int wins |
-| `vacuum_state` | str | `vacuum.state` value at time of finalization |
-| `task_status` | str | `task_status` entity state at time of finalization |
-| `timestamp` | str | ISO-8601 timestamp of finalization |
-| `source` | str | `"error_message"` (primary) or `"secondary_channel"` |
+| `active_job_id` | str | Job ID in flight when the latch first formed |
+| `first_seen_at` | str | ISO-8601 timestamp of the first rising edge |
+| `last_seen_at` | str | ISO-8601 timestamp of the most recent rising or falling edge |
+| `first_seen_job_elapsed_seconds` | int | Seconds into the job when the first error fired |
+| `error_count` | int | Number of rising edges accumulated into this latch |
+| `current_message` | str | Latest error message (`""` after recovery) |
+| `current_code` | int \| None | Latest numeric error code (`None` after recovery) |
+| `errored_room_id` | str \| None | `current_room_id` of the active job at first error |
+| `recovered` | bool | `True` once the message clears mid-run; flips back to `False` on a fresh rising edge |
+| `errors` | list[dict] | Per-edge sub-records, capped at `_LATCH_ERRORS_LIMIT` (see §4.4) |
+
+**Per-edge entry inside `errors[]`:**
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | str | Error string for this edge |
+| `code` | int \| None | Numeric code for this edge |
+| `captured_at` | str | ISO-8601 timestamp |
+| `job_elapsed_seconds` | int | Seconds into the job at this edge |
+| `room_id` | str \| None | Active-job room at this edge |
+| `recovered_at` | str \| None | ISO-8601 timestamp stamped when this edge recovers (else `None`) |
+
+### 4.2 `last_device_error` — most recent error
+
+A single dict (or `None`), overwritten on every rising edge regardless of run context:
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | str | Human-readable error string |
+| `code` | int \| None | Numeric error code (see §4.4 for extraction) |
+| `captured_at` | str | ISO-8601 timestamp |
+| `vacuum_state_at_capture` | str \| None | `vacuum.state` value at capture |
+| `was_during_active_run` | bool | True if a job was in flight |
+| `active_job_id_at_capture` | str \| None | Job ID at capture, if any |
+
+### 4.3 `recent_errors` — ring buffer entry
+
+Each entry in the `recent_errors` list:
+
+| Field | Type | Description |
+|---|---|---|
+| `message` | str | Human-readable error string |
+| `code` | int \| None | Numeric error code |
+| `captured_at` | str | ISO-8601 timestamp |
+| `active_job_id` | str \| None | Job ID at capture, if any |
+| `vacuum_state` | str \| None | `vacuum.state` value at capture |
+
+### 4.4 Error-code extraction
+
+Numeric codes are pulled from the entity's `extra_state_attributes` by `_read_error_code_attr()`. Attribute keys are tried in order — `error_code`, `code`, `errorCode` — across the `error_message` entity then the vacuum entity; the first non-zero int wins. A code of `0` is treated as "no code captured" (upstream uses `0` as the no-error sentinel), so it is recorded as `None`.
 
 ---
 
@@ -128,46 +174,44 @@ Registers state-change listeners for all watched entities across all vacuum IDs.
 ```python
 tracker.stop() -> None
 ```
-Unsubscribes all listeners and cancels any pending grace timers. Called from `EufyVacuumManager.async_will_remove_from_hass()`.
+Unsubscribes all listeners and cancels any pending grace timers. The `ErrorTracker` is constructed and `.start()`ed in `__init__.py`'s `async_setup_entry`; `.stop()` is called from `async_unload_entry` (see §10).
 
 ### 7.2 Harvest
 
 ```python
-tracker.harvest_active_run(vacuum_entity_id: str, job_id: str) -> list[dict]
+tracker.harvest_active_run(vacuum_entity_id: str, job_id: str | None) -> dict | None
 ```
-Returns the contents of `active_run_error` for the given vacuum and clears the buffer. Called by `learning/job_finalizer.py` at job-end to collect any errors that occurred during the job. Returns an empty list if no errors were latched.
+Returns the single `active_run_error` latch dict for the given vacuum and nulls it out (sets it back to `None`). Called by `learning/job_finalizer.py` at job-end so the completed job carries its error history. Returns `None` if no latch was formed. A mismatched `job_id` (the latch belongs to a previous, un-harvested job) is logged at debug and the latch is returned anyway — losing history is worse than attaching it to the wrong job.
 
 ### 7.3 Acknowledge
 
 ```python
-tracker.acknowledge(vacuum_entity_id: str, scope: str = "both") -> None
+tracker.acknowledge(vacuum_entity_id: str, *, scope: str = "both") -> bool
 ```
-Clears one or more error buffers for a vacuum. Used by the panel's "acknowledge errors" action.
+Clears one or both single-value latches for a vacuum. `scope` is **keyword-only**. Returns `True` if a record existed for the vacuum, `False` otherwise. Used by the panel's "acknowledge errors" action.
 
 | `scope` value | Effect |
 |---|---|
 | `"active_run"` | Clears only `active_run_error` |
 | `"last_device"` | Clears only `last_device_error` |
-| `"both"` (default) | Clears both `active_run_error` and `last_device_error` |
+| `"both"` (default) | Clears both `active_run_error` and `last_device_error` (sets each to `None`) |
 
 `recent_errors` is never cleared by `acknowledge` — it is a non-destructive rolling log.
 
 ### 7.4 Update Listeners
 
 ```python
-unsub = tracker.add_update_listener(callback: Callable) -> Callable
+unsub = tracker.add_update_listener(cb: Callable[[str], None]) -> Callable[[], None]
 ```
-Registers a callback invoked whenever the tracker writes a new error record to any buffer. The callback receives no arguments. Returns an unsubscribe callable.
+Registers a callback fired whenever a vacuum's latch state changes (rising edge, falling edge, harvest, ack). The callback is invoked with a single argument — the `vacuum_entity_id` whose state changed — not with no arguments. Returns an unsubscribe callable.
 
 ---
 
 ## 8. Buffer Limits
 
-All three buffers enforce maximum lengths on append:
-
-- `active_run_error`: capped at `_LATCH_ERRORS_LIMIT` (50). Oldest entries dropped when limit is reached.
-- `last_device_error`: replaced entirely on each write (single-entry semantics, not a rolling list).
-- `recent_errors`: capped at `_RECENT_ERRORS_LIMIT` (50). Oldest entries dropped when limit is reached.
+- `active_run_error`: a single latch dict, not a list. The `_LATCH_ERRORS_LIMIT` (50) cap applies to the nested `errors[]` list **inside** the latch — oldest per-edge entries are dropped when that list exceeds 50. The latch itself is one dict per run.
+- `last_device_error`: a single dict, replaced entirely on each write (single-value semantics, not a rolling list).
+- `recent_errors`: a list capped at `_RECENT_ERRORS_LIMIT` (50). Oldest entries dropped when the limit is reached.
 
 ---
 
@@ -192,7 +236,7 @@ All lookups use `get_adapter_value()` with safe fallbacks — the tracker degrad
 
 | Caller | Method called | When |
 |---|---|---|
-| `EufyVacuumManager.async_setup()` | `tracker.start(vacuum_entity_ids)` | Integration load |
-| `EufyVacuumManager.async_will_remove_from_hass()` | `tracker.stop()` | Integration unload |
+| `__init__.py` `async_setup_entry` | `ErrorTracker(...)` + `tracker.start(vacuum_entity_ids)` | Integration load |
+| `__init__.py` `async_unload_entry` | `tracker.stop()` | Integration unload |
 | `learning/job_finalizer.py` | `tracker.harvest_active_run(vacuum_entity_id, job_id)` | Job finalization |
-| Panel error-acknowledge service | `tracker.acknowledge(vacuum_entity_id, scope)` | User action |
+| Panel error-acknowledge service | `tracker.acknowledge(vacuum_entity_id, scope=...)` | User action |

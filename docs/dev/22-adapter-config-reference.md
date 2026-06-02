@@ -1252,7 +1252,8 @@ just room dispatch):
 
 The framework exposes five `eufy_vacuum.*` services for managing
 adapter configs from the future UI flow and for diagnostic use today.
-All are registered in `services.py`. The central index of every
+They are registered in the `services/` package (e.g.
+`services/adapter_config.py`). The central index of every
 integration service lives in
 [advanced/03-services.md](../advanced/03-services.md).
 

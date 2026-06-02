@@ -9,13 +9,18 @@
 The `listeners/` package contains eight modules that register HA event and state-change subscriptions at integration load time. Each module has a consistent two-function public surface:
 
 ```python
-register(hass: HomeAssistant, manager: EufyVacuumManager) -> None
-remove(hass: HomeAssistant, manager: EufyVacuumManager) -> None
+register(hass: HomeAssistant) -> None
+remove(hass: HomeAssistant) -> None
 ```
 
-Unsubscribe callables are stored on `manager.data[DATA_RUNTIME]` or in module-level dicts. `remove()` cancels all subscriptions registered by that module.
+There is no `manager` parameter — each module resolves the manager from
+`hass.data[DOMAIN][DATA_RUNTIME]` itself. Unsubscribe callables are stored under
+a module-specific key in `hass.data[DOMAIN]` (or in module-level dicts).
+`remove()` cancels all subscriptions registered by that module.
 
-All listeners are wired from `EufyVacuumManager.async_setup()` and torn down from `async_will_remove_from_hass()`.
+All listeners are wired from `__init__.py` `async_setup_entry` (each module's
+`register(hass)`) and torn down from `async_unload_entry` (each module's
+`remove(hass)`).
 
 ---
 

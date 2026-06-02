@@ -14,7 +14,7 @@ The battery health system answers three questions:
 2. **How fast does it charge today, vs how fast it used to?** Zone-aware rate tracking + a baseline-relative health proxy.
 3. **What does each cleaning job cost in battery terms?** Per-job drain rates and per-mode aggregates.
 
-The architecture is a single manager (`BatteryHealthManager`) that listens for HA state changes on the vacuum's battery sensor and the vacuum entity itself, classifies each charge session at open time, accumulates samples + sessions, and feeds ten read-only sensors. Job-level metrics arrive from the learning system's `JobFinalizer` via a direct call.
+The architecture is a single manager (`BatteryHealthManager`) that listens for HA state changes on the vacuum's battery sensor and the vacuum entity itself, classifies each charge session at open time, accumulates samples + sessions, and feeds 12 read-only sensors. Job-level metrics arrive from the learning system's `JobFinalizer` via a direct call.
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
@@ -47,12 +47,13 @@ The architecture is a single manager (`BatteryHealthManager`) that listens for H
       │ record_job_metrics (direct call)    │ HA sensors poll
       │                                     │ via update listener
 ┌─────┴─────────────────┐         ┌─────────┴────────────────────┐
-│ JobFinalizer.finalize │         │ BatteryHealthManager → 10    │
+│ JobFinalizer.finalize │         │ BatteryHealthManager → 12    │
 │   → compute_job_      │         │ Sensor entities              │
 │     battery_metrics   │         │   _charge_cycles, _charge_   │
-│   → battery_manager.  │         │   rate, _battery_health,     │
-│     record_job_metrics│         │   _last_job_*, _mid_job_     │
-└───────────────────────┘         │   recharge_rate              │
+│   → battery_manager.  │         │   rate(_low/_high_zone),     │
+│     record_job_metrics│         │   _battery_health, _cc/_cv_  │
+└───────────────────────┘         │   charge_speed, _last_job_*, │
+                                  │   _mid_job_recharge_rate     │
                                   └──────────────────────────────┘
 ```
 
@@ -65,7 +66,7 @@ custom_components/eufy_vacuum/battery/
 ├── __init__.py        # exports BatteryHealthManager
 ├── manager.py         # BatteryHealthManager + tunables
 ├── store.py           # JSONL/CSV writers (raw_store)
-├── sensors.py         # 10 SensorEntity subclasses + build_battery_sensors()
+├── sensors.py         # 7 SensorEntity subclasses + build_battery_sensors() (12 instances)
 └── job_metrics.py     # compute_job_battery_metrics() — pure compute
 ```
 
@@ -84,16 +85,19 @@ All in `battery/manager.py`:
 
 | Constant | Default | Purpose |
 |---|---|---|
-| `MAX_DELTA_PCT` | 50.0 | Reject single-sample deltas this large or larger. Prevents inflation from sensor resets / HA gaps. |
+| `MAX_DELTA_PCT` | 3.0 | Reject single-sample deltas this large or larger. Prevents inflation from sensor resets / HA gaps. |
 | `MAX_RATE_INTERVAL_SEC` | 600.0 | Skip rate computation when sample interval exceeds this. Drain still counts toward cycles (drain is time-independent). |
 | `LOW_ZONE_MAX` | 29 | Battery level ≤ this counts as "low zone". |
 | `HIGH_ZONE_MIN` | 80 | Battery level ≥ this counts as "high zone". |
 | `SESSION_MAX_HOURS` | 12.0 | Force-close stale open sessions older than this. |
 | `HISTORY_LIMIT` | 50 | Max sessions kept in `session_history_recent` ring buffer. |
-| `BASELINE_SAMPLE_COUNT` | 5 | Qualifying full charges needed to lock in the baseline. |
-| `CURRENT_WINDOW_DAYS` | 7 | Window for the "current" health average. |
-| `HEALTH_QUALIFY_START_MAX` | 30 | A "qualifying full charge" starts at or below this. |
-| `HEALTH_QUALIFY_END_MIN` | 95 | …and ends at or above this. |
+| `BASELINE_SAMPLE_COUNT` | 1 | Qualifying full charges needed to lock in the baseline. The baseline is per-install, so the first valid session anchors it. |
+| `CURRENT_WINDOW_DAYS` | 14 | Window for the "current" health average. Wider than 7 days because single-room users rarely produce qualifying sessions. |
+| `HEALTH_QUALIFY_START_MAX` | 50 | A "qualifying full charge" starts at or below this. |
+| `HEALTH_QUALIFY_END_MIN` | 90 | …and ends at or above this. |
+| `CC_ZONE_MIN` | 50 | Lower clip bound of the CC (constant-current, capacity-proxy) regime. |
+| `CC_ZONE_MAX` | 80 | Boundary between the CC and CV regimes. |
+| `CV_ZONE_MAX` | 90 | Upper clip bound of the CV (constant-voltage taper, resistance-proxy) regime. |
 | `POST_JOB_CHARGE_LINK_HOURS` | 4.0 | Window in which the next charge session is attached to the just-finished job. |
 
 ---
@@ -127,11 +131,17 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
                     "rate_high_zone_per_min": 0.18,
                     "last_charge_duration_min": 73.0,
                     "last_charge_delta_pct": 40,
-                    "health_pct": 92.5,
+                    "health_pct": 92.5,        # alias of cc/cv? — see note below
+                    "cc_charge_speed_pct": 96.0,   # CC regime index (50→80, capacity proxy)
+                    "cv_charge_speed_pct": 92.5,   # CV regime index (80→90, resistance proxy)
                 },
                 "baseline": {
-                    "min_per_pct": 1.05,
-                    "session_count": 5,
+                    # Per-regime anchors. health_pct (and the _battery_health
+                    # sensor) is an alias of the CV index.
+                    "cc_min_per_pct": 0.90,
+                    "cv_min_per_pct": 1.05,
+                    "session_count": 1,
+                    "anchored_at": "...",
                 },
                 "session_history_recent": [
                     {... session summary ...},
@@ -327,13 +337,24 @@ At every sample, if `current_session.start_ts` is older than `SESSION_MAX_HOURS`
 
 Called on every session close. Two phases:
 
-### 7.1 Baseline lock-in
+A "qualifying" charge session starts at or below `HEALTH_QUALIFY_START_MAX` (50) and ends at or above `HEALTH_QUALIFY_END_MIN` (90) — a deliberately loose 50→90 window, not the stricter 30→95 used in earlier revisions, because single-room jobs rarely hit a tight window.
+
+### 7.1 Regime split (CC / CV)
+
+Health is tracked over **two regimes** rather than one band, because the two halves of a charge curve age in opposite directions:
+
+- **CC** (constant-current, ~`CC_ZONE_MIN`=50 → `CC_ZONE_MAX`=80): a capacity proxy. Capacity loss *raises* %/min here.
+- **CV** (constant-voltage taper, ~`CC_ZONE_MAX`=80 → `CV_ZONE_MAX`=90): a resistance proxy. Resistance rise *lowers* %/min here.
+
+Each regime keeps its own baseline anchor (`baseline.cc_min_per_pct` / `baseline.cv_min_per_pct`) and its own current index (`stats.cc_charge_speed_pct` / `stats.cv_charge_speed_pct`). The headline `health_pct` (sensor `_battery_health`) is an alias of the **CV** index, kept under the legacy entity_id for installs that pre-date the split. These zone bounds are aligned with `HEALTH_QUALIFY_*` by design but intentionally decoupled — do not collapse them.
+
+### 7.2 Baseline lock-in
 
 ```python
 qualifying = [
     s for s in session_history_recent
-    if s.start_battery <= HEALTH_QUALIFY_START_MAX
-    and s.end_battery >= HEALTH_QUALIFY_END_MIN
+    if s.start_battery <= HEALTH_QUALIFY_START_MAX   # 50
+    and s.end_battery >= HEALTH_QUALIFY_END_MIN       # 90
     and s.delta_pct > 0 and s.duration_min > 0
 ]
 if record.baseline.min_per_pct is None and len(qualifying) >= BASELINE_SAMPLE_COUNT:
@@ -343,7 +364,7 @@ if record.baseline.min_per_pct is None and len(qualifying) >= BASELINE_SAMPLE_CO
     record.baseline.session_count = len(seeds)
 ```
 
-### 7.2 Health computation
+### 7.3 Health computation
 
 ```python
 if record.baseline.min_per_pct is None:
@@ -518,8 +539,10 @@ Two append-only files per vacuum, written under `config/eufy_vacuum/battery/<obj
 Append on every accepted sample, one JSON object per line. Fields (from `_SAMPLES_FIELDS`):
 
 ```
-ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added, cycles
+ts, battery_level, charging, delta_pct, rate_per_min, zone, drain_added, cycles, rejected_delta_pct
 ```
+
+`rejected_delta_pct` (9th field) is non-null only when the per-sample `MAX_DELTA_PCT` guard rejected the observed `raw_delta` (firmware X-to-0 / 0-to-X flip, HA restart gap, multi-hour self-discharge). It carries the rejected magnitude for post-hoc analysis — grep `rejected_delta_pct` in `samples.jsonl` to find every rejection.
 
 Best-effort write — `OSError` is logged at debug and swallowed so a transient FS issue can't crash the manager.
 
@@ -542,7 +565,24 @@ Note `kind` is in the in-memory ring buffer but **not** in the CSV (added after 
 
 ## 13. Sensors (`battery/sensors.py`)
 
-`build_battery_sensors(manager, vacuum_entity_id)` returns a list of ten `SensorEntity` instances. All inherit from `_BatteryBase`:
+`build_battery_sensors(manager, vacuum_entity_id)` returns a list of **12** `SensorEntity` instances (built from 7 subclasses, several of which are parameterized and instantiated more than once). All inherit from `_BatteryBase`:
+
+| # | Class | `unique_suffix` | Reads |
+|---|---|---|---|
+| 1 | `ChargeCyclesSensor` | `charge_cycles` | `cycles` |
+| 2 | `ChargeRateSensor` | `charge_rate` | `stats.rate_overall_per_min` |
+| 3 | `ChargeRateSensor` | `charge_rate_low_zone` | `stats.rate_low_zone_per_min` |
+| 4 | `ChargeRateSensor` | `charge_rate_high_zone` | `stats.rate_high_zone_per_min` |
+| 5 | `LastChargeDurationSensor` | `last_charge_duration` | `stats.last_charge_duration_min` |
+| 6 | `BatteryHealthSensor` | `battery_health` | `stats.health_pct` (alias of CV index) |
+| 7 | `RegimeChargeSpeedSensor` | `cc_charge_speed` | `stats.cc_charge_speed_pct` |
+| 8 | `RegimeChargeSpeedSensor` | `cv_charge_speed` | `stats.cv_charge_speed_pct` |
+| 9 | `LastJobMetricSensor` | `last_job_drain_per_min` | `last_job.drain_per_min` |
+| 10 | `LastJobMetricSensor` | `last_job_drain_per_hour` | `last_job.drain_per_hour` |
+| 11 | `LastJobMetricSensor` | `last_job_drain_per_m2` | `last_job.drain_per_m2` |
+| 12 | `MidJobRechargeRateSensor` | `mid_job_recharge_rate` | `mid_job_recharge_stats.rate_mean_per_min` |
+
+Earlier revisions of this doc said "ten" — that pre-dated the CC/CV regime split, which added the two `RegimeChargeSpeedSensor` instances (`cc_charge_speed` / `cv_charge_speed`).
 
 ```python
 class _BatteryBase(SensorEntity):

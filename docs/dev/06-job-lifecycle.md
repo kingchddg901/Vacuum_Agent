@@ -222,8 +222,21 @@ state (e.g. `dock_drying`) could complete the job before it actually started.
   or `"bounds_exit_early"`).
 
 `EVENT_ROOM_FINISHED` fires from `_maybe_roll_current_room_by_timing` after
-rollover. There is no HA-entity-state-driven room transition mechanism — all
-transitions are timing-based.
+rollover. Within a single dispatch there is no HA-entity-state-driven
+*room* transition mechanism — room rollover is timing-based.
+
+**Job model / phase transitions.** The above describes an `atomic_batch`
+job — one dispatch over a fixed room set, the model every shipped adapter
+uses. The dispatch engine (`queue/dispatch_engines.py`) may instead
+declare `job_model = "sequenced"`, where one logical job is an ordered
+list of phases (e.g. sweep-all → mop-all), each its own dispatch.
+`engine.build_phases()` produces the sequence; at the completion hook
+`manager.maybe_advance_phase` swaps to the next phase
+(`advance_active_job_phase`) and re-dispatches instead of finalizing —
+each phase finalizes as its own job record. No shipped engine is
+`sequenced` yet; the mechanism is dormant. See
+[07-queue-engine.md](07-queue-engine.md) and
+[22-adapter-config-reference.md](22-adapter-config-reference.md) §13.
 
 ### Timing rollover (`_maybe_roll_current_room_by_timing`)
 
@@ -333,8 +346,11 @@ instead of issuing a live HA state read at job-end, avoiding the DPS timing race
 `active_cleaning_target` is cleared, while
 `active_job["has_observed_active_lifecycle"] == True`.
 
-**Code path:** `_handle_lifecycle_change → _process()` in
-`_register_lifecycle_listeners`. When completion signals are met:
+**Code path:** the state-change handler → `_process()` in
+`listeners/lifecycle.py` (registered via `lifecycle.register(hass)` from
+`__init__.py`). When completion signals are met, it first calls
+`manager.maybe_advance_phase` — for a **sequenced** job this advances to
+the next phase + re-dispatches instead of finalizing (see §4). Otherwise:
 `finalize_learning_for_active_job` → `mark_active_job_finalized` →
 `EVENT_JOB_FINISHED`.
 
@@ -354,8 +370,8 @@ If not confirmed within 30 s, finalizes anyway with a warning. Calls
 **Trigger:** A paused job whose `pause_timeout_minutes > 0` has been paused
 beyond the configured limit.
 
-**Code path:** `_register_pause_timeout_listener` sets a 1-minute
-`async_track_time_interval` tick. On each tick,
+**Code path:** `listeners/pause_timeout.py` (`pause_timeout.register(hass)`)
+sets a 1-minute `async_track_time_interval` tick. On each tick,
 `get_paused_job_timeout_report` is called for each known job. If it returns a
 report, `async_cancel_active_job` is called with
 `forced_lifecycle_state="pause_timeout_cancelled"`.
@@ -365,8 +381,9 @@ report, `async_cancel_active_job` is called with
 **Trigger:** A watched entity whose state matches a blocker rule changes while
 `path_block_action == "cancel_and_event"`.
 
-**Code path:** `_register_path_blocker_listeners` watches all rule entities. On
-state change, `get_runtime_path_block_report` re-evaluates rules. Behaviour by
+**Code path:** `listeners/path_blockers.py` (`path_blockers.register(hass)`)
+watches all rule entities. On state change, `get_runtime_path_block_report`
+re-evaluates rules. Behaviour by
 `path_block_action`:
 - `"event_only"` — fires `EVENT_PATH_BLOCKED` only.
 - `"pause_and_event"` — `async_pause_active_job` + `EVENT_PATH_BLOCKED`.
@@ -528,5 +545,6 @@ successful run, no cancellations or stalls).
 - `EVENT_PATH_BLOCKED` and `EVENT_JOB_FINISHED` can both fire in the same job
   when `path_block_action == "cancel_and_event"`.
 - `EVENT_JOB_PROGRESS_TICK` (`eufy_vacuum_job_progress_tick`) is fired
-  periodically from `job_monitor.py` as a lightweight polling signal for
+  periodically from `listeners/job_progress.py` (a 5-second
+  `async_track_time_interval` ticker) as a lightweight polling signal for
   automations — it does not map to a lifecycle transition.

@@ -55,36 +55,41 @@ The storage is created lazily per vacuum per map. Missing keys default to their 
 ### 3.1 Completion predicate
 
 ```
-onboarding_complete = rooms_discovered AND floor_types_complete
-
-floor_types_complete = all(
-    floor_types_confirmed[room_id] == True
-    for room_id in managed_rooms[vacuum][map_id]
-)
+rooms_discovered     = stored_flag AND len(rooms) > 0
+floor_types_complete = len(enabled_rooms_needing_floor_type) == 0
+onboarding_complete  = rooms_discovered AND floor_types_complete
 ```
 
-If no rooms exist, `floor_types_complete` is False (no rooms → not complete).
+Only **enabled** rooms are inspected for floor-type confirmation; disabled rooms are skipped. A room needs a floor type when it is enabled and `floor_types_confirmed[room_id]` is not `True`.
+
+`rooms_discovered` requires both the stored `rooms_discovered` flag **and** `len(rooms) > 0` — the stored flag alone is not sufficient if the map currently has no rooms.
 
 ### 3.2 `get_onboarding_state`
 
 ```python
 manager.get_onboarding_state(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
 ) -> dict
 ```
 
-Returns:
+Keyword-only. Returns:
 
 ```python
 {
-    "status":                  str,    # see below
-    "rooms_discovered":        bool,
-    "floor_types_complete":    bool,
-    "unconfirmed_room_ids":    list[str],   # room IDs missing floor type
-    "onboarding_complete":     bool,
+    "vacuum_entity_id":                  str,
+    "map_id":                            str,
+    "rooms_discovered":                  bool,
+    "room_count":                        int,        # len(rooms) on the map
+    "floor_types_complete":              bool,
+    "onboarding_complete":               bool,
+    "enabled_rooms_needing_floor_type":  list[str],  # enabled room IDs missing a confirmed floor type
+    "status":                            str,        # see below
 }
 ```
+
+There is no `unconfirmed_room_ids` key — the field is `enabled_rooms_needing_floor_type`.
 
 **Status values:**
 
@@ -102,25 +107,26 @@ Returns:
 
 ```python
 manager.mark_rooms_discovered(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
+    map_id: str,
 ) -> None
 ```
 
-Sets `data["onboarding"][vacuum][map_id]["rooms_discovered"] = True`. Called by `RoomMapManager.save_managed_rooms()` after rooms are written.
+Sets `data["onboarding"][vacuum][map_id]["rooms_discovered"] = True` and stamps `room_count_at_last_check` with the current room count. Called by `RoomMapManager.save_managed_rooms()` after rooms are written.
 
 ### 4.2 `confirm_floor_type`
 
 ```python
 manager.confirm_floor_type(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
-    room_id: str | int,
-    confirmed: bool = True,
+    map_id: str,
+    room_id: str,
 ) -> None
 ```
 
-Sets `floor_types_confirmed[str(room_id)] = confirmed`. Called once per room by `save_managed_rooms()` during initial import.
+Keyword-only. Always sets `floor_types_confirmed[str(room_id)] = True` — there is **no** `confirmed` parameter (the method can only confirm, not un-confirm). Called once per room by `save_managed_rooms()` during initial import.
 
 The user can also call this via the panel's room editor to re-confirm after a floor type change.
 
@@ -128,57 +134,63 @@ The user can also call this via the panel's room editor to re-confirm after a fl
 
 ```python
 manager.check_for_new_rooms(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
-) -> dict
+    map_id: str,
+) -> bool
 ```
 
-Reads the current room count from `vacuum.attributes.segments` and compares it to `room_count_at_last_check`. Updates the stored count on every call.
+Reads the current room count from `vacuum.attributes["segments"]` (a list) and compares it to the stored `room_count_at_last_check`. Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the vacuum state is missing or `segments` is not a list. It does **not** update the stored count.
 
-Returns:
-
-```python
-{
-    "new_rooms_detected": bool,
-    "previous_count":     int,
-    "current_count":      int,
-    "delta":              int,     # current_count - previous_count
-}
-```
-
-**New rooms detected** when `current_count > previous_count`. The caller (typically `listeners/discovery.py`) decides whether to show a notification.
+The caller (typically `listeners/discovery.py`) decides whether to show a notification.
 
 ### 4.4 `reset_onboarding`
 
 ```python
 manager.reset_onboarding(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
-) -> None
+    map_id: str,
+) -> dict
 ```
 
-Clears all flags for the (vacuum, map) pair back to defaults:
+Clears all flags for the (vacuum, map) pair back to defaults and returns a result dict:
 
 ```python
-data["onboarding"][vacuum][map_id] = {
+# resets data["onboarding"][vacuum][map_id] to:
+{
     "rooms_discovered":         False,
     "floor_types_confirmed":    {},
     "room_count_at_last_check": 0,
     "discovery_notified":       False,
     "rebuild_notified":         False,
 }
+# returns:
+{"vacuum_entity_id": str, "map_id": str, "reset": True}
 ```
 
 Called by `RoomMapManager.rebuild_map()` when a map is rebuilt from scratch.
 
-### 4.5 `set_discovery_notified` / `set_rebuild_notified`
+### 4.5 `get_rooms_onboarding_summary`
 
 ```python
-manager.set_discovery_notified(vacuum_entity_id: str, map_id: str, value: bool = True) -> None
-manager.set_rebuild_notified(vacuum_entity_id: str, map_id: str, value: bool = True) -> None
+manager.get_rooms_onboarding_summary(
+    *,
+    vacuum_entity_id: str,
+) -> dict
 ```
 
-Sets the respective notification-sent flag. Used to avoid sending the same notification repeatedly on consecutive discovery passes.
+Aggregates `get_onboarding_state()` across every known map for one vacuum:
+
+```python
+{
+    "vacuum_entity_id": str,
+    "all_complete":     bool,        # True only if every map is onboarding_complete
+    "maps":             list[dict],  # one get_onboarding_state() result per map
+}
+```
+
+(There are no `set_discovery_notified` / `set_rebuild_notified` methods. The `discovery_notified` / `rebuild_notified` flags exist in storage but are only written by `reset_onboarding` / defaults.)
 
 ---
 

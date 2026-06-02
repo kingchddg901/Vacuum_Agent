@@ -30,7 +30,7 @@ coordinator = AdapterCoordinator()   # sets _active_coordinator
 coordinator.register_adapter_config(vacuum_entity_id, config)
 coordinator.get_adapter_config(vacuum_entity_id) -> dict | None
 coordinator.get_all_adapter_configs() -> dict[str, dict]
-coordinator.unregister_adapter_config(vacuum_entity_id) -> bool
+coordinator.unregister_adapter_config(vacuum_entity_id) -> None
 coordinator.get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 coordinator.shutdown()               # clears _active_coordinator
 ```
@@ -42,10 +42,17 @@ The coordinator owns its own `_registry: dict[str, dict]` dict, separate from th
 `register_adapter_config()` calls `_validate_adapter()` before storing:
 
 ```python
-_validate_adapter(vacuum_entity_id, config) -> None  # raises ValueError on error
+_validate_adapter(config: dict) -> list[str]   # returns a list of issue strings
 ```
 
-Current validation: if `mapping.segmenter_engine` is present and not `None`, it must match a key in `mapping.segmenter_engines._SEGMENTER_ENGINES`. Unknown engine names are rejected at registration time. Additional validation is expected to be added as the schema stabilizes.
+`_validate_adapter()` returns a list of human-readable issue strings (empty = valid); it does **not** raise. `register_adapter_config()` logs every returned issue as a `warning` and then stores the config anyway — validation issues are advisory, not blocking. The one hard failure is a structurally unusable config: if `config` is not a dict, `register_adapter_config()` raises `TypeError` (and `_validate_adapter()` returns the single issue `"adapter config must be a dict"`).
+
+Current checks:
+
+- **`mapping` block** (when present): must be a dict; `mapping.segmenter_engine` is required and must resolve to a known engine (`known_engine_names()` in `mapping/segmenter_engines.py`); `mapping.segmenter_tuning` must pass the resolved engine's own `validate_tuning()`.
+- **`dispatch.template`** (when present): must resolve to a registered dispatch engine (`known_dispatch_templates()` in `queue/dispatch_engines.py`). A schema-valid template with no registered engine yet is flagged rather than silently falling back to the Eufy shape.
+
+Additional validation is expected to be added as the schema stabilizes.
 
 ### 2.3 Legacy shim functions (module level)
 
@@ -55,7 +62,7 @@ For backward compatibility, module-level functions route to `_active_coordinator
 register_adapter_config(vacuum_entity_id, config)
 get_adapter_config(vacuum_entity_id) -> dict | None
 get_all_adapter_configs() -> dict[str, dict]
-unregister_adapter_config(vacuum_entity_id) -> bool
+unregister_adapter_config(vacuum_entity_id) -> None
 clear_registry() -> None
 get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 ```

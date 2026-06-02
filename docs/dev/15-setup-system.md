@@ -57,10 +57,10 @@ async def add_vacuum(hass, vacuum_entity_id) -> ActionResult
 2. Vacuum entity exists in HA state machine — returns `"blocked"` if not.
 3. Vacuum is not already managed — returns `"already_done"` with `next_actions=["import_active_map"]` if it is.
 
-**On success:**
-1. Calls `manager.ensure_vacuum_record(vacuum_entity_id)`.
-2. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panel_custom.async_register_panel()`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}`.
-3. Calls `manager.async_save()`.
+**On success (in order):**
+1. Calls `manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)`.
+2. Calls `manager.async_save()`.
+3. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panel_custom.async_register_panel()`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}`. A `ValueError` (panel already registered) is caught and logged.
 
 Returns `"success"` with `next_actions=["import_active_map"]`.
 

@@ -37,10 +37,10 @@ For Eufy: `room_list_entity = "vacuum_entity"`, `room_list_attribute = "segments
 ### 2.2 `get_active_map_id`
 
 ```python
-get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> int | None
+get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None
 ```
 
-Reads the active map ID from the entity declared at `adapter_config["entities"]["active_map"]`. Returns the state value parsed as int, or `None` if unavailable.
+Reads the active map ID from the entity declared at `adapter_config["entities"]["active_map"]`. Returns the state value as a `str`, or `None` if the adapter is not registered, the entity is missing, or its state is an HA sentinel value (`"unknown"`, `"unavailable"`, `""`, `"none"`, `"None"`).
 
 ### 2.3 `discover_rooms_for_vacuum`
 
@@ -87,7 +87,7 @@ Convenience wrapper that returns:
 ```python
 {
     "vacuum_entity_id": str,
-    "active_map_id":    int | None,
+    "active_map_id":    str | None,
     "room_count":       int,
     "rooms":            list[dict],
 }
@@ -112,13 +112,14 @@ Builds the managed room dict from raw discovery data. Key is `str(room_id)`.
 
 **For each discovered room:**
 
+- If `enabled_room_ids` is supplied (not `None`) and the `room_id` is **not** in it, the room is **skipped** (`continue`) — it is not included in the result at all.
 - If a matching room exists in `existing_rooms` (by room_id): preserves all existing user settings (fan speed, clean mode, etc.) and updates `name` and `slug` from discovery data.
-- If the room is new: initializes with safe defaults (vacuum mode, standard fan speed, no mop water, etc.).
-- Sets `is_configured = True` unconditionally — this flag is what the setup drift tracker uses to distinguish managed rooms from newly discovered ones.
-- Sets `enabled = True` if `room_id` is in `enabled_room_ids`, or if `enabled_room_ids` is `None` (all enabled by default).
+- If the room is new: initializes with safe defaults — `clean_mode="vacuum"`, `fan_speed="Max"`, `water_level="Off"`, `profile_name="vacuum_quick"`, `clean_passes=1`, `edge_mopping=False`, etc.
+- Sets `is_configured = True` for every room that makes it into the result — including a room in `enabled_room_ids` is the user's explicit approval. This flag is what the setup drift tracker uses to distinguish managed rooms from newly discovered ones.
+- Sets `enabled = True` for new rooms (existing rooms keep their stored `enabled` value). Note: membership in `enabled_room_ids` gates *inclusion*, not the `enabled` flag.
 - Sets `floor_type` from `floor_types` dict if present, otherwise defaults to `"hardwood"`.
 
-Returns the complete managed room dict with all rooms present in `discovered_rooms`. Rooms in `existing_rooms` that are **not** in `discovered_rooms` are **dropped** (they are stale).
+When `enabled_room_ids` is `None`, returns the managed room dict for every room in `discovered_rooms`; when it is supplied, only those rooms are present. Rooms in `existing_rooms` that are **not** in `discovered_rooms` are **dropped** (they are stale).
 
 ### 3.2 `build_room_selection_summary`
 
@@ -145,12 +146,16 @@ Returns:
 slugify_room_name(name: str) -> str
 ```
 
-Converts a raw room name to a stable slug:
-1. Lowercase.
-2. Strip all punctuation (regex: `[^\w\s]`).
-3. Replace whitespace runs with single underscore.
+Converts a raw room name to a stable slug. There is **no** regex / punctuation strip — the transform is a fixed sequence of string operations:
+1. `strip()` leading/trailing whitespace.
+2. Lowercase.
+3. Remove single quotes `'` and double quotes `"`.
+4. Replace `&` with `and`.
+5. Replace each space character with a single underscore.
 
-Examples: `"Living Room"` → `"living_room"`, `"Bedroom #2"` → `"bedroom_2"`.
+All other punctuation is preserved verbatim, and internal multi-space runs become multiple underscores (each space → one `_`).
+
+Examples: `"Living Room"` → `"living_room"`, `"Bedroom #2"` → `"bedroom_#2"`, `"Kids' & Guest"` → `"kids_and_guest"`.
 
 ---
 

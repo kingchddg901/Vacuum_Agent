@@ -184,7 +184,7 @@ There is no `created_at` field on theme entries. Theme IDs are timestamp-based (
 
 ### Built-in (preloaded) themes vs user-saved themes
 
-Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `themes/preloaded.py` and seeded into storage once during `ThemeManager.initialize()` by `ensure_preloaded_theme_library()`. The current built-in themes are:
+Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `themes/preloaded.py` and seeded into storage once during `ThemeManager.__init__()` by `ensure_preloaded_theme_library()`. The current built-in themes are:
 
 | ID | Name |
 |---|---|
@@ -324,7 +324,7 @@ The sensor entity name is built by `build_entity_name(vacuum_entity_id, "Theme S
 
 ### How state changes propagate to the card
 
-The integration's manager keeps a list of theme update callbacks (`_theme_update_callbacks`). After every mutation (`update_working_draft`, `set_active_theme`, `save_theme_as_new`, etc.) the manager calls `_notify_theme_updated()`, which fires all registered callbacks. The theme sensor registers one such callback: it calls `self.async_write_ha_state()` to push its updated attributes to HA immediately without waiting for a poll cycle.
+The `ThemeManager` keeps a list of theme update callbacks (`_update_callbacks`). Callbacks are registered via `register_update_callback(cb)`. After every mutation (`update_working_draft`, `set_active_theme`, `save_theme_as_new`, etc.) the manager calls `_notify_updated()`, which fires all registered callbacks with the affected `vacuum_entity_id` (or `None` for library-wide mutations). The theme sensor registers one such callback: it calls `self.async_write_ha_state()` to push its updated attributes to HA immediately without waiting for a poll cycle.
 
 On the card side, every time HA delivers a new `hass` object through the `set hass(value)` setter, `main.js` reads the theme sensor:
 
@@ -439,12 +439,12 @@ The group name string must match exactly between `THEME_GROUPS`, the `group` fie
 
 ## 9. Theme-driven assets (`animal-svg`)
 
-A standalone web component lives at `/config/www/animal-svg/` (served `/local/animal-svg/`) for use as a future theme element on the map view. It is **not** part of `eufy_vacuum` — it's a self-registering free-standing resource that the card can `import` and drive from vacuum state.
+A standalone web component ships **inside** the integration at `custom_components/eufy_vacuum/frontend/animal-svg/` (served `/eufy_vacuum/frontend/animal-svg/`) for use as a future theme element on the map view. It is a self-registering free-standing resource that the card can `import` and drive from vacuum state.
 
 Files:
 
 ```
-config/www/animal-svg/
+custom_components/eufy_vacuum/frontend/animal-svg/
 ├── animal-svg.js     custom element + registry + shared keyframes
 ├── manifest.js       loads animal-svg.js then each animal file
 ├── animals/
@@ -453,7 +453,7 @@ config/www/animal-svg/
 │   ├── raccoon.js
 │   ├── parrot.js
 │   └── snake.js
-└── README.md         contract for adding/removing animals
+└── demo.html         open in a browser to verify everything works
 ```
 
 Usage from the card (or anywhere in HA):
@@ -464,7 +464,7 @@ Usage from the card (or anywhere in HA):
 
 **Attributes (observed):** `animal`, `pose`, `width`, `height`. Poses: `animating | standing | curled | alert | walking | warning`. Adding a new animal = a self-registering JS file in `animals/` plus a line in `manifest.js`.
 
-**Why it exists separately:** the resource is reusable across themes, vacuums, integrations. Bundling it into the card would force a card rebuild every time someone adds an animal. Keeping it standalone lets users edit the animal set without touching the integration.
+**Why it's a separate resource:** the component is a self-registering standalone module rather than part of the card bundle, so adding an animal (a new file in `animals/` plus a line in `manifest.js`) does not force a card rebuild. It ships under the integration's `frontend/` directory and is served at `/eufy_vacuum/frontend/animal-svg/`.
 
 ### Wiring it into a theme (planned, not yet implemented)
 

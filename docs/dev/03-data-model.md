@@ -59,8 +59,12 @@ produce `.corrupt` backup files.
 }
 ```
 
-**Keys seeded by `async_initialize()`:** all top-level keys above are created
-with `setdefault` during startup — no key is ever absent after the first boot.
+**Keys seeded by `async_initialize()`:** only four required top-level keys are
+created with `setdefault` during startup — `vacuums`, `capabilities`,
+`room_history`, and `room_rule_status`. The remaining keys above are created
+lazily by their owning subsystems on first write (e.g. `theme` is seeded by
+`ThemeManager`), so they may be absent until that subsystem first runs. Code
+that reads any other key must tolerate its absence.
 
 **Legacy cleanup:** The `icons` block, if present, is deleted unconditionally
 during `async_initialize()`. It was written by a removed platform and serves
