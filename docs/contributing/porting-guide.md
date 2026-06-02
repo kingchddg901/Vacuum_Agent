@@ -41,8 +41,7 @@ An adapter is a small package mirroring `adapters/eufy/`:
 | `vocabulary.py` | Brand state-string vocabulary sets. |
 | `discovery.py` | How the room list is read from the integration. |
 | `lifecycle.py` | Brand lifecycle signal helpers. |
-| `charging.py` | Battery/charging reads. |
-| `buttons.py` | Dock-action button candidate lists. |
+| `buttons.py` | Dock-action and replacement-reset button candidate/token lists (the single source `adapter.py` builds `dock_events.action_buttons` and `maintenance_components[*].reset_button` from). |
 | `maintenance_components.py`, `upkeep_catalog.py`, `water_config.py`, `model_catalog.py`, `constants.py` | Static per-model catalogs and tuned constants. |
 | `segmentor.py` | (Optional) brand CV map segmentor. |
 

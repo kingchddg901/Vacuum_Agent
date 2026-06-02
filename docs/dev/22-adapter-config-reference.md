@@ -319,33 +319,35 @@ keys present in the `entities` section above it.
 
 ---
 
-## 8. `charging` — charging detection signals
+## 8. `charging` — low-battery-return detection
 
-Configures how the framework detects whether the vacuum is currently
-charging.
+The charging **state** itself is read from the dedicated `entities.charging`
+binary sensor (`core/charging.py`, no substring fallback). This block only
+configures the low-battery mid-job return classifier — how the framework
+distinguishes "returned to dock because the battery ran low" from a
+user-initiated `return_to_base` on a healthy battery.
 
 ### Schema
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `binary_sensor_entity` | `str` | Entity *key* (from `entities`) for the charging binary sensor. Primary signal. |
-| `fallback_task_status_string` | `str` | `task_status` value indicating mid-job recharge resume (used when the binary sensor is absent). |
-| `fallback_substrings` | `list[str]` | Substrings matched against `task_status`/`dock_status` as last-resort fallback. **Substring matching has known false negatives — only use as last resort.** |
+| `low_battery_return_task_status` | `str` | Normalized `task_status` string the vacuum reports when it returns to dock specifically to recharge mid-job (Eufy: `"returning to charge"`). Authoritative — no battery gate needed when it matches. Absent: detected only via the generic `returning` vacuum state + threshold. |
+| `low_battery_threshold_percent` | `int` | Battery percent at/below which a generic `returning` vacuum state is treated as a low-battery return. Default: `20`. |
 
 ### Example
 
 ```python
 "charging": {
-    "binary_sensor_entity": "charging",
-    "fallback_task_status_string": "charging (resume)",
-    "fallback_substrings": ["charg", "recharg"],
+    "low_battery_return_task_status": "returning to charge",
+    "low_battery_threshold_percent": 20,
 },
 ```
 
-**UI builder notes:** If the user has selected a charging entity in
-the `entities` section, the substring fallback is unnecessary — gray it
-out or hide it. Show a one-line warning that substring matching is
-unreliable.
+**UI builder notes:** Charging detection requires a `entities.charging`
+binary sensor — surface that requirement near this block. Both fields
+here are optional; default `low_battery_threshold_percent` to `20` and
+leave `low_battery_return_task_status` blank for brands that don't expose
+a distinct return-to-charge `task_status` string.
 
 ---
 
@@ -1195,10 +1197,10 @@ don't accidentally violate them:
 1. **String matching is case-insensitive after `.strip().lower()`.**
    Vocabulary strings should be lowercased except in the explicitly
    labeled `blocked_*_states` lists.
-2. **Entity keys vs entity IDs.** Fields like
-   `completion.secondary_clear_entity` and
-   `charging.binary_sensor_entity` are **keys** that index into the
-   `entities` dict — they are not full entity IDs.
+2. **Entity keys vs entity IDs.** A field like
+   `completion.secondary_clear_entity` is a **key** that indexes into the
+   `entities` dict — not a full entity ID. (Charging detection reads the
+   `entities.charging` key directly.)
 3. **Absent keys = feature off, not error.** The framework never
    raises when an optional field is missing; it disables the
    corresponding subsystem. Tests should cover the "minimum viable

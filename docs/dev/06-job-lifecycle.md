@@ -319,7 +319,8 @@ detection:
 
 ### Mop wash observation (`update_active_job_mop_wash_observation`)
 
-Debounced at 60 s (`_MOP_WASH_DEBOUNCE_SECONDS`). Each confirmed wash event
+Debounced by the adapter's `dock_events.debounce_seconds["last_mop_wash"]`
+(60 s for Eufy; `0`/absent = no debounce). Each confirmed wash event
 increments `observed_mop_wash_count`, appends to `observed_mop_wash_cycles`
 (capped at 50), and updates `observed_mop_wash_last_at`.
 

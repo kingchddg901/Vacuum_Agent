@@ -207,7 +207,7 @@ Why both entities? `sensor.<vac>_battery` carries the level; `vacuum.<vac>` carr
 
 ### 5.2 `_process_sample`
 
-Reads `battery_level` (via `manager._get_battery_level`) and `charging` (via `manager._is_recharge_like_state`, with a substring-fallback if the runtime manager renames it again). Then:
+Reads `battery_level` (via `manager._get_battery_level`) and `charging` (via `manager._is_charging`, which reads the dedicated `entities.charging` binary sensor with no substring fallback). Then:
 
 ```python
 if battery_level is None or battery_level < 0 or battery_level > 100:
@@ -741,7 +741,7 @@ The `try/except` is defensive — a failure here must not block job finalization
 
 ## 16. Testing without hardware
 
-For development without a live vacuum, the manager's `_process_sample` is the single entry point. A test harness can construct a `BatteryHealthManager` with a stub `runtime_manager` providing `data`, `_get_battery_level`, and `_is_recharge_like_state`, then drive a synthetic sample stream through `_process_sample` directly — no HA event bus needed.
+For development without a live vacuum, the manager's `_process_sample` is the single entry point. A test harness can construct a `BatteryHealthManager` with a stub `runtime_manager` providing `data`, `_get_battery_level`, and `_is_charging`, then drive a synthetic sample stream through `_process_sample` directly — no HA event bus needed.
 
 Useful synthetic fixtures:
 

@@ -58,6 +58,12 @@ from .entities import (
     DOMAIN_SELECT,
     DOMAIN_NUMBER,
 )
+from .buttons import (
+    DOCK_ACTION_CANDIDATES,
+    DOCK_ACTION_TOKENS,
+    RESET_CANDIDATES,
+    RESET_TOKENS,
+)
 from .maintenance_components import MAINTENANCE_COMPONENTS
 from .model_catalog import detect_model_family as _detect_model_family
 from .upkeep_catalog import (
@@ -69,6 +75,46 @@ from .upkeep_guides import UPKEEP_GUIDE_LIBRARY
 from .water_config import WATER_MODEL_CONFIGS
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _strip_button_suffix(suffix: str) -> str:
+    """Normalize a buttons.py candidate suffix to the framework convention.
+
+    buttons.py suffixes are written to append to ``button.{object_id}`` and so
+    carry a leading underscore (``"_wash_mop"``). The adapter config / resolver
+    convention appends to ``button.{object_id}_``, so the leading underscore is
+    dropped here.
+    """
+    return suffix[1:] if suffix.startswith("_") else suffix
+
+
+def _build_button_block(
+    key: str,
+    candidates: dict[str, list[str]],
+    tokens: dict[str, list[list[str]]],
+) -> dict | None:
+    """Build one ``{entity_suffixes, token_sets}`` block from buttons.py data.
+
+    Returns ``None`` when the key is absent from both maps (e.g. a component
+    with no reset button), so callers can store ``None`` for "no button".
+    """
+    if key not in candidates and key not in tokens:
+        return None
+    return {
+        "entity_suffixes": [_strip_button_suffix(s) for s in candidates.get(key, [])],
+        "token_sets": [list(t) for t in tokens.get(key, [])],
+    }
+
+
+def _build_button_blocks(
+    candidates: dict[str, list[str]],
+    tokens: dict[str, list[list[str]]],
+) -> dict[str, dict]:
+    """Build the full ``{action: block}`` map from buttons.py candidate/token data."""
+    return {
+        key: _build_button_block(key, candidates, tokens)
+        for key in (set(candidates) | set(tokens))
+    }
 
 
 def register_eufy_adapter_for_vacuum(
@@ -258,13 +304,10 @@ def register_eufy_adapter_for_vacuum(
         },
 
         "charging": {
-            # Primary: dedicated binary sensor from robovac_mqtt.
-            "binary_sensor_entity": "charging",
-            # Fallback: task_status string for mid-job recharge resume.
-            "fallback_task_status_string": "charging (resume)",
-            # Fallback: substring patterns for charging state detection.
-            "fallback_substrings": ["charg", "recharg"],
-            # Low-battery mid-job return signals (consumed by core/charging.py).
+            # Charging state is read from the dedicated entities.charging
+            # binary sensor (robovac_mqtt) by core/charging.py — no config
+            # needed here for that. This block only configures the
+            # low-battery mid-job return classifier (consumed by core/charging.py).
             "low_battery_return_task_status": "returning to charge",
             "low_battery_threshold_percent": LOW_BATTERY_THRESHOLD_PERCENT,
         },
@@ -302,27 +345,13 @@ def register_eufy_adapter_for_vacuum(
             "debounce_seconds": {
                 "last_mop_wash": DOCK_EVENT_MOP_WASH_DEBOUNCE_SECONDS,
             },
-            # Upstream button resolution per dock action. entity_suffixes are
-            # tried first (appended to 'button.{object_id}_'); token_sets are
-            # all-tokens-must-match registry fallbacks for version drift.
-            "action_buttons": {
-                "wash_mop": {
-                    "entity_suffixes": ["wash_mop", "mop_wash"],
-                    "token_sets": [["wash", "mop"]],
-                },
-                "dry_mop": {
-                    "entity_suffixes": ["dry_mop", "mop_dry"],
-                    "token_sets": [["dry", "mop"], ["dry", "pad"]],
-                },
-                "stop_dry_mop": {
-                    "entity_suffixes": ["stop_dry_mop", "stop_mop_dry"],
-                    "token_sets": [["stop", "dry", "mop"], ["stop", "dry", "pad"]],
-                },
-                "empty_dust": {
-                    "entity_suffixes": ["empty_dust", "empty_dust_bin"],
-                    "token_sets": [["empty", "dust"]],
-                },
-            },
+            # Upstream button resolution per dock action — sourced from
+            # buttons.py. entity_suffixes are tried first (appended to
+            # 'button.{object_id}_'); token_sets are all-tokens-must-match
+            # registry fallbacks for firmware naming drift.
+            "action_buttons": _build_button_blocks(
+                DOCK_ACTION_CANDIDATES, DOCK_ACTION_TOKENS
+            ),
         },
 
         "post_job_wash_amendment": {
@@ -454,7 +483,12 @@ def register_eufy_adapter_for_vacuum(
             component_id: {
                 "sensor_suffix": component.get("sensor_suffix"),
                 "proxy_for": component.get("proxy_for"),
-                "reset_button": component.get("reset_button"),
+                # Reset-button resolution sourced from buttons.py (single source
+                # for all button discovery). None when the component has no
+                # reset button.
+                "reset_button": _build_button_block(
+                    component_id, RESET_CANDIDATES, RESET_TOKENS
+                ),
                 "default_interval_hours": component["default_interval_hours"],
                 "max_interval_hours": component["max_interval_hours"],
                 "label": component["label"],

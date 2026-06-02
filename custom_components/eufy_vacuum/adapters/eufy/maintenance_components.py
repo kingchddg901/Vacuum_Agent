@@ -23,6 +23,10 @@ Each component entry contains:
                           The card uses this as the upper bound when
                           the user adjusts their usage profile.
 
+Replacement-counter reset buttons are resolved separately from
+``buttons.py`` (RESET_CANDIDATES / RESET_TOKENS), which is the single
+source for all button discovery (dock actions and resets alike).
+
 The user's active interval is stored separately via the maintenance
 storage bucket and adjusted through the card's usage profile settings
 or the reset_maintenance service call.
@@ -35,10 +39,6 @@ an empty dict — the maintenance view degrades gracefully.
 MAINTENANCE_COMPONENTS: dict[str, dict] = {
     "filter": {
         "sensor_suffix": "filter_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_filter"],
-            "token_sets": [["reset", "filter"]],
-        },
         "default_interval_hours": 20.0,
         "max_interval_hours": 120,
         "label": "Filter",
@@ -46,10 +46,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "sensor": {
         "sensor_suffix": "sensor_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_sensors", "reset_sensor"],
-            "token_sets": [["reset", "sensor"], ["reset", "sensors"]],
-        },
         "default_interval_hours": 60.0,
         "max_interval_hours": 720,
         "label": "Sensor",
@@ -57,10 +53,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "side_brush": {
         "sensor_suffix": "side_brush_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_side_brush"],
-            "token_sets": [["reset", "side", "brush"]],
-        },
         "default_interval_hours": 30.0,
         "max_interval_hours": 360,
         "label": "Side Brush",
@@ -68,10 +60,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "rolling_brush": {
         "sensor_suffix": "rolling_brush_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_rolling_brush"],
-            "token_sets": [["reset", "rolling", "brush"]],
-        },
         "default_interval_hours": 30.0,
         "max_interval_hours": 360,
         "label": "Rolling Brush",
@@ -79,10 +67,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "mopping_cloth": {
         "sensor_suffix": "mopping_cloth_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_mopping_cloth"],
-            "token_sets": [["reset", "mopping", "cloth"], ["reset", "mop", "cloth"]],
-        },
         "default_interval_hours": 20.0,
         "max_interval_hours": 120,
         "label": "Mopping Cloth",
@@ -90,10 +74,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     },
     "cleaning_tray": {
         "sensor_suffix": "cleaning_tray_remaining",
-        "reset_button": {
-            "entity_suffixes": ["reset_cleaning_tray"],
-            "token_sets": [["reset", "cleaning", "tray"]],
-        },
         "default_interval_hours": 30.0,
         "max_interval_hours": 90,
         "label": "Cleaning Tray",
@@ -102,10 +82,6 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
     "swivel_wheel": {
         "sensor_suffix": "swivel_wheel_remaining",
         "proxy_for": "filter",
-        "reset_button": {
-            "entity_suffixes": ["reset_swivel_replacement", "reset_swivel_wheel"],
-            "token_sets": [["reset", "swivel", "replacement"], ["reset", "swivel"]],
-        },
         "default_interval_hours": 60.0,
         "max_interval_hours": 360,
         "label": "Swivel Wheel",

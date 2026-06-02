@@ -398,14 +398,13 @@ class BatteryHealthManager:
     def _is_charging(self, vacuum_entity_id: str) -> bool:
         """Decide whether the vacuum is actively charging right now.
 
-        Delegates to ``EufyVacuumManager._is_charging``, which prefers the
-        dedicated ``binary_sensor.<object_id>_charging`` entity (definitive
-        on/off signal) and falls back to substring matching on vacuum_state
-        / task_status / dock_status when the binary sensor is absent. The
-        substring fallback has known false negatives — most importantly
-        post-job recharges where ``task_status`` lingers as ``"completed"``
-        and short-circuits the helper to False — so trusting the dedicated
-        sensor as primary is the correct behaviour.
+        Delegates to ``EufyVacuumManager._is_charging`` (core/charging.py),
+        which reads the dedicated ``entities.charging`` binary sensor and
+        returns False when it's absent/unavailable — no substring fallback
+        (substring matching on task_status/dock_status has known false
+        negatives, e.g. post-job recharges where ``task_status`` lingers as
+        ``"completed"``). The local ``except`` branch below only fires for a
+        legacy runtime manager that doesn't expose ``_is_charging`` at all.
         """
         try:
             return self._manager._is_charging(vacuum_entity_id)

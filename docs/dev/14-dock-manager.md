@@ -12,11 +12,12 @@ The dock manager controls **manual dock-station actions** (wash mop, dry mop, st
 
 ---
 
-## 2. Constants
+## 2. Debounce configuration
 
-| Constant | Value | Description |
-|---|---|---|
-| `_DOCK_EVENT_DEBOUNCE_SECONDS` | `{"last_mop_wash": 60}` | Per-event-type minimum seconds between recorded events. Only `last_mop_wash` is currently debounced. |
+Per-event-type debounce is no longer a module constant — it's read from the
+adapter's `dock_events.debounce_seconds` map (keyed by event type, e.g.
+`{"last_mop_wash": 60}`). An absent key (or `0`) means no debounce. The Eufy
+adapter sets `last_mop_wash: 60`; see `adapters/eufy/adapter.py`.
 
 ---
 
@@ -58,24 +59,30 @@ Both `dry_mop` and `stop_dry_mop` are gated against the adapter capability flag 
 
 ## 5. Entity Discovery
 
-The manager tries two strategies in order to find the button entity for each action:
+Resolution is adapter-driven, read from `dock_events.action_buttons[action]`
+(the Eufy adapter builds this from `adapters/eufy/buttons.py`). An action
+absent from that map resolves to `None` (the action is reported unavailable).
+The manager tries two strategies in order:
 
-### 5.1 Named candidates
+### 5.1 Named candidates — `entity_suffixes`
 
-Tries a fixed list of candidate entity IDs derived from `object_id` (the vacuum entity ID's object portion, e.g. `"alfred"`):
+Each suffix is appended to `button.{object_id}_` (the vacuum entity ID's
+object portion, e.g. `"alfred"`) and tried in order:
 
 ```
-button.{object_id}_{primary_suffix}
-button.{object_id}_{alternate_suffix}
+button.{object_id}_{entity_suffixes[0]}
+button.{object_id}_{entity_suffixes[1]}
 ```
 
-First candidate found in the HA entity registry wins.
+First candidate present in the HA state machine or entity registry wins.
 
 ### 5.2 Token fallback — `_find_button_entity_by_tokens`
 
-If no named candidate is found, scans all `button.*` entities in the registry and matches against required token sets from the adapter's `capabilities` block. A candidate entity ID is split on `_` and the resulting token set must be a superset of the required tokens.
-
-The token sets for each action come from the adapter config `vocabulary` block (not shown in the Eufy adapter because Eufy uses named candidates exclusively). This fallback exists for brands that use dynamic entity naming conventions.
+If no named candidate is found, the `token_sets` for the action are tried:
+the manager scans all `button.*` entities in the registry and matches each
+token set (a candidate entity ID is split on `_` and must contain all tokens
+in the set). This handles brands with dynamic entity naming. Eufy declares
+both `entity_suffixes` and `token_sets` for every dock action.
 
 ---
 

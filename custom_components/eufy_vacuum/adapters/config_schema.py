@@ -451,33 +451,13 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
     "charging": {
         "type": "dict",
         "required": False,
-        "description": "Charging detection configuration.",
+        "description": (
+            "Low-battery mid-job return detection. The charging *state* itself "
+            "is read from the dedicated entities.charging binary sensor "
+            "(core/charging.py); this block only configures the low-battery-"
+            "return classifier."
+        ),
         "fields": {
-            "binary_sensor_entity": {
-                "type": "str",
-                "required": False,
-                "description": (
-                    "Entity key from entities dict for the charging binary "
-                    "sensor. Primary charging detection signal. "
-                    "Degradation: fallback substring matching used."
-                ),
-            },
-            "fallback_task_status_string": {
-                "type": "str",
-                "required": False,
-                "description": (
-                    "task_status value that indicates charging resumed "
-                    "mid-job. Used as fallback when binary sensor is absent."
-                ),
-            },
-            "fallback_substrings": {
-                "type": "list[str]",
-                "required": False,
-                "description": (
-                    "Substrings matched against task_status/dock_status for "
-                    "fallback charging detection."
-                ),
-            },
             "low_battery_return_task_status": {
                 "type": "str",
                 "required": False,
