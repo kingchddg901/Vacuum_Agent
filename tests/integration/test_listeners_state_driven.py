@@ -11,6 +11,8 @@ Coverage targets
 [LS-7]  lifecycle listener registers unsub for the vacuum entity.
 [LS-8]  lifecycle callback fires without error when no active job exists.
 [LS-9]  path_blockers registers the room-update callback on the manager.
+[LS-10] discovery vacuum_docked callback fires a pass only on transition INTO docked.
+[LS-11] discovery active_map_changed callback fires only on a real value change.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ import pytest
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.listeners import (
+    discovery,
     dock_events,
     job_metrics,
     lifecycle,
@@ -279,3 +282,77 @@ async def test_path_blockers_no_blocker_rooms_empty_unsubs(hass, manager):
     path_blockers.register(hass)
     unsubs = hass.data[DOMAIN].get("_path_blocker_unsubs", None)
     assert unsubs == []
+
+
+# ---------------------------------------------------------------------------
+# [LS-10] — [LS-11] discovery state-driven callbacks
+# ---------------------------------------------------------------------------
+
+_ACTIVE_MAP_ENTITY = "sensor.alfred_active_map"
+
+
+def _discovery_spy(monkeypatch):
+    """Patch run_discovery_pass with a call-recording spy; return the call list."""
+    calls: list[str] = []
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.setup.drift.run_discovery_pass",
+        lambda hass, manager, vid: calls.append(vid),
+    )
+    return calls
+
+
+async def test_discovery_fires_on_transition_into_docked(hass, manager, monkeypatch):
+    """[LS-10] the vacuum_docked callback runs a pass only on a transition INTO
+    docked — repeat docked->docked updates are filtered out."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "discovery": {"auto_refresh_on": ["vacuum_docked"],
+                      "auto_refresh_interval_seconds": 0},
+    })
+    calls = _discovery_spy(monkeypatch)
+    hass.states.async_set(_VAC, "cleaning")
+    await hass.async_block_till_done()
+
+    discovery.register(hass)
+
+    # transition cleaning -> docked fires the pass
+    hass.states.async_set(_VAC, "docked")
+    await hass.async_block_till_done()
+    assert calls == [_VAC]
+
+    # a docked -> docked attribute update does NOT fire again
+    hass.states.async_set(_VAC, "docked", {"battery_level": 99})
+    await hass.async_block_till_done()
+    assert calls == [_VAC]
+
+    discovery.remove(hass)
+
+
+async def test_discovery_fires_on_active_map_value_change(hass, manager, monkeypatch):
+    """[LS-11] the active_map_changed callback runs a pass on a real value change
+    but ignores sentinel values and no-change updates."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": _ACTIVE_MAP_ENTITY},
+        "discovery": {"auto_refresh_on": ["active_map_changed"],
+                      "auto_refresh_interval_seconds": 0},
+    })
+    calls = _discovery_spy(monkeypatch)
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "6")
+    await hass.async_block_till_done()
+
+    discovery.register(hass)
+
+    # real value change 6 -> 7 fires the pass
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "7")
+    await hass.async_block_till_done()
+    assert calls == [_VAC]
+
+    # a sentinel value does NOT fire
+    hass.states.async_set(_ACTIVE_MAP_ENTITY, "unknown")
+    await hass.async_block_till_done()
+    assert calls == [_VAC]
+
+    discovery.remove(hass)
