@@ -235,3 +235,52 @@ def test_dreame_repeats_is_array_clamped():
 def test_dreame_template_resolves():
     """[DE-10] dreame_room_clean resolves to the parallel-array engine."""
     assert isinstance(get_dispatch_engine("dreame_room_clean"), DreameSegmentEngine)
+
+
+# --- job model / build_phases (sequencing mechanism) ------------------------
+
+
+def test_all_engines_atomic_by_default():
+    """[DE-13] every registered engine is atomic_batch."""
+    for name in known_dispatch_templates():
+        assert get_dispatch_engine(name).job_model == "atomic_batch"
+
+
+def test_build_phases_default_is_single_phase():
+    """[DE-13] an atomic engine's build_phases == [build_payload] (one phase)."""
+    kwargs = dict(
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=_managed(),
+        queue_room_ids=[1, 2], capabilities={}, dispatch={},
+    )
+    engine = get_dispatch_engine("eufy_room_clean")
+    phases = engine.build_phases(**kwargs)
+    assert len(phases) == 1
+    assert phases[0] == engine.build_payload(**kwargs)
+
+
+def test_sequenced_engine_emits_multiple_phases():
+    """[DE-14] a sequenced engine declares job_model + returns >1 phase."""
+
+    class _SweepThenMopEngine(DreameSegmentEngine):
+        template_name = "dreame_room_clean"
+        job_model = "sequenced"
+
+        def build_phases(self, **kwargs):
+            # phase 1 sweep, phase 2 mop — same rooms, distinct payloads
+            sweep = self.build_payload(**kwargs)
+            mop = self.build_payload(**kwargs)
+            sweep["payload"] = {**sweep["payload"], "phase": "sweep"}
+            mop["payload"] = {**mop["payload"], "phase": "mop"}
+            return [sweep, mop]
+
+    engine = _SweepThenMopEngine()
+    assert engine.job_model == "sequenced"
+    phases = engine.build_phases(
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=_managed(),
+        queue_room_ids=[1, 2], capabilities={}, dispatch=_DREAME_DISPATCH,
+    )
+    assert len(phases) == 2
+    assert phases[0]["payload"]["phase"] == "sweep"
+    assert phases[1]["payload"]["phase"] == "mop"
+    # each phase is a complete, independently-finalizable payload envelope
+    assert all("resolved_rooms" in p and "payload" in p for p in phases)

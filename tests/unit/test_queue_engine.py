@@ -8,6 +8,9 @@ Coverage targets
 [QE-4]  _write_room_field: identity / omit (None) / value_map.
 [QE-5]  build_active_job_state: stable keys + current room + frozen status.
 [QE-6]  build_room_clean_payload: returns payload + resolved_rooms (smoke).
+[QE-7]  build_active_job_state: no phases arg -> phase keys absent (atomic, unchanged).
+[QE-8]  build_active_job_state: phases arg -> phases + current_phase_index + phase_count stored.
+[QE-9]  advance_active_job_phase: atomic/last -> None; mid -> swaps to next phase, resets progress.
 """
 
 from __future__ import annotations
@@ -17,6 +20,7 @@ import pytest
 from custom_components.eufy_vacuum.queue.queue_engine import (
     _cast_map_id,
     _write_room_field,
+    advance_active_job_phase,
     build_active_job_state,
     build_queue_from_managed_rooms,
     build_room_clean_payload,
@@ -100,3 +104,66 @@ def test_build_room_clean_payload():
     assert result["room_count"] >= 1
     assert "payload" in result
     assert isinstance(result["resolved_rooms"], list)
+
+
+def test_active_job_no_phases_keys_absent():
+    """[QE-7] atomic (no phases arg) -> phase keys are not present at all."""
+    state = build_active_job_state(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        queue_state={"queue_room_ids": [1], "queue_rooms": []},
+        payload_state={"resolved_rooms": [{"room_id": 1}], "payload": {}, "room_count": 1})
+    assert "phases" not in state
+    assert "current_phase_index" not in state
+
+
+def test_active_job_with_phases_stored():
+    """[QE-8] sequenced -> phases + index + count stored."""
+    phases = [
+        {"resolved_rooms": [{"room_id": 1}], "payload": {"a": 1}, "room_count": 1},
+        {"resolved_rooms": [{"room_id": 1}], "payload": {"a": 2}, "room_count": 1},
+    ]
+    state = build_active_job_state(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        queue_state={"queue_room_ids": [1], "queue_rooms": []},
+        payload_state={"resolved_rooms": [{"room_id": 1}], "payload": {"a": 1}, "room_count": 1},
+        phases=phases)
+    assert state["phases"] == phases
+    assert state["current_phase_index"] == 0
+    assert state["phase_count"] == 2
+
+
+def test_advance_phase_atomic_and_last_return_none():
+    """[QE-9] no phases -> None; final phase -> None (caller finalizes)."""
+    assert advance_active_job_phase({"vacuum_entity_id": _VAC, "map_id": _MAP}) is None
+    one_phase = {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                 "phases": [{"resolved_rooms": [{"room_id": 1}]}], "current_phase_index": 0}
+    assert advance_active_job_phase(one_phase) is None
+    on_last = {"vacuum_entity_id": _VAC, "map_id": _MAP,
+               "phases": [{"resolved_rooms": []}, {"resolved_rooms": []}],
+               "current_phase_index": 1}
+    assert advance_active_job_phase(on_last) is None
+
+
+def test_advance_phase_swaps_and_resets():
+    """[QE-9] mid-sequence advance swaps room set + payload and resets progress."""
+    phases = [
+        {"resolved_rooms": [{"room_id": 1}], "payload": {"mode": "sweep"}, "room_count": 1},
+        {"resolved_rooms": [{"room_id": 5}, {"room_id": 6}],
+         "payload": {"mode": "mop"}, "room_count": 2},
+    ]
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "phases": phases, "current_phase_index": 0,
+        "resolved_rooms": phases[0]["resolved_rooms"], "payload": phases[0]["payload"],
+        "completed_room_ids": [1], "completed_rooms": [{"room_id": 1}],
+        "current_room_id": None, "status": "started",
+    }
+    nxt = advance_active_job_phase(job)
+    assert nxt is not None
+    assert nxt["current_phase_index"] == 1
+    assert nxt["payload"] == {"mode": "mop"}
+    assert nxt["queue_room_ids"] == [5, 6]
+    assert nxt["current_room_id"] == 5            # first room of the new phase
+    assert nxt["completed_room_ids"] == []        # per-phase progress reset
+    assert nxt["completed_rooms"] == []
+    assert nxt["queue_stable_keys"] == [f"{_VAC}:{_MAP}:5", f"{_VAC}:{_MAP}:6"]

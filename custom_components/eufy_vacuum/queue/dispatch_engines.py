@@ -42,9 +42,25 @@ class DispatchEngine(Protocol):
     ``resolved_rooms``, and ``room_count``. ``resolved_rooms`` always uses
     canonical (framework-internal) field names regardless of the wire shape, so
     learning/history readers are brand-independent.
+
+    ``job_model`` declares how the framework runs the job:
+
+      - ``atomic_batch`` — one dispatch of a fixed room set (Eufy/Roborock/
+        Ecovacs). The default; the entire existing lifecycle/finalizer path.
+      - ``sequenced`` — a logical job is an ordered list of phases, each its own
+        dispatch (e.g. Dreame sweep-all → mop-all). ``build_phases`` returns the
+        sequence; each phase runs as an atomic sub-job and finalizes like one
+        (one job record per phase). Advance-vs-finalize is decided at the
+        completion hook.
+
+    ``build_phases`` returns the ordered list of per-phase payload envelopes.
+    The default is a single phase == ``build_payload`` output, so an atomic
+    engine is exactly a one-phase sequenced engine — the framework can treat
+    both uniformly.
     """
 
     template_name: str   # matches the key in _DISPATCH_ENGINES
+    job_model: str        # "atomic_batch" | "sequenced"
 
     def build_payload(
         self,
@@ -60,8 +76,35 @@ class DispatchEngine(Protocol):
         """Return ``{payload, resolved_rooms, room_count, …}`` for this brand."""
         ...
 
+    def build_phases(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, dict[str, Any]],
+        queue_room_ids: list[int] | None = None,
+        stored_profiles: dict[str, dict[str, Any]] | None = None,
+        capabilities: dict[str, Any] | None = None,
+        dispatch: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return the ordered list of per-phase payload envelopes."""
+        ...
 
-class EufyRoomCleanEngine:
+
+class _SinglePhaseMixin:
+    """Default job-model behavior: atomic, one phase == build_payload output.
+
+    Mixed into every engine; a sequenced engine overrides ``job_model`` and
+    ``build_phases``.
+    """
+
+    job_model = "atomic_batch"
+
+    def build_phases(self, **kwargs: Any) -> list[dict[str, Any]]:
+        return [self.build_payload(**kwargs)]  # type: ignore[attr-defined]
+
+
+class EufyRoomCleanEngine(_SinglePhaseMixin):
     """Eufy ``room_clean`` list-of-dicts payload.
 
     Delegates verbatim to ``build_room_clean_payload`` — this is the original
@@ -93,7 +136,7 @@ class EufyRoomCleanEngine:
         )
 
 
-class GenericRoomIdsEngine:
+class GenericRoomIdsEngine(_SinglePhaseMixin):
     """Flat room-id list + a single batch ``passes`` scalar.
 
     For brands whose segment-clean service takes a flat list of room/segment ids
@@ -176,7 +219,7 @@ class RoborockSegmentEngine(GenericRoomIdsEngine):
     template_name = "roborock_segment_clean"
 
 
-class DreameSegmentEngine:
+class DreameSegmentEngine(_SinglePhaseMixin):
     """Dreame ``vacuum_clean_segment`` — positional parallel arrays.
 
     The richest wire shape: index-aligned arrays carrying **per-room** fan,

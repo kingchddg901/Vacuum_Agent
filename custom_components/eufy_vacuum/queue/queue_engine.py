@@ -331,6 +331,8 @@ def build_active_job_state(
     map_id: str,
     queue_state: dict[str, Any],
     payload_state: dict[str, Any],
+    phases: list[dict[str, Any]] | None = None,
+    current_phase_index: int = 0,
 ) -> dict[str, Any]:
     """Return the initial active job state dict, frozen at job-start time.
 
@@ -338,6 +340,12 @@ def build_active_job_state(
     ``"{vacuum_entity_id}:{map_id}:{room_id}"``, used for identity-safe
     cross-map room tracking. ``queue_room_ids`` is also populated for
     backward compatibility with the learning subsystem.
+
+    ``phases`` is the sequenced job-model's ordered list of per-phase payload
+    envelopes (each like ``build_room_clean_payload`` output). When ``None``
+    (atomic_batch — the default and every current adapter) the phase keys are
+    omitted entirely, so the output is byte-identical to pre-sequencing.
+    ``advance_active_job_phase`` consumes these at the completion hook.
     """
     resolved_rooms = list(payload_state.get("resolved_rooms", []))
     queue_room_ids = list(queue_state.get("queue_room_ids", []))
@@ -352,7 +360,7 @@ def build_active_job_state(
         for room_id in queue_room_ids
     ]
 
-    return {
+    state = {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": str(map_id),
         "queue_room_ids": queue_room_ids,
@@ -370,3 +378,58 @@ def build_active_job_state(
         "current_room_started_at": None,
         "current_room_paused_seconds": 0,
     }
+
+    # Sequenced job model only — atomic_batch (the default, every current
+    # adapter) leaves these keys absent so the snapshot is byte-identical.
+    if phases is not None:
+        state["phases"] = phases
+        state["current_phase_index"] = int(current_phase_index)
+        state["phase_count"] = len(phases)
+
+    return state
+
+
+def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | None:
+    """Advance a sequenced job to its next phase, or return None if it was the last.
+
+    Called at the completion hook when a phase's room set has finished. Returns
+    a new active-job dict swapped to the next phase: ``resolved_rooms`` /
+    ``payload`` / ``room_count`` / ``queue_*`` come from the next phase, per-phase
+    progress (``completed_room_ids`` / ``completed_rooms`` / ``current_room_id`` /
+    timing) resets, and ``current_phase_index`` increments. Returns ``None`` for
+    an atomic job (no ``phases``) or when already on the final phase — in both
+    cases the caller finalizes exactly as today.
+    """
+    phases = active_job.get("phases")
+    if not isinstance(phases, list) or len(phases) < 2:
+        return None
+
+    idx = int(active_job.get("current_phase_index", 0))
+    if idx >= len(phases) - 1:
+        return None
+
+    next_idx = idx + 1
+    next_phase = phases[next_idx] if isinstance(phases[next_idx], dict) else {}
+    next_resolved = list(next_phase.get("resolved_rooms", []))
+    next_room_ids = [
+        int(r["room_id"]) for r in next_resolved if isinstance(r, dict) and "room_id" in r
+    ]
+    vac = active_job.get("vacuum_entity_id")
+    mid = active_job.get("map_id")
+
+    advanced = dict(active_job)
+    advanced["current_phase_index"] = next_idx
+    advanced["resolved_rooms"] = next_resolved
+    advanced["payload"] = dict(next_phase.get("payload", {}))
+    advanced["room_count"] = int(next_phase.get("room_count", len(next_resolved)))
+    advanced["queue_room_ids"] = next_room_ids
+    advanced["queue_stable_keys"] = [f"{vac}:{mid}:{rid}" for rid in next_room_ids]
+    advanced["queue_rooms"] = list(next_phase.get("queue_rooms", []))
+    # Reset per-phase progress — the next phase is a fresh atomic sub-job.
+    advanced["completed_room_ids"] = []
+    advanced["completed_rooms"] = []
+    advanced["current_room_id"] = next_room_ids[0] if next_room_ids else None
+    advanced["current_room_started_at"] = None
+    advanced["current_room_paused_seconds"] = 0
+    advanced["status"] = "started"
+    return advanced
