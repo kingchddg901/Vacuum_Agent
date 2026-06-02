@@ -272,21 +272,6 @@ async def test_upload_bad_base64_service(hass, mapping_services):
     assert res["reason"] == "invalid_base64"
 
 
-def test_resolve_matches_fake_segment(hass, mapping_services, pil):
-    """[IMG-14] _resolve_trace_target_polygon_pixel returns a linked segment's
-    polygon from the (fake) engine output — the CV match path."""
-    mm = _get_mapping_manager(hass)
-    # a fresh map id avoids any segment_adjustments other tests persisted on "6"
-    mm.save_map_image(vacuum_entity_id=_VAC, map_id="rsmap",
-                      image_base64=_tiny_png_b64(pil), image_width=8,
-                      image_height=8, variant="primary")
-    md = {"rooms": {"3": {}},
-          "package": {"room_definitions": {"3": {"suggestion_segment_id": "fake_1"}}}}
-    poly = mm._resolve_trace_target_polygon_pixel(
-        vacuum_entity_id=_VAC, map_id="rsmap", room_id="3", map_data=md)
-    assert poly == [[10.0, 10.0], [40.0, 10.0], [40.0, 40.0], [10.0, 40.0]]
-
-
 def test_translate_vertex_accumulation(hass, mapping_services, pil):
     """[IMG-15] translate_image_segment accumulates per-vertex moves across calls."""
     _save_image(hass, pil)

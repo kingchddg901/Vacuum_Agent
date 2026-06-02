@@ -333,73 +333,6 @@ class MappingManager:
         # capture sessions collect cleaning runs for transform fitting — distinct purposes.
         self._trace_capture = TraceCapture(self._base_dir)
 
-    def _coerce_polygon_points(self, polygon: Any) -> list[list[float]]:
-        """Return a validated list of [float, float] points, or [] if fewer than 3 valid points."""
-        if not isinstance(polygon, list):
-            return []
-        normalized: list[list[float]] = []
-        for point in polygon:
-            if not isinstance(point, (list, tuple)) or len(point) != 2:
-                continue
-            try:
-                normalized.append([float(point[0]), float(point[1])])
-            except Exception:
-                continue
-        return normalized if len(normalized) >= 3 else []
-
-    def _resolve_trace_target_polygon_pixel(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        room_id: str,
-        map_data: dict[str, Any],
-    ) -> list[list[float]]:
-        """Return the best available pixel polygon for room-entry gating."""
-        room_entry = map_data.get("rooms", {}).get(str(room_id), {})
-        if isinstance(room_entry, dict):
-            boundary_pixel = self._coerce_polygon_points(room_entry.get("boundary_pixel"))
-            if boundary_pixel:
-                return boundary_pixel
-
-        package = map_data.get("package", self._default_mapping_package())
-        if not isinstance(package, dict):
-            package = self._default_mapping_package()
-        room_definitions = package.get("room_definitions", {})
-        if not isinstance(room_definitions, dict):
-            room_definitions = {}
-        room_definition = room_definitions.get(str(room_id), {})
-        linked_segment_id = (
-            str(room_definition.get("suggestion_segment_id") or "").strip()
-            if isinstance(room_definition, dict)
-            else ""
-        )
-        if not linked_segment_id:
-            return []
-
-        try:
-            suggestions = self.get_image_segment_suggestions(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-            )
-        except Exception:
-            return []
-
-        segments = suggestions.get("suggestions", []) if isinstance(suggestions, dict) else []
-        if not isinstance(segments, list):
-            return []
-        for segment in segments:
-            if not isinstance(segment, dict):
-                continue
-            segment_id = str(segment.get("segment_id") or "").strip()
-            matched_room_id = str(segment.get("matched_room_id") or "").strip()
-            if segment_id != linked_segment_id and matched_room_id != str(room_id):
-                continue
-            polygon = self._coerce_polygon_points(segment.get("polygon_pixel"))
-            if polygon:
-                return polygon
-        return []
-
     def _build_trace_state(
         self,
         *,
@@ -407,24 +340,17 @@ class MappingManager:
         map_id: str,
         room_id: str,
     ) -> dict[str, Any]:
-        """Return one active trace state entry."""
-        map_data = self._ensure_map_data(vacuum_entity_id, map_id)
-        target_polygon_pixel = self._resolve_trace_target_polygon_pixel(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            room_id=str(room_id),
-            map_data=map_data,
-        )
-        # No vacuum→pixel transform is available (legacy System A removed),
-        # so target-room gating cannot fire. Traces always start armed.
+        """Return one active trace state entry.
+
+        Target-room entry gating was removed with legacy System A: there is no
+        vacuum→pixel transform to test live (vacuum-space) positions against a
+        pixel-space room polygon, so gating can never fire. Boundary traces are
+        therefore always armed and ungated — every position sample is recorded.
+        """
         return {
             "samples": [],
             "armed": True,
             "arm_reason": "ungated",
-            "target_polygon_pixel": target_polygon_pixel,
-            "transform_matrix": None,
-            "pending_inside": [],
-            "inside_hits": 0,
         }
 
     # ------------------------------------------------------------------
@@ -1810,7 +1736,6 @@ class MappingManager:
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
             "room_id": str(room_id),
-            "entry_gating": bool(trace.get("target_polygon_pixel")),
             "armed": bool(trace.get("armed")),
         }
 
@@ -1871,11 +1796,7 @@ class MappingManager:
         if not trail:
             return {
                 "closed": False,
-                "reason": (
-                    "trace_never_entered_target_room"
-                    if trace.get("target_polygon_pixel")
-                    else "no_trace_samples"
-                ),
+                "reason": "no_trace_samples",
                 "vacuum_entity_id": vacuum_entity_id,
                 "map_id": str(map_id),
                 "room_id": str(room_id),

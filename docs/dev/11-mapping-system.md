@@ -1,6 +1,6 @@
 # Mapping System — Developer Reference
 
-This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, the affine coordinate transform, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
+This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
 
 ---
 
@@ -8,13 +8,15 @@ This document covers the complete mapping subsystem: image segment analysis, tra
 
 The mapping system has two independent subsystems that address different aspects of knowing where rooms are.
 
-**Image segment analysis** (`image_segments.py`) answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card and can feed the coordinate transform pipeline.
+**Image segment analysis** (`image_segments.py`) answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
 **Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
 
-The two subsystems are related in two ways:
-- An image segment's pixel polygon can be mapped to vacuum space via the affine transform, giving a rough vacuum polygon. That polygon drives the `BOUNDARY_CROSSING` signal in trace segmentation and the room-entry gating on boundary traces.
-- The trace-based bounds and the image-segment polygon serve complementary purposes: the image segment gives shape; the trace bounds give a reliable presence envelope.
+The two subsystems are **independent** and operate in different coordinate spaces — image analysis in pixel space, trace bounds in vacuum space. There is no transform between them: the legacy "System A" affine vacuum↔pixel transform was removed.
+
+- The `BOUNDARY_CROSSING` signal in trace segmentation tests samples against a room's **vacuum-space boundary** (learned from a robot boundary-trace trail; see `close_room_boundary`), not against any image-derived polygon.
+- The trace-based bounds and the image-segment polygon serve complementary but unconnected purposes: the image segment gives shape (pixel space); the trace bounds give a reliable presence envelope (vacuum space).
+- Because no pixel↔vacuum transform exists, there is no room-entry gating on boundary traces — traces are always armed.
 
 ---
 
@@ -307,65 +309,15 @@ The vacuum reports its position as `(vx, vy)` values. These are in proprietary i
 
 The map PNG uses the standard image convention: origin at the top-left, X increases rightward, Y increases downward.
 
-### 4.3 Affine Transform — `compute_affine_transform`
+### 4.3 No Cross-Space Transform
 
-The transform maps vacuum coordinates to pixel coordinates. It is a 2D affine transform represented as a 3×3 row-major matrix:
+The two coordinate spaces are **not** related by any runtime transform. The legacy "System A" affine vacuum↔pixel transform (calibration pairs, `compute_affine_transform`, `vacuum_to_pixel`/`pixel_to_vacuum`, machine-corner clustering) has been removed.
 
-```
-M = [[a,  b,  tx],
-     [c,  d,  ty],
-     [0,  0,  1 ]]
-```
+Consequences for the rest of the system:
 
-To compute the matrix, the system needs at least 3 calibration pairs (the constant `MIN_PAIRS_FOR_TRANSFORM = 3`), each providing a known `(vx, vy)` → `(px, py)` correspondence. The system solves for the 6 unknowns `[a, b, tx, c, d, ty]` by least squares:
-
-For each calibration pair, two rows are added to the matrix equation `A · x = b`:
-
-```
-[vx, vy, 1,  0,  0,  0]  · [a, b, tx, c, d, ty]ᵀ = px
-[ 0,  0, 0, vx, vy,  1]  · [a, b, tx, c, d, ty]ᵀ = py
-```
-
-`numpy.linalg.lstsq` solves the overdetermined system (2N equations, 6 unknowns) when N ≥ 3.
-
-The mean reprojection error in pixels is computed after solving:
-
-```python
-residual_pixels = mean(distance(vacuum_to_pixel(v), p) for each pair)
-```
-
-Quality thresholds: ≤ 5 px → `"excellent"`, ≤ 15 px → `"good"`, ≤ 30 px → `"fair"`, otherwise `"poor"`.
-
-### 4.4 `vacuum_to_pixel` — The Conversion Formula
-
-```python
-def vacuum_to_pixel(vacuum_point, matrix):
-    vx, vy = float(vacuum_point[0]), float(vacuum_point[1])
-    a,  b,  tx = matrix[0]
-    c,  d,  ty = matrix[1]
-    px = a * vx + b * vy + tx
-    py = c * vx + d * vy + ty
-    return (round(px, 2), round(py, 2))
-```
-
-The inverse (`pixel_to_vacuum`) uses `numpy.linalg.inv(M)` and returns `None` if the matrix is singular.
-
-### 4.5 Calibration Pair Sources and Clustering
-
-Calibration pairs come from two sources:
-
-- **`"manual"`** — added by the user via `add_calibration_point`, never automatically modified.
-- **`"machine"`** — derived from detected boundary-trace corners.
-
-Machine pairs are clustered: `merge_or_add_corner` searches existing machine pairs within `CLUSTER_THRESHOLD_UNITS = 50` vacuum units. When a match is found, the centroid is updated via running mean:
-
-```python
-new_centroid = (old_centroid × n + new_point) / (n + 1)
-```
-
-where `n` is the existing `cluster_count`. The pixel coordinate is re-derived from the new centroid using the current transform. This accumulation stabilises corner positions across multiple boundary traces.
-
-When the transform is recomputed (e.g., a new manual pair is added), all machine-source pairs have their pixel coordinates recomputed from the current transform via `reproject_machine_pairs`. Manual pairs are never touched.
+- Image-segment polygons stay in pixel space and are used only as UI map-card overlays; they are never projected into vacuum space.
+- Trace-based room bounds and the `BOUNDARY_CROSSING` signal operate purely in vacuum space, using boundaries learned from robot boundary-trace trails (see §3 and `close_room_boundary`).
+- There is no room-entry gating on boundary traces — without a pixel↔vacuum transform a live (vacuum-space) position cannot be tested against a pixel-space polygon, so traces are always armed.
 
 ---
 
@@ -524,10 +476,9 @@ map_<map_id>.json
 
 One JSON file per (vacuum, map). Contains:
 
-- `calibration` — calibration pairs, transform matrix, residual, `calibration_room_id`
 - `rooms` — per-room dict keyed by `room_id` string. Each room entry holds:
   - `boundary` — vacuum-space polygon from a boundary trace (list of `[vx, vy]`)
-  - `boundary_pixel` — same polygon in pixel space
+  - `boundary_pixel` — legacy pixel-space field; always `[]` since the System-A transform was removed
   - `bounds` — the active bounding box: `{min_x, max_x, min_y, max_y, cx, cy, run_count, sample_count, updated_at}`
   - `job_bounds_history` — list of up to 20 job entries, newest first
   - `traced_at` — ISO timestamp of last boundary trace close
@@ -592,7 +543,7 @@ The following are specific to Eufy's implementation:
 
 - **Vacuum coordinate units** — Eufy reports `robot_position_x` / `robot_position_y` as integer sensor states in its proprietary unit. The scale (≈ 1 mm/unit) is inferred and not guaranteed.
 - **Map image format** — Eufy's map images use a consistent hue-per-room convention. The dark variant provides saturated, high-contrast room colours; the light variant provides near-white walls. Both properties are assumed by the HSV thresholding approach.
-- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires HA bus events (`eufy_vacuum_room_completed`, `eufy_vacuum_calibration_updated`, `eufy_vacuum_boundary_saved`). These are HA-specific patterns.
+- **HA entity model** — `MappingTracker` listens to Home Assistant state change events for position sensors and fires HA bus events (`eufy_vacuum_room_completed`, `eufy_vacuum_boundary_saved`). These are HA-specific patterns.
 - **HA storage** — `MappingManager._save_map_data` / `_load_map_data` writes directly to JSON files on the config dir filesystem. The `image_segment_adjustments` and `image_segments` results live in the runtime HA storage manager (`.storage` files), not in the mapping JSON files.
 
 ### 9.2 Generic / Portable
@@ -601,7 +552,6 @@ The following components have no Eufy-specific dependencies and would port direc
 
 - **`image_segments.py`** — entire pipeline. Inputs: a PNG file path. Outputs: a pure-Python dict. Only dependencies: Pillow, NumPy, SciPy.
 - **`boundary.py`** — Douglas-Peucker simplification, corner detection, point-in-polygon (ray casting), transition candidate scoring, shoelace polygon area, convex hull (Andrew's monotone chain). All pure Python.
-- **`transform.py`** — affine transform computation (requires NumPy), `vacuum_to_pixel`, `pixel_to_vacuum`, calibration pair clustering. The coordinate system is abstract — substitute any two corresponding point sets.
 - **`trace_capture.py`** — in-memory session manager. No HA dependency. Requires a `write_trace_run` backend (currently `trace_store.py`).
 - **`trace_segmentation.py`** — `segment_trace_run`. Input: a TraceRun dict with `samples` having `x`, `y`, `ts` keys. Output: a SegmentationResult dict. No HA dependency.
 - **`_percentile_trim`** in `manager.py` — pure Python outlier trimming.

@@ -421,27 +421,6 @@ def test_apply_adjust_noop_and_passthrough(mapping_manager):
     assert out3 == ["not-a-dict"]
 
 
-def test_resolve_trace_target_polygon(mapping_manager):
-    """[MGR-30] _resolve_trace_target_polygon_pixel branch coverage.
-
-    Takes map_data directly, so the boundary-pixel and no-link branches are
-    testable without the CV pipeline; the linked-segment path falls back to []
-    when no image/segments are available.
-    """
-    r = mapping_manager._resolve_trace_target_polygon_pixel
-    # 1. an explicit boundary_pixel on the room → returned directly
-    md = {"rooms": {"3": {"boundary_pixel": [[0, 0], [10, 0], [10, 10], [0, 10]]}}}
-    out = r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md)
-    assert out == [[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]]
-    # 2. no boundary + no linked segment → []
-    md2 = {"rooms": {"3": {}}, "package": {"room_definitions": {"3": {}}}}
-    assert r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md2) == []
-    # 3. a linked segment but no image/segments available → []
-    md3 = {"rooms": {"3": {}},
-           "package": {"room_definitions": {"3": {"suggestion_segment_id": "seg1"}}}}
-    assert r(vacuum_entity_id=_VAC, map_id=_MAP, room_id="3", map_data=md3) == []
-
-
 def test_update_room_bounds_multi_room(mapping_manager):
     """[MGR-31] multi-room job: samples are attributed to whichever trustworthy
     room's existing bounds contain them (the else branch of update_room_bounds)."""
@@ -462,21 +441,6 @@ def test_update_room_bounds_multi_room(mapping_manager):
         rooms={"1": {"is_transition": False}, "2": {"is_transition": False}})
     snap = mapping_manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id=_MM)
     assert "1" in snap["rooms"] and "2" in snap["rooms"]
-
-
-def test_coerce_polygon_points(mapping_manager):
-    """[MGR-29] point validation: non-list, <3 valid, and per-point skips.
-
-    Its real callers are CV-gated, so the loop body is otherwise never exercised
-    — but the logic is pure and directly testable.
-    """
-    c = mapping_manager._coerce_polygon_points
-    assert c("not-a-list") is not None and c("not-a-list") == []
-    assert c([[0, 0], [1, 1]]) == []                 # fewer than 3 valid → []
-    assert c([[0, 0], [1, 1], [2, 2]]) == [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]
-    # malformed points are skipped; 3 valid remain
-    mixed = c([[0, 0], "x", [1], [1, 1], ["a", "b"], [2, 2]])
-    assert mixed == [[0.0, 0.0], [1.0, 1.0], [2.0, 2.0]]
 
 
 def test_rebuild_room_bounds_from_archive(mapping_manager):
