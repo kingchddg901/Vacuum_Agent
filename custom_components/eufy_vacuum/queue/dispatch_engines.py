@@ -176,6 +176,109 @@ class RoborockSegmentEngine(GenericRoomIdsEngine):
     template_name = "roborock_segment_clean"
 
 
+class DreameSegmentEngine:
+    """Dreame ``vacuum_clean_segment`` — positional parallel arrays.
+
+    The richest wire shape: index-aligned arrays carrying **per-room** fan,
+    water, and passes (Dreame is the first brand where the framework's per-room
+    run-profile fully reaches the wire)::
+
+        {segments:[3,2], suction_level:[0,3], water_volume:[1,3], repeats:[1,2]}
+
+    Structurally this is the **transpose** of the Eufy list-of-dicts engine:
+    Eufy emits one dict per room (rows); Dreame emits one array per field
+    (columns), aligned by room index. It reuses the exact same ``room_fields``
+    vocabulary (``field_name`` rename + ``value_map``) — the adapter maps
+    ``fan_speed → suction_level`` (value_map to Dreame's 0–3 ints),
+    ``water_level → water_volume`` (1–3), and sets ``field_name: null`` for
+    fields Dreame doesn't accept (``clean_mode`` is global via a select, plus
+    ``clean_intensity`` / ``edge_mopping`` / ``path_type``). Declaring a field
+    null is also how per-room capability gating stays correct — arrays are only
+    emitted for declared fields, so they're always full-length and aligned.
+
+    Direct envelope (no ``command``); the global cleaning-mode pre-call is a
+    send-side concern, deferred like Roborock's global fan.
+    """
+
+    template_name = "dreame_room_clean"
+
+    # Canonical per-room fields that may map to parallel arrays — same set the
+    # Eufy engine writes as per-room dict keys.
+    _ARRAY_FIELDS = (
+        "fan_speed",
+        "clean_mode",
+        "clean_intensity",
+        "water_level",
+        "edge_mopping",
+        "path_type",
+    )
+
+    def build_payload(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, dict[str, Any]],
+        queue_room_ids: list[int] | None = None,
+        stored_profiles: dict[str, dict[str, Any]] | None = None,
+        capabilities: dict[str, Any] | None = None,
+        dispatch: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        dispatch = dispatch or {}
+        base = build_room_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            managed_rooms=managed_rooms,
+            queue_room_ids=queue_room_ids,
+            stored_profiles=stored_profiles,
+            capabilities=capabilities,
+            dispatch=dispatch,
+        )
+        resolved = base["resolved_rooms"]
+
+        rooms_field = dispatch.get("rooms_field", "segments")
+        passes_field = dispatch.get("clean_passes_field", "repeats")
+        room_fields = dispatch.get("room_fields", {}) or {}
+        passes_max = int(dispatch.get("passes_max", 3))
+
+        payload: dict[str, Any] = {
+            rooms_field: [int(r["room_id"]) for r in resolved],
+        }
+
+        if passes_field is not None:
+            payload[passes_field] = [
+                max(1, min(passes_max, int(r.get("clean_passes", 1) or 1)))
+                for r in resolved
+            ]
+
+        # Transpose each declared per-room field into a full-length, aligned
+        # array. field_name=None (or absent canonical entry with no rename) is
+        # how the adapter omits a field Dreame doesn't accept.
+        for canonical in self._ARRAY_FIELDS:
+            cfg = room_fields.get(canonical)
+            if cfg is None:
+                continue  # not declared → not emitted (Dreame omits most)
+            wire_name = cfg.get("field_name", canonical)
+            if wire_name is None:
+                continue
+            value_map = cfg.get("value_map")
+            column: list[Any] = []
+            for r in resolved:
+                v = r.get(canonical)
+                if value_map:
+                    v = value_map.get(str(v), v)
+                column.append(v)
+            payload[wire_name] = column
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "payload": payload,
+            "resolved_rooms": resolved,
+            "room_count": len(payload[rooms_field]),
+        }
+
+
 # =============================================================================
 # Registry
 # =============================================================================
@@ -184,7 +287,7 @@ _DISPATCH_ENGINES: dict[str, DispatchEngine] = {
     "eufy_room_clean": EufyRoomCleanEngine(),
     "roborock_segment_clean": RoborockSegmentEngine(),
     "generic_room_ids": GenericRoomIdsEngine(),  # Ecovacs spot_area + catch-all
-    # "dreame_room_clean": DreameSegmentEngine(),  # parallel arrays — next
+    "dreame_room_clean": DreameSegmentEngine(),  # positional parallel arrays
 }
 
 _FALLBACK_TEMPLATE = "eufy_room_clean"
