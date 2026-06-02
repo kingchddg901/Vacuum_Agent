@@ -93,15 +93,98 @@ class EufyRoomCleanEngine:
         )
 
 
+class GenericRoomIdsEngine:
+    """Flat room-id list + a single batch ``passes`` scalar.
+
+    For brands whose segment-clean service takes a flat list of room/segment ids
+    plus one repeat/cleanings value for the *whole batch*:
+
+      - Roborock ``app_segment_clean`` → ``{segments: [ints], repeat: n}``
+      - Ecovacs  ``spot_area``         → ``{rooms: [ints], cleanings: n}``
+
+    These brands expose **no per-room fan/water/passes on the wire** (fan is a
+    global vacuum setting), so the framework's per-room run-profile passes are
+    collapsed to one batch value — the **max** requested across the selected
+    rooms, clamped to ``[1, passes_max]`` (``passes_max`` from dispatch config,
+    default 3 per Roborock's documented range). Per-room canonical settings still
+    survive untouched in ``resolved_rooms`` for learning/history.
+
+    Field names are taken from the adapter ``dispatch`` block:
+      - ``rooms_field``       (default ``"segments"``)  — the flat id list key
+      - ``clean_passes_field`` (default ``"repeat"``)   — the batch scalar key;
+        set to ``None`` to omit passes entirely
+    """
+
+    template_name = "generic_room_ids"
+
+    def build_payload(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, dict[str, Any]],
+        queue_room_ids: list[int] | None = None,
+        stored_profiles: dict[str, dict[str, Any]] | None = None,
+        capabilities: dict[str, Any] | None = None,
+        dispatch: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        dispatch = dispatch or {}
+        # Reuse the shared resolver for profile resolution + capability gating +
+        # canonical resolved_rooms. Its Eufy-shaped payload is discarded; only
+        # resolved_rooms (already enabled-filtered and order-sorted) is used.
+        base = build_room_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            managed_rooms=managed_rooms,
+            queue_room_ids=queue_room_ids,
+            stored_profiles=stored_profiles,
+            capabilities=capabilities,
+            dispatch=dispatch,
+        )
+        resolved = base["resolved_rooms"]
+
+        rooms_field = dispatch.get("rooms_field", "segments")
+        passes_field = dispatch.get("clean_passes_field", "repeat")
+        passes_max = int(dispatch.get("passes_max", 3))
+
+        segment_ids = [int(r["room_id"]) for r in resolved]
+        passes_values = [int(r.get("clean_passes", 1) or 1) for r in resolved]
+        batch_passes = max(1, min(passes_max, max(passes_values, default=1)))
+
+        payload: dict[str, Any] = {rooms_field: segment_ids}
+        if passes_field is not None:
+            payload[passes_field] = batch_passes
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": str(map_id),
+            "payload": payload,
+            "resolved_rooms": resolved,
+            "room_count": len(segment_ids),
+        }
+
+
+class RoborockSegmentEngine(GenericRoomIdsEngine):
+    """Roborock ``app_segment_clean`` — flat segment list + batch ``repeat``.
+
+    Pure naming subclass of :class:`GenericRoomIdsEngine`; the shape is identical
+    (flat ids + batch scalar). Kept distinct so the schema's
+    ``roborock_segment_clean`` template resolves to a correctly-named engine and
+    the contract harness can address it by brand.
+    """
+
+    template_name = "roborock_segment_clean"
+
+
 # =============================================================================
 # Registry
 # =============================================================================
 
 _DISPATCH_ENGINES: dict[str, DispatchEngine] = {
     "eufy_room_clean": EufyRoomCleanEngine(),
-    # "roborock_segment_clean": RoborockSegmentEngine(),  # when ready
-    # "dreame_room_clean":      DreameSegmentEngine(),     # when ready
-    # "generic_room_ids":       GenericRoomIdsEngine(),    # when ready
+    "roborock_segment_clean": RoborockSegmentEngine(),
+    "generic_room_ids": GenericRoomIdsEngine(),  # Ecovacs spot_area + catch-all
+    # "dreame_room_clean": DreameSegmentEngine(),  # parallel arrays — next
 }
 
 _FALLBACK_TEMPLATE = "eufy_room_clean"

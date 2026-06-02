@@ -267,6 +267,21 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 engine = get_segmenter_engine(engine_name)
                 issues.extend(engine.validate_tuning(tuning))
 
+    # Dispatch template check — a declared template must resolve to a registered
+    # dispatch engine. A schema-valid template with no engine yet (e.g.
+    # dreame_room_clean before its engine ships) is rejected at registration
+    # rather than silently falling back to the Eufy shape and cleaning wrong.
+    dispatch_block = config.get("dispatch")
+    if isinstance(dispatch_block, dict):
+        from ..queue.dispatch_engines import known_dispatch_templates
+
+        template = dispatch_block.get("template")
+        if template is not None and template not in known_dispatch_templates():
+            issues.append(
+                f"dispatch.template {template!r} is unknown; "
+                f"valid names: {sorted(known_dispatch_templates())}"
+            )
+
     return issues
 
 
