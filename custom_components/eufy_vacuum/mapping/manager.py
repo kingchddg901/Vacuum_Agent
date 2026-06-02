@@ -393,6 +393,11 @@ class MappingManager:
         Strips the legacy ``calibration`` block (System A — affine-transform
         calibration) if encountered, resaving the file once so the legacy
         data is purged on first read.
+
+        This is a one-way migration: System A was removed, so the block is
+        pure dead weight in any map file written before then. Safe to retire
+        a few releases out, once installs in the wild have all been re-saved
+        at least once and no longer carry a ``calibration`` key.
         """
         path = self._map_json_path(vacuum_entity_id, map_id)
         if not path.exists():
@@ -801,7 +806,6 @@ class MappingManager:
 
             floor_type = str(managed.get("floor_type") or "").strip().lower() or None
             boundary = mapped.get("boundary", [])
-            boundary_pixel = mapped.get("boundary_pixel", [])
 
             entries.append(
                 {
@@ -817,7 +821,6 @@ class MappingManager:
                     "carpet": str(floor_type or "").startswith("carpet"),
                     "has_boundary": bool(boundary),
                     "boundary_point_count": len(boundary),
-                    "boundary_pixel_point_count": len(boundary_pixel) if isinstance(boundary_pixel, list) else 0,
                     "traced_at": mapped.get("traced_at"),
                     "is_active_trace": str(room_id) in active_traces,
                     "is_dock_room": dock_room_id is not None and str(room_id) == dock_room_id,
@@ -1823,7 +1826,6 @@ class MappingManager:
         transition_score, transition_candidate = score_transition_candidate(boundary_vacuum)
         data["rooms"][room_key] = {
             "boundary": boundary_vacuum,
-            "boundary_pixel": [],
             "traced_at": _iso_now(),
             "point_count_raw": result["point_count_raw"],
             "point_count_simplified": result["point_count_simplified"],
@@ -1841,7 +1843,6 @@ class MappingManager:
             "point_count_raw": result["point_count_raw"],
             "point_count_simplified": result["point_count_simplified"],
             "corner_count": result["corner_count"],
-            "boundary_pixel": [],
         }
 
     def cancel_room_boundary_trace(
@@ -1910,7 +1911,6 @@ class MappingManager:
                 room_id: {
                     "boundary_point_count": len(room.get("boundary", [])),
                     "traced_at": room.get("traced_at"),
-                    "boundary_pixel": room.get("boundary_pixel", []),
                 }
                 for room_id, room in data.get("rooms", {}).items()
             },

@@ -8,7 +8,7 @@ This document covers the complete mapping subsystem: image segment analysis, tra
 
 The mapping system has two independent subsystems that address different aspects of knowing where rooms are.
 
-**Image segment analysis** (`image_segments.py`) answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
+**Image segment analysis** answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. The brand-agnostic geometry/image primitives live in `mapping/segment_primitives.py`; the Eufy HSV pipeline that uses them lives in `adapters/eufy/segmentor.py` and is invoked through the segmenter-engine abstraction in `mapping/segmenter_engines.py`. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
 **Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
 
@@ -22,7 +22,7 @@ The two subsystems are **independent** and operate in different coordinate space
 
 ## 2. Image Segment Analysis Pipeline
 
-All code lives in `mapping/image_segments.py`. The public entry point is `detect_room_segments(...)`, which currently delegates to `_detect_room_segments_fallback(...)` unconditionally.
+The public entry point is `detect_room_segments(...)` in `adapters/eufy/segmentor.py`, which delegates to `_detect_room_segments_pipeline(...)`. It is built on the brand-agnostic primitives in `mapping/segment_primitives.py` and is reached at runtime via the `EufyCVSegmenter` wrapper in `mapping/segmenter_engines.py` (the segmenter-engine abstraction that lets a non-Eufy brand swap in its own pipeline).
 
 ### 2.1 Input
 
@@ -478,7 +478,6 @@ One JSON file per (vacuum, map). Contains:
 
 - `rooms` — per-room dict keyed by `room_id` string. Each room entry holds:
   - `boundary` — vacuum-space polygon from a boundary trace (list of `[vx, vy]`)
-  - `boundary_pixel` — legacy pixel-space field; always `[]` since the System-A transform was removed
   - `bounds` — the active bounding box: `{min_x, max_x, min_y, max_y, cx, cy, run_count, sample_count, updated_at}`
   - `job_bounds_history` — list of up to 20 job entries, newest first
   - `traced_at` — ISO timestamp of last boundary trace close
@@ -550,7 +549,8 @@ The following are specific to Eufy's implementation:
 
 The following components have no Eufy-specific dependencies and would port directly to another robot or framework:
 
-- **`image_segments.py`** — entire pipeline. Inputs: a PNG file path. Outputs: a pure-Python dict. Only dependencies: Pillow, NumPy, SciPy.
+- **`mapping/segment_primitives.py`** — brand-agnostic geometry/image primitives (polygon math, mask ops, HSV helpers). Pure Python; only dependencies Pillow, NumPy, SciPy.
+- **`adapters/eufy/segmentor.py`** — the Eufy HSV segmentation pipeline built on those primitives. Inputs: a PNG file path. Outputs: a pure-Python dict. A new brand provides its own segmentor module and registers it as a segmenter engine (`mapping/segmenter_engines.py`) — see the brand-agnostic adapter docs.
 - **`boundary.py`** — Douglas-Peucker simplification, corner detection, point-in-polygon (ray casting), transition candidate scoring, shoelace polygon area, convex hull (Andrew's monotone chain). All pure Python.
 - **`trace_capture.py`** — in-memory session manager. No HA dependency. Requires a `write_trace_run` backend (currently `trace_store.py`).
 - **`trace_segmentation.py`** — `segment_trace_run`. Input: a TraceRun dict with `samples` having `x`, `y`, `ts` keys. Output: a SegmentationResult dict. No HA dependency.

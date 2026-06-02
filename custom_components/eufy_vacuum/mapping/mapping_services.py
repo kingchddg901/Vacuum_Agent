@@ -1183,7 +1183,6 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
                     "room_id": str(room_id),
                     "room_name": room_name,
                     "point_count": result["point_count_simplified"],
-                    "boundary_pixel": result.get("boundary_pixel", []),
                 },
             )
 
