@@ -1209,7 +1209,7 @@ this table maps schema sections to the modules that consume them:
 | `entities` | `core/manager.py`, `core/error_tracker.py`, `core/water_amendment.py`, `learning/estimator.py`, `learning/job_finalizer.py`, `__init__.py` (lifecycle listeners) |
 | `vocabulary` | `core/manager.py` (`get_lifecycle_state`, `get_dock_action_status`), `learning/estimator.py` (alias maps) |
 | `completion` | `__init__.py` (`_completed_finalize_signals`), `core/manager.py` |
-| `charging` | `adapters/eufy/charging.py` (currently the only consumer; will move to `core/` when generalised) |
+| `charging` | `core/charging.py` (`is_low_battery_return_state`), via `jobs/active_job.py` and `core/manager.py` |
 | `error_tracking` | `core/error_tracker.py` |
 | `dock_events` | `__init__.py` (`_register_dock_event_listeners`) |
 | `post_job_wash_amendment` | `core/water_amendment.py`, `__init__.py` (registration call site) |

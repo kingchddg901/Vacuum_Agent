@@ -465,6 +465,28 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "fallback charging detection."
                 ),
             },
+            "low_battery_return_task_status": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Normalized task_status string the vacuum reports when it "
+                    "returns to dock specifically to recharge mid-job (Eufy: "
+                    "'returning to charge'). Authoritative — no battery gate "
+                    "needed when it matches. Absent: low-battery return is "
+                    "detected only via the generic 'returning' vacuum state + "
+                    "low_battery_threshold_percent gate."
+                ),
+            },
+            "low_battery_threshold_percent": {
+                "type": "int",
+                "required": False,
+                "description": (
+                    "Battery percent at/below which a generic 'returning' "
+                    "vacuum state is treated as a low-battery return (so a "
+                    "user-initiated return_to_base on a full battery isn't "
+                    "mis-classified). Default: 20."
+                ),
+            },
         },
     },
 

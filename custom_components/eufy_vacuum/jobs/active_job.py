@@ -24,7 +24,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any, Callable
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
-from ..adapters.eufy.charging import (
+from ..core.charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
@@ -235,15 +235,23 @@ class ActiveJobTracker:
     def _is_low_battery_return_state(
         self,
         *,
+        vacuum_entity_id: str,
         current_battery: int,
         vacuum_state: str | None,
         task_status: str | None,
     ) -> bool:
-        """Return whether the robot is returning to dock due to low battery."""
+        """Return whether the robot is returning to dock due to low battery.
+
+        The brand low-battery-return task_status string and threshold come from
+        the adapter's ``charging`` config; the detection logic is framework code.
+        """
+        _charging_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("charging", {})
         return _is_low_battery_return_state_impl(
             current_battery=current_battery,
             vacuum_state=vacuum_state,
             task_status=task_status,
+            low_battery_return_status=_charging_cfg.get("low_battery_return_task_status") or "",
+            threshold_percent=int(_charging_cfg.get("low_battery_threshold_percent") or 20),
         )
 
     # -- observation recording -------------------------------------------------
@@ -270,6 +278,7 @@ class ActiveJobTracker:
         observed_at_value = observed_at or _iso_now()
 
         if self._is_low_battery_return_state(
+            vacuum_entity_id=vacuum_entity_id,
             current_battery=current_battery,
             vacuum_state=vacuum_state.state if vacuum_state is not None else None,
             task_status=task_status_state.state if task_status_state is not None else None,

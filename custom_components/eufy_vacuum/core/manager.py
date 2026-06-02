@@ -13,7 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
-from ..adapters.eufy.charging import (
+from .charging import (
     get_battery_level as _get_battery_level_impl,
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
@@ -704,9 +704,10 @@ class EufyVacuumManager:
         """Delegate to ActiveJobTracker."""
         return self.active_job._is_charging(vacuum_entity_id)
 
-    def _is_low_battery_return_state(self, *, current_battery, vacuum_state, task_status):
+    def _is_low_battery_return_state(self, *, vacuum_entity_id, current_battery, vacuum_state, task_status):
         """Delegate to ActiveJobTracker."""
         return self.active_job._is_low_battery_return_state(
+            vacuum_entity_id=vacuum_entity_id,
             current_battery=current_battery,
             vacuum_state=vacuum_state,
             task_status=task_status,

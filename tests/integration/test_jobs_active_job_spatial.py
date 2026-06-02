@@ -227,6 +227,7 @@ def test_maybe_roll_noop(tracker):
 def test_is_low_battery_return_state(tracker):
     """[AJS-7] delegates to the adapter impl (smoke over explicit args)."""
     result = tracker._is_low_battery_return_state(
+        vacuum_entity_id=_VAC,
         current_battery=15, vacuum_state="returning", task_status="recharge")
     assert isinstance(result, bool)
 

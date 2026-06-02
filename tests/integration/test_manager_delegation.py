@@ -174,6 +174,7 @@ def test_remaining_delegations_forward(mgr):
     """
     # active-job seams
     assert isinstance(mgr._is_low_battery_return_state(
+        vacuum_entity_id=_VAC,
         current_battery=15, vacuum_state="returning", task_status="returning"), bool)
     mgr.update_active_job_recharge_observation(vacuum_entity_id=_VAC, map_id=_MAP)
     mgr.update_active_job_mop_wash_observation(vacuum_entity_id=_VAC, map_id=_MAP)

@@ -1,6 +1,6 @@
-"""Brand-specific tests for the Eufy battery/charging functions.
+"""Brand-agnostic tests for the framework battery/charging functions.
 
-Covers ``adapters/eufy/charging.py``:
+Covers ``core/charging.py``:
   - ``_safe_int``  — sentinel-tolerant int coercion.
   - ``get_battery_level`` — sensor first, vacuum battery_level attr fallback.
   - ``is_charging`` — dedicated binary sensor only, no substring fallback.
@@ -8,7 +8,9 @@ Covers ``adapters/eufy/charging.py``:
 
 ``get_battery_level`` / ``is_charging`` read entity ids from the adapter
 registry, so each test registers a minimal config. ``is_low_battery_return_state``
-is pure and is exercised directly.
+is pure and brand-free; the brand low-battery-return string and threshold are
+passed explicitly (the caller resolves them from the adapter's ``charging``
+config block).
 
 Coverage targets
 ----------------
@@ -20,7 +22,7 @@ Coverage targets
 [CHG-6]  charging: binary sensor "on" -> True, "off" -> False.
 [CHG-7]  charging: no entity declared -> False (no fallback).
 [CHG-8]  charging: entity unavailable/unknown -> False.
-[CHG-9]  low-battery-return: "returning to charge" task status -> True.
+[CHG-9]  low-battery-return: configured task status -> True.
 [CHG-10] low-battery-return: returning + battery at/under threshold -> True.
 [CHG-11] low-battery-return: returning + healthy battery -> False.
 [CHG-12] low-battery-return: not returning -> False.
@@ -34,10 +36,12 @@ from custom_components.eufy_vacuum.adapters.registry import (
     clear_registry,
     register_adapter_config,
 )
-from custom_components.eufy_vacuum.adapters.eufy import charging
+from custom_components.eufy_vacuum.core import charging
 from custom_components.eufy_vacuum.adapters.eufy.constants import (
     LOW_BATTERY_THRESHOLD_PERCENT,
 )
+
+_LOW_BATTERY_RETURN_STATUS = "returning to charge"
 
 
 _VAC = "vacuum.alfred"
@@ -172,7 +176,10 @@ def test_charging_entity_not_binary(hass, bad):
 def test_low_battery_return_task_status():
     """[CHG-9] authoritative task status, no battery gate needed."""
     assert charging.is_low_battery_return_state(
-        current_battery=95, vacuum_state="returning", task_status="Returning To Charge"
+        current_battery=95,
+        vacuum_state="returning",
+        task_status="Returning To Charge",
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
     ) is True
 
 
@@ -182,25 +189,48 @@ def test_low_battery_return_returning_under_threshold():
         current_battery=LOW_BATTERY_THRESHOLD_PERCENT,
         vacuum_state="returning",
         task_status="cleaning",
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
+        threshold_percent=LOW_BATTERY_THRESHOLD_PERCENT,
     ) is True
 
 
 def test_low_battery_return_returning_healthy_battery():
     """[CHG-11] user-initiated return on a full battery -> not low-battery."""
     assert charging.is_low_battery_return_state(
-        current_battery=90, vacuum_state="returning", task_status=None
+        current_battery=90,
+        vacuum_state="returning",
+        task_status=None,
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
     ) is False
 
 
 def test_low_battery_return_not_returning():
     """[CHG-12]"""
     assert charging.is_low_battery_return_state(
-        current_battery=5, vacuum_state="cleaning", task_status=None
+        current_battery=5,
+        vacuum_state="cleaning",
+        task_status=None,
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
     ) is False
 
 
 def test_low_battery_return_zero_battery_returning():
     """[CHG-12] battery 0 fails the 0 < battery gate (no reading)."""
     assert charging.is_low_battery_return_state(
-        current_battery=0, vacuum_state="returning", task_status=None
+        current_battery=0,
+        vacuum_state="returning",
+        task_status=None,
+        low_battery_return_status=_LOW_BATTERY_RETURN_STATUS,
+    ) is False
+
+
+def test_low_battery_return_no_configured_status_uses_generic_path():
+    """[CHG-9] empty low_battery_return_status disables the task-status check;
+    only the generic returning+threshold path applies."""
+    # task_status matches a brand string but no status configured -> ignored,
+    # full battery on the generic path -> not low-battery.
+    assert charging.is_low_battery_return_state(
+        current_battery=95,
+        vacuum_state="returning",
+        task_status="returning to charge",
     ) is False

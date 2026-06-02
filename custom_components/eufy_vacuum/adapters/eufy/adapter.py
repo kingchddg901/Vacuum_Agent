@@ -22,6 +22,7 @@ from homeassistant.core import HomeAssistant
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, STORAGE_KEY
 from .constants import (
+    LOW_BATTERY_THRESHOLD_PERCENT,
     POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS,
     POST_JOB_AMENDMENT_TIMEOUT_SECONDS,
 )
@@ -254,8 +255,10 @@ def register_eufy_adapter_for_vacuum(
             # Fallback: task_status string for mid-job recharge resume.
             "fallback_task_status_string": "charging (resume)",
             # Fallback: substring patterns for charging state detection.
-            # See adapters/eufy/charging.py for usage context.
             "fallback_substrings": ["charg", "recharg"],
+            # Low-battery mid-job return signals (consumed by core/charging.py).
+            "low_battery_return_task_status": "returning to charge",
+            "low_battery_threshold_percent": LOW_BATTERY_THRESHOLD_PERCENT,
         },
 
         "error_tracking": {
