@@ -253,6 +253,27 @@ def test_get_action_entity_resolves(dock, hass):
     assert dock._get_dock_action_entity(vacuum_entity_id=_VAC, action="bogus") is None
 
 
+def test_get_action_entity_token_fallback(dock, hass):
+    """[DK-17] when no entity_suffix matches, the token_sets registry fallback
+    resolves a differently-named button (firmware-naming drift)."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"action_buttons": {
+            # named suffix is absent; only the token fallback can match
+            "wash_mop": {"entity_suffixes": ["wash_mop"], "token_sets": [["wash", "mop"]]},
+        }},
+    })
+    # A registry button whose id carries the tokens but not the named suffix.
+    er.async_get(hass).async_get_or_create(
+        "button", "eufy_vacuum", "alfred_station_wash_mop_now",
+        suggested_object_id="alfred_station_wash_mop_now",
+    )
+    assert dock._get_dock_action_entity(
+        vacuum_entity_id=_VAC, action="wash_mop") == "button.alfred_station_wash_mop_now"
+
+
 @pytest.mark.parametrize("method,action", [
     ("async_dry_mop", "dry_mop"),
     ("async_empty_dust", "empty_dust"),

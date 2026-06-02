@@ -221,3 +221,47 @@ def test_upkeep_item_guide_builds_sub_dicts(mnt):
     assert mnt._get_upkeep_item_guide(
         vacuum_entity_id=_VAC, model_code="X8",
         component="ghost", item_kind="maintenance") is None
+
+
+def test_reset_entity_token_fallback(mnt, hass):
+    """[MNT-14] when no reset_button entity_suffix matches, the token_sets
+    registry fallback resolves a differently-named reset button."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush"],   # absent
+            "token_sets": [["reset", "main", "brush"]],
+        }}},
+    })
+    # The real reset button, differently named, resolved via the token fallback.
+    er.async_get(hass).async_get_or_create(
+        "button", "eufy_vacuum", "alfred_reset_main_brush_counter",
+        suggested_object_id="alfred_reset_main_brush_counter",
+    )
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) == "button.alfred_reset_main_brush_counter"
+
+
+def test_reset_entity_maintenance_filter_excludes(mnt, hass):
+    """[MNT-14b] a token match whose id contains 'maintenance' is excluded
+    (the reset button is the upstream counter-reset, not our own sensor)."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush"],   # absent
+            "token_sets": [["reset", "main", "brush"]],
+        }}},
+    })
+    # The only token match carries 'maintenance' → filtered out → None.
+    er.async_get(hass).async_get_or_create(
+        "button", "eufy_vacuum", "alfred_reset_main_brush_maintenance",
+        suggested_object_id="alfred_reset_main_brush_maintenance",
+    )
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) is None

@@ -785,8 +785,8 @@ class EufyVacuumManager:
             entity_id = str(entry.entity_id).lower()
             if not entity_id.startswith(prefix):
                 continue
-                if all(token in entity_id for token in required_tokens):
-                    return entry.entity_id
+            if all(token in entity_id for token in required_tokens):
+                return entry.entity_id
         return None
 
     def _get_registry_model_code(
