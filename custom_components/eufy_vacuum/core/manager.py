@@ -37,6 +37,7 @@ from ..queue.queue_engine import (
     build_queue_from_managed_rooms,
     build_room_clean_payload,
 )
+from ..queue.dispatch_engines import get_dispatch_engine
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 from ..timestamp_utils import parse_timestamp, utc_now_iso
@@ -1959,14 +1960,15 @@ class EufyVacuumManager:
             refresh=False,
         )
 
-        payload = build_room_clean_payload(
+        _dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        payload = get_dispatch_engine(_dispatch_cfg.get("template")).build_payload(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             managed_rooms=managed_rooms,
             queue_room_ids=queue_room_ids,
             stored_profiles=stored_profiles,
             capabilities=capabilities,
-            dispatch=(_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}),
+            dispatch=_dispatch_cfg,
         )
 
         self.data.setdefault("payloads", {})
