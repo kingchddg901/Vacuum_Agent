@@ -303,6 +303,37 @@ vacuum.
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §1 for when `build_queue` and `build_room_payload` are called from the manager and §1 Preflight for the full `_build_effective_start_plan` call site; [16-profile-manager](16-profile-manager.md) §6 for the profile finalization pipeline that runs inside `build_room_clean_payload`.
 
+### Dispatch engines & the job model
+
+`build_room_clean_payload` is no longer the final dispatcher — it is the
+shared **resolver** (profile resolution + capability gating + canonical
+`resolved_rooms`). The brand-specific payload **shape** is produced by a
+pluggable engine in `queue/dispatch_engines.py`, selected by
+`dispatch.template`:
+
+- `EufyRoomCleanEngine` — delegates verbatim to `build_room_clean_payload`
+  (the list-of-dicts "rows" shape; byte-identical to pre-refactor).
+- `GenericRoomIdsEngine` / `RoborockSegmentEngine` — flat id list + a
+  single batch passes scalar (`{segments:[ints], repeat:n}`).
+- `DreameSegmentEngine` — positional parallel arrays (the transpose of
+  the Eufy rows). Non-Eufy engines reuse the resolver's `resolved_rooms`
+  and reshape, so learning/history stay brand-independent.
+
+The full author-facing reference (per-template shapes, `room_fields`,
+value maps) is [22-adapter-config-reference §13](22-adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
+
+**Sequencing.** Engines declare a `job_model`. For `atomic_batch` (every
+engine today) a job is one dispatch of a fixed room set —
+`build_active_job_state` freezes it and the lifecycle hook finalizes when
+it completes. For `sequenced`, the engine's `build_phases()` returns an
+ordered phase list; `build_active_job_state` stores `phases` /
+`current_phase_index`, and `advance_active_job_phase(active_job)` swaps to
+the next phase (resetting per-phase progress) or returns `None` on the
+final/atomic case. The completion hook calls `manager.maybe_advance_phase`
+to advance + re-dispatch instead of finalizing; each phase finalizes as
+its own job record. See
+[06-job-lifecycle](06-job-lifecycle.md) for the completion path.
+
 ---
 
 ## 8. `set_rooms_enabled_subset`

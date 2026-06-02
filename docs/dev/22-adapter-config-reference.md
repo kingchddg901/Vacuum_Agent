@@ -597,7 +597,28 @@ blocks for Eufy, Roborock, Dreame, and Narwal, see
 | `map_id_type` | `"int" \| "str"` | no | Type to cast map_id to. Default `"str"`. |
 | `room_id_field` | `str` | no | Field name for room ID in each room entry. Eufy: `"id"`. Roborock: `"segment_id"`. |
 | `clean_passes_field` | `str` | no | Field name for clean passes. Eufy: `"clean_times"`. Roborock: `"repeat"`. |
-| `rooms_field` | `str` | no | Field name for the rooms list. Eufy: `"rooms"`. Roborock: `"segments"`. |
+| `rooms_field` | `str` | no | Field name for the rooms list / id array. Eufy: `"rooms"`. Roborock/Ecovacs: `"segments"` / `"rooms"`. |
+| `passes_max` | `int` | no | Clamp ceiling for collapsed batch passes (flat-id engines). Default `3`. |
+
+### Template selects a dispatch *engine* (and a payload *structure*)
+
+`template` is **load-bearing**: it resolves to a dispatch engine in
+`queue/dispatch_engines.py`, and each engine produces a genuinely
+different payload **structure** — not just renamed fields. The
+`room_fields` rename/value-map vocabulary is shared across all of them;
+what differs is how the engine *emits* it:
+
+| Template | Engine | Structure | Per-room fan/water? |
+|----------|--------|-----------|---------------------|
+| `eufy_room_clean` | `EufyRoomCleanEngine` | **rows** — a list of per-room dicts | yes (per dict) |
+| `roborock_segment_clean` | `RoborockSegmentEngine` | **flat ids + batch scalar** — `{segments:[ints], repeat:n}` | no (fan is global) |
+| `generic_room_ids` | `GenericRoomIdsEngine` | flat ids + batch scalar (Ecovacs `{rooms:[ints], cleanings:n}`) | no |
+| `dreame_room_clean` | `DreameSegmentEngine` | **columns** — positional parallel arrays | yes (per array index) |
+
+Engines also declare a **`job_model`** (see *Job model* below). An
+unregistered `template` is rejected at adapter registration
+(`registry._validate_adapter`); an absent one falls back to the Eufy
+engine (the legacy no-adapter default).
 
 ### Example: `eufy_room_clean`
 
@@ -637,8 +658,10 @@ Generates a payload shaped like:
 ### Example: `roborock_segment_clean`
 
 Calls the Roborock integration's `vacuum.send_command` with the
-`app_segment_clean` command and a list of segment IDs. Roborock uses
-`segment_id` rather than `id`, and `repeat` rather than `clean_times`.
+`app_segment_clean` command. **Not a list of dicts** — a flat segment-id
+list plus a single batch `repeat` scalar (Roborock takes no per-room
+fan/water on the wire; fan is global). Per-room passes collapse to the
+max requested, clamped to `[1, passes_max]`.
 
 ```python
 "dispatch": {
@@ -646,37 +669,65 @@ Calls the Roborock integration's `vacuum.send_command` with the
     "service_domain": "vacuum",
     "service_name": "send_command",
     "command": "app_segment_clean",
-    "map_id_field": "map_id",
-    "map_id_type": "str",
-    "room_id_field": "segment_id",
-    "clean_passes_field": "repeat",
     "rooms_field": "segments",
+    "clean_passes_field": "repeat",
 },
 ```
 
+Generates:
+
+```python
+{"command": "app_segment_clean", "params": {"segments": [16, 17], "repeat": 2}}
+```
+
+Ecovacs is the same engine via `generic_room_ids` with
+`rooms_field: "rooms"`, `clean_passes_field: "cleanings"`,
+`command: "spot_area"`.
+
 ### Example: `dreame_room_clean`
 
-Dreame integrations vary; the most common shape calls a custom
-service with a comma-separated room ID string. The dispatch template
-flattens the `rooms` array to ID-only form.
+The Tasshack `dreame_vacuum.vacuum_clean_segment` service takes
+**positional parallel arrays** — one index per room — and is the only
+shape that carries per-room fan/water *and* passes on the wire. The
+engine is the **transpose** of Eufy: same `room_fields` vocabulary, but
+emitted as columns (one array per field) instead of rows. `clean_mode`
+is global on Dreame (a `select`, not in this payload) → `field_name:
+null`; the global-mode pre-call is a send-side concern. Direct envelope
+(no `command`).
 
 ```python
 "dispatch": {
     "template": "dreame_room_clean",
     "service_domain": "dreame_vacuum",
     "service_name": "vacuum_clean_segment",
-    "room_id_field": "segments",
-    "clean_passes_field": "repeats",
     "rooms_field": "segments",
+    "clean_passes_field": "repeats",
+    "room_fields": {
+        "fan_speed":   {"field_name": "suction_level",
+                        "value_map": {"Quiet": 0, "Standard": 1, "Turbo": 2, "Max": 3}},
+        "water_level": {"field_name": "water_volume",
+                        "value_map": {"Low": 1, "Medium": 2, "High": 3}},
+        "clean_mode":      {"field_name": None},   # global select, off-wire
+        "clean_intensity": {"field_name": None},
+        "edge_mopping":    {"field_name": None},
+        "path_type":       {"field_name": None},
+    },
 },
+```
+
+Generates (direct-merged into the service data):
+
+```python
+{"segments": [3, 2], "suction_level": [0, 3], "water_volume": [1, 3], "repeats": [1, 2]}
 ```
 
 ### Example: `generic_room_ids`
 
-The fallback path for any integration that accepts a flat list of
-room IDs. No payload metadata is forwarded — fan speed, water level,
-clean mode, and passes are all dropped. Use this only when no
-brand-specific template fits.
+The flat-id engine (shared with `roborock_segment_clean`) for any
+integration that accepts a list of room IDs plus an optional batch
+passes scalar. Per-room **fan/water/mode are dropped** (no wire slot for
+them); per-room **passes collapse to one batch value** (`clean_passes_field`,
+omitted if set to `null`). Use when no richer brand template fits.
 
 ```python
 "dispatch": {
@@ -697,14 +748,17 @@ Generates a minimal payload:
 }
 ```
 
-### The per-room payload body
+### The per-room field vocabulary (`room_fields`)
 
-The outer-wrapper fields above (`map_id_field`, `room_id_field`,
-`clean_passes_field`, `rooms_field`) control the keys around the
-rooms array. The per-room dicts *inside* that array carry brand-
-specific fields — clean mode, fan speed, water level, edge mopping,
-path type, clean intensity — whose names and value vocabularies are
-controlled by the **`dispatch.room_fields`** block.
+`room_fields` is the **shared** rename + value-map vocabulary every
+engine consumes — what differs is *where* the values land: the Eufy
+engine writes them into each per-room dict (rows); the Dreame engine
+writes them into positional arrays (columns); the flat-id engines drop
+the per-room ones and keep only the id list + batch passes. So the same
+`room_fields` block describes fan speed, water level, clean mode, edge
+mopping, path type, and clean intensity regardless of the wire shape.
+
+For the Eufy (rows) engine the per-room dict looks like:
 
 A per-room dict for a mop-capable Eufy job looks like:
 
@@ -786,46 +840,63 @@ The full Eufy reference adapter and brand catalog for Roborock,
 Dreame, and Narwal live in
 [porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
 
+### Job model (sequencing)
+
+Each engine also declares a **`job_model`**:
+
+- **`atomic_batch`** (every engine today) — one dispatch of a fixed room
+  set; finalize when it completes. The entire existing lifecycle path.
+- **`sequenced`** — a logical job is an ordered list of phases (e.g.
+  Dreame sweep-all → mop-all), each its own dispatch. The engine returns
+  the sequence from `build_phases()`; each phase runs as an atomic
+  sub-job and **finalizes as its own job record** (one record per phase).
+  At the completion hook, `manager.maybe_advance_phase` swaps to the next
+  phase (`advance_active_job_phase`) and re-dispatches instead of
+  finalizing; the last phase finalizes normally.
+
+`job_model` is a property of the engine, not an adapter-config field —
+an adapter selects it implicitly by choosing a `template`. No registered
+engine is `sequenced` yet; a Dreame sweep-then-mop or always-away
+phased-clean adapter would subclass its engine with
+`job_model = "sequenced"` + a `build_phases` override.
+
 ### Implementation status
 
-The full dispatch path — outer wrapper, per-room body, and the
-service-call envelope (`service_domain` / `service_name` / `command`)
-— is **fully adapter-driven** as of the dispatch refactor.
-`queue/queue_engine.py::build_room_clean_payload()` consumes every
-declared knob; `core/manager.py::async_start_room_clean_job()` reads
-`dispatch.service_domain` / `service_name` / `command` and constructs
-either the wrapped (`{command, params: payload}`) or direct
-(`{**payload}`) envelope based on whether `command` is set.
+The full dispatch path — payload **structure**, per-room field
+vocabulary, the service-call envelope, **and** the job model — is
+adapter-driven via the dispatch-engine seam (`queue/dispatch_engines.py`).
+`template` resolves to an engine; the engine's `build_payload` /
+`build_phases` produce the structure; `queue/queue_engine.py::
+build_room_clean_payload()` remains the shared *resolver* (profile
+resolution + capability gating + canonical `resolved_rooms`) that the
+non-Eufy engines reuse and reshape. The start path
+(`planning/run_plan.py::_build_effective_start_plan` →
+`_build_dispatch_phases`) and `core/manager.py::start_selected_rooms`
+both go through the engine; the shared `manager._dispatch_clean_payload`
+builds the wrapped (`{command, params}`) or direct (`{**payload}`)
+envelope. Defaults preserve byte-for-byte Eufy behavior when `dispatch`
+is absent or partial.
 
-All four call sites of `build_room_clean_payload` in `core/manager.py`
-thread the adapter's dispatch config through. Defaults preserve
-byte-for-byte Eufy behavior when `dispatch` is absent or partial, so
-existing installs are unaffected.
+**Done as of the dispatch + sequencing refactor** (was previously listed
+as future work): structurally-different payload shapes (flat-id+scalar,
+parallel arrays), `template` being load-bearing, and the sequenced job
+model.
 
-**What remains brand-aware in framework code** (and would be a PR
-rather than a config change):
+**What still remains brand-aware in framework code** (a PR, not config):
 
-- A *structurally* different payload shape — e.g. an integration that
-  wants nested arrays instead of a list of dicts, or parallel-list
-  uniform-settings (the Dreame `repeats` / `suction_level` pattern
-  that applies one value to all rooms). The current schema assumes
-  per-room dicts.
-- A new canonical field outside the six above (e.g. a per-room mop
-  pressure setting). The rename map is bounded by that set.
-- A third service-call envelope shape — e.g. `entity_id` nested
-  inside `params` rather than alongside it.
-
-None of these block ports for the four common brands; they're future
-extensions called out for completeness.
+- `vacuum.clean_area` (`ha_clean_area`) — a service **target**
+  (`target: {area_id: [...]}`), not a data payload. Needs engines to own
+  the *full* service call rather than just the payload dict.
+- Send-side **pre-call hooks** — Roborock/Ecovacs global `set_fan_speed`,
+  Dreame global `select.cleaning_mode` between phases.
+- `live_queue` job model — mid-job room injection (dequeue already works).
+- A new canonical field outside the six in `room_fields`.
 
 **UI builder notes:** Render `template` as a dropdown that selects a
 per-template default for the other fields; let the user override any
-field via a "customise" toggle. A "dry-run" button that constructs
-the payload for a sample room selection and prints the service call
-(without executing) is the highest-value debugging affordance.
-The `template` value is informational today — `build_room_clean_payload`
-reads the explicit field-name knobs, not the template — but the UI
-should still use it as a preset selector for sensible defaults.
+field via a "customise" toggle. A "dry-run" button that constructs the
+payload for a sample room selection and prints the service call (without
+executing) is the highest-value debugging affordance.
 
 ---
 
