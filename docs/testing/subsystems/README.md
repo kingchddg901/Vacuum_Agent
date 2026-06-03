@@ -8,32 +8,37 @@ mapping) then peripheral subsystems and the HA-facing layers.
 
 | # | Subsystem | Map | Cov |
 |---|-----------|-----|----:|
-| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 92% |
-| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 95% |
-| 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 93% |
-| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 96% |
-| 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
-| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 95% |
-| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 93% |
+| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 91% |
+| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 93% |
+| 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 94% |
+| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 95% |
+| 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 91% |
+| 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 93% |
+| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 92% |
 | 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 94% |
-| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 90% |
-| 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 98% |
-| 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 93% |
-| 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 93% |
-| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 97% |
-| 14 | Themes (card theme library) | [14-themes](14-themes.md) | 98% |
-| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 81%¹ |
-| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 90% |
-| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 94% |
-| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 94% |
+| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 92% |
+| 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 97% |
+| 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 92% |
+| 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 94% |
+| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 96% |
+| 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
+| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 77%¹ |
+| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 89% |
+| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 97% |
+| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 92% |
 
 ¹ Includes the concrete Eufy adapter (`adapters/eufy/*`), now counted in the
-number. The framework adapter code (registry/loader/schema) sits at ~98%; the
-subsystem figure is pulled to 81% almost entirely by the CV `segmentor` (70%,
-865 stmts) — see [15-adapters](15-adapters.md).
+number. The framework adapter code (registry/loader/schema) sits in the mid-90s
+to 100%; the subsystem figure is pulled to 77% almost entirely by the CV
+`segmentor` (70%, 865 stmts) — see [15-adapters](15-adapters.md).
+
+The per-subsystem Cov column is **combined** (statement + branch) coverage —
+the single number `pytest --cov-branch` prints per row. The grand total below
+breaks out the statement-only figure too.
 
 **Total: 94.2% statement coverage** (91% combined with `--cov-branch`, adapters
-included) over the source modules, all tests green.
+included) over the source modules, all tests green. These numbers and the
+per-module tables are refreshed by `scripts/update_test_docs.py`.
 
 ## Writing / updating a test map
 

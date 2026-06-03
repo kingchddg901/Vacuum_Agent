@@ -85,6 +85,21 @@ The default run prints a `term-missing` table (uncovered line numbers per file)
 and writes an HTML report to `htmlcov/`. Both `htmlcov/` and the `.coverage`
 data file are gitignored.
 
+### Refreshing the numbers in these docs
+
+The coverage percentages and test counts scattered through the testing docs
+(per-module tables, the per-subsystem Cov column, the headline figures) are
+maintained by a script so they don't drift. Run it inside the container:
+
+```
+docker run --rm -v "<repo>:/workspace" -w /workspace eufy-vacuum-test \
+  python scripts/update_test_docs.py
+```
+
+It runs coverage, then rewrites only the numeric fields in place — prose, module
+lists, and gap notes are never touched. Add `--dry-run` to preview, or `--no-run`
+to reuse an existing `coverage.json`. Review the diff before committing.
+
 ### Per-file vs combined coverage
 
 A module's coverage number depends on **which test files you run**. Example:

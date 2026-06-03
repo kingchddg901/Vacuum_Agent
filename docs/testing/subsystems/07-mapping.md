@@ -23,12 +23,12 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `trace_store.py` | 35 | 100% | `tests/unit/test_mapping_trace_store.py` | unit (`tmp_path`) |
 | `trace_capture.py` | 63 | 100% | `tests/unit/test_mapping_trace_capture.py` | unit (`tmp_path`) |
 | `trace_review.py` | 162 | 95% | `tests/unit/test_mapping_trace_review.py` | unit (pure) |
-| `segment_primitives.py` | 239 | 91% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
-| `segmenter_engines.py` | 134 | 87% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
-| `trace_segmentation.py` | 314 | 89% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
-| `tracker.py` | 353 | 73% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
-| `manager.py` | 963 | 70% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 650 | 72% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `segment_primitives.py` | 239 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
+| `segmenter_engines.py` | 132 | 99% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
+| `trace_segmentation.py` | 314 | 92% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
+| `tracker.py` | 344 | 90% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `manager.py` | 907 | 89% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 650 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 

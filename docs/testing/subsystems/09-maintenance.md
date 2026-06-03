@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-mainte
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 232 | 88% | `test_maintenance_manager.py` | integration |
+| `manager.py` | 233 | 92% | `test_maintenance_manager.py` | integration |
 
 (The reset / set-interval *services* are in [17 — services](17-services.md) via
 `test_services_maintenance_reset.py`; the remaining-life *sensors* are in

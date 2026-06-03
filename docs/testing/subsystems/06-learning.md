@@ -20,12 +20,12 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `utils.py` | 32 | 95% | `tests/unit/test_learning_utils.py` | unit (pure) |
-| `estimator.py` | 336 | 90% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 380 | 85% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 333 | 87% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 512 | 86% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 687 | 89% | `tests/integration/test_learning_services.py` | integration |
-| `services.py` | 186 | 91% | `tests/integration/test_learning_services.py` | integration |
+| `estimator.py` | 336 | 96% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
+| `history_store.py` | 378 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
+| `stats_rebuilder.py` | 333 | 94% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
+| `job_finalizer.py` | 506 | 91% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `manager.py` | 683 | 91% | `tests/integration/test_learning_services.py` | integration |
+| `services.py` | 186 | 99% | `tests/integration/test_learning_services.py` | integration |
 
 Numbers are line coverage with branch coverage enabled, measured by running all
 six files together (see [running-tests §per-file vs combined](../02-running-tests.md#per-file-vs-combined-coverage)).

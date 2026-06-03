@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboard
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 68 | 95% | `test_onboarding_manager.py` | integration |
+| `manager.py` | 73 | 95% | `test_onboarding_manager.py` | integration |
 
 ---
 

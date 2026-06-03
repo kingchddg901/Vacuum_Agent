@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 577 | 70% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
+| `active_job.py` | 577 | 92% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
 
 ---
 

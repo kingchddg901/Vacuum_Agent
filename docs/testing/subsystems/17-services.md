@@ -14,14 +14,14 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 | Source module | Stmts | Cov | Test file |
 |---------------|------:|----:|-----------|
-| `job_control.py` | 115 | 96% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
-| `run_profiles.py` | 89 | 86% | `test_services_run_profiles.py` |
-| `adapter_config.py` | 98 | 82% | `test_services_adapter_config.py` |
+| `job_control.py` | 115 | 100% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
+| `run_profiles.py` | 89 | 96% | `test_services_run_profiles.py` |
+| `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
 | `setup.py` | 85 | 90% | `test_services_errors_setup.py` |
-| `dock.py` | 80 | 95% | `test_services_dock.py` |
-| `room_profiles.py` | 80 | 94% | `test_services_room_profiles.py` |
-| `rooms.py` | 64 | 97% | `test_services_rooms.py` |
-| `maintenance.py` | 47 | 92% | `test_services_maintenance_reset.py` |
+| `dock.py` | 80 | 100% | `test_services_dock.py` |
+| `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
+| `rooms.py` | 62 | 97% | `test_services_rooms.py` |
+| `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
 | `queue.py` | 43 | 100% | `test_services_queue.py` |
 | `snapshots.py` | 40 | 100% | `test_services_snapshots.py` |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` |

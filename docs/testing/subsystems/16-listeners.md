@@ -15,11 +15,11 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `lifecycle.py` | 110 | 87% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
+| `lifecycle.py` | 113 | 85% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
 | `path_blockers.py` | 103 | 86% | `test_listeners_state_driven.py` | integration |
 | `job_metrics.py` | 65 | 86% | `test_listeners_active.py` | integration |
 | `dock_events.py` | 64 | 82% | `test_listeners_active.py` | integration |
-| `discovery.py` | 69 | 79% | `test_listeners_timers.py` | integration |
+| `discovery.py` | 69 | 99% | `test_listeners_timers.py` | integration |
 | `pause_timeout.py` | 48 | 94% | `test_listeners_timers.py` | integration |
 | `_common.py` | 56 | 92% | `test_listeners_common.py` | integration |
 

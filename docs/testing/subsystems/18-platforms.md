@@ -21,7 +21,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `number.py` | 121 | 94% | `test_number_entity.py` |
 | `switch.py` | 63 | 92% | `test_switch_entity.py` |
 | `binary_sensor.py` | 67 | 92% | `test_platform_files.py` |
-| `room_entities.py` | 75 | 95% | `test_platform_files.py` |
+| `room_entities.py` | 74 | 98% | `test_platform_files.py` |
 | `config_flow.py` | 38 | 94% | `test_config_flow.py` |
 | `repairs.py` | 15 | 100% | `test_platform_files.py` |
 | `timestamp_utils.py` | 37 | 98% | `test_timestamp_utils.py` (unit) |

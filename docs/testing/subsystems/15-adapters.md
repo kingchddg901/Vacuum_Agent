@@ -17,11 +17,11 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `registry.py` | 111 | 94% | `test_adapters.py` | integration |
+| `registry.py` | 117 | 96% | `test_adapters.py` | integration |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 865 | 70% | `tests/adapters/eufy/` | adapter |
-| `eufy/adapter.py` | — | 93% | `tests/adapters/eufy/` | adapter |
+| `eufy/adapter.py` | 39 | 93% | `tests/adapters/eufy/` | adapter |
 | `eufy/*` (others) | — | 100% | `tests/adapters/eufy/` | adapter |
 
 (Adapter-config *services* are in [17 — services](17-services.md) via

@@ -15,11 +15,11 @@ Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 1238 | 86% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_core_manager_helpers.py` (unit) | int + unit |
-| `error_tracker.py` | 317 | 88% | `test_core_error_tracker.py` | integration |
-| `capabilities.py` | 122 | 97% | `test_core_capabilities.py` | integration |
-| `charging.py` | — | — | `test_charging.py` (unit) | unit |
-| `water_amendment.py` | 118 | 92% | `test_core_water_amendment.py` | integration |
+| `manager.py` | 1249 | 91% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_core_manager_helpers.py` (unit) | int + unit |
+| `error_tracker.py` | 316 | 89% | `test_core_error_tracker.py` | integration |
+| `capabilities.py` | 117 | 97% | `test_core_capabilities.py` | integration |
+| `charging.py` | 39 | 100% | `test_charging.py` (unit) | unit |
+| `water_amendment.py` | 120 | 91% | `test_core_water_amendment.py` | integration |
 | `storage.py` | 17 | 100% | `test_core_storage.py` | integration |
 
 `manager.py` is the single largest module in the codebase; most of its public

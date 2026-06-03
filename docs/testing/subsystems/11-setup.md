@@ -17,9 +17,9 @@ Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.
 | `drift.py` | 181 | 88% | `test_setup_drift.py`, `test_setup_drift_deep.py` | integration |
 | `workflow.py` | 56 | 97% | `test_setup_workflow.py`, `test_setup_workflow_deep.py` | integration |
 | `status.py` | 61 | 93% | `test_setup_status.py` | integration |
-| `delete.py` | 47 | 88% | `test_setup_delete.py` | integration |
+| `delete.py` | 47 | 97% | `test_setup_delete.py` | integration |
 | `protection.py` | 36 | 100% | `test_setup_protection.py` (unit) | unit |
-| `__init__.py` | 196 | 83% | `test_init_setup.py`, `test_manager_setup.py` | integration |
+| `__init__.py` | 0 | 100% | `test_init_setup.py`, `test_manager_setup.py` | integration |
 
 ---
 

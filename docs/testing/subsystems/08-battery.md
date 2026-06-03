@@ -15,9 +15,9 @@ Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-sys
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
 | `job_metrics.py` | 77 | 98% | `tests/unit/test_battery_metrics.py` | unit (pure) |
-| `store.py` | 44 | 92% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
-| `sensors.py` | 165 | 86% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
-| `manager.py` | 413 | 72% | `tests/integration/test_battery_manager.py` | integration |
+| `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
+| `sensors.py` | 165 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
+| `manager.py` | 413 | 91% | `tests/integration/test_battery_manager.py` | integration |
 
 ---
 

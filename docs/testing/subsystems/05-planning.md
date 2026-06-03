@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rul
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `run_plan.py` | 493 | 90% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit) | int + unit |
+| `run_plan.py` | 499 | 91% | `test_run_plan_start_plan.py`, `test_run_plan_manager.py`, `test_run_plan_helpers.py` (unit) | int + unit |
 
 ---
 
