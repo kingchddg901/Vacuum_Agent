@@ -668,14 +668,15 @@ class MappingTracker:
                     self._samples_since_flush[vacuum_entity_id] = 0
                     # Snapshot samples before handing off — the list grows on
                     # the event loop while the executor write is in flight.
-                    self.hass.async_create_task(
-                        self.hass.async_add_executor_job(
-                            self._flush_samples_to_disk,
-                            vacuum_entity_id,
-                            job["map_id"],
-                            job.get("rooms", {}),
-                            list(samples),
-                        )
+                    # async_add_executor_job already schedules the write and
+                    # returns a Future; fire-and-forget (don't wrap it in
+                    # async_create_task, which expects a coroutine, not a Future).
+                    self.hass.async_add_executor_job(
+                        self._flush_samples_to_disk,
+                        vacuum_entity_id,
+                        job["map_id"],
+                        job.get("rooms", {}),
+                        list(samples),
                     )
 
             # Run confidence tracking.

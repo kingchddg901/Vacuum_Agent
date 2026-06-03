@@ -113,6 +113,24 @@ def test_handle_position_update_accumulates(tracker):
     assert (30.0, 30.0) not in tracker._job_samples[_VAC]
 
 
+async def test_handle_position_update_flushes_periodically(tracker, hass, monkeypatch):
+    """[MTE-5b] every SAMPLES_FLUSH_INTERVAL samples the tracker flushes to disk so
+    an HA restart mid-job can recover them (the periodic-flush branch)."""
+    from custom_components.eufy_vacuum.mapping.tracker import SAMPLES_FLUSH_INTERVAL
+
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    flushed: list = []
+    monkeypatch.setattr(tracker, "_flush_samples_to_disk",
+                        lambda *a, **k: flushed.append(a))
+    # distinct positions so none are deduped; the Nth append trips the flush
+    for i in range(SAMPLES_FLUSH_INTERVAL):
+        tracker._get_raw_position = lambda vacuum_entity_id, i=i: (float(i), float(i))
+        tracker._handle_position_update(_VAC)
+    await hass.async_block_till_done()
+    assert flushed, "expected a periodic flush after SAMPLES_FLUSH_INTERVAL samples"
+
+
 def test_end_job_writes_bounds(tracker):
     """[MTE-6] dedicated map id to keep the exact-bounds union isolated."""
     _register(tracker)
@@ -123,6 +141,21 @@ def test_end_job_writes_bounds(tracker):
     snap = tracker._manager.get_room_bounds_snapshot(vacuum_entity_id=_VAC, map_id="mte6bounds")
     bounds = snap["rooms"]["3"]["bounds"]
     assert bounds["min_x"] == 0.0 and bounds["max_x"] == 20.0
+
+
+def test_end_job_recovers_samples_from_disk(tracker, monkeypatch):
+    """[MTE-6b] end_job with no in-memory samples (HA restarted mid-job) recovers
+    the last disk-flushed samples and still writes room bounds from them."""
+    _register(tracker)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id=_MAP, rooms=_ROOMS)
+    # simulate a restart: in-memory samples gone, but a flush file is on disk
+    tracker._job_samples[_VAC] = []
+    tracker._flush_samples_to_disk(_VAC, _MAP, _ROOMS, [(1.0, 1.0), (2.0, 2.0)])
+    captured: dict = {}
+    monkeypatch.setattr(tracker._manager, "update_room_bounds",
+                        lambda **kw: captured.update(kw))
+    tracker.end_job(vacuum_entity_id=_VAC)
+    assert captured.get("samples") == [(1.0, 1.0), (2.0, 2.0)]
 
 
 def test_end_job_archives_samples(tracker):
