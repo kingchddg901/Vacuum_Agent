@@ -387,6 +387,23 @@ def test_estimator_estimate_default_rooms_full_result(tmp_path):
     assert result["breakdown"][0]["source"] == "default"
 
 
+def test_estimator_estimate_learned_match(tmp_path, monkeypatch):
+    """[LE-19b] when _find_room_match returns a learned match, the breakdown entry
+    is source='learned' using the matched stats (the learned branch + room_key /
+    drift_ratio lookup)."""
+    from custom_components.eufy_vacuum.learning import estimator as _est
+
+    estimator = _est.LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(_est, "_find_room_match", lambda **kw: (
+        {"avg_minutes": 12.5, "avg_battery_used": 6.0,
+         "sample_count": 8, "minutes_stddev": 1.2}, False))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    assert result["breakdown"][0]["source"] == "learned"
+
+
 # ---------------------------------------------------------------------------
 # [LE-20] / [LE-21] LearningEstimator.next_room
 # ---------------------------------------------------------------------------

@@ -25,6 +25,23 @@ def _make_store(tmp_path: Path) -> LearningHistoryStore:
     return LearningHistoryStore(hass)
 
 
+def test_build_payload_room_slugs_from_queue_rooms(tmp_path):
+    """build_completed_job_payload derives room_count/room_slugs from queue_rooms
+    when neither payload_state nor active_job_state carry resolved_rooms."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.alfred", job_id="j1",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=70,
+        queue_state={"queue_rooms": [{"slug": "Kitchen"}, {"slug": "Bath"}]},
+        payload_state={},      # no resolved_rooms
+        active_job_state={},   # no resolved_rooms either
+    )
+    jp = payload["job_profile"]
+    assert jp["room_count"] == 2
+    assert "kitchen" in jp["room_slugs"] and "bath" in jp["room_slugs"]
+
+
 def _minimal_completed_job(
     *,
     job_id: str = "job-001",
