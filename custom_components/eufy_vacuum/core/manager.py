@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+import functools
 import hashlib
 import logging
 from typing import Any
@@ -3370,12 +3371,17 @@ class EufyVacuumManager:
 
         learning_snapshot = None
         try:
-            learning_snapshot = self.save_learning_snapshot_for_active_job(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                started_at=started_at,
-                battery_start=battery_start,
-                job_id=job_id,
+            # Snapshot save writes JSON to disk; this runs on the event loop
+            # (start_selected_rooms service), so offload the I/O to the executor.
+            learning_snapshot = await self.hass.async_add_executor_job(
+                functools.partial(
+                    self.save_learning_snapshot_for_active_job,
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    started_at=started_at,
+                    battery_start=battery_start,
+                    job_id=job_id,
+                )
             )
         except Exception:
             _LOGGER.exception("Failed to save learning snapshot for %s map %s", vacuum_entity_id, map_id)
