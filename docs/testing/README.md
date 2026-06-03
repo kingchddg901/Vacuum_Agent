@@ -6,8 +6,8 @@ rebuilding the scaffolding every time.
 The suite currently has **1,578 test functions** across **107 test files**
 (32 unit, 68 integration, 7 adapter), all green, running on Python 3.14 inside a
 Linux container. Those exercise the **131 source modules** under
-`custom_components/eufy_vacuum/` to **93.6% framework coverage** (90.8% with
-branch coverage); see the [subsystems index](subsystems/README.md) for the
+`custom_components/eufy_vacuum/` to **94.2% coverage** (91% combined with
+branch coverage, adapters included); see the [subsystems index](subsystems/README.md) for the
 per-subsystem breakdown.
 
 ---

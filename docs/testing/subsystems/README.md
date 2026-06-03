@@ -22,18 +22,18 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 93% |
 | 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 97% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 98% |
-| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 97%¹ |
+| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 81%¹ |
 | 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 90% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 94% |
 | 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 94% |
 
-¹ Framework adapter code only. The concrete Eufy adapter (`adapters/eufy/*`) is
-**omitted** from the coverage number by `.coveragerc` and tested separately —
-see [15-adapters](15-adapters.md).
+¹ Includes the concrete Eufy adapter (`adapters/eufy/*`), now counted in the
+number. The framework adapter code (registry/loader/schema) sits at ~98%; the
+subsystem figure is pulled to 81% almost entirely by the CV `segmentor` (70%,
+865 stmts) — see [15-adapters](15-adapters.md).
 
-**Framework total: 93.6% statement coverage** (90.8% with `--cov-branch`) over
-the 131 source modules, driven by 1,578 test functions across 107 test files,
-all green.
+**Total: 94.2% statement coverage** (91% combined with `--cov-branch`, adapters
+included) over the source modules, all tests green.
 
 ## Writing / updating a test map
 

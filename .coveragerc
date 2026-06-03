@@ -1,7 +1,5 @@
 [run]
 source = custom_components/eufy_vacuum
-omit =
-    custom_components/eufy_vacuum/adapters/eufy/*
 
 [report]
 exclude_lines =

@@ -18,7 +18,7 @@ moves can happen without silently breaking behavior.
 |-------|-----------|---------------|----------------|
 | **Unit** | `tests/unit/` | No (mostly) | Pure functions and isolated class methods — timestamp parsing, battery metrics math, learning estimator/finalizer helpers, room-field resolution. Fast, no I/O. |
 | **Integration** | `tests/integration/` | Yes | Anything that touches the manager, the HA service registry, platforms, or the persistent store. Uses the in-memory `hass` from `pytest-homeassistant-custom-component`. |
-| **Adapter** | `tests/adapters/` | No | Brand-specific pure logic (e.g. the eufy model catalog). Kept on its own path and excluded from the core coverage number. |
+| **Adapter** | `tests/adapters/` | No | Brand-specific pure logic (e.g. the eufy model catalog). Kept on its own path; counted in the coverage number — we always test the adapters we ship. |
 
 Rule of thumb: **if the thing under test is a pure function, write a unit
 test** — it is faster, has no shared-state pitfalls, and reads more clearly.
@@ -51,7 +51,7 @@ tests/
   adapters/
     conftest.py               # adapter-suite fixtures
     test_adapter_contract.py  # brand-agnostic conformance harness
-    eufy/                     # concrete-adapter tests (omitted from coverage %)
+    eufy/                     # concrete-adapter tests (counted in coverage %)
       test_model_catalog.py
       test_discovery.py
       test_lifecycle.py
@@ -74,18 +74,19 @@ Declared in `requirements_test.txt`:
 Config lives in two files:
 
 - **`pytest.ini`** — `asyncio_mode = auto`, `testpaths = tests/unit tests/integration`, and the coverage `addopts` (term-missing + HTML + branch).
-- **`.coveragerc`** — coverage `source` is `custom_components/eufy_vacuum`; the eufy adapter is omitted (it has its own suite under `tests/adapters/` and is brand-specific); `exclude_lines` drops `TYPE_CHECKING`, `__repr__`, `NotImplementedError`, and `pragma: no cover`.
+- **`.coveragerc`** — coverage `source` is `custom_components/eufy_vacuum` (no `omit` — the eufy adapter is counted too); `exclude_lines` drops `TYPE_CHECKING`, `__repr__`, `NotImplementedError`, and `pragma: no cover`.
 
 Note that `testpaths` deliberately **excludes** `tests/adapters` — run that path
 explicitly when you want it (see [02](02-running-tests.md)).
 
 ## Coverage status
 
-**Framework coverage: 93.6% statement** (90.8% with `--cov-branch`, which the
-default `addopts` enables), across the brand-agnostic core — the Eufy adapter is
-omitted via `.coveragerc` (see
+**Coverage: 94.2% statement** (91% combined with `--cov-branch`, which the
+default `addopts` enables), across the brand-agnostic core **and** the Eufy
+adapter — the adapter is now counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)). Most subsystems sit in the
-92–98% band; the per-subsystem breakdown lives in
+92–98% band; the most visible thin spot is the CV `segmentor` (70%). The
+per-subsystem breakdown lives in
 [subsystems/README](subsystems/README.md).
 
 Coverage is a guide, not a target — the suite favors **precision** (each test
