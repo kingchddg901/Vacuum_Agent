@@ -85,6 +85,52 @@ def test_delete_profile(pm):
     assert pm.delete_room_profile(profile_name="ghost")["reason"] == "profile_not_found"
 
 
+def test_overwrite_room_profile_rejections(pm):
+    """[PM-13] overwrite_room_profile error returns: protected name + unknown profile."""
+    fields = dict(label="X", clean_mode="vacuum", fan_speed="Max", water_level="Off",
+                  clean_intensity="Standard", clean_passes=1, edge_mopping=False)
+    assert pm.overwrite_room_profile(
+        profile_name="vacuum_quick", **fields)["reason"] == "protected_profile"
+    assert pm.overwrite_room_profile(
+        profile_name="ghost", **fields)["reason"] == "profile_not_found"
+
+
+def test_save_room_profile_from_room_rejections(pm):
+    """[PM-14] save_room_profile_from_room error returns: missing label, unknown
+    room, protected target name."""
+    pm._data["maps"] = {_VAC: {_MAP: {"rooms": {"1": {
+        "room_id": 1, "name": "Kitchen", "clean_mode": "vacuum", "fan_speed": "Max"}}}}}
+    assert pm.save_room_profile_from_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, label="  ")["reason"] == "missing_label"
+    assert pm.save_room_profile_from_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=99, label="X")["reason"] == "room_not_found"
+    assert pm.save_room_profile_from_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, label="X",
+        profile_name="vacuum_quick")["reason"] == "protected_profile"
+
+
+def test_rename_room_profile_more_rejections(pm):
+    """[PM-15] rename_room_profile error returns: target name protected, target
+    name already exists, empty new label."""
+    _save(pm, name="user_a")
+    _save(pm, name="user_b")
+    assert pm.rename_room_profile(
+        profile_name="user_a", new_profile_name="vacuum_quick")["reason"] == "protected_profile"
+    assert pm.rename_room_profile(
+        profile_name="user_a", new_profile_name="user_b")["reason"] == "profile_name_exists"
+    assert pm.rename_room_profile(
+        profile_name="user_a", label="  ")["reason"] == "missing_label"
+
+
+def test_apply_room_profile_unknown(pm):
+    """[PM-16] apply_room_profile: unknown profile name → profile_not_found error
+    payload with no rooms updated."""
+    result = pm.apply_room_profile(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_ids=[1], profile_name="ghost")
+    assert result["error"] == "profile_not_found"
+    assert result["updated_room_ids"] == []
+
+
 def test_effective_room_details(pm):
     """[PM-5]"""
     pm._data["maps"] = {_VAC: {_MAP: {"rooms": {"1": {
