@@ -140,7 +140,7 @@ manager.check_for_new_rooms(
 ) -> bool
 ```
 
-Reads the current room count from `vacuum.attributes["segments"]` (a list) and compares it to the stored `room_count_at_last_check`. Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the vacuum state is missing or `segments` is not a list. It does **not** update the stored count.
+Reads the current room count from the adapter-declared discovery source (`adapter_config["discovery"]["room_list_entity"]` / `["room_list_attribute"]`, defaulting to the vacuum entity's `segments` attribute) and compares it to the stored `room_count_at_last_check`. Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the source state is missing or the attribute is not a list. It does **not** update the stored count.
 
 The caller (typically `listeners/discovery.py`) decides whether to show a notification.
 

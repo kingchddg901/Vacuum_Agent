@@ -86,8 +86,9 @@ Each entry in `adapter_config["maintenance_components"]` defines one trackable c
 
 | Field | Type | Description |
 |---|---|---|
-| `sensor_suffix` | str \| None | Suffix used to derive the upstream sensor entity ID (e.g. `"brush_life"`) |
-| `proxy_for` | str \| None | If set, this component is an alias for another — shares sensor state |
+| `sensor_suffix` | str \| None | Full suffix appended to `sensor.{object_id}_` to form the counter entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). `None` when the component sources via `proxy_for`. |
+| `proxy_for` | str \| None | If set, this component sources from that component's sensor when present, falling back to its own `sensor_suffix` |
+| `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match registry fallbacks. Absent → no reset button. |
 | `default_interval_hours` | float | Factory-default cleaning/replacement interval |
 | `max_interval_hours` | float | Maximum allowed interval override |
 | `label` | str | Display name shown in panel |

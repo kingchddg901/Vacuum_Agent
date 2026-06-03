@@ -280,8 +280,13 @@ MapConfig:
 
 ## 4. Queue Payload
 
-Built by `build_room_clean_payload` in `queue/queue_engine.py`. This is the
-full object passed to the vacuum's room-clean API.
+`build_room_clean_payload` in `queue/queue_engine.py` is the shared resolver
+for this object — the per-brand payload *shape* is produced by the dispatch
+engine. The start path obtains `payload_state` as `phases[0]` from
+`get_dispatch_engine(...).build_phases(...)` (via `run_plan._build_dispatch_phases`);
+atomic engines return a single phase that is byte-identical to the direct
+`build_room_clean_payload` result. This is the full object passed to the
+vacuum's room-clean API.
 
 ### Return shape
 
@@ -437,6 +442,19 @@ exists for the vacuum/map pair.
     "room_slugs":  list[str]
   }
   "trace_run_id":                          str | None
+```
+
+### Sequenced job model (optional keys)
+
+Present only when the run has more than one phase (a `sequenced` dispatch
+engine). Set by `build_active_job_state` when `phases` is passed, and
+mutated by `advance_active_job_phase` at each completion hook. Absent for
+atomic (single-phase) jobs.
+
+```
+  "phases":              list   # ordered per-phase payload envelopes
+  "current_phase_index": int    # 0-based; incremented on phase advance
+  "phase_count":         int    # len(phases)
 ```
 
 ### Fields written during the run (by listener / sensor callbacks)

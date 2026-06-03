@@ -233,8 +233,10 @@ list of phases (e.g. sweep-all → mop-all), each its own dispatch.
 `engine.build_phases()` produces the sequence; at the completion hook
 `manager.maybe_advance_phase` swaps to the next phase
 (`advance_active_job_phase`) and re-dispatches instead of finalizing —
-each phase finalizes as its own job record. No shipped engine is
-`sequenced` yet; the mechanism is dormant. See
+each phase finalizes as its own job record. No shipped engine declares
+`sequenced` yet, so every live job runs as a single phase — but the
+advance/finalize machinery is already wired into the start and completion
+paths (`maybe_advance_phase` runs in the completion hook, see §6a). See
 [07-queue-engine.md](07-queue-engine.md) and
 [22-adapter-config-reference.md](22-adapter-config-reference.md) §13.
 

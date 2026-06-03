@@ -140,7 +140,7 @@ depends on them — they never raise.
 | `cleaning_area` | Optional | Area omitted from the job record. |
 | `battery` | Optional | Falls back to the `battery_level` attribute on the vacuum entity. |
 | `error_message` | Optional | Error tracker relies on secondary channels (vacuum state, `task_status`) only. |
-| `charging` | Recommended | Charging detection falls back to substring matching on `task_status`/`dock_status` — known false-negative source. |
+| `charging` | Recommended | Charging-dependent detection (battery-health charge sessions, mid-job recharge) is disabled — `is_charging()` returns `False`. There is **no** substring fallback (removed as a known false-negative source). |
 | `wash_frequency_mode` | Optional | Water estimator uses the default interval. |
 | `wash_frequency_value_time` | Optional | Water estimator uses the default interval. |
 | `dry_duration` | Optional | Dry-start dock events store no duration. |
