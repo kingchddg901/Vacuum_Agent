@@ -158,3 +158,12 @@ async def test_find_registry_entity_by_tokens(hass):
         required_tokens=["nonexistent_token"],
     )
     assert miss is None
+
+
+def test_get_vacuum_capabilities_refreshes_when_model_newly_known(manager):
+    """[CAP-7] cached caps with no detected_model + a now-known model triggers a
+    refresh even with refresh=False (upgrades the cached snapshot on first detect)."""
+    manager.data.setdefault("capabilities", {})[_VAC] = {"supports_rooms": True}
+    out = manager.get_vacuum_capabilities(
+        vacuum_entity_id=_VAC, detected_model="X8", refresh=False)
+    assert out["detected_model"] == "X8"

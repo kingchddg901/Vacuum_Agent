@@ -190,6 +190,60 @@ async def test_update_room_fields_invalid_access_graph_rejected(manager):
     assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["is_dock_room"] is True
 
 
+async def test_update_room_fields_grants_and_rules(manager):
+    """[MR-10c] grants_access_to + rules field updates are normalized and persisted
+    (a structurally-valid single grant is accepted, not rejected)."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
+        grants_access_to=[2],
+        rules=[{"kind": "blocker", "id": "r1", "entity_id": "binary_sensor.win",
+                "operator": "is_on", "effect": {"reason": "window_open"}}],
+    )
+    assert result.get("ok") is not False
+    room = manager.data["maps"][_VAC][_MAP]["rooms"]["1"]
+    assert room["grants_access_to"] == [2]
+    assert isinstance(room["rules"], list) and room["rules"]
+
+
+def test_load_room_history_migrates_old_index(manager, monkeypatch):
+    """[MR-13] an old-format jobs index (entries with 'rooms' but no 'status') is
+    migrated via the index-ingest path; the completed-jobs scan is skipped. Guards
+    the deployed-upgrade path that backfills job history without silent loss."""
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+    old = {"map_id": "6", "rooms": [{"room_id": 1}], "ended_at": "2026-01-01T00:00:00+00:00"}
+    monkeypatch.setattr(LearningHistoryStore, "load_jobs_index",
+                        lambda self, *, vacuum_entity_id: {"jobs": [old]})
+    completed: list = []
+    monkeypatch.setattr(LearningHistoryStore, "load_all_completed_jobs",
+                        lambda self, *, vacuum_entity_id: completed.append(vacuum_entity_id) or [])
+    ingested: list = []
+    monkeypatch.setattr(manager, "_ingest_jobs_index_entry_into_room_history",
+                        lambda *, vacuum_entity_id, index_entry, _history_root=None:
+                        ingested.append(index_entry) or True)
+    manager._load_room_history_cache_sync(_VAC)
+    assert ingested == [old]      # old-format migration branch ran
+    assert completed == []        # completed-jobs scan skipped
+
+
+def test_load_room_history_new_index_uses_completed_jobs(manager, monkeypatch):
+    """[MR-13] a new-format index (entries carry 'status') skips the migration and
+    loads from completed-job files instead."""
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+    new = {"map_id": "6", "status": "completed", "rooms": [{"room_id": 1}]}
+    monkeypatch.setattr(LearningHistoryStore, "load_jobs_index",
+                        lambda self, *, vacuum_entity_id: {"jobs": [new]})
+    completed: list = []
+    monkeypatch.setattr(LearningHistoryStore, "load_all_completed_jobs",
+                        lambda self, *, vacuum_entity_id: completed.append(vacuum_entity_id) or [])
+    ingested: list = []
+    monkeypatch.setattr(manager, "_ingest_jobs_index_entry_into_room_history",
+                        lambda **kw: ingested.append(kw) or True)
+    manager._load_room_history_cache_sync(_VAC)
+    assert ingested == []         # migration NOT taken
+    assert completed == [_VAC]    # completed-jobs path taken
+
+
 # ---------------------------------------------------------------------------
 # [MR-11] — [MR-12] set_rooms_enabled_subset
 # ---------------------------------------------------------------------------

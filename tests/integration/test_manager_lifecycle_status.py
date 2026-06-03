@@ -136,3 +136,17 @@ def test_start_status_all_rooms_blocked(manager, hass):
     out = manager.get_start_status(vacuum_entity_id=_VAC, map_id=_MAP)
     assert out["blocked"] is True
     assert out["reason"] == "all_selected_rooms_blocked"
+
+
+def test_start_status_blocked_by_empty_queue(manager, hass):
+    """[LS-6] no enabled rooms → empty queue → the build_start_blocker_from_lifecycle
+    path returns no_rooms_selected. This is the card-facing blocked payload that
+    was previously untested."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2, enabled_room_ids=[])
+    out = manager.get_start_status(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["blocked"] is True
+    assert out["reason"] == "no_rooms_selected"
+    # the payload fields the card reads on a lifecycle-block are populated
+    assert out["reason_label"] and "preflight" in out
+    assert "requires_confirmation" in out and "confirm_token" in out
