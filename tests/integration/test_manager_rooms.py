@@ -206,6 +206,24 @@ async def test_update_room_fields_grants_and_rules(manager):
     assert isinstance(room["rules"], list) and room["rules"]
 
 
+@pytest.mark.parametrize("field,value,expected", [
+    ("water_level", "High", "High"),
+    ("clean_intensity", "Deep", "Deep"),
+    ("edge_mopping", True, True),
+    ("is_transition", True, True),
+])
+async def test_update_room_fields_individual_field_branches(manager, field, value, expected):
+    """[MR-10d] the remaining update_room_fields field branches each write their
+    value (water_level / clean_intensity / edge_mopping / is_transition). clean_mode
+    is set to a mop mode so the carpet/mop protection doesn't force water/edge off."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
+        clean_mode="vacuum_mop", **{field: value})
+    assert result.get("ok") is not False
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"][field] == expected
+
+
 def test_load_room_history_migrates_old_index(manager, monkeypatch):
     """[MR-13] an old-format jobs index (entries with 'rooms' but no 'status') is
     migrated via the index-ingest path; the completed-jobs scan is skipped. Guards
