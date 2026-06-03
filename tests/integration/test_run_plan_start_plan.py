@@ -291,3 +291,20 @@ def test_path_block_directly_blocked_remaining(rp, hass, manager):
     # room 3 is directly blocked; room 2 stayed reachable (not flagged)
     assert "3" in report["directly_blocked_room_ids"]
     assert "2" not in report["affected_remaining_room_ids"]
+
+
+def test_path_block_no_affected_returns_none(rp, hass, manager):
+    """[SP-11b] a trigger that blocks no remaining room → report is None, and the
+    active job's stale block signature is cleared."""
+    _seed(manager, "spm11b", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2]},
+        {"enabled": True},
+    ])
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm11b"] = {
+        "status": "started", "job_id": "j3", "queue_room_ids": [1, 2],
+        "completed_room_ids": [], "last_path_block_signature": "old"}
+    report = manager.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm11b",
+        trigger_entity_id="binary_sensor.nobody", trigger_entity_state="on")
+    assert report is None
+    assert "last_path_block_signature" not in manager.data["active_jobs"][_VAC]["spm11b"]

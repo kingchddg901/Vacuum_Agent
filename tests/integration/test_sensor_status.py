@@ -165,6 +165,15 @@ def test_active_job_callbacks():
     assert not s.hass.loop.call_soon_threadsafe.called
 
 
+async def test_active_job_update_real_dispatch(hass):
+    """[LC-3b] with a real hass, _on_active_job_update actually schedules and runs
+    the _write closure (the threadsafe state-write body)."""
+    s = _job_sensor({"status": "idle"})
+    s.hass = hass
+    s._on_active_job_update(_VAC, _MAP)  # matching → schedules real _write
+    await hass.async_block_till_done()
+
+
 # ---------------------------------------------------------------------------
 # maintenance sensor
 # ---------------------------------------------------------------------------
