@@ -230,3 +230,25 @@ def test_maintenance_availability_flip():
         "remaining_hours": None, "source_available": False}
     s._refresh_cache()
     assert s._attr_available is False
+
+
+def test_maintenance_no_warning_on_startup_unavailable(caplog):
+    """[MN-4b] A source unavailable at startup (cross-integration load race)
+    must NOT log a warning — the sensor starts unavailable and only warns on a
+    genuine available→unavailable transition."""
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        s = _maint(source_available=False)
+        s._refresh_cache()
+    assert s._attr_available is False
+    assert "source entity unavailable" not in caplog.text
+
+    caplog.clear()
+    s2 = _maint(source_available=True)
+    s2._refresh_cache()
+    s2._manager.get_maintenance_remaining.return_value = {
+        "remaining_hours": None, "source_available": False}
+    with caplog.at_level(logging.WARNING):
+        s2._refresh_cache()
+    assert "source entity unavailable" in caplog.text

@@ -59,7 +59,12 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
         self._attr_device_class = "duration"
         self._attr_translation_placeholders = {"component": label}
         # Availability tracking — updated on each poll via async_update().
-        self._attr_available = True
+        # Start unavailable: the source entity (another integration's sensor)
+        # may not be populated yet during the startup load race. Starting True
+        # would make the first refresh look like a genuine available→unavailable
+        # transition and log a spurious warning. We only warn once the source has
+        # actually been seen available and then drops.
+        self._attr_available = False
         self._cached_result: dict[str, Any] = {}
 
     async def async_added_to_hass(self) -> None:
