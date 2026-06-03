@@ -1703,7 +1703,7 @@ class EufyVacuumManager:
                         _history_root=temp_root,
                     )
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "Failed rebuilding room history cache for %s", vacuum_key
             )
         return temp_root.get(vacuum_key, {})

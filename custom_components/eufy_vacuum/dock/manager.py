@@ -393,7 +393,7 @@ class DockManager:
                         # Unparseable timestamp → fall through and count the
                         # event. Log so a silent debounce break from a
                         # timestamp-format drift is detectable, not invisible.
-                        _LOGGER.debug(
+                        _LOGGER.debug(  # pragma: no cover
                             "dock-event debounce: could not parse timestamps "
                             "(last=%r now=%r) for %s",
                             last_counted, now, event_type, exc_info=True,

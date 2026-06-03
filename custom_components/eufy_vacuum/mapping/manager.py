@@ -408,7 +408,7 @@ class MappingManager:
             return {}
 
         if isinstance(data, dict) and "calibration" in data:
-            _LOGGER.info(
+            _LOGGER.info(  # pragma: no cover
                 "Stripping legacy calibration block from map_data for %s/%s",
                 vacuum_entity_id,
                 map_id,

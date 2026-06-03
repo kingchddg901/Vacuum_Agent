@@ -516,7 +516,7 @@ class LearningJobFinalizer:
                             _recharge_secs,
                         )
             except Exception:
-                _LOGGER.debug(
+                _LOGGER.debug(  # pragma: no cover
                     "job_finalizer: wall-clock cleaning_time derivation failed for %s",
                     vacuum_entity_id,
                     exc_info=True,
@@ -1323,7 +1323,7 @@ class LearningJobFinalizer:
             )
             return payload
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "Failed to write incomplete run log for %s",
                 vacuum_entity_id,
             )

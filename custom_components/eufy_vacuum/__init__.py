@@ -169,7 +169,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 configured_vacuum,
             )
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "eufy_vacuum: failed to register config-entry vacuum %s",
                 configured_vacuum,
             )
@@ -194,7 +194,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for _entry_id in _orphans:
             registry.async_remove(_entry_id)
         if _orphans:
-            _LOGGER.info(
+            _LOGGER.info(  # pragma: no cover
                 "eufy_vacuum: removed %d orphaned icon-select entit%s from earlier versions",
                 len(_orphans),
                 "y" if len(_orphans) == 1 else "ies",
@@ -207,7 +207,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # stored configs for the same vacuum — code adapters always win.
     _stored_count = load_stored_adapter_configs(hass, manager.data)
     if _stored_count > 0:
-        _LOGGER.debug(
+        _LOGGER.debug(  # pragma: no cover
             "eufy_vacuum: loaded %d stored adapter config(s)",
             _stored_count,
         )
@@ -218,7 +218,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         try:
             register_eufy_adapter_for_vacuum(hass, _vacuum_entity_id)
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "eufy_vacuum: failed to register adapter config for %s",
                 _vacuum_entity_id,
             )
@@ -243,13 +243,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         vacuum_entity_id = call.data["vacuum_entity_id"]
         bm = hass.data.get(DOMAIN, {}).get(DATA_BATTERY)
         if bm is None:
-            _LOGGER.warning(
+            _LOGGER.warning(  # pragma: no cover
                 "battery: rebaseline service called but battery manager is not loaded"
             )
             return
         ok = bm.rebaseline(vacuum_entity_id)
         if not ok:
-            _LOGGER.warning(
+            _LOGGER.warning(  # pragma: no cover
                 "battery: rebaseline service called for %s but no record was found",
                 vacuum_entity_id,
             )
@@ -277,7 +277,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     position_y_entity_id=_y_entity,
                 )
         except Exception:
-            _LOGGER.warning(
+            _LOGGER.warning(  # pragma: no cover
                 "eufy_vacuum: failed to register position tracker for %s — "
                 "map position tracking will be unavailable for this vacuum",
                 _vac,

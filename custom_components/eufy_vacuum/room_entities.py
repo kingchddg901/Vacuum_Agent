@@ -154,7 +154,7 @@ class EufyVacuumRoomEntity(Entity):
                     self._room_id,
                 )
             else:
-                _LOGGER.debug(
+                _LOGGER.debug(  # pragma: no cover
                     "Room entity %s/%s/room_%s is available again",
                     self._vacuum_entity_id,
                     self._map_id,

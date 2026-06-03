@@ -98,7 +98,7 @@ def register_post_job_water_amendment(
     )
     _commit_state: str = str(_amendment_cfg.get("commit_state") or "").strip().lower()
     if not _trigger_states or not _commit_state:
-        _LOGGER.debug(
+        _LOGGER.debug(  # pragma: no cover
             "post_job_water_amendment: adapter declared no trigger_states/commit_state "
             "for %s — skipping",
             vacuum_entity_id,

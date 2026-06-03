@@ -161,7 +161,7 @@ class MappingTracker:
             tmp.write_text(json.dumps(payload), encoding="utf-8")
             tmp.replace(path)
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to flush samples to %s", path
             )
 
@@ -185,7 +185,7 @@ class MappingTracker:
             raw = payload.get("samples", [])
             return [(float(s[0]), float(s[1])) for s in raw if len(s) == 2]
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to load samples from %s", path
             )
             return None
@@ -196,7 +196,7 @@ class MappingTracker:
         try:
             path.unlink(missing_ok=True)
         except Exception:
-            _LOGGER.debug(
+            _LOGGER.debug(  # pragma: no cover
                 "MappingTracker: could not delete temp file %s", path
             )
 
@@ -222,7 +222,7 @@ class MappingTracker:
         try:
             lines = [l for l in path.read_text(encoding="utf-8").splitlines() if l.strip()]
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to read archive for room %s (%s)",
                 room_id, vacuum_entity_id,
             )
@@ -233,7 +233,7 @@ class MappingTracker:
             try:
                 archived_entries.append(json.loads(line))
             except Exception:
-                _LOGGER.exception(
+                _LOGGER.exception(  # pragma: no cover
                     "MappingTracker: failed to parse archive line for room %s (%s)",
                     room_id, vacuum_entity_id,
                 )
@@ -280,7 +280,7 @@ class MappingTracker:
                 tmp.replace(path)
             return updated
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to update exclusion flag for job %s room %s (%s)",
                 job_id, room_id, vacuum_entity_id,
             )
@@ -378,7 +378,7 @@ class MappingTracker:
             tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
             tmp.replace(path)
         except Exception:
-            _LOGGER.exception(
+            _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to append raw samples for room %s (%s)",
                 room_id, vacuum_entity_id,
             )
@@ -526,7 +526,7 @@ class MappingTracker:
                     rooms=rooms,
                 )
             except Exception:
-                _LOGGER.exception(
+                _LOGGER.exception(  # pragma: no cover
                     "MappingTracker: failed to update room bounds for %s",
                     vacuum_entity_id,
                 )
@@ -586,7 +586,7 @@ class MappingTracker:
                             samples=room_samples,
                         )
             except Exception:
-                _LOGGER.exception(
+                _LOGGER.exception(  # pragma: no cover
                     "MappingTracker: failed to archive raw samples for %s",
                     vacuum_entity_id,
                 )

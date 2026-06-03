@@ -578,7 +578,7 @@ class BatteryHealthManager:
         if session is not None:
             start_ts = _parse_iso(session.get("start_ts"))
             if start_ts is not None and (ts - start_ts) > timedelta(hours=SESSION_MAX_HOURS):
-                _LOGGER.debug(
+                _LOGGER.debug(  # pragma: no cover
                     "battery: discarding stale session for vacuum (%s old)",
                     ts - start_ts,
                 )

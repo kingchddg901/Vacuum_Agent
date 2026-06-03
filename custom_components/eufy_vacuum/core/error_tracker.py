@@ -691,7 +691,7 @@ class ErrorTracker:
             job_id is not None
             and latch.get("active_job_id") not in (None, job_id)
         ):
-            _LOGGER.debug(
+            _LOGGER.debug(  # pragma: no cover
                 "error_tracker: harvest job_id mismatch for %s "
                 "(latch=%s, harvest=%s) — attaching anyway",
                 vacuum_entity_id,

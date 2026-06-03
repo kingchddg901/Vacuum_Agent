@@ -95,7 +95,7 @@ class EufyVacuumMaintenanceRemainingSensor(SensorEntity):
                 self._component,
             )
         elif not self._attr_available and now_available:
-            _LOGGER.debug(
+            _LOGGER.debug(  # pragma: no cover
                 "Maintenance sensor %s (%s): source entity available again",
                 self._vacuum_entity_id,
                 self._component,

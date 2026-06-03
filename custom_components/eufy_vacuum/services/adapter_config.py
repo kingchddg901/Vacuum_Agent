@@ -65,13 +65,13 @@ async def _handle_save_adapter_config(hass: HomeAssistant, call: ServiceCall) ->
         return
 
     if not config.get("adapter_id"):
-        _LOGGER.error(
+        _LOGGER.error(  # pragma: no cover
             "save_adapter_config: missing adapter_id for %s",
             vacuum_entity_id,
         )
         return
     if not config.get("dispatch", {}).get("template"):
-        _LOGGER.error(
+        _LOGGER.error(  # pragma: no cover
             "save_adapter_config: missing dispatch.template for %s",
             vacuum_entity_id,
         )

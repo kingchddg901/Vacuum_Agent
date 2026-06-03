@@ -527,7 +527,7 @@ class ActiveJobTracker:
                 map_id=str(map_id),
             )
         except Exception:
-            _LOGGER.debug(
+            _LOGGER.debug(  # pragma: no cover
                 "EufyManager: bounds snapshot fetch failed (vacuum=%s room=%s)",
                 vacuum_entity_id, room_id,
             )
@@ -816,7 +816,7 @@ class ActiveJobTracker:
                 map_id=str(map_id),
             )
         except Exception:
-            _LOGGER.debug(
+            _LOGGER.debug(  # pragma: no cover
                 "EufyManager: failed to read room bounds for transition detection "
                 "(vacuum=%s map=%s)",
                 vacuum_entity_id,

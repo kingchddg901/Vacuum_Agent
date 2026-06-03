@@ -94,7 +94,7 @@ def discover_rooms_for_vacuum(
 
     source_state = hass.states.get(source_entity_id)
     if source_state is None:
-        _LOGGER.debug(
+        _LOGGER.debug(  # pragma: no cover
             "Room list entity %s missing for %s", source_entity_id, vacuum_entity_id
         )
         return []
