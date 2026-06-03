@@ -83,6 +83,25 @@ async def test_clear_active_job_no_active_job_does_not_raise(hass, manager_with_
     )
 
 
+@pytest.mark.parametrize("service,method,extra", [
+    ("start_selected_rooms", "start_selected_rooms", {}),
+    ("start_run_profile", "start_run_profile", {"profile_id": "p"}),
+    ("pause_active_job", "async_pause_active_job", {}),
+    ("resume_active_job", "async_resume_active_job", {}),
+    ("cancel_active_job", "async_cancel_active_job", {}),
+])
+async def test_job_control_dispatch_wiring(hass, manager_with_services, monkeypatch, service, method, extra):
+    """[JCW-1b] each registered job-control service dispatches through its closure
+    to the matching manager method — verifies the service-name→handler wiring for
+    the robot-command services (plumbing can be mis-wired)."""
+    await _setup_vacuum(hass, manager_with_services)
+    spy = AsyncMock(return_value={"started": True})
+    monkeypatch.setattr(manager_with_services, method, spy)
+    await hass.services.async_call(
+        DOMAIN, service, {"vacuum_entity_id": _VAC, "map_id": _MAP, **extra}, blocking=True)
+    assert spy.await_count == 1
+
+
 async def test_clear_active_job_is_idempotent(hass, manager_with_services):
     """[JCW-2] Calling clear_active_job twice does not raise on the second call."""
     await _setup_vacuum(hass, manager_with_services)

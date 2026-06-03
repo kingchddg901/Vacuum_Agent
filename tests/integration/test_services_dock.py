@@ -204,6 +204,23 @@ async def test_gated_action_manager_raises(dock, handler, method, prefix):
         await handler(hass, _gated_call())
 
 
+@pytest.mark.parametrize("service,method", [
+    ("wash_mop", "async_wash_mop"),
+    ("dry_mop", "async_dry_mop"),
+    ("empty_dust", "async_empty_dust"),
+    ("stop_dry_mop", "async_stop_dry_mop"),
+])
+async def test_dock_service_dispatch_wiring(hass, manager_with_services, monkeypatch, service, method):
+    """[DK-13] each registered dock service dispatches through its closure to the
+    matching manager method — verifies service-name→handler wiring, which the
+    direct _handle_* tests deliberately bypass (plumbing can be mis-wired)."""
+    spy = AsyncMock(return_value={"performed": True, "allowed": True})
+    monkeypatch.setattr(manager_with_services, method, spy)
+    await hass.services.async_call(
+        DOMAIN, service, {"vacuum_entity_id": _VAC, "map_id": _MAP}, blocking=True)
+    assert spy.await_count == 1
+
+
 def test_check_dock_action_allowed_not_performed():
     """[DK-10] allowed-but-not-performed (e.g. no-op) must not raise."""
     _check_dock_action("wash_mop", {"performed": False, "allowed": True})

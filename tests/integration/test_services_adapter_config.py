@@ -96,6 +96,23 @@ async def test_save_adapter_config_forces_source_config(hass, manager_with_servi
 # [AC-4] delete_adapter_config
 # ---------------------------------------------------------------------------
 
+async def test_save_adapter_config_rejects_incomplete(hass, manager_with_services):
+    """[AC-3b] save_adapter_config rejects configs missing adapter_id or
+    dispatch.template (the early-return validation) and registers nothing."""
+    from custom_components.eufy_vacuum.adapters.registry import get_adapter_config
+    # missing adapter_id → early return
+    await hass.services.async_call(
+        DOMAIN, "save_adapter_config",
+        {"vacuum_entity_id": _VAC, "config": {"dispatch": {"template": "eufy_room_clean"}}},
+        blocking=True)
+    assert get_adapter_config(_VAC) is None
+    # missing dispatch.template → early return
+    await hass.services.async_call(
+        DOMAIN, "save_adapter_config",
+        {"vacuum_entity_id": _VAC, "config": {"adapter_id": "a"}}, blocking=True)
+    assert get_adapter_config(_VAC) is None
+
+
 async def test_delete_adapter_config_removes_registration(hass, manager_with_services):
     """[AC-4] delete_adapter_config clears the adapter registration."""
     # Save via the service so the config is persisted in manager.data (not
