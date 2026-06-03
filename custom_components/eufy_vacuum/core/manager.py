@@ -2541,14 +2541,6 @@ class EufyVacuumManager:
         if current_room_id < 0 or current_room_id not in unresolved_room_ids:
             current_room_id = unresolved_room_ids[0] if unresolved_room_ids else None
 
-        if current_room_id is None and active_job.get("status") in {"started", "paused"} and unresolved_room_ids:
-            current_room_id = unresolved_room_ids[0]
-            active_job["current_room_id"] = current_room_id
-            active_job["current_room_started_at"] = active_job.get("current_room_started_at") or active_job.get("started_at") or _iso_now()
-            self.data.setdefault("active_jobs", {})
-            self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-            self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
-
         current_room_elapsed_minutes = self._compute_current_room_elapsed_minutes(active_job=active_job)
         pre_roll_room_id = current_room_id
         active_job = self._maybe_roll_current_room_by_timing(
