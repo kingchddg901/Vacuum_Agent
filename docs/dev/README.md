@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-24 files covering the integration's architecture, subsystems, and porting contract.
+26 files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -69,6 +69,8 @@ The Lovelace panel card and everything the card reads from integration state.
 | 20 | [theme-system](20-theme-system.md) | Theme editor: token hierarchy, palette → token derivation, import/export |
 | 21 | [adapter-system](21-adapter-system.md) | Adapter registration, registry, runtime lookup, adapter API contract |
 | 22 | [adapter-config-reference](22-adapter-config-reference.md) | Complete schema reference for per-vacuum adapter config dicts |
+| 25 | [eufy-adapter](25-eufy-adapter.md) | The Eufy adapter as a worked example + pattern guide for a full-feature adapter |
+| 26 | [eufy-segmentor](26-eufy-segmentor.md) | The Eufy CV room segmentor and the segmenter-engine pattern for a new brand |
 
 ---
 
