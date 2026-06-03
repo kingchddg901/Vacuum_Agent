@@ -8,6 +8,15 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.11] - 2026-06-03
+
+### Changed
+- **Renamed the product display name to "Vacuum Agent"** (was "Eufy Vacuum
+  Manager"); the GitHub repo moved to `Vacuum_Agent`. The Home Assistant
+  **domain stays `eufy_vacuum`** — all `eufy_vacuum.*` services, `eufy_vacuum_*`
+  events, and `/eufy_vacuum/` paths are unchanged, so existing installs and
+  automations keep working. Eufy remains the only supported brand.
+
 ## [0.9.10] - 2026-06-03
 
 Mostly a bug-fix release, with significant under-the-hood groundwork for
@@ -52,4 +61,5 @@ multi-brand support.
   `boundary_pixel` field, and an unreachable current-room induction branch in the
   job-progress snapshot.
 
+[0.9.11]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.10...v0.9.11
 [0.9.10]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.9.1...v0.9.10
