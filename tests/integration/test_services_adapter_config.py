@@ -204,6 +204,23 @@ async def test_discover_adapter_entities_returns_structure(hass, manager_with_se
     assert isinstance(result["by_domain"], dict)
 
 
+async def test_discover_adapter_entities_collects_matching(hass, manager_with_services):
+    """[AC-7b] registry entities whose id contains the vacuum object_id are
+    collected with domain/state/platform (the match-collection loop body)."""
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    reg.async_get_or_create("sensor", "eufy_vacuum", "alfred_battery_x",
+                            suggested_object_id="alfred_battery_x")
+    hass.states.async_set("sensor.alfred_battery_x", "88")
+    result = await hass.services.async_call(
+        DOMAIN, "discover_adapter_entities", {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True)
+    match = next(
+        (e for e in result["entities"] if e["entity_id"] == "sensor.alfred_battery_x"), None)
+    assert match is not None
+    assert match["domain"] == "sensor" and match["current_state"] == "88"
+
+
 # ---------------------------------------------------------------------------
 # [AC-8] get_vacuum_capabilities
 # ---------------------------------------------------------------------------

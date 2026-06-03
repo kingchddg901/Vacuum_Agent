@@ -159,3 +159,19 @@ async def test_delete_map_no_remaining_maps_adds_warning(hass, manager):
     assert result["status"] == "success"
     assert len(result["warnings"]) > 0
     assert "import_active_map" in result["next_actions"]
+
+
+async def test_delete_map_sweeps_stale_registry_entities(hass, manager):
+    """[SD-10] delete sweeps leftover registry entities (platform=DOMAIN, unique_id
+    prefixed by vacuum+map) that platform teardown may have missed."""
+    from homeassistant.helpers import entity_registry as er
+    setup_map(manager, _VAC, _MAP, count=2)
+    reg = er.async_get(hass)
+    prefix = f"{_VAC.replace('.', '_')}_{_MAP}_"
+    ent = reg.async_get_or_create(
+        "sensor", DOMAIN, f"{prefix}roomhist_stale",
+        suggested_object_id="alfred_stale_roomhist")
+    result = await delete_map(
+        hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token="confirm")
+    assert result["status"] == "success"
+    assert reg.async_get(ent.entity_id) is None  # stale entity swept
