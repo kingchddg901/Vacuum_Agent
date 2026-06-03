@@ -244,6 +244,16 @@ def test_load_room_history_new_index_uses_completed_jobs(manager, monkeypatch):
     assert completed == [_VAC]    # completed-jobs path taken
 
 
+def test_known_map_ids_includes_runtime_maps(manager):
+    """[MR-14] get_known_map_ids folds in the runtime's selected/active map ids
+    (the runtime branch), on top of the maps and active_jobs buckets."""
+    rt = manager.ensure_runtime(_VAC)
+    rt.selected_map_id = "6"
+    rt.active_map_id = "7"
+    ids = manager.get_known_map_ids(_VAC)
+    assert "6" in ids and "7" in ids
+
+
 # ---------------------------------------------------------------------------
 # [MR-11] — [MR-12] set_rooms_enabled_subset
 # ---------------------------------------------------------------------------

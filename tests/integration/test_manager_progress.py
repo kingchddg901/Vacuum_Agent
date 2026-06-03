@@ -153,6 +153,31 @@ async def test_finalize_no_learning(manager):
     assert result is None
 
 
+def test_save_learning_snapshot_delegates(manager, monkeypatch):
+    """[PR-5b] save_learning_snapshot_for_active_job forwards to the learning
+    manager's save_live_snapshot_from_manager when one is available."""
+    captured: dict = {}
+
+    class _FakeLearning:
+        def save_live_snapshot_from_manager(self, **kw):
+            captured.update(kw)
+            return {"saved": True}
+
+    monkeypatch.setattr(manager, "_get_learning_manager", lambda: _FakeLearning())
+    out = manager.save_learning_snapshot_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, started_at="2026-01-01T00:00:00+00:00",
+        battery_start=90, job_id="job1")
+    assert out == {"saved": True}
+    assert captured["vacuum_entity_id"] == _VAC and captured["job_id"] == "job1"
+
+
+def test_save_learning_snapshot_no_learning_returns_none(manager):
+    """[PR-5b] no learning manager wired → None (the early-return guard)."""
+    assert manager.save_learning_snapshot_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP, started_at="x",
+        battery_start=90, job_id="job1") is None
+
+
 async def test_finalize_missing_started_at(manager, hass):
     """[PR-6] an active job with no started_at → not finalized."""
     _wire(manager, hass)

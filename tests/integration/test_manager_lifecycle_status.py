@@ -150,3 +150,26 @@ def test_start_status_blocked_by_empty_queue(manager, hass):
     # the payload fields the card reads on a lifecycle-block are populated
     assert out["reason_label"] and "preflight" in out
     assert "requires_confirmation" in out and "confirm_token" in out
+
+
+@pytest.mark.parametrize("estimate,reason", [
+    ({"not_enough_clean_water": True}, "not_enough_clean_water"),
+    ({"low_clean_water_margin": True}, "low_clean_water_margin"),
+])
+def test_start_status_water_warning(manager, hass, monkeypatch, estimate, reason):
+    """[LS-7] a ready start with a low-clean-water estimate surfaces a non-blocking
+    water warning (the card's water-warning payload), covering both reason branches."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2, enabled_room_ids=[1, 2])
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    for i, room in enumerate(rooms.values(), start=1):
+        room["enabled"] = True
+        room["order"] = i
+    hass.states.async_set(_VAC, "docked", {"battery_level": 90})
+    monkeypatch.setattr(manager, "get_planned_job_estimate",
+                        lambda **kw: {"water_estimate": estimate})
+    out = manager.get_start_status(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert out["blocked"] is False
+    assert out["water_warning"] is True
+    assert out["water_warning_reason"] == reason
+    assert out["warning"] is True
