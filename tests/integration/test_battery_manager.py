@@ -98,6 +98,19 @@ def test_record_job_metrics(bm):
     assert rec["last_job"]["job_id"] == "j1"
 
 
+def test_record_job_metrics_fan_and_water_buckets(bm):
+    """[BM-4b] single fan_speed / water_level metrics populate the by_fan_speed
+    and by_water_level aggregate buckets."""
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="j2", metrics={
+        "battery_used_pct": 15, "duration_min": 30, "area_m2": 20, "drain_per_min": 0.5,
+        "is_single_fan_speed": True, "single_fan_speed": "Max",
+        "is_single_water_level": True, "single_water_level": "High",
+    })
+    aggr = bm.get_record(_VAC)["job_aggregates"]
+    assert aggr["by_fan_speed"]["Max"]["count"] == 1
+    assert aggr["by_water_level"]["High"]["count"] == 1
+
+
 def test_update_aggregate_bucket(bm):
     """[BM-5]"""
     bucket: dict = {}

@@ -131,6 +131,17 @@ def test_apply_room_profile_unknown(pm):
     assert result["updated_room_ids"] == []
 
 
+def test_protected_room_config_carpet_downgrades_mop(pm):
+    """[PM-17] a carpet room set to a mop mode is downgraded to vacuum, with water
+    level and edge mopping forced off (the carpet-protection invariant)."""
+    out = pm._protected_room_config({
+        "floor_type": "carpet", "clean_mode": "vacuum_mop",
+        "water_level": "High", "edge_mopping": True})
+    assert out["clean_mode"] == "vacuum"
+    assert out["water_level"] == "Off"
+    assert out["edge_mopping"] is False
+
+
 def test_effective_room_details(pm):
     """[PM-5]"""
     pm._data["maps"] = {_VAC: {_MAP: {"rooms": {"1": {
