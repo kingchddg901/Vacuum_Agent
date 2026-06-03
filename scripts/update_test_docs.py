@@ -160,7 +160,12 @@ def fmt_stmt(totals: dict) -> str:
     return f"{totals['percent_statements_covered']:.1f}"
 
 
-def update_per_module_tables(index: dict[str, dict], editor: Editor) -> None:
+def update_per_module_tables(
+    index: dict[str, dict], editor: Editor
+) -> dict[str, set[str]]:
+    """Rewrite the Stmts/Cov cells in every subsystem map. Returns, per doc
+    stem, the set of coverage relpaths its table claims."""
+    claimed: dict[str, set[str]] = {}
     for doc in DOCS.glob("subsystems/*.md"):
         stem = doc.stem
         if stem == "README":
@@ -174,6 +179,7 @@ def update_per_module_tables(index: dict[str, dict], editor: Editor) -> None:
             rel = resolve(m.group("mod"), stem, index)
             if rel is None:
                 continue
+            claimed.setdefault(stem, set()).add(rel)
             s = index[rel]
             new_line = (
                 f"{m.group('head')} {s['num_statements']} "
@@ -188,20 +194,35 @@ def update_per_module_tables(index: dict[str, dict], editor: Editor) -> None:
             if not editor.dry_run:
                 doc.write_text("".join(lines), encoding="utf-8")
             print(f"  upd  [{doc.name}] per-module rows")
+    return claimed
 
 
-def subsystem_totals(index: dict[str, dict]) -> dict[str, str]:
-    agg: dict[str, list[int]] = {}
-    for rel, s in index.items():
-        cl = s["covered_lines"] + s["covered_branches"]
-        tot = s["num_statements"] + s["num_branches"]
-        a = agg.setdefault(doc_of(rel), [0, 0])
-        a[0] += cl
-        a[1] += tot
-    return {
-        stem: str(round(100 * cl / tot)) if tot else "0"
-        for stem, (cl, tot) in agg.items()
-    }
+def subsystem_totals(
+    claimed: dict[str, set[str]], index: dict[str, dict]
+) -> dict[str, str]:
+    """Combined statement+branch coverage per subsystem, over exactly the
+    modules each subsystem's table lists."""
+    out: dict[str, str] = {}
+    for stem, rels in claimed.items():
+        cl = tot = 0
+        for rel in rels:
+            s = index[rel]
+            cl += s["covered_lines"] + s["covered_branches"]
+            tot += s["num_statements"] + s["num_branches"]
+        out[stem] = str(round(100 * cl / tot)) if tot else "0"
+    return out
+
+
+def report_unclaimed(claimed: dict[str, set[str]], index: dict[str, dict]) -> None:
+    """Source modules counted in the grand total but absent from every
+    subsystem table — a doc-drift signal."""
+    everywhere = set().union(*claimed.values()) if claimed else set()
+    missing = sorted(rel for rel in index if rel not in everywhere)
+    if missing:
+        print(f"\n  note: {len(missing)} source module(s) not listed in any "
+              f"subsystem table (counted in the grand total only):")
+        for rel in missing:
+            print(f"        {rel}  ({index[rel]['percent_covered_display']}%)")
 
 
 def update_subsystem_index(per_sub: dict[str, str], totals: dict, editor: Editor) -> None:
@@ -273,10 +294,11 @@ def main() -> None:
           + (f" / {cases} cases" if cases else ""))
 
     editor = Editor(args.dry_run)
-    update_per_module_tables(index, editor)
-    update_subsystem_index(subsystem_totals(index), totals, editor)
+    claimed = update_per_module_tables(index, editor)
+    update_subsystem_index(subsystem_totals(claimed, index), totals, editor)
     update_overview(totals, editor)
     update_readme(totals, files, funcs, cases, editor)
+    report_unclaimed(claimed, index)
 
     print(f"\n{'(dry-run) ' if args.dry_run else ''}done — "
           f"{editor.changes} edit groups applied")

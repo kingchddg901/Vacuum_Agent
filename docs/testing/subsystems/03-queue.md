@@ -15,6 +15,7 @@ Architecture reference: [docs/dev/07-queue-engine.md](../../dev/07-queue-engine.
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `queue_engine.py` | 155 | 93% | `test_queue_engine.py` (unit), `test_manager_queue.py` | unit + int |
+| `dispatch_engines.py` | 78 | 95% | `test_dispatch_engines.py` (unit) | unit |
 
 (The `build_queue` / `clear_queue` service surface is in
 [17 — services](17-services.md) via `test_services_queue.py`.)

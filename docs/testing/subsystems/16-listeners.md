@@ -22,6 +22,7 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 | `discovery.py` | 69 | 99% | `test_listeners_timers.py` | integration |
 | `pause_timeout.py` | 48 | 94% | `test_listeners_timers.py` | integration |
 | `_common.py` | 56 | 92% | `test_listeners_common.py` | integration |
+| `job_progress.py` | 40 | 96% | `test_listeners_active.py` | integration |
 
 ---
 

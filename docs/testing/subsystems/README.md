@@ -20,12 +20,12 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 97% |
 | 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 92% |
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 94% |
-| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 96% |
+| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 95% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
 | 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 77%¹ |
 | 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 89% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 97% |
-| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 92% |
+| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 94% |
 
 ¹ Includes the concrete Eufy adapter (`adapters/eufy/*`), now counted in the
 number. The framework adapter code (registry/loader/schema) sits in the mid-90s
@@ -33,8 +33,11 @@ to 100%; the subsystem figure is pulled to 77% almost entirely by the CV
 `segmentor` (70%, 865 stmts) — see [15-adapters](15-adapters.md).
 
 The per-subsystem Cov column is **combined** (statement + branch) coverage —
-the single number `pytest --cov-branch` prints per row. The grand total below
-breaks out the statement-only figure too.
+the single number `pytest --cov-branch` prints per row — computed over exactly
+the modules each subsystem's table lists. Package `__init__.py` files (boot /
+re-export wiring) are deliberately not tabled, so they sit in the grand total
+but not the per-subsystem figures. The grand total below breaks out the
+statement-only figure too.
 
 **Total: 94.2% statement coverage** (91% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the

@@ -16,7 +16,15 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 | Source module | Stmts | Cov | Test files |
 |---------------|------:|----:|------------|
-| `sensor/` (10 modules) | 572 | 94% | `test_sensor_entities.py`, `test_sensor_status.py`, `test_sensor_remaining.py` |
+| `sensor/error.py` | 84 | 96% | `test_sensor_status.py` |
+| `sensor/lifecycle.py` | 91 | 90% | `test_sensor_status.py` |
+| `sensor/maintenance.py` | 55 | 93% | `test_sensor_status.py` |
+| `sensor/onboarding.py` | 31 | 95% | `test_sensor_entities.py` |
+| `sensor/profile.py` | 27 | 100% | `test_sensor_entities.py` |
+| `sensor/theme.py` | 39 | 95% | `test_sensor_entities.py` |
+| `sensor/dock_event.py` | 24 | 100% | `test_sensor_remaining.py` |
+| `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` |
+| `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `button.py` | 134 | 88% | `test_button_entity.py` |
 | `number.py` | 121 | 94% | `test_number_entity.py` |
 | `switch.py` | 63 | 92% | `test_switch_entity.py` |

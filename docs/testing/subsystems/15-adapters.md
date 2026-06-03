@@ -22,7 +22,18 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 865 | 70% | `tests/adapters/eufy/` | adapter |
 | `eufy/adapter.py` | 39 | 93% | `tests/adapters/eufy/` | adapter |
-| `eufy/*` (others) | — | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/discovery.py` | 54 | 100% | `test_discovery.py` | adapter |
+| `eufy/entities.py` | 24 | 100% | `test_buttons_entities.py` | adapter |
+| `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
+| `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter |
+| `eufy/vocabulary.py` | 9 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter |
+| `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/water_config.py` | 2 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/maintenance_components.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
 
 (Adapter-config *services* are in [17 — services](17-services.md) via
 `test_services_adapter_config.py`.)
