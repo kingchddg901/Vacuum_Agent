@@ -644,6 +644,53 @@ async def test_retry_missed_rooms_no_log(hass, learning_services):
     assert result["reason"] == "no_missed_rooms"
 
 
+async def test_retry_missed_rooms_no_map_id(hass, learning_services):
+    """[LS-18b] a log with missed rooms but no resolvable map_id → no_map_id."""
+    from custom_components.eufy_vacuum.learning.services import SERVICE_RETRY_MISSED_ROOMS
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+
+    LearningHistoryStore(hass).save_incomplete_run(
+        vacuum_entity_id=_VAC, payload={"missed_room_ids": [1]})  # no map_id
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_RETRY_MISSED_ROOMS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True)
+    assert result["started"] is False
+    assert result["reason"] == "no_map_id"
+
+
+async def test_retry_missed_rooms_dispatches_and_clears_log(hass, learning_services):
+    """[LS-18c] with an incomplete run log, retry enables the missed rooms, builds
+    the queue, dispatches the start, and clears the log on success."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import SERVICE_RETRY_MISSED_ROOMS
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    hass.states.async_set(_VAC, "docked", {"battery_level": 90})
+    calls: list = []
+
+    async def _dispatch(call):
+        calls.append(call)
+
+    hass.services.async_register("vacuum", "send_command", _dispatch)
+
+    store = LearningHistoryStore(hass)
+    store.save_incomplete_run(
+        vacuum_entity_id=_VAC, payload={"map_id": _MAP, "missed_room_ids": [1, 2]})
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_RETRY_MISSED_ROOMS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True)
+    await hass.async_block_till_done()
+
+    assert result["started"] is True
+    assert result["map_id"] == _MAP
+    assert set(result["missed_room_ids"]) == {1, 2}
+    assert len(calls) == 1  # clean command dispatched
+    # the incomplete-run log is cleared after a successful retry dispatch
+    assert store.load_incomplete_run(vacuum_entity_id=_VAC) is None
+
+
 # ---------------------------------------------------------------------------
 # [LS-19] finalize_learning_job — cancelled outcome fires EVENT_RUN_INCOMPLETE
 # ---------------------------------------------------------------------------
