@@ -241,6 +241,35 @@ def test_close_boundary_no_samples(mapping_manager):
     assert closed["reason"] == "no_trace_samples"
 
 
+def test_close_boundary_invalid_trail(mapping_manager):
+    """[MGR-12b] a trail too short to form a boundary closes invalid (the
+    process_boundary_trail-rejected branch), distinct from no_trace_samples."""
+    mapping_manager.start_room_boundary_trace(vacuum_entity_id=_VAC, map_id="b3", room_id="5")
+    for x, y in [(0.0, 0.0), (1.0, 1.0)]:  # fewer than MIN_TRAIL_POINTS
+        mapping_manager.append_trace_point(
+            vacuum_entity_id=_VAC, map_id="b3", room_id="5", vacuum_x=x, vacuum_y=y)
+    closed = mapping_manager.close_room_boundary(vacuum_entity_id=_VAC, map_id="b3", room_id="5")
+    assert closed["closed"] is False
+    assert closed["reason"] != "no_trace_samples"
+    assert closed["point_count_raw"] == 2
+
+
+def test_update_bounds_migrates_legacy_bounds(mapping_manager):
+    """[MGR-12c] the first job for a room that has legacy accumulated 'bounds' but
+    no job_bounds_history migrates those bounds into history (pre_migration entry)
+    so existing data isn't silently discarded when the new job is recorded."""
+    data = {"rooms": {"5": {"bounds": {
+        "min_x": 0.0, "max_x": 10.0, "min_y": 0.0, "max_y": 8.0,
+        "sample_count": 12, "updated_at": "2026-01-01T00:00:00+00:00",
+    }}}}
+    mapping_manager._update_bounds_for_room(data, "5", [(2.0, 2.0), (4.0, 6.0)])
+    history = data["rooms"]["5"]["job_bounds_history"]
+    assert any(h["job_id"] == "pre_migration" for h in history)
+    assert len(history) >= 2  # migrated entry + the new job
+    # recomputed bounds union spans the legacy extent
+    assert data["rooms"]["5"]["bounds"]["max_x"] == 10.0
+
+
 def test_cancel_boundary_trace(mapping_manager):
     """[MGR-13]"""
     mapping_manager.start_room_boundary_trace(vacuum_entity_id=_VAC, map_id="b3", room_id="5")
@@ -500,3 +529,18 @@ def test_normalize_package_dedups_shared_segment(mapping_manager):
     defs = out["room_definitions"]
     assert defs["1"]["suggestion_segment_id"] == "seg_a"
     assert defs["2"]["suggestion_segment_id"] is None
+
+
+def test_normalize_package_legacy_image_path_becomes_primary(mapping_manager):
+    """[MGR-32b] a map carrying only a legacy top-level image_path (no image
+    variants) gets a synthesized 'primary' variant in the normalized package —
+    back-compat for maps saved before the multi-variant image format."""
+    out = mapping_manager._normalize_mapping_package(
+        vacuum_entity_id=_VAC, map_id="legacy", package={},
+        map_data={"image_path": "/tmp/legacy_map.png",
+                  "image_width": 64, "image_height": 48},
+    )
+    primary = out["images"]["primary"]
+    assert primary["image_path"] == "/tmp/legacy_map.png"
+    assert primary["role"] == "primary"
+    assert primary["width"] == 64 and primary["height"] == 48

@@ -200,6 +200,19 @@ def test_get_image_segment_suggestions(hass, mapping_services, pil):
     assert "fake_1" in seg_ids
 
 
+def test_get_image_segment_suggestions_missing_image(hass, mapping_services):
+    """[IMG-9] no saved image on disk → the user-facing missing_image payload:
+    available False, reason missing_image, empty summary, image block present."""
+    result = _get_mapping_manager(hass).get_image_segment_suggestions(
+        vacuum_entity_id=_VAC, map_id="no_image")
+    assert result["available"] is False
+    assert result["reason"] == "missing_image"
+    assert result["summary"]["segment_count"] == 0
+    assert result["suggestions"] == []
+    # the image metadata block the card reads is still populated
+    assert "image" in result and "available_variants" in result["image"]
+
+
 def test_translate_missing_id(hass, mapping_services):
     """[IMG-7]"""
     result = _get_mapping_manager(hass).translate_image_segment(
