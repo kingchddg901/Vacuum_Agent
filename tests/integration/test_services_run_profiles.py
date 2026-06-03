@@ -51,6 +51,19 @@ async def test_run_profile_handler_wraps_manager_error(
             blocking=True, return_response=True)
 
 
+async def test_overwrite_run_profile_not_found_raises(hass, manager_with_services, monkeypatch):
+    """[SRN-11b] overwrite_run_profile returning profile_not_found surfaces to the
+    caller as a ServiceValidationError (not a silent no-op)."""
+    monkeypatch.setattr(
+        manager_with_services, "overwrite_run_profile",
+        lambda **kw: {"overwritten": False, "reason": "profile_not_found"})
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            DOMAIN, "overwrite_run_profile",
+            {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": "ghost"},
+            blocking=True, return_response=True)
+
+
 # ---------------------------------------------------------------------------
 # Helper — save one profile and return its profile_id
 # ---------------------------------------------------------------------------

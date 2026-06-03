@@ -52,6 +52,20 @@ async def test_get_room_profiles_service_returns_builtin_profiles(hass, manager_
     assert result["profile_count"] >= 1
 
 
+async def test_overwrite_room_profile_from_room_dispatch(hass, manager_with_services, monkeypatch):
+    """[SRP-2b] the overwrite_room_profile_from_room service dispatches through its
+    registered closure to the matching manager method (the service wiring)."""
+    calls: list = []
+    monkeypatch.setattr(
+        manager_with_services, "overwrite_room_profile_from_room",
+        lambda **kw: calls.append(kw) or {"overwritten": True})
+    await hass.services.async_call(
+        DOMAIN, "overwrite_room_profile_from_room",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": 1, "profile_name": "p"},
+        blocking=True, return_response=True)
+    assert len(calls) == 1
+
+
 async def test_get_room_profiles_service_has_protected_names(hass, manager_with_services):
     """[SRP-1] Response includes the protected_profile_names field."""
     result = await hass.services.async_call(
