@@ -859,6 +859,20 @@ async def test_get_learning_history_snapshot_with_seeded_jobs(hass, learning_ser
     assert "j-hist-002" in seeded_ids
 
 
+async def test_history_snapshot_accepts_list_shaped_accuracy(hass, learning_services, monkeypatch):
+    """[LS-23b] accuracy_stats with a LIST-shaped 'rooms' (externally-produced
+    payloads) is accepted alongside the dict shape — the elif-list branch."""
+    from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
+    monkeypatch.setattr(
+        LearningHistoryStore, "load_accuracy_stats",
+        lambda self, *, vacuum_entity_id: {
+            "rooms": [{"slug": "kitchen", "mean_abs_pct_error": 0.1, "sample_count": 3}]})
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True)
+    assert isinstance(result, dict)  # ran through the list-accuracy branch without error
+
+
 # ---------------------------------------------------------------------------
 # [LS-24] get_metrics_snapshot with seeded jobs — populated metrics path
 # ---------------------------------------------------------------------------
