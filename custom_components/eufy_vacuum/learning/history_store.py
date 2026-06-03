@@ -19,9 +19,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import contextlib
 import csv
 import json
 import logging
+import os
+import tempfile
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
@@ -93,17 +96,38 @@ class LearningHistoryStore:
             if isinstance(parsed, (dict, list)):
                 return parsed
             return None
+        except json.JSONDecodeError as err:
+            # Corrupt/partial file — recoverable: callers treat None as "no data"
+            # and derived stats rebuild from the job history. Warn (not a full
+            # traceback) so it's actionable without alarming, and self-heal on the
+            # next atomic write_json.
+            _LOGGER.warning("Ignoring malformed JSON in %s: %s", path, err)
+            return None
         except Exception:
             _LOGGER.exception("Failed to read JSON from %s", path)
             return None
 
     def write_json(self, path: Path, payload: Any) -> None:
-        """Write JSON payload to file."""
+        """Write JSON payload to file atomically.
+
+        Writes to a temp file in the same directory and ``os.replace``s it into
+        place, so a reader (or a restart mid-write) never sees a half-written or
+        doubly-written file — the failure mode that left ``Extra data`` trailing
+        bytes on the SMB-mounted config share.
+        """
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(
-            json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n",
-            encoding="utf-8",
+        data = json.dumps(payload, indent=2, ensure_ascii=False, sort_keys=False) + "\n"
+        fd, tmp_name = tempfile.mkstemp(
+            dir=str(path.parent), prefix=f".{path.name}.", suffix=".tmp"
         )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(data)
+            os.replace(tmp_name, path)
+        except BaseException:
+            with contextlib.suppress(OSError):
+                os.unlink(tmp_name)
+            raise
 
     def append_csv_row(self, path: Path, header: list[str], row: list[Any]) -> None:
         """Append a row to CSV, writing header if needed."""

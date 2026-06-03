@@ -155,6 +155,28 @@ def test_read_json_invalid_json_returns_none(tmp_path):
     assert store.read_json(path) is None
 
 
+def test_read_json_trailing_extra_data_returns_none(tmp_path):
+    """Regression: a valid object followed by stray trailing bytes (the
+    ``Extra data`` corruption seen on the SMB config share) is ignored, not
+    raised."""
+    store = _make_store(tmp_path)
+    path = tmp_path / "accuracy_stats.json"
+    path.write_text('{"rooms": {}}\n\n}\n', encoding="utf-8")
+    assert store.read_json(path) is None
+
+
+def test_write_json_is_atomic_and_truncates(tmp_path):
+    """Overwriting a longer file with a shorter payload leaves no trailing
+    garbage and no leftover temp file."""
+    store = _make_store(tmp_path)
+    path = tmp_path / "stats.json"
+    store.write_json(path, {"rooms": {f"r{i}": i for i in range(50)}})
+    store.write_json(path, {"rooms": {}})
+    assert store.read_json(path) == {"rooms": {}}
+    leftovers = [p.name for p in path.parent.iterdir() if p.name != "stats.json"]
+    assert leftovers == []
+
+
 def test_read_json_scalar_returns_none(tmp_path):
     """Top-level JSON scalars (number, string) are rejected."""
     store = _make_store(tmp_path)
