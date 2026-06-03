@@ -1,4 +1,4 @@
-"""Number platform for Eufy Vacuum Manager — room order and maintenance interval numbers."""
+"""Number platform for Vacuum Agent — room order and maintenance interval numbers."""
 
 from __future__ import annotations
 

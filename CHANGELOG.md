@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format is based on
 to follow semantic-ish versioning.
 
 Releases before 0.9.10 are recorded as
-[GitHub tags/releases](https://github.com/kingchddg901/eufy-vacuum-manager/releases)
+[GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
 ## [0.9.10] - 2026-06-03
@@ -52,4 +52,4 @@ multi-brand support.
   `boundary_pixel` field, and an unreachable current-room induction branch in the
   job-progress snapshot.
 
-[0.9.10]: https://github.com/kingchddg901/eufy-vacuum-manager/compare/v0.9.9.1...v0.9.10
+[0.9.10]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.9.1...v0.9.10

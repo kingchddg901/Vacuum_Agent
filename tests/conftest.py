@@ -49,7 +49,7 @@ def mock_config_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id=DOMAIN,
-        title="Eufy Vacuum Manager",
+        title="Vacuum Agent",
         data={
             CONF_VACUUM_ENTITY_ID: "vacuum.alfred",
             CONF_TESTED_MODEL: SUPPORTED_TESTED_MODEL,
@@ -66,7 +66,7 @@ def mock_entry_no_vacuum() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id=DOMAIN,
-        title="Eufy Vacuum Manager",
+        title="Vacuum Agent",
         data={
             CONF_TESTED_MODEL: SUPPORTED_TESTED_MODEL,
             CONF_NOTES: "",
@@ -82,7 +82,7 @@ def mock_options_entry() -> MockConfigEntry:
     return MockConfigEntry(
         domain=DOMAIN,
         unique_id=DOMAIN,
-        title="Eufy Vacuum Manager",
+        title="Vacuum Agent",
         data={
             CONF_TESTED_MODEL: SUPPORTED_TESTED_MODEL,
         },

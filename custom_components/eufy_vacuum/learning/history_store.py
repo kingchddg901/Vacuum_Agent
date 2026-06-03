@@ -1,4 +1,4 @@
-"""Learning history storage for Eufy Vacuum Manager.
+"""Learning history storage for Vacuum Agent.
 
 This module stores completed-job JSON records and provides a clean file-backed
 history layer for the optional learning system.

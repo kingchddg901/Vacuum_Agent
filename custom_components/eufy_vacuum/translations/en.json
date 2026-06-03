@@ -1,9 +1,9 @@
 {
-  "title": "Eufy Vacuum Manager",
+  "title": "Vacuum Agent",
   "config": {
     "step": {
       "user": {
-        "title": "Set up Eufy Vacuum Manager",
+        "title": "Set up Vacuum Agent",
         "description": "Pick the vacuum entity this integration should manage. The Vacuum field is optional during initial setup — you can leave it blank and fill it in later via Configure → Options.",
         "data": {
           "tested_model": "Tested model",
@@ -16,13 +16,13 @@
       "no_rooms_selected": "Please select at least one room to create."
     },
     "abort": {
-      "already_configured": "Eufy Vacuum Manager is already configured."
+      "already_configured": "Vacuum Agent is already configured."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Eufy Vacuum Manager Settings",
+        "title": "Vacuum Agent Settings",
         "description": "Pick the vacuum entity this integration should manage. Changing the Vacuum value reloads the integration so the new vacuum's panel appears in the sidebar.",
         "data": {
           "vacuum_entity_id": "Vacuum",

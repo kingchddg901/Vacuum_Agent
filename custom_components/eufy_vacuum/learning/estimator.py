@@ -1,4 +1,4 @@
-"""Learning-based estimator for Eufy Vacuum Manager.
+"""Learning-based estimator for Vacuum Agent.
 
 ============================================================
 ESTIMATION ENGINE

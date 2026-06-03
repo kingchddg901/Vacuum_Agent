@@ -1,4 +1,4 @@
-"""Optional learning-system manager for Eufy Vacuum Manager.
+"""Optional learning-system manager for Vacuum Agent.
 
 ============================================================
 LEARNING MANAGER

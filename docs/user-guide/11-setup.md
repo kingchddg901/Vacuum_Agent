@@ -232,11 +232,11 @@ re-run setup after every change.
 
 ## Removing the integration
 
-Go to **Settings → Devices & Services**, find **Eufy Vacuum Manager**,
+Go to **Settings → Devices & Services**, find **Vacuum Agent**,
 and delete it. No extra steps are required — all integration data is
 stored inside Home Assistant and is removed with the entry.
 
 Note: this integration sits on top of
 [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides
-the underlying `vacuum.*` entity. Removing Eufy Vacuum Manager does not
+the underlying `vacuum.*` entity. Removing Vacuum Agent does not
 remove eufy-clean; remove that separately if you no longer need it.

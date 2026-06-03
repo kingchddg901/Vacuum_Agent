@@ -1,4 +1,4 @@
-"""Switch platform for Eufy Vacuum Manager — per-room enabled/disabled switches."""
+"""Switch platform for Vacuum Agent — per-room enabled/disabled switches."""
 
 from __future__ import annotations
 

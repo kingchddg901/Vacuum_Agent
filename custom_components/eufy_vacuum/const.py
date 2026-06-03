@@ -1,4 +1,4 @@
-"""Constants for Eufy Vacuum Manager."""
+"""Constants for Vacuum Agent."""
 
 from __future__ import annotations
 

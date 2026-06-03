@@ -32,7 +32,7 @@ from your real HA doesn't bleed in.
 
 ### 1c. Install the integration
 
-- **Settings → Devices & Services → Add Integration → "Eufy Vacuum Manager"**
+- **Settings → Devices & Services → Add Integration → "Vacuum Agent"**
 - Setup wizard appears
   - ☐ **No 500 error** when the wizard opens (regression check for #1)
   - ☐ **No `{context}` translation warning** in the wizard description
@@ -67,7 +67,7 @@ To also exercise the happy path (real vacuum picked → per-vacuum panel registe
    "Eufy Robovac MQTT"**, log in with Eufy credentials
 4. Wait for the vacuum entity to appear (check **Developer Tools → States**
    for a `vacuum.*` row)
-5. Back in **Eufy Vacuum Manager → Configure**, pick the vacuum from the
+5. Back in **Vacuum Agent → Configure**, pick the vacuum from the
    now-populated dropdown
 6. After reload, the sidebar should swap from the fallback panel to the
    per-vacuum panel — verify Rooms / Setup / Maintenance tabs all render
@@ -84,7 +84,7 @@ To also exercise the happy path (real vacuum picked → per-vacuum panel registe
 
 ### 1e. Walk the Options-flow recovery path
 
-- **Settings → Devices & Services → Eufy Vacuum Manager → Configure**
+- **Settings → Devices & Services → Vacuum Agent → Configure**
 - ☐ The form shows both **Vacuum** picker and **Notes**
 - ☐ Without an actual vacuum entity available in this test instance, leave
   Vacuum blank, edit Notes, submit
@@ -221,7 +221,7 @@ EOF
 
 ## 6. Post-release verification
 
-- ☐ <https://github.com/kingchddg901/eufy-vacuum-manager/releases/tag/vX.Y.Z>
+- ☐ <https://github.com/kingchddg901/Vacuum_Agent/releases/tag/vX.Y.Z>
   exists with the notes
 - ☐ HACS will pick up the new tag on its next refresh (usually < 1 hr).
   No further action needed unless an existing user reports HACS still
@@ -234,9 +234,9 @@ EOF
 Cold-install bugs we've already hit. If something in this category gets
 touched in a release, give it extra attention during step 1c–1f.
 
-- [#1](https://github.com/kingchddg901/eufy-vacuum-manager/issues/1) — `OptionsFlow.__init__` setting `self.config_entry` (HA 2024.12+ regression)
-- [#1](https://github.com/kingchddg901/eufy-vacuum-manager/issues/1) — unresolved `{context}` placeholder in translation strings
-- [#2](https://github.com/kingchddg901/eufy-vacuum-manager/issues/2) — panel registration only iterated managed vacuums; fresh installs had zero
+- [#1](https://github.com/kingchddg901/Vacuum_Agent/issues/1) — `OptionsFlow.__init__` setting `self.config_entry` (HA 2024.12+ regression)
+- [#1](https://github.com/kingchddg901/Vacuum_Agent/issues/1) — unresolved `{context}` placeholder in translation strings
+- [#2](https://github.com/kingchddg901/Vacuum_Agent/issues/2) — panel registration only iterated managed vacuums; fresh installs had zero
 - `ICON_SELECTS` orphaned entities on the integration's device page (cleaned up in v0.9.3+)
 
 Future bug classes to watch for:

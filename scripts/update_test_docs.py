@@ -8,7 +8,7 @@ untouched.
 
 How to run (inside the test container, so pytest + the package import cleanly):
 
-    docker run --rm -v "C:\\Users\\CKing\\Documents\\GITHUB\\eufy-vacuum-manager:/workspace" \\
+    docker run --rm -v "C:\\Users\\CKing\\Documents\\GITHUB\\Vacuum_Agent:/workspace" \\
         -w /workspace eufy-vacuum-test python scripts/update_test_docs.py
 
 That regenerates coverage.json, then rewrites the docs in place. Add --dry-run

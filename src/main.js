@@ -132,7 +132,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // Fallback panel mode: the integration registered this panel with an
     // empty config because no managed vacuum exists yet. Render a setup
     // placeholder pointing the user back to Settings → Devices & Services
-    // → Eufy Vacuum Manager → Configure to add their vacuum. Don't init
+    // → Vacuum Agent → Configure to add their vacuum. Don't init
     // any state machinery — there's no vacuum to bind to.
     if (!config?.vacuum_entity_id) {
       this._config = config ?? {};
@@ -266,7 +266,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
         }
       </style>
       <div class="evcc-setup-wrap">
-        <h1 class="evcc-setup-title">Eufy Vacuum Manager — setup needed</h1>
+        <h1 class="evcc-setup-title">Vacuum Agent — setup needed</h1>
         <p class="evcc-setup-lede">
           The integration is installed but no vacuum is configured yet, so
           the panel can't show your rooms, jobs, or controls until you
@@ -276,7 +276,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
           <h3>Add your vacuum</h3>
           <ol>
             <li>Open <strong>Settings → Devices &amp; Services</strong></li>
-            <li>Find <strong>Eufy Vacuum Manager</strong></li>
+            <li>Find <strong>Vacuum Agent</strong></li>
             <li>Click <strong>Configure</strong></li>
             <li>Pick your <code>vacuum.*</code> entity from the dropdown and submit</li>
           </ol>

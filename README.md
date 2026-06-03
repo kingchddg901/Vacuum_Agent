@@ -1,8 +1,8 @@
-# Eufy Vacuum Manager
+# Vacuum Agent
 
 A custom Home Assistant integration that adds room-level control, queue management, a learning/ETA system, automation events, and a built-in Lovelace panel card to your Eufy vacuum. These capabilities are not available in the standard Eufy integration.
 
-![Eufy Vacuum Manager — per-room cards with learned ETA, profile, and floor texture](docs/screenshots/rooms-cards.png)
+![Vacuum Agent — per-room cards with learned ETA, profile, and floor texture](docs/screenshots/rooms-cards.png)
 
 *Each room remembers its own profile, learned timing, and floor type. Save the whole layout as a Run Profile and reapply it later from the UI or an automation.*
 
@@ -29,7 +29,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 | Eufy X10 Pro Omni | Tested |
 | Other Eufy models | Untested — may work, not supported |
 
-If you run this on another model, please [open an issue](https://github.com/kingchddg901/eufy-vacuum-manager/issues) with the model name and what worked or didn't — the table grows from there.
+If you run this on another model, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with the model name and what worked or didn't — the table grows from there.
 
 ## Prerequisites
 
@@ -40,14 +40,14 @@ If you run this on another model, please [open an issue](https://github.com/king
 
 1. In Home Assistant, open **HACS** and go to **Integrations**.
 2. Click the three-dot menu (top right) and choose **Custom repositories**.
-3. Add `https://github.com/kingchddg901/eufy-vacuum-manager` as an **Integration** type repository.
-4. Search for **Eufy Vacuum Manager** in HACS and install it.
+3. Add `https://github.com/kingchddg901/Vacuum_Agent` as an **Integration** type repository.
+4. Search for **Vacuum Agent** in HACS and install it.
 5. Restart Home Assistant.
-6. Go to **Settings → Devices & Services → Add Integration** and search for **Eufy Vacuum Manager**.
+6. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
 7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by [eufy-clean](https://github.com/jeppesens/eufy-clean) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
 8. A **Eufy Vacuum** item appears in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
 
-If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Eufy Vacuum Manager → Configure** to add it.
+If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Vacuum Agent → Configure** to add it.
 
 ## Configuration
 
@@ -61,7 +61,7 @@ If you submitted setup without picking a vacuum, the sidebar entry still appears
 
 ### Options flow (Configure button)
 
-After the initial install, open **Settings → Devices & Services → Eufy Vacuum Manager → Configure** to update:
+After the initial install, open **Settings → Devices & Services → Vacuum Agent → Configure** to update:
 
 | Field | Description |
 |---|---|
@@ -70,9 +70,9 @@ After the initial install, open **Settings → Devices & Services → Eufy Vacuu
 
 ## Removing the integration
 
-Go to **Settings → Devices & Services**, find **Eufy Vacuum Manager**, and delete it. No extra steps are required — all integration data is stored inside Home Assistant and is removed with the entry.
+Go to **Settings → Devices & Services**, find **Vacuum Agent**, and delete it. No extra steps are required — all integration data is stored inside Home Assistant and is removed with the entry.
 
-Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides the underlying `vacuum.*` entity. Removing Eufy Vacuum Manager does not remove eufy-clean; remove that separately if you no longer need it.
+Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides the underlying `vacuum.*` entity. Removing Vacuum Agent does not remove eufy-clean; remove that separately if you no longer need it.
 
 ## What's included
 
@@ -201,4 +201,4 @@ One condition: this project is a top-level addition built on [eufy-clean](https:
 
 ## Issues
 
-Please report bugs and feature requests at: <https://github.com/kingchddg901/eufy-vacuum-manager/issues>
+Please report bugs and feature requests at: <https://github.com/kingchddg901/Vacuum_Agent/issues>

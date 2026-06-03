@@ -13711,7 +13711,7 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
         }
       </style>
       <div class="evcc-setup-wrap">
-        <h1 class="evcc-setup-title">Eufy Vacuum Manager \u2014 setup needed</h1>
+        <h1 class="evcc-setup-title">Vacuum Agent \u2014 setup needed</h1>
         <p class="evcc-setup-lede">
           The integration is installed but no vacuum is configured yet, so
           the panel can't show your rooms, jobs, or controls until you
@@ -13721,7 +13721,7 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
           <h3>Add your vacuum</h3>
           <ol>
             <li>Open <strong>Settings \u2192 Devices &amp; Services</strong></li>
-            <li>Find <strong>Eufy Vacuum Manager</strong></li>
+            <li>Find <strong>Vacuum Agent</strong></li>
             <li>Click <strong>Configure</strong></li>
             <li>Pick your <code>vacuum.*</code> entity from the dropdown and submit</li>
           </ol>

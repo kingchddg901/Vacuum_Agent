@@ -1,1 +1,1 @@
-"""Panel-driven onboarding and setup operations for Eufy Vacuum Manager."""
+"""Panel-driven onboarding and setup operations for Vacuum Agent."""

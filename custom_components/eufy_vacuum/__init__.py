@@ -1,4 +1,4 @@
-"""The Eufy Vacuum Manager integration.
+"""The Vacuum Agent integration.
 
 This module is the HA entry point. It owns the four contract surface
 functions HA expects (async_setup, async_setup_entry, async_unload_entry,
@@ -146,7 +146,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Eufy Vacuum Manager from a config entry."""
+    """Set up Vacuum Agent from a config entry."""
     hass.data.setdefault(DOMAIN, {})
 
     # AdapterCoordinator owns the per-entry adapter registry. Constructing

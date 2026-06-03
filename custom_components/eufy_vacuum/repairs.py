@@ -1,4 +1,4 @@
-"""Repair flow for Eufy Vacuum Manager — redirects any stale repair issues to the sidebar panel."""
+"""Repair flow for Vacuum Agent — redirects any stale repair issues to the sidebar panel."""
 
 from __future__ import annotations
 

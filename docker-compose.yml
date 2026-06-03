@@ -4,7 +4,7 @@ services:
     # the integration source in this repo, so the install path can be
     # walked end-to-end before tagging a release. See RELEASE_CHECKLIST.md.
     image: homeassistant/home-assistant:stable
-    container_name: eufy-vacuum-manager-test-ha
+    container_name: Vacuum_Agent-test-ha
     restart: "no"
     ports:
       - "8123:8123"

@@ -1,4 +1,4 @@
-"""Button platform for Eufy Vacuum Manager — maintenance reset and saved run profile buttons."""
+"""Button platform for Vacuum Agent — maintenance reset and saved run profile buttons."""
 
 from __future__ import annotations
 

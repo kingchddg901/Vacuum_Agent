@@ -72,7 +72,7 @@ async def test_setup_flow_creates_entry_with_vacuum(hass: HomeAssistant):
     )
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    assert result["title"] == "Eufy Vacuum Manager"
+    assert result["title"] == "Vacuum Agent"
     data = result["data"]
     assert data[CONF_VACUUM_ENTITY_ID] == "vacuum.alfred"
     assert data[CONF_TESTED_MODEL] == SUPPORTED_TESTED_MODEL

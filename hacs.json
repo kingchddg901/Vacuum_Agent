@@ -1,5 +1,5 @@
 {
-  "name": "Eufy Vacuum Manager",
+  "name": "Vacuum Agent",
   "render_readme": true,
   "homeassistant": "2024.4.0"
 }

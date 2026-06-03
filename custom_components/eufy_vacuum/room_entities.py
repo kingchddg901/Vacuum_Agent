@@ -1,4 +1,4 @@
-"""Shared room entity base classes for Eufy Vacuum Manager."""
+"""Shared room entity base classes for Vacuum Agent."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Entity helper utilities for Eufy Vacuum Manager."""
+"""Entity helper utilities for Vacuum Agent."""
 
 from __future__ import annotations
 

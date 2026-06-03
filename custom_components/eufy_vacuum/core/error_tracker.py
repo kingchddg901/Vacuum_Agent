@@ -1,4 +1,4 @@
-"""Active-run error tracking for Eufy Vacuum Manager.
+"""Active-run error tracking for Vacuum Agent.
 
 Latches transient upstream errors with active-run context, persists across
 restarts, and surfaces them through dedicated entities — without coupling to

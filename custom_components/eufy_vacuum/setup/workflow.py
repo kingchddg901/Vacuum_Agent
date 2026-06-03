@@ -1,4 +1,4 @@
-"""Setup workflow for Eufy Vacuum Manager.
+"""Setup workflow for Vacuum Agent.
 
 Two atomic operations callable from services (and therefore from the panel):
 

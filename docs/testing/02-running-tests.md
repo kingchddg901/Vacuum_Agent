@@ -54,7 +54,7 @@ A known-good PowerShell invocation (against the pre-baked image, no pip install)
 
 ```powershell
 docker run --rm `
-  -v "C:\Users\CKing\Documents\GITHUB\eufy-vacuum-manager:/workspace" `
+  -v "C:\Users\CKing\Documents\GITHUB\Vacuum_Agent:/workspace" `
   -w /workspace `
   eufy-vacuum-test `
   python -m pytest tests/ -q --no-header

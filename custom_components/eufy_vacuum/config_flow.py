@@ -1,4 +1,4 @@
-"""Config flow for Eufy Vacuum Manager.
+"""Config flow for Vacuum Agent.
 
 Collects the user's vacuum entity (so the integration knows which device
 to manage) plus an optional tested-model string and free-text notes.

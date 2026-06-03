@@ -9,7 +9,7 @@ canonical and must not be modified per-adapter.
 from __future__ import annotations
 
 DOMAIN = "eufy_vacuum"
-NAME = "Eufy Vacuum Manager"
+NAME = "Vacuum Agent"
 VERSION = "0.9.0"
 
 DEFAULT_TITLE = NAME

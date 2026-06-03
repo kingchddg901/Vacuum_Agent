@@ -1,4 +1,4 @@
-"""Storage helpers for Eufy Vacuum Manager."""
+"""Storage helpers for Vacuum Agent."""
 
 from __future__ import annotations
 
