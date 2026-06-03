@@ -8,6 +8,14 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.12] - 2026-06-03
+
+### Fixed
+- **Completed the "Vacuum Agent" rename.** The sidebar **panel title** and the
+  card's panel text still read "Eufy Vacuum" — a separate string from the product
+  name renamed in 0.9.11 (`sidebar_title`, not "Eufy Vacuum Manager"). Both now
+  read "Vacuum Agent".
+
 ## [0.9.11] - 2026-06-03
 
 ### Changed
@@ -61,5 +69,6 @@ multi-brand support.
   `boundary_pixel` field, and an unreachable current-room induction branch in the
   job-progress snapshot.
 
+[0.9.12]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.11...v0.9.12
 [0.9.11]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.10...v0.9.11
 [0.9.10]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.9.1...v0.9.10

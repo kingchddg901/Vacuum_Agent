@@ -57,7 +57,7 @@ class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Optional(CONF_VACUUM_ENTITY_ID): _VACUUM_SELECTOR,
                 vol.Required(CONF_TESTED_MODEL, default=SUPPORTED_TESTED_MODEL): str,
                 vol.Optional(CONF_NOTES, default=(
-                    "Open the Eufy Vacuum panel in the sidebar to add your vacuum "
+                    "Open the Vacuum Agent panel in the sidebar to add your vacuum "
                     "and import its current map."
                 )): str,
             }),

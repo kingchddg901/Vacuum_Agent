@@ -282,7 +282,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
           </ol>
           <p>
             The integration will reload and this page will turn into the
-            full Eufy Vacuum panel with your rooms, learning history, and
+            full Vacuum Agent panel with your rooms, learning history, and
             controls.
           </p>
         </div>

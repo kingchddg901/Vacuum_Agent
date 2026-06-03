@@ -13727,7 +13727,7 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
           </ol>
           <p>
             The integration will reload and this page will turn into the
-            full Eufy Vacuum panel with your rooms, learning history, and
+            full Vacuum Agent panel with your rooms, learning history, and
             controls.
           </p>
         </div>

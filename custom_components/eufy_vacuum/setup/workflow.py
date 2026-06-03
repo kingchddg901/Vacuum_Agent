@@ -111,7 +111,7 @@ async def add_vacuum(
             frontend_url_path=panel_url,
             webcomponent_name="eufy-vacuum-command-center",
             js_url=panel_js_url(),
-            sidebar_title="Eufy Vacuum",
+            sidebar_title="Vacuum Agent",
             sidebar_icon="mdi:robot-vacuum",
             config={"vacuum_entity_id": vacuum_entity_id},
             require_admin=False,
