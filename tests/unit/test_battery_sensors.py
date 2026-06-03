@@ -192,3 +192,13 @@ def test_unique_and_object_id():
     s = ChargeCyclesSensor(manager=_mgr(), vacuum_entity_id=_VAC)
     assert s.unique_id == "vacuum_alfred_charge_cycles"
     assert s._attr_suggested_object_id == "alfred_charge_cycles"
+
+
+async def test_on_manager_update_dispatches_state_write(hass):
+    """[BS-12] _on_manager_update for the matching vacuum schedules a threadsafe
+    state write; a mismatched vacuum returns early without error."""
+    s = ChargeCyclesSensor(manager=_mgr(), vacuum_entity_id=_VAC)
+    s.hass = hass
+    s._on_manager_update(_VAC)             # matching vacuum → schedules _write
+    s._on_manager_update("vacuum.other")   # mismatch → early return
+    await hass.async_block_till_done()

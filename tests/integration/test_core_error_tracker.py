@@ -109,6 +109,18 @@ def test_ensure_record_and_recent_limit(tracker):
     assert t.recent_errors(_VAC, limit=2)[-1]["message"] == "e4"
 
 
+def test_stop_cancels_grace_timers_and_unsubs(tracker):
+    """[ET-2b] stop() fires pending grace-timer cancels and listener unsubs, then
+    clears all teardown state."""
+    t, _ = tracker
+    calls: list = []
+    t._grace_cancels["s1"] = lambda: calls.append("grace")
+    t._vacuum_unsubs["v1"] = [lambda: calls.append("unsub")]
+    t.stop()
+    assert "grace" in calls and "unsub" in calls
+    assert t._grace_cancels == {} and t._vacuum_unsubs == {}
+
+
 # ---------------------------------------------------------------------------
 # rising / falling edges
 # ---------------------------------------------------------------------------
