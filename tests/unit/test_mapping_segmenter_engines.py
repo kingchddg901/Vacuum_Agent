@@ -53,6 +53,23 @@ def test_get_engine_unknown_falls_back():
     assert get_segmenter_engine("does_not_exist").engine_name == "noop_fallback"
 
 
+def test_eufy_engine_detect_raises_returns_unavailable(monkeypatch):
+    """[SE-16] when detect_room_segments raises, the Eufy engine returns a
+    canonical engine_unavailable result (engine_exception) rather than
+    propagating the exception up the pipeline."""
+    from custom_components.eufy_vacuum.mapping import segmenter_engines as se
+
+    def _boom(**kwargs):
+        raise RuntimeError("cv exploded")
+
+    monkeypatch.setattr(se, "detect_room_segments", _boom)
+    engine = get_segmenter_engine("eufy_cv_v1")
+    result = engine.segment_map_image(image_path="/tmp/nope.png", tuning={})
+    assert result["available"] is False
+    assert result["reason"] == "engine_exception"
+    assert result["segments"] == []
+
+
 def test_known_engine_names():
     """[SE-4]"""
     names = known_engine_names()
