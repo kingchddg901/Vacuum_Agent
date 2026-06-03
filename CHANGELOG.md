@@ -8,6 +8,15 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.13] - 2026-06-03
+
+### Fixed
+- **Integration brand logo.** `logo.png` / `logo@2x.png` were ~2× over Home
+  Assistant's brand-image size limit (1024×256 / 2048×512), so the new HA brands
+  proxy (which serves the integration's local `brand/` folder by domain) rejected
+  them and the logo failed to load. Downscaled to spec (512×128 / 1024×256); the
+  icon was already correct.
+
 ## [0.9.12] - 2026-06-03
 
 ### Fixed
@@ -69,6 +78,7 @@ multi-brand support.
   `boundary_pixel` field, and an unreachable current-room induction branch in the
   job-progress snapshot.
 
+[0.9.13]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.12...v0.9.13
 [0.9.12]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.11...v0.9.12
 [0.9.11]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.10...v0.9.11
 [0.9.10]: https://github.com/kingchddg901/Vacuum_Agent/compare/v0.9.9.1...v0.9.10
