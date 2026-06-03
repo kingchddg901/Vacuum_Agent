@@ -598,6 +598,34 @@ async def test_get_room_learning_estimates_with_rooms(hass, learning_services):
     assert len(result["rooms"]) == 2
 
 
+async def test_get_room_learning_estimates_estimate_failed(hass, learning_services, monkeypatch):
+    """[LS-17b] if one room's estimate computation raises, that room gets an
+    estimate_failed entry rather than crashing the whole list (skip-one-continue
+    resilience — the per-room except in get_room_learning_estimates)."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import SERVICE_GET_ROOM_LEARNING_ESTIMATES
+    from custom_components.eufy_vacuum.learning import estimator as _est
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("kaboom")
+
+    # _confidence_result is imported from .estimator inside the loop body, so
+    # patching the module attribute forces the per-room compute to raise.
+    monkeypatch.setattr(_est, "_confidence_result", _boom)
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_ROOM_LEARNING_ESTIMATES,
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+    rooms = result["rooms"]
+    assert len(rooms) == 2
+    assert all(r["error"] == "estimate_failed" for r in rooms)
+    assert all(r["error_detail"] and r["minutes"] is None for r in rooms)
+
+
 # ---------------------------------------------------------------------------
 # [LS-18] retry_missed_rooms — no incomplete run log
 # ---------------------------------------------------------------------------
