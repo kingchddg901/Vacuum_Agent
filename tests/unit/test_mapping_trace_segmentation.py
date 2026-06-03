@@ -269,3 +269,19 @@ def test_find_split_density_and_boundary():
                (290.0, 50.0), (350.0, 50.0)]                                     # sparse, outside
     reasons = _soft_reasons(_xy_samples(coords), _SQUARE)
     assert any("density_drop" in r and "boundary_crossing" in r for r in reasons)
+
+
+def test_merge_short_segments_merges_last_into_left():
+    """[TS-20] a short FINAL segment merges into its left neighbor (the
+    i == len(segments) - 1 branch); a <=0.1 boundary_ratio recomputes as 'outside'."""
+    def _seg(si, ei, n, br):
+        return {"start_index": si, "end_index": ei, "sample_count": n,
+                "started_at": "2026-01-01T00:00:00+00:00",
+                "ended_at": "2026-01-01T00:01:00+00:00", "split_reason": "x",
+                "diagnostics": {"mean_speed": 1.0, "mean_density": 1.0,
+                                "boundary_ratio": br, "boundary_state": "outside"}}
+    segs = [_seg(0, 19, 20, 0.05), _seg(20, 22, 3, 0.05)]  # last is short (<15)
+    out, count = tseg._merge_short_segments(segs)
+    assert count == 1 and len(out) == 1
+    assert out[0]["sample_count"] == 23
+    assert out[0]["diagnostics"]["boundary_state"] == "outside"
