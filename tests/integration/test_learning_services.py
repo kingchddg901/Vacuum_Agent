@@ -974,6 +974,40 @@ async def test_get_room_learning_estimates_hits_learned_match(hass, learning_ser
     assert rooms[0]["source"] == "learned"
 
 
+async def test_get_room_learning_estimates_cold_cache_no_blocking_reload(
+    hass, learning_services, monkeypatch
+):
+    """[LS-26b] On the event-loop path get_room_learning_estimates is cache-only:
+    a cold cache must NOT trigger the blocking _reload_learning_stats_now (which
+    would do a disk read on the loop). It returns default estimates and lets the
+    executor preload warm the cache for the next refresh."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import (
+        _get_learning_manager,
+        SERVICE_GET_ROOM_LEARNING_ESTIMATES,
+    )
+
+    setup_map(learning_services, _VAC, _MAP, count=1)
+    learning = _get_learning_manager(hass)
+    learning._room_stats_cache.pop(_VAC, None)
+    learning._accuracy_stats_cache.pop(_VAC, None)
+
+    reload_calls: list = []
+    monkeypatch.setattr(
+        learning, "_reload_learning_stats_now",
+        lambda **kw: reload_calls.append(kw) or ({}, {}, True),
+    )
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_ROOM_LEARNING_ESTIMATES,
+        {"vacuum_entity_id": _VAC, "map_id": _MAP},
+        blocking=True, return_response=True,
+    )
+
+    assert reload_calls == []  # never block-reloads on the loop path
+    assert result["rooms"][0]["source"] == "default"
+
+
 # ---------------------------------------------------------------------------
 # [LS-27] finalize with adapter cleaning_time entity — sensor fallback
 # ---------------------------------------------------------------------------

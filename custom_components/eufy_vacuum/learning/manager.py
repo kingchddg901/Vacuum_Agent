@@ -1804,20 +1804,17 @@ class LearningManager:
         map_id_str = str(map_id)
         map_id_int = _safe_int(map_id)
 
-        # Use cached stats when available, but explicit room-estimate reads
-        # must fall back to a real disk reload if the cache is still cold or
-        # was populated with an empty placeholder during startup.
+        # Cache-only on this path. get_room_learning_estimates runs on the event
+        # loop (the dashboard-snapshot service), so it must never block on disk.
+        # _get_cached_learning_stats schedules an executor preload when the cache
+        # is cold: that one refresh returns default estimates and the next refresh
+        # — after the preload lands — serves the real learned data.
         room_stats_data, accuracy_stats, stats_stale = self._get_cached_learning_stats(
             vacuum_entity_id=vacuum_entity_id
         )
         room_stats: list[dict[str, Any]] = (
             room_stats_data.get("room_stats", []) if room_stats_data else []
         )
-        if not room_stats:
-            room_stats_data, accuracy_stats, stats_stale = self._reload_learning_stats_now(
-                vacuum_entity_id=vacuum_entity_id
-            )
-            room_stats = room_stats_data.get("room_stats", []) if room_stats_data else []
         rebuilt_at = (room_stats_data or {}).get("rebuilt_at")
 
         # Pull all managed rooms from storage.

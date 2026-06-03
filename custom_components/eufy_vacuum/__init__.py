@@ -94,27 +94,40 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up the integration domain."""
     hass.data.setdefault(DOMAIN, {})
 
-    maps_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps")
-    os.makedirs(maps_dir, exist_ok=True)
+    integration_dir = os.path.dirname(__file__)
 
-    # Floor textures ship with the integration so HACS delivers them on
-    # every install. Previously this pointed at <config>/eufy_vacuum/textures
-    # which only ever existed on the developer's machine — every other
-    # install 404'd silently. cache_headers=True because these are
-    # versioned, non-changing static assets (~18 MB total).
-    textures_dir = os.path.join(os.path.dirname(__file__), "textures")
+    def _prepare_static_dirs() -> tuple[str, str, str]:
+        """Create the served directories and regenerate the animal index.
 
-    frontend_dir = os.path.join(os.path.dirname(__file__), "frontend")
-    os.makedirs(frontend_dir, exist_ok=True)
+        All filesystem work (makedirs / listdir / open) lives here so it runs in
+        the executor — never on the event loop.
 
-    # Auto-generate animals/index.json so manifest.js can load all animal
-    # files without being edited — dropping a .js file into the animals/
-    # directory and restarting HA is sufficient to add a new animal.
-    animals_dir = os.path.join(frontend_dir, "animal-svg", "animals")
-    if os.path.isdir(animals_dir):
-        animal_files = sorted(f for f in os.listdir(animals_dir) if f.endswith(".js"))
-        with open(os.path.join(animals_dir, "index.json"), "w", encoding="utf-8") as _f:
-            json.dump(animal_files, _f)
+        Floor textures ship with the integration so HACS delivers them on every
+        install (cache_headers=True; versioned, non-changing ~18 MB assets). The
+        animal index is auto-generated so manifest.js can load every animal file
+        without editing — dropping a .js into animals/ and restarting is enough.
+        """
+        maps_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps")
+        os.makedirs(maps_dir, exist_ok=True)
+
+        frontend_dir = os.path.join(integration_dir, "frontend")
+        os.makedirs(frontend_dir, exist_ok=True)
+
+        animals_dir = os.path.join(frontend_dir, "animal-svg", "animals")
+        if os.path.isdir(animals_dir):
+            animal_files = sorted(
+                f for f in os.listdir(animals_dir) if f.endswith(".js")
+            )
+            with open(
+                os.path.join(animals_dir, "index.json"), "w", encoding="utf-8"
+            ) as fh:
+                json.dump(animal_files, fh)
+
+        return maps_dir, os.path.join(integration_dir, "textures"), frontend_dir
+
+    maps_dir, textures_dir, frontend_dir = await hass.async_add_executor_job(
+        _prepare_static_dirs
+    )
 
     await hass.http.async_register_static_paths(
         [
