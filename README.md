@@ -33,7 +33,7 @@ If you run this on another model, please [open an issue](https://github.com/king
 
 ## Prerequisites
 
-- Home Assistant 2024.1.0 or later
+- Home Assistant 2025.6.0 or later
 - Your Eufy vacuum must already be set up and working in Home Assistant via [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) (the integration that provides the `vacuum.*` entity). This integration does not replace it — it builds on top of it.
 
 ## Installation via HACS
