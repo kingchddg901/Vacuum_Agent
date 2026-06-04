@@ -43,7 +43,12 @@ class EufyVacuumConfigFlow(ConfigFlow, domain=DOMAIN):
         """Single step: collect vacuum entity + model + optional notes, then finish."""
         if user_input is not None:
             await self.async_set_unique_id(DOMAIN)
-            self._abort_if_unique_id_configured()
+            # reload_on_update=False: the entry-update reload is handled by the
+            # add_update_listener in __init__ (options changes need it). HA 2026.6
+            # deprecates having BOTH a reloading config-flow method and an update
+            # listener (double-reload/race) — error from 2026.12 — so this flow
+            # must NOT also reload. Single-instance anyway, so this just aborts.
+            self._abort_if_unique_id_configured(reload_on_update=False)
             # Drop the vacuum field from data if blank — keeps the config-entry
             # data clean and the integration's setup_entry can detect "no
             # vacuum chosen yet" by checking for key absence.
