@@ -75,6 +75,11 @@ from .themes import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Config-entry-only integration — there is no YAML configuration for the domain
+# (everything is set up via the config/options flow). Declaring this satisfies
+# hassfest's CONFIG_SCHEMA requirement for integrations that implement async_setup.
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 PLATFORMS: list[str] = [
     "binary_sensor",
