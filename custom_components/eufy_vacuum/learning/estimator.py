@@ -78,7 +78,7 @@ from homeassistant.core import HomeAssistant
 from .history_store import LearningHistoryStore
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
-from .utils import _iso_now, _safe_float, _safe_int
+from .utils import _iso_now, _room_key, _safe_float, _safe_int
 
 
 # ---------------------------------------------------------------------------
@@ -400,59 +400,64 @@ def _find_room_match(
     clean_passes: int,
     is_carpet: bool,
     clean_intensity: str,
+    edge_mopping: bool = False,
 ) -> tuple[dict[str, Any] | None, bool]:
     """Find best matching learned room stat.
 
-    Returns (match, intensity_mismatch) where intensity_mismatch=True
-    signals the match was found at a different clean_intensity — the
-    estimator applies a confidence penalty in that case.
+    Returns (match, mismatch) where mismatch=True signals the match was found at
+    a relaxed setting — the estimator applies a confidence penalty in that case.
 
-    Lookup priority:
-    1. exact: all dimensions including clean_intensity
-    2. ignore clean_intensity   (intensity_mismatch=True)
+    Lookup priority (most specific first; clean_passes and edge_mopping are kept
+    longest because they move cleaning time the most, while is_carpet is ~constant
+    per room and clean_intensity is the smallest effect):
+    1. exact: all dimensions incl. clean_intensity and edge_mopping
+    2. ignore clean_intensity
     3. ignore is_carpet
-    4. ignore clean_passes
+    4. ignore edge_mopping
+    5. ignore clean_passes
     """
+    def _base(item: dict[str, Any]) -> bool:
+        return (
+            _safe_int(item.get("map_id")) == map_id
+            and item.get("room_slug") == slug
+            and item.get("effective_mode") == clean_mode
+        )
+
+    def _passes(item: dict[str, Any]) -> bool:
+        return _safe_int(item.get("clean_times")) == clean_passes
+
+    def _carpet(item: dict[str, Any]) -> bool:
+        return bool(item.get("is_carpet")) == is_carpet
+
+    def _edge(item: dict[str, Any]) -> bool:
+        return bool(item.get("edge_mopping", False)) == edge_mopping
+
+    def _intensity(item: dict[str, Any]) -> bool:
+        return str(item.get("clean_intensity", "standard")).strip().lower() == clean_intensity
+
     # Pass 1 — exact
     for item in room_stats:
-        if (
-            _safe_int(item.get("map_id")) == map_id
-            and item.get("room_slug") == slug
-            and item.get("effective_mode") == clean_mode
-            and _safe_int(item.get("clean_times")) == clean_passes
-            and bool(item.get("is_carpet")) == is_carpet
-            and str(item.get("clean_intensity", "standard")).strip().lower() == clean_intensity
-        ):
+        if _base(item) and _passes(item) and _carpet(item) and _edge(item) and _intensity(item):
             return item, False
 
-    # Pass 2 — ignore intensity
+    # Pass 2 — ignore intensity (keep passes, carpet, edge)
     for item in room_stats:
-        if (
-            _safe_int(item.get("map_id")) == map_id
-            and item.get("room_slug") == slug
-            and item.get("effective_mode") == clean_mode
-            and _safe_int(item.get("clean_times")) == clean_passes
-            and bool(item.get("is_carpet")) == is_carpet
-        ):
+        if _base(item) and _passes(item) and _carpet(item) and _edge(item):
             return item, True
 
-    # Pass 3 — ignore carpet
+    # Pass 3 — ignore carpet (keep passes, edge)
     for item in room_stats:
-        if (
-            _safe_int(item.get("map_id")) == map_id
-            and item.get("room_slug") == slug
-            and item.get("effective_mode") == clean_mode
-            and _safe_int(item.get("clean_times")) == clean_passes
-        ):
+        if _base(item) and _passes(item) and _edge(item):
             return item, True
 
-    # Pass 4 — ignore passes and carpet
+    # Pass 4 — ignore edge_mopping (keep passes)
     for item in room_stats:
-        if (
-            _safe_int(item.get("map_id")) == map_id
-            and item.get("room_slug") == slug
-            and item.get("effective_mode") == clean_mode
-        ):
+        if _base(item) and _passes(item):
+            return item, True
+
+    # Pass 5 — ignore passes
+    for item in room_stats:
+        if _base(item):
             return item, True
 
     return None, False
@@ -529,7 +534,8 @@ class LearningEstimator:
 
         Called by finalize_completed_job. Each entry in room_actuals must have:
           slug, clean_mode, clean_passes, is_carpet, clean_intensity,
-          estimated_minutes, actual_minutes, map_id.
+          estimated_minutes, actual_minutes, map_id (and optionally edge_mopping,
+          default off — it is part of the room key).
 
         Updates the running accuracy stats file with the new observations.
         Returns a summary of what was recorded.
@@ -545,6 +551,7 @@ class LearningEstimator:
             clean_passes = _safe_int(entry.get("clean_passes", 1), 1)
             is_carpet = bool(entry.get("is_carpet", False))
             clean_intensity = str(entry.get("clean_intensity", "standard")).strip().lower()
+            edge_mopping = bool(entry.get("edge_mopping", False))
             map_id = _safe_int(entry.get("map_id", 0))
             estimated = _safe_float(entry.get("estimated_minutes"), 0.0)
             actual = _safe_float(entry.get("actual_minutes"), 0.0)
@@ -552,10 +559,9 @@ class LearningEstimator:
             if estimated <= 0 or actual <= 0:
                 continue
 
-            # Build the same key used in stats_rebuilder so lookups align.
-            room_key = (
-                f"{map_id}::{slug}::{clean_mode}::{clean_passes}::"
-                f"{'1' if is_carpet else '0'}::{clean_intensity}"
+            # Same key as the room stats (shared _room_key) so lookups align.
+            room_key = _room_key(
+                map_id, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping
             )
 
             pct_error = abs(actual - estimated) / estimated  # 0.0 = perfect
@@ -692,6 +698,7 @@ class LearningEstimator:
             clean_passes = _safe_int(room.get("clean_passes", 1), 1)
             is_carpet = bool(room.get("carpet", False))
             clean_intensity = str(room.get("clean_intensity", "standard")).strip().lower()
+            edge_mopping = bool(room.get("edge_mopping", False))
             room_name = str(room.get("name", slug))
             room_id = _safe_int(room.get("room_id", 0))
 
@@ -705,6 +712,7 @@ class LearningEstimator:
                 clean_passes=clean_passes,
                 is_carpet=is_carpet,
                 clean_intensity=clean_intensity,
+                edge_mopping=edge_mopping,
             )
 
             if match:
@@ -713,10 +721,9 @@ class LearningEstimator:
                 sample_count = _safe_int(match.get("sample_count"), 0)
                 minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
                 source = "learned"
-                # Build the same room key format for accuracy lookup.
-                room_key = (
-                    f"{map_id_int}::{slug}::{clean_mode}::{clean_passes}::"
-                    f"{'1' if is_carpet else '0'}::{clean_intensity}"
+                # Same room key (shared _room_key) for accuracy lookup.
+                room_key = _room_key(
+                    map_id_int, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping
                 )
                 drift_ratio = self._drift_ratio_for_room(
                     accuracy_stats=accuracy_stats,

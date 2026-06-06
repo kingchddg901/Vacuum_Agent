@@ -36,6 +36,9 @@ def _job(
     map_id: int = 6,
     status: str = "completed",
     used_for_learning: bool = True,
+    cleaning_area_m2: float | None = None,
+    clean_times: int = 1,
+    edge_mopping: bool = False,
 ) -> dict:
     if room_slugs is None:
         room_slugs = ["kitchen"]
@@ -46,20 +49,24 @@ def _job(
             "name": slug.title(),
             "clean_mode": "vacuum",
             "clean_intensity": "standard",
-            "clean_times": 1,
+            "clean_times": clean_times,
             "is_carpet": False,
+            "edge_mopping": edge_mopping,
         }
         for i, slug in enumerate(room_slugs)
     ]
+    job_block: dict = {
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "duration_minutes": duration_minutes,
+        "room_count": len(rooms),
+    }
+    if cleaning_area_m2 is not None:
+        job_block["cleaning_area_m2"] = cleaning_area_m2
     return {
         "record_type": "completed_job",
         "job_id": job_id,
-        "job": {
-            "started_at": started_at,
-            "ended_at": ended_at,
-            "duration_minutes": duration_minutes,
-            "room_count": len(rooms),
-        },
+        "job": job_block,
         "battery": {
             "start": 85,
             "end": int(85 - battery_used),
@@ -85,17 +92,17 @@ def _job(
 
 def test_room_key_basic():
     key = _room_key(6, "kitchen", "vacuum", 1, False, "standard")
-    assert key == "6::kitchen::vacuum::1::0::standard"
+    assert key == "6::kitchen::vacuum::1::0::standard::0"
 
 
 def test_room_key_carpet():
     key = _room_key(6, "bedroom", "vacuum", 1, True, "standard")
-    assert key == "6::bedroom::vacuum::1::1::standard"
+    assert key == "6::bedroom::vacuum::1::1::standard::0"
 
 
 def test_room_key_double_pass():
     key = _room_key(6, "hallway", "vacuum", 2, False, "boost")
-    assert key == "6::hallway::vacuum::2::0::boost"
+    assert key == "6::hallway::vacuum::2::0::boost::0"
 
 
 def test_room_key_none_slug():
@@ -106,7 +113,15 @@ def test_room_key_none_slug():
 
 def test_room_key_default_clean_intensity():
     key = _room_key(6, "office", "vacuum", 1, False)  # no intensity arg
-    assert key.endswith("::standard")
+    assert key.endswith("::standard::0")  # edge-mopping defaults to off
+
+
+def test_room_key_edge_mopping():
+    on = _room_key(6, "kitchen", "vacuum_mop", 2, False, "standard", True)
+    off = _room_key(6, "kitchen", "vacuum_mop", 2, False, "standard", False)
+    assert on.endswith("::1")
+    assert off.endswith("::0")
+    assert on != off
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +296,126 @@ def test_build_room_stats_schema_version(tmp_path):
     payload = rebuilder.build_room_stats_payload(
         vacuum_entity_id="vacuum.alfred", jobs=[]
     )
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
+
+
+def test_build_room_stats_area_single_room(tmp_path):
+    """A single-room job's cleaning_area_m2 becomes the room's area sample."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [_job(room_slugs=["kitchen"], cleaning_area_m2=4.0)]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    entry = payload["room_stats"][0]
+    assert entry["area_sample_count"] == 1
+    assert entry["avg_area_m2"] == 4.0
+    assert entry["area_m2_min"] == 4.0
+    assert entry["area_m2_max"] == 4.0
+    baseline = payload["room_baselines"][0]
+    assert baseline["avg_area_m2"] == 4.0
+    assert baseline["area_sample_count"] == 1
+
+
+def test_build_room_stats_area_averages(tmp_path):
+    """Area averages across single-room jobs for the same room."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", room_slugs=["kitchen"], cleaning_area_m2=3.0),
+        _job(job_id="j2", room_slugs=["kitchen"], cleaning_area_m2=5.0),
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    entry = payload["room_stats"][0]
+    assert entry["area_sample_count"] == 2
+    assert entry["avg_area_m2"] == 4.0
+    assert entry["area_m2_min"] == 3.0
+    assert entry["area_m2_max"] == 5.0
+
+
+def test_build_room_stats_area_excludes_multiroom(tmp_path):
+    """Multi-room jobs are excluded from area stats (no per-room area split)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [_job(room_slugs=["kitchen", "bedroom"], cleaning_area_m2=10.0)]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    for entry in payload["room_stats"]:
+        assert entry["area_sample_count"] == 0
+        assert entry["avg_area_m2"] == 0.0
+    for baseline in payload["room_baselines"]:
+        assert baseline["area_sample_count"] == 0
+        assert baseline["avg_area_m2"] == 0.0
+
+
+def test_build_room_stats_area_absent_when_unrecorded(tmp_path):
+    """A single-room job with no cleaning_area_m2 contributes no area sample."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [_job(room_slugs=["kitchen"])]  # cleaning_area_m2 omitted
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    entry = payload["room_stats"][0]
+    assert entry["area_sample_count"] == 0
+    assert entry["avg_area_m2"] == 0.0
+
+
+def test_build_room_stats_buckets_by_passes(tmp_path):
+    """room_baselines breaks the average out by pass count, keeping the full mean."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", room_slugs=["kitchen"], duration_minutes=10.0, clean_times=1),
+        _job(job_id="j2", room_slugs=["kitchen"], duration_minutes=20.0, clean_times=2),
+        _job(job_id="j3", room_slugs=["kitchen"], duration_minutes=22.0, clean_times=2),
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    baseline = payload["room_baselines"][0]
+    assert baseline["avg_minutes"] == round((10.0 + 20.0 + 22.0) / 3, 2)  # full mean kept
+    by_passes = baseline["by_clean_times"]
+    assert by_passes["1"]["sample_count"] == 1
+    assert by_passes["1"]["avg_minutes"] == 10.0
+    assert by_passes["2"]["sample_count"] == 2
+    assert by_passes["2"]["avg_minutes"] == 21.0
+    # variance band on the bucket (population stddev of [20, 22] = 1.0)
+    assert by_passes["2"]["minutes_min"] == 20.0
+    assert by_passes["2"]["minutes_max"] == 22.0
+    assert by_passes["2"]["minutes_stddev"] == 1.0
+
+
+def test_build_room_stats_buckets_by_edge_mopping(tmp_path):
+    """room_baselines breaks the average out by edge-mopping on/off."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", room_slugs=["kitchen"], duration_minutes=8.0, edge_mopping=False),
+        _job(job_id="j2", room_slugs=["kitchen"], duration_minutes=12.0, edge_mopping=True),
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    by_edge = payload["room_baselines"][0]["by_edge_mopping"]
+    assert by_edge["off"]["sample_count"] == 1
+    assert by_edge["off"]["avg_minutes"] == 8.0
+    assert by_edge["on"]["sample_count"] == 1
+    assert by_edge["on"]["avg_minutes"] == 12.0
+
+
+def test_build_room_stats_edge_splits_exact_buckets(tmp_path):
+    """Edge-on and edge-off runs of the same room+settings become separate exact entries."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", room_slugs=["kitchen"], duration_minutes=8.0, clean_times=2, edge_mopping=False),
+        _job(job_id="j2", room_slugs=["kitchen"], duration_minutes=12.0, clean_times=2, edge_mopping=True),
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    entries = payload["room_stats"]
+    assert len(entries) == 2  # split by edge_mopping in the exact key
+    by_edge = {bool(e["edge_mopping"]): e for e in entries}
+    assert by_edge[False]["avg_minutes"] == 8.0
+    assert by_edge[True]["avg_minutes"] == 12.0
 
 
 # ---------------------------------------------------------------------------

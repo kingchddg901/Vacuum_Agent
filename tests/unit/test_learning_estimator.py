@@ -342,6 +342,24 @@ def test_find_room_match_no_match():
     assert mismatch is False
 
 
+def test_find_room_match_edge_split():
+    """Exact match respects edge_mopping; each edge variant returns its own stat."""
+    stats = [
+        _make_stat(edge_mopping=True, avg_minutes=12.0),
+        _make_stat(edge_mopping=False, avg_minutes=8.0),
+    ]
+    on, on_mm = _find_room_match(
+        room_stats=stats, map_id=1, slug="kitchen", clean_mode="vacuum",
+        clean_passes=1, is_carpet=False, clean_intensity="standard", edge_mopping=True,
+    )
+    off, off_mm = _find_room_match(
+        room_stats=stats, map_id=1, slug="kitchen", clean_mode="vacuum",
+        clean_passes=1, is_carpet=False, clean_intensity="standard", edge_mopping=False,
+    )
+    assert on["avg_minutes"] == 12.0 and on_mm is False
+    assert off["avg_minutes"] == 8.0 and off_mm is False
+
+
 # ---------------------------------------------------------------------------
 # [LE-18] / [LE-19] LearningEstimator.estimate
 # ---------------------------------------------------------------------------

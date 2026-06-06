@@ -61,3 +61,30 @@ def _room_profile_key(room: dict[str, Any]) -> str:
             "1" if _safe_bool(room.get("edge_mopping", False), False) else "0",
         ]
     )
+
+
+def _room_key(
+    map_id: Any,
+    slug: Any,
+    effective_mode: Any,
+    clean_times: Any,
+    is_carpet: Any,
+    clean_intensity: Any = "",
+    edge_mopping: Any = False,
+) -> str:
+    """Return the exact room learning key (room identity + settings).
+
+    edge_mopping is part of the key because it materially changes cleaning time,
+    so edge-on and edge-off runs are learned/tracked separately. Shared by the
+    stats rebuilder (room_stats grouping) and the accuracy store so their keys
+    always align.
+    """
+    return (
+        f"{_safe_int(map_id, 0)}::"
+        f"{str(slug or '').strip().lower()}::"
+        f"{str(effective_mode or '').strip().lower()}::"
+        f"{_safe_int(clean_times, 1)}::"
+        f"{'1' if _safe_bool(is_carpet, False) else '0'}::"
+        f"{str(clean_intensity or 'standard').strip().lower()}::"
+        f"{'1' if _safe_bool(edge_mopping, False) else '0'}"
+    )

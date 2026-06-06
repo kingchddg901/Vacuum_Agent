@@ -11,9 +11,23 @@ Learning rules:
 - cancelled / failed / interrupted / test jobs remain visible in exports/history
   but are excluded from learning
 
-Stats model (schema_version 3):
+Stats model (room stats schema_version 4):
+- The exact room_stats key is
+  map_id::slug::effective_mode::clean_times::is_carpet::clean_intensity::edge_mopping
+  — edge-mopping is in the key because it materially changes cleaning time, so
+  edge-on and edge-off runs are learned as separate entries.
 - Each room entry stores avg_minutes, minutes_min, minutes_max, and minutes_stddev
   so the estimator can compute confidence scores based on sample variance.
+- Each room entry also stores avg_area_m2 (+ area_m2_min/max/stddev and
+  area_sample_count), aggregated from single-room jobs only: a job's
+  cleaning_area_m2 equals the room area for those, whereas multi-room jobs record
+  only a job total with no per-room split and are excluded from area stats.
+- Each room_baselines entry breaks its averages out by setting — by_clean_times
+  (1 vs 2 passes) and by_edge_mopping (on vs off), each with sample_count,
+  avg_minutes, minutes_min/max/stddev (a variance band), and avg_battery_used —
+  alongside the full per-room average. All stats are learning-jobs-only (bad runs
+  are excluded by the caller before aggregation). Area is not bucketed (it is
+  settings-invariant).
 """
 
 from __future__ import annotations
@@ -26,31 +40,12 @@ from homeassistant.core import HomeAssistant
 
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
-from .utils import _iso_now, _room_profile_key, _safe_bool, _safe_float, _safe_int
+from .utils import _iso_now, _room_key, _room_profile_key, _safe_bool, _safe_float, _safe_int
 
 
 def _parse_started_at(value: Any):
     """Parse stable timestamp formats."""
     return parse_timestamp(value)
-
-
-def _room_key(
-    map_id: Any,
-    slug: Any,
-    effective_mode: Any,
-    clean_times: Any,
-    is_carpet: Any,
-    clean_intensity: Any = "",
-) -> str:
-    """Return exact room learning key."""
-    return (
-        f"{_safe_int(map_id, 0)}::"
-        f"{str(slug or '').strip().lower()}::"
-        f"{str(effective_mode or '').strip().lower()}::"
-        f"{_safe_int(clean_times, 1)}::"
-        f"{'1' if _safe_bool(is_carpet, False) else '0'}::"
-        f"{str(clean_intensity or 'standard').strip().lower()}"
-    )
 
 
 def _room_baseline_key(map_id: Any, slug: Any) -> str:
@@ -66,6 +61,27 @@ def _stddev(values: list[float]) -> float:
     mean = sum(values) / n
     variance = sum((v - mean) ** 2 for v in values) / n
     return round(math.sqrt(variance), 4)
+
+
+def _finalize_setting_buckets(buckets: dict[str, dict[str, list[float]]]) -> dict[str, dict[str, Any]]:
+    """Reduce a {bucket: {minutes: [...], battery: [...]}} accumulator to an average
+    plus a minutes_min/max/stddev band, so a consumer can match within variance
+    rather than against a brittle point mean. Samples are learning-jobs-only."""
+    out: dict[str, dict[str, Any]] = {}
+    for bucket_key, acc in buckets.items():
+        mins = acc.get("minutes", [])
+        bat = acc.get("battery", [])
+        n = len(mins)
+        avg = round(sum(mins) / n, 2) if n else 0.0
+        out[bucket_key] = {
+            "sample_count": n,
+            "avg_minutes": avg,
+            "minutes_min": round(min(mins), 2) if mins else avg,
+            "minutes_max": round(max(mins), 2) if mins else avg,
+            "minutes_stddev": _stddev(mins),
+            "avg_battery_used": round(sum(bat) / len(bat), 2) if bat else 0.0,
+        }
+    return out
 
 
 class LearningStatsRebuilder:
@@ -244,6 +260,11 @@ class LearningStatsRebuilder:
         """Build learned room stats and room baselines from a list of learning jobs."""
         # exact_key → list of per-room duration samples (used for stddev).
         room_samples: dict[str, list[float]] = {}
+        # exact_key / baseline_key → cleaned-area samples, collected from
+        # single-room jobs only (where the job's cleaning_area_m2 equals the
+        # room's area).
+        room_area_samples: dict[str, list[float]] = {}
+        baseline_area_samples: dict[str, list[float]] = {}
         room_stats: dict[str, dict[str, Any]] = {}
         room_baselines: dict[str, dict[str, Any]] = {}
 
@@ -259,6 +280,12 @@ class LearningStatsRebuilder:
 
             if room_count <= 0:
                 continue
+
+            # cleaning_area_m2 is a job total with no per-room split, so it is an
+            # exact room area only for single-room jobs; multi-room jobs are
+            # skipped for area aggregation.
+            cleaning_area_m2 = _safe_float(job_info.get("cleaning_area_m2"), 0.0)
+            is_single_room_job = room_count == 1
 
             room_water_allocations, _job_water_totals = self._derive_room_water_allocations(
                 job=job,
@@ -293,10 +320,13 @@ class LearningStatsRebuilder:
                 clean_intensity = str(
                     room.get("clean_intensity", "standard")
                 ).strip().lower() or "standard"
+                edge_mopping = _safe_bool(room.get("edge_mopping", False), False)
 
-                exact_key = _room_key(map_id, slug, effective_mode, clean_times, is_carpet, clean_intensity)
+                exact_key = _room_key(map_id, slug, effective_mode, clean_times, is_carpet, clean_intensity, edge_mopping)
 
                 room_samples.setdefault(exact_key, []).append(per_room_duration)
+                if is_single_room_job and cleaning_area_m2 > 0:
+                    room_area_samples.setdefault(exact_key, []).append(cleaning_area_m2)
 
                 if exact_key not in room_stats:
                     room_stats[exact_key] = {
@@ -306,6 +336,7 @@ class LearningStatsRebuilder:
                         "clean_times": clean_times,
                         "is_carpet": is_carpet,
                         "clean_intensity": clean_intensity,
+                        "edge_mopping": edge_mopping,
                         "sample_count": 0,
                         "total_estimated_minutes": 0.0,
                         "total_estimated_battery_used": 0.0,
@@ -327,6 +358,8 @@ class LearningStatsRebuilder:
                 room_stats[exact_key]["total_abs_drift_minutes"] += abs(per_room_drift)
 
                 baseline_key = _room_baseline_key(map_id, slug)
+                if is_single_room_job and cleaning_area_m2 > 0:
+                    baseline_area_samples.setdefault(baseline_key, []).append(cleaning_area_m2)
                 if baseline_key not in room_baselines:
                     room_baselines[baseline_key] = {
                         "map_id": map_id,
@@ -343,6 +376,8 @@ class LearningStatsRebuilder:
                         "clean_times": {"1": 0, "2": 0},
                         "carpet_true_count": 0,
                         "carpet_false_count": 0,
+                        "pass_buckets": {},
+                        "edge_buckets": {},
                     }
 
                 room_baselines[baseline_key]["sample_count"] += 1
@@ -365,11 +400,25 @@ class LearningStatsRebuilder:
                 else:
                     room_baselines[baseline_key]["carpet_false_count"] += 1
 
+                pass_bucket = room_baselines[baseline_key]["pass_buckets"].setdefault(
+                    str(clean_times), {"minutes": [], "battery": []},
+                )
+                pass_bucket["minutes"].append(per_room_duration)
+                pass_bucket["battery"].append(per_room_battery)
+
+                edge_bucket = room_baselines[baseline_key]["edge_buckets"].setdefault(
+                    "on" if edge_mopping else "off", {"minutes": [], "battery": []},
+                )
+                edge_bucket["minutes"].append(per_room_duration)
+                edge_bucket["battery"].append(per_room_battery)
+
         output_exact: list[dict[str, Any]] = []
         for key in sorted(room_stats.keys()):
             item = room_stats[key]
             sample_count = max(_safe_int(item.get("sample_count"), 0), 1)
             samples = room_samples.get(key, [])
+            area_samples = room_area_samples.get(key, [])
+            area_count = len(area_samples)
             avg_minutes = round(item["total_estimated_minutes"] / sample_count, 2)
 
             output_exact.append(
@@ -380,6 +429,7 @@ class LearningStatsRebuilder:
                     "clean_times": item["clean_times"],
                     "is_carpet": item["is_carpet"],
                     "clean_intensity": item["clean_intensity"],
+                    "edge_mopping": item["edge_mopping"],
                     "sample_count": item["sample_count"],
                     "avg_minutes": avg_minutes,
                     "avg_battery_used": round(item["total_estimated_battery_used"] / sample_count, 2),
@@ -391,6 +441,11 @@ class LearningStatsRebuilder:
                     "minutes_min": round(min(samples), 2) if samples else avg_minutes,
                     "minutes_max": round(max(samples), 2) if samples else avg_minutes,
                     "minutes_stddev": _stddev(samples),
+                    "area_sample_count": area_count,
+                    "avg_area_m2": round(sum(area_samples) / area_count, 2) if area_count else 0.0,
+                    "area_m2_min": round(min(area_samples), 2) if area_count else 0.0,
+                    "area_m2_max": round(max(area_samples), 2) if area_count else 0.0,
+                    "area_m2_stddev": _stddev(area_samples),
                 }
             )
 
@@ -398,6 +453,8 @@ class LearningStatsRebuilder:
         for key in sorted(room_baselines.keys()):
             item = room_baselines[key]
             sample_count = max(_safe_int(item.get("sample_count"), 0), 1)
+            area_samples = baseline_area_samples.get(key, [])
+            area_count = len(area_samples)
             output_baselines.append(
                 {
                     "map_id": item["map_id"],
@@ -410,29 +467,48 @@ class LearningStatsRebuilder:
                     "avg_total_water_used_ml": round(item["total_water_used_ml"] / sample_count, 2),
                     "avg_drift_minutes": round(item["total_drift_minutes"] / sample_count, 2),
                     "avg_abs_drift_minutes": round(item["total_abs_drift_minutes"] / sample_count, 2),
+                    "area_sample_count": area_count,
+                    "avg_area_m2": round(sum(area_samples) / area_count, 2) if area_count else 0.0,
+                    "area_m2_min": round(min(area_samples), 2) if area_count else 0.0,
+                    "area_m2_max": round(max(area_samples), 2) if area_count else 0.0,
+                    "area_m2_stddev": _stddev(area_samples),
                     "effective_modes": item["effective_modes"],
                     "clean_times": item["clean_times"],
                     "carpet_true_count": item["carpet_true_count"],
                     "carpet_false_count": item["carpet_false_count"],
+                    "by_clean_times": _finalize_setting_buckets(item["pass_buckets"]),
+                    "by_edge_mopping": _finalize_setting_buckets(item["edge_buckets"]),
                 }
             )
 
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "vacuum_entity_id": vacuum_entity_id,
             "rebuilt_at": _iso_now(),
             "room_stats": output_exact,
             "room_baselines": output_baselines,
             "lookup_order": [
-                "map_id + room_slug + effective_mode + clean_times + is_carpet + clean_intensity",
+                "map_id + room_slug + effective_mode + clean_times + is_carpet + clean_intensity + edge_mopping",
                 "fallback 1: ignore clean_intensity (with confidence penalty)",
                 "fallback 2: ignore is_carpet",
-                "fallback 3: ignore clean_passes",
+                "fallback 3: ignore edge_mopping",
+                "fallback 4: ignore clean_passes",
                 "final fallback: room_baselines",
             ],
             "drift_note": (
                 "avg_drift_minutes is currently allocated equally per room from job-level drift. "
                 "minutes_stddev uses population stddev of per-room duration samples."
+            ),
+            "area_note": (
+                "avg_area_m2 is aggregated from single-room jobs only (a job's cleaning_area_m2 "
+                "equals the room area there); multi-room jobs record only a job total with no "
+                "per-room split and are excluded. area_sample_count is that single-room sample count."
+            ),
+            "buckets_note": (
+                "room_baselines.by_clean_times / by_edge_mopping break the per-room average out "
+                "by setting (1 vs 2 passes; edge mop on vs off), each carrying a minutes_min/max/"
+                "stddev band so a consumer can match within variance, not against a point mean. "
+                "All stats are learning-jobs-only (bad runs excluded). Area is not bucketed."
             ),
         }
 

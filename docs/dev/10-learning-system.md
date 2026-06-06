@@ -35,10 +35,12 @@ The system is entirely optional. The core integration runs without it; the learn
 Each entry in the `room_stats` array represents one unique combination of room identity and cleaning settings. It is keyed internally by the exact string:
 
 ```
-{map_id}::{room_slug}::{effective_mode}::{clean_times}::{is_carpet_int}::{clean_intensity}
+{map_id}::{room_slug}::{effective_mode}::{clean_times}::{is_carpet_int}::{clean_intensity}::{edge_int}
 ```
 
-where `is_carpet_int` is `1` for carpet, `0` for hard floor.
+where `is_carpet_int` is `1` for carpet / `0` for hard floor, and `edge_int` is `1`
+for edge-mopping on / `0` for off. Edge-mopping is in the key because it materially
+changes cleaning time, so edge-on and edge-off runs are learned separately.
 
 **Fields written per entry:**
 
@@ -50,6 +52,7 @@ where `is_carpet_int` is `1` for carpet, `0` for hard floor.
 | `clean_times` | int | `resolved_rooms[].clean_passes` (clamped to 1 or 2) | Number of cleaning passes |
 | `is_carpet` | bool | `resolved_rooms[].is_carpet` or `resolved_rooms[].carpet` | Floor type flag |
 | `clean_intensity` | str | `resolved_rooms[].clean_intensity` (default `"standard"`) | Fan/suction level |
+| `edge_mopping` | bool | `resolved_rooms[].edge_mopping` | Edge-mop flag — part of the key (materially affects time) |
 | `sample_count` | int | Incremented once per qualifying job | How many learning jobs contributed |
 | `avg_minutes` | float | `total_estimated_minutes / sample_count` | Mean cleaning duration for this room |
 | `minutes_stddev` | float | Population stddev of per-job duration samples | Spread of observed durations |
@@ -58,6 +61,11 @@ where `is_carpet_int` is `1` for carpet, `0` for hard floor.
 | `avg_battery_used` | float | `total_estimated_battery_used / sample_count` | Mean battery consumed |
 | `avg_drift_minutes` | float | Equally allocated from job-level drift | Signed mean prediction error |
 | `avg_abs_drift_minutes` | float | Absolute value of drift | Mean magnitude of prediction error |
+| `area_sample_count` | int | Count of single-room jobs with a recorded `cleaning_area_m2` | How many area samples contributed (≤ `sample_count`) |
+| `avg_area_m2` | float | Mean `cleaning_area_m2` over single-room jobs (`0.0` if none) | Mean cleaned floor area for this room |
+| `area_m2_min` | float | `min(area_samples)` | Smallest observed cleaned area |
+| `area_m2_max` | float | `max(area_samples)` | Largest observed cleaned area |
+| `area_m2_stddev` | float | Population stddev of area samples | Spread of observed areas |
 
 **How `avg_minutes` is computed (cumulative average):**
 
@@ -93,9 +101,24 @@ def _stddev(values: list[float]) -> float:
 
 Returns `0.0` when `n < 2`.
 
+**How `avg_area_m2` is computed (single-room jobs only):**
+
+`cleaning_area_m2` is recorded at the **job** level (the device reports total area cleaned) with no per-room split. For a single-room job that total *is* the room's area, so area samples are collected **only from jobs where `room_count == 1`** (into `room_area_samples` / `baseline_area_samples`); multi-room jobs are skipped, because equally splitting their total would corrupt every room's area (rooms differ in size). `avg_area_m2` and `area_m2_min/max/stddev` are computed over those samples, and `area_sample_count` is their count — which is why it can be lower than `sample_count`. A room with no single-room samples gets `avg_area_m2 = 0.0` and `area_sample_count = 0`.
+
+Because area is settings-invariant (a room's floor area doesn't change with mode or intensity), the per-room `room_baselines` entry carries the most robust `avg_area_m2`.
+
+**Per-room baselines and setting buckets (`room_baselines` array):**
+
+`room_stats.json` also carries a `room_baselines` array — one entry per `{map_id, room_slug}` that collapses *all* settings into a single per-room average (`avg_minutes`, `avg_battery_used`, `avg_area_m2`, plus the `effective_modes` / `clean_times` / carpet counts). Each baseline additionally breaks its averages out by the two settings that most affect duration:
+
+- `by_clean_times` — `{"1": {…}, "2": {…}}`, keyed by pass count
+- `by_edge_mopping` — `{"on": {…}, "off": {…}}`
+
+Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}` — the min/max/stddev band lets a consumer match *within variance* rather than against a brittle point mean. All stats are **learning-jobs-only** (cancelled / failed / sanity-blocked runs are excluded before aggregation, so a bad run never skews a bucket). The full per-room average is retained; the buckets are **additive**, so a consumer can match a job's settings (e.g. a 2-pass, edge-mop run) to the right sub-average. Area is intentionally **not** bucketed — a room's floor area does not change with passes or edge mopping.
+
 ### 2.2 Accuracy store (`accuracy_stats.json` → `rooms` dict)
 
-A separate file tracking how accurate estimates have been against actuals. Keyed by the same room key format as `room_stats`. Updated incrementally after every job (not rebuilt from scratch).
+A separate file tracking how accurate estimates have been against actuals. Keyed by the **same** `_room_key` as `room_stats` (one shared builder in `utils.py`, so the two can never drift) — which now includes `edge_mopping`, so drift is tracked per edge variant. Updated incrementally after every job (not rebuilt from scratch); because it is never rebuilt, any entries written under the older key format (before edge was added) are simply orphaned — harmless, and they fall out of use as new keys accumulate.
 
 **Fields per entry:**
 
@@ -288,16 +311,17 @@ In practice `_SAMPLES_FOR_MEDIUM` evaluates to a non-positive number (the base s
 
 ## 5. Timing Estimation — Full Math
 
-### 5.1 Room stat lookup — four-pass fallback
+### 5.1 Room stat lookup — five-pass fallback
 
-`_find_room_match` searches the `room_stats` list in four passes, stopping at the first match:
+`_find_room_match` searches the `room_stats` list in five passes, stopping at the first match. `clean_passes` and `edge_mopping` are kept longest because they move cleaning time the most; `is_carpet` is ~constant per room and `clean_intensity` is the smallest effect, so those relax first:
 
-| Pass | Match dimensions | `intensity_mismatch` |
+| Pass | Match dimensions | `mismatch` |
 |---|---|---|
-| 1 | `map_id + slug + clean_mode + clean_passes + is_carpet + clean_intensity` (exact) | `False` |
-| 2 | `map_id + slug + clean_mode + clean_passes + is_carpet` (ignore intensity) | `True` |
-| 3 | `map_id + slug + clean_mode + clean_passes` (ignore carpet) | `True` |
-| 4 | `map_id + slug + clean_mode` (ignore passes and carpet) | `True` |
+| 1 | `map_id + slug + clean_mode + clean_passes + is_carpet + clean_intensity + edge_mopping` (exact) | `False` |
+| 2 | ignore `clean_intensity` (keep passes, carpet, edge) | `True` |
+| 3 | ignore `is_carpet` (keep passes, edge) | `True` |
+| 4 | ignore `edge_mopping` (keep passes) | `True` |
+| 5 | ignore `clean_passes` | `True` |
 
 When no match is found at any pass, the room gets `source = "default"` with hardcoded fallbacks:
 - `avg_minutes = 6.0`
@@ -509,7 +533,7 @@ The `rebuilt_at` timestamp written into both `job_stats.json` and `room_stats.js
 | Output file | Recalculated fields |
 |---|---|
 | `job_stats.json` | `total_jobs`, `avg_duration_minutes`, `avg_battery_used`, `avg_room_count`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `min/max_duration_minutes`, `min/max_battery_used`, `latest_job_ended_at` |
-| `room_stats.json` | `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count` for every room key |
+| `room_stats.json` | `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count`, plus `avg_area_m2`, `area_m2_min`, `area_m2_max`, `area_m2_stddev`, `area_sample_count` (single-room jobs only) for every room key; `room_baselines` additionally carries `by_clean_times` / `by_edge_mopping` setting breakouts |
 | `jobs_index.json` | Per-job summary list, per-room aggregate list, per-profile aggregate list |
 
 The accuracy stats file (`learned/accuracy_stats.json`) is **not** rebuilt — it is only updated incrementally by `record_estimate_accuracy` after each job.
@@ -526,7 +550,7 @@ Under normal operation, a rebuild fires automatically at the end of every `final
 
 ### 8.4 `schema_version`
 
-`room_stats.json` and `job_stats.json` are written with `schema_version: 3`. The `jobs_index.json` uses `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files.
+`room_stats.json` is written with `schema_version: 4` (bumped from 3 when `avg_area_m2` and the `room_baselines` setting buckets were added). `job_stats.json` is written with `schema_version: 3`, and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
 
 ---
 
@@ -584,7 +608,7 @@ eufy_vacuum/learning/mapping/{vacuum_slug}/access_graph_{map_id}.json
 
 ## 10. Adding a New Learning Metric
 
-To add a new metric (e.g. area cleaned per room) to the learning system, touch these locations in order:
+To add a new metric to the learning system, touch these locations in order. (`avg_area_m2` is used below as a worked example — its `room_stats` half is already implemented at schema v4.)
 
 ### Step 1 — Collect the raw value at finalization
 
@@ -596,7 +620,9 @@ The `completed_job` dict written to `jobs/{job_id}.json` is the source of truth.
 
 ### Step 3 — Aggregate in `stats_rebuilder.py`
 
-In `build_room_stats_payload`, the rebuilder loops over all rooms in all learning jobs. Add your field to the accumulator dict (e.g. `"total_area_m2": 0.0`), accumulate per-room allocations in the loop, and compute `avg_area_m2 = total_area_m2 / sample_count` in the output block. Write it into `output_exact` entries.
+In `build_room_stats_payload`, the rebuilder loops over all rooms in all learning jobs. Collect per-room samples and average them in the output block, writing the result into **both** `output_exact` and `output_baselines`.
+
+**Worked example — `avg_area_m2` (implemented at schema v4):** because `cleaning_area_m2` is a job total with no per-room split, area samples are collected **only from single-room jobs** (`room_count == 1`) into `room_area_samples` / `baseline_area_samples`, then averaged with a separate `area_sample_count`. A metric that genuinely *can* be allocated per room (like duration) instead accumulates `per_room_value = total / room_count` on every job — pick whichever attribution is honest for your metric.
 
 ### Step 4 — Expose in the estimator
 

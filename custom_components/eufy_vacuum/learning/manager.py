@@ -35,7 +35,7 @@ _LOGGER = logging.getLogger(__name__)
 from ..const import DOMAIN
 from ..profiles.room_profiles import get_default_room_profiles
 from ..timestamp_utils import parse_timestamp, utc_now
-from .utils import _iso_now, _room_profile_key, _safe_float, _safe_int
+from .utils import _iso_now, _room_key, _room_profile_key, _safe_float, _safe_int
 from .estimator import LearningEstimator
 from .history_store import LearningHistoryStore
 from .job_finalizer import LearningJobFinalizer
@@ -697,6 +697,7 @@ class LearningManager:
                     "clean_intensity": str(
                         room.get("clean_intensity", "standard")
                     ).strip().lower(),
+                    "edge_mopping": bool(room.get("edge_mopping", False)),
                     "map_id": map_id_int,
                     "estimated_minutes": estimated,
                     "actual_minutes": actual_per_room,
@@ -1865,9 +1866,8 @@ class LearningManager:
                     sample_count = _safe_int(match.get("sample_count"), 0)
                     minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
                     source = "learned"
-                    room_key = (
-                        f"{map_id_int}::{slug}::{clean_mode}::{clean_passes}::"
-                        f"{'1' if is_carpet else '0'}::{clean_intensity}"
+                    room_key = _room_key(
+                        map_id_int, slug, clean_mode, clean_passes, is_carpet, clean_intensity, edge_mopping
                     )
                     drift_ratio = self.estimator._drift_ratio_for_room(
                         accuracy_stats=accuracy_stats,
