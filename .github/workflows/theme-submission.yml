@@ -3,16 +3,22 @@ name: theme submission
 # A "theme-submission" issue (export JSON pasted into the form) is turned into a
 # reviewable pull request:
 #   parse + validate -> render a preview of the real card recolored by it ->
-#   open a PR -> comment back on the issue.
+#   open a PR (with the preview embedded inline) -> comment back on the issue.
 #
 # The preview is rendered HERE, not on the PR, because a PR opened with the
 # built-in GITHUB_TOKEN does not trigger the theme-intake preview workflow
-# (GitHub's anti-recursion rule) — so we render in-place and attach the result
-# as an artifact. No PAT / secret needed.
+# (GitHub's anti-recursion rule). The rendered contact sheet is pushed to an
+# off-master "gallery-previews" branch and embedded in the PR body via a raw
+# URL, so reviewers see it inline without downloading the artifact. That branch
+# is never merged — it just holds preview images (resettable anytime).
 #
 # Nothing is auto-merged: the bot only opens the PR; a human approves what goes
-# live. The committed file is re-serialized from the parsed JSON, so malformed
-# input is rejected with a comment instead of landing a broken file.
+# live. Malformed input is rejected with a comment instead of a broken file.
+#
+# ONE-TIME SETUP (both required, or the bot silently skips / can't open a PR):
+#   1. A "theme-submission" label must exist (the issue form applies it).
+#   2. Settings -> Actions -> General -> "Allow GitHub Actions to create and
+#      approve pull requests" must be enabled.
 
 on:
   issues:
@@ -105,36 +111,63 @@ jobs:
             const issue_number = context.issue.number;
             const slug = "${{ steps.extract.outputs.slug }}";
             const themeName = ${{ toJSON(steps.extract.outputs.themeName) }};
-            const path = `gallery/themes/${slug}.json`;
             const branch = `theme-submission/${slug}`;
+            const previewBranch = "gallery-previews";
             try {
-              const content = fs.readFileSync(path, "utf8");
               const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
               const sha = (await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
+
+              // Submission branch carrying the theme JSON (this is what gets merged).
               await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
               await github.rest.repos.createOrUpdateFileContents({
-                owner, repo, path, branch,
+                owner, repo, path: `gallery/themes/${slug}.json`, branch,
                 message: `gallery: add theme "${themeName}" (#${issue_number})`,
-                content: Buffer.from(content, "utf8").toString("base64"),
+                content: Buffer.from(fs.readFileSync(`gallery/themes/${slug}.json`, "utf8"), "utf8").toString("base64"),
               });
+
+              // Push the contact sheet to an off-master branch so it can be
+              // embedded inline in the PR body (raw.githubusercontent). This
+              // branch is never merged — it only holds preview images.
+              const sheet = `harness/out/preview/${slug}/_contact-sheet.png`;
+              let previewMd = "";
+              if (fs.existsSync(sheet)) {
+                try {
+                  await github.rest.git.getRef({ owner, repo, ref: `heads/${previewBranch}` });
+                } catch {
+                  await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${previewBranch}`, sha });
+                }
+                const remote = `${slug}/contact-sheet.png`;
+                let fileSha;
+                try {
+                  fileSha = (await github.rest.repos.getContent({ owner, repo, path: remote, ref: previewBranch })).data.sha;
+                } catch {}
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner, repo, path: remote, branch: previewBranch,
+                  message: `preview: ${slug} (#${issue_number})`,
+                  content: fs.readFileSync(sheet).toString("base64"),
+                  sha: fileSha,
+                });
+                previewMd = `### Preview\n\n![${themeName}](https://raw.githubusercontent.com/${owner}/${repo}/${previewBranch}/${remote})\n\n`;
+              }
+
               const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
               const pr = await github.rest.pulls.create({
                 owner, repo, head: branch, base,
                 title: `Add theme: ${themeName}`,
                 body:
                   `Theme submission from #${issue_number}.\n\n` +
-                  `A preview was rendered in the [submission run](${runUrl}) — download the ` +
-                  `**theme-preview-${slug}** artifact to see the real card recolored by this theme. ` +
+                  previewMd +
+                  `Full per-tab preview: download the **theme-preview-${slug}** artifact from the [submission run](${runUrl}). ` +
                   `Merging publishes it to the gallery.\n\nCloses #${issue_number}`,
               });
               await github.rest.issues.createComment({
                 owner, repo, issue_number,
-                body: `Thanks! Validated and rendered — opened #${pr.data.number} for review. A maintainer will check the preview there and merge; then your theme joins the gallery.`,
+                body: `Thanks! Validated and rendered — opened #${pr.data.number} with an inline preview. A maintainer will review and merge; then your theme joins the gallery.`,
               });
             } catch (e) {
               await github.rest.issues.createComment({
                 owner, repo, issue_number,
-                body: `The export validated, but I couldn't open the PR automatically (\`${e.message}\`). A maintainer can pick it up from the **theme-preview-${slug}** artifact on this run.`,
+                body: `The export validated, but I couldn't finish opening the PR (\`${e.message}\`). A maintainer can pick it up from the **theme-preview-${slug}** artifact on this run.`,
               });
               core.setFailed(e.message);
             }
