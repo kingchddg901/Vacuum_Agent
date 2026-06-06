@@ -458,6 +458,37 @@ PRELOADED_THEME_SPECS: list[dict[str, Any]] = [
         "tokens": _build_release_theme_tokens({**BASE_PRELOADED_THEME_SPEC, "transition_normal": "135ms ease", "chip_font_size": "0.83rem", "chip_font_weight": "620", "radius_card": "12px", "radius_inner": "8px", "radius_panel": "14px", "room_fill_opacity": 0.26, "queue_completed_opacity": 0.78, "queue_pending_opacity": 0.92, "drag_opacity": 0.95, "drag_scale": 1.025, "learning_anim_ease": "linear", "learning_chip_font_size": "0.81rem", "learning_chip_font_weight": "650", "modal_backdrop_blur": 11, "modal_radius": "16px", "learning_high_gradient": "linear-gradient(135deg, color-mix(in srgb, var(--evcc-sem-success) 36%, transparent), transparent)", "learning_medium_gradient": "linear-gradient(135deg, color-mix(in srgb, var(--evcc-sem-warning) 34%, transparent), transparent)", "learning_low_gradient": "linear-gradient(135deg, color-mix(in srgb, var(--evcc-sem-error) 34%, transparent), transparent)", "learning_neutral_gradient": "linear-gradient(135deg, color-mix(in srgb, var(--evcc-border-strong) 70%, transparent), transparent)"}),
     },
     {
+        "id": "theme_colorblind_safe",
+        "name": "Colorblind Safe",
+        "colors": _build_release_theme_colors(
+            accent="#2F8FFF",
+            surface_base="#111317",
+            surface_panel="#171B21",
+            surface_raised="#1F242C",
+            surface_input="rgba(255,255,255,0.08)",
+            surface_overlay="rgba(0,0,0,0.72)",
+            text_primary="#FFFFFF",
+            text_secondary="rgba(255,255,255,0.84)",
+            text_muted="#BCC2C7",
+            border_subtle="rgba(255,255,255,0.10)",
+            border_default="rgba(255,255,255,0.18)",
+            border_strong="rgba(255,255,255,0.30)",
+            # CVD-safe semantic anchors — validated ΔE2000 >= 15 on all 10 group
+            # pairs under Machado 2009 protan/deutan + Brettel 1997 tritan (full
+            # dichromat severity). Keep in sync with harness/bundles/cvd-safe.mjs,
+            # which the harness CVD gate (harness/tests/cvd.spec.mjs) validates.
+            # Everything else (color-*, confidence-*, status-dot-*, learning-*)
+            # cascades from these via var(). Paired with the always-on per-state
+            # shape marks (src/renderers/badge-marks.js) so warn/likely — which
+            # share the warning hue — stay distinguishable without color.
+            sem_success="#0C8F86",
+            sem_warning="#E9A100",
+            sem_error="#D6403A",
+            sem_info="#0F4C86",
+        ),
+        "tokens": _build_release_theme_tokens(BASE_PRELOADED_THEME_SPEC),
+    },
+    {
         "id": "theme_signal",
         "name": "Signal",
         "colors": _build_release_theme_colors(

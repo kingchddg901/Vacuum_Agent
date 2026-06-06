@@ -209,7 +209,18 @@ Preloaded themes are defined in `PRELOADED_THEME_SPECS` in `themes/preloaded.py`
 | `theme_soft_carbon` | Soft Carbon |
 | `theme_warm_light` | Warm Light |
 | `theme_high_contrast` | High Contrast |
+| `theme_colorblind_safe` | Colorblind Safe |
 | `theme_signal` | Signal |
+
+**Colorblind Safe is validated, not hand-picked.** Its five semantic anchors
+(`--evcc-sem-success/warning/error/info` + `--evcc-text-muted`) are proven to
+separate by CIEDE2000 ≥ 15 across all ten group pairs under simulated
+protanopia, deuteranopia, and tritanopia; everything else cascades from those
+five via `var()` (`_build_release_theme_colors`). The simulation + ΔE gate, and
+the always-on per-state badge shape marks that back it up, live in the render
+harness — see [27-render-harness](27-render-harness.md) §5–6. The exact hexes are
+mirrored (comment-linked) in `harness/bundles/cvd-safe.mjs`, which the harness
+CVD gate validates.
 
 **How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
 

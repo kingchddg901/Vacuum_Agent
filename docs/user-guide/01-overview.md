@@ -19,7 +19,7 @@ The standard Eufy integration in Home Assistant lets you start and stop your vac
 - **Incomplete run recovery.** If a run ends before all rooms are finished, the card shows a banner letting you queue only the missed rooms for a follow-up run.
 - **Trouble room indicators.** The card tracks rooms the vacuum has repeatedly failed to clean and flags them so you can investigate.
 - **Metrics and learning review.** Dedicated panels let you browse historical run data and review what the system has learned.
-- **Theming.** The card's colors, typography, and layout tokens are fully customizable from within the card itself.
+- **Theming.** The card's colors, typography, and layout tokens are fully customizable from within the card itself — including a built-in **Colorblind Safe** theme that keeps status colors distinguishable for color-vision deficiency (see [Accessibility](14-accessibility.md)).
 
 ## Requirements
 

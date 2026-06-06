@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { badgeMark } from "./badge-marks.js";
+
 /**
  * Mix mapping bounds review renderer methods onto the given prototype.
  *
@@ -120,9 +122,9 @@ export function applyMappingReviewRenderers(proto) {
 
     const statusBadge = bounds
       ? isConfident
-        ? `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${activeCount} run${activeCount !== 1 ? "s" : ""} · ${bounds.sample_count ?? 0} samples</span>`
-        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${activeCount} run${activeCount !== 1 ? "s" : ""} · Likely</span>`
-      : `<span class="evcc-mrev-badge evcc-mrev-badge--warn">No bounds</span>`;
+        ? `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}${activeCount} run${activeCount !== 1 ? "s" : ""} · ${bounds.sample_count ?? 0} samples</span>`
+        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${badgeMark("likely")}${activeCount} run${activeCount !== 1 ? "s" : ""} · Likely</span>`
+      : `<span class="evcc-mrev-badge evcc-mrev-badge--warn">${badgeMark("warn")}No bounds</span>`;
 
     return `
       <div class="evcc-mrev-card">
@@ -132,7 +134,7 @@ export function applyMappingReviewRenderers(proto) {
             <span class="evcc-mrev-room-id">ID ${this.escapeHtml(roomId)}</span>
             ${statusBadge}
             ${excludedCount > 0
-              ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${excludedCount} excluded</span>`
+              ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}${excludedCount} excluded</span>`
               : ""}
           </div>
         </div>
@@ -240,11 +242,11 @@ export function applyMappingReviewRenderers(proto) {
           <span class="evcc-mrev-job-id ${isExcluded ? "evcc-mrev-job-id--excluded" : ""}">${this.escapeHtml(jobLabel)}</span>
           ${dateLabel ? `<span class="evcc-mrev-job-date">${this.escapeHtml(dateLabel)}</span>` : ""}
           ${isExcluded
-            ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">Excluded</span>`
+            ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}Excluded</span>`
             : isOutlier
-              ? `<span class="evcc-mrev-badge evcc-mrev-badge--outlier">Outlier: ${this.escapeHtml(outlierFlags.join(", "))}</span>`
-              : `<span class="evcc-mrev-badge evcc-mrev-badge--ok">OK</span>`}
-          ${isBaseline ? `<span class="evcc-mrev-badge evcc-mrev-badge--baseline">Baseline</span>` : ""}
+              ? `<span class="evcc-mrev-badge evcc-mrev-badge--outlier">${badgeMark("outlier")}Outlier: ${this.escapeHtml(outlierFlags.join(", "))}</span>`
+              : `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}OK</span>`}
+          ${isBaseline ? `<span class="evcc-mrev-badge evcc-mrev-badge--baseline">${badgeMark("baseline")}Baseline</span>` : ""}
           <div class="evcc-mrev-job-actions">
             ${canExclude ? `
               <button class="evcc-chip evcc-chip--sm evcc-mrev-job-action-btn"

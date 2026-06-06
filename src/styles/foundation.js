@@ -128,6 +128,10 @@ export const foundationStyles = `
     --evcc-sem-success: var(--success-color, #4caf6e);
     --evcc-sem-warning: var(--warning-color, #f5a623);
     --evcc-sem-error:   var(--error-color,   #e05252);
+    /* Info: a stable literal blue, NOT var(--info-color, …) — HA's
+       --info-color is theme-inconsistent (amber in some themes) and could
+       collide with the warning hue. Used for reference/baseline states. */
+    --evcc-sem-info:    #4a9fe0;
 
     /* Boundary confidence tiers
        Override these in theme editor to re-colour confidence indicators

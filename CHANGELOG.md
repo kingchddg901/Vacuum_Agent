@@ -8,6 +8,23 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.15] - 2026-06-06
+
+### Added
+- **Colorblind Safe theme.** A new built-in theme with a CVD-validated palette —
+  every status-color pair stays distinguishable under protanopia, deuteranopia,
+  and tritanopia (CIEDE2000 ΔE ≥ 15). See the new Accessibility guide.
+- **Always-on status shape marks.** Mapping-review badges now carry a distinct
+  non-color shape per state in addition to color, so status is never conveyed by
+  color alone — this applies to *every* theme, not just the colorblind one.
+
+### Fixed
+- **Mapping-review badges are now themeable.** They were colored by undefined CSS
+  variables, so the hardcoded fallback always won and no theme could recolor
+  them. Migrated to the registry `--evcc-sem-*` tokens (with a new
+  `--evcc-sem-info`), so themes — including the colorblind palette — now drive the
+  badge colors.
+
 ## [0.9.14] - 2026-06-05
 
 ### Added

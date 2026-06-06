@@ -58,36 +58,46 @@ export const mappingReviewStyles = `
   .evcc-mrev-badge {
     display: inline-flex;
     align-items: center;
+    gap: 3px;
     padding: 2px 8px;
     border-radius: 99px;
     font-size: 0.72rem;
     font-weight: 600;
   }
 
+  /* Redundant non-color cue: a per-state shape mark (src/renderers/
+     badge-marks.js) so badges read without relying on hue — covers
+     CVD + monochromacy, and disambiguates likely from warn (shared color). */
+  .evcc-mrev-badge-mark {
+    width: 0.95em;
+    height: 0.95em;
+    flex: none;
+  }
+
   .evcc-mrev-badge--ok {
-    background: color-mix(in srgb, var(--evcc-success, #4caf50) 15%, transparent);
-    color: var(--evcc-success, #4caf50);
+    background: color-mix(in srgb, var(--evcc-sem-success) 15%, transparent);
+    color: var(--evcc-sem-success);
   }
 
   .evcc-mrev-badge--likely {
-    background: color-mix(in srgb, var(--evcc-warning, #ff9800) 12%, transparent);
-    color: var(--evcc-warning, #ff9800);
+    background: color-mix(in srgb, var(--evcc-sem-warning) 12%, transparent);
+    color: var(--evcc-sem-warning);
     font-style: italic;
   }
 
   .evcc-mrev-badge--warn {
-    background: color-mix(in srgb, var(--evcc-warning, #ff9800) 15%, transparent);
-    color: var(--evcc-warning, #ff9800);
+    background: color-mix(in srgb, var(--evcc-sem-warning) 15%, transparent);
+    color: var(--evcc-sem-warning);
   }
 
   .evcc-mrev-badge--outlier {
-    background: color-mix(in srgb, var(--evcc-error, #f44336) 15%, transparent);
-    color: var(--evcc-error, #f44336);
+    background: color-mix(in srgb, var(--evcc-sem-error) 15%, transparent);
+    color: var(--evcc-sem-error);
   }
 
   .evcc-mrev-badge--baseline {
-    background: color-mix(in srgb, var(--evcc-accent, #6366f1) 15%, transparent);
-    color: var(--evcc-accent, #6366f1);
+    background: color-mix(in srgb, var(--evcc-sem-info) 15%, transparent);
+    color: var(--evcc-sem-info);
   }
 
   .evcc-mrev-badge--excluded {
@@ -174,8 +184,8 @@ export const mappingReviewStyles = `
   }
 
   .evcc-mrev-job-entry--outlier {
-    border-color: color-mix(in srgb, var(--evcc-error, #f44336) 40%, transparent);
-    background: color-mix(in srgb, var(--evcc-error, #f44336) 5%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-error) 40%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-error) 5%, transparent);
   }
 
   .evcc-mrev-job-entry--excluded {
