@@ -1,0 +1,18 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "scope": [],
+  "theme": {
+    "name": "Colorblind Safe (sample export)",
+    "tokens": {},
+    "colors": {
+      "--evcc-sem-success": "#0c8f86",
+      "--evcc-sem-warning": "#e9a100",
+      "--evcc-sem-error": "#d6403a",
+      "--evcc-sem-info": "#0f4c86",
+      "--evcc-text-muted": "#bcc2c7"
+    },
+    "alpha": {}
+  }
+}
