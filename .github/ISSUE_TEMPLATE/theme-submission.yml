@@ -1,0 +1,32 @@
+name: Theme submission
+description: Share a card theme for the public gallery
+title: "[Theme] "
+labels: ["theme-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share a theme you built in the card.
+
+        In the **Theme** tab, click **Download** (whole theme) or **Download
+        Floor** (one floor type) to get the export JSON, then paste it below.
+
+        A bot validates it, renders a preview of the real card recolored by your
+        theme, and opens a pull request. A maintainer reviews the preview and
+        merges it — then your theme appears in the gallery. Nothing is published
+        automatically.
+  - type: textarea
+    id: export
+    attributes:
+      label: Theme export JSON
+      description: Paste the full JSON from the Download / Download Floor button.
+      render: json
+    validations:
+      required: true
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Before you submit
+      options:
+        - label: This is a theme export from the card, and I'm OK with it being shared publicly in the gallery.
+          required: true

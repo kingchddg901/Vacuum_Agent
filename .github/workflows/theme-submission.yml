@@ -1,0 +1,140 @@
+name: theme submission
+
+# A "theme-submission" issue (export JSON pasted into the form) is turned into a
+# reviewable pull request:
+#   parse + validate -> render a preview of the real card recolored by it ->
+#   open a PR -> comment back on the issue.
+#
+# The preview is rendered HERE, not on the PR, because a PR opened with the
+# built-in GITHUB_TOKEN does not trigger the theme-intake preview workflow
+# (GitHub's anti-recursion rule) — so we render in-place and attach the result
+# as an artifact. No PAT / secret needed.
+#
+# Nothing is auto-merged: the bot only opens the PR; a human approves what goes
+# live. The committed file is re-serialized from the parsed JSON, so malformed
+# input is rejected with a comment instead of landing a broken file.
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  intake:
+    # Only issues created via the submission form (which auto-applies the label).
+    if: contains(join(github.event.issue.labels.*.name, ','), 'theme-submission')
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Extract + validate the export
+        id: extract
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comment = (body) =>
+              github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+            const body = context.payload.issue.body || "";
+            const m = body.match(/```json\s*\n([\s\S]*?)\n```/);
+            if (!m) {
+              await comment("Couldn't find the export. Paste the full JSON into the **Theme export JSON** box, then close and reopen this issue to retry.");
+              core.setOutput("ok", "false");
+              return;
+            }
+            let env;
+            try {
+              env = JSON.parse(m[1]);
+            } catch (e) {
+              await comment(`That export isn't valid JSON: \`${e.message}\`. Re-copy it from the card's **Download** button, then close and reopen this issue to retry.`);
+              core.setOutput("ok", "false");
+              return;
+            }
+            const t = env && env.theme;
+            if (!t || !(t.tokens || t.colors || t.alpha)) {
+              await comment("That doesn't look like a theme export (no `theme.tokens` / `colors` / `alpha`). Use the card's **Download** or **Download Floor** button.");
+              core.setOutput("ok", "false");
+              return;
+            }
+            const base =
+              String(t.name || "theme")
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-+|-+$/g, "")
+                .slice(0, 40) || "theme";
+            const slug = `${base}-${issue_number}`;
+            fs.mkdirSync("gallery/themes", { recursive: true });
+            fs.writeFileSync(`gallery/themes/${slug}.json`, JSON.stringify(env, null, 2) + "\n");
+            core.setOutput("ok", "true");
+            core.setOutput("slug", slug);
+            core.setOutput("themeName", String(t.name || slug));
+
+      - name: Install dependencies
+        if: steps.extract.outputs.ok == 'true'
+        run: npm ci
+
+      - name: Render preview
+        if: steps.extract.outputs.ok == 'true'
+        run: node harness/build.mjs && node harness/preview.mjs "gallery/themes/${{ steps.extract.outputs.slug }}.json"
+
+      - name: Upload preview artifact
+        if: steps.extract.outputs.ok == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-preview-${{ steps.extract.outputs.slug }}
+          path: harness/out/preview/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open pull request + comment
+        if: steps.extract.outputs.ok == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require("fs");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const slug = "${{ steps.extract.outputs.slug }}";
+            const themeName = ${{ toJSON(steps.extract.outputs.themeName) }};
+            const path = `gallery/themes/${slug}.json`;
+            const branch = `theme-submission/${slug}`;
+            try {
+              const content = fs.readFileSync(path, "utf8");
+              const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
+              const sha = (await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
+              await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
+              await github.rest.repos.createOrUpdateFileContents({
+                owner, repo, path, branch,
+                message: `gallery: add theme "${themeName}" (#${issue_number})`,
+                content: Buffer.from(content, "utf8").toString("base64"),
+              });
+              const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+              const pr = await github.rest.pulls.create({
+                owner, repo, head: branch, base,
+                title: `Add theme: ${themeName}`,
+                body:
+                  `Theme submission from #${issue_number}.\n\n` +
+                  `A preview was rendered in the [submission run](${runUrl}) — download the ` +
+                  `**theme-preview-${slug}** artifact to see the real card recolored by this theme. ` +
+                  `Merging publishes it to the gallery.\n\nCloses #${issue_number}`,
+              });
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: `Thanks! Validated and rendered — opened #${pr.data.number} for review. A maintainer will check the preview there and merge; then your theme joins the gallery.`,
+              });
+            } catch (e) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: `The export validated, but I couldn't open the PR automatically (\`${e.message}\`). A maintainer can pick it up from the **theme-preview-${slug}** artifact on this run.`,
+              });
+              core.setFailed(e.message);
+            }

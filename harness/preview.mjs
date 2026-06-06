@@ -21,12 +21,15 @@ import { chromium } from "@playwright/test";
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
-import { mountHarness } from "./lib/mount-page.mjs";
+import { mountHarness, renderTab, VIEW_ORDER } from "./lib/mount-page.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..");
 const OUT = join(repo, "harness", "out", "preview");
 const FULL_GALLERIES = ["rooms-active", "review-badges", "mapping-badges"];
+// The tabs those galleries are the populated, all-states version of — skipped
+// from the plain tab tour so the preview carries no empty-stub duplicate.
+const GALLERY_TAB_IDS = new Set(["rooms", "learning_review", "mapping_review"]);
 
 function exportsToProcess() {
   const arg = process.argv[2];
@@ -39,21 +42,86 @@ function exportsToProcess() {
 const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
+/** Per-theme detail page: the renders grouped into sections (galleries vs
+ *  tabs) plus the ingest report. Written as <name>/index.html so the top
+ *  index links to it. */
+function writeThemePage(dir, themeName, scope, report, shots) {
+  const galleries = shots.filter((s) => !s.id.startsWith("tab-"));
+  const tabs = shots.filter((s) => s.id.startsWith("tab-"));
+  const section = (title, list) =>
+    !list.length
+      ? ""
+      : `    <section>
+      <h2>${esc(title)}</h2>
+      <div class="grid">
+${list
+  .map(
+    (s) => `        <figure>
+          <figcaption>${esc(s.id)}</figcaption>
+          <a href="${esc(s.id)}.png"><img loading="lazy" src="${esc(s.id)}.png" alt="${esc(s.id)}"></a>
+        </figure>`,
+  )
+  .join("\n")}
+      </div>
+    </section>`;
+  const skipped = report.skippedKeys.length ? esc(report.skippedKeys.join(", ")) : "none";
+  const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(themeName)} — EVCC theme preview</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0b0d10; color:#e6e9ee; font:15px/1.5 system-ui,-apple-system,sans-serif; }
+  header { padding:24px 24px 12px; border-bottom:1px solid #1c222a; }
+  header .back { color:#5aa9ff; text-decoration:none; font-size:.85rem; }
+  header h1 { margin:8px 0 4px; font-size:1.5rem; }
+  .meta { color:#8b94a0; font-size:.84rem; margin:0 0 2px; }
+  .meta a { color:#5aa9ff; }
+  main { padding:8px 24px 48px; }
+  section h2 { font-size:1.02rem; margin:26px 0 12px; color:#cbd2da; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
+  figure { margin:0; }
+  figcaption { font:12px/1.4 ui-monospace,SFMono-Regular,monospace; color:#8b94a0; padding:0 0 5px; }
+  img { display:block; width:100%; height:auto; border:1px solid #232a32; border-radius:8px; background:#0b0d10; }
+  footer { padding:0 24px 36px; color:#6b7480; font-size:.8rem; }
+</style>
+</head>
+<body>
+  <header>
+    <a class="back" href="../index.html">← all themes</a>
+    <h1>${esc(themeName)}</h1>
+    <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped</p>
+    <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
+  </header>
+  <main>
+${section("All-states galleries", galleries)}
+${section("Card tabs", tabs)}
+  </main>
+  <footer>The real card recolored by this export, rendered through the harness ingest gate.</footer>
+</body>
+</html>
+`;
+  writeFileSync(join(dir, "index.html"), html);
+}
+
 /** Write a self-contained static gallery index over the rendered themes. */
 function writeIndex(entries) {
   const cards = entries
     .map((e) => {
       const dir = encodeURIComponent(e.name);
-      const meta = `scope: ${e.scope.length ? esc(e.scope.join(", ")) : "full"} · ` +
-        `${e.report.keyCount} tokens · ${e.report.clamped} clamped · ${e.report.skippedKeys.length} skipped`;
+      const meta = `${e.scope.length ? esc(e.scope.join(", ")) : "full"} · ${e.report.keyCount} tokens`;
       return `      <article class="card">
-        <h2>${esc(e.themeName)}</h2>
+        <a class="thumb" href="${dir}/index.html"><img loading="lazy" src="${dir}/thumb.png" alt="${esc(e.themeName)} room card"></a>
+        <h2><a href="${dir}/index.html">${esc(e.themeName)}</a></h2>
         <p class="meta">${meta}</p>
-        <a href="${dir}/_contact-sheet.png"><img loading="lazy" src="${dir}/_contact-sheet.png" alt="${esc(e.themeName)} preview"></a>
-        <p class="links"><a href="${dir}/ingest-report.json">ingest report</a></p>
       </article>`;
     })
     .join("\n");
+
+  const repoSlug = process.env.GITHUB_REPOSITORY || "kingchddg901/Vacuum_Agent";
+  const submitUrl = `https://github.com/${repoSlug}/issues/new?template=theme-submission.yml`;
 
   const html = `<!doctype html>
 <html lang="en">
@@ -67,10 +135,14 @@ function writeIndex(entries) {
   header { padding: 28px 24px 8px; }
   header h1 { margin: 0 0 4px; font-size: 1.4rem; }
   header p { margin: 0; color: #99a2ad; }
-  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 20px; padding: 20px 24px 40px; }
-  .card { background: #14181d; border: 1px solid #232a32; border-radius: 12px; padding: 14px 14px 10px; }
-  .card h2 { margin: 0 0 2px; font-size: 1.05rem; }
-  .meta { margin: 0 0 10px; color: #8b94a0; font-size: 0.82rem; }
+  a.submit { display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #2f6dd0; border-radius: 8px; background: #173455; color: #cfe2ff; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+  a.submit:hover { background: #1d4474; }
+  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; padding: 20px 24px 40px; }
+  .card { background: #14181d; border: 1px solid #232a32; border-radius: 12px; padding: 12px 12px 10px; }
+  .card h2 { margin: 10px 0 2px; font-size: 1.08rem; }
+  .card h2 a { color: inherit; text-decoration: none; }
+  .card .thumb { display: block; }
+  .meta { margin: 0; color: #8b94a0; font-size: 0.8rem; }
   .card img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid #232a32; background: #0b0d10; }
   .links { margin: 8px 0 0; font-size: 0.8rem; }
   .links a, header a { color: #5aa9ff; }
@@ -81,7 +153,8 @@ function writeIndex(entries) {
 <body>
   <header>
     <h1>EVCC theme gallery</h1>
-    <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export.</p>
+    <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview.</p>
+    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a></p>
   </header>
   <main>
 ${cards}
@@ -130,21 +203,45 @@ for (const file of files) {
   mkdirSync(outDir, { recursive: true });
   writeFileSync(join(outDir, "ingest-report.json"), JSON.stringify({ scope, ...report }, null, 2));
 
-  // Scope drives what we show.
-  const ids = scope.length ? ["rooms-active"] : FULL_GALLERIES;
+  // Scope drives what we show. A texture-scoped export only needs the rooms
+  // gallery (where floor textures live). A full theme is previewed across the
+  // WHOLE card — the all-states galleries PLUS a tab tour — because this is a
+  // theme-SHARING preview: a sharer wants their theme on every surface. The
+  // galleries ARE the populated rooms / learning-review / mapping-review tabs,
+  // so those three plain tabs are skipped (their stub renders are just empty
+  // versions of the galleries); the rest are toured, incl. setup.
+  const views = scope.length
+    ? [{ kind: "gallery", id: "rooms-active" }]
+    : [
+        ...FULL_GALLERIES.map((id) => ({ kind: "gallery", id })),
+        ...VIEW_ORDER.filter((id) => !GALLERY_TAB_IDS.has(id)).map((id) => ({ kind: "tab", id })),
+      ];
   const shots = [];
-  for (const id of ids) {
-    const res = await page.evaluate(
-      ([gid, b]) => window.__evcc.renderGallery(gid, { bundle: b, freeze: true, width: 520 }),
-      [id, bundle],
-    );
+  for (const v of views) {
+    const res =
+      v.kind === "gallery"
+        ? await page.evaluate(
+            ([gid, b]) => window.__evcc.renderGallery(gid, { bundle: b, freeze: true, width: 520 }),
+            [v.id, bundle],
+          )
+        : await renderTab(page, v.id, { bundle, freeze: true, width: 520 });
     if (!res.ok) {
-      console.error(`  ${name}/${id}: ${res.error}`);
+      console.error(`  ${name}/${v.id}: ${res.error}`);
       continue;
     }
+    const shotId = v.kind === "tab" ? `tab-${v.id}` : v.id;
     const buf = await page.locator("#evcc-host").screenshot();
-    writeFileSync(join(outDir, `${id}.png`), buf);
-    shots.push({ id, b64: buf.toString("base64") });
+    writeFileSync(join(outDir, `${shotId}.png`), buf);
+    shots.push({ id: shotId, b64: buf.toString("base64") });
+
+    // Index hero: clip a single room card from the rooms render — compact and
+    // theme-expressive, so the gallery index stays scannable as it grows.
+    if (v.id === "rooms-active") {
+      const roomCards = page.locator(".evcc-room-card");
+      if (await roomCards.count()) {
+        writeFileSync(join(outDir, "thumb.png"), await roomCards.first().screenshot());
+      }
+    }
   }
 
   // Per-theme contact sheet (this navigates the page away — we re-mount next iteration).
@@ -161,6 +258,8 @@ for (const file of files) {
     { waitUntil: "domcontentloaded" },
   );
   writeFileSync(join(outDir, "_contact-sheet.png"), await page.screenshot({ fullPage: true }));
+
+  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots);
 
   processed.push({ name, themeName: envelope.theme?.name || name, scope, report });
   console.log(

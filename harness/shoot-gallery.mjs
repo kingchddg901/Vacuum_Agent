@@ -25,6 +25,7 @@ function flagValue(name, fallback) {
 
 const bundleName = flagValue("--bundle", "default");
 const freeze = process.argv.includes("--freeze");
+const width = Number(flagValue("--width", "520")) || 520;
 
 let bundle = {};
 const bundlePath = join(here, "bundles", `${bundleName}.mjs`);
@@ -42,8 +43,8 @@ const shots = [];
 
 for (const entry of entries) {
   const res = await page.evaluate(
-    ([id, b]) => window.__evcc.renderGallery(id, { bundle: b, width: 520 }),
-    [entry.id, bundle],
+    ([id, b, w]) => window.__evcc.renderGallery(id, { bundle: b, width: w }),
+    [entry.id, bundle, width],
   );
   if (!res.ok) {
     console.error(`✗ ${entry.id}: ${res.error}`);
@@ -63,12 +64,12 @@ const cells = shots
     (s) => `
     <figure style="margin:0">
       <figcaption style="font:12px/1.4 system-ui,sans-serif;color:#cbd2da;padding:4px 2px">${s.label}</figcaption>
-      <img src="data:image/png;base64,${s.b64}" style="display:block;width:520px;border:1px solid #2a2f37">
+      <img src="data:image/png;base64,${s.b64}" style="display:block;width:${width}px;border:1px solid #2a2f37">
     </figure>`,
   )
   .join("");
 await page.setContent(
-  `<body style="margin:0;background:#0b0d10;display:grid;grid-template-columns:repeat(2,540px);gap:18px;padding:18px;align-items:start">${cells}</body>`,
+  `<body style="margin:0;background:#0b0d10;display:grid;grid-template-columns:repeat(2,${width + 20}px);gap:18px;padding:18px;align-items:start">${cells}</body>`,
   { waitUntil: "domcontentloaded" },
 );
 writeFileSync(join(outDir, "_contact-sheet.png"), await page.screenshot({ fullPage: true }));
