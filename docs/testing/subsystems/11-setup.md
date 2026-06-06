@@ -25,8 +25,9 @@ Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.
 
 ## What's tested
 
-- **Workflow** (`SW`) — the guided setup step progression, completion flags, and
-  the migration of legacy setup-progress state.
+- **Workflow** (`SW`) — `add_vacuum` (managed / blocked / already-done /
+  no-manager) and `import_active_map` (discover + save). These are the only two
+  functions in `workflow.py`.
 - **Start protection** — the protection-status surface and its block reasons.
 - **Drift** — new-segment / removed-segment detection vs the last recorded room
   set, including the deep threshold/guard branches.

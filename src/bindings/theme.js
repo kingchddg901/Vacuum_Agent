@@ -64,6 +64,8 @@
 
 import { applyThemeToCard } from "../styles/apply-theme.js";
 import { THEME_GROUPS, THEME_TOKEN_MAP, THEME_TOKEN_REGISTRY } from "../theme-tokens/index.js";
+import { sliceThemeByTypes, themeKeyCount, detectFloorScope, clampThemeScalars } from "../theme-tokens/floor-scope.js";
+import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 
 /* =========================================================
    HELPERS
@@ -111,6 +113,43 @@ const DOUBLE_TAP_MOVE_THRESHOLD_PX = 6;
  * @param {object} proto - VacuumCardBindings prototype to extend.
  */
 export function applyThemeBindings(proto) {
+
+  // Apply a SCOPED theme envelope — an uploaded per-floor file OR a built-in
+  // preset — onto the ACTIVE theme. Validate types against the registry,
+  // confirm the exact "Replace" list, clamp values to range, skip unknown
+  // namespaces. Shared by the scoped Upload path and Apply Preset.
+  proto._applyScopedThemeImport = async function (envelope, sourceLabel) {
+    const { known, unknown } = detectFloorScope(envelope);
+    if (!known.length) {
+      alert(
+        `${sourceLabel} has no floor types this version recognises` +
+        (unknown.length ? ` (unsupported: ${unknown.join(", ")}).` : ".")
+      );
+      return false;
+    }
+    const proceed = confirm(
+      `Replace these floor types on the active theme:\n  ${known.join(", ")}` +
+      (unknown.length
+        ? `\n\nSkipped — unsupported in this version:\n  ${unknown.join(", ")}`
+        : "") +
+      `\n\nThis overwrites those types. Continue?`
+    );
+    if (!proceed) return false;
+
+    const { envelope: clamped, corrected } = clampThemeScalars(envelope, THEME_TOKEN_MAP);
+    await this.card._actions.importTheme(
+      { ...clamped, scope: known },
+      this.card._config.vacuum_entity_id
+    );
+    await this._refreshThemeFromBackend();
+    alert(
+      `Replaced ${known.join(", ")} from ${sourceLabel}.` +
+      (corrected ? ` ${corrected} value(s) clamped to range.` : "") +
+      (unknown.length ? ` Skipped: ${unknown.join(", ")}.` : "")
+    );
+    return true;
+  };
+
   proto._bindThemeEditor = function () {
     this._bindThemeTabs();
     this._bindThemePresets();
@@ -1039,9 +1078,17 @@ export function applyThemeBindings(proto) {
         try {
           const text = await file.text();
           const payload = JSON.parse(text);
-          await this.card._actions.importTheme(payload);
-          await this._refreshThemeFromBackend();
-          alert(`Theme imported from ${file.name}.`);
+
+          if (Array.isArray(payload?.scope) && payload.scope.length) {
+            // SCOPED import — replace the file's floor namespaces on the active
+            // theme (confirm + clamp + skip-unknown live in the shared helper).
+            await this._applyScopedThemeImport(payload, `"${file.name}"`);
+          } else {
+            // Full import — adds a new library theme (legacy behavior).
+            await this.card._actions.importTheme(payload);
+            await this._refreshThemeFromBackend();
+            alert(`Theme imported from ${file.name}.`);
+          }
         } catch (err) {
           alert(
             `Failed to import "${file.name}": ${err?.message ?? String(err)}`
@@ -1055,6 +1102,73 @@ export function applyThemeBindings(proto) {
 
       document.body.appendChild(input);
       input.click();
+    });
+
+    // Scoped export: download ONE floor type's namespace as a shareable
+    // preset. Slices the full export by --evcc-floor-{type}-* across
+    // tokens/colors/alpha and stamps scope:[type]. Mirrors download-theme.
+    this.card._on(this.card.$("[data-action='download-floor-theme']"), "click", async () => {
+      const state = this.card._state._ensureThemeState();
+      const themeId = state.activeThemeId;
+      if (!themeId) {
+        alert("No active theme to export.");
+        return;
+      }
+
+      const select = this.card.$("[data-theme-floor-scope]");
+      const type = select?.value;
+      if (!type) {
+        alert("Pick a floor type to export.");
+        return;
+      }
+
+      let result;
+      try {
+        result = await this.card._actions.exportTheme(themeId);
+      } catch (err) {
+        alert(`Failed to export theme: ${err?.message ?? String(err)}`);
+        return;
+      }
+
+      const scoped = sliceThemeByTypes(result, [type]);
+      if (!themeKeyCount(scoped)) {
+        alert(
+          `This theme has no customised "${type}" floor settings to export. ` +
+          `Adjust and Save the ${type} tokens first.`
+        );
+        return;
+      }
+
+      const themeStr = JSON.stringify(scoped, null, 2);
+      const safeName =
+        String(result?.theme?.name ?? "theme")
+          .replace(/[^a-z0-9._-]+/gi, "-")
+          .toLowerCase() || "theme";
+      const stamp = new Date().toISOString().slice(0, 10);
+      const filename = `evcc-floor-${type}-${safeName}-${stamp}.json`;
+
+      const blob = new Blob([themeStr], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 0);
+    });
+
+    // Apply a built-in MARBLE preset (Carrara / Portoro / Calacatta) onto the
+    // active theme — marble-scoped, via the shared scoped-import helper.
+    this.card._on(this.card.$("[data-action='apply-floor-preset']"), "click", async () => {
+      const select = this.card.$("[data-floor-preset]");
+      const preset = MARBLE_PRESETS.find((p) => p.id === select?.value);
+      if (!preset) {
+        alert("Pick a preset to apply.");
+        return;
+      }
+      await this._applyScopedThemeImport(preset.envelope, `the ${preset.name} preset`);
     });
   };
 

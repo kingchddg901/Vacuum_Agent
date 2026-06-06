@@ -207,7 +207,7 @@ title-cased firmware strings exactly as they appear in HA.
 | `cancel_service_exclusion_states` | `list[str]` (normalized) | If any of these appear in the `task_status` transition history of a very short job, the cancel detector treats the early return as a service event (low-battery, mop wash, dust empty) rather than a manual cancel. |
 | `cancel_detection_states` | `dict[str, str]` (normalized) | Normalized `task_status` transition strings the cancel detector matches. Keys: `active`, `returning`, `paused`. A cancel-like transition is `active`→`returning` or `paused`→`returning`. Defaults to the HA-standard `cleaning`/`returning`/`paused`. |
 | `water_level_aliases` | `dict[str, str]` | Maps lowercased water-level display strings to canonical keys (`low`/`medium`/`high`) for water-rate lookup. |
-| `wash_frequency_mode_aliases` | `dict[str, str]` | Maps lowercased wash-frequency mode strings to canonical keys (`by_time`/`by_area`/`after_each_clean`). |
+| `wash_frequency_mode_aliases` | `dict[str, str]` | Maps lowercased wash-frequency mode strings to canonical keys (`by_room`/`by_time`/`off`). |
 | `clean_mode_options` | `list[dict]` | User-facing dropdown options for clean mode. Each entry is `{value, label}`. Read by the card's room editor and rule editor to populate the cleaning-mode picker. Eufy: 3 entries (vacuum/mop/vacuum_mop). |
 | `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Boost/Max). A Roborock adapter with Max+ would declare 5. |
 | `water_level_options` | `list[dict]` | User-facing dropdown options for water level (mop-capable models only). Each entry is `{value, label}`. Eufy: 4 entries (Off/Low/Medium/High). |
@@ -226,8 +226,8 @@ title-cased firmware strings exactly as they appear in HA.
     "blocked_dock_status_states": ["Washing", "Recycling waste water"],
     "cancel_service_exclusion_states": ["returning to charge", "going to wash mop"],
     "cancel_detection_states": {"active": "cleaning", "returning": "returning", "paused": "paused"},
-    "water_level_aliases": {"small": "low", "standard": "medium", "large": "high"},
-    "wash_frequency_mode_aliases": {"by time": "by_time", "by area": "by_area"},
+    "water_level_aliases": {"quiet": "low", "automatic": "medium", "auto": "medium", "strong": "high"},
+    "wash_frequency_mode_aliases": {"by room": "by_room", "room": "by_room", "by time": "by_time", "off": "off", "disabled": "off"},
     "clean_mode_options": [
         {"value": "vacuum",     "label": "Vacuum"      },
         {"value": "mop",        "label": "Mop"         },
@@ -544,6 +544,7 @@ renders one view per step in order.
 | `add_vacuum` | `setup_add_vacuum` | Vacuum present in `managed_vacuums` | Yes |
 | `import_active_map` | `setup_import_active_map` | At least one map with rooms exists | Eufy + similar single-map-surfaced brands |
 | `save_rooms` | `setup_save_rooms` | All discovered rooms are either `is_configured: True` or rejected | **Yes — universal floor-type + phantom-filter step** |
+| `calibrate_map` (reserved) | `mapping.calibrate_map` | Map calibration stored | Brand-specific future |
 | `set_dock_position` (reserved) | `mapping.set_dock_anchor` | Dock anchor stored | Brand-specific future |
 
 Adapters omitting `setup.steps` default to `["add_vacuum", "save_rooms"]`.
@@ -1068,20 +1069,20 @@ Top-level is `dict[component_id, ComponentEntry]`. Each entry:
 ```python
 "maintenance_components": {
     "filter": {
-        "sensor_suffix": "filter_lifetime",
+        "sensor_suffix": "filter_remaining",
         "proxy_for": None,
-        "default_interval_hours": 130.0,
-        "max_interval_hours": 260.0,
+        "default_interval_hours": 20.0,
+        "max_interval_hours": 120,
         "label": "Filter",
         "icon": "mdi:air-filter",
     },
     "side_brush": {
-        "sensor_suffix": "side_brush_lifetime",
+        "sensor_suffix": "side_brush_remaining",
         "proxy_for": None,
-        "default_interval_hours": 130.0,
-        "max_interval_hours": 260.0,
+        "default_interval_hours": 30.0,
+        "max_interval_hours": 360,
         "label": "Side Brush",
-        "icon": "mdi:rotate-3d-variant",
+        "icon": "mdi:broom",
     },
     # ...
 },
@@ -1176,8 +1177,8 @@ calculated; the estimator's accuracy depends on the measurement.
 "water_model_configs": {
     "T2351": {
         "robot_internal_tank_ml": 80.0,
-        "dock_clean_tank_capacity_ml": 4000.0,
-        "dock_wash_overhead_ml_per_cycle": 110.0,
+        "dock_clean_tank_capacity_ml": 3080.0,
+        "dock_wash_overhead_ml_per_cycle": 120.0,
     },
 },
 ```

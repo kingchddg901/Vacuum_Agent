@@ -10,7 +10,7 @@ The integration fires events on the Home Assistant event bus at specific points 
 
 Fires after a cleaning job has been finalized. This covers every path to job completion:
 
-- The robot finishes normally and returns to the dock (auto-finalization via state-change watcher in `__init__.py`)
+- The robot finishes normally and returns to the dock (auto-finalization via the lifecycle listener in `listeners/lifecycle.py`)
 - You call `eufy_vacuum.cancel_active_job` and cancellation succeeds
 - A paused job times out and is auto-cancelled
 - A path blocker is configured with `cancel_and_event` and triggers a cancellation
@@ -244,6 +244,49 @@ trigger:
 ```
 
 **Practical use:** Use as a position-accurate room-exit signal when the interactive map is configured. Pairs well with `eufy_vacuum_room_finished` for cross-validation — if one fires but not the other, the coordinate or timing model may need review.
+
+---
+
+## eufy_vacuum_job_progress_tick
+
+### When it fires
+
+Fires on a fixed 5-second interval from the job-progress listener (`listeners/job_progress.py`) for every managed vacuum/map that has an active job. The tick fires only while the active job's status is `started` or `paused` — it stops once the job is finalized. On each tick the listener recomputes the job progress snapshot (the same path that can fire `eufy_vacuum_stall_detected`) and then emits this event so dashboards and automations can refresh on a heartbeat rather than polling a service.
+
+The payload deliberately carries no job state — it is a pull signal. Use it as a trigger to call `get_job_progress_snapshot`, `get_dashboard_snapshot`, or another state-inspection service for the current values.
+
+### Payload fields
+
+| Field | Type | Description |
+|---|---|---|
+| `vacuum_entity_id` | `str` | Entity ID of the vacuum with the active job |
+| `map_id` | `str` | Map ID the active job is running on, as a string |
+
+### Example trigger
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_job_progress_tick
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+```
+
+**Practical use:** Drive a live progress refresh. Trigger on the tick, then call `eufy_vacuum.get_job_progress_snapshot` (with `response_variable`) to pull the current room, completed rooms, and completion percentage into a helper or notification.
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_job_progress_tick
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+action:
+  - service: eufy_vacuum.get_job_progress_snapshot
+    data:
+      vacuum_entity_id: "{{ trigger.event.data.vacuum_entity_id }}"
+      map_id: "{{ trigger.event.data.map_id }}"
+    response_variable: progress
+```
 
 ---
 

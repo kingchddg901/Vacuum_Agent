@@ -5,6 +5,14 @@ lifecycle, entity platforms, services, storage, event bus, and the background
 watchers that run while the integration is loaded. Read this when you want to
 add a new entity, service, or HA event.
 
+> **Naming.** The integration's **domain is `eufy_vacuum`** and is effectively
+> permanent: it keys every entity ID, the storage file (`eufy_vacuum.storage`),
+> the config entries, and the service names — changing it would break every
+> existing install. The user-facing **product name is "Vacuum Agent"** (the
+> sidebar panel title and the GitHub repo). So throughout the code and these
+> docs, `eufy_vacuum` always means the domain/identifier while "Vacuum Agent" is
+> the display name — they are not interchangeable.
+
 ---
 
 ## 1. Integration Entry Points
@@ -13,12 +21,14 @@ add a new entity, service, or HA event.
 
 Called once when the domain is first loaded. It:
 
-- Creates the `eufy_vacuum/maps`, `eufy_vacuum/textures`, and
-  `eufy_vacuum/frontend` directories under `hass.config.config_dir`.
+- Ensures the `eufy_vacuum/maps` directory exists under `hass.config.config_dir`
+  (user-writable map images). The `frontend` and `textures` directories are
+  package-relative — they ship inside the installed integration and are not
+  created under `config_dir`.
 - Registers three static HTTP paths via `hass.http.async_register_static_paths`:
-  - `/eufy_vacuum/maps` → persisted map image files
-  - `/eufy_vacuum/textures` → floor texture assets
-  - `/eufy_vacuum/frontend` → the compiled card JS bundle
+  - `/eufy_vacuum/maps` → persisted map image files (`cache_headers=False`)
+  - `/eufy_vacuum/textures` → shipped floor-texture assets (`cache_headers=True`)
+  - `/eufy_vacuum/frontend` → the compiled card JS bundle (`cache_headers=False`)
 
 ### `async_setup_entry` (`__init__.py`)
 
@@ -34,18 +44,21 @@ The main entry point. Called when the config entry is loaded. In order:
    vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
 5. Instantiates `ErrorTracker` and calls `error_tracker.start(known_vacuum_ids)`;
    stores at `hass.data[DOMAIN][DATA_ERROR_TRACKER]`.
-6. Calls service registration functions: `async_register_services`,
+6. Instantiates `BatteryHealthManager` and calls its `start(...)`; stores at
+   `hass.data[DOMAIN][DATA_BATTERY]`.
+7. Calls service registration functions: `async_register_services`,
    `async_register_learning_services`, `async_register_theme_services`,
-   `async_register_mapping_services`.
-7. Registers background listeners by calling each listener module's
+   `async_register_mapping_services`, plus the inline `battery_rebaseline`
+   service.
+8. Registers background listeners by calling each listener module's
    `register(hass)`: `lifecycle.register(hass)`, `job_metrics.register(hass)`,
    `dock_events.register(hass)`, `path_blockers.register(hass)`,
    `pause_timeout.register(hass)`, `job_progress.register(hass)`,
    `discovery.register(hass)`. See the `listeners/` package for the
    per-group implementations.
-8. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
+9. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
    `number`, `sensor`.
-9. Registers one sidebar panel per managed vacuum via
+10. Registers one sidebar panel per managed vacuum via
    `panel_custom.async_register_panel`. Panel URLs are stored at
    `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
 
@@ -70,6 +83,7 @@ Creates a bare `Store` and calls `async_remove()` to wipe persisted data.
 | `DATA_RUNTIME` (`"runtime"`) | `EufyVacuumManager` | Core manager — all services and entities resolve through this key |
 | `DATA_LEARNING` (`"learning"`) | `LearningManager` | Learning subsystem orchestrator |
 | `DATA_ERROR_TRACKER` (`"error_tracker"`) | `ErrorTracker` | Active-run error latching and device error history |
+| `DATA_BATTERY` (`"battery"`) | `BatteryHealthManager` | Battery-health tracking and per-job battery metrics |
 | `"mapping_manager"` | `MappingManager` | Map image / segment processing |
 | `"mapping_tracker"` | `MappingTracker` | Real-time robot position tracker |
 | `f"_panels_{entry.entry_id}"` | `list[str]` | Panel URL paths registered for this entry (used for cleanup) |
@@ -80,18 +94,23 @@ Creates a bare `Store` and calls `async_remove()` to wipe persisted data.
 
 `EufyVacuumConfigFlow` in `config_flow.py` is intentionally minimal:
 
-- `CONF_TESTED_MODEL` — defaults to `"Eufy X10 Pro Omni"`. Display only.
+- `CONF_VACUUM_ENTITY_ID` — an optional vacuum-entity selector (HA
+  `EntitySelector`), and the primary field. Naming a vacuum here lets
+  `async_setup_entry` register the per-vacuum sidebar panel for it.
+- `CONF_TESTED_MODEL` — defaults to the `SUPPORTED_TESTED_MODEL` constant (from
+  `adapters/eufy/const.py`). Display only.
 - `CONF_NOTES` — optional free-text field.
 
 `async_set_unique_id(DOMAIN)` + `_abort_if_unique_id_configured()` mean only
 one config entry per HA instance is permitted.
 
-**Options flow** (`EufyVacuumOptionsFlow`) exposes only `CONF_NOTES` for
-editing after initial setup.
+**Options flow** (`EufyVacuumOptionsFlow`) exposes `CONF_VACUUM_ENTITY_ID` and
+`CONF_NOTES` for editing after initial setup.
 
-`config_entry.data` contains `{"tested_model": str, "notes": str}`. No
-operational configuration (vacuum IDs, map IDs, room settings) lives in the
-config entry — all of that is in the storage layer.
+`config_entry.data` can contain `{"vacuum_entity_id": str, "tested_model": str,
+"notes": str}`. `__init__.py` reads `vacuum_entity_id` to register the panel; all
+other operational configuration (map IDs, room settings) lives in the storage
+layer, not the config entry.
 
 ---
 
@@ -174,6 +193,7 @@ sync. Individual sensor types live in sub-modules.
 | `sensor/onboarding.py` | `EufyVacuumOnboardingSensor` | `sensor.<obj>_onboarding_state` | Worst-case onboarding status |
 | `sensor/error.py` | `EufyVacuumActiveRunErrorSensor` | `sensor.<obj>_active_run_error` | Active-run error message or `"none"` |
 | `sensor/error.py` | `EufyVacuumLastDeviceErrorSensor` | `sensor.<obj>_last_device_error` | Last device error message or `"none"` |
+| `sensor/lifecycle.py` | `EufyVacuumActiveJobSensor` | `sensor.<obj>_active_job` (per map) | Active-job lifecycle + room-progress state |
 
 `EufyVacuumMaintenanceRemainingSensor` is created per maintenance component
 (`filter`, `rolling_brush`, `side_brush`, `mopping_cloth`, `cleaning_tray`,
@@ -315,31 +335,25 @@ or integration services. Direct edits produce `.corrupt` backup files.
 ### Default empty structure (on first boot)
 
 ```python
+# core/storage.py async_load() returns this for an empty store:
 {
     "vacuums": {},
     "maps": {},
-    "capabilities": {},
-    "active_jobs": {},
-    "profiles": {},
-    "run_profiles": {},
-    "room_history": {},
-    "room_rule_status": {},
-    "setup_progress": {},
-    "error_tracker": {},
     "theme": {"library": {}, "default_theme_id": None, "vacuums": {}},
+    "analytics": {},
     "maintenance": {},
     "dock_events": {},
     "onboarding": {},
-    "discovery": {},
+    "error_tracker": {},
 }
 ```
 
-`async_initialize` (`core/manager.py`) only `setdefault`s four required
-top-level keys on load — `vacuums`, `capabilities`, `room_history`, and
-`room_rule_status`. The remaining keys shown above are created lazily by their
-owning subsystems the first time they write (e.g. the theme sub-tree is seeded
-by `ThemeManager`). Do not assume any key beyond those four exists on a fresh
-boot.
+On top of that, `async_initialize` (`core/manager.py`) `setdefault`s the
+top-level keys it depends on — `vacuums` (already present), `capabilities`,
+`room_history`, and `room_rule_status`. Every other key is created lazily by its
+owning subsystem the first time it writes. (`analytics` is present in the
+default but currently unused.) Do not assume a key exists on a fresh boot unless
+it is in the storage default above or one of the keys the manager seeds.
 
 See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
@@ -485,7 +499,7 @@ await panel_custom.async_register_panel(
     frontend_url_path=f"eufy-vacuum-{object_id}",
     webcomponent_name="eufy-vacuum-command-center",
     js_url=_frontend_url.panel_js_url(),   # "/eufy_vacuum/frontend/...js?v=<mtime>"
-    sidebar_title="Eufy Vacuum",
+    sidebar_title="Vacuum Agent",
     sidebar_icon="mdi:robot-vacuum",
     config={"vacuum_entity_id": vacuum_entity_id},
     require_admin=False,

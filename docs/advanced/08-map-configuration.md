@@ -132,7 +132,7 @@ Vertices that have been moved show with a distinct style in the chip list. Click
 
 A row of chips lists all rooms for the active map. Click a chip to link the selected segment to that room. Clicking again unlinks it. Each segment can be linked to at most one room, and each room can be linked to at most one segment. A chip that is already linked to a different segment is shown as disabled.
 
-Room assignments made here are stored in the browser's localStorage, keyed by vacuum and map ID. The backend may also supply room_id values on segments directly when segments were previously associated during analysis; those take precedence over locally stored assignments.
+Room assignments made here are persisted server-side. Linking or unlinking a segment calls the `set_segment_room_link` service, which writes the change to the per-map `segment_room_links` bucket in the integration's storage. Because the links live in the backend rather than the browser, they survive across browsers, devices, and HA restarts. (Earlier versions stored these assignments in the browser's localStorage; that local store was migrated to the backend bucket.) The backend may also supply room_id values on segments directly when segments were associated during analysis; those take precedence over the stored links.
 
 ---
 

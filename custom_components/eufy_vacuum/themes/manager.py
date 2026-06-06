@@ -427,14 +427,33 @@ class ThemeManager:
             },
         }
 
-    def import_theme(self, *, payload: dict[str, Any]) -> dict[str, Any]:
-        """Validate and add an imported theme to the library."""
+    def import_theme(
+        self,
+        *,
+        payload: dict[str, Any],
+        vacuum_entity_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Import a theme.
+
+        Full import (scope absent or "full"): validate and add a NEW theme to
+        the library. Scoped import (scope is a non-empty list of floor-type
+        names): REPLACE those namespaces on the vacuum's active theme via
+        clear-then-apply — see _import_scoped.
+        """
         if not isinstance(payload, dict):
             return {"ok": False, "reason": "invalid_payload"}
 
         source_theme = payload.get("theme") if isinstance(payload.get("theme"), dict) else payload
         if not isinstance(source_theme, dict):
             return {"ok": False, "reason": "missing_theme"}
+
+        scope = payload.get("scope")
+        if isinstance(scope, list) and scope:
+            return self._import_scoped(
+                scope=scope,
+                source=source_theme,
+                vacuum_entity_id=vacuum_entity_id,
+            )
 
         name = str(source_theme.get("name", "")).strip()
         tokens = source_theme.get("tokens")
@@ -468,3 +487,84 @@ class ThemeManager:
 
         self._notify_updated(vacuum_entity_id=None)
         return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+
+    def _import_scoped(
+        self,
+        *,
+        scope: list,
+        source: dict[str, Any],
+        vacuum_entity_id: str | None,
+    ) -> dict[str, Any]:
+        """REPLACE each scoped floor-type namespace on the vacuum's ACTIVE theme.
+
+        For every type name in `scope`, clear every --evcc-floor-{name}-* key
+        across tokens/colors/alpha on the active library entry, then apply the
+        import's keys for that namespace. Clear-then-apply (not patch) makes the
+        result deterministic regardless of the target's prior state — no stale
+        override can survive (the same leftover-token bleed that hit the floor
+        registry). Values arrive already range-clamped by the card. Matching
+        working-draft overrides are cleared too, so the entry's new namespace is
+        what renders.
+
+        Type names are used only as opaque key prefixes here (--evcc-floor-
+        {name}-); the card validates them against the registry before sending,
+        so unknown namespaces never reach this method.
+        """
+        if not vacuum_entity_id:
+            return {"ok": False, "reason": "missing_vacuum"}
+
+        names = [str(n).strip() for n in scope if str(n).strip()]
+        if not names:
+            return {"ok": False, "reason": "empty_scope"}
+
+        vac = self._get_vacuum_theme(vacuum_entity_id)
+        active_id = str(vac.get("active_theme_id") or "").strip()
+        theme = self._get_theme_data()
+        library = theme.get("library", {})
+        if not active_id or active_id not in library:
+            return {"ok": False, "reason": "no_active_theme"}
+
+        entry = library[active_id]
+        sources = {
+            bucket: (source.get(bucket) if isinstance(source.get(bucket), dict) else {})
+            for bucket in ("tokens", "colors", "alpha")
+        }
+        draft = vac.get("working_draft") if isinstance(vac.get("working_draft"), dict) else {}
+
+        applied = 0
+        cleared = 0
+        for name in names:
+            prefix = f"--evcc-floor-{name}-"
+            for bucket in ("tokens", "colors", "alpha"):
+                target = entry.get(bucket)
+                if not isinstance(target, dict):
+                    target = {}
+                    entry[bucket] = target
+
+                # clear every existing key in the namespace
+                for key in [k for k in target if isinstance(k, str) and k.startswith(prefix)]:
+                    del target[key]
+                    cleared += 1
+
+                # apply the import's keys for the namespace
+                for key, value in sources[bucket].items():
+                    if isinstance(key, str) and key.startswith(prefix):
+                        target[key] = value
+                        applied += 1
+
+                # drop matching working-draft overrides so the entry's value renders
+                draft_bucket = draft.get(bucket) if isinstance(draft.get(bucket), dict) else None
+                if draft_bucket:
+                    for key in [k for k in draft_bucket if isinstance(k, str) and k.startswith(prefix)]:
+                        del draft_bucket[key]
+
+        self._notify_updated(vacuum_entity_id=vacuum_entity_id)
+        response = self._minimal_theme_mutation_response(
+            ok=True,
+            theme_id=active_id,
+            active_theme_id=active_id,
+        )
+        response["scope"] = list(names)
+        response["applied"] = applied
+        response["cleared"] = cleared
+        return response

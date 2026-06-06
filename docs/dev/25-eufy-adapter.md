@@ -49,6 +49,8 @@ factor the brand facts into named files.
 | `constants.py` | Tuning scalars: debounce/timeout seconds, low-battery threshold. |
 | `entities.py` | `build_entity_id()` + every `SUFFIX_*` / `DOMAIN_*` constant — the entity-naming convention. |
 | `vocabulary.py` | State-string sets and alias maps (hard-service, drying, active-run, not-error, cancel-exclusion, water-level/wash-frequency aliases, dock-event triggers). |
+| `discovery.py` | Brand room discovery: `discover_rooms_for_vacuum()` reads the vacuum's `segments` attribute and normalizes it into the framework room shape; `get_active_map_id()` reads the active-map sensor. |
+| `lifecycle.py` | Lifecycle-signal helpers: `_get_lifecycle_watch_entities()`, `_completed_finalize_signals()`, `_active_cleaning_target_cleared()` — translate Eufy entity naming + state vocab into the signals the framework lifecycle listener consumes. |
 | `buttons.py` | The single source for button discovery: `*_CANDIDATES` (entity suffixes) and `*_TOKENS` (token-set fallbacks) for dock actions and maintenance resets. |
 | `model_catalog.py` | `detect_model_family()` — maps a `detected_model` string to a family key (`x10`/`x8`/`l60`/`l50`/…). |
 | `maintenance_components.py` | `MAINTENANCE_COMPONENTS` — the consumable catalog (sensor suffix, intervals, label, icon, proxy links). |

@@ -130,17 +130,35 @@ export const FLOOR_TEXTURE_REGISTRY = {
         opacityToken:   "--evcc-floor-marble-micro-opacity",
         opacityDefault: 1,
       },
+      // VEINS — two tiers. Every property = master + per-layer offset, so the
+      // master rides both tiers while the offsets preserve the delta. MINOR
+      // recedes on all three axes (fainter / softer / hazier color) = atmospheric
+      // perspective, so it reads as depth rather than a competing vein system.
       {
-        url:            `${_T}/marble/marble-vein-mask.png`,
-        role:           "accent",
-        colorToken:     "--evcc-floor-marble-accent",
+        url:            `${_T}/marble/marble-vein-major.png`,
+        role:           "vein-major",
+        colorToken:     "--evcc-floor-marble-accent",                       // master vein color
         colorDefault:   "#D4AF3773",
-        opacityToken:   "--evcc-floor-marble-vein-opacity",
-        opacityDefault: 0, // hidden by default; users opt in via theme editor
+        opacityToken:   "--evcc-floor-marble-vein-major-opacity-eff",       // computed, not exposed
+        opacityDefault: "clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(--evcc-floor-marble-vein-major-opacity,0)),1)",
+        blurToken:      "--evcc-floor-marble-vein-major-blur-eff",
+        blurDefault:    "max(0px,calc(var(--evcc-floor-marble-vein-blur,0px) + var(--evcc-floor-marble-vein-major-blur,0px)))",
+      },
+      {
+        url:            `${_T}/marble/marble-vein-minor.png`,
+        role:           "vein-minor",
+        // minor color = master receded in OKLCH: lighter + desaturated + cooler
+        colorToken:     "--evcc-floor-marble-vein-minor-color-eff",
+        colorDefault:   "oklch(from var(--evcc-floor-marble-accent,#D4AF3773) calc(l + var(--evcc-floor-marble-vein-minor-light,0.06)) calc(c * var(--evcc-floor-marble-vein-minor-chroma,0.65)) calc(h + var(--evcc-floor-marble-vein-minor-hue,6)) / alpha)",
+        opacityToken:   "--evcc-floor-marble-vein-minor-opacity-eff",
+        opacityDefault: "clamp(0,calc(var(--evcc-floor-marble-vein-opacity,0.5) + var(--evcc-floor-marble-vein-minor-opacity,-0.12)),1)",
+        blurToken:      "--evcc-floor-marble-vein-minor-blur-eff",
+        blurDefault:    "max(0px,calc(var(--evcc-floor-marble-vein-blur,0px) + var(--evcc-floor-marble-vein-minor-blur,1.5px)))",
       },
     ],
     masks: [
-      { url: `${_T}/marble/marble-vein-mask.png`          },
+      { url: `${_T}/marble/marble-vein-major.png`         },
+      { url: `${_T}/marble/marble-vein-minor.png`         },
       { url: `${_T}/marble/marble-micro-texture-mask.png` },
       { url: `${_T}/marble/marble-base-mask.png`          },
     ],

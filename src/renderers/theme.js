@@ -14,6 +14,8 @@ import {
   THEME_TOKEN_REGISTRY,
   THEME_GROUPS,
 } from "../theme-tokens/index.js";
+import { floorTypeNames } from "../theme-tokens/floor-scope.js";
+import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
 
 /* =========================================================
    COLOR-MIX PARSER
@@ -692,7 +694,17 @@ export function applyThemeRenderers(proto) {
   };
 
   proto._renderThemeNumericTokenRow = function (token, value, isDraft) {
-    const config = SLIDER_CONFIG[token.group] || { min: 0, max: 64, step: 1 };
+    const groupConfig = SLIDER_CONFIG[token.group] || { min: 0, max: 64, step: 1 };
+    // Per-token range (from the semantic helper methods: .unit/.blur/.angle/
+    // .signed) is the single source of truth for the slider AND the import
+    // clamp, so they can't drift. Fall back to the group config for rangeless
+    // tokens (bare .number). This is also why the marble blur/hue/chroma
+    // sliders aren't capped at the group's 0-1 anymore.
+    const config = {
+      min:  Number.isFinite(token.min)  ? token.min  : groupConfig.min,
+      max:  Number.isFinite(token.max)  ? token.max  : groupConfig.max,
+      step: Number.isFinite(token.step) ? token.step : groupConfig.step,
+    };
     const scalarValue = parseScalarThemeValue(token, value);
     const numericValue = scalarValue.numeric ?? config.min;
     const unit = scalarValue.unit || defaultScalarUnitForToken(token);
@@ -832,6 +844,38 @@ export function applyThemeRenderers(proto) {
             title="Upload a theme .json file"
           >
             Upload
+          </button>
+
+          <select
+            class="evcc-chip evcc-floor-scope-select"
+            data-theme-floor-scope
+            title="Floor type to export as a shareable preset"
+          >
+            ${floorTypeNames().map((name) => `<option value="${name}">${name}</option>`).join("")}
+          </select>
+
+          <button
+            class="evcc-chip"
+            data-action="download-floor-theme"
+            title="Download just this floor type as a shareable preset .json"
+          >
+            Download Floor
+          </button>
+
+          <select
+            class="evcc-chip evcc-floor-scope-select"
+            data-floor-preset
+            title="Built-in marble preset to apply to the active theme"
+          >
+            ${MARBLE_PRESETS.map((p) => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join("")}
+          </select>
+
+          <button
+            class="evcc-chip"
+            data-action="apply-floor-preset"
+            title="Apply this built-in marble preset to the active theme"
+          >
+            Apply Preset
           </button>
         </div>
 

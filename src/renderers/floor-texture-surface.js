@@ -107,10 +107,16 @@ export function applyFloorTextureSurface(proto) {
       // floods the whole field instead of only the white. Luminance reads
       // brightness — white reveals, black hides. -webkit-mask-source-type
       // covers older WebKit / iOS WebViews that predate standard mask-mode.
-      return (
+      const span =
         `<span class="evcc-ftx-layer" data-role="${layer.role}"` +
-        ` style="background-color:${color};mask-image:${mask};-webkit-mask-image:${mask};mask-mode:luminance;-webkit-mask-source-type:luminance;--layer-opacity:${layerOpacity}"></span>`
-      );
+        ` style="background-color:${color};mask-image:${mask};-webkit-mask-image:${mask};mask-mode:luminance;-webkit-mask-source-type:luminance;--layer-opacity:${layerOpacity}"></span>`;
+
+      // Optional per-layer blur. CSS applies filter BEFORE mask, so blurring the
+      // span itself would blur the flat fill then hard-clip it (sharp edges).
+      // Wrapping blurs the already-masked result -> soft edges (used by veins).
+      if (!layer.blurToken && !layer.blurDefault) return span;
+      const blurVal = `var(${layer.blurToken},${layer.blurDefault ?? "0px"})`;
+      return `<span class="evcc-ftx-blur" style="filter:blur(${blurVal});-webkit-filter:blur(${blurVal})">${span}</span>`;
     }).join("");
 
     return (

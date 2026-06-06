@@ -8,6 +8,45 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.14] - 2026-06-05
+
+### Added
+- **Two-tier marble veins.** Marble now renders separate **major** and **minor**
+  vein layers. A master opacity/blur rides both tiers at once; per-tier offsets
+  nudge each tier while preserving the gap between them. The minor tier *recedes*
+  — its color is a clamped lighten / desaturate / hue offset from the master
+  (OKLCH relative color), so it reads as atmospheric depth rather than a flat
+  second color. Per-tier blur is opt-in.
+- **Per-floor-type theme export/import.** Move a single floor type's look in
+  isolation: **Download Floor** exports just that type's tokens
+  (`evcc-floor-{type}-…json`), and uploading a floor-scoped file **replaces only
+  that floor's namespace** on your active theme (clear-then-apply, values
+  clamped, unknown namespaces skipped) instead of swapping the whole theme.
+- **Marble presets.** Carrara, Portoro, and Calacatta starter bundles for the
+  two-tier vein system. They apply as a scoped replace on the marble namespace —
+  they tune marble in place, they are not separate themes to switch to.
+
+### Changed
+- **Single-source token ranges.** Editor sliders and the import clamp now share
+  one min/max/step definition per token, so a slider can never show a value its
+  own importer would reject.
+- **Floor masks regenerated at 2048×2048** (were 512) to match the tiling/shift
+  the renderer uses — sharper textures without visible seams.
+
+### Fixed
+- **Floor-texture legibility.** Status chips, room controls, and the active-clean
+  progress fill stay readable over a filled floor texture across a wide range of
+  theme colors (opaque chip backing, halo text-shadow, and explicit z-layer
+  pinning so the texture can no longer occlude the progress fill).
+
+### Docs
+- **Full documentation accuracy pass** across the developer and advanced guides:
+  corrected the adapter-config schema (17 top-level keys; `mapping` is validated
+  but is not a schema field), the config-flow and storage shapes, and the
+  events/services references — removed three never-implemented "runtime
+  management" services and corrected `map_id` to optional (auto-resolves to the
+  active map). Testing-doc counts and coverage tables regenerated.
+
 ## [0.9.13] - 2026-06-03
 
 ### Fixed

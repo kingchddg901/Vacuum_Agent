@@ -49,7 +49,6 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 | `save_managed_rooms` | `vacuum_entity_id` | Persists discovered rooms into integration storage |
 | `get_room_access_editor` | `vacuum_entity_id`, `map_id` | Returns room access graph for editing |
 | `get_access_graph_health` | `vacuum_entity_id`, `map_id` | Validates access graph integrity |
-| `rebuild_active_map` | `vacuum_entity_id` | Re-derives the active map from the vacuum |
 
 Room enabled/disabled state is stored in HA **switch entities** (one per room per map per vacuum). Toggle by calling `homeassistant.turn_on` / `homeassistant.turn_off` with the switch entity ID. Room ordering is stored in HA **number entities** (one per room per map per vacuum). Update by calling `number.set_value`.
 
@@ -149,13 +148,6 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `exclude_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` |
 | `restore_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` |
 | `rebuild_room_bounds_from_archive` | `vacuum_entity_id`, `map_id`, `room_id` |
-
-#### Utility / internal
-
-| Service | Notes |
-|---|---|
-| `refresh_backend` | Force a full backend data reload |
-| `clear_runtime_state` | Wipe runtime state |
 
 ---
 
@@ -274,6 +266,8 @@ No state.         service results.  effects.          update state.
 
 **Bindings** (`src/bindings/`) — called after every render. They query the shadow DOM for data-attribute selectors and attach event handlers. Event handlers call actions or state mutators, then call `_scheduleRender()`.
 
+**A fifth object — the controller.** Beyond the four render-cycle layers, `LearningController` (`src/controllers/learning-controller.js`, instantiated in `main.js` and driven by `connectedCallback` / `disconnectedCallback`) centralizes the event-driven live-job logic: it owns the HA event subscriptions (room started/finished, job finished), ETA reanchoring, bounds-exit polling, and the live job-progress ticker. The `learning` state module holds the data; the controller drives the updates.
+
 ### 2.3 Strict data flow
 
 ```
@@ -359,6 +353,32 @@ export const VIEWS = {
 
 The `MAPPING_ARCHIVE` entry exists for backwards compatibility. Any call to `card.setView(VIEWS.MAPPING_ARCHIVE)` is silently redirected to `VIEWS.ROOMS`.
 
+### 3.5 Floor texture rendering
+
+Room cards render an optional floor-texture layer behind their content. The system is registry-driven and lives in four card files:
+
+- `src/textures/floor-texture-registry.js` — maps each floor type to its layer stack (mask URL, color token, opacity token, optional blur token) plus the SVG-map pattern data.
+- `src/textures/floor-texture-resolver.js` — resolves a room's `floor_type` / `carpet_type` to a canonical registry key.
+- `src/renderers/floor-texture-surface.js` — generates the card overlay (one `<span>` per layer) and the SVG map polygons/patterns.
+- `src/styles/floor-texture-styles.js` — the layer CSS.
+
+**Masking model.** Each layer is a `<span>` filled with its color token and clipped by a grayscale PNG via `mask-image` + **`mask-mode: luminance`** (white reveals the color, black hides it). `mask-mode:luminance` is set explicitly because a raster mask defaults to `mask-mode:alpha` (match-source), and the masks carry no alpha channel — under alpha mode the tint would flood the whole field. A base layer is a mostly-white field (fills the surface with its color); a detail layer (vein / grout / speckle) is a black field with white detail.
+
+**Cache-busting.** Textures are served `cache_headers=True` (7-day browser cache). The build (`scripts/build-card.mjs`) computes a SHA-1 **content hash of the textures directory** and injects it via esbuild `--define __ASSET_VER__`; the registry appends `?v=<hash>` to every texture URL. A regenerated mask changes the hash → browsers fetch it fresh, with zero churn when textures are unchanged.
+
+**Marble two-tier veins.** Marble splits its veins into **major** and **minor** layers. Every vein property is `master + per-layer offset`, clamped, so a master control rides both tiers while the per-tier offsets preserve their delta:
+- opacity → `clamp(0, vein-opacity + tier-offset, 1)`
+- blur → `max(0, vein-blur + tier-blur-offset)`
+- the **minor** color is the master vein color receded in **OKLCH** relative-color syntax (lighter + desaturated + cooler): `oklch(from var(--master) calc(l + Δl) calc(c * Δc) calc(h + Δh) / alpha)`, so the secondary network recedes (atmospheric depth) instead of competing with the major veins.
+
+Blur is an **opt-in per-layer wrapper**: because CSS applies `filter` *before* `mask`, a blurred layer's span is wrapped in a `.evcc-ftx-blur` div so the blur lands on the already-masked result (soft vein edges) rather than the flat fill.
+
+**Legibility over the texture.** The texture is a variable-luminance background, so status/setting chips, the action controls, the room name, and notes get an **opaque surface backing** (or a surface-colored text halo for bare labels) on `.evcc-room-card` — legibility is decoupled from the texture rather than tuned per color, so any chip color stays readable over any floor.
+
+**Stacking.** `.evcc-room-card` sets `isolation: isolate` and the texture layer sits at `z-index: -1`, beneath the queue progress fill (`::before`), the pulse (`::after`), and all content (`z-index: 1`) — so the per-room clean-progress sweep paints *over* the texture, not under it.
+
+The texture layers are themed entirely through the `Floor Textures — *` token groups (see [20-theme-system.md], which also covers the targeted per-floor export/import and presets).
+
 ---
 
 ## 4. State Management Contract
@@ -386,6 +406,9 @@ The `MAPPING_ARCHIVE` entry exists for backwards compatibility. Any call to `car
 | map | `state/map.js` | Map segments data |
 | setup | `state/setup.js` | Setup status; setup loading flag |
 | mapping-review | `state/mapping-review.js` | Room bounds snapshot |
+| confirmations | `state/confirmations.js` | Two-tap confirm state for destructive actions |
+| toasts | `state/toasts.js` | Transient toast / notice queue |
+| viewport | `state/viewport.js` | Viewport / responsive (mobile vs desktop) state |
 
 ### 4.2 Init shape and clear shape
 

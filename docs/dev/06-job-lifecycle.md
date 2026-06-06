@@ -457,7 +457,7 @@ Normal completions (`outcome_status = "completed"`) are eligible.
 
 | Data | Location |
 |---|---|
-| Live snapshot (job start) | `<config>/eufy_vacuum/learning/<vacuum_slug>/live_snapshot.json` |
+| Live snapshot (job start) | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/last_job_snapshot.json` |
 | Completed job record | `<config>/eufy_vacuum/learning/<vacuum_slug>/jobs/<job_id>.json` |
 | Incomplete run log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/incomplete_run.json` |
 | Trouble rooms log | `<config>/eufy_vacuum/learning/<vacuum_slug>/live/trouble_rooms.json` |

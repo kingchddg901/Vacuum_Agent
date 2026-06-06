@@ -99,6 +99,10 @@ EXPORT_THEME_SCHEMA = vol.Schema(
 IMPORT_THEME_SCHEMA = vol.Schema(
     {
         vol.Required("payload"): dict,
+        # Optional target vacuum for a SCOPED import (replace the floor-type
+        # namespaces named in payload["scope"] on its active theme). Omitted for
+        # a full import, which adds a new library theme.
+        vol.Optional("vacuum_entity_id"): vol.Any(None, cv.entity_id),
     }
 )
 
@@ -223,7 +227,10 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
 
     async def handle_import_theme(call: ServiceCall) -> dict:
         manager = _get_manager(hass)
-        result = manager.import_theme(payload=call.data["payload"])
+        result = manager.import_theme(
+            payload=call.data["payload"],
+            vacuum_entity_id=call.data.get("vacuum_entity_id"),
+        )
         _LOGGER.debug("import_theme complete: %s", result)
         _raise_if_failed(result, operation="import_theme")
         await manager.async_save()

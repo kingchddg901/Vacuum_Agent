@@ -66,7 +66,7 @@ It owns:
 | HA `Store` helper | Persistent JSON storage at `.storage/eufy_vacuum` |
 | HA `async_add_executor_job` | Off-loop disk I/O for learning history files |
 | HA event bus | Inbound state changes; outbound job/room events |
-| HA service registry | All ~70 service endpoints |
+| HA service registry | All ~80+ service endpoints |
 
 No third-party Python packages are required (`requirements` is empty).
 
@@ -161,8 +161,8 @@ module (flat file) or a subsystem package. Here is the full map:
 |---|---|
 | `adapters/` | Adapter config schema, `AdapterCoordinator`, Eufy-specific constants |
 | `queue/` | `build_queue_from_managed_rooms`, `build_room_clean_payload` |
-| `maps/` | `get_map_bucket`, `build_managed_rooms` — pure dict helpers |
-| `rooms/` | `room_manager.py`, `room_discovery.py`, `rooms/utils.py` — stateless |
+| `maps/` | `get_map_bucket`, `ensure_map_bucket`, `get_vacuum_maps_summary`, `rebuild_map_bucket`, `save_map_discovery_snapshot` — pure dict helpers |
+| `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `rooms/utils.py` — stateless |
 | `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
 | `mapping/` | Trace capture, segmentation, boundary estimation, image analysis |
 | `learning/` | Job finalization pipeline, history store, ETA estimator |
@@ -201,12 +201,17 @@ entities share the base class in `room_entities.py`.
    code adapters for each known vacuum (code adapters always win over stored).
 
 5. **Singletons construction** — `LearningManager`, `BatteryHealthManager`,
-   `ErrorTracker` constructed and started. `MappingManager` and
-   `MappingTracker` constructed; position listeners registered for known vacuums.
+   `ErrorTracker` constructed and started. `BatteryHealthManager` is built at
+   `__init__.py` (~line 248-250) and stored at `hass.data[DOMAIN][DATA_BATTERY]`
+   (`DATA_BATTERY = "battery"`, `const.py`); it is torn down on unload.
+   `MappingManager` and `MappingTracker` constructed; position listeners
+   registered for known vacuums.
 
 6. **Service registration** — four service groups registered:
    `async_register_services`, `async_register_learning_services`,
-   `async_register_theme_services`, `async_register_mapping_services`.
+   `async_register_theme_services`, `async_register_mapping_services`. One
+   service — `battery_rebaseline` — is registered inline in `__init__.py`
+   rather than through a group function (it drives `BatteryHealthManager`).
 
 7. **Listener registration** — seven listener modules registered:
    `lifecycle`, `job_metrics`, `dock_events`, `path_blockers`,
@@ -442,8 +447,11 @@ lifecycle.remove(hass)    # calls unsub and cleans up
 
 ## 9. Service Layer
 
-Services are the card's primary API surface. All ~70 services are registered in
-four groups:
+Services are the card's primary API surface. `const.py` defines 80+ `SERVICE_*`
+constants, plus the inline `battery_rebaseline` service registered directly in
+`__init__.py` — roughly 80+ services in total. They are registered in four
+groups (the inline `battery_rebaseline` registration is the one exception to the
+group pattern):
 
 | Registration function | Module(s) | Domain |
 |---|---|---|
@@ -484,7 +492,7 @@ Five HA platforms create entities:
 
 | Platform | Entity classes |
 |---|---|
-| `sensor/` | Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×6), ActiveRunError, LastDeviceError |
+| `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×6), ActiveRunError, LastDeviceError |
 | `switch.py` | RoomEnabledSwitch (one per configured room) |
 | `number.py` | RoomOrderNumber (one per room), MaintenanceIntervalNumber (one per component) |
 | `button.py` | MaintenanceResetButton (one per component), SavedRunProfileButton (one per exposed profile) |
@@ -494,6 +502,12 @@ All entity classes set `_attr_has_entity_name = True` and use
 `build_vacuum_device_info(vacuum_entity_id)` from `entity_helpers.py`. This
 groups all entities under a single HA device per vacuum ("Alfred" not "Alfred
 Rooms").
+
+`EufyVacuumActiveJobSensor` (one per vacuum/map) is defined in
+`sensor/lifecycle.py` and instantiated in `sensor/__init__.py`. The six
+`BatteryHealth` sensors are the exception to the "one class per file under
+`sensor/`" rule: they are defined in `battery/sensors.py` and injected into the
+sensor platform via `build_battery_sensors`, not as classes under `sensor/`.
 
 Room entities inherit from `EufyVacuumRoomEntity` (`room_entities.py`), which
 provides `_get_room_data()`, `_async_update_room()`, `available`, and

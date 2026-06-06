@@ -274,6 +274,7 @@ export const roomStyles = `
 
   .evcc-room-card {
     position:        relative;
+    isolation:       isolate;   /* stacking context: lets the texture sit at z-index:-1, beneath the progress fill */
     overflow:        hidden;
     display:         flex;
     flex-direction:  column;
@@ -476,12 +477,37 @@ export const roomStyles = `
     background-color: var(--evcc-surface-card);
   }
 
-  /* Bare room name: a surface-colored halo keeps light text legible
-     on a light texture (invisible over dark ones). */
+  /* Action-row controls (Move / drag handle / settings gear) are .evcc-chip with
+     a translucent resting bg, so they vanish on a light texture. Give them the
+     same opaque surface backing. Hover/active already resolve to opaque surfaces
+     (surface-panel / accent), so only the resting state needs this. */
+  .evcc-room-card .evcc-chip {
+    background:
+      linear-gradient(
+        var(--evcc-chip-bg, var(--evcc-surface-input)),
+        var(--evcc-chip-bg, var(--evcc-surface-input))
+      ),
+      var(--evcc-surface-card);
+  }
+
+  /* Bare text — order number (#N) + room name — gets a surface-colored halo so
+     light text survives a light texture (invisible over dark ones). */
+  .evcc-room-card .evcc-order-chip,
   .evcc-room-card .evcc-room-name {
     text-shadow:
-      0 1px 2px var(--evcc-surface-card),
-      0 0 4px var(--evcc-surface-card);
+      0 0 2px var(--evcc-surface-card),
+      0 1px 3px var(--evcc-surface-card),
+      0 0 6px var(--evcc-surface-card);
+  }
+
+  /* Estimate notes (e.g. the warning-variant "intensity mismatch") are bare
+     colored text — back them as self-hugging pills so the tint reads on any
+     texture (rare notes that weren't on screen for the first pass). */
+  .evcc-room-card .evcc-room-note {
+    align-self:       flex-start;
+    padding:          2px 8px;
+    border-radius:    var(--evcc-radius-chip, 999px);
+    background-color: var(--evcc-surface-card);
   }
 
   /* =========================================================

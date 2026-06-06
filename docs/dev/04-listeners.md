@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The `listeners/` package contains eight modules that register HA event and state-change subscriptions at integration load time. Each module has a consistent two-function public surface:
+The `listeners/` package contains seven listener modules that register HA event and state-change subscriptions at integration load time: `lifecycle`, `dock_events`, `path_blockers`, `pause_timeout`, `job_progress`, `job_metrics`, and `discovery`. (`_common.py` is a shared helper module, not a listener — see §2.) Each listener module has a consistent two-function public surface:
 
 ```python
 register(hass: HomeAssistant) -> None

@@ -47,13 +47,16 @@ export const floorTextureStyles = `
     z-index:        0;
   }
 
-  /* Higher-specificity override: rooms.js sets
-     .evcc-room-card > * { position:relative; z-index:1 }
-     which would lift the texture layer above z-index:0.
-     Re-declare here so the texture stays behind content. */
+  /* Texture sits at the very bottom of the card's content. The card uses
+     isolation:isolate to form a stacking context, so z-index:-1 keeps the
+     texture ABOVE the card background but BENEATH the queue progress fill
+     (::before, z-index:0) and the pulse (::after) and all content
+     (.evcc-room-card > *, z-index:1). At z-index:0 the texture — a sibling
+     painted later in tree order — would occlude the ::before progress fill.
+     This higher-specificity rule also overrides the card > * z-index:1 rule. */
   .evcc-room-card > .evcc-room-texture-layer {
     position: absolute;
-    z-index:  0;
+    z-index:  -1;
     inset:    0;
   }
 
@@ -78,6 +81,16 @@ export const floorTextureStyles = `
       var(--floor-opacity-card, 0.85) *
       var(--layer-opacity, 1)
     );
+  }
+
+  /* Optional per-layer blur wrapper. Wraps a masked layer so the blur lands
+     AFTER masking (CSS does filter before mask), softening the layer's edges
+     rather than blurring a flat fill that then gets hard-clipped. */
+  .evcc-ftx-blur {
+    display:        block;
+    position:       absolute;
+    inset:          0;
+    pointer-events: none;
   }
 
   /* =========================================================

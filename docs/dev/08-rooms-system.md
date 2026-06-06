@@ -251,16 +251,16 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `slug` | str | Slugified name for stable references |
 | `enabled` | bool | Whether this room is selected for the next job |
 | `is_configured` | bool | True after save_rooms step ran (used by drift tracker) |
-| `floor_type` | str | `"hardwood"` or `"carpet"` |
+| `floor_type` | str | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. (The old `"carpet"` + `carpet_type` shape was migrated away.) |
 | `profile_name` | str | Matched room profile name, or `"custom"` |
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"` |
 | `fan_speed` | str | e.g. `"Standard"` |
 | `water_level` | str | e.g. `"Off"`, `"Low"`, `"Medium"`, `"High"` |
 | `clean_intensity` | str | e.g. `"Standard"` |
-| `clean_passes` | int | 1 or 2 |
+| `clean_passes` | int | Number of cleaning passes; minimum 1. (The "1 or 2" cap is a frontend modifier constraint, not a room-model rule.) |
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |
-| `order` | int | 1-indexed dispatch order |
+| `order` | int | Zero-based dispatch order (defaults to a zero-based index) |
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 

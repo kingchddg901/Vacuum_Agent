@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/20-theme-system.md](../../dev/20-theme-system.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 207 | 96% | `test_themes_manager.py`, `test_themes_manager_deep.py` | integration |
+| `manager.py` | 251 | 95% | `test_themes_manager.py`, `test_themes_manager_deep.py` | integration |
 | `services.py` | 103 | 98% | `test_themes_services.py` | integration |
 | `preloaded.py` | 25 | 94% | `test_themes_preloaded.py` (unit) | unit |
 

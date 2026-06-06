@@ -136,7 +136,7 @@ lives at the service layer.
 ## 4. The Shim Pattern
 
 For every method that now lives in a subsystem, `core/manager.py` exposes a
-shim that delegates with `**kwargs`. This keeps all 70+ service handlers
+shim that delegates with `**kwargs`. This keeps all ~80+ service handlers
 unchanged — they call `manager.save_user_room_profile(...)` and do not need
 to know that `ProfileManager` exists.
 

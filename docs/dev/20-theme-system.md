@@ -43,7 +43,7 @@ Groups are editor-only metadata. They organize the token editor UI and have no e
 | **Floor Textures** | Global master enable (0/1) and global opacity for card and map texture rendering |
 | **Floor Textures — Tile** | Per-material color and per-layer opacity for the tile texture |
 | **Floor Textures — Wood** | Per-material color and per-layer opacity for the wood texture |
-| **Floor Textures — Marble** | Per-material color and per-layer opacity for the marble texture |
+| **Floor Textures — Marble** | Marble color/opacity plus a two-tier vein system: a master vein opacity/blur that rides both tiers, per-tier (major/minor) opacity + blur offsets that preserve the delta, and minor-vein color deltas (lighten / saturation / hue) for an atmospheric recede |
 | **Floor Textures — Concrete** | Per-material color and per-layer opacity for the concrete texture |
 | **Floor Textures — Carpet Low** | Per-material color and per-layer opacity for the low-pile carpet texture |
 | **Floor Textures — Carpet High** | Per-material color and per-layer opacity for the high-pile carpet texture |
@@ -67,7 +67,7 @@ Every token in the registry has these four required fields:
 }
 ```
 
-There are no additional optional fields in the current registry shape — `key`, `label`, `group`, and `type` are the complete stable entry. The search system also looks at `aliases`, `usage`, and `affects` arrays if they are present, but those are schema-forward placeholders not yet populated.
+`key`, `label`, `group`, and `type` are the stable required fields. Bounded-scalar tokens also carry **optional editor-only `min` / `max` / `step`** range metadata (see "Bounded-scalar ranges" below). These are *not* persisted — only token values persist, flat — and one definition drives both the editor slider and the import clamp. The search system also looks at `aliases`, `usage`, and `affects` arrays if they are present, but those are schema-forward placeholders not yet populated.
 
 Labels are auto-derived from the key by `makeTokenLabel()` (strips `--evcc-`, converts hyphens to spaces, title-cases) unless an explicit label string is passed to the factory.
 
@@ -88,6 +88,21 @@ The full type vocabulary, defined in `helpers.js`:
 | `easing` | A CSS timing function string. Rendered as a text input. |
 
 The editor routes each token to the correct control widget based on its `type`. The `_isScalarThemeType()` binding helper treats `size`, `number`, and `duration` as numeric types that need unit-aware formatting.
+
+### Bounded-scalar ranges (semantic methods)
+
+A bounded scalar's valid range is a property of its KIND, declared once by a semantic helper method rather than hand-authored on every token. Alongside the type methods, `makeTypedGroupToken` (in `helpers.js`) exposes:
+
+| Method | Range | Step | For |
+|---|---|---|---|
+| `.unit` | 0 … 1 | 0.01 | opacities, alpha, any 0–1 ratio |
+| `.blur` | 0 … 8 px | 0.5 | blur radii (never via `.unit` — that would cap blur at 1px) |
+| `.angle` | −180 … 180 | 1 | hue shift |
+| `.signed` | −1 … 1 | 0.01 | signed deltas (lighten, offset-from-master) |
+
+Each is sugar over `type:"number"` plus the kind's `min`/`max`/`step` (the exported `SCALAR_RANGES` table), and accepts an optional per-token override (a spread-merge of `{min?, max?, step?}`) for the rare exception — e.g. `gm.unit(key, label, { max: 2 })` for a 0–2 multiplier, or `gm.signed(key, label, { min: -8, max: 8, step: 0.5 })` for a px-scaled offset. Bare `.number` stays **rangeless** on purpose: the escape hatch for genuinely unbounded values.
+
+**Single source.** The same `min`/`max` drives the editor slider (`_renderThemeNumericTokenRow` prefers `token.min/max/step` over the per-group `SLIDER_CONFIG` fallback) *and* the import clamp (`clampThemeScalars`), so the editor can never emit a value its own importer would reject. `THEME_TOKEN_TYPES` is unchanged — the methods add no persisted type.
 
 ### The `colors` vs `tokens` split
 
@@ -341,40 +356,42 @@ if (sensor?.attributes) {
 
 ## 7. Import / Export
 
-### Export
+There are two surfaces: **whole-theme** (clipboard or file) and **targeted per-floor-type** (file or built-in preset). Both share one portable envelope:
 
-The export flow triggered by the "Export Theme" button in the editor:
+```json
+{ "ok": true, "version": 1, "exported_at": "...",
+  "scope": ["marble"], "name": "Carrara",
+  "theme": { "name": "...", "tokens": {}, "colors": {}, "alpha": {} } }
+```
 
-1. The card calls `exportTheme(themeId)` → `eufy_vacuum.export_theme` service → `manager.export_theme()`.
-2. `export_theme()` returns the theme entry wrapped as `{ "theme": { name, tokens, colors, alpha } }`.
-3. The card serializes it with `JSON.stringify(result, null, 2)` and calls `navigator.clipboard.writeText()`.
-4. There is no file download — the theme JSON is written to the clipboard only. A fallback logs to the browser console if clipboard access is denied.
+`scope` is the discriminator: a **non-empty list** of floor-type names ⇒ targeted; `"full"` or **absent** ⇒ whole-theme (legacy-safe).
 
-### Import
+### Whole-theme export / import
 
-The import flow triggered by the "Import Theme" button:
+- **Export** (clipboard): `exportTheme(themeId)` → `eufy_vacuum.export_theme` → `manager.export_theme()` returns the full envelope; the card writes `JSON.stringify` to the clipboard.
+- **Download** (file): the same envelope saved as `evcc-theme-{name}-{date}.json` via a temp-anchor Blob download.
+- **Import** / **Upload**: paste (or pick a `.json` file) → `importTheme(payload)` → `manager.import_theme()` validates (`payload` dict, non-empty `name`, dict `tokens`/`colors`/`alpha`) and adds a **new library theme** (name de-duped with `" (imported)"`). Failure → `{"ok": false, "reason": ...}`, nothing stored.
 
-1. The user is prompted to paste JSON via `prompt()`.
-2. The card JSON-parses the pasted string client-side. If `JSON.parse` throws, the operation is aborted with an alert.
-3. The parsed object is sent to `importTheme(payload)` → `eufy_vacuum.import_theme` service → `manager.import_theme()`.
+### Targeted (per-floor-type) export
 
-### What is validated on import (`manager.import_theme()`)
+A floor type's scope unit is its whole token namespace — every `--evcc-floor-{type}-*` key across **tokens, colors, and alpha**. The valid type list is registry-driven (`floorTypeNames()` from `FLOOR_TEXTURE_REGISTRY`, `_`→`-`); names are matched **whole** by prefix, never dash-split, so `carpet-low` ≠ `carpet`.
 
-The backend validates:
+- **Download Floor** (`floor-scope.js: sliceThemeByTypes`) slices the full export to the chosen type's keys across all three sections, stamps `scope:[type]`, and downloads `evcc-floor-{type}-{name}-{date}.json`.
 
-- `payload` must be a dict.
-- A `theme` sub-key is extracted if present (the export format wraps in `{ theme: { ... } }`); otherwise the top-level object is used directly.
-- `name` must be a non-empty string after stripping whitespace.
-- `tokens`, if present, must be a dict.
-- `colors`, if present, must be a dict.
-- `alpha`, if present, must be a dict.
+### Targeted import — REPLACE, not patch
 
-If any check fails, the service returns `{"ok": false, "reason": "<reason_string>"}` and no theme is stored.
+Uploading a scoped file (or applying a built-in preset) runs the shared scoped path (`_applyScopedThemeImport`):
 
-On success:
-- A new theme ID is generated with `_generate_theme_id()` (timestamp-based).
-- If the name already exists in the library, `" (imported)"` is appended to avoid a silent collision.
-- The theme is stored in `data.theme.library` and `async_save()` is called.
+1. `detectFloorScope()` partitions the file's floor types into **known** (in this build's registry) and **unknown** (e.g. a `terrazzo` preset on an older version → surfaced as "skipped — unsupported," never dropped silently).
+2. A confirm lists the exact types under the word **"Replace"** — the visible blast radius.
+3. `clampThemeScalars()` clamps every scalar to its token `min`/`max` (colors pass through; out-of-range edits can't invert behavior), reporting "N values corrected."
+4. `importTheme(payload, vacuumEntityId)` → `manager.import_theme(payload, vacuum_entity_id)`. With a list `scope`, `_import_scoped()` runs **clear-then-apply** on the vacuum's **active theme**: for each type, delete every `--evcc-floor-{type}-*` key across tokens/colors/alpha on the active entry, apply the file's keys, and drop matching working-draft overrides. Clear-then-apply (not patch) makes the result deterministic regardless of the target's prior state — no stale override survives.
+
+It REPLACES the namespace on the active theme **in place**; it does not create a standalone theme. Guards: no `vacuum_entity_id` → `missing_vacuum`; no active theme → `no_active_theme`.
+
+### Built-in floor presets
+
+`floor-presets.js` ships named marble looks — **Carrara** (minor-only), **Portoro** (both tiers), **Calacatta** (major-forward) — as `scope:["marble"]` envelopes with a human-readable `name`. The editor's **Apply Preset** picker runs the *same* `_applyScopedThemeImport` path, so presets REPLACE the marble namespace on the active theme rather than acting as standalone themes. Custom presets are just `Download Floor` files re-applied via `Upload`.
 
 ---
 

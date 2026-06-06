@@ -63,7 +63,7 @@ Tokens are organized into the following groups, in this order:
 | Floor Textures | Opacity and blend values shared across all floor texture types |
 | Floor Textures — Tile | Tile-specific texture opacity tokens |
 | Floor Textures — Wood | Wood-specific texture opacity tokens |
-| Floor Textures — Marble | Marble-specific texture opacity tokens |
+| Floor Textures — Marble | Marble colors, opacities, and a two-tier vein system (master + per-tier offsets + minor recede) |
 | Floor Textures — Concrete | Concrete-specific texture opacity tokens |
 | Floor Textures — Carpet Low | Low-pile carpet texture opacity tokens |
 | Floor Textures — Carpet High | High-pile carpet texture opacity tokens |
@@ -86,7 +86,7 @@ Each token row uses a control appropriate to its type:
 
 - **Color tokens** — a horizontal alpha rail that you drag to set opacity, combined with a hidden color picker. Drag the rail to adjust the opacity of the current color. Double-tap the rail to open the native color picker and change the hue. The hex value is also editable directly as text.
 - **Color-mix tokens** — tokens whose current value is a `color-mix(in srgb, ...)` expression get a dedicated ratio slider and two text inputs for the two color references. Dragging the slider adjusts the blend ratio live; a preview swatch shows the resolved result.
-- **Numeric tokens** (size, number, duration) — a range slider paired with a number input. The slider range is calibrated per group: floor texture opacity sliders run 0–1 in 0.01 steps; geometry tokens (radii, gaps, paddings) typically run 0–32 or 0–64 in 1–2 px steps.
+- **Numeric tokens** (size, number, duration) — a range slider paired with a number input. The slider range comes from the token itself where defined — opacities run 0–1, a blur runs 0–8 px, a hue shift runs −180–180, a saturation multiplier 0–2 — falling back to a per-group default (e.g. radii/gaps at 0–32 or 0–64 px) for tokens without an explicit range. The same bounds gate what an import will accept, so the slider can never show a value its own importer would reject.
 - **Text tokens** — a plain text input for anything that does not fit the above types.
 
 Any token that has been changed in the current draft shows a **Reset** button next to its label. Clicking Reset removes the draft override for that token, reverting the preview to the active theme's value for it.
@@ -190,10 +190,20 @@ Opens a file picker for `.json` files. After you pick one, the card reads the fi
 
 Themes don't reference your specific entities, room IDs, or vacuum brand — they're pure visual styling data — so a theme exported on one install will work cleanly when uploaded on another.
 
+### Floor presets — move or apply one floor type
+
+Beyond whole themes, you can move a **single floor type's look** in isolation — handy for sharing "just my marble" without disturbing the rest of a theme:
+
+- **Download Floor** — pick a floor type from the dropdown next to the button and download *only* that type's tokens as `evcc-floor-{type}-{name}-{date}.json`.
+- **Upload** a floor file — the card recognises it as floor-scoped, asks you to confirm exactly which floor type(s) it will **Replace** on your active theme, then applies it. It *replaces* that floor's settings outright (it doesn't merge), so the result is predictable regardless of what you had before. Out-of-range values are clamped automatically, and a floor type your version doesn't recognise is skipped and reported rather than applied.
+- **Apply Preset** — pick a built-in marble look (**Carrara**, **Portoro**, **Calacatta**) and apply it the same way. These replace just the marble namespace on your active theme — they are *not* separate themes to switch to. Treat them as starting points and tune from there; **Download Floor** then captures your tuned look as a new shareable file.
+
 ---
 
 ## Floor textures and the theme system
 
-Floor textures are rendered as layered CSS patterns on room cards. The texture groups in the token editor — Floor Textures and its seven sub-groups — control the opacity values for each texture layer. Numeric tokens in these groups run on a 0–1 scale in 0.01 steps, so you can fine-tune how prominent each texture pattern appears or set any layer to 0 to suppress it entirely.
+Floor textures are rendered as layered CSS patterns on room cards. The texture groups in the token editor — Floor Textures and its seven sub-groups — control each material's colors and per-layer opacities. Most are opacities on a 0–1 scale, but some have purpose-built ranges (see the marble veins below), so you can fine-tune how prominent each pattern appears or set a layer to 0 to suppress it entirely.
 
-When you expand a Floor Texture sub-group in the Tokens tab, the contextual preview renders actual room cards using that floor type so you can see the visual effect of your opacity changes before saving.
+**Marble** carries the richest controls: a **two-tier vein system**. A master vein opacity (and blur) rides both tiers at once; per-tier **major** and **minor** offsets nudge each tier while preserving the gap between them; and the minor tier has color deltas (lighten / saturation / hue) so it can *recede* — softer, fainter, and cooler than the major veins, like atmospheric depth. The built-in Carrara / Portoro / Calacatta presets are quick starting points for that system.
+
+When you expand a Floor Texture sub-group in the Tokens tab, the contextual preview renders actual room cards using that floor type so you can see the effect of your changes before saving.

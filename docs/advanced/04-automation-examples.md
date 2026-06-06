@@ -303,7 +303,7 @@ automation:
 | `requires_attention` | bool | Always `true` when this event fires |
 | `event_scope` | string | Always `"active_job_path_blocked"` |
 | `path_block_action` | string | The `path_block_action` that was configured for this run |
-| `action_taken` | string | What the integration actually did: `none`, `paused`, `pause_failed`, `cancelled`, `cancel_failed` |
+| `action_taken` | string | What the integration actually did: `event_only`, `already_paused`, `paused`, `pause_failed`, `cancelled`, `cancel_failed` |
 
 **Customization points:**
 

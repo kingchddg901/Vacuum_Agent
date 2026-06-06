@@ -57,6 +57,10 @@ Below the header is a navigation bar with tabs that switch between panels:
 | **Map Bounds** | Review and adjust the boundary boxes the integration uses to track which room the vacuum is in. |
 | **Setup** | Add vacuums and import maps into the integration. |
 
+Uploading a map image and linking the vacuum's map segments to your rooms happen on a separate **Map Config** screen rather than a top-nav tab. You reach it from the **Configure** button in the Rooms map view. See [Map configuration](../advanced/08-map-configuration.md) for the full walkthrough.
+
+On a narrow screen (under 600px) the navigation collapses into a bottom tab bar with shortened labels — **Rooms**, **Upkeep** (Maintenance), **Dock** (Base Station), and **Stats** (Metrics) — plus a **More** overflow sheet holding Learning Review, Room Rules, Theme, Map Config, Map Bounds, and Setup.
+
 The card opens on the **Rooms** tab the first time you load it. After that it remembers whichever tab you were on last per vacuum, so refreshing the browser doesn't lose your place.
 
 ## Small conveniences

@@ -55,7 +55,9 @@ import numpy as np
 from PIL import Image
 
 TEXTURES = Path(__file__).resolve().parents[1] / "custom_components" / "eufy_vacuum" / "textures"
-SIZE = 512
+# All masks are authored at 2048x2048 — the per-room mask-position "shift" is
+# calibrated for that canvas, so every mask must match or the shift misaligns.
+SIZE = 2048
 
 
 def _stats(name: str, arr: np.ndarray) -> None:
@@ -95,8 +97,8 @@ def gen_concrete_micro(check: bool) -> None:
         up = Image.fromarray(a.astype(np.uint8), "L").resize((SIZE, SIZE), Image.NEAREST)
         return np.asarray(up, dtype=np.float64)
 
-    fine = speckle(256, 0.90, 70, 170)    # dense fine grain  (~2 px)
-    coarse = speckle(128, 0.975, 150, 256)  # sparse brighter chunks (~4 px)
+    fine = speckle(SIZE // 2, 0.90, 70, 170)    # dense fine grain  (~2 px at output)
+    coarse = speckle(SIZE // 4, 0.975, 150, 256)  # sparse brighter chunks (~4 px at output)
     out = np.maximum(fine, coarse)
     _stats("output concrete-micro", out)
     if check:

@@ -59,16 +59,20 @@ produce `.corrupt` backup files.
 }
 ```
 
-**Keys seeded by `async_initialize()`:** only four required top-level keys are
-created with `setdefault` during startup — `vacuums`, `capabilities`,
-`room_history`, and `room_rule_status`. The remaining keys above are created
-lazily by their owning subsystems on first write (e.g. `theme` is seeded by
-`ThemeManager`), so they may be absent until that subsystem first runs. Code
-that reads any other key must tolerate its absence.
+**Key seeding:** `core/storage.py async_load()` returns a default dict with
+`vacuums`, `maps`, `theme`, `analytics`, `maintenance`, `dock_events`,
+`onboarding`, and `error_tracker` already present on an empty store.
+`async_initialize()` (`core/manager.py`) then `setdefault`s the keys it depends
+on — `vacuums` (already present), `capabilities`, `room_history`, and
+`room_rule_status`. The remaining keys above (`active_jobs`, `profiles`,
+`run_profiles`, `setup_progress`, `discovery`) are created lazily by their
+owning subsystems on first write, so they may be absent until that subsystem
+first runs. Code that reads any other key must tolerate its absence.
 
 **Legacy cleanup:** The `icons` block, if present, is deleted unconditionally
-during `async_initialize()`. It was written by a removed platform and serves
-no purpose. Old `analytics` key is not cleaned up but is always `{}`.
+during `async_initialize()`. It was written by a removed platform and serves no
+purpose. `analytics` is part of the storage default but is currently unused
+(always `{}`).
 
 ### VacuumBucket
 
@@ -184,7 +188,7 @@ in place. The derived `carpet` boolean field is removed.
 
 ### 2b. `is_configured` gate
 
-`sort_room_items()` in `rooms/room_crud.py` filters to `is_configured=True`
+`sort_room_items()` in `entity_helpers.py` filters to `is_configured=True`
 before returning the room list used to create HA entities. Rooms that fail
 this gate exist in storage but have no corresponding switch, number, or sensor
 entities. The setup wizard advances new rooms to `True` after name
@@ -1162,9 +1166,15 @@ Set on first rising edge (non-empty error message) while a job is active.
 }
 ```
 
-**Edge detection:** the set `{"", "unknown", "unavailable", "NONE", "Normal"}`
-is treated as "no error". Any other state value is an error string. A rising
-edge is a transition *into* an error value; a falling edge is the reverse.
+**Edge detection:** the core fallback "not-error" set is
+`{"", "unknown", "unavailable"}` (the `_NOT_ERROR` frozenset in
+`core/error_tracker.py`, used only when no adapter is registered). When an
+adapter is present, its `vocabulary.not_error_sentinels` is used — the Eufy
+adapter adds the firmware sentinels `"none"` and `"normal"` (from robovac_mqtt's
+`"NONE"` / `"Normal"`), so the effective Eufy set is
+`{"", "unknown", "unavailable", "none", "normal"}`. Matching is case-normalized
+to lowercase. Any other value is an error string; a rising edge is a transition
+*into* an error value, a falling edge is the reverse.
 
 **Late-arrival grace window:** when the vacuum state transitions to `"error"`
 but the error message sensor is still empty, a 5-second one-shot callback

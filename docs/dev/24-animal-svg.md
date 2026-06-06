@@ -107,8 +107,9 @@ It sets these attributes and nothing else:
 
 ### State → pose mapping
 
-The mapping is defined in `src/renderers/map.js::_vacuumStateToPose` and uses
-the canonical HA vacuum-platform state vocabulary (brand-agnostic):
+The state→pose mapping lives in the card's map renderer (the shipped frontend
+bundle) and uses the canonical HA vacuum-platform state vocabulary
+(brand-agnostic):
 
 | HA vacuum state      | `pose` requested |
 |----------------------|------------------|

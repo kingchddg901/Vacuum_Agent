@@ -19,6 +19,17 @@
  * independently.  Once a material looks right those values can
  * be baked back into the registry as new defaults.
  *
+ * RANGES BY SEMANTIC KIND
+ * -----------------------
+ * Bounded scalars use the range-carrying helper methods rather
+ * than hand-authored bounds (see helpers.js):
+ *   .unit   0-1   opacities, ratios, 0/1 enables (step override)
+ *   .blur   0-8px blur radii  (blur offsets override min to -8)
+ *   .angle  -180..180  hue shift
+ *   .signed -1..1  signed deltas (lighten, offset-from-master)
+ * Colors stay .color (unbounded, never clamped). One definition
+ * drives both the editor slider and the import clamp.
+ *
  * ============================================================
  */
 
@@ -36,56 +47,65 @@ const gg = makeTypedGroupToken("Floor Textures — Granite",    "color");
 export const FLOOR_TEXTURE_TOKENS = [
 
   /* === GLOBAL MASTER CONTROLS === */
-  g.number("--evcc-floor-textures-card-enabled",      "Card Textures Enabled (0/1)"),
-  g.number("--evcc-floor-textures-map-enabled",       "Map Textures Enabled (0/1)"),
-  g.number("--evcc-floor-texture-opacity-card",       "Card Texture Opacity (all)"),
-  g.number("--evcc-floor-texture-opacity-map",        "Map Texture Opacity (all)"),
+  g.unit("--evcc-floor-textures-card-enabled",      "Card Textures Enabled (0/1)", { step: 1 }),
+  g.unit("--evcc-floor-textures-map-enabled",       "Map Textures Enabled (0/1)",  { step: 1 }),
+  g.unit("--evcc-floor-texture-opacity-card",       "Card Texture Opacity (all)"),
+  g.unit("--evcc-floor-texture-opacity-map",        "Map Texture Opacity (all)"),
 
   /* === TILE === */
-  gt.color(  "--evcc-floor-tile-base",                "Tile Base Color"),
-  gt.color(  "--evcc-floor-tile-grout",               "Tile Grout Color"),
-  gt.color(  "--evcc-floor-tile-accent",              "Tile Grout Line Color"),
-  gt.number( "--evcc-floor-tile-opacity-card",        "Tile Card Opacity"),
-  gt.number( "--evcc-floor-tile-face-opacity",        "Tile Base Layer Opacity"),
-  gt.number( "--evcc-floor-tile-grout-opacity",       "Tile Grout Layer Opacity"),
-  gt.number( "--evcc-floor-tile-line-opacity",        "Tile Grout Line Layer Opacity"),
+  gt.color( "--evcc-floor-tile-base",                "Tile Base Color"),
+  gt.color( "--evcc-floor-tile-grout",               "Tile Grout Color"),
+  gt.color( "--evcc-floor-tile-accent",              "Tile Grout Line Color"),
+  gt.unit(  "--evcc-floor-tile-opacity-card",        "Tile Card Opacity"),
+  gt.unit(  "--evcc-floor-tile-face-opacity",        "Tile Base Layer Opacity"),
+  gt.unit(  "--evcc-floor-tile-grout-opacity",       "Tile Grout Layer Opacity"),
+  gt.unit(  "--evcc-floor-tile-line-opacity",        "Tile Grout Line Layer Opacity"),
 
   /* === WOOD === */
-  gw.color(  "--evcc-floor-wood-base",                "Wood Base Color"),
-  gw.color(  "--evcc-floor-wood-accent",              "Wood Seam Color"),
-  gw.number( "--evcc-floor-wood-opacity-card",        "Wood Card Opacity"),
-  gw.number( "--evcc-floor-wood-depth-opacity",       "Wood Depth Layer Opacity"),
-  gw.number( "--evcc-floor-wood-grain-opacity",       "Wood Grain Layer Opacity"),
-  gw.number( "--evcc-floor-wood-seam-opacity",        "Wood Seam Layer Opacity"),
+  gw.color( "--evcc-floor-wood-base",                "Wood Base Color"),
+  gw.color( "--evcc-floor-wood-accent",              "Wood Seam Color"),
+  gw.unit(  "--evcc-floor-wood-opacity-card",        "Wood Card Opacity"),
+  gw.unit(  "--evcc-floor-wood-depth-opacity",       "Wood Depth Layer Opacity"),
+  gw.unit(  "--evcc-floor-wood-grain-opacity",       "Wood Grain Layer Opacity"),
+  gw.unit(  "--evcc-floor-wood-seam-opacity",        "Wood Seam Layer Opacity"),
 
   /* === MARBLE === */
-  gm.color(  "--evcc-floor-marble-base",              "Marble Base Color"),
-  gm.color(  "--evcc-floor-marble-micro",             "Marble Micro Color"),
-  gm.color(  "--evcc-floor-marble-accent",            "Marble Vein Color"),
-  gm.number( "--evcc-floor-marble-opacity-card",      "Marble Card Opacity"),
-  gm.number( "--evcc-floor-marble-base-opacity",      "Marble Base Layer Opacity"),
-  gm.number( "--evcc-floor-marble-micro-opacity",     "Marble Micro Layer Opacity"),
-  gm.number( "--evcc-floor-marble-vein-opacity",      "Marble Vein Layer Opacity"),
+  gm.color( "--evcc-floor-marble-base",              "Marble Base Color"),
+  gm.color( "--evcc-floor-marble-micro",             "Marble Micro Color"),
+  gm.color( "--evcc-floor-marble-accent",            "Marble Vein Color"),
+  gm.unit(  "--evcc-floor-marble-opacity-card",      "Marble Card Opacity"),
+  gm.unit(  "--evcc-floor-marble-base-opacity",      "Marble Base Layer Opacity"),
+  gm.unit(  "--evcc-floor-marble-micro-opacity",     "Marble Micro Layer Opacity"),
+  /* veins — master rides both tiers; per-layer offsets preserve the delta */
+  gm.unit(   "--evcc-floor-marble-vein-opacity",       "Marble Vein Opacity (master)"),
+  gm.blur(   "--evcc-floor-marble-vein-blur",          "Marble Vein Blur (master, px)"),
+  gm.signed( "--evcc-floor-marble-vein-major-opacity", "Marble Major Vein Opacity +/-"),
+  gm.signed( "--evcc-floor-marble-vein-minor-opacity", "Marble Minor Vein Opacity +/-"),
+  gm.signed( "--evcc-floor-marble-vein-major-blur",    "Marble Major Vein Blur +/- (px)", { min: -8, max: 8, step: 0.5 }),
+  gm.signed( "--evcc-floor-marble-vein-minor-blur",    "Marble Minor Vein Blur +/- (px)", { min: -8, max: 8, step: 0.5 }),
+  gm.signed( "--evcc-floor-marble-vein-minor-light",   "Marble Minor Vein Lighten (L+)"),
+  gm.unit(   "--evcc-floor-marble-vein-minor-chroma",  "Marble Minor Vein Saturation (xC)", { max: 2 }),
+  gm.angle(  "--evcc-floor-marble-vein-minor-hue",     "Marble Minor Vein Hue Shift (deg)"),
 
   /* === CONCRETE === */
-  gc.color(  "--evcc-floor-concrete-base",            "Concrete Base Color"),
-  gc.color(  "--evcc-floor-concrete-accent",          "Concrete Micro Color"),
-  gc.number( "--evcc-floor-concrete-opacity-card",    "Concrete Card Opacity"),
-  gc.number( "--evcc-floor-concrete-broad-opacity",   "Concrete Base Layer Opacity"),
-  gc.number( "--evcc-floor-concrete-micro-opacity",   "Concrete Micro Layer Opacity"),
+  gc.color( "--evcc-floor-concrete-base",            "Concrete Base Color"),
+  gc.color( "--evcc-floor-concrete-accent",          "Concrete Micro Color"),
+  gc.unit(  "--evcc-floor-concrete-opacity-card",    "Concrete Card Opacity"),
+  gc.unit(  "--evcc-floor-concrete-broad-opacity",   "Concrete Base Layer Opacity"),
+  gc.unit(  "--evcc-floor-concrete-micro-opacity",   "Concrete Micro Layer Opacity"),
 
   /* === CARPET LOW === */
-  gl.color(  "--evcc-floor-carpet-low-base",          "Carpet Low Base Color"),
-  gl.number( "--evcc-floor-carpet-low-opacity-card",  "Carpet Low Card Opacity"),
-  gl.number( "--evcc-floor-carpet-low-texture-opacity","Carpet Low Texture Layer Opacity"),
+  gl.color( "--evcc-floor-carpet-low-base",          "Carpet Low Base Color"),
+  gl.unit(  "--evcc-floor-carpet-low-opacity-card",  "Carpet Low Card Opacity"),
+  gl.unit(  "--evcc-floor-carpet-low-texture-opacity","Carpet Low Texture Layer Opacity"),
 
   /* === CARPET HIGH === */
-  gh.color(  "--evcc-floor-carpet-high-base",         "Carpet High Base Color"),
-  gh.number( "--evcc-floor-carpet-high-opacity-card", "Carpet High Card Opacity"),
-  gh.number( "--evcc-floor-carpet-high-texture-opacity","Carpet High Texture Layer Opacity"),
+  gh.color( "--evcc-floor-carpet-high-base",         "Carpet High Base Color"),
+  gh.unit(  "--evcc-floor-carpet-high-opacity-card", "Carpet High Card Opacity"),
+  gh.unit(  "--evcc-floor-carpet-high-texture-opacity","Carpet High Texture Layer Opacity"),
 
   /* === GRANITE LIGHT === */
-  gg.color(  "--evcc-floor-granite-light-base",       "Granite Base Color"),
-  gg.number( "--evcc-floor-granite-light-opacity-card","Granite Card Opacity"),
-  gg.number( "--evcc-floor-granite-light-texture-opacity","Granite Texture Layer Opacity"),
+  gg.color( "--evcc-floor-granite-light-base",       "Granite Base Color"),
+  gg.unit(  "--evcc-floor-granite-light-opacity-card","Granite Card Opacity"),
+  gg.unit(  "--evcc-floor-granite-light-texture-opacity","Granite Texture Layer Opacity"),
 ];

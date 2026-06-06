@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-26 files covering the integration's architecture, subsystems, and porting contract.
+26 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---

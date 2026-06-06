@@ -1,6 +1,6 @@
 # Battery health
 
-The integration includes a battery-health subsystem that tracks battery wear, charge speed, and per-job efficiency over time. It samples the vacuum's battery level on every state change, classifies each charge session, and rolls everything into ten Home Assistant sensors plus a per-job battery_metrics block on every completed job.
+The integration includes a battery-health subsystem that tracks battery wear, charge speed, and per-job efficiency over time. It samples the vacuum's battery level on every state change, classifies each charge session, and rolls everything into twelve Home Assistant sensors plus a per-job battery_metrics block on every completed job.
 
 The point is to spot a degrading battery long before it starts cutting jobs short. With consistent indoor temperatures (your vacuum doesn't experience the cold-garage swings that confound this kind of measurement), the trend is genuinely useful — not lab-grade, but easily good enough to flag a battery that needs replacing 6-12 months before it would otherwise become a problem.
 

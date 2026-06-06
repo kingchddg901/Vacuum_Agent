@@ -126,10 +126,12 @@ export function applyThemeActions(proto) {
     return result?.response ?? result;
   };
 
-  proto.importTheme = async function (payload) {
-    const result = await this._callThemeService(SERVICE_IMPORT_THEME, {
-      payload,
-    });
+  proto.importTheme = async function (payload, vacuumEntityId = null) {
+    const data = { payload };
+    // A SCOPED import targets the active theme of a specific vacuum; a full
+    // import omits it (the backend adds a new library theme).
+    if (vacuumEntityId) data.vacuum_entity_id = vacuumEntityId;
+    const result = await this._callThemeService(SERVICE_IMPORT_THEME, data);
     return result?.response ?? result;
   };
 }

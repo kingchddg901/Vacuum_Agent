@@ -167,7 +167,7 @@ The grace callback is stored per-vacuum and cancelled on rising primary-channel 
 ### 7.1 Lifecycle
 
 ```python
-tracker.start(vacuum_entity_ids: list[str]) -> None
+tracker.start(vacuum_entity_ids: Iterable[str]) -> None
 ```
 Registers state-change listeners for all watched entities across all vacuum IDs. Initializes per-device storage if absent.
 

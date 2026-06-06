@@ -152,10 +152,12 @@ The suite deliberately skips:
 - **Inactive / dead code paths** — functions that currently always return early,
   or guards whose conditions are mutually exclusive (e.g. the documented dead
   branch in `core/manager.py`'s progress snapshot).
-- **A real device or live HA entity setup** — e.g. the `discover_rooms` service,
-  which drives adapter entities (note its exclusion in `test_services_rooms.py`),
-  and `async_setup_entry` boot wiring, which only runs under a full integration
-  boot.
+- **A real device or live HA entity setup** — e.g. the live-entity path of the
+  `discover_rooms` service, which drives real adapter entities. The handler
+  itself *is* covered with a mock manager (`test_services_rooms.py`
+  `test_discover_handler_success` / `test_discover_handler_raises`, SR-5/SR-6);
+  only the live-entity path is left to a full integration boot, the same place
+  `async_setup_entry` boot wiring runs.
 - **Defensive `continue` / `return []` normalization guards** — left as *honest
   misses* (real control flow, so not pragma'd), since a test that feeds garbage
   to assert it's skipped asserts plumbing, not behavior.
