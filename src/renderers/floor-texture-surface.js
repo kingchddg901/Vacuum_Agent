@@ -34,8 +34,11 @@
  *     Visible even when textures are disabled — flat material tint.
  *   Child spans: each covers the full container via position:absolute.
  *     background-color — layer tint (base or accent token).
- *     mask-image       — 512 px grayscale PNG.
+ *     mask-image       — grayscale PNG.
  *     mask-mode        — luminance; white reveals color, black = transparent.
+ *                        MUST be set explicitly: raster mask-image defaults to
+ *                        mask-mode:alpha (match-source), and our masks have no
+ *                        alpha channel, so alpha mode floods the whole field.
  *     --layer-opacity  — per-layer weight from the registry.
  *     CSS calc() in .evcc-ftx-layer gates on global enabled token.
  *
@@ -98,9 +101,15 @@ export function applyFloorTextureSurface(proto) {
       // No quotes inside url() — double-quotes break the HTML style attribute
       const mask  = `url(${layer.url})`;
       const layerOpacity = `var(${layer.opacityToken},${layer.opacityDefault})`;
+      // Force luminance masking inline. A raster mask-image defaults to
+      // mask-mode:alpha (via match-source); our masks are alpha-less grayscale
+      // PNGs, so under alpha mode every pixel is fully opaque and the tint
+      // floods the whole field instead of only the white. Luminance reads
+      // brightness — white reveals, black hides. -webkit-mask-source-type
+      // covers older WebKit / iOS WebViews that predate standard mask-mode.
       return (
         `<span class="evcc-ftx-layer" data-role="${layer.role}"` +
-        ` style="background-color:${color};mask-image:${mask};-webkit-mask-image:${mask};--layer-opacity:${layerOpacity}"></span>`
+        ` style="background-color:${color};mask-image:${mask};-webkit-mask-image:${mask};mask-mode:luminance;-webkit-mask-source-type:luminance;--layer-opacity:${layerOpacity}"></span>`
       );
     }).join("");
 

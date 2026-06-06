@@ -44,15 +44,15 @@ export const FLOOR_TEXTURE_TOKENS = [
   /* === TILE === */
   gt.color(  "--evcc-floor-tile-base",                "Tile Base Color"),
   gt.color(  "--evcc-floor-tile-grout",               "Tile Grout Color"),
-  gt.color(  "--evcc-floor-tile-accent",              "Tile Accent Color"),
+  gt.color(  "--evcc-floor-tile-accent",              "Tile Grout Line Color"),
   gt.number( "--evcc-floor-tile-opacity-card",        "Tile Card Opacity"),
-  gt.number( "--evcc-floor-tile-face-opacity",        "Tile Face Layer Opacity"),
+  gt.number( "--evcc-floor-tile-face-opacity",        "Tile Base Layer Opacity"),
   gt.number( "--evcc-floor-tile-grout-opacity",       "Tile Grout Layer Opacity"),
   gt.number( "--evcc-floor-tile-line-opacity",        "Tile Grout Line Layer Opacity"),
 
   /* === WOOD === */
   gw.color(  "--evcc-floor-wood-base",                "Wood Base Color"),
-  gw.color(  "--evcc-floor-wood-accent",              "Wood Accent Color"),
+  gw.color(  "--evcc-floor-wood-accent",              "Wood Seam Color"),
   gw.number( "--evcc-floor-wood-opacity-card",        "Wood Card Opacity"),
   gw.number( "--evcc-floor-wood-depth-opacity",       "Wood Depth Layer Opacity"),
   gw.number( "--evcc-floor-wood-grain-opacity",       "Wood Grain Layer Opacity"),
@@ -61,7 +61,7 @@ export const FLOOR_TEXTURE_TOKENS = [
   /* === MARBLE === */
   gm.color(  "--evcc-floor-marble-base",              "Marble Base Color"),
   gm.color(  "--evcc-floor-marble-micro",             "Marble Micro Color"),
-  gm.color(  "--evcc-floor-marble-accent",            "Marble Accent Color"),
+  gm.color(  "--evcc-floor-marble-accent",            "Marble Vein Color"),
   gm.number( "--evcc-floor-marble-opacity-card",      "Marble Card Opacity"),
   gm.number( "--evcc-floor-marble-base-opacity",      "Marble Base Layer Opacity"),
   gm.number( "--evcc-floor-marble-micro-opacity",     "Marble Micro Layer Opacity"),
@@ -69,26 +69,23 @@ export const FLOOR_TEXTURE_TOKENS = [
 
   /* === CONCRETE === */
   gc.color(  "--evcc-floor-concrete-base",            "Concrete Base Color"),
-  gc.color(  "--evcc-floor-concrete-accent",          "Concrete Accent Color"),
+  gc.color(  "--evcc-floor-concrete-accent",          "Concrete Micro Color"),
   gc.number( "--evcc-floor-concrete-opacity-card",    "Concrete Card Opacity"),
-  gc.number( "--evcc-floor-concrete-broad-opacity",   "Concrete Broad Layer Opacity"),
+  gc.number( "--evcc-floor-concrete-broad-opacity",   "Concrete Base Layer Opacity"),
   gc.number( "--evcc-floor-concrete-micro-opacity",   "Concrete Micro Layer Opacity"),
 
   /* === CARPET LOW === */
   gl.color(  "--evcc-floor-carpet-low-base",          "Carpet Low Base Color"),
-  gl.color(  "--evcc-floor-carpet-low-accent",        "Carpet Low Accent Color"),
   gl.number( "--evcc-floor-carpet-low-opacity-card",  "Carpet Low Card Opacity"),
   gl.number( "--evcc-floor-carpet-low-texture-opacity","Carpet Low Texture Layer Opacity"),
 
   /* === CARPET HIGH === */
   gh.color(  "--evcc-floor-carpet-high-base",         "Carpet High Base Color"),
-  gh.color(  "--evcc-floor-carpet-high-accent",       "Carpet High Accent Color"),
   gh.number( "--evcc-floor-carpet-high-opacity-card", "Carpet High Card Opacity"),
   gh.number( "--evcc-floor-carpet-high-texture-opacity","Carpet High Texture Layer Opacity"),
 
   /* === GRANITE LIGHT === */
   gg.color(  "--evcc-floor-granite-light-base",       "Granite Base Color"),
-  gg.color(  "--evcc-floor-granite-light-accent",     "Granite Accent Color"),
   gg.number( "--evcc-floor-granite-light-opacity-card","Granite Card Opacity"),
   gg.number( "--evcc-floor-granite-light-texture-opacity","Granite Texture Layer Opacity"),
 ];

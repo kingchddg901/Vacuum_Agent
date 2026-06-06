@@ -441,6 +441,50 @@ export const roomStyles = `
   }
 
   /* =========================================================
+     FLOOR-TEXTURE LEGIBILITY
+     ---------------------------------------------------------
+     The floor texture is a variable-luminance layer painted
+     BEHIND card content. The status / setting chips and the room
+     name are translucent (they rely on the dark card showing
+     through), so over a bright or same-hue texture they lose
+     contrast — red on gold, amber on pale marble, the white name
+     on a light floor, the muted "ago" chip on anything light.
+     CSS cannot sample an image's luminance to pick a contrasting
+     color, so rather than tune any single color we composite each
+     chip OVER AN OPAQUE SURFACE: legibility becomes independent of
+     whatever texture sits behind — for any chip color and any
+     floor. Texture stays fully visible everywhere else.
+     ========================================================= */
+
+  /* Token-system chips (mode pills + status): their tint is a
+     background-COLOR, so re-emit it as an image layer stacked on
+     top of an opaque surface base (hue/intensity unchanged). */
+  .evcc-room-card .evcc-room-status,
+  .evcc-room-card .evcc-room-setting-chip {
+    background:
+      linear-gradient(
+        var(--evcc-chip-bg, var(--evcc-surface-input)),
+        var(--evcc-chip-bg, var(--evcc-surface-input))
+      ),
+      var(--evcc-surface-card);
+  }
+
+  /* Confidence chips: their tint is already a gradient IMAGE, so
+     an opaque background-color beneath it is enough (the variant
+     gradient still renders on top). */
+  .evcc-room-card .evcc-learning-chip {
+    background-color: var(--evcc-surface-card);
+  }
+
+  /* Bare room name: a surface-colored halo keeps light text legible
+     on a light texture (invisible over dark ones). */
+  .evcc-room-card .evcc-room-name {
+    text-shadow:
+      0 1px 2px var(--evcc-surface-card),
+      0 0 4px var(--evcc-surface-card);
+  }
+
+  /* =========================================================
      STATUS CHIPS
      ========================================================= */
 

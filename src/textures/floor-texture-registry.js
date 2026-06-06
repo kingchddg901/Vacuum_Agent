@@ -27,6 +27,14 @@
 // Base path for all texture assets served from the HA www/ directory.
 const _T = "/eufy_vacuum/textures";
 
+// Build-injected cache-bust token (esbuild --define __ASSET_VER__), keyed to the
+// texture assets' content. Appended as ?v=<token> to every texture URL below so a
+// regenerated mask is fetched fresh instead of served from the 7-day texture cache
+// (textures are registered cache_headers=True). Falls back to "dev" when running
+// unbundled (build:dev/watch/tests).
+const _ASSET_VER = (typeof __ASSET_VER__ !== "undefined") ? __ASSET_VER__ : "dev";
+const _Q = `?v=${_ASSET_VER}`;
+
 /* === FLOOR TEXTURE REGISTRY === */
 
 export const FLOOR_TEXTURE_REGISTRY = {
@@ -221,6 +229,15 @@ export const FLOOR_TEXTURE_REGISTRY = {
     baseTexture: null,
   },
 };
+
+// Append the cache-bust token to every texture URL — one place, so both the card
+// renderer (layer.url) and getPrimaryTextureUrl / SVG map patterns (masks,
+// baseTexture) pick it up. Runs once at module load.
+for (const _entry of Object.values(FLOOR_TEXTURE_REGISTRY)) {
+  for (const _layer of _entry.layers) if (_layer.url) _layer.url += _Q;
+  for (const _mask  of _entry.masks)  if (_mask.url)  _mask.url  += _Q;
+  if (_entry.baseTexture) _entry.baseTexture += _Q;
+}
 
 /**
  * Returns the primary texture image URL for a resolved floor type key.

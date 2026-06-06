@@ -430,7 +430,7 @@ export function applyThemeRenderers(proto) {
               ` : ""}
 
               <span class="group-toggle">
-                ${isOpen ? "â–¾" : "â–¸"}
+                ${isOpen ? "\u25be" : "\u25b8"}
               </span>
             </div>
           </div>
