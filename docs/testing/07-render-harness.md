@@ -95,6 +95,7 @@ failing screenshots are the blast radius — then re-run with it to accept.
 |---|---|---|
 | `.github/workflows/card-visual.yml` | push / PR touching `src/**`, `harness/**` | runs `visual` in the pinned image; uploads the diff report on failure |
 | `.github/workflows/theme-intake.yml` | `workflow_dispatch`, or push/PR to `gallery/themes/*.json` | renders each theme export through the ingest gate; uploads PNG artifacts (PR/dispatch) and **publishes the gallery to GitHub Pages on push to master** — one-time: enable Pages → *GitHub Actions* source |
+| `.github/workflows/theme-submission.yml` | a `theme-submission`-labelled issue is opened | validates a pasted export, renders its preview, and opens a reviewable PR with the preview inline ([dev/27 §8](../dev/27-render-harness.md#8-theme-submission-issue--pr)) — not a gate, no spec; one-time: a `theme-submission` label + "Allow Actions to create PRs" |
 
 Both run in the pinned image, so local-Docker and CI agree byte-for-byte. They're
 separate from the Python `tests.yml` job and require `package-lock.json` to be

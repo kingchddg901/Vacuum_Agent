@@ -89,7 +89,7 @@ Headless rendering of the real card for regression, accessibility, and sharing.
 
 | # | File | What it covers |
 |---|---|---|
-| 27 | [render-harness](27-render-harness.md) | Headless render harness: the pure-renderer mount, all-states galleries, visual regression, CVD/colorblind validation + the Colorblind Safe theme, badge shape marks, and theme-export intake. Test/run companion: [testing/07](../testing/07-render-harness.md) |
+| 27 | [render-harness](27-render-harness.md) | Headless render harness: the pure-renderer mount, all-states galleries, visual regression, CVD/colorblind validation + the Colorblind Safe theme, badge shape marks, theme-export intake, and the theme **gallery + issue→PR submission** pipeline. Test/run companion: [testing/07](../testing/07-render-harness.md) |
 
 ---
 

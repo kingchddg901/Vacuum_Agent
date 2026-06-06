@@ -217,20 +217,80 @@ recolored by it — the config is the seed, the render is the deliverable.
   eval. Values reach the card via `setProperty` (CSS-validated), never HTML. This
   is the entire reason running a stranger's export in CI is safe — the export is
   data, not code.
-- **Preview** (`harness/preview.mjs`) — scope drives output: a full theme → a
-  contact sheet of the all-states galleries; a texture-scoped export → the rooms
-  gallery.
+- **Preview** (`harness/preview.mjs`) — builds the gallery from
+  `gallery/themes/*.json`. Per theme, scope drives the detail render: a full
+  theme → the all-states galleries plus a tour of the card tabs; a texture-scoped
+  export → the rooms gallery. It also writes a single-room-card **thumbnail** per
+  theme and a lobby `index.html` that grids those thumbnails (each linking its
+  detail page) under a **"+ Submit a theme"** button (§8). A per-theme
+  `_contact-sheet.png` is produced too — the submission bot embeds it inline in
+  the PR (§8).
 - **Trigger** (`.github/workflows/theme-intake.yml`) — `workflow_dispatch` for a
   one-off, or `push`/`pull_request` on `gallery/themes/*.json` for a versioned
   gallery. PRs and manual dispatches come back as workflow artifacts; on **push
-  to master** the rendered gallery — a static `index.html` (built by
-  `preview.mjs`) plus the per-theme images — is **published to GitHub Pages**
-  (`actions/deploy-pages`). One-time setup: enable Pages with the *GitHub
-  Actions* source in repo settings.
+  to master** the rendered gallery — the lobby `index.html` plus the per-theme
+  detail pages and images — is **published to GitHub Pages**
+  (`actions/deploy-pages`) at the repo's Pages URL. One-time setup: enable Pages
+  with the *GitHub Actions* source in repo settings.
 
 ---
 
-## 8. File map
+## 8. Theme submission (issue → PR)
+
+Sections 1–7 are the engine; this is the **front door** that lets anyone add a
+theme to the gallery without touching the repo. It turns a pasted export into a
+reviewable pull request with a rendered preview, and never auto-merges.
+
+**Entry point.** The gallery lobby's **"+ Submit a theme"** button links to a
+GitHub **issue form** (`.github/ISSUE_TEMPLATE/theme-submission.yml`): one
+`render: json` textarea for the export plus an acknowledgement checkbox. The form
+auto-applies the `theme-submission` label — the only signal the bot keys on.
+
+**The bot** (`.github/workflows/theme-submission.yml`, on
+`issues: [opened, reopened]`, gated `if` the `theme-submission` label is present):
+
+1. **Extract + validate.** The form's `render: json` field wraps the export in a
+   fenced JSON block; the bot regex-extracts it, `JSON.parse`s it, and
+   sanity-checks it's a theme export (`theme.tokens` / `colors` / `alpha`). On
+   any failure it comments on the issue with the fix and stops — malformed input
+   never becomes a file. On success it writes `gallery/themes/{slug}.json`
+   (`slug` = sanitized theme name + `-{issue#}`). The deeper safety is the
+   **ingest gate** (§7): the render step runs the export through the same
+   validate + clamp path as `import_theme`, so a hostile export is data, not
+   code.
+2. **Render** (`harness/build.mjs` + `harness/preview.mjs`) the preview for that
+   one theme — its detail page and a `_contact-sheet.png`.
+3. **Open a PR** carrying just `gallery/themes/{slug}.json` on a
+   `theme-submission/{slug}` branch, body `Closes #{issue}`. Merging it lands the
+   theme on master and triggers the §7 publish.
+4. **Comment** back on the issue with the PR link.
+
+**Why the preview is rendered here, not on the PR.** A PR opened with the
+built-in `GITHUB_TOKEN` does **not** trigger other workflows (GitHub's
+anti-recursion rule), so `theme-intake.yml` won't run on the bot's PR. Instead
+the bot pushes the contact sheet to an off-master **`gallery-previews`** branch
+and embeds it in the PR body via a `raw.githubusercontent.com` URL — so the
+reviewer sees the render **inline**, with no artifact download. That branch is
+never merged; it only holds preview images and is safe to reset or delete (the
+bot recreates it on the next submission).
+
+**Reviewing a submission** (maintainer): open the PR, look at the inline preview
+(and the full per-tab artifact on the run if you want it), then **merge** to
+publish or **close** to reject. The human is the only gate.
+
+**One-time setup.** Both are required, or the bot silently skips / can't open the
+PR (also documented in the workflow header):
+
+1. A **`theme-submission` label** must exist — issue forms only apply labels that
+   already exist, so without it the gating `if` never matches and the bot no-ops.
+2. **Settings → Actions → General → "Allow GitHub Actions to create and approve
+   pull requests"** must be on, or `pulls.create` is rejected.
+
+(Plus the §7 Pages enablement, for the publish that runs after a merge.)
+
+---
+
+## 9. File map
 
 | Path | What |
 |---|---|
@@ -241,15 +301,17 @@ recolored by it — the config is the seed, the render is the deliverable.
 | `harness/cvd/` | `simulate.mjs` (Machado+Brettel), `color.mjs` (CIEDE2000), `report.mjs` (matrix), `tune.mjs` (palette scratchpad). |
 | `harness/bundles/` | Flat `--evcc-*` maps: `default`, `cvd-safe`. |
 | `harness/lib/mount-page.mjs` | Node helpers: load bundle into a page, render. |
-| `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `preview.mjs` · `census.mjs` | esbuild + capture/preview CLIs. |
+| `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `census.mjs` | esbuild + capture CLIs. |
+| `harness/preview.mjs` | Builds the gallery: lobby `index.html`, per-theme detail pages, thumbnails, contact sheets. |
 | `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake. |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |
-| `gallery/themes/*.json` | Watched theme-export gallery for intake previews. |
-| `.github/workflows/card-visual.yml` · `theme-intake.yml` | CI: visual regression · theme preview. |
+| `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
+| `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |
+| `.github/workflows/card-visual.yml` · `theme-intake.yml` · `theme-submission.yml` | CI: visual regression · gallery publish · submission bot. |
 
 ---
 
-## 9. Judgment inputs (tunable, by design)
+## 10. Judgment inputs (tunable, by design)
 
 Three knobs are spec, not boilerplate — they live in code with comments, not
 hidden defaults:

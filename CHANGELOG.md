@@ -8,6 +8,31 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.16] - 2026-06-06
+
+### Fixed
+- **Run Profiles panel no longer overlaps the room cards.** On narrow card
+  widths the panel positioned itself with a viewport media query that ignored
+  the card living in a container narrower than the window, so it overlapped the
+  rooms. It now wraps below them via container-relative flex — the two never
+  collide at any width.
+
+### Added
+- **Theme gallery + submission system.** A public
+  [theme gallery](https://kingchddg901.github.io/Vacuum_Agent/) where you can
+  browse community themes (each previewed as the real card), download one to load
+  via **Upload**, and **submit your own** with a "+ Submit a theme" button. A
+  submission flows through an issue form, a bot that validates the export and
+  renders an inline preview, and a pull request a maintainer reviews and merges —
+  nothing auto-publishes, and the validator reuses the card's own import safety.
+  The gallery and bot are repo-hosted, so this doesn't change what HACS installs.
+
+### Docs
+- **Theme-sharing documentation pass.** New end-user guide
+  (`user-guide/15-sharing-themes`), the full gallery + submission architecture in
+  `dev/27-render-harness`, and cross-links from the theme-system, README, and
+  testing docs.
+
 ## [0.9.15] - 2026-06-06
 
 ### Added

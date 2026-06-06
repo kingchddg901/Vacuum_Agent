@@ -218,6 +218,14 @@ Beyond whole themes, you can move a **single floor type's look** in isolation �
 - **Upload** a floor file — the card recognises it as floor-scoped, asks you to confirm exactly which floor type(s) it will **Replace** on your active theme, then applies it. It *replaces* that floor's settings outright (it doesn't merge), so the result is predictable regardless of what you had before. Out-of-range values are clamped automatically, and a floor type your version doesn't recognise is skipped and reported rather than applied.
 - **Apply Preset** — pick a built-in marble look (**Carrara**, **Portoro**, **Calacatta**) and apply it the same way. These replace just the marble namespace on your active theme — they are *not* separate themes to switch to. Treat them as starting points and tune from there; **Download Floor** then captures your tuned look as a new shareable file.
 
+### Share to the gallery
+
+Beyond passing a file around privately, there's a public **theme gallery** you
+can publish to. In the gallery, click **+ Submit a theme** and paste your
+**Download** export into the form; a bot validates it, renders a preview, and
+opens a pull request for a maintainer to review and merge. See
+[Sharing themes](../user-guide/15-sharing-themes.md) for the full walkthrough.
+
 ---
 
 ## Floor textures and the theme system

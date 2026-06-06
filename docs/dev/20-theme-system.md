@@ -404,6 +404,15 @@ It REPLACES the namespace on the active theme **in place**; it does not create a
 
 `floor-presets.js` ships named marble looks — **Carrara** (minor-only), **Portoro** (both tiers), **Calacatta** (major-forward) — as `scope:["marble"]` envelopes with a human-readable `name`. The editor's **Apply Preset** picker runs the *same* `_applyScopedThemeImport` path, so presets REPLACE the marble namespace on the active theme rather than acting as standalone themes. Custom presets are just `Download Floor` files re-applied via `Upload`.
 
+### The public gallery
+
+Exports can also be published to a curated **theme gallery**: a GitHub issue form
+that a bot turns into a reviewed pull request (validate → render preview → PR →
+human merge → Pages publish). That pipeline is documented in
+[dev/27-render-harness §8](27-render-harness.md#8-theme-submission-issue--pr); the
+user-facing walkthrough is
+[user-guide/15-sharing-themes](../user-guide/15-sharing-themes.md).
+
 ---
 
 ## 8. Extending the Theme System
