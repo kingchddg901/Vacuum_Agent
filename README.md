@@ -164,17 +164,20 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Maintenance tracking — reset maintenance counters from the UI
 - Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
 - Theme system — full theme editor with clipboard and file-based import/export
+- Accessibility — a validated colorblind-safe theme plus always-on shape-coded status badges
 
 ## Documentation
 
 - [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
 - [Setup tab](docs/user-guide/11-setup.md) — initial setup wizard and ongoing drift review
 - [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
+- [Accessibility](docs/user-guide/14-accessibility.md) — the colorblind-safe theme and shape-coded badges
 - [Services reference](docs/advanced/03-services.md) — for use in automations
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
 - [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](docs/dev/README.md) — reading-order index for all 24 dev docs
+- [Developer docs](docs/dev/README.md) — reading-order index for all 27 dev docs
+- [Render harness](docs/dev/27-render-harness.md) — headless visual-regression, colorblind validation, and theme previews ([how to run](docs/testing/07-render-harness.md))
 - [Adapter config reference](docs/dev/22-adapter-config-reference.md) — the schema for per-vacuum brand config
 - [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
 - [Mascot authoring guide](docs/contributing/mascot-authoring.md) — visual standards for adding or improving the map view's animal companions

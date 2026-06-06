@@ -19,6 +19,12 @@ dist/
 *.log
 npm-debug.log*
 
+# Render harness build artifacts (baselines under harness/tests/ are committed)
+harness/dist/
+harness/out/
+test-results/
+playwright-report/
+
 # HA user data (never commit)
 *.storage
 .storage/

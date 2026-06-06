@@ -3,8 +3,8 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **1,639 test functions** across **109 test files**
-(33 unit, 69 integration, 7 adapter) — 1,884 cases after parametrization — all
+The suite currently has **1,640 test functions** across **109 test files**
+(33 unit, 69 integration, 7 adapter) — 1,885 cases after parametrization — all
 green, running on Python 3.14 inside a Linux container. Those exercise the
 **131 source modules** under
 `custom_components/eufy_vacuum/` to **94.1% coverage** (91% combined with
@@ -34,6 +34,14 @@ per-subsystem breakdown.
 |---|------|----------------|
 | 06 | [recipes](06-recipes.md) | Copy-paste templates: a service test, an entity test, a unit test, a finalize test, an adapter-config test |
 
+## Frontend (render harness)
+
+The card itself — a separate JS/Playwright track, not part of the Python count above.
+
+| # | File | What it covers |
+|---|------|----------------|
+| 07 | [render-harness](07-render-harness.md) | The headless render-harness gates (smoke, visual regression, CVD, shape marks, intake), how to run them, and the Docker baseline workflow |
+
 ## Subsystem test maps
 
 Per-subsystem "what's tested and how" — start from the learning map (the template).
@@ -56,5 +64,6 @@ coverage. Highlights:
 
 - **Run everything:** `scripts\test.bat` (from a Windows shell; it spins up the container for you).
 - **Never run pytest directly on Windows** — `pytest-homeassistant-custom-component` imports `fcntl`, which does not exist on Windows. See [02](02-running-tests.md).
+- **Frontend / card tests are separate** — they live in the render harness (`npm run test:harness`), not pytest. Visual baselines are Linux-only (the pinned Playwright image); see [07](07-render-harness.md).
 - **New integration test** → use the `manager_with_services` fixture and the seeding helpers in `tests/integration/conftest.py`. Start from a template in [06](06-recipes.md).
 - **Managed rooms live at `data["maps"][vac][map]["rooms"]`**, not `data["rooms"]`. This one mistake invalidates more tests than any other — see [05](05-gotchas-and-pitfalls.md).

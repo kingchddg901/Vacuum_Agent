@@ -1,0 +1,87 @@
+name: theme intake preview
+
+# Drop a theme export into gallery/themes/ (commit or PR) and CI renders the
+# real card recolored by it; or trigger by hand for a one-off export. Every
+# upload passes through the ingest gate (validate + clamp, skip malformed /
+# unknown-namespace, never eval) before it's rendered — so previewing a
+# stranger's theme is safe. Runs in the same pinned Playwright image as the
+# visual-regression gate.
+#
+# On push to master the rendered gallery (harness/out/preview/, incl. a static
+# index.html) is published to GitHub Pages. PRs and manual dispatches only
+# upload a workflow artifact — they never deploy, so they can't clobber the
+# live gallery.
+#
+# ONE-TIME SETUP: enable Pages with the GitHub Actions source
+# (repo Settings -> Pages -> Build and deployment -> Source: GitHub Actions).
+# Until then the build/artifact steps still work; only the deploy job fails.
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: "Path to one export JSON (e.g. gallery/themes/x.json); blank = preview all"
+        required: false
+        default: ""
+  push:
+    paths:
+      - "gallery/themes/*.json"
+      - "harness/**"
+      - ".github/workflows/theme-intake.yml"
+  pull_request:
+    paths:
+      - "gallery/themes/*.json"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Serialize Pages deploys; don't cancel an in-flight publish.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build harness bundle
+        run: node harness/build.mjs
+
+      - name: Render theme preview(s)
+        run: node harness/preview.mjs "${{ github.event.inputs.path }}"
+
+      - name: Upload previews (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-previews
+          path: harness/out/preview/
+          if-no-files-found: warn
+          retention-days: 14
+
+      # Only the full gallery (push to master) becomes the published site.
+      - name: Upload Pages artifact
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: harness/out/preview
+
+  deploy:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: preview
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

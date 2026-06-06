@@ -1,0 +1,49 @@
+name: card visual regression
+
+# Frontend host-boundary gate: renders the real card headless and diffs
+# against committed baselines. Runs in the SAME pinned Playwright image the
+# baselines were generated in, so the comparison is byte-for-byte stable.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/**"
+      - "harness/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/card-visual.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "harness/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/card-visual.yml"
+
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build harness bundle
+        run: node harness/build.mjs
+
+      - name: Visual regression
+        run: npx playwright test -c harness/playwright.config.mjs visual
+
+      - name: Upload diff report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: visual-diff-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
