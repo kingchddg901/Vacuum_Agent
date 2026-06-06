@@ -7529,17 +7529,19 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
 }
 `;var Qa=`
   .evcc-rooms-workspace {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
+    display: flex;
+    flex-wrap: wrap;
     gap: 16px;
     align-items: start;
   }
 
   .evcc-rooms-main {
+    flex: 2 1 380px;
     min-width: 0;
   }
 
   .evcc-run-profiles-panel {
+    flex: 1 1 300px;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -7635,11 +7637,10 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
     color: var(--evcc-text-secondary);
   }
 
-  @media (max-width: 980px) {
-    .evcc-rooms-workspace {
-      grid-template-columns: 1fr;
-    }
-  }
+  /* Responsive collapse is handled by flex-wrap above (container-relative) \u2014
+     NOT a viewport @media query. The card can be narrower than the screen
+     (HA panel, dashboard column, render harness), so a viewport breakpoint
+     would leave the 320px panel overlapping the rooms on a wide screen. */
 `;var dt=`
   .evcc-maintenance-modal {
     max-width: 560px;
