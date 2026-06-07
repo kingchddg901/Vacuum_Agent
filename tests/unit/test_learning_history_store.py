@@ -714,68 +714,70 @@ def test_payload_failed_status_blocks_learning(tmp_path):
 # _build_transit_blocks (frame-invariant segment -> queue mapping)
 # ---------------------------------------------------------------------------
 
+def _cs(sec: int, ct: float, ca: float) -> dict:
+    """A counter sample at 09:00:00 + sec carrying both counters."""
+    t = datetime(2026, 1, 1, 9, 0, 0) + timedelta(seconds=sec)
+    return {"t": t.isoformat(), "cleaning_time": ct, "cleaning_area": ca}
+
+
+# A ByRoom 2-room stream: room A 0->6 m² / 0->180 s, a >90 s wash plateau, room B +2 m².
+_TWO_ROOM_SAMPLES = [
+    _cs(0, 0, 0),
+    _cs(60, 30, 1), _cs(90, 60, 2), _cs(120, 90, 3),
+    _cs(150, 120, 4), _cs(180, 150, 5), _cs(210, 180, 6),
+    _cs(540, 210, 6), _cs(570, 240, 8),
+]
+
+
 def test_build_transit_blocks_two_rooms():
-    """[HS-T1] segments map to queue order; transit = gap between segments."""
-    segs = [
-        {"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
-         "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
-         "peak_value": 240, "open": False},
-        {"room_id": 2, "cleaning_start": "2026-01-01T09:07:00+00:00",
-         "cleaning_end": "2026-01-01T09:10:00+00:00", "first_value": 0,
-         "peak_value": 180, "open": True},  # still open -> closed at ended_at
-    ]
+    """[HS-T1] counter samples -> 2 segments mapped to the queue; transit = the gap."""
     timings, transitions, valid = _build_transit_blocks(
-        segments=segs, queue_room_ids=[1, 2],
+        counter_samples=_TWO_ROOM_SAMPLES, queue_room_ids=[1, 2],
         slug_by_id={1: "kitchen", 2: "bath"},
-        ended_at="2026-01-01T09:11:00+00:00",
     )
     assert valid is True
     assert len(timings) == 2
     assert timings[0]["room_id"] == 1 and timings[0]["slug"] == "kitchen"
-    assert timings[0]["cleaning_seconds"] == 240
+    assert timings[0]["area_m2"] == 6.0
+    assert timings[1]["area_m2"] == 2.0
     assert len(transitions) == 1
     tr = transitions[0]
     assert tr["from_room_id"] == 1 and tr["to_room_id"] == 2
-    assert tr["transit_seconds"] == 120   # 09:07 - 09:05
+    assert tr["transit_seconds"] == 330   # 540 - 210
 
 
 def test_build_transit_blocks_single_room_valid_no_transitions():
     """[HS-T2] one room -> no transitions, capture still valid (regression guard)."""
-    segs = [{"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
-             "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
-             "peak_value": 240, "open": False}]
+    samples = [_cs(0, 0, 0)] + [_cs(30 * i, 30 * i, i) for i in range(1, 5)]
     timings, transitions, valid = _build_transit_blocks(
-        segments=segs, queue_room_ids=[1], slug_by_id={1: "kitchen"},
-        ended_at="2026-01-01T09:06:00+00:00",
+        counter_samples=samples, queue_room_ids=[1], slug_by_id={1: "kitchen"},
     )
     assert valid is True
     assert transitions == []
     assert len(timings) == 1
+    assert timings[0]["area_m2"] == 4.0
 
 
 def test_build_transit_blocks_count_mismatch_invalid():
     """[HS-T3] segment count != queue count -> capture invalid (excluded later)."""
-    segs = [{"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
-             "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
-             "peak_value": 240, "open": False}]
+    samples = [_cs(0, 0, 0)] + [_cs(30 * i, 30 * i, i) for i in range(1, 5)]  # 1 segment
     _t, _tr, valid = _build_transit_blocks(
-        segments=segs, queue_room_ids=[1, 2, 3], slug_by_id={},
-        ended_at="2026-01-01T09:06:00+00:00",
+        counter_samples=samples, queue_room_ids=[1, 2, 3], slug_by_id={},
     )
     assert valid is False
 
 
-def test_build_transit_blocks_no_segments():
-    """[HS-T4] no capture (e.g. adapter without cleaning_time) -> empty + invalid."""
+def test_build_transit_blocks_no_samples():
+    """[HS-T4] no capture (e.g. adapter without the counters) -> empty + invalid."""
     timings, transitions, valid = _build_transit_blocks(
-        segments=[], queue_room_ids=[1, 2], slug_by_id={},
-        ended_at="2026-01-01T09:06:00+00:00",
+        counter_samples=[], queue_room_ids=[1, 2], slug_by_id={},
     )
     assert timings == [] and transitions == [] and valid is False
 
 
 def test_build_completed_job_payload_emits_transit_blocks(tmp_path):
-    """[HS-T5] cleaning_time_segments on active_job_state surface as job.transitions."""
+    """[HS-T5] counter_samples on active_job_state surface as job.transitions +
+    per-room area."""
     store = _make_store(tmp_path)
     args = _make_build_args(
         queue_state={
@@ -791,20 +793,15 @@ def test_build_completed_job_payload_emits_transit_blocks(tmp_path):
             "resolved_rooms": [{"room_id": 1, "slug": "kitchen"},
                                {"room_id": 2, "slug": "bath"}],
             "paused_duration_seconds": 0, "recharge_seconds_accumulated": 0,
-            "cleaning_time_segments": [
-                {"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
-                 "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
-                 "peak_value": 240, "open": False},
-                {"room_id": 2, "cleaning_start": "2026-01-01T09:08:00+00:00",
-                 "cleaning_end": "2026-01-01T09:12:00+00:00", "first_value": 0,
-                 "peak_value": 240, "open": False},
-            ],
+            "counter_samples": _TWO_ROOM_SAMPLES,
         },
     )
     job = store.build_completed_job_payload(**args)["job"]
     assert job["transit_capture_valid"] is True
     assert len(job["room_timings"]) == 2
+    assert job["room_timings"][0]["area_m2"] == 6.0
+    assert job["room_timings"][1]["area_m2"] == 2.0
     assert len(job["transitions"]) == 1
-    assert job["transitions"][0]["transit_seconds"] == 180   # 09:08 - 09:05
+    assert job["transitions"][0]["transit_seconds"] == 330   # 540 - 210
     assert job["transitions"][0]["from_slug"] == "kitchen"
     assert job["transitions"][0]["to_slug"] == "bath"

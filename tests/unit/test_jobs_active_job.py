@@ -33,8 +33,6 @@ import pytest
 
 from custom_components.eufy_vacuum.jobs.active_job import (
     ActiveJobTracker,
-    _apply_cleaning_time_sample,
-    _close_open_cleaning_segment,
     _normalize_path_block_action,
     _normalize_pause_timeout_minutes,
     _safe_float,
@@ -238,71 +236,41 @@ def test_timing_threshold_low_confidence_few_samples(tracker):
 
 
 # ---------------------------------------------------------------------------
-# cleaning_time segmentation (transit capture) — pure module helpers
+# record_counter_sample (counter-plateau capture buffer)
 # ---------------------------------------------------------------------------
 
-def _ts(minute: int) -> str:
-    return f"2026-01-01T09:{minute:02d}:00+00:00"
+def _tracker_with_job(job: dict) -> ActiveJobTracker:
+    mgr = MagicMock()
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"6": job}}}
+    return ActiveJobTracker(mgr)
 
 
-def test_cleaning_time_segmentation_two_rooms():
-    """[AJ-T1] reset/rise/plateau folds cleaning_time into one segment per room."""
-    job = {"current_room_id": 1, "cleaning_time_segments": []}
-    # Room 1: baseline 0, rise to 90 with a plateau, then reset.
-    _apply_cleaning_time_sample(job, 0, _ts(0))    # baseline -> no segment yet
-    assert job["cleaning_time_segments"] == []
-    _apply_cleaning_time_sample(job, 30, _ts(1))   # first rise -> open seg1
-    _apply_cleaning_time_sample(job, 60, _ts(2))
-    _apply_cleaning_time_sample(job, 60, _ts(3))   # plateau -> no boundary
-    _apply_cleaning_time_sample(job, 90, _ts(4))
-    assert len(job["cleaning_time_segments"]) == 1
-    seg1 = job["cleaning_time_segments"][0]
-    assert seg1["room_id"] == 1
-    assert seg1["first_value"] == 0 and seg1["peak_value"] == 90
-    assert seg1["cleaning_start"] == _ts(1) and seg1["cleaning_end"] == _ts(4)
-    assert seg1["open"] is True
-
-    # Room boundary: reset closes seg1; advance current_room_id to 2.
-    _apply_cleaning_time_sample(job, 0, _ts(8))    # reset -> close seg1
-    assert job["cleaning_time_segments"][0]["open"] is False
-    job["current_room_id"] = 2
-    _apply_cleaning_time_sample(job, 30, _ts(9))   # rise -> open seg2
-    _apply_cleaning_time_sample(job, 60, _ts(10))
-    assert len(job["cleaning_time_segments"]) == 2
-    seg2 = job["cleaning_time_segments"][1]
-    assert seg2["room_id"] == 2
-    assert seg2["first_value"] == 0 and seg2["peak_value"] == 60
-    assert seg2["cleaning_start"] == _ts(9)
+def test_record_counter_sample_buffers_last_seen():
+    """record_counter_sample snapshots the last-seen cleaning_time / area / battery
+    into the in-flight job's counter_samples (the input to segment_counters)."""
+    job = {
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "last_cleaning_time_seconds": 30,
+        "last_cleaning_area_m2": 1.0,
+        "last_battery_percent": 99,
+    }
+    tracker = _tracker_with_job(job)
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is True
+    samples = job["counter_samples"]
+    assert len(samples) == 1
+    assert samples[0]["cleaning_time"] == 30
+    assert samples[0]["cleaning_area"] == 1.0
+    assert samples[0]["battery"] == 99
 
 
-def test_cleaning_time_plateau_does_not_extend_end():
-    """[AJ-T2] a plateau (no rise) leaves cleaning_end at the last rise."""
-    job = {"current_room_id": 5, "cleaning_time_segments": []}
-    _apply_cleaning_time_sample(job, 0, _ts(0))
-    _apply_cleaning_time_sample(job, 30, _ts(1))
-    _apply_cleaning_time_sample(job, 30, _ts(5))   # plateau (mop wash dwell)
-    _apply_cleaning_time_sample(job, 30, _ts(9))   # plateau
-    seg = job["cleaning_time_segments"][0]
-    assert seg["cleaning_end"] == _ts(1)           # last rise, not the plateau
-
-
-def test_cleaning_time_leading_stale_value_then_reset():
-    """[AJ-T3] a stale prior value followed by a reset opens no segment until the
-    first genuine rise (so the dock->room leg is never counted as cleaning)."""
-    job = {"current_room_id": 1, "cleaning_time_segments": []}
-    _apply_cleaning_time_sample(job, 540, _ts(0))  # stale baseline from prior job
-    _apply_cleaning_time_sample(job, 0, _ts(1))    # reset -> still no segment
-    assert job["cleaning_time_segments"] == []
-    _apply_cleaning_time_sample(job, 30, _ts(2))   # first real rise
-    assert len(job["cleaning_time_segments"]) == 1
-    assert job["cleaning_time_segments"][0]["first_value"] == 0
-
-
-def test_close_open_cleaning_segment_idempotent():
-    """[AJ-T4] _close_open_cleaning_segment closes the open segment, then no-ops."""
-    job = {"current_room_id": 1, "cleaning_time_segments": []}
-    _apply_cleaning_time_sample(job, 0, _ts(0))
-    _apply_cleaning_time_sample(job, 30, _ts(1))
-    assert _close_open_cleaning_segment(job) is not None
-    assert job["cleaning_time_segments"][0]["open"] is False
-    assert _close_open_cleaning_segment(job) is None   # nothing open now
+def test_record_counter_sample_skips_finalized_job():
+    """A job with ended_at is no longer in-flight -> no sample appended."""
+    job = {
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "ended_at": "2026-01-01T09:30:00+00:00",
+        "last_cleaning_time_seconds": 30,
+        "last_cleaning_area_m2": 1.0,
+    }
+    tracker = _tracker_with_job(job)
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is False
+    assert job.get("counter_samples", []) == []

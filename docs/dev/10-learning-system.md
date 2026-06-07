@@ -124,30 +124,39 @@ coordinates drift wildly across sessions (the physically-fixed dock reports
 y≈21 / 108 / 1526 on three different runs), so transit is **never** derived from
 geometry. Instead it is read from the cleaning-time signal:
 
-`sensor.<vacuum>_cleaning_time` rises in ~30 s steps while the robot is actively
-cleaning a room, **plateaus** during transit / mop-wash, and **resets toward 0
-at each new room**. The runtime listener (`listeners/job_metrics.py`) folds each
-reading into the active job via `record_cleaning_time_sample`
-(`jobs/active_job.py`), producing one `cleaning_time_segment` per room (anchored
-to the dispatched `current_room_id`): a **rise** opens/extends a segment, a
-**reset** closes it, a **plateau** is ignored. Capture degrades gracefully —
-adapters that do not declare a `cleaning_time` entity never subscribe and fall
-back to the constant overhead (§5.3).
+Both progress counters are read: `sensor.<vacuum>_cleaning_time` (a pure ~30 s
+clock) and `sensor.<vacuum>_cleaning_area` (unique m² covered). They rise while
+cleaning a room and **plateau** during transit / mop-wash. The runtime listener
+(`listeners/job_metrics.py`) snapshots the last-seen pair (+ battery) into the
+active job via `record_counter_sample` (`jobs/active_job.py`) on every counter
+change, building a `counter_samples` stream. Capture degrades gracefully —
+adapters that don't declare these entities never subscribe and fall back to the
+constant overhead (§5.3).
+
+`counter_segmentation.segment_counters()` turns that stream into ordered per-room
+segments **without geometry**. A boundary is a **long plateau** (gap between
+cleaning_time ticks > ~90 s, e.g. the ByRoom mop-wash) or a **delayed step**
+(~40 s gap) where `cleaning_area` **jumps** (new floor = a room transition); a
+delayed step with **flat** area is a multi-pass turn, *not* a boundary. The
+counter is firmware/mode-dependent (some firmwares reset per room; ByRoom is
+cumulative + plateaus), so the signal is gap-timing + the area trace, **never a
+reset**. `cleaning_area` is read via `area_at(t)` (the monotonic area reached by
+time t), robust to the area packet lagging the clock at a shared timestamp.
 
 At finalization, `_build_transit_blocks` (`learning/history_store.py`) maps the
-segments onto the dispatched queue order and writes three additive blocks to the
-job record's `job` object:
+segments onto the dispatched queue order (internal: segment K → queue room K) and
+writes three additive blocks to the job record's `job` object:
 
 | Field | Shape | Meaning |
 |---|---|---|
-| `room_timings` | `[{room_id, slug, cleaning_start, cleaning_end, cleaning_seconds}]` | Per-room cleaning window (one per queued room) |
-| `transitions` | `[{from_room_id, from_slug, to_room_id, to_slug, transit_seconds}]` | Inter-room gap = next room's first rise − this room's last rise |
-| `transit_capture_valid` | bool | True only when one segment was seen per queued room and all timestamps parse |
+| `room_timings` | `[{room_id, slug, cleaning_start, cleaning_end, cleaning_seconds, cleaning_wall_seconds, area_m2, battery_delta, boundary}]` | Per-room window — incl. exact per-room **`area_m2`, now available for multi-room jobs** |
+| `transitions` | `[{from_room_id, from_slug, to_room_id, to_slug, transit_seconds}]` | Inter-room gap (the segment's `gap_before_s` = transit + wash) |
+| `transit_capture_valid` | bool | True only when the segment count equals the queued room count |
 
-`transit_capture_valid` is the **poison guard**: a glitchy run (missed reset,
-dropped final sample) sets it `False` so it never corrupts the aggregate, while
-the partial timings are still written for audit. A single-room job is valid with
-an empty `transitions` list.
+`transit_capture_valid` is the **poison guard**: a glitchy run (missed sample,
+extra split) sets it `False` so it never corrupts the aggregate, while the
+partial timings are still written for audit. A single-room job is valid with an
+empty `transitions` list.
 
 The rebuilder aggregates only `transit_capture_valid` jobs into two **room_stats**
 arrays (one source of truth for both the estimator and any access-graph consumer):

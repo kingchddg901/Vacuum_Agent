@@ -128,12 +128,10 @@ def register(hass: HomeAssistant) -> None:
             value=value,
         )
 
-        # cleaning_time additionally drives per-room segmentation (transit times).
-        if key == "last_cleaning_time_seconds":
-            manager_local.record_cleaning_time_sample(
-                vacuum_entity_id=vacuum_entity_id,
-                value_seconds=value,
-            )
+        # cleaning_time / cleaning_area changes append a counter sample (carrying
+        # the last-seen of both + battery) for counter-plateau room segmentation.
+        if key in ("last_cleaning_time_seconds", "last_cleaning_area_m2"):
+            manager_local.record_counter_sample(vacuum_entity_id=vacuum_entity_id)
 
     unsub = async_track_state_change_event(
         hass,

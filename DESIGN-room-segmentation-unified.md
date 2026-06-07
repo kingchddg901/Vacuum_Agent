@@ -119,8 +119,11 @@ gate_segment_for_learning(segment, room_baseline) -> {learn: bool, reason, flags
 - **Wave 4** — estimator: consume the new per-room data (Phase 4 is mostly there).
 - **Wave 5** — capability-gated geometry: adapter `position_lock_reliable`; demote Eufy's
   bounds AND-gate; fold plateau boundary into live `_maybe_roll_current_room_by_timing`.
-- **Wave 6 (separate design)** — external pipeline: observed-only capture → shortlist →
-  user-confirm (needs card UI) → norms-gate.
+- **Wave 6 (separate design + UI)** — external-run **ingestion UI is a first-class
+  deliverable** (user-flagged): identity can't be auto-resolved (~67% ceiling), so the
+  Lovelace card *is* the resolver. Flow: observed-only capture → top-3 shortlist (+full
+  list) → **user confirms the room(s) in the card** → norms-gate ingest. Needs backend
+  services (capture / list-pending / confirm-ingest) **and** the card confirm flow.
 
 ## 9. Test + verification
 - Pure-Python unit tests per wave (`pytest tests --no-cov`, 0 warnings).

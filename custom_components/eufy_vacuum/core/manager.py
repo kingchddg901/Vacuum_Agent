@@ -2459,9 +2459,9 @@ class EufyVacuumManager:
         """Write a sensor value to in-flight jobs — delegates to ActiveJobTracker."""
         return self.active_job.record_active_job_sensor_value(**kwargs)
 
-    def record_cleaning_time_sample(self, **kwargs) -> bool:
-        """Segment cleaning_time into per-room bouts — delegates to ActiveJobTracker."""
-        return self.active_job.record_cleaning_time_sample(**kwargs)
+    def record_counter_sample(self, **kwargs) -> bool:
+        """Append a counter sample to in-flight jobs — delegates to ActiveJobTracker."""
+        return self.active_job.record_counter_sample(**kwargs)
 
     def clear_active_job(self, **kwargs) -> dict:
         """Clear active job state — delegates to ActiveJobTracker."""

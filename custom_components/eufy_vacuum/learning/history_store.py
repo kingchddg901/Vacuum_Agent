@@ -30,6 +30,7 @@ from typing import Any
 _LOGGER = logging.getLogger(__name__)
 
 from homeassistant.core import HomeAssistant
+from ..counter_segmentation import segment_counters
 from ..timestamp_utils import parse_timestamp
 from .utils import _iso_now, _safe_bool, _safe_float, _safe_int
 
@@ -46,72 +47,53 @@ def _vacuum_slug(vacuum_entity_id: str) -> str:
 
 def _build_transit_blocks(
     *,
-    segments: list[dict[str, Any]],
+    counter_samples: list[dict[str, Any]],
     queue_room_ids: list[Any],
     slug_by_id: dict[int, str | None],
-    ended_at: str,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
-    """Map cleaning_time segments onto the dispatched queue and derive per-room
-    cleaning windows + inter-room transit gaps.
+    """Segment the counter-sample stream and map per-room segments onto the
+    dispatched queue → per-room timings (with area) + inter-room transit gaps.
 
-    Frame-invariant: uses timestamps only — raw coordinates drift across sessions
-    (the fixed dock reads wildly different positions per run), so geometry is
-    never consulted. Returns (room_timings, transitions, transit_capture_valid).
+    Frame-invariant: counter_segmentation.segment_counters reads the cleaning_time
+    / cleaning_area counters only — never geometry (raw coordinates drift across
+    sessions). Returns (room_timings, transitions, transit_capture_valid).
 
-    transit_capture_valid is True only when exactly one segment was observed per
-    queued room and every boundary timestamp parses; a glitchy run (missed reset
-    / dropped sample) yields valid=False so it never poisons the learned
-    aggregate, while still emitting whatever partial timings were seen for audit.
-    A still-open trailing segment is closed at ended_at (the final-room
-    cleaning_time DPS can land after task_status->Completed).
+    Internal jobs map segment K → dispatched queue room K. transit_capture_valid
+    is True only when the segment count equals the queued room count; a glitchy
+    run (missed sample / extra split) yields valid=False so it never poisons the
+    learned aggregate, while the partial timings are still emitted for audit. A
+    single-room job → one segment, no transitions, valid=True.
     """
-    segs = [dict(s) for s in (segments or []) if isinstance(s, dict)]
-    for s in segs:
-        if s.get("open") and not str(s.get("cleaning_end") or "").strip():
-            s["cleaning_end"] = ended_at
-        s["open"] = False
-
+    segs = segment_counters(counter_samples or [])
     queue_ids = [_safe_int(r, -1) for r in (queue_room_ids or []) if _safe_int(r, -1) > 0]
     valid = bool(segs) and len(segs) == len(queue_ids)
 
     room_timings: list[dict[str, Any]] = []
     for idx, s in enumerate(segs):
-        room_id = _safe_int(s.get("room_id"), -1)
-        if room_id <= 0 and idx < len(queue_ids):
-            room_id = queue_ids[idx]
-        start = str(s.get("cleaning_start") or "").strip() or None
-        end = str(s.get("cleaning_end") or "").strip() or None
-        if parse_timestamp(start) is None or parse_timestamp(end) is None:
-            valid = False
+        room_id = queue_ids[idx] if idx < len(queue_ids) else _safe_int(s.get("room_id"), -1)
         room_timings.append(
             {
                 "room_id": room_id,
                 "slug": slug_by_id.get(room_id),
-                "cleaning_start": start,
-                "cleaning_end": end,
-                "cleaning_seconds": max(
-                    _safe_int(s.get("peak_value"), 0) - _safe_int(s.get("first_value"), 0),
-                    0,
-                ),
+                "cleaning_start": s.get("t_start"),
+                "cleaning_end": s.get("t_end"),
+                "cleaning_seconds": _safe_int(s.get("time_active_s"), 0),
+                "cleaning_wall_seconds": _safe_int(s.get("time_wall_s"), 0),
+                "area_m2": _safe_float(s.get("area_delta_m2"), 0.0),
+                "battery_delta": s.get("battery_delta"),
+                "boundary": s.get("boundary"),
             }
         )
 
     transitions: list[dict[str, Any]] = []
-    for prev, cur in zip(room_timings, room_timings[1:]):
-        prev_end = parse_timestamp(prev.get("cleaning_end"))
-        cur_start = parse_timestamp(cur.get("cleaning_start"))
-        if prev_end is None or cur_start is None:
-            valid = False
-            transit_seconds: int | None = None
-        else:
-            transit_seconds = max(int((cur_start - prev_end).total_seconds()), 0)
+    for prev, cur, seg in zip(room_timings, room_timings[1:], segs[1:]):
         transitions.append(
             {
                 "from_room_id": prev.get("room_id"),
                 "from_slug": prev.get("slug"),
                 "to_room_id": cur.get("room_id"),
                 "to_slug": cur.get("slug"),
-                "transit_seconds": transit_seconds,
+                "transit_seconds": _safe_int(seg.get("gap_before_s"), 0),
             }
         )
 
@@ -1044,14 +1026,13 @@ class LearningHistoryStore:
         else:
             _queue_ids_for_transit = []
         room_timings, transitions, transit_capture_valid = _build_transit_blocks(
-            segments=(
-                active_job_state.get("cleaning_time_segments", [])
+            counter_samples=(
+                active_job_state.get("counter_samples", [])
                 if isinstance(active_job_state, dict)
                 else []
             ),
             queue_room_ids=_queue_ids_for_transit,
             slug_by_id=slug_by_id,
-            ended_at=ended_at,
         )
 
         return {
