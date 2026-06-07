@@ -41,6 +41,7 @@ def _job(
     edge_mopping: bool = False,
     transitions: list[dict] | None = None,
     transit_capture_valid: bool = False,
+    room_timings: list[dict] | None = None,
     overhead_observed: dict | None = None,
     cleaning_time_seconds: int | None = None,
 ) -> dict:
@@ -71,6 +72,9 @@ def _job(
         job_block["cleaning_time_seconds"] = cleaning_time_seconds
     if transitions is not None:
         job_block["transitions"] = transitions
+        job_block["transit_capture_valid"] = transit_capture_valid
+    if room_timings is not None:
+        job_block["room_timings"] = room_timings
         job_block["transit_capture_valid"] = transit_capture_valid
     if overhead_observed is not None:
         job_block["overhead_observed"] = overhead_observed
@@ -307,7 +311,7 @@ def test_build_room_stats_schema_version(tmp_path):
     payload = rebuilder.build_room_stats_payload(
         vacuum_entity_id="vacuum.alfred", jobs=[]
     )
-    assert payload["schema_version"] == 5
+    assert payload["schema_version"] == 6
 
 
 def test_build_room_stats_area_single_room(tmp_path):
@@ -589,3 +593,50 @@ def test_build_job_stats_overhead_derived_when_absent(tmp_path):
     jobs = [_job(job_id="j1", duration_minutes=30.0, cleaning_time_seconds=1200)]
     stats = rb.build_job_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)["job_stats"]
     assert stats["avg_overhead_minutes"] == 10.0
+
+
+# ---------------------------------------------------------------------------
+# Wave 3 — per-room area for multi-room jobs + area-quality gate
+# ---------------------------------------------------------------------------
+
+def test_build_room_stats_multiroom_per_room_area(tmp_path):
+    """Multi-room jobs now contribute exact per-room area + wall-time via
+    room_timings (was excluded before — equal-splitting would corrupt area)."""
+    rb = _make_rebuilder(tmp_path)
+    rt = [
+        {"room_id": 1, "area_m2": 6.0, "cleaning_wall_seconds": 240},
+        {"room_id": 2, "area_m2": 2.0, "cleaning_wall_seconds": 90},
+    ]
+    jobs = [_job(room_slugs=["kitchen", "bath"], duration_minutes=20.0,
+                 transit_capture_valid=True, room_timings=rt)]
+    payload = rb.build_room_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)
+    entries = {e["room_slug"]: e for e in payload["room_stats"]}
+    assert entries["kitchen"]["area_sample_count"] == 1
+    assert entries["kitchen"]["avg_area_m2"] == 6.0
+    assert entries["bath"]["avg_area_m2"] == 2.0
+    # per-room wall-time becomes the minutes sample (240s=4min, 90s=1.5min)
+    assert entries["kitchen"]["avg_minutes"] == 4.0
+    assert entries["bath"]["avg_minutes"] == 1.5
+
+
+def test_build_room_stats_area_gate_excludes_partial(tmp_path):
+    """A partial clean (area far below the room's median) is dropped from the
+    TIMING stats; area / sample_count keep all samples."""
+    rb = _make_rebuilder(tmp_path)
+    jobs = []
+    for i in range(4):  # 4 full Kitchen cleans: 6 m², 240 s
+        jobs.append(_job(job_id=f"full{i}", room_slugs=["kitchen"],
+                         transit_capture_valid=True,
+                         room_timings=[{"room_id": 1, "area_m2": 6.0,
+                                        "cleaning_wall_seconds": 240}]))
+    jobs.append(_job(job_id="partial", room_slugs=["kitchen"],  # 1 partial: 2 m², 60 s
+                     transit_capture_valid=True,
+                     room_timings=[{"room_id": 1, "area_m2": 2.0,
+                                    "cleaning_wall_seconds": 60}]))
+    payload = rb.build_room_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)
+    entry = payload["room_stats"][0]
+    assert entry["sample_count"] == 5            # all cleans counted
+    assert entry["area_sample_count"] == 5       # area keeps all samples
+    assert entry["partial_excluded_count"] == 1  # the 2 m² partial is gated
+    assert entry["timing_sample_count"] == 4
+    assert entry["avg_minutes"] == 4.0           # 240 s; the partial's 60 s excluded

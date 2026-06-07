@@ -62,7 +62,7 @@ changes cleaning time, so edge-on and edge-off runs are learned separately.
 | `avg_drift_minutes` | float | Equally allocated from job-level drift | Signed mean prediction error |
 | `avg_abs_drift_minutes` | float | Absolute value of drift | Mean magnitude of prediction error |
 | `area_sample_count` | int | Count of single-room jobs with a recorded `cleaning_area_m2` | How many area samples contributed (≤ `sample_count`) |
-| `avg_area_m2` | float | Mean `cleaning_area_m2` over single-room jobs (`0.0` if none) | Mean cleaned floor area for this room |
+| `avg_area_m2` | float | Mean per-room area (segment capture, single + multi-room; `0.0` if none) | Mean cleaned floor area for this room |
 | `area_m2_min` | float | `min(area_samples)` | Smallest observed cleaned area |
 | `area_m2_max` | float | `max(area_samples)` | Largest observed cleaned area |
 | `area_m2_stddev` | float | Population stddev of area samples | Spread of observed areas |
@@ -101,9 +101,11 @@ def _stddev(values: list[float]) -> float:
 
 Returns `0.0` when `n < 2`.
 
-**How `avg_area_m2` is computed (single-room jobs only):**
+**How `avg_area_m2` is computed (per room — multi-room now included):**
 
-`cleaning_area_m2` is recorded at the **job** level (the device reports total area cleaned) with no per-room split. For a single-room job that total *is* the room's area, so area samples are collected **only from jobs where `room_count == 1`** (into `room_area_samples` / `baseline_area_samples`); multi-room jobs are skipped, because equally splitting their total would corrupt every room's area (rooms differ in size). `avg_area_m2` and `area_m2_min/max/stddev` are computed over those samples, and `area_sample_count` is their count — which is why it can be lower than `sample_count`. A room with no single-room samples gets `avg_area_m2 = 0.0` and `area_sample_count = 0`.
+Per-room area comes from **counter-plateau capture** — `room_timings[].area_m2` on `transit_capture_valid` jobs (the `cleaning_area` delta per segment is the room's exact area, for single **and** multi-room jobs) — falling back to a single-room job's `cleaning_area_m2` total when there's no capture. (Previously multi-room jobs were skipped because the only signal was the job total, which equal-splitting would corrupt; the segmenter removes that limitation.) `avg_area_m2` and `area_m2_min/max/stddev` are computed over those samples; `area_sample_count` is their count (can be lower than `sample_count` for un-captured jobs). A room with no area samples gets `avg_area_m2 = 0.0`.
+
+**Area-quality gate (schema 6):** a full clean covers the room's whole floor, so a clean whose area falls more than 1.5 m² off the room's **median** (once it has ≥ 4 area samples) is a partial/interrupted clean — its short **time** would poison the baseline, so its minutes sample is excluded from `avg_minutes` / the minutes band. `partial_excluded_count` reports how many were dropped, `timing_sample_count` the kept count; area / battery / water keep all samples. The band is per-room (area is settings-invariant), validated on the archive (~12% flagged; Kitchen time stddev 101 → 80 s — `scratch-external-estimator/gate.py`).
 
 Because area is settings-invariant (a room's floor area doesn't change with mode or intensity), the per-room `room_baselines` entry carries the most robust `avg_area_m2`.
 
@@ -621,7 +623,7 @@ The `rebuilt_at` timestamp written into both `job_stats.json` and `room_stats.js
 | Output file | Recalculated fields |
 |---|---|
 | `job_stats.json` | `total_jobs`, `avg_duration_minutes`, `avg_battery_used`, `avg_room_count`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `min/max_duration_minutes`, `min/max_battery_used`, `latest_job_ended_at` |
-| `room_stats.json` | `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count`, plus `avg_area_m2`, `area_m2_min`, `area_m2_max`, `area_m2_stddev`, `area_sample_count` (single-room jobs only) for every room key; `room_baselines` additionally carries `by_clean_times` / `by_edge_mopping` setting breakouts |
+| `room_stats.json` | `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count`, plus `avg_area_m2`, `area_m2_min`, `area_m2_max`, `area_m2_stddev`, `area_sample_count` (per room, single + multi-room) for every room key; `room_baselines` additionally carries `by_clean_times` / `by_edge_mopping` setting breakouts |
 | `jobs_index.json` | Per-job summary list, per-room aggregate list, per-profile aggregate list |
 
 The accuracy stats file (`learned/accuracy_stats.json`) is **not** rebuilt — it is only updated incrementally by `record_estimate_accuracy` after each job.
@@ -638,7 +640,7 @@ Under normal operation, a rebuild fires automatically at the end of every `final
 
 ### 8.4 `schema_version`
 
-`room_stats.json` is written with `schema_version: 5` (5 added `transit_stats` / `access_graph_edges` and the `room_baselines` ingress/egress bands; 4 added `avg_area_m2` and the `room_baselines` setting buckets — both bumped from 3). `job_stats.json` is written with `schema_version: 4` (4 added the `overhead_observed` aggregates), and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
+`room_stats.json` is written with `schema_version: 6` (6 added per-room area for multi-room jobs + the area-quality gate; 5 added `transit_stats` / `access_graph_edges` and the `room_baselines` ingress/egress bands; 4 added `avg_area_m2` and the `room_baselines` setting buckets — bumped from 3). `job_stats.json` is written with `schema_version: 4` (4 added the `overhead_observed` aggregates), and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
 
 ---
 

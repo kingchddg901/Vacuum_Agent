@@ -11,7 +11,7 @@ Learning rules:
 - cancelled / failed / interrupted / test jobs remain visible in exports/history
   but are excluded from learning
 
-Stats model (room stats schema_version 5):
+Stats model (room stats schema_version 6):
 - The exact room_stats key is
   map_id::slug::effective_mode::clean_times::is_carpet::clean_intensity::edge_mopping
   — edge-mopping is in the key because it materially changes cleaning time, so
@@ -19,9 +19,10 @@ Stats model (room stats schema_version 5):
 - Each room entry stores avg_minutes, minutes_min, minutes_max, and minutes_stddev
   so the estimator can compute confidence scores based on sample variance.
 - Each room entry also stores avg_area_m2 (+ area_m2_min/max/stddev and
-  area_sample_count), aggregated from single-room jobs only: a job's
-  cleaning_area_m2 equals the room area for those, whereas multi-room jobs record
-  only a job total with no per-room split and are excluded from area stats.
+  area_sample_count), per room from counter-plateau capture (room_timings[].area_m2,
+  single AND multi-room) or a single-room job's cleaning_area_m2 total. A partial-
+  clean gate (area > 1.5 m2 off the room median) drops that clean's TIME from the
+  timing stats (partial_excluded_count); area/battery/water keep all samples.
 - Each room_baselines entry breaks its averages out by setting — by_clean_times
   (1 vs 2 passes) and by_edge_mopping (on vs off), each with sample_count,
   avg_minutes, minutes_min/max/stddev (a variance band), and avg_battery_used —
@@ -74,6 +75,48 @@ def _stddev(values: list[float]) -> float:
     mean = sum(values) / n
     variance = sum((v - mean) ** 2 for v in values) / n
     return round(math.sqrt(variance), 4)
+
+
+def _median(values: list[float]) -> float:
+    """Return the median of a list of floats (0.0 if empty)."""
+    s = sorted(values)
+    n = len(s)
+    if n == 0:
+        return 0.0
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2.0
+
+
+# Area-quality gate: a per-room clean whose covered area falls more than
+# _AREA_GATE_TOL_M2 off the room's median area is a partial/interrupted clean whose
+# TIME would poison the room's timing baseline — its minutes sample is excluded
+# from the timing stats. Area is settings-invariant, so the band is per-room
+# (baseline), not per-settings. Gated only once a room has >= _AREA_GATE_MIN_SAMPLES
+# area samples to define a band. (~12% flagged on the archive; tightened Kitchen
+# time stddev 101 -> 80 s — see scratch-external-estimator/gate.py.)
+_AREA_GATE_TOL_M2 = 1.5
+_AREA_GATE_MIN_SAMPLES = 4
+
+
+def _gate_minutes_by_area(
+    minutes: list[float],
+    areas: list[float | None],
+    median_area: float | None,
+) -> tuple[list[float], int]:
+    """Return (kept_minutes, excluded_count).
+
+    A minutes sample is excluded when its paired area is more than _AREA_GATE_TOL_M2
+    off median_area (a partial clean). Samples with no paired area, or when
+    median_area is None (too few area samples to define a band), are kept. Never
+    returns empty when given inputs — falls back to all minutes.
+    """
+    if median_area is None:
+        return list(minutes), 0
+    kept = [m for m, a in zip(minutes, areas) if a is None or abs(a - median_area) <= _AREA_GATE_TOL_M2]
+    excluded = len(minutes) - len(kept)
+    if not kept:
+        return list(minutes), 0
+    return kept, excluded
 
 
 def _finalize_setting_buckets(buckets: dict[str, dict[str, list[float]]]) -> dict[str, dict[str, Any]]:
@@ -337,13 +380,19 @@ class LearningStatsRebuilder:
         jobs: list[dict[str, Any]],
     ) -> dict[str, Any]:
         """Build learned room stats and room baselines from a list of learning jobs."""
-        # exact_key → list of per-room duration samples (used for stddev).
+        # exact_key → per-room minutes samples + the area paired with each (for the
+        # area-quality gate). The paired area is None when the job had no per-room
+        # area capture (so that sample is never gated out).
         room_samples: dict[str, list[float]] = {}
-        # exact_key / baseline_key → cleaned-area samples, collected from
-        # single-room jobs only (where the job's cleaning_area_m2 equals the
-        # room's area).
+        room_sample_areas: dict[str, list[float | None]] = {}
+        # exact_key / baseline_key → cleaned-area samples. Per-room area now comes
+        # from transit_capture_valid jobs (room_timings[].area_m2 — single AND
+        # multi-room) or a single-room job's cleaning_area_m2 total.
         room_area_samples: dict[str, list[float]] = {}
         baseline_area_samples: dict[str, list[float]] = {}
+        # baseline-level minutes samples + paired area (baseline area gate).
+        baseline_samples: dict[str, list[float]] = {}
+        baseline_sample_areas: dict[str, list[float | None]] = {}
         room_stats: dict[str, dict[str, Any]] = {}
         room_baselines: dict[str, dict[str, Any]] = {}
         # Transit (travel-time) accumulators: per-pair second-samples + identity
@@ -382,6 +431,21 @@ class LearningStatsRebuilder:
             per_room_drift = total_job_drift / room_count
             map_id = _safe_int(profile.get("map_id"), 0)
 
+            # Per-room (area, wall-minutes) from counter-plateau capture — exact for
+            # single AND multi-room jobs; room_minutes/room_area fall back to the
+            # job level when a room has no captured segment.
+            captured: dict[int, tuple[float, float]] = {}
+            if _safe_bool(job_info.get("transit_capture_valid"), False):
+                for _rt in (job_info.get("room_timings") or []):
+                    if not isinstance(_rt, dict):
+                        continue
+                    _rid = _safe_int(_rt.get("room_id"), -1)
+                    if _rid > 0:
+                        captured[_rid] = (
+                            _safe_float(_rt.get("area_m2"), 0.0),
+                            _safe_float(_rt.get("cleaning_wall_seconds"), 0.0) / 60.0,
+                        )
+
             for room in rooms:
                 if not isinstance(room, dict):
                     continue
@@ -408,11 +472,21 @@ class LearningStatsRebuilder:
                 ).strip().lower() or "standard"
                 edge_mopping = _safe_bool(room.get("edge_mopping", False), False)
 
+                rid = _safe_int(room.get("room_id", room.get("id")), -1)
+                _cap = captured.get(rid)
+                if _cap is not None:
+                    room_area = _cap[0] if _cap[0] > 0 else None
+                    room_minutes = _cap[1] if _cap[1] > 0 else per_room_duration
+                else:
+                    room_area = cleaning_area_m2 if (is_single_room_job and cleaning_area_m2 > 0) else None
+                    room_minutes = per_room_duration
+
                 exact_key = _room_key(map_id, slug, effective_mode, clean_times, is_carpet, clean_intensity, edge_mopping)
 
-                room_samples.setdefault(exact_key, []).append(per_room_duration)
-                if is_single_room_job and cleaning_area_m2 > 0:
-                    room_area_samples.setdefault(exact_key, []).append(cleaning_area_m2)
+                room_samples.setdefault(exact_key, []).append(room_minutes)
+                room_sample_areas.setdefault(exact_key, []).append(room_area)
+                if room_area is not None:
+                    room_area_samples.setdefault(exact_key, []).append(room_area)
 
                 if exact_key not in room_stats:
                     room_stats[exact_key] = {
@@ -435,7 +509,7 @@ class LearningStatsRebuilder:
 
                 room_water = room_water_allocations.get(slug, {})
                 room_stats[exact_key]["sample_count"] += 1
-                room_stats[exact_key]["total_estimated_minutes"] += per_room_duration
+                room_stats[exact_key]["total_estimated_minutes"] += room_minutes
                 room_stats[exact_key]["total_estimated_battery_used"] += per_room_battery
                 room_stats[exact_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_stats[exact_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -444,8 +518,10 @@ class LearningStatsRebuilder:
                 room_stats[exact_key]["total_abs_drift_minutes"] += abs(per_room_drift)
 
                 baseline_key = _room_baseline_key(map_id, slug)
-                if is_single_room_job and cleaning_area_m2 > 0:
-                    baseline_area_samples.setdefault(baseline_key, []).append(cleaning_area_m2)
+                if room_area is not None:
+                    baseline_area_samples.setdefault(baseline_key, []).append(room_area)
+                baseline_samples.setdefault(baseline_key, []).append(room_minutes)
+                baseline_sample_areas.setdefault(baseline_key, []).append(room_area)
                 if baseline_key not in room_baselines:
                     room_baselines[baseline_key] = {
                         "map_id": map_id,
@@ -467,7 +543,7 @@ class LearningStatsRebuilder:
                     }
 
                 room_baselines[baseline_key]["sample_count"] += 1
-                room_baselines[baseline_key]["total_estimated_minutes"] += per_room_duration
+                room_baselines[baseline_key]["total_estimated_minutes"] += room_minutes
                 room_baselines[baseline_key]["total_estimated_battery_used"] += per_room_battery
                 room_baselines[baseline_key]["total_robot_water_used_ml"] += _safe_float(room_water.get("robot_water_used_ml"), 0.0)
                 room_baselines[baseline_key]["total_water_overhead_ml"] += _safe_float(room_water.get("water_overhead_ml"), 0.0)
@@ -489,13 +565,13 @@ class LearningStatsRebuilder:
                 pass_bucket = room_baselines[baseline_key]["pass_buckets"].setdefault(
                     str(clean_times), {"minutes": [], "battery": []},
                 )
-                pass_bucket["minutes"].append(per_room_duration)
+                pass_bucket["minutes"].append(room_minutes)
                 pass_bucket["battery"].append(per_room_battery)
 
                 edge_bucket = room_baselines[baseline_key]["edge_buckets"].setdefault(
                     "on" if edge_mopping else "off", {"minutes": [], "battery": []},
                 )
-                edge_bucket["minutes"].append(per_room_duration)
+                edge_bucket["minutes"].append(room_minutes)
                 edge_bucket["battery"].append(per_room_battery)
 
             # --- transit accumulation (job level, after the per-room loop) -----
@@ -543,7 +619,16 @@ class LearningStatsRebuilder:
             samples = room_samples.get(key, [])
             area_samples = room_area_samples.get(key, [])
             area_count = len(area_samples)
-            avg_minutes = round(item["total_estimated_minutes"] / sample_count, 2)
+            # Area-quality gate: drop partial cleans (area off the room's median)
+            # from the TIMING stats. The band is per-room (baseline), area-invariant.
+            _b_areas = baseline_area_samples.get(
+                _room_baseline_key(item["map_id"], item["room_slug"]), []
+            )
+            _median_area = _median(_b_areas) if len(_b_areas) >= _AREA_GATE_MIN_SAMPLES else None
+            gated, partial_excluded = _gate_minutes_by_area(
+                samples, room_sample_areas.get(key, []), _median_area
+            )
+            avg_minutes = round(sum(gated) / len(gated), 2) if gated else 0.0
 
             output_exact.append(
                 {
@@ -562,9 +647,11 @@ class LearningStatsRebuilder:
                     "avg_total_water_used_ml": round(item["total_water_used_ml"] / sample_count, 2),
                     "avg_drift_minutes": round(item["total_drift_minutes"] / sample_count, 2),
                     "avg_abs_drift_minutes": round(item["total_abs_drift_minutes"] / sample_count, 2),
-                    "minutes_min": round(min(samples), 2) if samples else avg_minutes,
-                    "minutes_max": round(max(samples), 2) if samples else avg_minutes,
-                    "minutes_stddev": _stddev(samples),
+                    "minutes_min": round(min(gated), 2) if gated else avg_minutes,
+                    "minutes_max": round(max(gated), 2) if gated else avg_minutes,
+                    "minutes_stddev": _stddev(gated),
+                    "timing_sample_count": len(gated),
+                    "partial_excluded_count": partial_excluded,
                     "area_sample_count": area_count,
                     "avg_area_m2": round(sum(area_samples) / area_count, 2) if area_count else 0.0,
                     "area_m2_min": round(min(area_samples), 2) if area_count else 0.0,
@@ -579,12 +666,22 @@ class LearningStatsRebuilder:
             sample_count = max(_safe_int(item.get("sample_count"), 0), 1)
             area_samples = baseline_area_samples.get(key, [])
             area_count = len(area_samples)
+            _b_median = _median(area_samples) if area_count >= _AREA_GATE_MIN_SAMPLES else None
+            b_gated, b_partial = _gate_minutes_by_area(
+                baseline_samples.get(key, []), baseline_sample_areas.get(key, []), _b_median
+            )
+            b_avg_minutes = round(sum(b_gated) / len(b_gated), 2) if b_gated else 0.0
             output_baselines.append(
                 {
                     "map_id": item["map_id"],
                     "room_slug": item["room_slug"],
                     "sample_count": item["sample_count"],
-                    "avg_minutes": round(item["total_estimated_minutes"] / sample_count, 2),
+                    "avg_minutes": b_avg_minutes,
+                    "minutes_min": round(min(b_gated), 2) if b_gated else b_avg_minutes,
+                    "minutes_max": round(max(b_gated), 2) if b_gated else b_avg_minutes,
+                    "minutes_stddev": _stddev(b_gated),
+                    "timing_sample_count": len(b_gated),
+                    "partial_excluded_count": b_partial,
                     "avg_battery_used": round(item["total_estimated_battery_used"] / sample_count, 2),
                     "avg_robot_water_used_ml": round(item["total_robot_water_used_ml"] / sample_count, 2),
                     "avg_water_overhead_ml": round(item["total_water_overhead_ml"] / sample_count, 2),
@@ -642,9 +739,10 @@ class LearningStatsRebuilder:
             )
 
         return {
-            "schema_version": 5,
+            "schema_version": 6,
             "vacuum_entity_id": vacuum_entity_id,
             "rebuilt_at": _iso_now(),
+            "schema_version_note": "6: per-room area (multi-room) + area-quality gate",
             "room_stats": output_exact,
             "room_baselines": output_baselines,
             "transit_stats": transit_stats,
@@ -662,9 +760,16 @@ class LearningStatsRebuilder:
                 "minutes_stddev uses population stddev of per-room duration samples."
             ),
             "area_note": (
-                "avg_area_m2 is aggregated from single-room jobs only (a job's cleaning_area_m2 "
-                "equals the room area there); multi-room jobs record only a job total with no "
-                "per-room split and are excluded. area_sample_count is that single-room sample count."
+                "avg_area_m2 is per-room: from counter-plateau capture (room_timings[].area_m2, "
+                "single AND multi-room) on transit_capture_valid jobs, or a single-room job's "
+                "cleaning_area_m2 total. area_sample_count is the number of area samples."
+            ),
+            "gate_note": (
+                "Area-quality gate: a per-room clean whose area is > 1.5 m2 off the room's median "
+                "(needs >= 4 area samples) is treated as partial/interrupted and excluded from the "
+                "TIMING stats (avg_minutes + band). partial_excluded_count reports how many were "
+                "dropped; timing_sample_count is the kept count. Area / battery / water keep all "
+                "samples."
             ),
             "buckets_note": (
                 "room_baselines.by_clean_times / by_edge_mopping break the per-room average out "
