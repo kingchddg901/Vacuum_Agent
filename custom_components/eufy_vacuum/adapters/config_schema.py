@@ -926,7 +926,23 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "supports_robot_position": {"type": "bool", "required": False},
             "supports_station_water": {"type": "bool", "required": False},
             "position_lock_reliable": {"type": "bool", "required": False},
+            "rooms_unique_per_job": {"type": "bool", "required": False},
         },
+    },
+
+    # === SETTINGS SELECTS (external-run capture) ===========================
+
+    "settings_selects": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Global select entities that reflect the current room's per-room "
+            "settings while a job runs. Used to recover per-room settings for "
+            "app-started (external) jobs, which the integration did not dispatch. "
+            "Maps a canonical setting key (clean_mode/fan_speed/water_level/"
+            "clean_intensity/mop_intensity) to {entity_id, value_map}, where "
+            "value_map (optional) normalizes raw firmware strings to canonical."
+        ),
     },
 
     # === MAINTENANCE COMPONENTS ===========================================

@@ -112,6 +112,20 @@ def register(hass: HomeAssistant) -> None:
             any_changes = False
 
             for vacuum_entity_id in matched_vacuum_ids:
+                # App-started (external) runs have no dispatched job, so they fall
+                # through the per-map internal loop below. Detect + capture them
+                # first (open a status="external" slot, or finalize to a pending
+                # record when the robot returns home).
+                try:
+                    if await manager_local.maybe_handle_external_run(
+                        vacuum_entity_id=vacuum_entity_id
+                    ):
+                        any_changes = True
+                except Exception:  # pragma: no cover - best-effort external capture
+                    _LOGGER.exception(
+                        "External-run handling failed for %s", vacuum_entity_id
+                    )
+
                 for map_id in manager_local.get_known_map_ids(vacuum_entity_id):
                     active_job = manager_local.get_active_job(
                         vacuum_entity_id=vacuum_entity_id,

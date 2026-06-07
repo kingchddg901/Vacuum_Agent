@@ -2467,6 +2467,135 @@ class EufyVacuumManager:
         """Clear active job state — delegates to ActiveJobTracker."""
         return self.active_job.clear_active_job(**kwargs)
 
+    def start_external_capture(self, **kwargs) -> dict:
+        """Open an external (app-started) capture slot — delegates to ActiveJobTracker."""
+        return self.active_job.start_external_capture(**kwargs)
+
+    def _resolve_active_map_id(self, vacuum_entity_id: str) -> str | None:
+        """Current active map id from the adapter's active_map entity (or None)."""
+        from ..adapters.registry import get_adapter_config
+
+        cfg = get_adapter_config(vacuum_entity_id) or {}
+        entity_id = (cfg.get("entities", {}) or {}).get("active_map")
+        if not entity_id:
+            return None
+        state_obj = self.hass.states.get(entity_id)
+        value = getattr(state_obj, "state", None)
+        if value in (None, "", "unknown", "unavailable", "none"):
+            return None
+        return str(value)
+
+    async def maybe_handle_external_run(self, *, vacuum_entity_id: str) -> bool:
+        """Detect + capture an app-started (external) run.
+
+        Internal starts are blocked while a run is in progress, so a vacuum that
+        is cleaning with NO dispatched job (status started/paused on any map) is
+        an external run. Open a capture-only slot (status="external") when it
+        begins; when the robot returns home, segment the capture into a pending
+        review record under external_jobs/ and clear the slot. Returns True when a
+        slot was opened or finalized (the caller persists).
+        """
+        dispatched = False
+        external_map_id: str | None = None
+        for map_id in self.get_known_map_ids(vacuum_entity_id):
+            status = self.get_active_job(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id
+            ).get("status")
+            if status in {"started", "paused"}:
+                dispatched = True
+            elif status == "external":
+                external_map_id = str(map_id)
+        if dispatched:
+            return False  # internal owns this run
+
+        state_obj = self.hass.states.get(vacuum_entity_id)
+        vacuum_state = str(getattr(state_obj, "state", "") or "").strip().lower()
+
+        if external_map_id is not None:
+            # In progress: finalize once the robot is home. External runs hide
+            # active_cleaning_target, so we key the end on the vacuum entity.
+            if vacuum_state in {"docked", "idle"}:
+                slot = self.get_active_job(
+                    vacuum_entity_id=vacuum_entity_id, map_id=external_map_id
+                )
+                await self._finalize_external_run(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=external_map_id,
+                    slot=slot,
+                )
+                return True
+            return False
+
+        if vacuum_state == "cleaning":
+            active_map_id = self._resolve_active_map_id(vacuum_entity_id)
+            if active_map_id:
+                self.start_external_capture(
+                    vacuum_entity_id=vacuum_entity_id, map_id=active_map_id
+                )
+                return True
+        return False
+
+    async def _finalize_external_run(
+        self, *, vacuum_entity_id: str, map_id: str, slot: dict[str, Any]
+    ) -> None:
+        """Segment a finished external capture into a pending record + clear the slot."""
+        counter_samples = list(slot.get("counter_samples", []) or [])
+        settings_samples = list(slot.get("settings_samples", []) or [])
+        detection_ts = slot.get("started_at")
+        rooms = (
+            self.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            or {}
+        ).get("rooms", {})
+
+        def _build_and_write() -> dict[str, Any] | None:
+            import json
+
+            from ..learning.external_ingest import build_pending_record
+            from ..learning.history_store import LearningHistoryStore
+
+            store = LearningHistoryStore(self.hass)
+            paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+            baselines: list[dict[str, Any]] = []
+            try:
+                with open(
+                    paths.learned_dir / "room_stats.json", encoding="utf-8"
+                ) as handle:
+                    baselines = (json.load(handle) or {}).get("room_baselines", []) or []
+            except (OSError, ValueError):
+                baselines = []
+            record = build_pending_record(
+                detection_ts=detection_ts,
+                map_id=map_id,
+                counter_samples=counter_samples,
+                settings_samples=settings_samples,
+                rooms=rooms,
+                baselines=baselines,
+            )
+            if record is None:
+                return None
+            safe_ts = (
+                str(detection_ts or "unknown").split("+")[0].split(".")[0].replace(":", "-")
+            )
+            path = paths.root / "external_jobs" / f"job_{safe_ts}.json"
+            store.write_json(path, record)
+            return {"path": str(path), "segment_count": record.get("segment_count")}
+
+        result = await self.hass.async_add_executor_job(_build_and_write)
+        self.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if result is not None:
+            from ..const import EVENT_EXTERNAL_RUN_PENDING
+
+            self.hass.bus.async_fire(
+                EVENT_EXTERNAL_RUN_PENDING,
+                {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "record_path": result["path"],
+                    "segment_count": result["segment_count"],
+                    "detection_ts": detection_ts,
+                },
+            )
+
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
         return self.active_job.pause_active_job(**kwargs)

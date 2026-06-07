@@ -143,6 +143,10 @@ class ActiveJobTracker:
             "observed_mop_wash_cycles": [],
             "state_transitions": [],
             "counter_samples": [],
+            # External-run only: deduped timeline of the per-room setting selects
+            # ([{t, settings:{clean_mode,...}}]), snapshotted alongside the counters
+            # when status == "external". Empty for internal jobs (we dispatched them).
+            "settings_samples": [],
             "water_estimate": None,
             "path_block_action": "event_only",
             "pause_timeout_minutes": 0,
@@ -195,6 +199,7 @@ class ActiveJobTracker:
         normalized.setdefault("observed_mop_wash_cycles", [])
         normalized.setdefault("state_transitions", [])
         normalized.setdefault("counter_samples", [])
+        normalized.setdefault("settings_samples", [])
         normalized.setdefault("water_estimate", None)
         normalized.setdefault("has_observed_active_lifecycle", False)
         normalized["path_block_action"] = _normalize_path_block_action(
@@ -1102,6 +1107,16 @@ class ActiveJobTracker:
             )
             if len(samples) > _MAX_COUNTER_SAMPLES:
                 del samples[: len(samples) - _MAX_COUNTER_SAMPLES]
+            # External runs: also snapshot the per-room setting selects (deduped —
+            # one entry per flip), our only window into what the app set per room.
+            if job.get("status") == "external":
+                settings = self._snapshot_settings_selects(vacuum_entity_id)
+                if settings:
+                    ss = job.setdefault("settings_samples", [])
+                    if not ss or ss[-1].get("settings") != settings:
+                        ss.append({"t": observed, "settings": settings})
+                        if len(ss) > _MAX_COUNTER_SAMPLES:
+                            del ss[: len(ss) - _MAX_COUNTER_SAMPLES]
             updated = True
         if updated:
             try:
@@ -1109,6 +1124,64 @@ class ActiveJobTracker:
             except Exception:
                 pass
         return updated
+
+    def _snapshot_settings_selects(self, vacuum_entity_id: str) -> dict[str, str]:
+        """Read the adapter's ``settings_selects`` entities → a settings dict.
+
+        External-run only: these global selects mirror the current room's settings
+        while the app runs a job. ``value_map`` normalizes raw firmware strings to
+        the canonical vocabulary (clean_mode); other keys keep the raw select state
+        (normalized downstream). Absent / unavailable entities are skipped; returns
+        ``{}`` when the adapter declares no settings_selects.
+        """
+        cfg = _get_adapter_config(vacuum_entity_id) or {}
+        selects = cfg.get("settings_selects", {})
+        if not isinstance(selects, dict):
+            return {}
+        hass = self._manager.hass
+        out: dict[str, str] = {}
+        for key, spec in selects.items():
+            if not isinstance(spec, dict):
+                continue
+            entity_id = spec.get("entity_id")
+            if not entity_id:
+                continue
+            state_obj = hass.states.get(entity_id)
+            raw = getattr(state_obj, "state", None)
+            if raw in (None, "", "unknown", "unavailable"):
+                continue
+            value_map = spec.get("value_map")
+            if isinstance(value_map, dict):
+                out[key] = value_map.get(str(raw).strip().lower(), str(raw))
+            else:
+                out[key] = str(raw)
+        return out
+
+    def start_external_capture(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Open a capture-only slot for an app-started (external) run.
+
+        Seeds a default slot with ``status="external"`` + ``started_at`` so the
+        metrics listener treats it as in-flight — record_active_job_sensor_value
+        and record_counter_sample buffer the counters + setting selects into it.
+        There is no queue or payload: we did not dispatch it, so room identity is
+        unknown and is resolved by the user in review when the pending record is
+        finalized.
+        """
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        slot = self._default_active_job_state(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+        )
+        slot["status"] = "external"
+        slot["started_at"] = _iso_now()
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = slot
+        self._notify(vacuum_entity_id, str(map_id))
+        return slot
 
     def clear_active_job(
         self,

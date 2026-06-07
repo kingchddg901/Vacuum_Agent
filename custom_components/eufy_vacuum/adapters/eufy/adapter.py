@@ -234,6 +234,31 @@ def register_eufy_adapter_for_vacuum(
 
         "entities": entities,
 
+        # External-run capture: the global select entities that reflect the
+        # CURRENT room's per-room settings while the app runs a job. We dispatch
+        # these for internal jobs (never reading them back), but for an app-started
+        # EXTERNAL run they are our only window into what was set per room. The
+        # capture layer snapshots them per tick; value_map normalizes raw firmware
+        # strings to the canonical room-setting vocabulary (clean_mode only — fan/
+        # water/intensity are stored raw and normalized downstream). edge_mopping
+        # has no readback entity, so it is absent here (the user supplies it in
+        # review). Entries whose entity_id is None are skipped by the capture.
+        "settings_selects": {
+            "clean_mode": {
+                "entity_id": f"select.{object_id}_cleaning_mode",
+                "value_map": {
+                    "vacuum and mop": "vacuum_mop",
+                    "vacuum & mop": "vacuum_mop",
+                    "vacuum": "vacuum",
+                    "mop": "mop",
+                },
+            },
+            "fan_speed":       {"entity_id": f"select.{object_id}_suction_level",  "value_map": None},
+            "water_level":     {"entity_id": entities.get("water_level"),          "value_map": None},
+            "clean_intensity": {"entity_id": entities.get("cleaning_intensity"),   "value_map": None},
+            "mop_intensity":   {"entity_id": f"select.{object_id}_mop_intensity",  "value_map": None},
+        },
+
         "vocabulary": {
             # Dock/task states — sourced from vocabulary.py
             # See prompts 3 and 4 for extraction provenance.
@@ -479,6 +504,11 @@ def register_eufy_adapter_for_vacuum(
             # room detector only trusts position/bounds when this is True (core
             # stays neutral); a brand with a stable localization lock can set True.
             "position_lock_reliable": False,
+            # Eufy has no "vacuum-then-mop" whole-home mode, so a room is cleaned
+            # at most once per job → external-run room picks are unique per job
+            # (the card hard-blocks an already-picked room). A brand with a
+            # vac-then-mop pass visits each room twice → set False there.
+            "rooms_unique_per_job": True,
         },
 
         "maintenance_components": {

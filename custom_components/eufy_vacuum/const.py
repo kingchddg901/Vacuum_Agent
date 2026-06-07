@@ -184,6 +184,12 @@ EVENT_ROOM_STARTED       = f"{DOMAIN}_room_started"
 EVENT_ROOM_FINISHED      = f"{DOMAIN}_room_finished"
 EVENT_PATH_BLOCKED       = f"{DOMAIN}_path_blocked"
 
+# Fired when an app-started (external) run finishes and is captured as a PENDING
+# record under learning/<slug>/external_jobs/. The review card subscribes and
+# surfaces it so the user can confirm room identities + edge-mop. Payload:
+# vacuum_entity_id, map_id, record_path, segment_count, detection_ts.
+EVENT_EXTERNAL_RUN_PENDING = f"{DOMAIN}_external_run_pending"
+
 # Fired every 5 s while at least one vacuum has an active job. The backend
 # drives this — the dashboard card subscribes and refreshes its snapshot
 # without having to poll. Carries vacuum_entity_id and map_id; consumers

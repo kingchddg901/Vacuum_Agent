@@ -277,6 +277,88 @@ def test_record_counter_sample_skips_finalized_job():
 
 
 # ---------------------------------------------------------------------------
+# External-run capture (W6.2): status="external" slot + setting-select snapshot
+# ---------------------------------------------------------------------------
+
+def test_start_external_capture_opens_external_slot():
+    """start_external_capture seeds an in-flight slot with status='external'."""
+    mgr = MagicMock()
+    mgr.data = {}
+    tracker = ActiveJobTracker(mgr)
+    slot = tracker.start_external_capture(vacuum_entity_id="vacuum.alfred", map_id="6")
+    assert slot["status"] == "external"
+    assert slot["started_at"]
+    assert mgr.data["active_jobs"]["vacuum.alfred"]["6"]["status"] == "external"
+
+
+def test_snapshot_settings_selects_maps_and_skips(monkeypatch):
+    """value_map normalizes the raw clean_mode string; unmapped selects keep their
+    raw value; entries with no entity_id or an unavailable state are skipped."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {
+        "settings_selects": {
+            "clean_mode": {
+                "entity_id": "select.alfred_cleaning_mode",
+                "value_map": {"vacuum and mop": "vacuum_mop"},
+            },
+            "fan_speed": {"entity_id": "select.alfred_suction_level", "value_map": None},
+            "absent": {"entity_id": None, "value_map": None},
+        }
+    })
+    states = {
+        "select.alfred_cleaning_mode": MagicMock(state="Vacuum and mop"),
+        "select.alfred_suction_level": MagicMock(state="Turbo"),
+    }
+    mgr = MagicMock()
+    mgr.hass.states.get = lambda eid: states.get(eid)
+    out = ActiveJobTracker(mgr)._snapshot_settings_selects("vacuum.alfred")
+    assert out == {"clean_mode": "vacuum_mop", "fan_speed": "Turbo"}
+
+
+def test_record_counter_sample_captures_settings_for_external(monkeypatch):
+    """An external slot also buffers a deduped settings timeline; a repeat with the
+    same settings does not append a second entry (one per flip)."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {
+        "settings_selects": {
+            "clean_mode": {"entity_id": "select.alfred_cleaning_mode", "value_map": None},
+        }
+    })
+    job = {
+        "status": "external",
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "last_cleaning_time_seconds": 30,
+        "last_cleaning_area_m2": 1.0,
+        "last_battery_percent": 99,
+    }
+    mgr = MagicMock()
+    mgr.data = {"active_jobs": {"vacuum.alfred": {"6": job}}}
+    mgr.hass.states.get = lambda eid: MagicMock(state="Vacuum")
+    tracker = ActiveJobTracker(mgr)
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is True
+    assert job["counter_samples"][0]["cleaning_time"] == 30
+    assert job["settings_samples"] == [
+        {"t": job["settings_samples"][0]["t"], "settings": {"clean_mode": "Vacuum"}}
+    ]
+    tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred")
+    assert len(job["counter_samples"]) == 2        # counters always append
+    assert len(job["settings_samples"]) == 1       # settings deduped (no flip)
+
+
+def test_record_counter_sample_no_settings_for_internal():
+    """Internal (status='started') jobs never buffer settings_samples."""
+    job = {
+        "status": "started",
+        "started_at": "2026-01-01T09:00:00+00:00",
+        "last_cleaning_time_seconds": 30,
+        "last_cleaning_area_m2": 1.0,
+    }
+    tracker = _tracker_with_job(job)
+    assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is True
+    assert job.get("settings_samples", []) == []
+
+
+# ---------------------------------------------------------------------------
 # _position_lock_reliable (capability-gated geometry — the adapter's call)
 # ---------------------------------------------------------------------------
 
