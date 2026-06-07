@@ -389,3 +389,30 @@ def build_graduated_job(
         "finalized_at": ended_at,
     }
     return record, []
+
+
+def load_pending_runs(external_jobs_dir: str) -> list[dict[str, Any]]:
+    """Load pending external review records from ``external_jobs_dir``, newest
+    first, each tagged with ``pending_job_id`` (the filename stem) for the confirm
+    service. Returns [] when the directory is absent or empty (the card's data API)."""
+    import json
+    import os
+
+    out: list[dict[str, Any]] = []
+    try:
+        names = sorted(os.listdir(external_jobs_dir), reverse=True)
+    except OSError:
+        return out
+    for name in names:
+        if not (name.startswith("job_") and name.endswith(".json")):
+            continue
+        try:
+            with open(os.path.join(external_jobs_dir, name), encoding="utf-8") as handle:
+                rec = json.load(handle)
+        except (OSError, ValueError):
+            continue
+        if isinstance(rec, dict):
+            rec = dict(rec)
+            rec["pending_job_id"] = name[:-5]  # strip ".json"
+            out.append(rec)
+    return out

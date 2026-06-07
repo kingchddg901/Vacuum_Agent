@@ -2670,6 +2670,20 @@ class EufyVacuumManager:
             "rebuilt": bool(rebuild_result),
         }
 
+    def get_external_pending_runs(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """List pending external review records (external_jobs/) for the card."""
+        from ..learning.external_ingest import load_pending_runs
+        from ..learning.history_store import LearningHistoryStore
+
+        store = LearningHistoryStore(self.hass)
+        paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        pending = load_pending_runs(str(paths.root / "external_jobs"))
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "pending": pending,
+            "count": len(pending),
+        }
+
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
         return self.active_job.pause_active_job(**kwargs)

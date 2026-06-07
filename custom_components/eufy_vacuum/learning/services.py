@@ -213,6 +213,12 @@ CONFIRM_EXTERNAL_RUN_SCHEMA = vol.Schema(
 )
 
 
+SERVICE_GET_EXTERNAL_PENDING_RUNS = "get_external_pending_runs"
+GET_EXTERNAL_PENDING_RUNS_SCHEMA = vol.Schema(
+    {vol.Required("vacuum_entity_id"): cv.entity_id}
+)
+
+
 def _get_core_manager(hass: HomeAssistant):
     """Return core integration manager."""
     return hass.data[DOMAIN]["runtime"]
@@ -260,6 +266,13 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
             learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
             learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
         return result if isinstance(result, dict) else {"ok": False}
+
+    async def handle_get_external_pending_runs(call: ServiceCall) -> dict:
+        core_manager = _get_core_manager(hass)
+        return await hass.async_add_executor_job(
+            core_manager.get_external_pending_runs,
+            call.data["vacuum_entity_id"],
+        )
 
     async def handle_save_learning_snapshot(call: ServiceCall) -> None:
         core_manager = _get_core_manager(hass)
@@ -645,6 +658,13 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         SERVICE_CONFIRM_EXTERNAL_RUN,
         handle_confirm_external_run,
         schema=CONFIRM_EXTERNAL_RUN_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        LEARNING_DOMAIN,
+        SERVICE_GET_EXTERNAL_PENDING_RUNS,
+        handle_get_external_pending_runs,
+        schema=GET_EXTERNAL_PENDING_RUNS_SCHEMA,
         supports_response=True,
     )
     hass.services.async_register(

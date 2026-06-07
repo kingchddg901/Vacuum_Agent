@@ -264,3 +264,31 @@ def test_graduated_record_ingests_into_room_stats(tmp_path):
     assert "kitchen" in by_slug and "hall" in by_slug
     assert by_slug["kitchen"]["avg_area_m2"] == 6.0
     assert by_slug["hall"]["avg_area_m2"] == 2.0
+
+
+def test_load_pending_runs_newest_first_and_tagged(tmp_path):
+    import json
+
+    from custom_components.eufy_vacuum.learning.external_ingest import load_pending_runs
+
+    d = tmp_path / "external_jobs"
+    d.mkdir()
+    (d / "job_2026-06-07T03-00-00.json").write_text(
+        json.dumps({"map_id": "6", "segment_count": 1}), encoding="utf-8"
+    )
+    (d / "job_2026-06-07T05-00-00.json").write_text(
+        json.dumps({"map_id": "6", "segment_count": 2}), encoding="utf-8"
+    )
+    (d / "notes.txt").write_text("ignored", encoding="utf-8")  # non-job files skipped
+    runs = load_pending_runs(str(d))
+    assert [r["pending_job_id"] for r in runs] == [
+        "job_2026-06-07T05-00-00",
+        "job_2026-06-07T03-00-00",
+    ]
+    assert runs[0]["segment_count"] == 2
+
+
+def test_load_pending_runs_missing_dir_is_empty():
+    from custom_components.eufy_vacuum.learning.external_ingest import load_pending_runs
+
+    assert load_pending_runs("/no/such/external_jobs") == []
