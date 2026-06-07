@@ -622,3 +622,22 @@ def test_estimate_single_room_no_transit(tmp_path, monkeypatch):
         vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
     assert result["overhead"]["transition_minutes"] == 0.0
     assert result["overhead"]["transition_source"] == "default"
+
+
+def test_estimate_surfaces_area_and_uses_timing_sample_count(tmp_path, monkeypatch):
+    """A learned match's avg_area_m2 surfaces as estimated_area_m2, and the gated
+    timing_sample_count (not the raw sample_count) drives confidence/velocity —
+    since avg_minutes is computed from the area-gated samples (Wave 3)."""
+    from custom_components.eufy_vacuum.learning import estimator as _est
+    estimator = _est.LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(_est, "_find_room_match", lambda **kw: (
+        {"avg_minutes": 8.0, "avg_battery_used": 2.0, "sample_count": 10,
+         "timing_sample_count": 6, "minutes_stddev": 0.5, "avg_area_m2": 6.0}, False))
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    entry = result["room_timeline"][0]
+    assert entry["source"] == "learned"
+    assert entry["estimated_area_m2"] == 6.0
+    assert entry["sample_count"] == 6   # timing_sample_count, not the raw 10

@@ -409,7 +409,7 @@ for each room (position 0..n-1):
     eta_at = job_start_dt + end_offset (minutes)
 ```
 
-Each room entry carries `start_offset_minutes`, `end_offset_minutes`, `eta_at` (ISO timestamp), and — for rooms after the first — `estimated_transit_minutes_before` + `transit_source` (the learned inter-room leg, folded into the offsets so travel time is positioned *between* rooms rather than lumped at the end). Their sum equals `overhead.transition_minutes` (§5.3). The position-0 entry leg (dock → first room) stays in `startup`. The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
+Each room entry carries `start_offset_minutes`, `end_offset_minutes`, `eta_at` (ISO timestamp), and — for rooms after the first — `estimated_transit_minutes_before` + `transit_source` (the learned inter-room leg, folded into the offsets so travel time is positioned *between* rooms rather than lumped at the end). Their sum equals `overhead.transition_minutes` (§5.3). The position-0 entry leg (dock → first room) stays in `startup`. Each entry also carries `estimated_area_m2` (the learned per-room area) and feeds confidence/velocity from the area-gated `timing_sample_count` (not the raw `sample_count`), since `avg_minutes` is computed from the gated samples (§2.1). The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
 
 ### 5.3 Overhead computation
 

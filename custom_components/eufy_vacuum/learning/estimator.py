@@ -832,8 +832,13 @@ class LearningEstimator:
             if match:
                 minutes = _safe_float(match.get("avg_minutes"), _DEFAULT_ROOM_MINUTES)
                 battery = _safe_float(match.get("avg_battery_used"), _DEFAULT_BATTERY_PER_ROOM)
-                sample_count = _safe_int(match.get("sample_count"), 0)
+                # avg_minutes is from the area-gated (partial-excluded) samples, so
+                # timing confidence reflects timing_sample_count when it is present.
+                sample_count = _safe_int(
+                    match.get("timing_sample_count", match.get("sample_count")), 0
+                )
                 minutes_stddev = _safe_float(match.get("minutes_stddev"), 0.0)
+                area_m2 = _safe_float(match.get("avg_area_m2"), 0.0)
                 source = "learned"
                 # Same room key (shared _room_key) for accuracy lookup.
                 room_key = _room_key(
@@ -848,6 +853,7 @@ class LearningEstimator:
                 battery = _DEFAULT_BATTERY_PER_ROOM
                 sample_count = 0
                 minutes_stddev = 0.0
+                area_m2 = 0.0
                 intensity_mismatch = False
                 drift_ratio = 0.0
                 source = "default"
@@ -908,6 +914,7 @@ class LearningEstimator:
                     "accuracy_drift_ratio": round(drift_ratio, 4),
                     "minutes": round(minutes, 2),
                     "battery": round(battery, 2),
+                    "estimated_area_m2": round(area_m2, 2),
                     "estimated_transit_minutes_before": round(transit_before, 2),
                     "transit_source": transit_source,
                     "start_offset_minutes": round(start_offset, 2),
