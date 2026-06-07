@@ -29,6 +29,7 @@ from ..core.charging import (
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
 from ..const import DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
+from ..counter_segmentation import segment_counters
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 
 if TYPE_CHECKING:
@@ -625,6 +626,23 @@ class ActiveJobTracker:
         if not current_room:
             return active_job
 
+        # Counter-plateau boundary — high-confidence + frame-invariant. When the
+        # cleaning counters show a finished room we haven't recorded yet (one more
+        # completed segment than recorded completions), roll now, ahead of the
+        # timing threshold. The last (in-progress) segment is excluded, so this
+        # never rolls the final room. See counter_segmentation.segment_counters.
+        segments = segment_counters(active_job.get("counter_samples", []) or [])
+        if len(segments) - 1 > len(completed_room_ids):
+            return self._apply_room_rollover(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job=active_job,
+                current_room_id=current_room_id,
+                current_room=current_room,
+                elapsed_minutes=current_room_elapsed_minutes,
+                source="counter_plateau",
+            )
+
         threshold_minutes = self._timing_completion_threshold_minutes(current_room)
         elapsed = current_room_elapsed_minutes
 
@@ -670,6 +688,32 @@ class ActiveJobTracker:
                 return active_job
             rollover_source = "timing_rollover"
 
+        return self._apply_room_rollover(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            active_job=active_job,
+            current_room_id=current_room_id,
+            current_room=current_room,
+            elapsed_minutes=current_room_elapsed_minutes,
+            source=rollover_source,
+        )
+
+    def _apply_room_rollover(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        current_room_id: int,
+        current_room: dict[str, Any],
+        elapsed_minutes: float,
+        source: str,
+    ) -> dict[str, Any]:
+        """Record one room completed + fire EVENT_ROOM_FINISHED / EVENT_ROOM_STARTED.
+
+        Shared by every live rollover path — ``source`` distinguishes them on the
+        event (``counter_plateau`` / ``timing_rollover`` / ``bounds_exit_early``).
+        """
         completed_at = _iso_now()
         room_name = self._room_name_from_active_job(active_job, current_room_id)
         confidence_score = _safe_float(current_room.get("confidence_score"), 0.0)
@@ -678,9 +722,9 @@ class ActiveJobTracker:
             map_id=map_id,
             room_id=current_room_id,
             room_name=room_name,
-            actual_duration_minutes=current_room_elapsed_minutes,
+            actual_duration_minutes=elapsed_minutes,
             completed_at=completed_at,
-            source=rollover_source,
+            source=source,
             confidence=confidence_score if confidence_score > 0 else None,
         )
 
@@ -693,8 +737,8 @@ class ActiveJobTracker:
                 "room_id": str(current_room_id),
                 "room_name": room_name,
                 "completed_at": completed_at,
-                "source": rollover_source,
-                "actual_duration_minutes": round(current_room_elapsed_minutes, 2),
+                "source": source,
+                "actual_duration_minutes": round(elapsed_minutes, 2),
                 "confidence": round(confidence_score, 4) if confidence_score > 0 else None,
                 "completed_room_ids": updated_active_job.get("completed_room_ids", []),
             },
@@ -711,7 +755,7 @@ class ActiveJobTracker:
                     "room_id": str(next_room_id),
                     "room_name": self._room_name_from_active_job(updated_active_job, next_room_id),
                     "started_at": updated_active_job.get("current_room_started_at"),
-                    "source": rollover_source,
+                    "source": source,
                     "completed_room_ids": updated_active_job.get("completed_room_ids", []),
                 },
             )

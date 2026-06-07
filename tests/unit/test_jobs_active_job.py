@@ -295,3 +295,71 @@ def test_position_lock_reliable_true_when_adapter_declares(tracker, monkeypatch)
         lambda v: {"capabilities": {"position_lock_reliable": True}},
     )
     assert tracker._position_lock_reliable("vacuum.alfred") is True
+
+
+# ---------------------------------------------------------------------------
+# Live room rollover by counter-plateau (W5b)
+# ---------------------------------------------------------------------------
+
+def _csample(sec: int, ct: float, ca: float) -> dict:
+    from datetime import datetime, timedelta
+    t = datetime(2026, 1, 1, 9, 0, 0) + timedelta(seconds=sec)
+    return {"t": t.isoformat(), "cleaning_time": ct, "cleaning_area": ca}
+
+
+def _rollover_job(counter_samples: list[dict]) -> dict:
+    return {
+        "status": "started",
+        "started_at": "2026-01-01T09:00:00",
+        "current_room_id": 1,
+        "current_room_started_at": "2026-01-01T09:00:00",
+        "completed_room_ids": [],
+        "completed_rooms": [],
+        "queue_room_ids": [1, 2],
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Bath"}],
+        "counter_samples": counter_samples,
+    }
+
+
+def test_live_rollover_by_counter_plateau():
+    """A completed counter segment beyond recorded completions rolls the room live
+    via the plateau path (ahead of the timing threshold), source=counter_plateau."""
+    samples = [
+        _csample(0, 0, 0), _csample(30, 30, 1), _csample(60, 60, 2),   # room 1
+        _csample(400, 90, 4),                                          # room 2 started (gap > 90)
+    ]
+    job = _rollover_job(samples)
+    tracker = _tracker_with_job(job)
+    raw_timeline = [{"room_id": 1, "confidence_score": 0.5}, {"room_id": 2}]
+    updated = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id="vacuum.alfred", map_id="6", active_job=job,
+        raw_timeline=raw_timeline, current_room_id=1,
+        current_room_elapsed_minutes=4.0, completed_room_ids=[],
+    )
+    assert updated["completed_room_ids"] == [1]
+    assert updated["current_room_id"] == 2
+    sources = [
+        c.args[1].get("source")
+        for c in tracker._manager.hass.bus.async_fire.call_args_list
+        if len(c.args) >= 2 and isinstance(c.args[1], dict)
+    ]
+    assert "counter_plateau" in sources
+
+
+def test_live_no_rollover_when_room_in_progress():
+    """A single in-progress segment (no completed boundary) + sub-threshold elapsed
+    → no rollover."""
+    samples = [_csample(0, 0, 0), _csample(30, 30, 1), _csample(60, 60, 2)]  # room 1 only
+    job = _rollover_job(samples)
+    tracker = _tracker_with_job(job)
+    raw_timeline = [
+        {"room_id": 1, "minutes": 10.0, "confidence_score": 0.9, "sample_count": 5},
+        {"room_id": 2},
+    ]
+    updated = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id="vacuum.alfred", map_id="6", active_job=job,
+        raw_timeline=raw_timeline, current_room_id=1,
+        current_room_elapsed_minutes=1.0, completed_room_ids=[],
+    )
+    assert updated["completed_room_ids"] == []
+    assert updated["current_room_id"] == 1

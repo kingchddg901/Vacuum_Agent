@@ -145,6 +145,15 @@ cumulative + plateaus), so the signal is gap-timing + the area trace, **never a
 reset**. `cleaning_area` is read via `area_at(t)` (the monotonic area reached by
 time t), robust to the area packet lagging the clock at a shared timestamp.
 
+The same segmenter also drives **live** room-transition detection: in
+`jobs/active_job._maybe_roll_current_room_by_timing`, when `segment_counters` shows
+a completed segment beyond the recorded completions, it fires `EVENT_ROOM_FINISHED`
+(`source="counter_plateau"`) ahead of the timing threshold — a high-confidence,
+frame-invariant boundary. Geometry/bounds confirmation is **capability-gated**
+(`position_lock_reliable` — the adapter's call; Eufy = false because its frame
+drifts), so on Eufy the plateau + timing carry the rollover and the bounds check
+never wrongly blocks it, while a brand with a stable lock re-enables it.
+
 At finalization, `_build_transit_blocks` (`learning/history_store.py`) maps the
 segments onto the dispatched queue order (internal: segment K → queue room K) and
 writes three additive blocks to the job record's `job` object:
