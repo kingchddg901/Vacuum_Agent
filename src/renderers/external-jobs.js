@@ -142,19 +142,19 @@ export function applyExternalJobsRenderers(proto) {
 
     const shortlist = Array.isArray(lead.shortlist) ? lead.shortlist : [];
     const roomChips = shortlist.map((r) => `
-      <button class="evcc-chip ${a.room_id === r.room_id ? "is-active" : ""}"
+      <button class="evcc-chip ${a.room_id === r.room_id ? "active" : ""}"
               data-action="ext-pick-room" data-order="${order}" data-room-id="${r.room_id}">
         ${this.escapeHtml(String(r.name || r.slug || r.room_id))}${r.learned_area_m2 ? ` · ${Number(r.learned_area_m2).toFixed(0)} m²` : ""}
       </button>`).join("");
 
     const modeCur = ov.clean_mode ?? settings.clean_mode;
     const modeChips = [["vacuum", "Vacuum"], ["vacuum_mop", "Vac & Mop"], ["mop", "Mop"]].map(
-      ([val, label]) => `<button class="evcc-chip ${modeCur === val ? "is-active" : ""}"
+      ([val, label]) => `<button class="evcc-chip ${modeCur === val ? "active" : ""}"
         data-action="ext-set-override" data-order="${order}" data-key="clean_mode" data-value="${val}">${label}</button>`
     ).join("");
 
     const passCur = Number(ov.clean_passes ?? lead.pass_count ?? 1);
-    const passChips = [1, 2].map((p) => `<button class="evcc-chip ${passCur === p ? "is-active" : ""}"
+    const passChips = [1, 2].map((p) => `<button class="evcc-chip ${passCur === p ? "active" : ""}"
       data-action="ext-set-override" data-order="${order}" data-key="clean_passes" data-value="${p}">${p}×</button>`).join("");
 
     const detected = [];
@@ -181,9 +181,9 @@ export function applyExternalJobsRenderers(proto) {
         <div class="evcc-editor-field-group evcc-ext-edge">
           <div class="evcc-field-label">Edge mop? <span class="evcc-ext-hint">not detected — please set</span></div>
           <div class="evcc-chip-row">
-            <button class="evcc-chip ${a.edge_mopping ? "is-active" : ""}"
+            <button class="evcc-chip ${a.edge_mopping ? "active" : ""}"
               data-action="ext-set-edge" data-order="${order}" data-value="true">On</button>
-            <button class="evcc-chip ${!a.edge_mopping ? "is-active" : ""}"
+            <button class="evcc-chip ${!a.edge_mopping ? "active" : ""}"
               data-action="ext-set-edge" data-order="${order}" data-value="false">Off</button>
           </div>
         </div>

@@ -4089,11 +4089,11 @@ config/eufy_vacuum/battery/${this.escapeHtml(y)}/samples.jsonl</pre>
       </div>
       <div class="evcc-ext-seglist">${r}</div>
     `},i._renderExtWizardStep2=function(e,t,r){return r.map((a,n)=>this._renderExtRoomPanel(e,t,a,n)).join("")},i._renderExtRoomPanel=function(e,t,r,a){let n=r.lead||{},c=Number(n.order??0),s=t.assignments[c]||{overrides:{}},o=(r.segments||[]).reduce((y,S)=>y+(Number(S.area_m2)||0),0),l=n.settings||{},d=s.overrides||{},m=(Array.isArray(n.shortlist)?n.shortlist:[]).map(y=>`
-      <button class="evcc-chip ${s.room_id===y.room_id?"is-active":""}"
+      <button class="evcc-chip ${s.room_id===y.room_id?"active":""}"
               data-action="ext-pick-room" data-order="${c}" data-room-id="${y.room_id}">
         ${this.escapeHtml(String(y.name||y.slug||y.room_id))}${y.learned_area_m2?` \xB7 ${Number(y.learned_area_m2).toFixed(0)} m\xB2`:""}
-      </button>`).join(""),v=d.clean_mode??l.clean_mode,h=[["vacuum","Vacuum"],["vacuum_mop","Vac & Mop"],["mop","Mop"]].map(([y,S])=>`<button class="evcc-chip ${v===y?"is-active":""}"
-        data-action="ext-set-override" data-order="${c}" data-key="clean_mode" data-value="${y}">${S}</button>`).join(""),f=Number(d.clean_passes??n.pass_count??1),p=[1,2].map(y=>`<button class="evcc-chip ${f===y?"is-active":""}"
+      </button>`).join(""),v=d.clean_mode??l.clean_mode,h=[["vacuum","Vacuum"],["vacuum_mop","Vac & Mop"],["mop","Mop"]].map(([y,S])=>`<button class="evcc-chip ${v===y?"active":""}"
+        data-action="ext-set-override" data-order="${c}" data-key="clean_mode" data-value="${y}">${S}</button>`).join(""),f=Number(d.clean_passes??n.pass_count??1),p=[1,2].map(y=>`<button class="evcc-chip ${f===y?"active":""}"
       data-action="ext-set-override" data-order="${c}" data-key="clean_passes" data-value="${y}">${y}\xD7</button>`).join(""),b=[];return l.fan_speed&&b.push(`Suction ${this.escapeHtml(String(l.fan_speed))}`),l.water_level&&b.push(`Water ${this.escapeHtml(String(l.water_level))}`),l.clean_intensity&&b.push(`Intensity ${this.escapeHtml(String(l.clean_intensity))}`),`
       <div class="evcc-ext-room">
         <div class="evcc-ext-room-head">Room ${a+1} \xB7 ${o.toFixed(0)} m\xB2
@@ -4113,9 +4113,9 @@ config/eufy_vacuum/battery/${this.escapeHtml(y)}/samples.jsonl</pre>
         <div class="evcc-editor-field-group evcc-ext-edge">
           <div class="evcc-field-label">Edge mop? <span class="evcc-ext-hint">not detected \u2014 please set</span></div>
           <div class="evcc-chip-row">
-            <button class="evcc-chip ${s.edge_mopping?"is-active":""}"
+            <button class="evcc-chip ${s.edge_mopping?"active":""}"
               data-action="ext-set-edge" data-order="${c}" data-value="true">On</button>
-            <button class="evcc-chip ${s.edge_mopping?"":"is-active"}"
+            <button class="evcc-chip ${s.edge_mopping?"":"active"}"
               data-action="ext-set-edge" data-order="${c}" data-value="false">Off</button>
           </div>
         </div>
@@ -13257,94 +13257,100 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
      =========================================================== */
 `;var di=`
   .evcc-btn {
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.14));
-    background: var(--evcc-surface-2, rgba(255, 255, 255, 0.06));
-    color: var(--evcc-text, #e8eef4);
-    border-radius: 10px;
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-input);
+    color: var(--evcc-text-primary);
+    border-radius: var(--evcc-radius-inner, 8px);
     padding: 8px 14px;
     font-size: 0.86rem;
     cursor: pointer;
   }
-  .evcc-btn:hover { background: var(--evcc-surface-3, rgba(255, 255, 255, 0.12)); }
+  .evcc-btn:hover { background: var(--evcc-surface-panel); }
   .evcc-btn[disabled] { opacity: 0.5; cursor: default; }
   .evcc-btn-primary {
-    background: var(--evcc-accent, #3b82f6);
-    border-color: var(--evcc-accent, #3b82f6);
-    color: var(--evcc-on-accent, #fff);
+    background: color-mix(in srgb, var(--evcc-accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+    color: var(--evcc-accent);
+    font-weight: 600;
   }
   .evcc-btn-warn {
-    background: var(--evcc-warn, #b45309);
-    border-color: var(--evcc-warn, #b45309);
-    color: #fff;
+    background: color-mix(in srgb, var(--evcc-sem-warning) 18%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 40%, transparent);
+    color: var(--evcc-sem-warning);
   }
   .evcc-btn-ghost { background: transparent; }
 `,ui=`
   .evcc-review-subtabs { display: flex; gap: 8px; margin-bottom: 14px; }
   .evcc-review-subtab {
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.14));
+    border: 1px solid var(--evcc-border-default);
     background: transparent;
-    color: var(--evcc-text-dim, #9fb0c0);
-    border-radius: 999px;
+    color: var(--evcc-text-secondary);
+    border-radius: var(--evcc-radius-chip, 999px);
     padding: 6px 16px;
     font-size: 0.85rem;
     cursor: pointer;
   }
   .evcc-review-subtab.is-active {
-    background: var(--evcc-accent, #3b82f6);
-    border-color: var(--evcc-accent, #3b82f6);
-    color: var(--evcc-on-accent, #fff);
+    background: color-mix(in srgb, var(--evcc-accent) 18%, transparent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+    color: var(--evcc-accent);
+    font-weight: 600;
   }
-  .evcc-external-empty { padding: 24px; text-align: center; color: var(--evcc-text-dim, #9fb0c0); }
+  .evcc-external-empty { padding: 24px; text-align: center; color: var(--evcc-text-secondary); }
   .evcc-external-list { display: flex; flex-direction: column; gap: 10px; }
   .evcc-external-card {
     display: flex; justify-content: space-between; align-items: center; gap: 12px;
     padding: 14px 16px;
-    background: var(--evcc-surface-1, rgba(255, 255, 255, 0.04));
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.1));
-    border-radius: 14px;
+    background: var(--evcc-surface-raised);
+    border: 1px solid var(--evcc-border-default);
+    border-radius: var(--evcc-radius-card, 12px);
   }
-  .evcc-external-card-title { font-weight: 600; color: var(--evcc-text, #e8eef4); }
-  .evcc-external-card-meta { font-size: 0.82rem; color: var(--evcc-text-dim, #9fb0c0); margin-top: 2px; }
+  .evcc-external-card-title { font-weight: 600; color: var(--evcc-text-primary); }
+  .evcc-external-card-meta { font-size: 0.82rem; color: var(--evcc-text-secondary); margin-top: 2px; }
   .evcc-external-card-actions { display: flex; gap: 8px; flex-shrink: 0; }
   ${di}
 `,mi=`
   .evcc-external-wizard-modal { max-width: 560px; width: 92vw; }
   .evcc-external-error {
-    background: rgba(180, 60, 60, 0.16);
-    border: 1px solid rgba(220, 90, 90, 0.4);
-    color: #f3c0c0; border-radius: 10px; padding: 8px 12px; margin-bottom: 12px; font-size: 0.85rem;
+    background: color-mix(in srgb, var(--evcc-sem-error) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-sem-error) 40%, transparent);
+    color: var(--evcc-sem-error);
+    border-radius: var(--evcc-radius-inner, 8px); padding: 8px 12px; margin-bottom: 12px; font-size: 0.85rem;
   }
-  .evcc-ext-count { margin-bottom: 12px; color: var(--evcc-text, #e8eef4); }
+  .evcc-ext-count { margin-bottom: 12px; color: var(--evcc-text-primary); }
   .evcc-ext-seglist { display: flex; flex-direction: column; gap: 6px; }
   .evcc-ext-seg {
     display: flex; align-items: center; gap: 12px;
-    padding: 8px 10px; border-radius: 10px;
-    background: var(--evcc-surface-1, rgba(255, 255, 255, 0.04));
+    padding: 8px 10px; border-radius: var(--evcc-radius-inner, 8px);
+    background: var(--evcc-surface-input);
   }
-  .evcc-ext-seg-start { font-size: 0.8rem; color: var(--evcc-text-dim, #9fb0c0); min-width: 110px; }
-  .evcc-ext-seg-facts { font-size: 0.82rem; color: var(--evcc-text-dim, #9fb0c0); }
+  .evcc-ext-seg-start { font-size: 0.8rem; color: var(--evcc-text-secondary); min-width: 110px; }
+  .evcc-ext-seg-facts { font-size: 0.82rem; color: var(--evcc-text-secondary); }
   .evcc-ext-split {
     min-width: 110px; text-align: left;
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.14));
-    background: transparent; color: var(--evcc-text-dim, #9fb0c0);
-    border-radius: 8px; padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
+    border: 1px solid var(--evcc-border-default);
+    background: transparent; color: var(--evcc-text-secondary);
+    border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
   }
-  .evcc-ext-split.is-split { color: var(--evcc-accent, #3b82f6); border-color: var(--evcc-accent, #3b82f6); }
+  .evcc-ext-split.is-split {
+    color: var(--evcc-accent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+  }
   .evcc-ext-room {
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.1));
-    border-radius: 14px; padding: 12px 14px; margin-bottom: 12px;
+    border: 1px solid var(--evcc-border-default);
+    border-radius: var(--evcc-radius-card, 12px); padding: 12px 14px; margin-bottom: 12px;
   }
-  .evcc-ext-room-head { font-weight: 600; margin-bottom: 8px; color: var(--evcc-text, #e8eef4); }
-  .evcc-ext-edge .evcc-field-label { color: var(--evcc-accent, #3b82f6); }
-  .evcc-ext-hint { font-size: 0.72rem; color: var(--evcc-text-dim, #9fb0c0); font-weight: 400; }
-  .evcc-ext-detected { font-size: 0.78rem; color: var(--evcc-text-dim, #9fb0c0); margin-top: 6px; }
+  .evcc-ext-room-head { font-weight: 600; margin-bottom: 8px; color: var(--evcc-text-primary); }
+  .evcc-ext-edge .evcc-field-label { color: var(--evcc-accent); }
+  .evcc-ext-hint { font-size: 0.72rem; color: var(--evcc-text-secondary); font-weight: 400; }
+  .evcc-ext-detected { font-size: 0.78rem; color: var(--evcc-text-secondary); margin-top: 6px; }
   .evcc-ext-allrooms {
-    background: var(--evcc-surface-2, rgba(255, 255, 255, 0.06));
-    color: var(--evcc-text, #e8eef4);
-    border: 1px solid var(--evcc-border, rgba(255, 255, 255, 0.14));
-    border-radius: 8px; padding: 6px 8px; font-size: 0.82rem;
+    background: var(--evcc-surface-input);
+    color: var(--evcc-text-primary);
+    border: 1px solid var(--evcc-border-default);
+    border-radius: var(--evcc-radius-inner, 8px); padding: 6px 8px; font-size: 0.82rem;
   }
-  .evcc-ext-blocked { color: #f0b46a; font-size: 0.82rem; margin-bottom: 8px; }
+  .evcc-ext-blocked { color: var(--evcc-sem-warning); font-size: 0.82rem; margin-bottom: 8px; }
   .evcc-modal-footer-row { display: flex; justify-content: space-between; gap: 8px; }
   ${di}
 `;var vi=[qa,Ga,Ua,Wa,Ja,Ka,Ya,Qa,ot,lt,Xa,Za,ei,ti,ri,ai,ii,ni,ci,si,oi,ui,li].join(`
