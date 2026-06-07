@@ -27,7 +27,7 @@ from typing import Any
 
 from ..counter_segmentation import segment_counters
 from ..timestamp_utils import parse_timestamp
-from .utils import _safe_float, _safe_int
+from .utils import _safe_bool, _safe_float, _safe_int
 
 # Settings-match nudge (m²-equivalent) so a matching clean_mode breaks ties
 # between similar-area rooms without overriding a clear area mismatch.
@@ -222,3 +222,170 @@ def build_pending_record(
         "suggested_room_count": 1 + confident_boundaries,
         "segments": out_segments,
     }
+
+
+# --- Confirm: gate + graduate into a normal completed-job record -------------
+
+# Tier-1 identity gate: a WIDE plausibility band (the user already picked the
+# room; we only bounce a clear size mismatch). The tight W3 partial-exclusion is
+# automatic later in the rebuilder, so it is not repeated here.
+_IDENTITY_MIN_SAMPLES = 4
+_IDENTITY_MIN_TOL_M2 = 3.0
+
+
+def _vacuum_slug(vacuum_entity_id: str) -> str:
+    return (
+        vacuum_entity_id.split(".", 1)[1].strip().lower()
+        if "." in str(vacuum_entity_id)
+        else str(vacuum_entity_id).strip().lower()
+    )
+
+
+def gate_segment_identity(
+    *, area_m2: float, band: dict[str, Any] | None, override: bool = False
+) -> dict[str, Any]:
+    """Tier-1 identity sanity for a confirmed segment area vs the room's learned
+    band. Wide on purpose — only a clear mismatch is implausible. ``override``
+    forces plausible (the user insisted); a cold room (no band) is accepted as a
+    bootstrap sample."""
+    if override:
+        return {"plausible": True, "reason": "override"}
+    band = band or {}
+    avg = _safe_float(band.get("avg_area_m2"), 0.0)
+    samples = _safe_int(band.get("area_sample_count"), 0)
+    if samples < _IDENTITY_MIN_SAMPLES or avg <= 0:
+        return {"plausible": True, "reason": "cold_start"}
+    stddev = _safe_float(band.get("area_m2_stddev"), 0.0)
+    tol = max(3.0 * stddev, 0.5 * avg, _IDENTITY_MIN_TOL_M2)
+    if abs(_safe_float(area_m2) - avg) > tol:
+        return {
+            "plausible": False,
+            "reason": "area_mismatch",
+            "expected_m2": round(avg, 1),
+            "observed_m2": round(_safe_float(area_m2), 1),
+        }
+    return {"plausible": True, "reason": "in_band"}
+
+
+def build_graduated_job(
+    *,
+    pending_record: dict[str, Any],
+    assignments: list[dict[str, Any]],
+    rooms: dict[str, Any],
+    bands_by_slug: dict[str, dict[str, Any]],
+    vacuum_entity_id: str,
+    job_id: str,
+    ended_at: str | None,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Turn confirmed assignments into a normal ``completed_job`` record the stats
+    rebuilder ingests, or ``(None, blocked)`` when any assignment fails the tier-1
+    identity gate without override (atomic — graduate only when all pass).
+
+    Each assignment maps one or more blind ``segment_orders`` (merged uncertain
+    cuts) to a room: ``{segment_orders|segment_order, room_id, edge_mopping,
+    override, overrides:{clean_mode,...}}``. ``rooms`` is the map's room config
+    (id->{slug, name, floor_type, clean_*}); ``bands_by_slug`` the learned area
+    band per slug. Settings come from the segment's recovered selects, then any
+    explicit override, then the room config; passes from the segment estimate.
+    """
+    segs_by_order = {s.get("order"): s for s in pending_record.get("segments", [])}
+    rooms = rooms or {}
+    blocked: list[dict[str, Any]] = []
+    room_timings: list[dict[str, Any]] = []
+    profile_rooms: list[dict[str, Any]] = []
+    total_wall_s = 0
+
+    for assignment in assignments or []:
+        orders = assignment.get("segment_orders")
+        if orders is None and "segment_order" in assignment:
+            orders = [assignment["segment_order"]]
+        covered = [segs_by_order[o] for o in (orders or []) if o in segs_by_order]
+        if not covered:
+            continue
+        room_id = _safe_int(assignment.get("room_id"), -1)
+        room_cfg = rooms.get(str(room_id), {}) if isinstance(rooms.get(str(room_id)), dict) else {}
+        slug = str(room_cfg.get("slug", "")).strip().lower()
+        area = round(sum(_safe_float(s.get("area_m2")) for s in covered), 2)
+        active_s = sum(_safe_int(s.get("time_active_s")) for s in covered)
+        wall_s = sum(_safe_int(s.get("time_wall_s")) for s in covered)
+
+        gate = gate_segment_identity(
+            area_m2=area,
+            band=bands_by_slug.get(slug),
+            override=_safe_bool(assignment.get("override"), False),
+        )
+        if not gate.get("plausible"):
+            blocked.append({"segment_orders": orders, "room_id": room_id, **gate})
+            continue
+
+        seg_settings = covered[0].get("settings", {}) or {}
+        overrides = assignment.get("overrides", {}) or {}
+
+        def _pick(key: str) -> Any:
+            return overrides.get(key) or seg_settings.get(key) or room_cfg.get(key)
+
+        passes = max(1, min(2, _safe_int(covered[0].get("pass_count"), 1)))
+        room_timings.append(
+            {
+                "room_id": room_id,
+                "slug": slug,
+                "cleaning_start": covered[0].get("t_start"),
+                "cleaning_end": covered[-1].get("t_end"),
+                "cleaning_seconds": active_s,
+                "cleaning_wall_seconds": wall_s,
+                "area_m2": area,
+            }
+        )
+        profile_rooms.append(
+            {
+                "room_id": room_id,
+                "slug": slug,
+                "name": room_cfg.get("name"),
+                "clean_mode": _pick("clean_mode"),
+                "clean_intensity": _pick("clean_intensity"),
+                "fan_speed": _pick("fan_speed"),
+                "water_level": _pick("water_level"),
+                "clean_passes": _safe_int(overrides.get("clean_passes", passes), passes),
+                "is_carpet": str(room_cfg.get("floor_type", "")).strip().lower().startswith("carpet"),
+                "edge_mopping": _safe_bool(assignment.get("edge_mopping"), False),
+            }
+        )
+        total_wall_s += wall_s
+
+    if blocked:
+        return None, blocked
+    if not room_timings:
+        return None, []
+
+    map_id = _safe_int(pending_record.get("map_id"), 0)
+    record = {
+        "record_type": "completed_job",
+        "schema_version": 1,
+        "job_id": job_id,
+        "origin": "external",
+        "vacuum": {"entity_id": vacuum_entity_id, "name": _vacuum_slug(vacuum_entity_id)},
+        "job": {
+            "started_at": pending_record.get("detection_ts"),
+            "ended_at": ended_at,
+            "duration_minutes": round(total_wall_s / 60.0, 2),
+            "room_count": len(profile_rooms),
+            "room_timings": room_timings,
+            "transitions": [],
+            # The per-room area/timing capture IS valid (this gates the rebuilder's
+            # use of room_timings); external runs just emit no transit edges.
+            "transit_capture_valid": True,
+        },
+        "job_profile": {
+            "map_id": map_id,
+            "room_count": len(profile_rooms),
+            "rooms": profile_rooms,
+        },
+        "resolved_rooms": profile_rooms,
+        "outcome": {
+            "status": "completed",
+            "used_for_learning": True,
+            "origin": "external",
+        },
+        "finalized_at": ended_at,
+    }
+    return record, []

@@ -2596,6 +2596,80 @@ class EufyVacuumManager:
                 },
             )
 
+    def confirm_external_run(
+        self,
+        vacuum_entity_id: str,
+        map_id: str,
+        pending_job_id: str,
+        room_assignments: list[dict[str, Any]],
+        rooms: dict[str, Any],
+        rebuild_stats: bool = True,
+    ) -> dict[str, Any]:
+        """Graduate a confirmed external pending record into a normal completed-job
+        record (sync — runs on the executor; the caller loads ``rooms`` on the loop).
+
+        Tier-1 gates each assignment's area vs the room's learned band; if any is
+        implausible without override the whole confirm is blocked (returns
+        ``{ok: False, blocked: [...]}``). On success: write jobs/<id>.json, delete
+        the pending external_jobs/ file, and rebuild learned stats (the rebuilder's
+        W3 area gate then handles per-room partial-exclusion for free).
+        """
+        import json
+
+        from ..learning.external_ingest import build_graduated_job
+        from ..learning.history_store import LearningHistoryStore
+        from ..timestamp_utils import utc_now_iso
+
+        store = LearningHistoryStore(self.hass)
+        paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        pending_path = paths.root / "external_jobs" / f"{pending_job_id}.json"
+        try:
+            with open(pending_path, encoding="utf-8") as handle:
+                pending = json.load(handle)
+        except (OSError, ValueError):
+            return {"ok": False, "error": "pending_not_found", "pending_job_id": pending_job_id}
+
+        bands_by_slug: dict[str, Any] = {}
+        try:
+            with open(paths.learned_dir / "room_stats.json", encoding="utf-8") as handle:
+                for entry in (json.load(handle) or {}).get("room_baselines", []) or []:
+                    if str(entry.get("map_id")) == str(map_id):
+                        bands_by_slug[str(entry.get("room_slug", "")).strip().lower()] = entry
+        except (OSError, ValueError):
+            pass
+
+        ended_at = utc_now_iso()
+        job_id = f"ext-{pending_job_id}"
+        record, blocked = build_graduated_job(
+            pending_record=pending,
+            assignments=room_assignments,
+            rooms=rooms,
+            bands_by_slug=bands_by_slug,
+            vacuum_entity_id=vacuum_entity_id,
+            job_id=job_id,
+            ended_at=ended_at,
+        )
+        if record is None:
+            return {"ok": False, "blocked": blocked, "pending_job_id": pending_job_id}
+
+        job_path = store.save_completed_job(
+            vacuum_entity_id=vacuum_entity_id, job_id=job_id, payload=record
+        )
+        try:
+            pending_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        rebuild_result = None
+        if rebuild_stats:
+            rebuild_result = self.rebuild_learning(vacuum_entity_id, False)
+        return {
+            "ok": True,
+            "job_id": job_id,
+            "job_path": str(job_path),
+            "rooms_learned": len(record["job_profile"]["rooms"]),
+            "rebuilt": bool(rebuild_result),
+        }
+
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
         return self.active_job.pause_active_job(**kwargs)

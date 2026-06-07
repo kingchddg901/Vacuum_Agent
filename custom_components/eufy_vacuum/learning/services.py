@@ -200,6 +200,19 @@ RETRY_MISSED_ROOMS_SCHEMA = vol.Schema(
 )
 
 
+SERVICE_CONFIRM_EXTERNAL_RUN = "confirm_external_run"
+CONFIRM_EXTERNAL_RUN_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("pending_job_id"): cv.string,
+        # [{segment_orders|segment_order, room_id, edge_mopping, override, overrides}]
+        vol.Required("room_assignments"): vol.All(cv.ensure_list, [dict]),
+        vol.Optional("rebuild_stats", default=True): cv.boolean,
+    }
+)
+
+
 def _get_core_manager(hass: HomeAssistant):
     """Return core integration manager."""
     return hass.data[DOMAIN]["runtime"]
@@ -216,6 +229,37 @@ def _get_learning_manager(hass: HomeAssistant) -> LearningManager:
 
 async def async_register_learning_services(hass: HomeAssistant) -> None:
     """Register optional learning-system services."""
+
+    async def handle_confirm_external_run(call: ServiceCall) -> dict:
+        core_manager = _get_core_manager(hass)
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        map_id = call.data["map_id"]
+        # get_managed_rooms reads manager state — resolve on the loop, then graduate
+        # (disk-heavy: load pending + build + write + rebuild) on the executor.
+        rooms = (
+            core_manager.get_managed_rooms(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id
+            )
+            or {}
+        ).get("rooms", {})
+        result = await hass.async_add_executor_job(
+            core_manager.confirm_external_run,
+            vacuum_entity_id,
+            map_id,
+            call.data["pending_job_id"],
+            call.data["room_assignments"],
+            rooms,
+            call.data.get("rebuild_stats", True),
+        )
+        if (
+            isinstance(result, dict)
+            and result.get("ok")
+            and call.data.get("rebuild_stats", True)
+        ):
+            learning = _get_learning_manager(hass)
+            learning._invalidate_learning_stats_cache(vacuum_entity_id=vacuum_entity_id)
+            learning.async_preload_learning_stats(vacuum_entity_id=vacuum_entity_id)
+        return result if isinstance(result, dict) else {"ok": False}
 
     async def handle_save_learning_snapshot(call: ServiceCall) -> None:
         core_manager = _get_core_manager(hass)
@@ -595,6 +639,13 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
         SERVICE_REBUILD_LEARNING_STATS,
         handle_rebuild_learning_stats,
         schema=REBUILD_LEARNING_STATS_SCHEMA,
+    )
+    hass.services.async_register(
+        LEARNING_DOMAIN,
+        SERVICE_CONFIRM_EXTERNAL_RUN,
+        handle_confirm_external_run,
+        schema=CONFIRM_EXTERNAL_RUN_SCHEMA,
+        supports_response=True,
     )
     hass.services.async_register(
         LEARNING_DOMAIN,
