@@ -274,3 +274,24 @@ def test_record_counter_sample_skips_finalized_job():
     tracker = _tracker_with_job(job)
     assert tracker.record_counter_sample(vacuum_entity_id="vacuum.alfred") is False
     assert job.get("counter_samples", []) == []
+
+
+# ---------------------------------------------------------------------------
+# _position_lock_reliable (capability-gated geometry — the adapter's call)
+# ---------------------------------------------------------------------------
+
+def test_position_lock_reliable_defaults_false(tracker, monkeypatch):
+    """Core stays neutral: an adapter that doesn't declare it → False."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {"capabilities": {}})
+    assert tracker._position_lock_reliable("vacuum.alfred") is False
+
+
+def test_position_lock_reliable_true_when_adapter_declares(tracker, monkeypatch):
+    """A brand that declares a stable lock → True (re-enables the bounds gate)."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    monkeypatch.setattr(
+        _aj, "_get_adapter_config",
+        lambda v: {"capabilities": {"position_lock_reliable": True}},
+    )
+    assert tracker._position_lock_reliable("vacuum.alfred") is True

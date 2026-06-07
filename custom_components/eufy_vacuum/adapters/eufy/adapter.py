@@ -474,6 +474,11 @@ def register_eufy_adapter_for_vacuum(
             "supports_empty_dust": caps.get("supports_empty_dust", False),
             "supports_robot_position": caps.get("supports_robot_position", False),
             "supports_station_water": caps.get("supports_station_water", False),
+            # Eufy firmware re-bases the raw coordinate frame every session, so
+            # cross-session bounds geometry is unusable for room detection. The
+            # room detector only trusts position/bounds when this is True (core
+            # stays neutral); a brand with a stable localization lock can set True.
+            "position_lock_reliable": False,
         },
 
         "maintenance_components": {

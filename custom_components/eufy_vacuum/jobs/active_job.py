@@ -555,6 +555,21 @@ class ActiveJobTracker:
         )
         return not inside
 
+    def _position_lock_reliable(self, vacuum_entity_id: str) -> bool:
+        """Whether this adapter's localization lock is reliable enough to trust
+        position/bounds for room detection.
+
+        The adapter's call — core stays neutral and defaults to False (don't trust
+        unverified geometry). Eufy answers False (its firmware re-bases the raw
+        coordinate frame every session, so stored bounds drift); a brand with a
+        stable lock can answer True to re-enable the bounds gate.
+        """
+        cfg = _get_adapter_config(vacuum_entity_id) or {}
+        caps = cfg.get("capabilities", {})
+        if not isinstance(caps, dict):
+            return False
+        return bool(caps.get("position_lock_reliable", False))
+
     def _maybe_roll_current_room_by_timing(
         self,
         *,
@@ -642,12 +657,16 @@ class ActiveJobTracker:
             # ran long — we're confirming completion, not detecting it.
             # When bounds are unavailable, timing alone wins (matches
             # pre-existing behaviour).
+            # Bounds confirmation is honoured only when the adapter declares its
+            # localization lock reliable (capability-gated). Eufy's frame drifts
+            # across sessions, so its stored bounds would wrongly block (or pass)
+            # a legitimate rollover — there, timing alone advances.
             outside = self._robot_outside_room_bounds(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=str(map_id),
                 room_id=current_room_id,
             )
-            if outside is False:
+            if self._position_lock_reliable(vacuum_entity_id) and outside is False:
                 return active_job
             rollover_source = "timing_rollover"
 

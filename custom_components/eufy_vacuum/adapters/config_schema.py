@@ -925,6 +925,7 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "supports_empty_dust": {"type": "bool", "required": False},
             "supports_robot_position": {"type": "bool", "required": False},
             "supports_station_water": {"type": "bool", "required": False},
+            "position_lock_reliable": {"type": "bool", "required": False},
         },
     },
 
