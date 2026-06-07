@@ -334,6 +334,8 @@ def _compute_overhead(
     total_battery_estimate: float,
     projected_mop_minutes: float,
     mop_wash_config: dict[str, Any],
+    learned_transition_minutes: float | None = None,
+    transition_source: str = "default",
 ) -> dict[str, Any]:
     """Compute job overhead breakdown.
 
@@ -342,7 +344,13 @@ def _compute_overhead(
     number.<vacuum>_wash_frequency_value_time), not by room count.
     """
     startup = _STARTUP_MINUTES
-    transitions = max(room_count - 1, 0) * _TRANSITION_PER_ROOM
+    # transitions: learned per-room transit sum when available (folded into the
+    # room timeline upstream), else the flat per-boundary constant (legacy path
+    # for cold start / adapters without cleaning_time).
+    if learned_transition_minutes is not None:
+        transitions = max(learned_transition_minutes, 0.0)
+    else:
+        transitions = max(room_count - 1, 0) * _TRANSITION_PER_ROOM
     recharge = total_battery_estimate * _RECHARGE_PER_BATTERY_PCT
     dust_empty = (room_minutes_total / 10.0) * _DUST_EMPTY_PER_10_MIN
     return_to_dock = _RETURN_MINUTES
@@ -368,6 +376,7 @@ def _compute_overhead(
         "overhead": {
             "startup_minutes": round(startup, 2),
             "transition_minutes": round(transitions, 2),
+            "transition_source": transition_source,
             "recharge_minutes": round(recharge, 2),
             "mop_wash_minutes": round(mop_wash, 2),
             "dust_empty_minutes": round(dust_empty, 2),
@@ -385,6 +394,38 @@ def _compute_overhead(
             },
         },
     }
+
+
+def _lookup_transit_minutes(
+    *,
+    transit_index: dict[tuple, dict[str, Any]],
+    ingress_index: dict[tuple, dict[str, Any]],
+    global_inter_room_minutes: float | None,
+    map_id: int,
+    from_room_id: int,
+    to_room_id: int,
+    to_slug: str,
+) -> tuple[float, str]:
+    """Return (transit_minutes, source) for the leg BEFORE entering to_room.
+
+    Fallback chain, most-specific first:
+      1. learned_pairs  — the exact from->to edge (access_graph_edges)
+      2. learned_room   — average transit INTO to_room (room_baselines ingress)
+      3. learned_global — job-level avg per-boundary inter-room overhead
+      4. default        — the _TRANSITION_PER_ROOM constant (today's behavior,
+                          used at cold start / adapters without cleaning_time)
+    Each learned tier requires sample_count >= 1, so a never-observed leg always
+    degrades cleanly to the next tier.
+    """
+    edge = transit_index.get((map_id, from_room_id, to_room_id))
+    if isinstance(edge, dict) and _safe_int(edge.get("sample_count"), 0) >= 1:
+        return _safe_float(edge.get("transit_minutes_mean"), 0.0), "learned_pairs"
+    ing = ingress_index.get((map_id, to_slug))
+    if isinstance(ing, dict) and _safe_int(ing.get("sample_count"), 0) >= 1:
+        return _safe_float(ing.get("avg_minutes"), 0.0), "learned_room"
+    if global_inter_room_minutes is not None and global_inter_room_minutes > 0:
+        return round(global_inter_room_minutes, 4), "learned_global"
+    return _TRANSITION_PER_ROOM, "default"
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +666,66 @@ class LearningEstimator:
     # Core estimate
     # ------------------------------------------------------------------
 
+    def _build_transit_indices(
+        self,
+        *,
+        vacuum_entity_id: str,
+        room_stats_data: dict[str, Any] | None,
+    ) -> tuple[dict[tuple, dict[str, Any]], dict[tuple, dict[str, Any]], float | None]:
+        """Build the transit lookup indices for an estimate (no extra room_stats read).
+
+        Returns (transit_index, ingress_index, global_inter_room_minutes):
+          - transit_index[(map_id, from_id, to_id)] = access_graph edge
+          - ingress_index[(map_id, slug)] = {sample_count, avg_minutes} (transit INTO)
+          - global_inter_room_minutes = job-level avg per-boundary inter-room
+            overhead, or None when no per-room transit has been captured yet.
+        """
+        transit_index: dict[tuple, dict[str, Any]] = {}
+        ingress_index: dict[tuple, dict[str, Any]] = {}
+        for edge in (room_stats_data or {}).get("access_graph_edges", []) or []:
+            if not isinstance(edge, dict):
+                continue
+            transit_index[
+                (
+                    _safe_int(edge.get("map_id"), 0),
+                    _safe_int(edge.get("from_room_id"), -1),
+                    _safe_int(edge.get("to_room_id"), -1),
+                )
+            ] = edge
+        for base in (room_stats_data or {}).get("room_baselines", []) or []:
+            if not isinstance(base, dict):
+                continue
+            ing_count = _safe_int(base.get("ingress_sample_count"), 0)
+            if ing_count <= 0:
+                continue
+            ingress_index[
+                (
+                    _safe_int(base.get("map_id"), 0),
+                    str(base.get("room_slug") or "").strip().lower(),
+                )
+            ] = {
+                "sample_count": ing_count,
+                "avg_minutes": _safe_float(base.get("avg_ingress_transit_seconds"), 0.0) / 60.0,
+            }
+        global_inter_room: float | None = None
+        try:
+            job_stats_data = self.store.load_job_stats(vacuum_entity_id=vacuum_entity_id)
+            js = (
+                (job_stats_data or {}).get("job_stats", {})
+                if isinstance(job_stats_data, dict)
+                else {}
+            )
+            gi = _safe_float(js.get("avg_overhead_inter_room_minutes"), 0.0)
+            gi_count = _safe_int(js.get("overhead_inter_room_sample_count"), 0)
+            avg_rooms = _safe_float(js.get("avg_room_count"), 0.0)
+            if gi > 0 and gi_count >= 1 and avg_rooms > 1:
+                # avg_overhead_inter_room_minutes is a per-JOB total across all
+                # gaps; divide by avg boundaries/job for a per-boundary estimate.
+                global_inter_room = gi / (avg_rooms - 1.0)
+        except Exception:
+            global_inter_room = None
+        return transit_index, ingress_index, global_inter_room
+
     def estimate(
         self,
         *,
@@ -665,6 +766,15 @@ class LearningEstimator:
         stats_stale = self._is_stats_stale(vacuum_entity_id=vacuum_entity_id)
         rebuilt_at = (room_stats_data or {}).get("rebuilt_at")
 
+        # Transit / travel-time indices (frame-invariant). Built from the already
+        # loaded room_stats_data (access_graph_edges + room_baselines ingress) plus
+        # a job-level global. Empty -> _lookup_transit_minutes falls back to the
+        # _TRANSITION_PER_ROOM constant (today's behavior).
+        transit_index, ingress_index, global_inter_room = self._build_transit_indices(
+            vacuum_entity_id=vacuum_entity_id,
+            room_stats_data=room_stats_data,
+        )
+
         # Guard: no rooms in payload — return a clear error rather than silent zeroes.
         if not ordered_rooms:
             return {
@@ -688,9 +798,13 @@ class LearningEstimator:
         # ----------------------------------------------------------------
         room_timeline: list[dict[str, Any]] = []
         cumulative_minutes = 0.0
+        room_minutes_sum = 0.0
+        total_transit_minutes = 0.0
         total_battery = 0.0
         projected_mop_minutes = 0.0
         room_confidence_scores: list[float] = []
+        transit_sources: list[str] = []
+        prev_room_id: int | None = None
 
         for position, room in enumerate(ordered_rooms):
             slug = str(room.get("slug", "")).strip().lower()
@@ -750,12 +864,33 @@ class LearningEstimator:
             confidence = _confidence_result(confidence_score)
             velocity = _learning_velocity(sample_count, confidence_score)
 
+            # Transit BEFORE this room (inter-room leg); folded into the offsets
+            # so the timeline positions travel time between rooms. position 0's
+            # entry leg stays in startup overhead.
+            if prev_room_id is not None:
+                transit_before, transit_source = _lookup_transit_minutes(
+                    transit_index=transit_index,
+                    ingress_index=ingress_index,
+                    global_inter_room_minutes=global_inter_room,
+                    map_id=map_id_int,
+                    from_room_id=prev_room_id,
+                    to_room_id=room_id,
+                    to_slug=slug,
+                )
+            else:
+                transit_before, transit_source = 0.0, "none"
+            transit_sources.append(transit_source)
+
+            cumulative_minutes += transit_before
+            total_transit_minutes += transit_before
             start_offset = cumulative_minutes
             cumulative_minutes += minutes
             end_offset = cumulative_minutes
+            room_minutes_sum += minutes
             total_battery += battery
             if is_mop:
                 projected_mop_minutes += minutes
+            prev_room_id = room_id
 
             room_timeline.append(
                 {
@@ -773,6 +908,8 @@ class LearningEstimator:
                     "accuracy_drift_ratio": round(drift_ratio, 4),
                     "minutes": round(minutes, 2),
                     "battery": round(battery, 2),
+                    "estimated_transit_minutes_before": round(transit_before, 2),
+                    "transit_source": transit_source,
                     "start_offset_minutes": round(start_offset, 2),
                     "end_offset_minutes": round(end_offset, 2),
                     "eta_minutes_from_start": round(end_offset, 2),
@@ -789,7 +926,9 @@ class LearningEstimator:
                 }
             )
 
-        room_minutes_total = cumulative_minutes
+        # Pure room cleaning minutes (transit is tracked separately and folded
+        # into the per-room offsets above + overhead.transition_minutes below).
+        room_minutes_total = room_minutes_sum
 
         # ----------------------------------------------------------------
         # Overhead
@@ -798,12 +937,24 @@ class LearningEstimator:
             hass=self.hass,
             vacuum_entity_id=vacuum_entity_id,
         )
+        # Job-level transition source from the per-room transit lookups (ignore
+        # the position-0 "none" and the constant "default").
+        _learned_sources = {s for s in transit_sources if s not in ("none", "default")}
+        if not _learned_sources:
+            transition_source = "default"
+        elif len(_learned_sources) == 1:
+            transition_source = next(iter(_learned_sources))
+        else:
+            transition_source = "learned_mixed"
+
         overhead_result = _compute_overhead(
             room_count=len(ordered_rooms),
             room_minutes_total=room_minutes_total,
             total_battery_estimate=total_battery,
             projected_mop_minutes=projected_mop_minutes,
             mop_wash_config=mop_wash_config,
+            learned_transition_minutes=total_transit_minutes,
+            transition_source=transition_source,
         )
         overhead_minutes = overhead_result["overhead_minutes"]
         total_minutes = room_minutes_total + overhead_minutes

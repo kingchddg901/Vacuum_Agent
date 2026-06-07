@@ -79,6 +79,70 @@ def _normalize_pause_timeout_minutes(value: Any) -> int:
     return max(_safe_int(value, 0), 0)
 
 
+def _open_cleaning_segment(segments: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Return the currently-open cleaning_time segment, if any."""
+    for seg in reversed(segments):
+        if seg.get("open"):
+            return seg
+    return None
+
+
+def _close_open_cleaning_segment(job: dict[str, Any]) -> dict[str, Any] | None:
+    """Close the open cleaning_time segment for a job (no-op if none open)."""
+    for seg in reversed(job.get("cleaning_time_segments", []) or []):
+        if seg.get("open"):
+            seg["open"] = False
+            return seg
+    return None
+
+
+def _apply_cleaning_time_sample(job: dict[str, Any], value: int, observed_at: str) -> None:
+    """Fold one cleaning_time reading into a job's per-room segmentation (pure).
+
+    sensor.<vacuum>_cleaning_time rises in ~30s steps while the robot is actively
+    cleaning a room, plateaus during transit / mop-wash, and resets toward 0 at
+    each new room. We turn that into cleaning_time_segments (one segment per room,
+    anchored to the dispatched current_room_id):
+      - rise (value > last):  open a segment if none is open (first_value = the
+        pre-rise baseline so peak_value - first_value == the device's cleaning
+        count), else extend its cleaning_end / peak_value.
+      - reset (value < last): close the open segment (a room boundary).
+      - plateau (value == last): ignore (transit / wash dwell, not progress).
+    Time-based only — never geometric (raw coordinates drift across sessions).
+    The first reading only establishes the baseline, so a leading 0 (the
+    dock->room leg) is never counted as cleaning.
+    """
+    segments = job.setdefault("cleaning_time_segments", [])
+    last = job.get("_ct_last_value")
+    if last is None:
+        job["_ct_last_value"] = value
+        job["_ct_last_sample_at"] = observed_at
+        return
+    last_val = _safe_int(last, -1)
+    if value < last_val:
+        _close_open_cleaning_segment(job)
+    elif value > last_val:
+        seg = _open_cleaning_segment(segments)
+        if seg is None:
+            segments.append(
+                {
+                    "room_id": _safe_int(job.get("current_room_id"), -1),
+                    "cleaning_start": observed_at,
+                    "cleaning_end": observed_at,
+                    "first_value": last_val,
+                    "peak_value": value,
+                    "open": True,
+                }
+            )
+        else:
+            seg["cleaning_end"] = observed_at
+            seg["peak_value"] = max(_safe_int(seg.get("peak_value"), 0), value)
+            if _safe_int(seg.get("room_id"), -1) < 0:
+                seg["room_id"] = _safe_int(job.get("current_room_id"), -1)
+    job["_ct_last_value"] = value
+    job["_ct_last_sample_at"] = observed_at
+
+
 class ActiveJobTracker:
     """Owns active-job computation, timing rollover, and transition-room detection."""
 
@@ -136,6 +200,9 @@ class ActiveJobTracker:
             # post-job analysis can correlate wash cadence with mop minutes.
             "observed_mop_wash_cycles": [],
             "state_transitions": [],
+            "cleaning_time_segments": [],
+            "_ct_last_value": None,
+            "_ct_last_sample_at": None,
             "water_estimate": None,
             "path_block_action": "event_only",
             "pause_timeout_minutes": 0,
@@ -187,6 +254,7 @@ class ActiveJobTracker:
         normalized.setdefault("observed_mop_wash_last_at", None)
         normalized.setdefault("observed_mop_wash_cycles", [])
         normalized.setdefault("state_transitions", [])
+        normalized.setdefault("cleaning_time_segments", [])
         normalized.setdefault("water_estimate", None)
         normalized.setdefault("has_observed_active_lifecycle", False)
         normalized["path_block_action"] = _normalize_path_block_action(
@@ -989,6 +1057,42 @@ class ActiveJobTracker:
                 pass
         return updated
 
+    def record_cleaning_time_sample(
+        self,
+        *,
+        vacuum_entity_id: str,
+        value_seconds: Any,
+        observed_at: str | None = None,
+    ) -> bool:
+        """Segment the cleaning_time stream into per-room cleaning bouts.
+
+        Called from the job-metrics listener whenever sensor.<vacuum>_cleaning_time
+        changes during a run. Folds the reading into each in-flight job's
+        cleaning_time_segments via _apply_cleaning_time_sample (rise/reset/plateau),
+        so finalization can derive per-room cleaning windows + inter-room transit
+        gaps without geometry. Returns True if at least one job was updated.
+        """
+        value = _safe_int(value_seconds, -1)
+        if value < 0:
+            return False
+        observed = observed_at or _iso_now()
+        per_map = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
+        if not isinstance(per_map, dict):
+            return False
+        updated = False
+        for job in per_map.values():
+            if not isinstance(job, dict):
+                continue
+            if job.get("started_at") and not job.get("ended_at"):
+                _apply_cleaning_time_sample(job, value, observed)
+                updated = True
+        if updated:
+            try:
+                self._manager.hass.async_create_task(self._manager.async_save())
+            except Exception:
+                pass
+        return updated
+
     def clear_active_job(
         self,
         *,
@@ -1128,6 +1232,11 @@ class ActiveJobTracker:
             entry["confidence"] = round(float(confidence), 4)
         completed_rooms.append(entry)
         active_job["completed_rooms"] = completed_rooms[-_completed_rooms_cap:]
+
+        # Close the cleaning_time segment for the room that just finished, so
+        # segment boundaries stay aligned with authoritative room-finished events
+        # even if a reset DPS is missed.
+        _close_open_cleaning_segment(active_job)
 
         next_room_id = self._derive_active_job_current_room_id(active_job)
         active_job["current_room_id"] = next_room_id

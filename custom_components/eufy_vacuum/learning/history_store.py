@@ -44,6 +44,80 @@ def _vacuum_slug(vacuum_entity_id: str) -> str:
     return str(vacuum_entity_id).strip().lower()
 
 
+def _build_transit_blocks(
+    *,
+    segments: list[dict[str, Any]],
+    queue_room_ids: list[Any],
+    slug_by_id: dict[int, str | None],
+    ended_at: str,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
+    """Map cleaning_time segments onto the dispatched queue and derive per-room
+    cleaning windows + inter-room transit gaps.
+
+    Frame-invariant: uses timestamps only — raw coordinates drift across sessions
+    (the fixed dock reads wildly different positions per run), so geometry is
+    never consulted. Returns (room_timings, transitions, transit_capture_valid).
+
+    transit_capture_valid is True only when exactly one segment was observed per
+    queued room and every boundary timestamp parses; a glitchy run (missed reset
+    / dropped sample) yields valid=False so it never poisons the learned
+    aggregate, while still emitting whatever partial timings were seen for audit.
+    A still-open trailing segment is closed at ended_at (the final-room
+    cleaning_time DPS can land after task_status->Completed).
+    """
+    segs = [dict(s) for s in (segments or []) if isinstance(s, dict)]
+    for s in segs:
+        if s.get("open") and not str(s.get("cleaning_end") or "").strip():
+            s["cleaning_end"] = ended_at
+        s["open"] = False
+
+    queue_ids = [_safe_int(r, -1) for r in (queue_room_ids or []) if _safe_int(r, -1) > 0]
+    valid = bool(segs) and len(segs) == len(queue_ids)
+
+    room_timings: list[dict[str, Any]] = []
+    for idx, s in enumerate(segs):
+        room_id = _safe_int(s.get("room_id"), -1)
+        if room_id <= 0 and idx < len(queue_ids):
+            room_id = queue_ids[idx]
+        start = str(s.get("cleaning_start") or "").strip() or None
+        end = str(s.get("cleaning_end") or "").strip() or None
+        if parse_timestamp(start) is None or parse_timestamp(end) is None:
+            valid = False
+        room_timings.append(
+            {
+                "room_id": room_id,
+                "slug": slug_by_id.get(room_id),
+                "cleaning_start": start,
+                "cleaning_end": end,
+                "cleaning_seconds": max(
+                    _safe_int(s.get("peak_value"), 0) - _safe_int(s.get("first_value"), 0),
+                    0,
+                ),
+            }
+        )
+
+    transitions: list[dict[str, Any]] = []
+    for prev, cur in zip(room_timings, room_timings[1:]):
+        prev_end = parse_timestamp(prev.get("cleaning_end"))
+        cur_start = parse_timestamp(cur.get("cleaning_start"))
+        if prev_end is None or cur_start is None:
+            valid = False
+            transit_seconds: int | None = None
+        else:
+            transit_seconds = max(int((cur_start - prev_end).total_seconds()), 0)
+        transitions.append(
+            {
+                "from_room_id": prev.get("room_id"),
+                "from_slug": prev.get("slug"),
+                "to_room_id": cur.get("room_id"),
+                "to_slug": cur.get("slug"),
+                "transit_seconds": transit_seconds,
+            }
+        )
+
+    return room_timings, transitions, valid
+
+
 @dataclass(slots=True)
 class LearningPaths:
     """Resolved filesystem paths for one vacuum."""
@@ -946,6 +1020,40 @@ class LearningHistoryStore:
                 outcome["was_cancelled"] = True
                 outcome["status"] = "cancelled"
 
+        # --- Transit / travel-time capture (frame-invariant, time-based) ------
+        # Map cleaning_time segments (captured during the run) onto the dispatched
+        # queue order to derive per-room cleaning windows + inter-room transit
+        # gaps. Absent for adapters without cleaning_time and for jobs that predate
+        # capture -> empty blocks + transit_capture_valid=False (graceful).
+        slug_by_id: dict[int, str | None] = {}
+        for _src in (
+            resolved_rooms,
+            queue_rooms,
+            active_job_state.get("queue_rooms", []) if isinstance(active_job_state, dict) else [],
+        ):
+            for _r in (_src or []):
+                if not isinstance(_r, dict):
+                    continue
+                _rid = _safe_int(_r.get("room_id", _r.get("id")), -1)
+                if _rid > 0 and _rid not in slug_by_id:
+                    slug_by_id[_rid] = str(_r.get("slug") or "").strip().lower() or None
+        if isinstance(queue_state, dict) and queue_state.get("queue_room_ids"):
+            _queue_ids_for_transit = queue_state.get("queue_room_ids", [])
+        elif isinstance(active_job_state, dict):
+            _queue_ids_for_transit = active_job_state.get("queue_room_ids", [])
+        else:
+            _queue_ids_for_transit = []
+        room_timings, transitions, transit_capture_valid = _build_transit_blocks(
+            segments=(
+                active_job_state.get("cleaning_time_segments", [])
+                if isinstance(active_job_state, dict)
+                else []
+            ),
+            queue_room_ids=_queue_ids_for_transit,
+            slug_by_id=slug_by_id,
+            ended_at=ended_at,
+        )
+
         return {
             "schema_version": 1,
             "record_type": "completed_job",
@@ -973,6 +1081,9 @@ class LearningHistoryStore:
                     ),
                     2,
                 ) if actual_cleaning_minutes is not None else None,
+                "room_timings": room_timings,
+                "transitions": transitions,
+                "transit_capture_valid": transit_capture_valid,
             },
             "battery": {
                 "start": _safe_int(battery_start, 0),

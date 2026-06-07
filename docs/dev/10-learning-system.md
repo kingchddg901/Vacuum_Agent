@@ -116,7 +116,64 @@ Because area is settings-invariant (a room's floor area doesn't change with mode
 
 Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}` — the min/max/stddev band lets a consumer match *within variance* rather than against a brittle point mean. All stats are **learning-jobs-only** (cancelled / failed / sanity-blocked runs are excluded before aggregation, so a bad run never skews a bucket). The full per-room average is retained; the buckets are **additive**, so a consumer can match a job's settings (e.g. a 2-pass, edge-mop run) to the right sub-average. Area is intentionally **not** bucketed — a room's floor area does not change with passes or edge mopping.
 
-### 2.2 Accuracy store (`accuracy_stats.json` → `rooms` dict)
+### 2.2 Transit / travel-time learning (`transit_stats` / `access_graph_edges`)
+
+Travel time between rooms is captured **going forward** and surfaced in
+`room_stats.json` (schema 5). It is **time-based / frame-invariant** — raw robot
+coordinates drift wildly across sessions (the physically-fixed dock reports
+y≈21 / 108 / 1526 on three different runs), so transit is **never** derived from
+geometry. Instead it is read from the cleaning-time signal:
+
+`sensor.<vacuum>_cleaning_time` rises in ~30 s steps while the robot is actively
+cleaning a room, **plateaus** during transit / mop-wash, and **resets toward 0
+at each new room**. The runtime listener (`listeners/job_metrics.py`) folds each
+reading into the active job via `record_cleaning_time_sample`
+(`jobs/active_job.py`), producing one `cleaning_time_segment` per room (anchored
+to the dispatched `current_room_id`): a **rise** opens/extends a segment, a
+**reset** closes it, a **plateau** is ignored. Capture degrades gracefully —
+adapters that do not declare a `cleaning_time` entity never subscribe and fall
+back to the constant overhead (§5.3).
+
+At finalization, `_build_transit_blocks` (`learning/history_store.py`) maps the
+segments onto the dispatched queue order and writes three additive blocks to the
+job record's `job` object:
+
+| Field | Shape | Meaning |
+|---|---|---|
+| `room_timings` | `[{room_id, slug, cleaning_start, cleaning_end, cleaning_seconds}]` | Per-room cleaning window (one per queued room) |
+| `transitions` | `[{from_room_id, from_slug, to_room_id, to_slug, transit_seconds}]` | Inter-room gap = next room's first rise − this room's last rise |
+| `transit_capture_valid` | bool | True only when one segment was seen per queued room and all timestamps parse |
+
+`transit_capture_valid` is the **poison guard**: a glitchy run (missed reset,
+dropped final sample) sets it `False` so it never corrupts the aggregate, while
+the partial timings are still written for audit. A single-room job is valid with
+an empty `transitions` list.
+
+The rebuilder aggregates only `transit_capture_valid` jobs into two **room_stats**
+arrays (one source of truth for both the estimator and any access-graph consumer):
+
+- `transit_stats` — per room-pair, in **seconds**: `{from_room_id, to_room_id,
+  from_slug, to_slug, sample_count, avg_seconds, seconds_min, seconds_max,
+  seconds_stddev}`
+- `access_graph_edges` — the same pairs in **minutes** for the estimator:
+  `{…, sample_count, transit_minutes_mean, transit_minutes_stddev}`
+
+Each `room_baselines` entry also gains `avg_ingress_transit_seconds` (transit
+*into* the room) and `avg_egress_transit_seconds` (transit *out of* it), each with
+a `_min/_max/_stddev` band plus `ingress_sample_count` / `egress_sample_count`.
+
+**Job-level overhead** (`overhead_observed`, retroactive-safe) is attached to each
+job by the finalizer via `compute_overhead_observed` (`learning/utils.py`):
+`{total_overhead_minutes, entry_minutes, inter_room_minutes, return_minutes,
+recharge_minutes, wash_minutes}`. `total_overhead_minutes = duration_minutes −
+cleaning_minutes`, and the `return` / `recharge` components come from fields
+present on **every** finalized job — so a plain rebuild populates job-level
+overhead for the entire historical corpus even though per-room transit is
+forward-only (`entry` / `inter_room` stay `null` until a valid capture supplies
+them). `job_stats.json` (schema 4) aggregates these into `avg_overhead_minutes`
+(+band) and per-component means (`avg_overhead_inter_room_minutes`, etc.).
+
+### 2.3 Accuracy store (`accuracy_stats.json` → `rooms` dict)
 
 A separate file tracking how accurate estimates have been against actuals. Keyed by the **same** `_room_key` as `room_stats` (one shared builder in `utils.py`, so the two can never drift) — which now includes `edge_mopping`, so drift is tracked per edge variant. Updated incrementally after every job (not rebuilt from scratch); because it is never rebuilt, any entries written under the older key format (before edge was added) are simply orphaned — harmless, and they fall out of use as new keys accumulate.
 
@@ -333,13 +390,15 @@ The estimator walks `ordered_rooms` in sequence, accumulating a `cumulative_minu
 
 ```
 for each room (position 0..n-1):
+    transit_before = 0.0 if position == 0 else learned inter-room leg (§5.3)
+    cumulative_minutes += transit_before   # travel time, folded into the timeline
     start_offset = cumulative_minutes
     cumulative_minutes += minutes          # learned avg_minutes or default 6.0
     end_offset = cumulative_minutes
     eta_at = job_start_dt + end_offset (minutes)
 ```
 
-Each room entry in the timeline carries `start_offset_minutes`, `end_offset_minutes`, and `eta_at` (ISO timestamp). The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
+Each room entry carries `start_offset_minutes`, `end_offset_minutes`, `eta_at` (ISO timestamp), and — for rooms after the first — `estimated_transit_minutes_before` + `transit_source` (the learned inter-room leg, folded into the offsets so travel time is positioned *between* rooms rather than lumped at the end). Their sum equals `overhead.transition_minutes` (§5.3). The position-0 entry leg (dock → first room) stays in `startup`. The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
 
 ### 5.3 Overhead computation
 
@@ -354,7 +413,7 @@ total_minutes = room_minutes_total + overhead_minutes
 | Component | Formula | Description |
 |---|---|---|
 | startup | `1.0` (fixed) | Pre-clean startup time |
-| transitions | `max(room_count - 1, 0) * 0.75` | Navigation between room boundaries |
+| transitions | Σ per-room learned transit (fallback chain below); `max(room_count - 1, 0) * 0.75` at cold start | Navigation between room boundaries |
 | recharge | `total_battery_estimate * 0.05` | 0.05 minutes per 1% battery estimated used |
 | mop wash | `floor(projected_mop_minutes / wash_interval) * 1.5` | Only in `by_time` mode |
 | dust empty | `(room_minutes_total / 10.0) * 0.3` | 0.3 minutes per 10 job minutes |
@@ -380,6 +439,26 @@ mop_wash_minutes = wash_cycle_count * 1.5
 ```
 
 `projected_mop_minutes` is the sum of `avg_minutes` for all rooms whose `clean_mode` is `vacuum_mop` or `mop`.
+
+**Learned transition fallback chain:**
+
+`transitions` is no longer a flat constant. For each room boundary,
+`_lookup_transit_minutes` resolves the inter-room leg most-specific-first, and the
+per-room legs are summed into `overhead.transition_minutes`
+(`overhead.transition_source` records which tier won):
+
+| Tier | Source | `transition_source` |
+|---|---|---|
+| 1 | Exact `from→to` edge in `access_graph_edges` (`sample_count ≥ 1`) | `learned_pairs` |
+| 2 | Per-room ingress average (`room_baselines.avg_ingress_transit_seconds`) | `learned_room` |
+| 3 | Job-level global per-boundary average (`job_stats.avg_overhead_inter_room_minutes ÷ avg boundaries`) | `learned_global` |
+| 4 | The `_TRANSITION_PER_ROOM = 0.75` constant | `default` |
+
+A never-observed leg always degrades cleanly to the next tier, so an estimate is
+always producible. With no learned data at all, every leg returns the constant and
+`overhead.transition_minutes` equals the legacy `max(room_count - 1, 0) * 0.75` —
+**backward-compatible** at cold start and on adapters without `cleaning_time`.
+(Mixed sources across boundaries report `transition_source: learned_mixed`.)
 
 ### 5.4 Timeline reanchoring (`reanchor_timeline`)
 
@@ -421,7 +500,7 @@ job_eta_at = job_start_dt + total_minutes
 
 After the loop, the first non-completed room gets `current = True`; all others get `current = False, remaining = True`.
 
-The overhead is carried over unchanged from the original estimate — it is not recomputed on reanchor.
+The overhead is carried over unchanged from the original estimate — it is not recomputed on reanchor. `estimated_transit_minutes_before` / `transit_source` survive on each entry via the `dict(room)` copy, but reanchored offsets fold all overhead at the tail (actuals dominate live progress) rather than re-positioning per-room transit.
 
 ---
 
@@ -550,7 +629,7 @@ Under normal operation, a rebuild fires automatically at the end of every `final
 
 ### 8.4 `schema_version`
 
-`room_stats.json` is written with `schema_version: 4` (bumped from 3 when `avg_area_m2` and the `room_baselines` setting buckets were added). `job_stats.json` is written with `schema_version: 3`, and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
+`room_stats.json` is written with `schema_version: 5` (5 added `transit_stats` / `access_graph_edges` and the `room_baselines` ingress/egress bands; 4 added `avg_area_m2` and the `room_baselines` setting buckets — both bumped from 3). `job_stats.json` is written with `schema_version: 4` (4 added the `overhead_observed` aggregates), and `jobs_index.json` with `schema_version: 1`. There is no migration path for older schema versions — a full rebuild produces fresh files. Additive fields are backward-compatible regardless: the estimator reads stats by key and ignores unknown ones.
 
 ---
 

@@ -9,6 +9,7 @@ from custom_components.eufy_vacuum.learning.utils import (
     _safe_bool,
     _safe_float,
     _safe_int,
+    compute_overhead_observed,
 )
 
 
@@ -179,3 +180,56 @@ def test_room_profile_key_differs_for_different_settings():
     base = {"slug": "room", "fan_speed": "standard"}
     alt = {**base, "fan_speed": "max"}
     assert _room_profile_key(base) != _room_profile_key(alt)
+
+
+# ---------------------------------------------------------------------------
+# compute_overhead_observed
+# ---------------------------------------------------------------------------
+
+def test_overhead_observed_basic_split():
+    """total_overhead = duration - cleaning (cleaning_time_seconds wins)."""
+    oh = compute_overhead_observed({
+        "duration_minutes": 30.0,
+        "cleaning_time_seconds": 1200,  # 20 min cleaning
+        "return_to_dock_minutes": 1.5,
+        "recharge_seconds_accumulated": 0,
+    })
+    assert oh["total_overhead_minutes"] == 10.0   # 30 - 20
+    assert oh["return_minutes"] == 1.5
+    assert oh["recharge_minutes"] == 0.0
+    # entry / inter_room / wash are filled by the finalizer, not here
+    assert oh["entry_minutes"] is None
+    assert oh["inter_room_minutes"] is None
+    assert oh["wash_minutes"] is None
+
+
+def test_overhead_observed_falls_back_to_actual_cleaning():
+    """When cleaning_time_seconds is absent, actual_cleaning_minutes is used."""
+    oh = compute_overhead_observed({
+        "duration_minutes": 12.0,
+        "actual_cleaning_minutes": 9.0,
+    })
+    assert oh["total_overhead_minutes"] == 3.0
+
+
+def test_overhead_observed_recharge_minutes():
+    oh = compute_overhead_observed({
+        "duration_minutes": 40.0,
+        "cleaning_time_seconds": 1800,
+        "recharge_seconds_accumulated": 300,  # 5 min
+    })
+    assert oh["recharge_minutes"] == 5.0
+
+
+def test_overhead_observed_never_negative():
+    """Cleaning exceeding duration (clock skew) clamps overhead to 0."""
+    oh = compute_overhead_observed({
+        "duration_minutes": 5.0,
+        "cleaning_time_seconds": 600,  # 10 min > 5 min duration
+    })
+    assert oh["total_overhead_minutes"] == 0.0
+
+
+def test_overhead_observed_missing_return_is_none():
+    oh = compute_overhead_observed({"duration_minutes": 10.0, "cleaning_time_seconds": 300})
+    assert oh["return_minutes"] is None

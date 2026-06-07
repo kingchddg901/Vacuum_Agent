@@ -24,7 +24,8 @@ from homeassistant.core import HomeAssistant
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..battery.job_metrics import compute_job_battery_metrics
 from ..const import DATA_BATTERY, DOMAIN
-from .utils import _iso_now, _safe_float, _safe_int
+from ..timestamp_utils import parse_timestamp
+from .utils import _iso_now, _safe_float, _safe_int, compute_overhead_observed
 from .history_store import LearningHistoryStore
 from .stats_rebuilder import LearningStatsRebuilder
 
@@ -718,6 +719,34 @@ class LearningJobFinalizer:
                     _job["total_error_seconds"] = total_error_seconds
             if inputs.get("cleaning_area_m2") is not None:
                 _job["cleaning_area_m2"] = inputs["cleaning_area_m2"]
+
+            # Observed run overhead (entry / inter-room / return / recharge),
+            # derived from the now-final cleaning_time_seconds. Retroactive-safe
+            # base (compute_overhead_observed) + per-room transit enrichment when
+            # capture is valid, so a rebuild can recompute it for historical jobs.
+            overhead = compute_overhead_observed(_job)
+            _transitions = _job.get("transitions")
+            if (
+                _job.get("transit_capture_valid")
+                and isinstance(_transitions, list)
+                and _transitions
+            ):
+                _inter = sum(
+                    _safe_int(t.get("transit_seconds"), 0)
+                    for t in _transitions
+                    if isinstance(t, dict) and t.get("transit_seconds") is not None
+                )
+                overhead["inter_room_minutes"] = round(_inter / 60.0, 2)
+                _timings = _job.get("room_timings")
+                if isinstance(_timings, list) and _timings:
+                    _first_start = parse_timestamp(_timings[0].get("cleaning_start"))
+                    _started_dt = parse_timestamp(started_at)
+                    if _first_start is not None and _started_dt is not None:
+                        overhead["entry_minutes"] = round(
+                            max((_first_start - _started_dt).total_seconds(), 0.0) / 60.0,
+                            2,
+                        )
+            _job["overhead_observed"] = overhead
 
             # Battery metrics — drain rates + per-mode/suction/water rollup.
             # Only single-bucket jobs (every room same setting) feed per-bucket

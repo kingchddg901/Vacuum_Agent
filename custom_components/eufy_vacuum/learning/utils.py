@@ -88,3 +88,43 @@ def _room_key(
         f"{str(clean_intensity or 'standard').strip().lower()}::"
         f"{'1' if _safe_bool(edge_mopping, False) else '0'}"
     )
+
+
+def compute_overhead_observed(job: dict[str, Any]) -> dict[str, Any]:
+    """Derive observed run overhead from a completed-job ``job`` block.
+
+    Overhead is wall-clock time not spent actively cleaning: entry (dock->first
+    room), inter-room travel, return-to-dock, mid-job recharge, and mop-wash
+    dwell. This base is computed purely from fields present on every finalized
+    job, so a plain stats rebuild can populate it for historical jobs that
+    predate per-room transit capture (the retroactive job-level overhead piece).
+
+        total_overhead_minutes = duration_minutes - cleaning_minutes  (>= 0)
+        return_minutes         = return_to_dock_minutes (when known, else None)
+        recharge_minutes       = recharge_seconds_accumulated / 60
+        entry_minutes / inter_room_minutes = None here; the finalizer fills them
+                                 from per-room transit capture when it is valid
+        wash_minutes           = None (not separable from job-level fields)
+
+    cleaning_minutes prefers the device cleaning counter (cleaning_time_seconds);
+    it falls back to actual_cleaning_minutes (single-room jobs) when absent.
+    """
+    duration = _safe_float(job.get("duration_minutes"), 0.0)
+    cleaning_seconds = _safe_int(job.get("cleaning_time_seconds"), 0)
+    if cleaning_seconds > 0:
+        cleaning_minutes = cleaning_seconds / 60.0
+    else:
+        cleaning_minutes = _safe_float(job.get("actual_cleaning_minutes"), 0.0)
+    return_raw = job.get("return_to_dock_minutes")
+    return {
+        "total_overhead_minutes": round(max(duration - cleaning_minutes, 0.0), 2),
+        "entry_minutes": None,
+        "inter_room_minutes": None,
+        "return_minutes": (
+            round(_safe_float(return_raw, 0.0), 2) if return_raw is not None else None
+        ),
+        "recharge_minutes": round(
+            _safe_int(job.get("recharge_seconds_accumulated"), 0) / 60.0, 2
+        ),
+        "wash_minutes": None,
+    }

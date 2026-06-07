@@ -11,6 +11,7 @@ import pytest
 
 from custom_components.eufy_vacuum.learning.history_store import (
     LearningHistoryStore,
+    _build_transit_blocks,
     _vacuum_slug,
 )
 
@@ -707,3 +708,103 @@ def test_payload_failed_status_blocks_learning(tmp_path):
     assert oc["status"] == "failed"
     assert oc["used_for_learning"] is False
     assert "job_failed" in oc["learning_blockers"]
+
+
+# ---------------------------------------------------------------------------
+# _build_transit_blocks (frame-invariant segment -> queue mapping)
+# ---------------------------------------------------------------------------
+
+def test_build_transit_blocks_two_rooms():
+    """[HS-T1] segments map to queue order; transit = gap between segments."""
+    segs = [
+        {"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
+         "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
+         "peak_value": 240, "open": False},
+        {"room_id": 2, "cleaning_start": "2026-01-01T09:07:00+00:00",
+         "cleaning_end": "2026-01-01T09:10:00+00:00", "first_value": 0,
+         "peak_value": 180, "open": True},  # still open -> closed at ended_at
+    ]
+    timings, transitions, valid = _build_transit_blocks(
+        segments=segs, queue_room_ids=[1, 2],
+        slug_by_id={1: "kitchen", 2: "bath"},
+        ended_at="2026-01-01T09:11:00+00:00",
+    )
+    assert valid is True
+    assert len(timings) == 2
+    assert timings[0]["room_id"] == 1 and timings[0]["slug"] == "kitchen"
+    assert timings[0]["cleaning_seconds"] == 240
+    assert len(transitions) == 1
+    tr = transitions[0]
+    assert tr["from_room_id"] == 1 and tr["to_room_id"] == 2
+    assert tr["transit_seconds"] == 120   # 09:07 - 09:05
+
+
+def test_build_transit_blocks_single_room_valid_no_transitions():
+    """[HS-T2] one room -> no transitions, capture still valid (regression guard)."""
+    segs = [{"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
+             "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
+             "peak_value": 240, "open": False}]
+    timings, transitions, valid = _build_transit_blocks(
+        segments=segs, queue_room_ids=[1], slug_by_id={1: "kitchen"},
+        ended_at="2026-01-01T09:06:00+00:00",
+    )
+    assert valid is True
+    assert transitions == []
+    assert len(timings) == 1
+
+
+def test_build_transit_blocks_count_mismatch_invalid():
+    """[HS-T3] segment count != queue count -> capture invalid (excluded later)."""
+    segs = [{"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
+             "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
+             "peak_value": 240, "open": False}]
+    _t, _tr, valid = _build_transit_blocks(
+        segments=segs, queue_room_ids=[1, 2, 3], slug_by_id={},
+        ended_at="2026-01-01T09:06:00+00:00",
+    )
+    assert valid is False
+
+
+def test_build_transit_blocks_no_segments():
+    """[HS-T4] no capture (e.g. adapter without cleaning_time) -> empty + invalid."""
+    timings, transitions, valid = _build_transit_blocks(
+        segments=[], queue_room_ids=[1, 2], slug_by_id={},
+        ended_at="2026-01-01T09:06:00+00:00",
+    )
+    assert timings == [] and transitions == [] and valid is False
+
+
+def test_build_completed_job_payload_emits_transit_blocks(tmp_path):
+    """[HS-T5] cleaning_time_segments on active_job_state surface as job.transitions."""
+    store = _make_store(tmp_path)
+    args = _make_build_args(
+        queue_state={
+            "vacuum_entity_id": "vacuum.alfred", "map_id": 6, "room_count": 2,
+            "queue_room_ids": [1, 2],
+            "queue_rooms": [{"room_id": 1, "slug": "kitchen"},
+                            {"room_id": 2, "slug": "bath"}],
+        },
+        active_job_state={
+            "map_id": 6, "room_count": 2, "queue_room_ids": [1, 2],
+            "queue_rooms": [{"room_id": 1, "slug": "kitchen"},
+                            {"room_id": 2, "slug": "bath"}],
+            "resolved_rooms": [{"room_id": 1, "slug": "kitchen"},
+                               {"room_id": 2, "slug": "bath"}],
+            "paused_duration_seconds": 0, "recharge_seconds_accumulated": 0,
+            "cleaning_time_segments": [
+                {"room_id": 1, "cleaning_start": "2026-01-01T09:01:00+00:00",
+                 "cleaning_end": "2026-01-01T09:05:00+00:00", "first_value": 0,
+                 "peak_value": 240, "open": False},
+                {"room_id": 2, "cleaning_start": "2026-01-01T09:08:00+00:00",
+                 "cleaning_end": "2026-01-01T09:12:00+00:00", "first_value": 0,
+                 "peak_value": 240, "open": False},
+            ],
+        },
+    )
+    job = store.build_completed_job_payload(**args)["job"]
+    assert job["transit_capture_valid"] is True
+    assert len(job["room_timings"]) == 2
+    assert len(job["transitions"]) == 1
+    assert job["transitions"][0]["transit_seconds"] == 180   # 09:08 - 09:05
+    assert job["transitions"][0]["from_slug"] == "kitchen"
+    assert job["transitions"][0]["to_slug"] == "bath"

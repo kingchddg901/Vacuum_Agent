@@ -11,7 +11,7 @@ Learning rules:
 - cancelled / failed / interrupted / test jobs remain visible in exports/history
   but are excluded from learning
 
-Stats model (room stats schema_version 4):
+Stats model (room stats schema_version 5):
 - The exact room_stats key is
   map_id::slug::effective_mode::clean_times::is_carpet::clean_intensity::edge_mopping
   — edge-mopping is in the key because it materially changes cleaning time, so
@@ -28,6 +28,11 @@ Stats model (room stats schema_version 4):
   alongside the full per-room average. All stats are learning-jobs-only (bad runs
   are excluded by the caller before aggregation). Area is not bucketed (it is
   settings-invariant).
+- Transit/travel time (schema 5): transit_stats + access_graph_edges hold per
+  room-pair travel time (avg/min/max/stddev seconds; minutes_mean/stddev),
+  aggregated from each job's transitions only when transit_capture_valid;
+  room_baselines also carry avg_ingress/egress_transit_seconds (+band). Transit
+  is time-based / frame-invariant (raw coordinates drift across sessions).
 """
 
 from __future__ import annotations
@@ -40,7 +45,15 @@ from homeassistant.core import HomeAssistant
 
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
-from .utils import _iso_now, _room_key, _room_profile_key, _safe_bool, _safe_float, _safe_int
+from .utils import (
+    _iso_now,
+    _room_key,
+    _room_profile_key,
+    _safe_bool,
+    _safe_float,
+    _safe_int,
+    compute_overhead_observed,
+)
 
 
 def _parse_started_at(value: Any):
@@ -82,6 +95,30 @@ def _finalize_setting_buckets(buckets: dict[str, dict[str, list[float]]]) -> dic
             "avg_battery_used": round(sum(bat) / len(bat), 2) if bat else 0.0,
         }
     return out
+
+
+def _seconds_band(
+    samples: list[float],
+    *,
+    value_label: str = "seconds",
+    count_key: str = "sample_count",
+) -> dict[str, Any]:
+    """Reduce a list of transit-second samples to an avg + min/max/stddev band.
+
+    value_label/count_key let one reducer serve both the per-pair transit_stats
+    (avg_seconds, seconds_min/max/stddev) and the per-room ingress/egress bands
+    (avg_ingress_transit_seconds, ingress_transit_seconds_min/max/stddev, ...).
+    Samples are learning-jobs-only and only from runs with transit_capture_valid.
+    """
+    n = len(samples)
+    avg = round(sum(samples) / n, 2) if n else 0.0
+    return {
+        count_key: n,
+        f"avg_{value_label}": avg,
+        f"{value_label}_min": round(min(samples), 2) if samples else avg,
+        f"{value_label}_max": round(max(samples), 2) if samples else avg,
+        f"{value_label}_stddev": _stddev(samples),
+    }
 
 
 class LearningStatsRebuilder:
@@ -187,6 +224,11 @@ class LearningStatsRebuilder:
         room_counts: list[int] = []
         drift_values: list[float] = []
         abs_drift_values: list[float] = []
+        overhead_values: list[float] = []
+        overhead_entry_values: list[float] = []
+        overhead_inter_room_values: list[float] = []
+        overhead_return_values: list[float] = []
+        overhead_recharge_values: list[float] = []
         latest_job_at = None
 
         for job in jobs:
@@ -220,6 +262,21 @@ class LearningStatsRebuilder:
             drift_values.append(drift)
             abs_drift_values.append(abs(drift))
 
+            # Observed overhead — use the job's stored block when present, else
+            # derive it from job-level fields so historical jobs (pre-capture)
+            # still contribute the retroactive job-level overhead.
+            overhead = job_info.get("overhead_observed")
+            if not isinstance(overhead, dict):
+                overhead = compute_overhead_observed(job_info)
+            overhead_values.append(_safe_float(overhead.get("total_overhead_minutes"), 0.0))
+            if overhead.get("entry_minutes") is not None:
+                overhead_entry_values.append(_safe_float(overhead.get("entry_minutes"), 0.0))
+            if overhead.get("inter_room_minutes") is not None:
+                overhead_inter_room_values.append(_safe_float(overhead.get("inter_room_minutes"), 0.0))
+            if overhead.get("return_minutes") is not None:
+                overhead_return_values.append(_safe_float(overhead.get("return_minutes"), 0.0))
+            overhead_recharge_values.append(_safe_float(overhead.get("recharge_minutes"), 0.0))
+
             ended_at = job_info.get("ended_at")
             if isinstance(ended_at, str) and ended_at.strip():
                 if latest_job_at is None or ended_at > latest_job_at:
@@ -228,7 +285,7 @@ class LearningStatsRebuilder:
         count = len(jobs)
 
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "vacuum_entity_id": vacuum_entity_id,
             "rebuilt_at": _iso_now(),
             "job_stats": {
@@ -247,6 +304,28 @@ class LearningStatsRebuilder:
                 "max_battery_used": round(max(battery_used_values), 2) if count else 0.0,
                 "min_total_water_used_ml": round(min(total_water_values), 2) if count else 0.0,
                 "max_total_water_used_ml": round(max(total_water_values), 2) if count else 0.0,
+                "avg_overhead_minutes": round(sum(overhead_values) / count, 2) if count else 0.0,
+                "min_overhead_minutes": round(min(overhead_values), 2) if overhead_values else 0.0,
+                "max_overhead_minutes": round(max(overhead_values), 2) if overhead_values else 0.0,
+                "overhead_minutes_stddev": _stddev(overhead_values),
+                "avg_overhead_entry_minutes": (
+                    round(sum(overhead_entry_values) / len(overhead_entry_values), 2)
+                    if overhead_entry_values else 0.0
+                ),
+                "avg_overhead_inter_room_minutes": (
+                    round(sum(overhead_inter_room_values) / len(overhead_inter_room_values), 2)
+                    if overhead_inter_room_values else 0.0
+                ),
+                "avg_overhead_return_minutes": (
+                    round(sum(overhead_return_values) / len(overhead_return_values), 2)
+                    if overhead_return_values else 0.0
+                ),
+                "avg_overhead_recharge_minutes": (
+                    round(sum(overhead_recharge_values) / count, 2) if count else 0.0
+                ),
+                "overhead_sample_count": len(overhead_values),
+                "overhead_entry_sample_count": len(overhead_entry_values),
+                "overhead_inter_room_sample_count": len(overhead_inter_room_values),
                 "latest_job_ended_at": latest_job_at,
             },
         }
@@ -267,6 +346,13 @@ class LearningStatsRebuilder:
         baseline_area_samples: dict[str, list[float]] = {}
         room_stats: dict[str, dict[str, Any]] = {}
         room_baselines: dict[str, dict[str, Any]] = {}
+        # Transit (travel-time) accumulators: per-pair second-samples + identity
+        # meta, plus per-room ingress/egress samples folded into room_baselines.
+        # Only runs with transit_capture_valid contribute (see the job loop).
+        transit_samples: dict[str, list[float]] = {}
+        transit_meta: dict[str, dict[str, Any]] = {}
+        ingress_samples: dict[str, list[float]] = {}
+        egress_samples: dict[str, list[float]] = {}
 
         for job in jobs:
             job_info = job.get("job", {}) if isinstance(job.get("job"), dict) else {}
@@ -412,6 +498,44 @@ class LearningStatsRebuilder:
                 edge_bucket["minutes"].append(per_room_duration)
                 edge_bucket["battery"].append(per_room_battery)
 
+            # --- transit accumulation (job level, after the per-room loop) -----
+            # Only valid captures contribute; per-pair seconds + per-room
+            # ingress (transit INTO a room) / egress (transit OUT of a room).
+            if _safe_bool(job_info.get("transit_capture_valid"), False):
+                for tr in (job_info.get("transitions") or []):
+                    if not isinstance(tr, dict):
+                        continue
+                    raw_secs = tr.get("transit_seconds")
+                    if raw_secs is None:
+                        continue
+                    secs = _safe_float(raw_secs, 0.0)
+                    from_id = _safe_int(tr.get("from_room_id"), -1)
+                    to_id = _safe_int(tr.get("to_room_id"), -1)
+                    if from_id <= 0 or to_id <= 0:
+                        continue
+                    from_slug = str(tr.get("from_slug") or "").strip().lower()
+                    to_slug = str(tr.get("to_slug") or "").strip().lower()
+                    pairkey = f"{map_id}::{from_id}->{to_id}"
+                    transit_samples.setdefault(pairkey, []).append(secs)
+                    transit_meta.setdefault(
+                        pairkey,
+                        {
+                            "map_id": map_id,
+                            "from_room_id": from_id,
+                            "to_room_id": to_id,
+                            "from_slug": tr.get("from_slug"),
+                            "to_slug": tr.get("to_slug"),
+                        },
+                    )
+                    if to_slug:
+                        ingress_samples.setdefault(
+                            _room_baseline_key(map_id, to_slug), []
+                        ).append(secs)
+                    if from_slug:
+                        egress_samples.setdefault(
+                            _room_baseline_key(map_id, from_slug), []
+                        ).append(secs)
+
         output_exact: list[dict[str, Any]] = []
         for key in sorted(room_stats.keys()):
             item = room_stats[key]
@@ -478,15 +602,53 @@ class LearningStatsRebuilder:
                     "carpet_false_count": item["carpet_false_count"],
                     "by_clean_times": _finalize_setting_buckets(item["pass_buckets"]),
                     "by_edge_mopping": _finalize_setting_buckets(item["edge_buckets"]),
+                    **_seconds_band(
+                        ingress_samples.get(key, []),
+                        value_label="ingress_transit_seconds",
+                        count_key="ingress_sample_count",
+                    ),
+                    **_seconds_band(
+                        egress_samples.get(key, []),
+                        value_label="egress_transit_seconds",
+                        count_key="egress_sample_count",
+                    ),
+                }
+            )
+
+        transit_stats: list[dict[str, Any]] = []
+        access_graph_edges: list[dict[str, Any]] = []
+        for pairkey in sorted(transit_samples.keys()):
+            secs = transit_samples[pairkey]
+            if not secs:
+                continue
+            meta = transit_meta.get(pairkey, {})
+            identity = {
+                "map_id": meta.get("map_id", 0),
+                "from_room_id": meta.get("from_room_id"),
+                "to_room_id": meta.get("to_room_id"),
+                "from_slug": meta.get("from_slug"),
+                "to_slug": meta.get("to_slug"),
+            }
+            transit_stats.append({**identity, **_seconds_band(secs)})
+            n = len(secs)
+            mins = [s / 60.0 for s in secs]
+            access_graph_edges.append(
+                {
+                    **identity,
+                    "sample_count": n,
+                    "transit_minutes_mean": round(sum(mins) / n, 4),
+                    "transit_minutes_stddev": _stddev(mins),
                 }
             )
 
         return {
-            "schema_version": 4,
+            "schema_version": 5,
             "vacuum_entity_id": vacuum_entity_id,
             "rebuilt_at": _iso_now(),
             "room_stats": output_exact,
             "room_baselines": output_baselines,
+            "transit_stats": transit_stats,
+            "access_graph_edges": access_graph_edges,
             "lookup_order": [
                 "map_id + room_slug + effective_mode + clean_times + is_carpet + clean_intensity + edge_mopping",
                 "fallback 1: ignore clean_intensity (with confidence penalty)",
@@ -509,6 +671,14 @@ class LearningStatsRebuilder:
                 "by setting (1 vs 2 passes; edge mop on vs off), each carrying a minutes_min/max/"
                 "stddev band so a consumer can match within variance, not against a point mean. "
                 "All stats are learning-jobs-only (bad runs excluded). Area is not bucketed."
+            ),
+            "transit_note": (
+                "transit_stats / access_graph_edges hold per room-pair travel time aggregated "
+                "from each job's transitions, only when transit_capture_valid. transit_stats is "
+                "in seconds (avg/min/max/stddev); access_graph_edges mirrors it in minutes "
+                "(transit_minutes_mean/stddev) for the estimator + access graph. room_baselines "
+                "carry avg_ingress/egress_transit_seconds (+band). Transit is time-based / "
+                "frame-invariant — raw coordinates drift across sessions, so geometry is unused."
             ),
         }
 

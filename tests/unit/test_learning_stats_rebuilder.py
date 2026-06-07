@@ -39,6 +39,10 @@ def _job(
     cleaning_area_m2: float | None = None,
     clean_times: int = 1,
     edge_mopping: bool = False,
+    transitions: list[dict] | None = None,
+    transit_capture_valid: bool = False,
+    overhead_observed: dict | None = None,
+    cleaning_time_seconds: int | None = None,
 ) -> dict:
     if room_slugs is None:
         room_slugs = ["kitchen"]
@@ -63,6 +67,13 @@ def _job(
     }
     if cleaning_area_m2 is not None:
         job_block["cleaning_area_m2"] = cleaning_area_m2
+    if cleaning_time_seconds is not None:
+        job_block["cleaning_time_seconds"] = cleaning_time_seconds
+    if transitions is not None:
+        job_block["transitions"] = transitions
+        job_block["transit_capture_valid"] = transit_capture_valid
+    if overhead_observed is not None:
+        job_block["overhead_observed"] = overhead_observed
     return {
         "record_type": "completed_job",
         "job_id": job_id,
@@ -217,7 +228,7 @@ def test_build_job_stats_schema_version(tmp_path):
     payload = rebuilder.build_job_stats_payload(
         vacuum_entity_id="vacuum.alfred", jobs=[]
     )
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +307,7 @@ def test_build_room_stats_schema_version(tmp_path):
     payload = rebuilder.build_room_stats_payload(
         vacuum_entity_id="vacuum.alfred", jobs=[]
     )
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
 
 
 def test_build_room_stats_area_single_room(tmp_path):
@@ -491,3 +502,90 @@ def test_derive_water_allocations_robot_fallback(tmp_path):
     per_room, _job_level = rb._derive_room_water_allocations(job=job, rooms=rooms)
     assert per_room["kitchen"]["robot_water_used_ml"] == pytest.approx(50.0)
     assert per_room["bath"]["robot_water_used_ml"] == pytest.approx(50.0)
+
+
+# ---------------------------------------------------------------------------
+# transit aggregation (transit_stats / access_graph_edges / ingress-egress)
+# ---------------------------------------------------------------------------
+
+def _transition(from_id=1, to_id=2, from_slug="kitchen", to_slug="bath", secs=120):
+    return {"from_room_id": from_id, "to_room_id": to_id, "from_slug": from_slug,
+            "to_slug": to_slug, "transit_seconds": secs}
+
+
+def test_build_room_stats_transit_per_pair(tmp_path):
+    """transit_stats + access_graph_edges aggregate per room-pair from valid captures."""
+    rb = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", room_slugs=["kitchen", "bath"], duration_minutes=20.0,
+             transit_capture_valid=True, transitions=[_transition(secs=120)]),
+        _job(job_id="j2", room_slugs=["kitchen", "bath"], duration_minutes=20.0,
+             transit_capture_valid=True, transitions=[_transition(secs=180)]),
+    ]
+    payload = rb.build_room_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)
+    assert len(payload["transit_stats"]) == 1
+    ts = payload["transit_stats"][0]
+    assert ts["from_room_id"] == 1 and ts["to_room_id"] == 2
+    assert ts["sample_count"] == 2
+    assert ts["avg_seconds"] == 150.0   # (120 + 180) / 2
+    edge = payload["access_graph_edges"][0]
+    assert edge["sample_count"] == 2
+    assert edge["transit_minutes_mean"] == pytest.approx(2.5)   # 150s / 60
+
+
+def test_build_room_stats_transit_excludes_invalid(tmp_path):
+    """transit_capture_valid=False jobs contribute no transit aggregate."""
+    rb = _make_rebuilder(tmp_path)
+    jobs = [_job(job_id="j1", room_slugs=["kitchen", "bath"],
+                 transit_capture_valid=False, transitions=[_transition()])]
+    payload = rb.build_room_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)
+    assert payload["transit_stats"] == []
+    assert payload["access_graph_edges"] == []
+
+
+def test_build_room_stats_ingress_egress_baselines(tmp_path):
+    """room_baselines carry ingress (into) + egress (out of) transit bands."""
+    rb = _make_rebuilder(tmp_path)
+    jobs = [_job(job_id="j1", room_slugs=["kitchen", "bath"],
+                 transit_capture_valid=True, transitions=[_transition(secs=120)])]
+    payload = rb.build_room_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)
+    baselines = {b["room_slug"]: b for b in payload["room_baselines"]}
+    # bath is the destination -> ingress; kitchen is the origin -> egress
+    assert baselines["bath"]["ingress_sample_count"] == 1
+    assert baselines["bath"]["avg_ingress_transit_seconds"] == 120.0
+    assert baselines["kitchen"]["egress_sample_count"] == 1
+    assert baselines["kitchen"]["avg_egress_transit_seconds"] == 120.0
+
+
+# ---------------------------------------------------------------------------
+# overhead aggregation (job_stats)
+# ---------------------------------------------------------------------------
+
+def test_build_job_stats_overhead_from_block(tmp_path):
+    """job_stats aggregates overhead_observed.total_overhead_minutes + components."""
+    rb = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="j1", duration_minutes=30.0,
+             overhead_observed={"total_overhead_minutes": 10.0, "entry_minutes": 1.0,
+                                "inter_room_minutes": 2.0, "return_minutes": 1.5,
+                                "recharge_minutes": 0.0, "wash_minutes": None}),
+        _job(job_id="j2", duration_minutes=30.0,
+             overhead_observed={"total_overhead_minutes": 6.0, "entry_minutes": None,
+                                "inter_room_minutes": None, "return_minutes": 1.0,
+                                "recharge_minutes": 0.0, "wash_minutes": None}),
+    ]
+    stats = rb.build_job_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)["job_stats"]
+    assert stats["avg_overhead_minutes"] == 8.0   # (10 + 6) / 2
+    assert stats["overhead_sample_count"] == 2
+    # entry/inter_room present on only one job -> averaged over the present samples
+    assert stats["avg_overhead_entry_minutes"] == 1.0
+    assert stats["overhead_inter_room_sample_count"] == 1
+
+
+def test_build_job_stats_overhead_derived_when_absent(tmp_path):
+    """Historical jobs without overhead_observed get it derived from job fields."""
+    rb = _make_rebuilder(tmp_path)
+    # duration 30, cleaning 20 min -> overhead 10 (no overhead_observed block)
+    jobs = [_job(job_id="j1", duration_minutes=30.0, cleaning_time_seconds=1200)]
+    stats = rb.build_job_stats_payload(vacuum_entity_id="vacuum.alfred", jobs=jobs)["job_stats"]
+    assert stats["avg_overhead_minutes"] == 10.0

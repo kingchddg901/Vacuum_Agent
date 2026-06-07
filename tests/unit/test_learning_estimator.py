@@ -34,12 +34,14 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from custom_components.eufy_vacuum.learning.estimator import (
+    _TRANSITION_PER_ROOM,
     LearningEstimator,
     _breakpoint_for_score,
     _compute_overhead,
     _confidence_result,
     _find_room_match,
     _learning_velocity,
+    _lookup_transit_minutes,
     _normalize_wash_frequency_mode,
     _score_room_confidence,
 )
@@ -505,3 +507,118 @@ def test_reanchor_first_unresolved_marked_current(tmp_path):
     assert timeline[0]["current"] is True
     assert timeline[1]["current"] is False
     assert timeline[1]["remaining"] is True
+
+
+# ---------------------------------------------------------------------------
+# _lookup_transit_minutes — fallback chain
+# ---------------------------------------------------------------------------
+
+def test_lookup_transit_per_pair():
+    """Tier 1: exact from->to edge -> learned_pairs."""
+    transit_index = {(6, 1, 2): {"sample_count": 3, "transit_minutes_mean": 2.0}}
+    minutes, source = _lookup_transit_minutes(
+        transit_index=transit_index, ingress_index={}, global_inter_room_minutes=None,
+        map_id=6, from_room_id=1, to_room_id=2, to_slug="bath")
+    assert source == "learned_pairs"
+    assert minutes == 2.0
+
+
+def test_lookup_transit_ingress_fallback():
+    """Tier 2: no edge but ingress for the room -> learned_room."""
+    ingress_index = {(6, "bath"): {"sample_count": 2, "avg_minutes": 1.5}}
+    minutes, source = _lookup_transit_minutes(
+        transit_index={}, ingress_index=ingress_index, global_inter_room_minutes=None,
+        map_id=6, from_room_id=9, to_room_id=2, to_slug="bath")
+    assert source == "learned_room"
+    assert minutes == 1.5
+
+
+def test_lookup_transit_global_fallback():
+    """Tier 3: no edge/ingress but a global -> learned_global."""
+    minutes, source = _lookup_transit_minutes(
+        transit_index={}, ingress_index={}, global_inter_room_minutes=0.9,
+        map_id=6, from_room_id=1, to_room_id=2, to_slug="bath")
+    assert source == "learned_global"
+    assert minutes == 0.9
+
+
+def test_lookup_transit_default_constant():
+    """Tier 4: nothing learned -> the _TRANSITION_PER_ROOM constant."""
+    minutes, source = _lookup_transit_minutes(
+        transit_index={}, ingress_index={}, global_inter_room_minutes=None,
+        map_id=6, from_room_id=1, to_room_id=2, to_slug="bath")
+    assert source == "default"
+    assert minutes == _TRANSITION_PER_ROOM
+
+
+def test_lookup_transit_zero_sample_edge_skipped():
+    """An edge with 0 samples is ignored -> falls through to default."""
+    transit_index = {(6, 1, 2): {"sample_count": 0, "transit_minutes_mean": 5.0}}
+    minutes, source = _lookup_transit_minutes(
+        transit_index=transit_index, ingress_index={}, global_inter_room_minutes=None,
+        map_id=6, from_room_id=1, to_room_id=2, to_slug="bath")
+    assert source == "default"
+
+
+# ---------------------------------------------------------------------------
+# estimate() — transit folds into the timeline + overhead
+# ---------------------------------------------------------------------------
+
+def _two_rooms() -> list[dict]:
+    return [
+        {"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+         "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1},
+        {"slug": "bath", "clean_mode": "vacuum", "clean_passes": 1,
+         "clean_intensity": "standard", "carpet": False, "name": "Bath", "room_id": 2},
+    ]
+
+
+def test_estimate_folds_learned_transit(tmp_path, monkeypatch):
+    """Per-pair transit folds into the timeline + overhead; transition_source is
+    learned_pairs and Sum(per-room transit) == overhead.transition_minutes."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(estimator.store, "load_room_stats", lambda **kw: {
+        "room_stats": [],
+        "room_baselines": [],
+        "access_graph_edges": [
+            {"map_id": 1, "from_room_id": 1, "to_room_id": 2,
+             "sample_count": 3, "transit_minutes_mean": 2.0},
+        ],
+        "rebuilt_at": "2026-01-01T00:00:00+00:00",
+    })
+    monkeypatch.setattr(estimator.store, "load_job_stats", lambda **kw: {})
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=_two_rooms())
+    tl = result["room_timeline"]
+    assert tl[0]["estimated_transit_minutes_before"] == 0.0   # entry leg in startup
+    assert tl[1]["estimated_transit_minutes_before"] == 2.0   # learned kitchen->bath
+    assert tl[1]["transit_source"] == "learned_pairs"
+    assert result["overhead"]["transition_source"] == "learned_pairs"
+    assert result["overhead"]["transition_minutes"] == 2.0
+    total = sum(r["estimated_transit_minutes_before"] for r in tl)
+    assert total == result["overhead"]["transition_minutes"]
+
+
+def test_estimate_default_transit_backward_compat(tmp_path, monkeypatch):
+    """No learned transit -> constant per boundary, transition_source=default."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(estimator.store, "load_room_stats", lambda **kw: None)
+    monkeypatch.setattr(estimator.store, "load_job_stats", lambda **kw: None)
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=_two_rooms())
+    assert result["overhead"]["transition_source"] == "default"
+    assert result["overhead"]["transition_minutes"] == _TRANSITION_PER_ROOM  # 1 boundary
+    assert result["room_timeline"][0]["estimated_transit_minutes_before"] == 0.0
+
+
+def test_estimate_single_room_no_transit(tmp_path, monkeypatch):
+    """Single-room job -> no boundaries, transition_source=default, transit=0."""
+    estimator = LearningEstimator(_make_hass(tmp_path))
+    monkeypatch.setattr(estimator.store, "load_room_stats", lambda **kw: None)
+    monkeypatch.setattr(estimator.store, "load_job_stats", lambda **kw: None)
+    rooms = [{"slug": "kitchen", "clean_mode": "vacuum", "clean_passes": 1,
+              "clean_intensity": "standard", "carpet": False, "name": "Kitchen", "room_id": 1}]
+    result = estimator.estimate(
+        vacuum_entity_id="vacuum.alfred", map_id="1", ordered_rooms=rooms)
+    assert result["overhead"]["transition_minutes"] == 0.0
+    assert result["overhead"]["transition_source"] == "default"
