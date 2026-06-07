@@ -1129,7 +1129,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
         ? this._renderers.renderMaintenanceItemModal(ctx)
         : "";
 
-    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}`;
+    const externalWizardHtml =
+      typeof this._renderers.renderExternalWizardModal === "function"
+        ? this._renderers.renderExternalWizardModal(ctx)
+        : "";
+
+    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}`;
 
     if (!html) {
       if (this._modalHost) {

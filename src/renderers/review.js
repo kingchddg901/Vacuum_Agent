@@ -28,6 +28,15 @@ export function applyReviewRenderers(proto) {
    */
   proto.renderLearningReviewView = function (ctx) {
     const { state } = ctx;
+    const strip = this._renderReviewSubtabStrip(state);
+    const inner = state.reviewSubtab() === "external"
+      ? this.renderExternalJobsSubtab(ctx)
+      : this._renderLearningHistoryView(ctx);
+    return `<div class="evcc-review-shell">${strip}${inner}</div>`;
+  };
+
+  proto._renderLearningHistoryView = function (ctx) {
+    const { state } = ctx;
     const snapshot = state.learningHistorySnapshot?.();
     if (!snapshot) {
       return `<div class="evcc-empty">Loading learning history...</div>`;

@@ -13,6 +13,7 @@ import { applyThemeActions } from "./theme.js";
 import { applyMapActions          } from "./map.js";
 import { applySetupActions        } from "./setup.js";
 import { applyMappingReviewActions } from "./mapping-review.js";
+import { applyExternalJobsActions } from "./external-jobs.js";
 
 /* =========================================================
    CLASS
@@ -56,3 +57,4 @@ applyThemeActions(VacuumCardActions.prototype);
 applyMapActions(VacuumCardActions.prototype);
 applySetupActions(VacuumCardActions.prototype);
 applyMappingReviewActions(VacuumCardActions.prototype);
+applyExternalJobsActions(VacuumCardActions.prototype);

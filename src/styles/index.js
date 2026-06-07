@@ -41,6 +41,7 @@ import { floorTextureStyles                  } from "./floor-texture-styles.js";
 import { setupStyles                         } from "./setup.js";
 import { mappingReviewStyles                 } from "./mapping-review.js";
 import { MOBILE_STYLES                       } from "./mobile.js";
+import { externalJobsStyles, externalWizardModalStyles } from "./external-jobs.js";
 import { THEME_TOKEN_REGISTRY                } from "../theme-tokens/index.js";
 
 export const STYLES = [
@@ -69,6 +70,7 @@ export const STYLES = [
   // .evcc-shell[data-viewport="mobile"] selectors and need to win
   // specificity over the desktop defaults declared in the modules
   // above.
+  externalJobsStyles,
   MOBILE_STYLES,
 ].join("\n");
 
@@ -369,6 +371,7 @@ export const MODAL_HOST_STYLES = `
   ${maintenanceModalHostStyles}
   ${roomAccessStyles}
   ${roomEstimateStyles}
+  ${externalWizardModalStyles}
 
   .evcc-modal-footer {
     display:         flex;

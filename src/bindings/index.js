@@ -52,6 +52,7 @@ import { applyMapBindings           } from "./map.js";
 import { applySetupBindings         } from "./setup.js";
 import { applyMappingReviewBindings } from "./mapping-review.js";
 import { applyMobileShellBindings   } from "./mobile-shell.js";
+import { applyExternalJobsBindings   } from "./external-jobs.js";
 
 /* =========================================================
    CLASS
@@ -86,6 +87,7 @@ export class VacuumCardBindings {
     this._bindOrder();
     this._bindRunProfiles();
     this._bindReview();
+    this._bindExternalJobs();
     this._bindRooms();
     this._bindRoomAccess();
     this._bindRoomEstimate();
@@ -189,6 +191,7 @@ export class VacuumCardBindings {
     this._bindMaintenanceModalHost?.(host);
     this._bindRoomAccessHost?.(host);
     this._bindRoomEstimateHost?.(host);
+    this._bindExternalWizardHost?.(host);
 
     // Close room editor actions.
     host.querySelectorAll("[data-action='close-room-editor']").forEach((el) => {
@@ -293,3 +296,4 @@ applyMapBindings(VacuumCardBindings.prototype);
 applySetupBindings(VacuumCardBindings.prototype);
 applyMappingReviewBindings(VacuumCardBindings.prototype);
 applyMobileShellBindings(VacuumCardBindings.prototype);
+applyExternalJobsBindings(VacuumCardBindings.prototype);

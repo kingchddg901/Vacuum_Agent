@@ -24,6 +24,7 @@ import { applyConfirmationsState } from "./confirmations.js";
 import { applyLearningState      } from "./learning.js";
 import { applySetupState         } from "./setup.js";
 import { applyMappingReviewState } from "./mapping-review.js";
+import { applyExternalJobsState     } from "./external-jobs.js";
 
 /* =========================================================
    CLASS
@@ -79,3 +80,4 @@ applyToastsState(VacuumCardState.prototype);
 applyLearningState(VacuumCardState.prototype);
 applySetupState(VacuumCardState.prototype);
 applyMappingReviewState(VacuumCardState.prototype);
+applyExternalJobsState(VacuumCardState.prototype);

@@ -27,6 +27,7 @@ import { applyMapRenderers          } from "./map.js";
 import { applyFloorTextureSurface   } from "./floor-texture-surface.js";
 import { applySetupRenderers           } from "./setup.js";
 import { applyMappingReviewRenderers   } from "./mapping-review.js";
+import { applyExternalJobsRenderers     } from "./external-jobs.js";
 import { applyMobileShellRenderer      } from "./mobile-shell.js";
 import { applyToastsRenderer           } from "./toasts.js";
 
@@ -99,5 +100,6 @@ applyFloorTextureSurface(VacuumCardRenderers.prototype);
 applyLearningRenderers(VacuumCardRenderers.prototype);
 applySetupRenderers(VacuumCardRenderers.prototype);
 applyMappingReviewRenderers(VacuumCardRenderers.prototype);
+applyExternalJobsRenderers(VacuumCardRenderers.prototype);
 applyMobileShellRenderer(VacuumCardRenderers.prototype);
 applyToastsRenderer(VacuumCardRenderers.prototype);

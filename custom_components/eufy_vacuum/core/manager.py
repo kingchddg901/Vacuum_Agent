@@ -2684,6 +2684,19 @@ class EufyVacuumManager:
             "count": len(pending),
         }
 
+    def discard_external_run(self, vacuum_entity_id: str, pending_job_id: str) -> dict[str, Any]:
+        """Delete a pending external review record (the user discarded it)."""
+        from ..learning.history_store import LearningHistoryStore
+
+        store = LearningHistoryStore(self.hass)
+        paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        path = paths.root / "external_jobs" / f"{pending_job_id}.json"
+        try:
+            path.unlink(missing_ok=True)
+        except OSError as err:
+            return {"ok": False, "error": str(err)}
+        return {"ok": True, "pending_job_id": pending_job_id}
+
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
         return self.active_job.pause_active_job(**kwargs)
