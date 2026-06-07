@@ -37,9 +37,11 @@ export function applyExternalJobsRenderers(proto) {
     const { state } = ctx;
     const runs = state.externalPendingRuns();
     if (!runs.length) {
+      const brand = state.externalBrand?.();
+      const appPhrase = brand ? `the ${this.escapeHtml(brand)} app` : "your robot's app";
       return `
         <div class="evcc-empty evcc-external-empty">
-          No app-started runs awaiting review. Clean from the Eufy app and the
+          No app-started runs awaiting review. Start a clean from ${appPhrase} and the
           run will appear here to confirm which rooms it cleaned.
         </div>
       `;

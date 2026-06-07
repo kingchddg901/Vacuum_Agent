@@ -57,8 +57,9 @@ export function applyExternalJobsBindings(proto) {
   proto._refreshExternalPending = async function () {
     const card = this.card;
     try {
-      const list = await card._actions.fetchExternalPendingRuns();
-      card._state.setExternalPendingRuns(list);
+      const { pending, brand } = await card._actions.fetchExternalPendingRuns();
+      card._state.setExternalPendingRuns(pending);
+      card._state.setExternalBrand(brand);
       card._scheduleRender();
     } catch (err) {
       console.error("[eufy-vacuum-command-center] fetch external pending failed:", err);

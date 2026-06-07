@@ -231,6 +231,9 @@ def register_eufy_adapter_for_vacuum(
         "adapter_id": ADAPTER_ID,
         "source": "code",
         "display_name": "Eufy X10 Pro Omni",
+        # Short brand/app name the card uses in copy ("Clean from the Eufy
+        # app"); the card falls back to generic phrasing when absent.
+        "brand": "Eufy",
 
         "entities": entities,
 
@@ -253,10 +256,10 @@ def register_eufy_adapter_for_vacuum(
                     "mop": "mop",
                 },
             },
-            "fan_speed":       {"entity_id": f"select.{object_id}_suction_level",  "value_map": None},
-            "water_level":     {"entity_id": entities.get("water_level"),          "value_map": None},
-            "clean_intensity": {"entity_id": entities.get("cleaning_intensity"),   "value_map": None},
-            "mop_intensity":   {"entity_id": f"select.{object_id}_mop_intensity",  "value_map": None},
+            "fan_speed":       {"entity_id": f"select.{object_id}_suction_level",      "value_map": None},
+            "water_level":     {"entity_id": f"select.{object_id}_water_level",        "value_map": None},
+            "clean_intensity": {"entity_id": f"select.{object_id}_cleaning_intensity", "value_map": None},
+            "mop_intensity":   {"entity_id": f"select.{object_id}_mop_intensity",      "value_map": None},
         },
 
         "vocabulary": {

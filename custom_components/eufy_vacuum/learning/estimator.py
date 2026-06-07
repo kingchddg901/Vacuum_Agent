@@ -78,7 +78,7 @@ from homeassistant.core import HomeAssistant
 from .history_store import LearningHistoryStore
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from ..timestamp_utils import datetime_to_utc_iso, parse_timestamp, utc_now
-from .utils import _iso_now, _room_key, _safe_float, _safe_int
+from .utils import _canonical_clean_mode, _iso_now, _room_key, _safe_float, _safe_int
 
 
 # ---------------------------------------------------------------------------
@@ -461,7 +461,7 @@ def _find_room_match(
         return (
             _safe_int(item.get("map_id")) == map_id
             and item.get("room_slug") == slug
-            and item.get("effective_mode") == clean_mode
+            and _canonical_clean_mode(item.get("effective_mode")) == _canonical_clean_mode(clean_mode)
         )
 
     def _passes(item: dict[str, Any]) -> bool:

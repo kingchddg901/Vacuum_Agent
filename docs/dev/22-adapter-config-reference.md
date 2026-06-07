@@ -61,6 +61,7 @@ shared.
     "adapter_id": str,           # required
     "source": "code" | "config", # required
     "display_name": str,         # optional
+    "brand": str,                # optional — short brand/app name for card copy
 
     # Brand surface
     "entities": { ... },         # required — maps role keys → HA entity IDs
@@ -107,6 +108,14 @@ UI flow sets `"config"`.
 
 Human-readable label shown in the UI and logs. Example:
 `"Eufy X10 Pro Omni"`.
+
+### `brand` *(optional, str)*
+
+Short brand/app name the card uses in copy — e.g. `"Eufy"`. The External Jobs
+empty state renders `"Start a clean from the {brand} app"`; when absent the card
+falls back to generic phrasing (`"your robot's app"`). Surfaced to the card via
+the `get_external_pending_runs` service response, keeping brand names out of the
+otherwise brand-agnostic card.
 
 **UI builder notes:** `adapter_id` is auto-generated (slug of
 `display_name`) or hidden; `source` is hard-coded to `"config"` by the

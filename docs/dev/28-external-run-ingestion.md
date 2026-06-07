@@ -302,7 +302,7 @@ payload `{vacuum_entity_id, map_id, record_path, segment_count, detection_ts}`.
 
 ## 9. Adapter contract
 
-Two additions to the adapter config (see
+Additions to the adapter config (see
 [22-adapter-config-reference](22-adapter-config-reference.md)):
 
 - **`settings_selects`** — the global select entities that mirror the *current
@@ -310,7 +310,11 @@ Two additions to the adapter config (see
   jobs but never read them back; for external runs they are the only window into
   what the app set. Shape: `{canonical_key: {entity_id, value_map}}`, where
   `value_map` (optional) normalizes raw firmware strings to canonical. Eufy
-  declares `clean_mode/fan_speed/water_level/clean_intensity/mop_intensity`.
+  declares `clean_mode/fan_speed/water_level/clean_intensity/mop_intensity`, each
+  pointing at the **named `select.<object_id>_*` entity** (not the dispatch or
+  number entity) — so `water_level` captures the level name ("High"), not the
+  tank-percent number, and `clean_intensity` resolves even when capability
+  detection skipped it.
   `edge_mopping` is **absent** — it is a dispatch-only payload field with no
   readback entity, so the user supplies it in review.
 - **`rooms_unique_per_job`** capability — `True` when a room is cleaned at most
@@ -318,6 +322,16 @@ Two additions to the adapter config (see
   the card hard-blocks picking an already-used room; a brand with a vac-then-mop
   pass would answer `False` (each room visited twice). Same capability discipline
   as `position_lock_reliable` — core asks the adapter, never assumes.
+- **`brand`** — short brand/app name (e.g. `"Eufy"`) returned by
+  `get_external_pending_runs` and shown in the card's empty state ("Start a clean
+  from the {brand} app"). Absent → the card uses generic phrasing. Keeps brand
+  strings out of the otherwise brand-agnostic card.
+
+Graduated external runs feed the **same** learning buckets as internal runs:
+`clean_mode` is canonicalized in the room key (`"vacuum and mop"` → `"vacuum_mop"`),
+so an app-started vacuum-and-mop run merges with queue-dispatched runs of the same
+settings instead of forming a parallel bucket. See
+[10-learning-system](10-learning-system.md).
 
 ---
 
@@ -342,10 +356,12 @@ Two additions to the adapter config (see
   resumes covering *new* floor after) reads as a boundary, like the old behavior.
   Distinguishing it would need wash-mode awareness; out of scope. The user's
   ByRoom setup is unaffected, and the count step lets the user merge it.
-- **Live-validated assumptions** — the `settings_selects` entity ids follow Eufy
-  naming convention, and the end-signal is `docked`/`idle`. Both degrade
-  gracefully (empty settings → area-only; no false finalize) but are confirmed on
-  a real run.
+- **Live-validated (2026-06-07)** — detection, counter + settings capture (all
+  five selects, value-mapped), finalize on `docked`/`idle`, the review wizard, and
+  Confirm → graduate → rebuild were confirmed end-to-end on real firmware. The
+  `settings_selects` ids use the `select.<object_id>_*` convention; the end-signal
+  is `docked`/`idle`. Both still degrade gracefully (empty settings → area-only;
+  no false finalize).
 - **Deferred polish** — real-time `EVENT_EXTERNAL_RUN_PENDING` toast (badge
   fetches on entry today); fan/water/intensity per-room overrides in the card
   (mode/passes/edge-mop are editable now; the others are shown detected); a

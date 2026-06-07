@@ -46,13 +46,43 @@ def _iso_now() -> str:
     return utc_now_iso()
 
 
+_CLEAN_MODE_CANONICAL: dict[str, str] = {
+    "vacuum and mop": "vacuum_mop",
+    "vacuum & mop": "vacuum_mop",
+    "vacuum+mop": "vacuum_mop",
+    "vac & mop": "vacuum_mop",
+    "vacmop": "vacuum_mop",
+}
+
+
+def _canonical_clean_mode(value: Any) -> str:
+    """Normalize a clean_mode/effective_mode string to the canonical token
+    ('vacuum', 'mop', 'vacuum_mop').
+
+    Internal job records historically stored the display string ("Vacuum and
+    mop") while the framework + adapter value_maps use the token "vacuum_mop";
+    folding them together here keeps internal and app-started (external) runs in
+    ONE learning bucket instead of splitting on the vocabulary artifact. Unknown
+    values pass through lowercased so brand-specific modes are preserved.
+    """
+    s = str(value or "").strip().lower()
+    if not s:
+        return s
+    if s in _CLEAN_MODE_CANONICAL:
+        return _CLEAN_MODE_CANONICAL[s]
+    # Any phrasing carrying both verbs is a combined vacuum+mop run.
+    if "vacuum" in s and "mop" in s:
+        return "vacuum_mop"
+    return s
+
+
 def _room_profile_key(room: dict[str, Any]) -> str:
     """Return a stable per-room settings signature used for stats matching."""
     return "::".join(
         [
             str(room.get("slug", "")).strip().lower(),
             str(room.get("selected_profile_name", room.get("resolved_profile_name", ""))).strip().lower(),
-            str(room.get("clean_mode", "")).strip().lower(),
+            _canonical_clean_mode(room.get("clean_mode", "")),
             str(room.get("clean_intensity", "")).strip().lower(),
             str(room.get("fan_speed", "")).strip().lower(),
             str(room.get("water_level", "")).strip().lower(),
@@ -82,7 +112,7 @@ def _room_key(
     return (
         f"{_safe_int(map_id, 0)}::"
         f"{str(slug or '').strip().lower()}::"
-        f"{str(effective_mode or '').strip().lower()}::"
+        f"{_canonical_clean_mode(effective_mode)}::"
         f"{_safe_int(clean_times, 1)}::"
         f"{'1' if _safe_bool(is_carpet, False) else '0'}::"
         f"{str(clean_intensity or 'standard').strip().lower()}::"

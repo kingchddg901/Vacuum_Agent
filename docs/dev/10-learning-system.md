@@ -42,6 +42,14 @@ where `is_carpet_int` is `1` for carpet / `0` for hard floor, and `edge_int` is 
 for edge-mopping on / `0` for off. Edge-mopping is in the key because it materially
 changes cleaning time, so edge-on and edge-off runs are learned separately.
 
+`effective_mode` is **canonicalized** before it enters the key: the historical
+display string `"vacuum and mop"` (and `"vacuum & mop"`, `"vacuum+mop"`, …) folds to
+the token `"vacuum_mop"`, so internal (queue-dispatched) and external (app-started)
+runs of the same physical mode land in **one** bucket instead of splitting on a
+vocabulary artifact. The normalization lives in `learning/utils.py::_canonical_clean_mode`
+and is applied by `_room_key`, `_room_profile_key`, the rebuilder's stored
+`effective_mode`, and the estimator's match lookup.
+
 **Fields written per entry:**
 
 | Field | Type | Source | Description |

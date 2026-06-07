@@ -55,6 +55,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "description": "Human-readable name shown in the UI and logs.",
     },
 
+    "brand": {
+        "type": "str",
+        "required": False,
+        "description": (
+            "Short brand/app name the card uses in copy — e.g. \"Eufy\" "
+            "renders \"Clean from the Eufy app\" in the External Jobs empty "
+            "state. The card falls back to generic phrasing when absent."
+        ),
+    },
+
     # === ENTITIES =========================================================
     # Full entity IDs for each companion sensor/entity the framework reads.
     # All are optional — absent entities degrade the corresponding feature.

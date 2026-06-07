@@ -36,6 +36,19 @@ export function applyExternalJobsState(proto) {
     this._externalPending = Array.isArray(list) ? list : [];
   };
 
+  /* --- adapter-provided brand (for card copy) ------------------------ */
+
+  proto.externalBrand = function () {
+    return typeof this._externalBrand === "string" && this._externalBrand
+      ? this._externalBrand
+      : null;
+  };
+
+  proto.setExternalBrand = function (brand) {
+    this._externalBrand =
+      typeof brand === "string" && brand.trim() ? brand.trim() : null;
+  };
+
   /* --- wizard -------------------------------------------------------- */
 
   proto.isExternalWizardOpen = function () {

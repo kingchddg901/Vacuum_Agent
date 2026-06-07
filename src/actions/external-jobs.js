@@ -18,7 +18,7 @@ export function applyExternalJobsActions(proto) {
 
   proto.fetchExternalPendingRuns = async function () {
     const vacuum = this.state?.vacuumEntityId?.();
-    if (!vacuum) return [];
+    if (!vacuum) return { pending: [], brand: null };
     const res = await this.callService(
       DOMAIN,
       "get_external_pending_runs",
@@ -26,7 +26,10 @@ export function applyExternalJobsActions(proto) {
       true,
     );
     const data = res?.response ?? res;
-    return Array.isArray(data?.pending) ? data.pending : [];
+    return {
+      pending: Array.isArray(data?.pending) ? data.pending : [],
+      brand: typeof data?.brand === "string" ? data.brand : null,
+    };
   };
 
   proto.confirmExternalRun = async function (pendingJobId, mapId, roomAssignments) {

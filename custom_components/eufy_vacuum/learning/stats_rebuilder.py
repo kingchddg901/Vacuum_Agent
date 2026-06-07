@@ -47,6 +47,7 @@ from homeassistant.core import HomeAssistant
 from ..timestamp_utils import parse_timestamp
 from .history_store import LearningHistoryStore
 from .utils import (
+    _canonical_clean_mode,
     _iso_now,
     _room_key,
     _room_profile_key,
@@ -454,9 +455,9 @@ class LearningStatsRebuilder:
                 if not slug:
                     continue
 
-                effective_mode = str(
+                effective_mode = _canonical_clean_mode(
                     room.get("clean_mode", room.get("effective_mode", "unknown"))
-                ).strip().lower() or "unknown"
+                ) or "unknown"
                 clean_times = _safe_int(
                     room.get("clean_passes", room.get("clean_times", 1)),
                     1,

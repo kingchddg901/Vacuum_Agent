@@ -2659,29 +2659,51 @@ class EufyVacuumManager:
             pending_path.unlink(missing_ok=True)
         except OSError:
             pass
-        rebuild_result = None
+        rebuilt = False
         if rebuild_stats:
-            rebuild_result = self.rebuild_learning(vacuum_entity_id, False)
+            # The core manager owns no rebuilder (it lives on the LearningManager /
+            # job finalizer); construct one directly here -- this is exactly what the
+            # LearningManager does internally. Best-effort: the job is ALREADY
+            # graduated (written + pending removed), so a rebuild hiccup must not fail
+            # the confirm. Rerun eufy_vacuum.rebuild_learning_stats to pick it up.
+            try:
+                from ..learning.stats_rebuilder import LearningStatsRebuilder
+
+                LearningStatsRebuilder(self.hass).rebuild_all(
+                    vacuum_entity_id=vacuum_entity_id, rebuild_csv=False
+                )
+                rebuilt = True
+            except Exception:
+                _LOGGER.exception(
+                    "external confirm: stats rebuild failed (job %s graduated; "
+                    "rerun eufy_vacuum.rebuild_learning_stats)",
+                    job_id,
+                )
         return {
             "ok": True,
             "job_id": job_id,
             "job_path": str(job_path),
             "rooms_learned": len(record["job_profile"]["rooms"]),
-            "rebuilt": bool(rebuild_result),
+            "rebuilt": rebuilt,
         }
 
     def get_external_pending_runs(self, vacuum_entity_id: str) -> dict[str, Any]:
         """List pending external review records (external_jobs/) for the card."""
+        from ..adapters.registry import get_adapter_config
         from ..learning.external_ingest import load_pending_runs
         from ..learning.history_store import LearningHistoryStore
 
         store = LearningHistoryStore(self.hass)
         paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
         pending = load_pending_runs(str(paths.root / "external_jobs"))
+        adapter_cfg = get_adapter_config(vacuum_entity_id) or {}
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "pending": pending,
             "count": len(pending),
+            # Adapter-provided brand label for the card's copy (None -> the
+            # card uses generic phrasing). Keeps brand names out of the card.
+            "brand": adapter_cfg.get("brand"),
         }
 
     def discard_external_run(self, vacuum_entity_id: str, pending_job_id: str) -> dict[str, Any]:

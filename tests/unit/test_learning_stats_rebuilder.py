@@ -9,6 +9,7 @@ import pytest
 
 from custom_components.eufy_vacuum.learning.stats_rebuilder import (
     LearningStatsRebuilder,
+    _canonical_clean_mode,
     _room_baseline_key,
     _room_key,
     _stddev,
@@ -38,6 +39,7 @@ def _job(
     used_for_learning: bool = True,
     cleaning_area_m2: float | None = None,
     clean_times: int = 1,
+    clean_mode: str = "vacuum",
     edge_mopping: bool = False,
     transitions: list[dict] | None = None,
     transit_capture_valid: bool = False,
@@ -52,7 +54,7 @@ def _job(
             "slug": slug,
             "room_id": i + 1,
             "name": slug.title(),
-            "clean_mode": "vacuum",
+            "clean_mode": clean_mode,
             "clean_intensity": "standard",
             "clean_times": clean_times,
             "is_carpet": False,
@@ -137,6 +139,37 @@ def test_room_key_edge_mopping():
     assert on.endswith("::1")
     assert off.endswith("::0")
     assert on != off
+
+
+# ---------------------------------------------------------------------------
+# clean_mode canonicalization (internal "vacuum and mop" == external "vacuum_mop")
+# ---------------------------------------------------------------------------
+
+def test_canonical_clean_mode_folds_combined_vocab():
+    for raw in ("vacuum and mop", "Vacuum and Mop", "vacuum & mop", "VACUUM+MOP", "vac & mop"):
+        assert _canonical_clean_mode(raw) == "vacuum_mop"
+
+
+def test_canonical_clean_mode_passes_through_simple_modes():
+    assert _canonical_clean_mode("vacuum") == "vacuum"
+    assert _canonical_clean_mode("Mop") == "mop"
+    assert _canonical_clean_mode("vacuum_mop") == "vacuum_mop"
+
+
+def test_canonical_clean_mode_preserves_unknown_and_empty():
+    assert _canonical_clean_mode("sweep") == "sweep"   # brand-specific mode preserved
+    assert _canonical_clean_mode("") == ""
+    assert _canonical_clean_mode(None) == ""
+
+
+def test_room_key_merges_internal_and_external_mode_vocab():
+    # Internal job records store the display string ("vacuum and mop"); external
+    # app-started runs use the canonical token ("vacuum_mop"). Identical physical
+    # settings must collapse to ONE learning key so they share a bucket.
+    internal = _room_key(6, "kitchen", "vacuum and mop", 2, False, "narrow", True)
+    external = _room_key(6, "kitchen", "vacuum_mop", 2, False, "narrow", True)
+    assert internal == external
+    assert "::vacuum_mop::" in internal
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +323,24 @@ def test_build_room_stats_accumulates_samples(tmp_path):
     assert entry["avg_minutes"] == 30.0  # (20+40)/2
     assert entry["minutes_min"] == 20.0
     assert entry["minutes_max"] == 40.0
+
+
+def test_build_room_stats_merges_internal_and_external_mode_vocab(tmp_path):
+    # Internal records store "vacuum and mop"; external app-started runs store the
+    # canonical "vacuum_mop". With identical settings they must share ONE bucket
+    # instead of splitting on the vocabulary artifact.
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [
+        _job(job_id="internal", clean_mode="vacuum and mop", duration_minutes=20.0),
+        _job(job_id="external", clean_mode="vacuum_mop", duration_minutes=40.0),
+    ]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    kitchen = [e for e in payload["room_stats"] if e["room_slug"] == "kitchen"]
+    assert len(kitchen) == 1  # merged, not split by mode vocabulary
+    assert kitchen[0]["effective_mode"] == "vacuum_mop"
+    assert kitchen[0]["sample_count"] == 2
 
 
 def test_build_room_stats_baseline_accumulates_across_modes(tmp_path):
