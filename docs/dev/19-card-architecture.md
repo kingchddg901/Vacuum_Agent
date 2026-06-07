@@ -400,6 +400,7 @@ The texture layers are themed entirely through the `Floor Textures — *` token 
 | maintenance | `state/maintenance.js` | Maintenance snapshot; dock event data |
 | metrics | `state/metrics.js` | Metrics snapshot; filter state |
 | review | `state/review.js` | Learning history snapshot; filter state |
+| external-jobs | `state/external-jobs.js` | External-run review: subtab selection, pending list, and the confirm wizard (split/merge toggles + per-segment assignments). See [28](28-external-run-ingestion.md) |
 | learning | `state/learning.js` | Live-job learning state: estimate, reanchored estimate, next room, completed rooms, job-active flag; incomplete run log; trouble rooms log |
 | order | `state/order.js` | Generic order selector (scope, item, position) shared by rooms and run profiles |
 | theme | `state/theme.js` | Active theme id, working draft, draft dirty flag, theme library; editor UI state (search query, group filter, open groups) |

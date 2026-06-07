@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-27 numbered files covering the integration's architecture, subsystems, and porting contract.
+28 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -90,6 +90,16 @@ Headless rendering of the real card for regression, accessibility, and sharing.
 | # | File | What it covers |
 |---|---|---|
 | 27 | [render-harness](27-render-harness.md) | Headless render harness: the pure-renderer mount, all-states galleries, visual regression, CVD/colorblind validation + the Colorblind Safe theme, badge shape marks, theme-export intake, and the theme **gallery + issue→PR submission** pipeline. Test/run companion: [testing/07](../testing/07-render-harness.md) |
+
+---
+
+## Feature deep-dives
+
+Cross-cutting features that span several subsystems.
+
+| # | File | What it covers |
+|---|---|---|
+| 28 | [external-run-ingestion](28-external-run-ingestion.md) | App-started (external) runs: detection, capture, blind segmentation, the review card + confirm wizard, the tier-1 identity gate, and graduating into the learned baselines |
 
 ---
 

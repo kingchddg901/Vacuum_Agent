@@ -251,6 +251,13 @@ populated from disk on sensor platform startup.
 
 ---
 
+> **External-run methods.** `maybe_handle_external_run` / `_finalize_external_run`
+> (detect + capture an app-started run), `confirm_external_run` /
+> `get_external_pending_runs` / `discard_external_run` (the review-card service
+> surface), and `start_external_capture` (delegated to the active-job tracker)
+> graduate a confirmed external run into a normal `jobs/` record. See
+> [28-external-run-ingestion](28-external-run-ingestion.md).
+
 ## 7. Storage
 
 ```python

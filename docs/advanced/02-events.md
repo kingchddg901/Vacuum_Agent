@@ -213,6 +213,28 @@ condition:
 
 ---
 
+## eufy_vacuum_external_run_pending
+
+### When it fires
+
+Fires when an **app-started (external) clean** finishes and is captured as a
+pending review record under `learning/<slug>/external_jobs/`. Subscribe to surface
+a notification prompting the user to confirm which rooms it cleaned (the card's
+"External Jobs" subtab). See the
+[external-run ingestion dev doc](../dev/28-external-run-ingestion.md).
+
+### Payload fields
+
+| Field | Description |
+|---|---|
+| `vacuum_entity_id` | The vacuum that ran. |
+| `map_id` | The map the run cleaned. |
+| `record_path` | Path to the pending record JSON. |
+| `segment_count` | Number of detected cleaning segments. |
+| `detection_ts` | When detection first fired (the pending record id basis). |
+
+---
+
 ## eufy_vacuum_room_completed
 
 ### When it fires

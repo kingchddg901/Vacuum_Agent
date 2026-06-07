@@ -427,12 +427,24 @@ exists for the vacuum/map pair.
   "observed_mop_wash_last_at":             None
   "observed_mop_wash_cycles":              list            # []  max 50 entries
   "state_transitions":                     list            # []  max 12 entries
+  "counter_samples":                       list            # []  [{t, cleaning_time, cleaning_area, battery}] — per-room segmentation input
+  "settings_samples":                      list            # []  external runs only: deduped [{t, settings:{...}}] setting-flip timeline
   "water_estimate":                        None
   "path_block_action":                     str             # "event_only"
   "pause_timeout_minutes":                 int             # 0
   "has_observed_active_lifecycle":         bool            # False
 }
 ```
+
+### External-run capture (`status == "external"`)
+
+App-started runs the integration did **not** dispatch reuse this slot with
+`status="external"` and no queue/payload — counters buffer into `counter_samples`
+and the per-room setting selects into `settings_samples`. On finalize the slot is
+segmented into a **pending review record** under `learning/<slug>/external_jobs/`
+(peer to `jobs/`); a confirmed run graduates to a normal `jobs/ext-<id>.json`
+record tagged `origin: "external"`. See
+[28-external-run-ingestion](28-external-run-ingestion.md).
 
 ### Fields written at job-start
 

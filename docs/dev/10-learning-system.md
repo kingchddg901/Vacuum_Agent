@@ -138,12 +138,24 @@ constant overhead (§5.3).
 `counter_segmentation.segment_counters()` turns that stream into ordered per-room
 segments **without geometry**. A boundary is a **long plateau** (gap between
 cleaning_time ticks > ~90 s, e.g. the ByRoom mop-wash) or a **delayed step**
-(~40 s gap) where `cleaning_area` **jumps** (new floor = a room transition); a
-delayed step with **flat** area is a multi-pass turn, *not* a boundary. The
-counter is firmware/mode-dependent (some firmwares reset per room; ByRoom is
-cumulative + plateaus), so the signal is gap-timing + the area trace, **never a
-reset**. `cleaning_area` is read via `area_at(t)` (the monotonic area reached by
-time t), robust to the area packet lagging the clock at a shared timestamp.
+(~40 s gap) after which `cleaning_area` **rises ≥ ~2 m²** in the stretch *before
+the next blip* (new floor = a room transition); a delayed step with **flat** area
+after it is a multi-pass turn, *not* a boundary. The area-rise is read **forward**
+to the next blip, not at the same instant — area packets lag the clock, so the
+next room's jump can land a tick after the boundary (the earlier same-instant
+check returned 1 segment for a real 2-room run). The counter is firmware/mode-
+dependent (some firmwares reset per room; ByRoom is cumulative + plateaus), so the
+signal is gap-timing + the forward area trace, **never a reset**. `cleaning_area`
+is read via `area_at(t)` (the monotonic area reached by time t), robust to the
+area packet lagging the clock at a shared timestamp.
+
+`segment_counters(expected_rooms=N)` caps over-splitting when the room count is
+known (internal: the dispatched queue length) — the counters alone can't tell an
+edge→fill / progressive-area pass-turn from a true boundary, so only the strongest
+boundaries (long plateau > short step, then larger forward rise) are kept. Internal
+callers pass the queue length; **external** (app-started) runs pass `None`, may
+over-split, and the user merges in the review card — see
+[28-external-run-ingestion](28-external-run-ingestion.md).
 
 The same segmenter also drives **live** room-transition detection: in
 `jobs/active_job._maybe_roll_current_room_by_timing`, when `segment_counters` shows

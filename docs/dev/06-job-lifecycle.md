@@ -525,6 +525,13 @@ next job start.
 
 ---
 
+> **External (app-started) runs** follow a parallel lifecycle: detected by the
+> lifecycle listener (cleaning + no dispatched job), captured into a
+> `status="external"` slot, and finalized — when the robot docks — into a *pending
+> review record* rather than a learned job. The user confirms room identities in
+> the card, which graduates the run into a normal `jobs/` record. See
+> [28-external-run-ingestion](28-external-run-ingestion.md).
+
 ## 10. Event Timeline
 
 Chronological table of every HA event fired during a complete job (single

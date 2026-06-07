@@ -278,6 +278,39 @@ This is a vacuum-level (not map-level) service — `map_id` is not required. The
 
 ---
 
+## External Jobs (app-started runs)
+
+Surface app-started (external) cleans for review and fold confirmed runs into the
+learned baselines. See the [external-run ingestion dev doc](../dev/28-external-run-ingestion.md).
+
+### `get_external_pending_runs`
+
+Return the pending external records awaiting review (newest first). Response:
+`{pending: [...], count}`; each record carries a `pending_job_id` used to confirm
+or discard it. Only needs `vacuum_entity_id`.
+
+### `confirm_external_run`
+
+Confirm a pending run's room identities and graduate it into learning. Returns
+`{ok, job_id, job_path, rooms_learned}`, or `{ok: false, blocked: [...]}` when a
+segment's area doesn't match the picked room (re-pick, or set `override` on that
+assignment).
+
+| Field | Required | Description |
+|---|---|---|
+| `vacuum_entity_id` | yes | The vacuum. |
+| `map_id` | yes | The run's map. |
+| `pending_job_id` | yes | From `get_external_pending_runs`. |
+| `room_assignments` | yes | List of `{segment_orders, room_id, edge_mopping, override?, overrides?}` — one per room (merged segments share `segment_orders`). |
+| `rebuild_stats` | no | Rebuild learned stats after graduating (default `true`). |
+
+### `discard_external_run`
+
+Delete a pending external record (a junk or false-start run). Needs
+`vacuum_entity_id` + `pending_job_id`.
+
+---
+
 ## Profiles
 
 ### Run Profiles

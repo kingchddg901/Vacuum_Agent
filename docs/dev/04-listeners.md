@@ -122,6 +122,12 @@ On completion:
 
 ---
 
+> **External-run detection.** Before the per-map internal loop, the lifecycle
+> listener calls `manager.maybe_handle_external_run()` — a vacuum cleaning with
+> no dispatched job is an app-started run, opened as a `status="external"`
+> capture slot and finalized to a pending review record when it docks. See
+> [28-external-run-ingestion](28-external-run-ingestion.md).
+
 ## 4. Dock Events Listener (`dock_events.py`)
 
 Watches dock status entities and records dock cycle events via `DockManager`.

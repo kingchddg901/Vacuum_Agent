@@ -1021,6 +1021,7 @@ All optional booleans:
 supports_mop_features      supports_water_control     supports_path_control
 supports_edge_mopping      supports_mop_wash          supports_mop_dry
 supports_empty_dust        supports_robot_position    supports_station_water
+position_lock_reliable     rooms_unique_per_job
 ```
 
 ### Example
@@ -1036,12 +1037,49 @@ supports_empty_dust        supports_robot_position    supports_station_water
     "supports_empty_dust": True,
     "supports_robot_position": True,
     "supports_station_water": True,
+    # Eufy re-bases the raw coordinate frame each session, so cross-session
+    # bounds geometry is untrusted; the room detector only uses position/bounds
+    # when this is True (Eufy = False). See 10-learning-system / 26-eufy-segmentor.
+    "position_lock_reliable": False,
+    # A room is cleaned at most once per job (no vacuum-then-mop whole-home mode),
+    # so the external-run review card hard-blocks an already-picked room. A brand
+    # whose vac-then-mop pass visits each room twice sets this False.
+    "rooms_unique_per_job": True,
 },
 ```
 
 **UI builder notes:** Render as a grid of toggle switches. Pre-fill
 from entity-presence detection (the form already knows which entities
 the user filled in) and let the user override if they know better.
+
+---
+
+## 14b. `settings_selects` — external-run setting recovery
+
+The global `select` entities that mirror the **current room's** per-room settings
+while a job runs. We dispatch these for internal jobs but never read them back;
+for an **app-started (external) run** they are the only window into what was set
+per room (see [28-external-run-ingestion](28-external-run-ingestion.md)).
+
+Optional. Maps a canonical setting key to `{entity_id, value_map}`:
+
+```python
+"settings_selects": {
+    "clean_mode": {
+        "entity_id": "select.alfred_cleaning_mode",
+        "value_map": {"vacuum and mop": "vacuum_mop", "vacuum": "vacuum", "mop": "mop"},
+    },
+    "fan_speed":       {"entity_id": "select.alfred_suction_level",      "value_map": None},
+    "water_level":     {"entity_id": "select.alfred_water_level",        "value_map": None},
+    "clean_intensity": {"entity_id": "select.alfred_cleaning_intensity", "value_map": None},
+},
+```
+
+- `value_map` (optional, lower-cased lookup) normalizes raw firmware strings to
+  the canonical room-setting vocabulary; absent → the raw select state is kept.
+- Entries with a `None`/absent `entity_id`, or an unavailable state, are skipped.
+- `edge_mopping` is **not** listed — it is a dispatch-only payload field with no
+  readback entity, so the user supplies it in the review card.
 
 ---
 

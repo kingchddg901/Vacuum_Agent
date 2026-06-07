@@ -184,8 +184,20 @@ declare `"noop_fallback"` so the card stops drawing polygon overlays while trace
 tracking keeps working off coordinates.
 
 ### `capabilities`
-Every flag is sourced from `detect_capabilities()` (`caps.get(...)`), **not**
-hardcoded — so the registered config matches the install's real entity surface.
+Hardware/entity-surface flags are sourced from `detect_capabilities()`
+(`caps.get(...)`) so the registered config matches the install's real entities.
+Two **behavioural** flags are hardcoded literals instead, because they describe
+firmware behaviour an entity probe can't see: `position_lock_reliable = False`
+(Eufy re-bases the raw coordinate frame each session) and
+`rooms_unique_per_job = True` (no vacuum-then-mop whole-home mode, so a room is
+cleaned at most once per job). See [22-adapter-config-reference](22-adapter-config-reference.md).
+
+### `settings_selects`
+The global select entities (`cleaning_mode` / `suction_level` / `water_level` /
+`cleaning_intensity` / `mop_intensity`) that mirror the current room's settings
+while a job runs — the only window into an **app-started** run's per-room settings.
+Consumed by external-run ingestion ([28](28-external-run-ingestion.md)); the
+`clean_mode` entry carries a `value_map` to canonicalise the raw firmware strings.
 
 ### `maintenance_components`
 Projected from `MAINTENANCE_COMPONENTS`: `sensor_suffix` (full suffix → counter
