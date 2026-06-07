@@ -64,8 +64,8 @@ def _build_transit_blocks(
     learned aggregate, while the partial timings are still emitted for audit. A
     single-room job → one segment, no transitions, valid=True.
     """
-    segs = segment_counters(counter_samples or [])
     queue_ids = [_safe_int(r, -1) for r in (queue_room_ids or []) if _safe_int(r, -1) > 0]
+    segs = segment_counters(counter_samples or [], expected_rooms=len(queue_ids) or None)
     valid = bool(segs) and len(segs) == len(queue_ids)
 
     room_timings: list[dict[str, Any]] = []

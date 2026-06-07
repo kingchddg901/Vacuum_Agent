@@ -5,19 +5,33 @@ cumulative progress counters. This module turns their time series into ordered
 per-room segments **without geometry** — raw coordinates drift across sessions on
 some firmware (Eufy), so position is never consulted here.
 
-Boundary rules (validated in `scratch-external-estimator/segment_internal.py` +
-`nomop_boundary.py` against real runs):
+Boundary rules (validated in `scratch-external-estimator/` against real runs,
+including a multi-setting external run the same-instant rule got wrong):
 
 - **job start** — `cleaning_time` resets to 0; segmentation starts after the last
   reset (a stale pre-reset value from the previous job is dropped).
-- **long plateau** (gap between `cleaning_time` increments > ``gap_plateau_s``) —
-  an unambiguous room boundary: the robot is washing (ByRoom mode) or making a
-  long transit. Pass-turns never take minutes, so no area check is needed.
-- **delayed step** (``gap_delayed_s`` < gap ≤ ``gap_plateau_s``) — a ~40 s hop.
-  It is a **room transition** only if `cleaning_area` jumped (new floor,
-  ``area_jump_m2``); otherwise it is a **multi-pass turn** (re-covering the same
-  room — area stays flat) and does *not* split the segment.
+- **long plateau** (gap between `cleaning_time` increments > ``gap_plateau_s``) — a
+  room boundary: the robot is washing (ByRoom) or making a long transit. Pass-turns
+  are seconds, never minutes, so no area check is needed (and the live path can roll
+  the moment the wash starts, before the next room covers any floor).
+- **delayed step** (``gap_delayed_s`` < gap ≤ ``gap_plateau_s``) — a ~40 s hop. It
+  is a **room boundary** iff `cleaning_area` rises (≥ ``area_jump_m2``) in the
+  stretch *after* it, read FORWARD to the next blip; otherwise it is a **multi-pass
+  turn** (re-covering the same room — area stays flat) and does not split.
 - **normal** (gap ≤ ``gap_delayed_s``) — in-room cleaning progress.
+
+The forward look on the delayed step matters: `cleaning_area` packets lag the
+`cleaning_time` tick, so the next room's area-jump can land a tick *after* the
+boundary. The earlier same-instant rule (area must jump *at* the gap) missed
+path-varied boundaries — a Narrow-intensity room whose area has already plateaued,
+the next room's area catching up a tick later — returning 1 segment for a real
+2-room run.
+
+``expected_rooms`` (internal: the dispatched queue length) caps over-splitting: the
+counters alone can't tell an edge→fill / progressive-area pass-turn from a true
+boundary, so when more boundaries are found than the queue allows, only the most
+confident are kept (a long plateau outranks a short delayed step). External callers
+pass None and may over-split — the user merges in review.
 
 Per segment we recover exact ``area_delta_m2`` (the room's true size), the active
 clean count (``time_active_s``), the wall-clock span, the battery delta, and the
@@ -76,6 +90,7 @@ def _f(value: Any, default: float = 0.0) -> float:
 def segment_counters(
     samples: list[dict[str, Any]],
     *,
+    expected_rooms: int | None = None,
     cadence_s: float = _CADENCE_S,
     gap_delayed_s: float = _GAP_DELAYED_S,
     gap_plateau_s: float = _GAP_PLATEAU_S,
@@ -87,6 +102,14 @@ def segment_counters(
     battery}`` (each carrying the last-seen value of both counters). Returns a
     list of segment dicts in cleaning order; empty if there is no usable signal
     (e.g. an adapter without these counters). Pure + frame-invariant.
+
+    ``expected_rooms`` (internal callers: the dispatched queue length) caps
+    over-splitting — when more boundaries are found than ``expected_rooms - 1``,
+    only the strongest (largest forward area-rise) are kept. The counters alone
+    cannot separate an edge→fill / progressive-area pass-turn from a real boundary
+    (both show area rising after the gap), so the known room count is the
+    tie-breaker. External callers pass ``None`` and may over-split — the user
+    merges in review.
     """
     norm: list[tuple[datetime, float, float, Any]] = []
     for s in samples or []:
@@ -143,20 +166,52 @@ def segment_counters(
     if not incs:
         return []
 
+    # Blips = gaps above the 30 s clock (a hop, a mop wash, or a multi-pass turn).
+    # A blip is a room boundary when EITHER it is a long plateau (gap > gap_plateau_s
+    # — a minutes-long wash or transit; pass-turns are seconds) OR cleaning_area
+    # RISES (>= area_jump_m2) in the stretch AFTER it, read FORWARD to the next blip.
+    # The forward look fixes path-varied boundaries the old same-instant check missed
+    # (a Narrow room re-covers so its area has plateaued, and the next room's
+    # area-jump lands a tick later). A short delayed step with flat area after is a
+    # multi-pass turn and does not split.
+    blip_positions = [
+        i for i in range(1, len(incs))
+        if (incs[i][0] - incs[i - 1][0]).total_seconds() > gap_delayed_s
+    ]
+    candidates: list[tuple[float, float, int]] = []  # (area_after, gap, position)
+    for n, bi in enumerate(blip_positions):
+        nxt = blip_positions[n + 1] if n + 1 < len(blip_positions) else len(incs)
+        gap = (incs[bi][0] - incs[bi - 1][0]).total_seconds()
+        area_after = area_at(incs[nxt - 1][0]) - area_at(incs[bi][0])
+        if gap > gap_plateau_s or area_after >= area_jump_m2:
+            candidates.append((area_after, gap, bi))
+
+    # When the room count is known (internal: the dispatched queue length), keep only
+    # the most-confident boundaries — a long plateau outranks a short delayed step,
+    # then larger forward area-rise wins. The counters alone can't separate an
+    # edge→fill / progressive-area pass-turn from a true boundary, so the queue count
+    # caps over-splitting. External callers pass None and may over-split (user merges).
+    if expected_rooms is not None:
+        keep = max(int(expected_rooms) - 1, 0)
+        if len(candidates) > keep:
+            candidates.sort(key=lambda c: (c[1] > gap_plateau_s, c[0]), reverse=True)
+            candidates = candidates[:keep]
+
+    boundary_at: dict[int, str] = {
+        bi: ("wash_plateau" if gap > gap_plateau_s else "area_jump")
+        for (_area_after, gap, bi) in candidates
+    }
+
     # Split increments into segments at boundaries; pass-turns stay in-segment.
     groups: list[list[tuple[datetime, float]]] = [[incs[0]]]
     boundaries: list[str] = ["job_start"]
-    for prev, nxt in zip(incs, incs[1:]):
-        gap = (nxt[0] - prev[0]).total_seconds()
-        d_area = area_at(nxt[0]) - area_at(prev[0])
-        if gap > gap_plateau_s:
-            groups.append([nxt])
-            boundaries.append("wash_plateau")
-        elif gap > gap_delayed_s and d_area >= area_jump_m2:
-            groups.append([nxt])
-            boundaries.append("area_jump")
+    for i in range(1, len(incs)):
+        kind = boundary_at.get(i)
+        if kind is not None:
+            groups.append([incs[i]])
+            boundaries.append(kind)
         else:
-            groups[-1].append(nxt)
+            groups[-1].append(incs[i])
 
     out: list[dict[str, Any]] = []
     prev_ct = 0.0

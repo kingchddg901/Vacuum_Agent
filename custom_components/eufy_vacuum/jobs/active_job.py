@@ -631,7 +631,10 @@ class ActiveJobTracker:
         # completed segment than recorded completions), roll now, ahead of the
         # timing threshold. The last (in-progress) segment is excluded, so this
         # never rolls the final room. See counter_segmentation.segment_counters.
-        segments = segment_counters(active_job.get("counter_samples", []) or [])
+        segments = segment_counters(
+            active_job.get("counter_samples", []) or [],
+            expected_rooms=len(raw_timeline) or None,
+        )
         if len(segments) - 1 > len(completed_room_ids):
             return self._apply_room_rollover(
                 vacuum_entity_id=vacuum_entity_id,

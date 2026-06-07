@@ -133,3 +133,60 @@ def test_accepts_iso_string_timestamps():
     segs = segment_counters(samples)
     assert len(segs) == 1
     assert segs[0]["area_delta_m2"] == 2.0
+
+
+def test_path_varied_boundary_uses_forward_area():
+    """The boundary's area is FLAT at the instant (a Narrow room that re-covered);
+    the next room's area only climbs a tick later. The FORWARD look still splits it
+    — the old same-instant rule returned 1 segment here (the production bug fixed in
+    W6.1, reproduced from the multi-setting external run)."""
+    samples = [
+        _s(0, 0, 0),
+        # room 1: area 0->3 then plateaus (Narrow re-covers the rest of the room)
+        _s(30, 30, 1), _s(60, 60, 2), _s(90, 90, 3),
+        _s(120, 120, 3), _s(150, 150, 3), _s(180, 180, 3),
+        # boundary: 43 s delayed step, area STILL 3 at the instant (the area lag)
+        _s(223, 210, 3),
+        # room 2: area now climbs 3->8
+        _s(253, 240, 4), _s(283, 270, 5), _s(313, 300, 6), _s(343, 330, 8),
+    ]
+    segs = segment_counters(samples)   # blind (external) — no expected_rooms
+    assert len(segs) == 2
+    assert segs[0]["area_delta_m2"] == 3.0
+    assert segs[1]["area_delta_m2"] == 5.0
+    assert segs[1]["boundary"] == "area_jump"
+
+
+def test_expected_rooms_caps_edge_to_fill_oversplit():
+    """A single room cleaned edges-then-fill: area crawls to 1 m² on the edge pass,
+    a turn, then the fill climbs 1->4. The counters can't tell this from a boundary
+    (area rises after the gap either way), so blind it over-splits; the dispatched
+    queue count (expected_rooms=1) keeps it one room."""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1),                                       # edge pass: area -> 1
+        _s(70, 60, 1), _s(100, 90, 2), _s(130, 120, 3), _s(160, 150, 4),  # fill: 1->4
+    ]
+    assert len(segment_counters(samples)) == 2                     # blind over-splits
+    capped = segment_counters(samples, expected_rooms=1)
+    assert len(capped) == 1                                        # queue count fixes it
+    assert capped[0]["area_delta_m2"] == 4.0
+
+
+def test_expected_rooms_keeps_strongest_boundary():
+    """When more boundaries are found than the queue allows, the strongest (largest
+    forward area-rise) wins. Two real split candidates, expected_rooms=2 -> keep the
+    one with the bigger forward jump, demote the weaker to in-segment."""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 1),
+        _s(70, 60, 2),                       # gap 40 -> phase B (forward area +2: weak)
+        _s(100, 90, 3), _s(130, 120, 4),
+        _s(175, 150, 5),                     # gap 45 -> phase C (forward area +4: strong)
+        _s(205, 180, 7), _s(235, 210, 9),
+    ]
+    segs = segment_counters(samples, expected_rooms=2)
+    assert len(segs) == 2
+    # the split lands at the strong jump (the C boundary), not the weak B turn
+    assert segs[0]["area_delta_m2"] == 4.0
+    assert segs[1]["area_delta_m2"] == 5.0

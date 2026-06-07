@@ -14,10 +14,12 @@ from custom_components.eufy_vacuum.counter_segmentation import segment_counters 
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUNS = [
-    ("run5 internal Hallway+Kitchen (ByRoom)", "run5-internal-hallway-kitchen.csv"),
-    ("run6 no-mop Bath+Hall", "run6-nomop-bathhall.csv"),
-    ("run7 no-mop Bath+Hall #2", "run7-nomop2-bathhall.csv"),
-    ("run1 single-room 2-pass Kitchen", "run1-history.csv"),
+    # (label, csv, expected_rooms) — expected_rooms = dispatched queue length, the
+    # value the internal finalizer passes; run1 is one room (2-pass), runs 5-7 are two.
+    ("run5 internal Hallway+Kitchen (ByRoom)", "run5-internal-hallway-kitchen.csv", 2),
+    ("run6 no-mop Bath+Hall", "run6-nomop-bathhall.csv", 2),
+    ("run7 no-mop Bath+Hall #2", "run7-nomop2-bathhall.csv", 2),
+    ("run1 single-room 2-pass Kitchen", "run1-history.csv", 1),
 ]
 
 
@@ -54,12 +56,12 @@ def build_samples(path):
     return samples
 
 
-for label, fname in RUNS:
+for label, fname, expected in RUNS:
     path = os.path.join(HERE, fname)
     if not os.path.exists(path):
         print(f"\n=== {label} === (missing {fname})")
         continue
-    segs = segment_counters(build_samples(path))
+    segs = segment_counters(build_samples(path), expected_rooms=expected)
     print(f"\n=== {label} === -> {len(segs)} segment(s)")
     for s in segs:
         print(f"   seg{s['index']} [{s['boundary']:>13}] area={s['area_delta_m2']:>4} m2  "
