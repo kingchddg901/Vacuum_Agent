@@ -212,6 +212,13 @@ EVENT_STALL_DETECTED     = f"{DOMAIN}_stall_detected"
 # to automatically re-queue the skipped rooms.
 EVENT_RUN_INCOMPLETE     = f"{DOMAIN}_run_incomplete"
 
+# Fired once per room per job when the live queue advances PAST a queued room that was
+# never cleaned (a non-sequential advance — position-reliable brands or transition
+# detection; ~never for Eufy's sequential counter rollover, which can't attribute a
+# mid-run skip). Payload: vacuum_entity_id, map_id, job_id, room_id, room_name,
+# completed_room_ids. The reliable post-run "missed rooms" remains EVENT_RUN_INCOMPLETE.
+EVENT_ROOM_SKIPPED       = f"{DOMAIN}_room_skipped"
+
 # ----------------------
 # Supported / tested
 # ----------------------

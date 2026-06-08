@@ -2,11 +2,16 @@
 
 The **Learning Review** panel lets you inspect every cleaning run the integration has recorded, understand why a run was or was not used for learning, and manually exclude or restore individual jobs. This matters because the integration's time estimates are built from historical run data — if a bad run is included, it skews future estimates.
 
+The panel has two subtabs:
+
+- **Learning History** — the full list of recorded runs, plus the stats, filters, and Profile Matcher (covered first, below).
+- **External Jobs** — runs started from your robot's own app rather than from this card. These need a quick review to confirm which rooms they cleaned before the integration can learn from them. When any are waiting, the subtab shows a count, e.g. **External Jobs (2)**. See [Reviewing app-started runs](#reviewing-app-started-runs).
+
 ---
 
 ## Opening the review panel
 
-The Learning Review panel is a dedicated view inside the card. Navigate to it through the card's view selector.
+The Learning Review panel is a dedicated view inside the card. Navigate to it through the card's view selector, then pick the **Learning History** or **External Jobs** subtab at the top.
 
 ---
 
@@ -134,3 +139,55 @@ The default reason is "Manual Test Run". Click **Exclude** to confirm. The butto
 If a job card has a **Restore** button, the job was previously excluded. Click **Restore** to include it in learning again. The button shows "Working..." while the action is in progress.
 
 After excluding or restoring a job, the history snapshot is automatically re-fetched and the job list updates to reflect the change.
+
+---
+
+## Reviewing app-started runs
+
+When you start a clean from your robot's own app instead of from this card, the integration records the run but cannot be sure which rooms it covered or what settings each room used. These runs land on the **External Jobs** subtab and wait for a quick review. Once you confirm them, they feed the learning model just like card-started runs.
+
+### The pending list
+
+Each waiting run appears as a card showing roughly when it ran, its total cleaned area, and how many segments were detected. Two buttons sit on the card:
+
+- **Review** — opens the two-step review wizard for that run.
+- **Discard** — drops the run entirely. Use this for a run you don't want to keep (a quick test, a mis-detection). Discarding cannot be undone.
+
+If nothing is waiting, the subtab shows a short message telling you to start a clean from the app and check back.
+
+### Step 1 — How many rooms?
+
+The robot reports its path as a series of segments. The integration's best guess at the room boundaries is shown, but it isn't always right — a single room can look like two, or two rooms can blur into one. Step 1 lets you correct the room count before naming anything.
+
+You have two ways to fix the split, and you can mix them freely:
+
+- **Room count stepper** — at the top, a **Rooms** counter with **−** and **+** buttons. Press **+** to ask for one more room or **−** for one fewer; the integration re-segments the run on the spot and redraws the list. You can't go below one room, and you can't go past the number of boundaries the run actually contains.
+- **Split here / Merge up** — each detected room is listed in order with a one-line summary (area, time, mode, passes). The buttons say what they *do*:
+  - **↥ Merge up** — folds this room into the one above it (you decided the boundary was spurious).
+  - **↳ Split here** — appears inside a room when the integration spotted a possible boundary it didn't act on. Click it to break the room in two at that point. A boundary the integration is unsure about is labelled **· uncertain** so you know it's a softer guess.
+
+Every change is applied by re-segmenting on the server, so the room summaries always reflect the current split. While a re-segment is in flight the controls are briefly disabled. If the run can't be split any finer, a short note explains that the count was capped.
+
+When the rooms look right, click **Next: name rooms →**.
+
+> **Older runs:** runs recorded before this feature was added don't carry the detail needed to re-split them. For those, Step 1 falls back to a simpler merge-only view — you can still merge over-split segments together, just not re-split or set an exact count.
+
+### Step 2 — Name each room
+
+Step 2 shows one panel per room (in cleaning order) so you can identify it and correct its settings.
+
+| Field | What it does |
+|-------|--------------|
+| **Which room?** | Pick the room this segment belongs to. The integration's top suggestions appear as chips (with their learned area, when known). If the right room isn't shown, use the **… pick another room** dropdown to choose from every room on that map. |
+| **Mode** | Vacuum, Vac & Mop, or Mop. |
+| **Passes** | 1× or 2×. |
+| **Suction** | Suction level, using your vacuum's available options. |
+| **Cleaning Path** | Cleaning path / intensity, using your vacuum's available options. |
+| **Water** | Water level. Only shown when the mode involves mopping. |
+| **Edge mop?** | On or Off. This isn't detected from an app-started run, so set it yourself. |
+
+The mode, passes, and per-setting options come straight from your vacuum's own vocabulary — the same choices you'd see in the room editor — and whatever the integration captured from the run is pre-selected, so most rooms only need a confirmation. The dropdown of all rooms is pinned to a dark, readable style so the list stays legible.
+
+If a picked room's area looks very different from what was actually cleaned, the wizard warns you at the bottom: *"N rooms don't match the picked area — re-pick, or keep anyway."* Either re-pick the room or, if you're confident, click **Keep anyway** to confirm regardless.
+
+Click **Confirm** to save. The button shows "Saving…" while it works. You must pick a room for every panel first. Use **← Back** to return to Step 1, or **Cancel** to close without saving. Once confirmed, the run leaves the pending list and the count on the subtab drops.

@@ -20,7 +20,7 @@ from .charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
-from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED, EVENT_STALL_DETECTED
+from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_SKIPPED, EVENT_ROOM_STARTED, EVENT_STALL_DETECTED
 from ..entity_helpers import get_floor_type_label
 from ..jobs.job_monitor import (
     build_job_metadata_from_payload,
@@ -2728,6 +2728,10 @@ class EufyVacuumManager:
                     baselines = (json.load(handle) or {}).get("room_baselines", []) or []
             except (OSError, ValueError):
                 baselines = []
+            # The v2 record embeds the raw samples so the run can be re-segmented
+            # server-side (the review wizard's room-count / split-here); they are
+            # stripped before serving to the card. Bounded by _MAX_COUNTER_SAMPLES
+            # (active_job.py), so the persisted record stays ~100-200 KB worst case.
             record = build_pending_record(
                 detection_ts=detection_ts,
                 map_id=map_id,
@@ -2886,6 +2890,60 @@ class EufyVacuumManager:
             return {"ok": False, "error": str(err)}
         return {"ok": True, "pending_job_id": pending_job_id}
 
+    def resegment_external_run(
+        self,
+        vacuum_entity_id: str,
+        map_id: str,
+        pending_job_id: str,
+        expected_rooms: int | None,
+        active_boundaries: list[int] | None,
+        rooms: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Re-segment a pending external record server-side (the review wizard's
+        room-count / per-boundary toggle) and rewrite it in place.
+
+        Reads the embedded raw samples, re-runs the real segmenter for the requested
+        count or boundary set, and returns the new (sample-stripped) record plus the
+        selection ``meta`` (cap info). Returns an error WITHOUT touching the file when
+        the record is missing, has no samples (a v1 record), or the selection yields
+        no segment — so a usable record is never blanked."""
+        import json
+
+        from ..learning.external_ingest import resegment_pending_record, strip_samples
+        from ..learning.history_store import LearningHistoryStore
+
+        store = LearningHistoryStore(self.hass)
+        paths = store.get_paths(vacuum_entity_id=vacuum_entity_id)
+        path = paths.root / "external_jobs" / f"{pending_job_id}.json"
+        try:
+            with open(path, encoding="utf-8") as handle:
+                record = json.load(handle)
+        except (OSError, ValueError):
+            return {"ok": False, "error": "pending_not_found"}
+        if not isinstance(record, dict) or not record.get("counter_samples"):
+            return {"ok": False, "error": "not_resegmentable", "reason": "no_samples"}
+
+        baselines: list[dict[str, Any]] = []
+        try:
+            with open(paths.learned_dir / "room_stats.json", encoding="utf-8") as handle:
+                baselines = (json.load(handle) or {}).get("room_baselines", []) or []
+        except (OSError, ValueError):
+            baselines = []
+
+        new_record, meta = resegment_pending_record(
+            pending_record=record,
+            expected_rooms=expected_rooms,
+            active_ids=active_boundaries,
+            rooms=rooms or {},
+            baselines=baselines,
+        )
+        if new_record is None:
+            return {"ok": False, "error": "empty_segmentation", **meta}
+        store.write_json(path, new_record)
+        out = strip_samples(dict(new_record))
+        out["pending_job_id"] = pending_job_id
+        return {"ok": True, **out, **meta}
+
     def pause_active_job(self, **kwargs) -> dict:
         """Mark job paused — delegates to ActiveJobTracker."""
         return self.active_job.pause_active_job(**kwargs)
@@ -3031,7 +3089,9 @@ class EufyVacuumManager:
         # Fire EVENT_STALL_DETECTED once per room per job (tracked in the
         # active job dict so the event doesn't re-fire on every snapshot call).
         # ------------------------------------------------------------------
-        _STALL_RATIO = 2.0
+        _anomaly_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("anomaly", {})
+        _STALL_RATIO = _safe_float(_anomaly_cfg.get("stall_ratio"), 2.0)
+        _RUNNING_LONG_RATIO = _safe_float(_anomaly_cfg.get("running_long_ratio"), 1.5)
         stall_detected = False
         stall_elapsed_minutes: float | None = None
         stall_expected_minutes: float | None = None
@@ -3079,6 +3139,73 @@ class EufyVacuumManager:
                                 "stall_ratio": stall_ratio,
                             },
                         )
+
+        # ------------------------------------------------------------------
+        # Anomaly: running_long (soft) + skipped (conservative)
+        # ------------------------------------------------------------------
+        # running_long is the soft tier BELOW the 2x stall: the current room has run
+        # _RUNNING_LONG_RATIO..stall x its estimate with no pending counter transition
+        # (genuinely stuck in the room, not a missed roll). Disjoint from stall by band.
+        running_long = False
+        running_long_ratio: float | None = None
+        running_long_room_id: int | None = None
+        if (not stall_detected) and current_room_id is not None and active_job.get("status") == "started":
+            _rl_entry = next(
+                (r for r in raw_timeline if _safe_int(r.get("room_id", -1), -1) == current_room_id),
+                None,
+            )
+            if _rl_entry is not None:
+                _rl_threshold = self._timing_completion_threshold_minutes(_rl_entry)
+                _pending_transition = (
+                    self.active_job._live_boundary_count(vacuum_entity_id, active_job, raw_timeline)
+                    > len(completed_room_ids)
+                )
+                if (
+                    _rl_threshold > 0
+                    and not _pending_transition
+                    and current_room_elapsed_minutes >= _rl_threshold * _RUNNING_LONG_RATIO
+                    and current_room_elapsed_minutes < _rl_threshold * _STALL_RATIO
+                ):
+                    running_long = True
+                    running_long_ratio = round(current_room_elapsed_minutes / _rl_threshold, 2)
+                    running_long_room_id = current_room_id
+
+        # skipped (conservative): a queued room the live tracking has provably advanced
+        # PAST (strictly before the current room in queue order) that is not completed.
+        # Eufy's sequential counter rollover keeps completed_room_ids a queue prefix, so
+        # this is ~empty live for Eufy (a mid-run skip can't be attributed from counters
+        # — the reliable "missed rooms" is the post-run incomplete_run_log). It fires on
+        # a non-sequential advance (position-reliable brands / transition detection) and
+        # future-proofs the hook. No false-positive heuristic.
+        skipped_room_ids: list[int] = []
+        if current_room_id is not None:
+            _queue_order = [_safe_int(r.get("room_id", -1), -1) for r in raw_timeline]
+            if current_room_id in _queue_order:
+                _cur_idx = _queue_order.index(current_room_id)
+                skipped_room_ids = [
+                    rid for rid in _queue_order[:_cur_idx]
+                    if rid >= 0 and rid not in completed_room_ids
+                ]
+        if skipped_room_ids:
+            _skip_notified = set(active_job.get("_skipped_notified_room_ids") or [])
+            _new_skips = [rid for rid in skipped_room_ids if rid not in _skip_notified]
+            if _new_skips:
+                _skip_notified.update(_new_skips)
+                _skip_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
+                active_job["_skipped_notified_room_ids"] = list(_skip_notified)[-_skip_cap:]
+                self.data.setdefault("active_jobs", {}).setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
+                for _rid in _new_skips:
+                    self.hass.bus.async_fire(
+                        EVENT_ROOM_SKIPPED,
+                        {
+                            "vacuum_entity_id": vacuum_entity_id,
+                            "map_id": str(map_id),
+                            "job_id": active_job.get("job_id"),
+                            "room_id": _rid,
+                            "room_name": self._room_name_from_active_job(active_job, _rid) or f"Room {_rid}",
+                            "completed_room_ids": list(completed_room_ids),
+                        },
+                    )
 
         # ------------------------------------------------------------------
         # Transition-room detection (snapshot-only — does not modify storage)
@@ -3134,8 +3261,9 @@ class EufyVacuumManager:
 
             room_entry["completed"] = is_completed
             room_entry["current"] = is_current
-            room_entry["remaining"] = not is_completed and not is_current
-            room_entry["skipped"] = False
+            room_entry["skipped"] = room_id in skipped_room_ids
+            room_entry["remaining"] = not is_completed and not is_current and room_id not in skipped_room_ids
+            room_entry["running_long"] = bool(running_long and is_current)
             room_entry["progress_percent"] = progress_percent
             room_entry["elapsed_minutes"] = round(elapsed_minutes, 2)
             room_entry["remaining_minutes"] = remaining_minutes
@@ -3163,8 +3291,14 @@ class EufyVacuumManager:
             "awaiting_bounds_exit": awaiting_bounds_exit,
             "current_room_started_at": active_job.get("current_room_started_at"),
             "completed_room_ids": completed_room_ids,
-            "remaining_room_ids": [room_id for room_id in unresolved_room_ids if room_id != current_room_id],
-            "skipped_room_ids": [],
+            "remaining_room_ids": [
+                room_id for room_id in unresolved_room_ids
+                if room_id != current_room_id and room_id not in skipped_room_ids
+            ],
+            "skipped_room_ids": skipped_room_ids,
+            "running_long": running_long,
+            "running_long_room_id": running_long_room_id,
+            "running_long_ratio": running_long_ratio,
             "progress_percent": current_progress_percent,
             "elapsed_minutes": round(current_room_elapsed_minutes, 2),
             "remaining_minutes": round(current_remaining_minutes, 2),

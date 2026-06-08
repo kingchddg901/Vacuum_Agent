@@ -19,10 +19,15 @@ Coverage targets
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 import pytest
 
 from custom_components.eufy_vacuum.const import DOMAIN
-from custom_components.eufy_vacuum.jobs.active_job import ActiveJobTracker
+from custom_components.eufy_vacuum.jobs.active_job import (
+    ActiveJobTracker,
+    _LIVE_TRANSITION_DEFAULTS,
+)
 from custom_components.eufy_vacuum.mapping.manager import MappingManager
 
 
@@ -218,6 +223,89 @@ def test_maybe_roll_noop(tracker):
         raw_timeline=_TIMELINE, current_room_id=2,
         current_room_elapsed_minutes=100.0, completed_room_ids=[])
     assert last.get("completed_room_ids") == []
+
+
+# ---------------------------------------------------------------------------
+# _maybe_roll_current_room_by_timing — counter-transition (live) rollover
+# ---------------------------------------------------------------------------
+
+_CB = datetime(2026, 6, 8, 12, 0, 0)
+
+
+def _cs(sec: int, ct: float, ca: float) -> dict:
+    return {"t": _CB + timedelta(seconds=sec), "cleaning_time": ct, "cleaning_area": ca, "battery": 100}
+
+
+# room 1 (area->3), a 70 s flat-area transit hop, room 2 (area still lagging flat)
+_TRANSIT_SAMPLES = [
+    _cs(0, 0, 0), _cs(30, 30, 1), _cs(60, 60, 2), _cs(90, 90, 3),
+    _cs(160, 120, 3),
+    _cs(190, 150, 3), _cs(220, 180, 3),
+]
+# room 1, a 310 s wash plateau, room 2
+_WASH_SAMPLES = [
+    _cs(0, 0, 0), _cs(30, 30, 1), _cs(60, 60, 2), _cs(90, 90, 3),
+    _cs(400, 120, 4), _cs(430, 150, 6),
+]
+
+
+async def test_counter_transit_rolls_live(hass, tracker, manager):
+    """[AJS-9] A 60-90 s flat-area transit hop now rolls the room live (transit-aware),
+    where the legacy wash/area_jump-only path would not. elapsed is below the timing
+    threshold, so the roll is attributable to the counter signal."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job(counter_samples=_TRANSIT_SAMPLES))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    await hass.async_block_till_done()
+    assert 1 in result.get("completed_room_ids", [])
+    assert any(d["source"] == "counter_plateau" for d in events)
+
+
+async def test_counter_transit_killswitch_no_roll(hass, tracker, manager, monkeypatch):
+    """[AJS-10] live_transition.enabled=False falls back to the legacy segmentation, so
+    the transit hop does NOT roll (no transit band) — proves the gate + kill-switch."""
+    monkeypatch.setattr(
+        tracker, "_live_transition_config",
+        lambda v: {**_LIVE_TRANSITION_DEFAULTS, "enabled": False},
+    )
+    job = _seed_job(manager, _active_job(counter_samples=_TRANSIT_SAMPLES))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    assert result.get("completed_room_ids", []) == []
+
+
+async def test_counter_wash_rolls_live(hass, tracker, manager):
+    """[AJS-11] Baseline: a wash plateau rolls live (unchanged from the legacy path)."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job(counter_samples=_WASH_SAMPLES))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    await hass.async_block_till_done()
+    assert 1 in result.get("completed_room_ids", [])
+    assert any(d["source"] == "counter_plateau" for d in events)
+
+
+async def test_counter_multipass_does_not_overroll(hass, tracker, manager):
+    """[AJS-12] A short flat-area pass-turn (weak blip) is not a boundary — no roll."""
+    samples = [
+        _cs(0, 0, 0), _cs(30, 30, 1), _cs(60, 60, 2), _cs(90, 90, 3),
+        _cs(130, 120, 3), _cs(160, 150, 3), _cs(190, 180, 3),
+    ]
+    job = _seed_job(manager, _active_job(counter_samples=samples))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    assert result.get("completed_room_ids", []) == []
 
 
 # ---------------------------------------------------------------------------

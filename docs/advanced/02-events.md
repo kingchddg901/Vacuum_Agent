@@ -366,6 +366,58 @@ action:
         ratio {{ trigger.event.data.stall_ratio }}x)
 ```
 
+> **Soft tier — `running_long`.** Below the 2× stall there is a softer "this room is taking a while" band that does **not** fire its own event. The `get_job_progress_snapshot` response (and each `eufy_vacuum_job_progress_tick`) carries `running_long` (bool), `running_long_room_id` (int \| null), and `running_long_ratio` (float \| null). It is set when the current room has run between `running_long_ratio` (default **1.5×**, from the adapter's `anomaly` block) and `stall_ratio` (default **2.0×**) of its learned threshold **with no pending counter transition** — i.e. genuinely lingering rather than mid-roll. It is disjoint from the stall event by band, so a room is at most one of `running_long` or stalled at a time. Poll the snapshot to surface it; there is no event-bus trigger for the soft tier.
+
+---
+
+## eufy_vacuum_room_skipped
+
+### When it fires
+
+Fires when the **live job queue advances past a queued room that was never cleaned** — a non-sequential advance. The integration computes this in `get_job_progress_snapshot()` (in `core/manager.py`) as the conservative "skipped" set: any room positioned strictly **before** the current room in queue order that is not in `completed_room_ids`.
+
+For Eufy this is **almost never** observed: Eufy's sequential counter rollover keeps `completed_room_ids` a contiguous prefix of the queue, so there is no room "left behind" to attribute. The hook exists for position-reliable brands or transition-detection paths that can legitimately jump forward, and to future-proof the queue model. There is no false-positive heuristic — if the skip can't be proven from the queue order, the event does not fire.
+
+> The reliable, post-run signal for rooms that ended up uncleaned remains [`eufy_vacuum_run_incomplete`](#eufy_vacuum_run_incomplete), derived at finalization. `eufy_vacuum_room_skipped` is the *live, mid-run* counterpart and is intentionally conservative.
+
+The integration tracks which rooms have already fired this event per job via `_skipped_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many snapshot polls occur.
+
+### Payload fields
+
+| Field | Type | Description |
+|---|---|---|
+| `vacuum_entity_id` | `str` | Entity ID of the vacuum |
+| `map_id` | `str` | Map ID the job is running on, as a string |
+| `job_id` | `str \| null` | Job identifier |
+| `room_id` | `int` | ID of the skipped room (integer, not a string) |
+| `room_name` | `str` | Human-readable name of the skipped room, or `"Room {id}"` if unknown |
+| `completed_room_ids` | `list[int]` | Room IDs completed in this job at the time of the skip |
+
+### Example trigger
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_room_skipped
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+```
+
+**Practical use:** Get a live heads-up that a room was passed over mid-run, rather than waiting for the post-run `eufy_vacuum_run_incomplete` summary. Note this is rare for Eufy — most "missed room" automations should still key off `eufy_vacuum_run_incomplete`.
+
+```yaml
+trigger:
+  - platform: event
+    event_type: eufy_vacuum_room_skipped
+    event_data:
+      vacuum_entity_id: "vacuum.alfred"
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "Alfred skipped a room"
+      message: "Passed over {{ trigger.event.data.room_name }} mid-run"
+```
+
 ---
 
 ## eufy_vacuum_path_blocked

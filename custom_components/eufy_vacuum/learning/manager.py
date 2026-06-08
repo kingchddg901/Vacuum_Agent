@@ -1227,7 +1227,11 @@ class LearningManager:
             )
 
             outlier_score = 0.0
-            if not bool(item.get("sanity_passed", True)):
+            # Only an EXPLICIT False is a sanity failure. A missing/None value (e.g.
+            # graduated external runs that don't carry the key) must NOT count as
+            # failed — the index stores the key as None, so a `.get(key, True)` default
+            # never fired and flagged every such run.
+            if item.get("sanity_passed") is False:
                 outlier_score += 3.0
             if str(item.get("status", "")).strip().lower() != "completed":
                 outlier_score += 2.0
@@ -1252,7 +1256,7 @@ class LearningManager:
                 if str(item.get("status", "")).strip().lower() in {"cancelled", "failed", "interrupted"}:
                     exclude_suggested = True
                     exclude_suggested_reason = str(item.get("status", "")).strip().lower()
-                elif not bool(item.get("sanity_passed", True)):
+                elif item.get("sanity_passed") is False:
                     exclude_suggested = True
                     exclude_suggested_reason = "failed_sanity"
                 elif bool(cancel_detection.get("cancel_likely")):

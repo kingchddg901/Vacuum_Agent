@@ -8,6 +8,81 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.9.17] - Unreleased
+
+### Added
+- **External-run review wizard: server-side re-segmentation.** The "review an
+  external (app-driven) run" flow no longer only lets you merge rooms client-side
+  — it now re-segments on the backend from the raw counter trace. Step 1 is a
+  **room-count stepper** plus a per-boundary **Split here** / **Merge up** control
+  (action-first labels — the button says what it *does*); step 2 is a **per-room
+  settings editor** for `fan_speed` / `clean_intensity` / `water_level` drawn from
+  the adapter vocabulary (it mirrors the live room editor). The card calls the new
+  `eufy_vacuum.resegment_external_run` service (`src/actions/external-jobs.js`),
+  which takes either an `expected_rooms` count *or* an explicit `active_boundaries`
+  list (mutually exclusive) and returns the re-segmented record.
+- **Pending external-run schema v2.** Finalizing an external run now persists the
+  raw `counter_samples` + `settings_samples` and the full candidate-boundary pool
+  alongside the segments (`learning/external_ingest.py`,
+  `PENDING_SCHEMA_VERSION = 2`), so a run can be re-segmented after the fact
+  without re-driving the robot. Records are flagged `resegmentable` when samples
+  are present; v1 records (no samples) gracefully degrade to the legacy
+  merge-only view. Samples are stripped from every served/returned record
+  (`strip_samples`) so the API stays light.
+- **Transit-aware boundary detection.** `counter_segmentation.py` is decomposed
+  into `find_candidates` → `select_active` → `build_segments`. `find_candidates`
+  now surfaces a **`transit`** boundary kind (a 60–90 s flat-area inter-room move)
+  in addition to `wash_plateau` / `area_jump` — the real-transit case the old
+  single-pass filter silently dropped. The legacy `segment_counters()` is kept as
+  a **byte-identical back-compat wrapper** (transit disabled), so the
+  finalize/history path is unchanged.
+- **Live queue: running-long & skipped indicators.** `get_job_progress_snapshot`
+  now reports a soft **`running_long`** anomaly (the current room is past
+  `running_long_ratio` × its estimate but below the existing 2× stall) and a
+  conservative **`skipped`** signal (a queued room strictly before the current one
+  that never completed). The queue chips render these as a warning ring
+  (running-long) and a dashed, struck-through chip (skipped); a new
+  `eufy_vacuum_room_skipped` event (`EVENT_ROOM_SKIPPED`) fires once per skipped
+  room.
+
+### Changed
+- **Live current-room tracking is now transit-aware.** The 5 s job-progress tick
+  (`jobs/active_job.py`) advances the current room on a real 60–90 s inter-room
+  transit, not only on a wash/area-jump boundary, via a new transit-aware
+  boundary count — fixing rooms that the live queue under-counted mid-run. The
+  finalize/history segmentation is untouched.
+- **Brand-agnostic adapter hooks (Eufy is the default, byte-identical).** The
+  Eufy adapter config gains a `live_transition` block (boundary gaps, cadence,
+  `rollover_kinds`, `native_transition_source`) and an `anomaly` block
+  (`running_long_ratio` 1.5, `stall_ratio` 2.0). The previously-hardcoded
+  constants in `planning/run_plan.py` (per-level water rate, wash-interval bounds,
+  low-water margin) are now read as *adapter-overridable hooks* —
+  `_water_rate_ml_per_minute` takes a `rate_override` from
+  `water_model_configs[model]["water_rates"]`, and the wash-interval bounds /
+  low-water margin read `wash_frequency_bounds` (top-level adapter config) and
+  `water_model_configs[model]["low_clean_water_margin_ml"]` respectively — each
+  falling back to the prior Eufy value when the key is absent. (The Eufy adapter
+  does not yet declare those override keys, so Eufy keeps the built-in defaults and
+  behavior is unchanged; the seam is in place for a second brand.) The room-profile
+  capability gate (`profiles/room_profiles.py`) now *derives* the mop→vacuum
+  downgrade target from the vacuum-only built-in profile (`get_room_profile`)
+  instead of hardcoding it. (The full brand-agnostic segmenter-engine seam and
+  adapter-sourced room-profile catalog remain deferred until a second brand
+  lands.)
+
+### Fixed
+- **Graduated external runs no longer falsely flagged "failed sanity checks."**
+  The jobs index stored `sanity_passed` as `None`, so the history snapshot's
+  `not item.get('sanity_passed', True)` test never hit its default and tagged
+  *every* graduated external run as failing the backend sanity checks. The checks
+  now use `item.get('sanity_passed') is False` (`learning/manager.py`), and
+  graduation sets `sanity_passed=True` / `sanity_flags=[]` explicitly (external
+  runs only graduate after passing the tier-1 identity gate, so they're sane by
+  construction).
+- **External-run room dropdown readability.** The "assign to room" `<select>`
+  options now pin a dark background / light text, fixing washed-out unreadable
+  options in Windows Chrome.
+
 ## [0.9.16] - 2026-06-06
 
 ### Fixed

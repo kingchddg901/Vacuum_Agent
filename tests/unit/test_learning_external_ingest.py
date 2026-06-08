@@ -152,7 +152,10 @@ def test_settings_flip_makes_short_step_confident():
     assert rec["suggested_room_count"] == 2
 
 
-def test_short_step_without_flip_is_uncertain():
+def test_short_step_without_flip_is_a_split_candidate():
+    """v2: an uncertain cut (a short area-rise with no settings flip) is NOT a
+    default boundary. The confident-only default merges it into one room and
+    surfaces the cut as an inactive split-here candidate (the user can split it)."""
     counter = [
         _c(0, 0, 0),
         _c(60, 30, 1), _c(90, 60, 2), _c(120, 90, 3),
@@ -161,9 +164,12 @@ def test_short_step_without_flip_is_uncertain():
     ]
     settings = [_ss(60, {"clean_mode": "vacuum"})]        # no flip
     rec = _build(counter, settings)
-    assert rec["segment_count"] == 2                     # blind still splits
-    assert rec["segments"][1]["confident_boundary"] is False
-    assert rec["suggested_room_count"] == 1             # uncertain cut excluded from the count
+    assert rec["segment_count"] == 1                     # merged by default (uncertain)
+    assert rec["suggested_room_count"] == 1
+    assert rec["active_boundaries"] == []                # one room, no active cuts
+    # the cut is still detected — available as an inactive split-here candidate.
+    cut = [c for c in rec["candidates"] if c["kind"] == "area_jump"]
+    assert len(cut) == 1 and cut[0]["confident"] is False
 
 
 def test_pass_count_estimated_for_multipass_room():
@@ -252,6 +258,142 @@ def _pending_two_rooms():
     return _build(counter, settings)
 
 
+def test_pending_v2_embeds_samples_and_candidates():
+    rec = _pending_two_rooms()
+    assert rec["schema_version"] == 2
+    assert rec["segment_count"] == 2                       # wash = confident default cut
+    assert isinstance(rec["counter_samples"], list) and rec["counter_samples"]
+    assert isinstance(rec["settings_samples"], list)
+    assert isinstance(rec["candidates"], list) and rec["candidates"]
+    assert "gap_transit_s" in rec
+    # active boundaries are a subset of the candidate ids and reproduce the segments.
+    cand_ids = {c["id"] for c in rec["candidates"]}
+    assert set(rec["active_boundaries"]) <= cand_ids
+    seg_bids = [s["boundary_id"] for s in rec["segments"] if s["boundary_id"] is not None]
+    assert seg_bids == rec["active_boundaries"]
+
+
+def test_pending_v2_orders_contiguous():
+    rec = _pending_two_rooms()
+    assert [s["order"] for s in rec["segments"]] == list(range(rec["segment_count"]))
+    assert rec["segments"][0]["boundary_id"] is None       # first room has no boundary
+
+
+def test_strip_samples_removes_only_samples():
+    from custom_components.eufy_vacuum.learning.external_ingest import strip_samples
+
+    rec = strip_samples(_pending_two_rooms())
+    assert "counter_samples" not in rec and "settings_samples" not in rec
+    assert rec["candidates"] and rec["segments"]           # kept
+    assert "active_boundaries" in rec
+
+
+# ---------------------------------------------------------------------------
+# Server-side re-segmentation (the wizard's room-count / per-boundary toggle)
+# ---------------------------------------------------------------------------
+
+def _pending_wash_plus_jump():
+    # A | (wash) B | (area_jump, uncertain) C — default shows 2 rooms (wash only).
+    counter = [
+        _c(0, 0, 0),
+        _c(60, 30, 1), _c(90, 60, 2), _c(120, 90, 3),          # A
+        _c(450, 120, 3), _c(480, 150, 5), _c(510, 180, 6),     # wash gap 330 -> B
+        _c(550, 210, 8),                                        # area_jump gap 40 -> C
+        _c(580, 240, 9), _c(610, 270, 10),
+    ]
+    return _build(counter, [_ss(60, {"clean_mode": "vacuum"})])
+
+
+def test_resegment_default_resets_to_confident():
+    from custom_components.eufy_vacuum.learning.external_ingest import resegment_pending_record
+
+    rec = _pending_wash_plus_jump()
+    assert rec["segment_count"] == 2                           # wash only by default
+    new, meta = resegment_pending_record(pending_record=rec, rooms=_ROOMS, baselines=_BASELINES)
+    assert meta["mode"] == "reset"
+    assert new["segment_count"] == 2
+    assert new["counter_samples"]                             # samples preserved for next time
+
+
+def test_resegment_by_count_activates_uncertain_cut():
+    from custom_components.eufy_vacuum.learning.external_ingest import resegment_pending_record
+
+    rec = _pending_wash_plus_jump()
+    new, meta = resegment_pending_record(
+        pending_record=rec, expected_rooms=3, rooms=_ROOMS, baselines=_BASELINES
+    )
+    assert meta["mode"] == "count" and meta["capped"] is False
+    assert new["segment_count"] == 3                          # wash + uncertain cut both active
+    # the total area is invariant to the active set (only the split changes).
+    assert round(sum(s["area_m2"] for s in new["segments"]), 2) == round(
+        sum(s["area_m2"] for s in rec["segments"]), 2
+    )
+
+
+def test_resegment_by_count_caps_to_available():
+    from custom_components.eufy_vacuum.learning.external_ingest import resegment_pending_record
+
+    rec = _pending_wash_plus_jump()  # 2 candidates -> at most 3 rooms
+    new, meta = resegment_pending_record(
+        pending_record=rec, expected_rooms=9, rooms=_ROOMS, baselines=_BASELINES
+    )
+    assert meta["capped"] is True
+    assert meta["available"] == 3 and meta["capped_at"] == 3
+    assert new["segment_count"] == 3
+
+
+def test_resegment_by_active_ids_targets_specific_cut():
+    from custom_components.eufy_vacuum.learning.external_ingest import resegment_pending_record
+
+    rec = _pending_wash_plus_jump()
+    jump = next(c for c in rec["candidates"] if c["kind"] == "area_jump")
+    new, meta = resegment_pending_record(
+        pending_record=rec, active_ids=[jump["id"]], rooms=_ROOMS, baselines=_BASELINES
+    )
+    assert meta["mode"] == "explicit"
+    assert new["segment_count"] == 2
+    assert new["active_boundaries"] == [jump["id"]]          # the chosen cut, not the wash
+
+
+def test_resegment_no_samples_returns_none():
+    from custom_components.eufy_vacuum.learning.external_ingest import resegment_pending_record
+
+    new, meta = resegment_pending_record(
+        pending_record={"map_id": "6"}, rooms=_ROOMS, baselines=_BASELINES
+    )
+    assert new is None and meta.get("error") == "no_samples"
+
+
+def test_confirm_after_resegment_merges_segment_orders():
+    """Re-segment to a finer count, then confirm with segment_orders groups —
+    build_graduated_job needs NO change for v2 (it sums over segment_orders, and the
+    re-indexed orders stay contiguous). Merge is loss-less on area."""
+    from custom_components.eufy_vacuum.learning.external_ingest import (
+        resegment_pending_record,
+    )
+
+    rec = _pending_wash_plus_jump()
+    new, _meta = resegment_pending_record(
+        pending_record=rec, expected_rooms=3, rooms=_ROOMS, baselines=_BASELINES
+    )
+    assert new["segment_count"] == 3
+    assert [s["order"] for s in new["segments"]] == [0, 1, 2]   # contiguous after re-index
+    total_area = round(sum(s["area_m2"] for s in new["segments"]), 2)
+
+    graduated, blocked = build_graduated_job(
+        pending_record=new,
+        assignments=[
+            {"segment_orders": [0, 1], "room_id": 1, "edge_mopping": False},
+            {"segment_orders": [2], "room_id": 2, "edge_mopping": False},
+        ],
+        rooms=_ROOMS, bands_by_slug={},
+        vacuum_entity_id="vacuum.alfred", job_id="ext-reseg", ended_at="x",
+    )
+    assert blocked == []
+    assert len(graduated["job"]["room_timings"]) == 2
+    assert round(sum(r["area_m2"] for r in graduated["job"]["room_timings"]), 2) == total_area
+
+
 def test_gate_cold_start_and_no_band_are_plausible():
     assert gate_segment_identity(area_m2=5.0, band=None)["reason"] == "cold_start"
     assert gate_segment_identity(
@@ -287,7 +429,10 @@ def test_build_graduated_job_produces_completed_record():
     assert blocked == []
     assert rec["record_type"] == "completed_job"
     assert rec["origin"] == "external"
-    assert rec["outcome"] == {"status": "completed", "used_for_learning": True, "origin": "external"}
+    assert rec["outcome"] == {
+        "status": "completed", "used_for_learning": True, "origin": "external",
+        "sanity_passed": True, "sanity_flags": [],
+    }
     assert rec["job"]["transit_capture_valid"] is True
     assert rec["job"]["room_timings"][0]["area_m2"] == 6.0
     assert rec["job_profile"]["rooms"][0]["slug"] == "kitchen"

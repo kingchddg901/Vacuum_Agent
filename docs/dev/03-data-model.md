@@ -441,10 +441,130 @@ exists for the vacuum/map pair.
 App-started runs the integration did **not** dispatch reuse this slot with
 `status="external"` and no queue/payload — counters buffer into `counter_samples`
 and the per-room setting selects into `settings_samples`. On finalize the slot is
-segmented into a **pending review record** under `learning/<slug>/external_jobs/`
-(peer to `jobs/`); a confirmed run graduates to a normal `jobs/ext-<id>.json`
-record tagged `origin: "external"`. See
+segmented into a **pending review record** (schema v2 — see §5a) under
+`learning/<slug>/external_jobs/` (peer to `jobs/`); a confirmed run graduates to a
+normal completed-job record (§9b) tagged `origin: "external"`. See
 [28-external-run-ingestion](28-external-run-ingestion.md).
+
+### 5a. Pending External Review Record (schema v2)
+
+Built by `build_pending_record` in `learning/external_ingest.py` on external-run
+finalize. Persisted to `learning/{vacuum_slug}/external_jobs/job_{...}.json`.
+`PENDING_SCHEMA_VERSION = 2`. The record embeds the **raw samples** so the run can
+be re-segmented entirely server-side (`resegment_pending_record`) when the user
+sets a room count or toggles a boundary in the review card — a client-side regroup
+could not reproduce the exact area attribution (a wash plateau forward-reads its
+lagged area; every other boundary stays same-instant).
+
+```
+{
+  "schema_version":      int           # 2
+  "status":              str           # "pending"
+  "origin":              str           # "external"
+  "detection_ts":        str | None    # when the external run was first detected
+  "map_id":              str
+  "segment_count":       int           # len(segments) after the trailing-drop
+  "suggested_room_count": int          # default room count = the confident-only view
+  "gap_transit_s":       float         # the transit-band threshold used (Eufy: 60.0)
+  "candidates":          list[BoundaryCandidate]   # the FULL boundary pool (no discards)
+  "active_boundaries":   list[int]     # candidate ids that started a kept segment
+  "counter_samples":     list          # [{t, cleaning_time, cleaning_area, battery}] — stripped before serving
+  "settings_samples":    list          # [{t, settings:{...}}] — stripped before serving
+  "segments":            list[PendingSegment]
+}
+```
+
+`segment_count == suggested_room_count` on the default (confident-only) view —
+uncertain / transit / weak cuts ship in `candidates` with `confident: false` and
+surface as inactive "split here" candidates the user can activate.
+
+#### `BoundaryCandidate` (inside `candidates`)
+
+Emitted by `find_candidates` in `counter_segmentation.py`; `confident` is upgraded
+in place by `_mark_candidate_confidence` where a per-room settings flip corroborates
+the cut.
+
+```
+{
+  "id":            int     # == position; stable handle for the frozen samples (card toggles by id)
+  "position":      int     # increment-tick index of the blip
+  "gap_s":         float   # seconds between cleaning_time ticks at the blip
+  "area_after_m2": float   # new floor covered AFTER the blip (read forward to the next blip)
+  "kind":          str     # "wash_plateau" | "transit" | "area_jump" | "weak"
+  "strength":      float   # count-ranking score (kind band + area + gap fraction)
+  "confident":    bool    # geometric base (wash_plateau) OR a corroborating settings flip
+  "t":             str     # ISO timestamp of the blip tick
+}
+```
+
+**Boundary kinds** (`_classify`): `wash_plateau` (gap > `gap_plateau_s` = 90 s —
+a mop wash / long transit; always confident), `transit` (`gap_transit_s` 60 s <
+gap ≤ 90 s AND area stays flat — a real inter-room hop the legacy filter dropped),
+`area_jump` (`cleaning_area` rose ≥ `area_jump_m2` = 2.0 after the blip — new floor),
+`weak` (a short delayed step with flat area — most likely a multi-pass turn).
+
+#### `PendingSegment` (inside `segments`)
+
+Built by `build_segments` then enriched by `_enrich_segments`. One per kept room
+bout, re-indexed `0..N-1` over the KEPT segments after trailing sub-room stretches
+(area < `_MIN_ROOM_AREA_M2` = 0.5 m²) are dropped.
+
+```
+{
+  "order":               int          # 0-based, contiguous over kept segments
+  "boundary_id":         int | None   # candidate id that started this segment; None for the first
+  "t_start":             str          # ISO timestamp (UTC)
+  "t_end":               str          # ISO timestamp (UTC)
+  "area_m2":             float        # new floor covered in this segment
+  "time_wall_s":         int          # wall-clock seconds in the segment
+  "time_active_s":       int          # cleaning_time seconds (active clock) in the segment
+  "pass_count":          int          # estimated passes from the area-plateau pattern
+  "settings":            dict         # per-room selects in effect (clean_mode, fan_speed, ...)
+  "boundary":            str          # the boundary kind that opened it ("job_start" for order 0)
+  "confident_boundary":  bool | None  # None for order 0; else whether boundary_id is a confident cut
+  "shortlist":           list[ShortlistEntry]   # top-3 candidate rooms, settings-first ranked
+}
+```
+
+#### `ShortlistEntry` (inside `segments[].shortlist`)
+
+The map-scoped, carpet-filtered (for mopped segments) top-3 room guesses, ranked
+SETTINGS-first (area distance is only a tiebreak — `cleaning_area` is
+path/pass-cumulative, a poor identity signal).
+
+```
+{
+  "room_id":         int
+  "slug":            str
+  "name":            str | None
+  "is_carpet":       bool
+  "learned_area_m2": float | None   # avg_area_m2 from the room's learned band; None when cold
+  "settings_score":  float          # weighted settings-match (mode 4 / passes 3 / intensity 2 / fan 1 / water 1)
+  "score":           float          # area-distance tiebreak (negative abs delta; cold rooms rank last)
+}
+```
+
+#### Served record (what the card receives)
+
+`handle_get_external_pending_runs` (`learning/services.py`) loads each record,
+attaches a `rooms` list + `pending_job_id` (filename stem), sets
+`resegmentable = bool(counter_samples)`, then calls `strip_samples` to drop the
+two embedded sample lists. So the served record is the v2 shape **minus**
+`counter_samples` / `settings_samples` **plus**:
+
+```
+  "resegmentable":  bool                 # True when the run can be re-segmented (v2 only; v1 = False)
+  "pending_job_id": str                  # filename stem, for the confirm/resegment services
+  "rooms":          list[{room_id, slug, name}]   # the map's room list for the assignment UI
+```
+
+`resegment_external_run` (`core/manager.py`, via the `resegment_external_run`
+service) loads the on-disk record **with** samples, re-runs the segmentation at a
+new room count (`expected_rooms`) XOR boundary set (`active_boundaries`) XOR the
+confident-only default, rewrites the file in place, and returns the freshly
+`strip_samples`'d record plus a `meta` block (`mode` /
+`requested` / `available` / `capped` / `capped_at`). v1 records (no samples) are
+`not_resegmentable` and degrade the card to legacy merge-only.
 
 ### Fields written at job-start
 
@@ -537,6 +657,66 @@ One entry appended per room confirmed cleaned. Capped to
 | `"started"` | Job running |
 | `"paused"` | Job paused by service call |
 | `"completed"` | Job finalized |
+
+### 5b. Live Progress Snapshot
+
+Returned by `get_job_progress_snapshot` in `core/manager.py` — the canonical
+card-facing view of a running job. **Derived, never stored**: rebuilt on every call
+from the active-job state plus a fresh learning estimate (the `timeline` here is the
+estimator's `room_timeline`, §10, re-enriched per room). Selected keys (recharge /
+stall / lifecycle fields omitted for brevity):
+
+```
+{
+  "vacuum_entity_id":      str
+  "map_id":                str
+  "job_id":                str | None
+  "status":                str           # active-job status
+  "terminal":              bool          # status NOT in {started, paused}
+  "current_room_id":       int | None    # next unfinished QUEUED room
+  "position_room_id":      int | None    # what the icon tracks; may be a transition room
+  "awaiting_bounds_exit":  bool
+  "completed_room_ids":    list[int]
+  "remaining_room_ids":    list[int]     # excludes current + skipped
+  "skipped_room_ids":      list[int]     # conservative; ~empty live for Eufy (see below)
+  "running_long":          bool          # soft anomaly tier below the 2x stall
+  "running_long_room_id":  int | None
+  "running_long_ratio":    float | None  # elapsed / threshold (running_long_ratio..stall band)
+  "stall_detected":        bool          # hard anomaly (>= stall_ratio x threshold)
+  "stall_ratio":           float | None
+  "progress_percent":      int
+  "timeline":              list[TimelineRoom]   # alias: "room_timeline"
+  ...
+}
+```
+
+**`running_long`** is the soft anomaly band: the current room has run
+`running_long_ratio` (Eufy default 1.5) up to `stall_ratio` (2.0) × its timing
+threshold with **no pending counter transition** — genuinely stuck, not a missed
+roll. Disjoint from `stall_detected` by band. Both ratios come from the adapter's
+`anomaly` block (falling back to the Eufy constants).
+
+**`skipped_room_ids`** is CONSERVATIVE — a queued room strictly before
+`current_room_id` in queue order that is not completed. Eufy's sequential counter
+rollover keeps `completed_room_ids` a queue prefix, so this is ~empty live for Eufy
+(the reliable "missed rooms" signal is the post-run incomplete-run log, §14); it
+fires only on a non-sequential advance (position-reliable brands). New skips fire
+`EVENT_ROOM_SKIPPED` (`const.py`) once per room per job.
+
+#### `TimelineRoom` (inside `timeline`)
+
+Each `RoomTimelineEntry` (§10) re-enriched for the live job with run-state flags:
+
+```
+  "completed":     bool
+  "current":       bool
+  "skipped":       bool    # room_id in skipped_room_ids
+  "remaining":     bool    # not completed, not current, not skipped
+  "running_long":  bool    # running_long AND this is the current room
+  "progress_percent":  int
+  "elapsed_minutes":   float
+  "remaining_minutes": float
+```
 
 ---
 
@@ -777,6 +957,12 @@ have `record_type == "completed_job"`, `outcome.status == "completed"`, and
 }
 ```
 
+`sanity_passed` / `sanity_flags` are the backend sanity verdict. A missing/`None`
+`sanity_passed` is **not** treated as a failure — the history view checks
+`item.get('sanity_passed') is False` (the jobs index stored the key as `None`, so a
+naive `.get(..., True)` default never fired). Graduated **external** runs (§9b) set
+`sanity_passed=True` / `sanity_flags=[]` explicitly — they are sane by construction.
+
 **`learning_blockers` values:** `"invalid_room_count"`, `"invalid_duration"`,
 `"missing_resolved_rooms"`, `"job_cancelled"`, `"job_failed"`,
 `"job_interrupted"`, `"test_job"`, `"cancel_likely"` (or reason string from
@@ -850,6 +1036,54 @@ gains additional fields beyond the standard `ResolvedRoom` shape (§4):
   "estimate_confidence_label":    str | None
   "estimate_source":              str | None   # "learned" | "default"
 ```
+
+### 9b. Graduated External Completed-Job Record
+
+Built by `build_graduated_job` in `learning/external_ingest.py` when a pending
+external record (§5a) is confirmed in review. It is a **leaner variant** of the §9
+record — the stats rebuilder ingests it, but external capture has no dispatched
+queue/payload, no battery-start, and no transit edges, so those sections are absent
+or stubbed. Persisted under the same `jobs/` directory, tagged `origin: "external"`.
+
+Graduation is **atomic**: every confirmed assignment must pass the tier-1 identity
+gate (`gate_segment_identity` — a wide area-band plausibility check, bypassable per
+assignment with `override`), or the build returns `(None, blocked)` and nothing is
+written.
+
+```
+{
+  "record_type":    str           # "completed_job"
+  "schema_version": int           # 1
+  "job_id":         str
+  "origin":         str           # "external"
+  "vacuum":         {entity_id, name}
+  "job": {
+    "started_at":           str | None   # = pending detection_ts
+    "ended_at":             str | None
+    "duration_minutes":     float        # summed segment wall-time / 60
+    "room_count":           int
+    "room_timings":         list[ExtRoomTiming]
+    "transitions":          list         # [] — external runs emit no transit edges
+    "transit_capture_valid": bool        # True (gates the rebuilder's use of room_timings)
+  }
+  "job_profile":    {map_id, room_count, rooms: list[ExtProfileRoom]}
+  "resolved_rooms": list[ExtProfileRoom]   # same list as job_profile.rooms
+  "outcome": {
+    "status":            str    # "completed"
+    "used_for_learning": bool   # True
+    "origin":            str    # "external"
+    "sanity_passed":     bool   # True  — sane by construction (passed the identity gate)
+    "sanity_flags":      list   # []
+  }
+  "finalized_at":   str | None
+}
+```
+
+`ExtRoomTiming` carries `{room_id, slug, cleaning_start, cleaning_end,
+cleaning_seconds, cleaning_wall_seconds, area_m2}` (one or more merged segments per
+room). `ExtProfileRoom` carries `{room_id, slug, name, clean_mode, clean_intensity,
+fan_speed, water_level, clean_passes, is_carpet, edge_mopping}` — settings resolved
+as explicit override → the segment's recovered selects → the room config.
 
 ---
 
@@ -975,10 +1209,11 @@ Returned by `LearningEstimator.estimate` in `learning/estimator.py`.
   "end_offset_minutes":    float
   "eta_minutes_from_start": float
   "eta_at":                str
-  "completed":             bool
+  "completed":             bool   # run-state flags (see note) — stamped by the live snapshot
   "current":               bool
   "remaining":             bool
   "skipped":               bool
+  "running_long":          bool
   "progress_percent":      int
   "elapsed_minutes":       float
   "remaining_minutes":     float
@@ -992,6 +1227,10 @@ Returned by `LearningEstimator.estimate` in `learning/estimator.py`.
   "confidence_breakpoint": ConfidenceBreakpoint
 }
 ```
+
+The run-state flags (`completed` / `current` / `remaining` / `skipped` /
+`running_long`) are **not** set by the estimator — they are stamped per room by
+`get_job_progress_snapshot` (§5b) when this timeline is reused as the live job view.
 
 After `reanchor_timeline` enrichment, completed rooms gain:
 

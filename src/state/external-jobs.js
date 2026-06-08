@@ -84,11 +84,47 @@ export function applyExternalJobsState(proto) {
       splits,
       assignments,
       rooms: Array.isArray(run?.rooms) ? run.rooms : [],
+      // v2: the server owns segmentation. `candidates` is the full boundary menu;
+      // `activeBoundaries` are the cuts currently producing `segments`. The count
+      // stepper / split-here / merge-up call resegment_external_run and replace
+      // these (applyResegmentResult). v1 records (no samples) fall back to the
+      // legacy client-side `splits` grouping (merge-only).
+      candidates: Array.isArray(run?.candidates) ? run.candidates : [],
+      activeBoundaries: Array.isArray(run?.active_boundaries) ? run.active_boundaries.map(Number) : [],
+      resegmentable: !!run?.resegmentable,
+      suggestedRoomCount: Number(run?.suggested_room_count ?? segments.length) || segments.length,
+      resegmentMeta: null,
       step: 1,
       blocked: null,
       busy: false,
       error: null,
     };
+  };
+
+  /**
+   * Replace the wizard's segmentation with a server re-segment result (the count
+   * stepper / split-here / merge-up). The boundary set changed, so room
+   * assignments are rebuilt from the new segments' shortlists (room picks happen
+   * in step 2, after the boundaries are settled in step 1).
+   */
+  proto.applyResegmentResult = function (record) {
+    const w = this._extWizard;
+    if (!w || !record) return;
+    const segments = Array.isArray(record.segments) ? record.segments : [];
+    const assignments = {};
+    for (const seg of segments) {
+      const order = Number(seg?.order ?? 0);
+      const top = Array.isArray(seg?.shortlist) && seg.shortlist[0] ? seg.shortlist[0] : null;
+      assignments[order] = { room_id: top ? top.room_id : null, edge_mopping: false, override: false, overrides: {} };
+    }
+    w.segments = segments;
+    w.assignments = assignments;
+    if (Array.isArray(record.candidates)) w.candidates = record.candidates;
+    w.activeBoundaries = Array.isArray(record.active_boundaries) ? record.active_boundaries.map(Number) : [];
+    if (record.suggested_room_count != null) w.suggestedRoomCount = Number(record.suggested_room_count);
+    w.resegmentMeta = (record.capped || record.message)
+      ? { capped: !!record.capped, capped_at: record.capped_at, message: record.message || null }
+      : null;
   };
 
   proto.closeExternalWizard = function () {
@@ -141,6 +177,14 @@ export function applyExternalJobsState(proto) {
   proto.externalWizardGroups = function () {
     const w = this._extWizard;
     if (!w) return [];
+    if (w.resegmentable) {
+      // v2: the server already produced the room-level segmentation — one segment
+      // per room (the split/merge happened server-side). No client grouping.
+      return (w.segments || []).map((seg) => ({
+        orders: [Number(seg?.order ?? 0)], lead: seg, segments: [seg],
+      }));
+    }
+    // v1 (legacy, no samples): client-side merge grouping via the split toggles.
     const groups = [];
     for (const seg of w.segments) {
       const order = Number(seg?.order ?? 0);

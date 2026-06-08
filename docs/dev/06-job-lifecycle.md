@@ -182,7 +182,8 @@ rollover occurs. Each call:
 7. **Timing rollover** — delegates to
    `active_job.tracker._maybe_roll_current_room_by_timing` (see §4).
 8. **Bounds-exit detection** (`awaiting_bounds_exit`).
-9. **Stall detection** (see below).
+9. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
+   `skipped` (conservative). See below.
 
 ### `awaiting_bounds_exit` logic
 
@@ -193,15 +194,50 @@ This signals the card to switch to a short poll interval (~5 s) because the
 robot is still physically inside the room and the rollover gate is blocked by
 bounds.
 
-### Stall detection
+### Anomaly detection
 
-A stall is detected when:
+The snapshot computes three disjoint anomaly tiers. Both ratios are read from
+the adapter's `anomaly` block (`running_long_ratio`, `stall_ratio`), each
+falling back to the Eufy default if absent.
+
+```
+_STALL_RATIO        = anomaly.stall_ratio        or 2.0
+_RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
+```
+
+**Stall (hard).** A stall is detected when:
 - `awaiting_bounds_exit` is already `True` (timing threshold exceeded), **and**
-- `current_room_elapsed_minutes >= threshold * 2.0` (`_STALL_RATIO = 2.0`)
+- `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default)
 
 `EVENT_STALL_DETECTED` fires at most once per room per job. Already-notified
 rooms are tracked in `active_job["_stall_notified_room_ids"]` (written back to
 storage). Subsequent snapshot calls suppress the event for those rooms.
+
+**Running-long (soft).** The tier *below* the stall band — set when the room is
+genuinely overrunning but not yet stalled, and there is no pending live
+transition (so it is overrunning *in* the room, not a missed roll). Conditions:
+- not already stalled, status `started`, valid `current_room_id`, **and**
+- no pending counter transition
+  (`active_job._live_boundary_count(...) <= len(completed_room_ids)`), **and**
+- `_RUNNING_LONG_RATIO * threshold <= current_room_elapsed_minutes < _STALL_RATIO * threshold`
+  (1.5×–2× by default — a half-open band disjoint from stall).
+
+Running-long is **snapshot-only — it fires no event.** It surfaces only on the
+returned snapshot (`running_long`, `running_long_room_id`, `running_long_ratio`,
+and per-room `running_long` on the current timeline entry) so the card can draw
+a warning ring on the chip.
+
+**Skipped (conservative).** `skipped_room_ids` = queued rooms strictly *before*
+`current_room_id` in queue order that are not in `completed_room_ids`. Because
+Eufy's sequential counter rollover keeps `completed_room_ids` a prefix of the
+queue, this is **~always empty for Eufy** — a mid-run skip can't be attributed
+from the counters, so the reliable "missed rooms" signal stays the post-run
+`incomplete_run_log` (§8). The hook fires only on a genuinely non-sequential
+advance (position-reliable brands / transition detection); there is no
+false-positive heuristic. When new skips appear, `EVENT_ROOM_SKIPPED` fires once
+per room (deduped via `active_job["_skipped_notified_room_ids"]`), and the
+skipped rooms are flagged per-entry on the timeline (`skipped`) and excluded
+from `remaining_room_ids`.
 
 ### `has_observed_active_lifecycle`
 
@@ -218,12 +254,13 @@ state (e.g. `dock_drying`) could complete the job before it actually started.
 
 `EVENT_ROOM_STARTED` fires in two situations:
 - At job start (`source: "job_start"`), when `current_room_id` is non-null.
-- After each timing rollover, for the *next* room (`source: "timing_rollover"`
-  or `"bounds_exit_early"`).
+- After each rollover, for the *next* room. The `source` carries the rollover
+  path: `"counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"`.
 
-`EVENT_ROOM_FINISHED` fires from `_maybe_roll_current_room_by_timing` after
-rollover. Within a single dispatch there is no HA-entity-state-driven
-*room* transition mechanism — room rollover is timing-based.
+`EVENT_ROOM_FINISHED` fires from `_maybe_roll_current_room_by_timing` (via
+`_apply_room_rollover`) after rollover, carrying the same `source` values.
+Within a single dispatch there is no HA-entity-state-driven *room* transition
+mechanism — room rollover is driven by the live counter signal and timing.
 
 **Job model / phase transitions.** The above describes an `atomic_batch`
 job — one dispatch over a fixed room set, the model every shipped adapter
@@ -243,17 +280,34 @@ paths (`maybe_advance_phase` runs in the completion hook, see §6a). See
 ### Timing rollover (`_maybe_roll_current_room_by_timing`)
 
 Defined in `ActiveJobTracker` (`jobs/active_job.py`). Called from
-`get_job_progress_snapshot`. Two rollover paths:
+`get_job_progress_snapshot`. Every rollover funnels through the shared
+`_apply_room_rollover(...)` helper, which records the completed room and fires
+the `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` pair with a `source` tag
+distinguishing the path. There are **three rollover sources**, checked in this
+order:
+
+**Counter-plateau path (live boundary, checked first):**
+1. Before any timing math, the tracker asks `_live_boundary_count(...)` how many
+   *completed* room transitions the live cleaning-counter stream currently
+   shows. If that exceeds `len(completed_room_ids)`, roll **now** — ahead of the
+   timing threshold (`source="counter_plateau"`).
+2. This signal is high-confidence and frame-invariant (counters, no geometry).
+   The in-progress room is never counted — `expected_rooms` caps detected
+   boundaries at N-1 — so this can never roll the *final* room.
+3. `_live_boundary_count` is transit-aware and adapter-tunable (see below).
 
 **Slow-room path (timing has expired):**
 1. Requires `active_job["status"] == "started"` and a valid `current_room_id`.
 2. Elapsed >= `_timing_completion_threshold_minutes(current_room)`.
-3. Checks whether the robot has left the room bounds via
-   `mapping_manager.get_room_bounds_snapshot`. If bounds exist and the robot is
+3. The bounds gate is **capability-gated** via `_position_lock_reliable`. Only
+   when the adapter declares a reliable localization lock does the tracker check
+   whether the robot has left the room bounds
+   (`mapping_manager.get_room_bounds_snapshot`); if bounds exist and the robot is
    still inside, rollover is blocked (`awaiting_bounds_exit` will be `True`).
-4. If bounds are unavailable (room not yet mapped), timing alone determines rollover.
-5. On rollover: fires `EVENT_ROOM_FINISHED` with `source="timing_rollover"`,
-   calls `record_completed_room`, then fires `EVENT_ROOM_STARTED` for the next room.
+4. **Eufy answers `position_lock_reliable=False`** (its firmware re-bases the
+   coordinate frame every session, so stored bounds drift), so for Eufy timing
+   alone advances. The same is true for any adapter when bounds are unavailable.
+5. On rollover: `source="timing_rollover"`.
 
 **Fast-room path (early bounds exit):**
 1. Elapsed < `_timing_completion_threshold_minutes` but >=
@@ -265,6 +319,42 @@ Defined in `ActiveJobTracker` (`jobs/active_job.py`). Called from
 
 The 90-second floor on the fast path prevents doorway transits from triggering
 a false rollover on the next snapshot poll.
+
+### Live boundary count (`_live_boundary_count`) — the counter-plateau source
+
+`_live_boundary_count(vacuum_entity_id, active_job, raw_timeline)` returns how
+many *completed* room transitions the live counter-sample stream
+(`active_job["counter_samples"]`, buffered by `record_counter_sample` on every
+`cleaning_time` / `cleaning_area` change) currently exposes. It is the same
+counter-segmentation machinery the finalizer uses, run live each tick — but
+**transit-aware**, where the legacy live path was not.
+
+Behaviour is tuned by `_live_transition_config(vacuum_entity_id)`, which merges
+the adapter's optional `live_transition` block over the module-level
+`_LIVE_TRANSITION_DEFAULTS`. Every default equals the `counter_segmentation`
+module default, so an adapter with no `live_transition` block behaves as before
+— **except** it now also rolls on a `transit` boundary:
+
+- **`enabled: False`** is a kill-switch — it falls back to the legacy
+  `segment_counters(...)` wrapper (wash/area_jump only) and returns
+  `len(segments) - 1`.
+- **`enabled: True`** (the default) calls the decomposed
+  `find_candidates(...)` → `select_active(...)` pipeline with the tuned gaps
+  and `rollover_kinds`, and returns `len(active)`.
+
+The key change is the `transit` kind: a **60–90 s flat-area inter-room hop** —
+the robot crossing into the next room without a wash-station detour or a forward
+area jump. The legacy live path discarded this case, so on a back-to-back room
+pair with no wash between them the live tracker under-rolled and only caught up
+at the timing threshold. The default `rollover_kinds` is therefore
+`("wash_plateau", "transit", "area_jump")`. Brands tune the gap bands and kinds
+per-firmware via their `live_transition` block.
+
+> The finalize/history segmentation path is **untouched** — it still calls the
+> byte-identical `segment_counters` back-compat wrapper. Only the *live*
+> current-room rollover gained transit-awareness. See
+> [22-adapter-config-reference.md](22-adapter-config-reference.md) for the
+> `live_transition` and `anomaly` adapter blocks.
 
 ### Timing completion threshold formula
 
@@ -531,6 +621,18 @@ next job start.
 > review record* rather than a learned job. The user confirms room identities in
 > the card, which graduates the run into a normal `jobs/` record. See
 > [28-external-run-ingestion](28-external-run-ingestion.md).
+>
+> A graduated external job's `outcome` is written with **`sanity_passed: True`**
+> and `sanity_flags: []` by `build_graduated_job` (`learning/external_ingest.py`):
+> a run only graduates after clearing the tier-1 identity gate with a valid
+> duration and room set, so it is sane by construction. The flag is set
+> explicitly because the jobs index stores `sanity_passed` as `None` for such
+> records, and the history-view outlier check now treats only an explicit
+> `item.get("sanity_passed") is False` as a sanity failure
+> (`learning/manager.py`) — a missing/`None` value no longer counts as failed.
+> (Previously a `.get("sanity_passed", True)` default never fired against the
+> stored `None`, so every graduated external run was wrongly tagged "failed the
+> backend sanity checks".)
 
 ## 10. Event Timeline
 
@@ -540,18 +642,24 @@ successful run, no cancellations or stalls).
 | # | Event constant | String value | When | Key payload fields |
 |---|---|---|---|---|
 | 1 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after `vacuum.send_command`, if `current_room_id` is non-null | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source: "job_start"`, `completed_room_ids: []` |
-| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each timing rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source`, `actual_duration_minutes`, `confidence`, `completed_room_ids` |
-| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "timing_rollover"` or `"bounds_exit_early"` |
-| 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= 2× timing threshold | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
+| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"`), `actual_duration_minutes`, `confidence`, `completed_room_ids` |
+| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"` |
+| 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= `stall_ratio`× timing threshold (2× default) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | `vacuum_entity_id`, `map_id`, `path_block_action`, `action_taken`, `affected_remaining_room_ids` |
-| 6 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
-| 7 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, only when rooms were missed | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
+| 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
+| 7 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | After finalization completes | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
+| 8 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | After `job_finished`, only when rooms were missed | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
 
 **Notes:**
 - Events 2 and 3 repeat for each room beyond the first. A 4-room job produces 3
   pairs of `room_finished` / `room_started` plus the initial `room_started`.
-- Event 4 fires at most once per room even on repeated polls.
-- Events 5 and 7 are conditional and may not appear in every job.
+- Event 4 fires at most once per room even on repeated polls. `running_long`
+  (the soft 1.5×–2× tier below the stall) fires **no event** — it appears only
+  on the progress snapshot.
+- Event 6 (`EVENT_ROOM_SKIPPED`) fires at most once per room and is
+  effectively never seen on Eufy (sequential counter rollover); the reliable
+  post-run "missed rooms" signal remains `EVENT_RUN_INCOMPLETE`.
+- Events 5, 6, and 8 are conditional and may not appear in every job.
 - `EVENT_PATH_BLOCKED` and `EVENT_JOB_FINISHED` can both fire in the same job
   when `path_block_action == "cancel_and_event"`.
 - `EVENT_JOB_PROGRESS_TICK` (`eufy_vacuum_job_progress_tick`) is fired

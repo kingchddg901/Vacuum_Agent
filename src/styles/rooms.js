@@ -831,6 +831,22 @@ export const roomStyles = `
     opacity: 0.72;
   }
 
+  /* Live anomaly states. skipped = the queue advanced past an un-cleaned room
+     (dashed warning + struck-through label); running-long = an additive warning ring
+     on the current chip when it overruns its estimate (below the 2x stall). */
+  .evcc-queue-chip--skipped {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 45%, transparent);
+    border-style: dashed;
+    opacity: 0.7;
+  }
+  .evcc-queue-chip--skipped .evcc-queue-chip-label {
+    text-decoration: line-through;
+  }
+  .evcc-queue-chip--running-long {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning) 60%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--evcc-sem-warning) 40%, transparent);
+  }
+
   .evcc-queue-chip--completed .evcc-queue-chip-label,
   .evcc-queue-chip--completed .evcc-queue-chip-time {
     text-decoration: line-through;

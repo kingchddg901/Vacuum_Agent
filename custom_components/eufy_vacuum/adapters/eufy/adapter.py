@@ -507,6 +507,33 @@ def register_eufy_adapter_for_vacuum(
             },
         },
 
+        "live_transition": {
+            # Drives LIVE current-room rollover from the cleaning-counter plateau
+            # signal. Eufy reports no "current room" and its coordinates drift, so the
+            # counters are the reliable transition signal. Defaults equal the
+            # counter_segmentation module values; the only behavior change vs the legacy
+            # live path is the added "transit" band (a 60-90 s flat-area inter-room hop
+            # the legacy path discarded). A brand with native per-room telemetry can
+            # declare native_transition_source (reserved). See
+            # ActiveJobTracker._live_transition_config.
+            "enabled": True,
+            "gap_delayed_s": 35.0,
+            "gap_transit_s": 60.0,
+            "gap_plateau_s": 90.0,
+            "area_jump_m2": 2.0,
+            "cadence_s": 30.0,
+            "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
+            "native_transition_source": False,
+        },
+
+        "anomaly": {
+            # Live anomaly tuning. Defaults match the manager fallbacks, so Eufy is
+            # unchanged. running_long is the soft tier (>=1.5x estimate) below the 2x
+            # stall; both ratios are adapter-tunable.
+            "running_long_ratio": 1.5,
+            "stall_ratio": 2.0,
+        },
+
         "capabilities": {
             # Sourced from detect_capabilities() above — reflects actual
             # HA entity surface for this installation rather than model spec.

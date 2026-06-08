@@ -8,6 +8,8 @@ While your vacuum is running, the card switches into a live monitoring mode. Thi
 
 As soon as a job starts, a live banner appears at the top of the card. It updates automatically as the vacuum moves from room to room.
 
+The card follows the vacuum's actual room-to-room transitions rather than guessing purely from the clock: when the robot makes a real trip from one room to the next (a short travel gap between rooms), the banner advances to the new room. This makes the "currently cleaning" room more accurate, especially in homes where some rooms take much longer or shorter than their estimate.
+
 ### What the banner shows
 
 The banner always displays one of three states:
@@ -29,6 +31,7 @@ Below the banner, a **Live Progress** list shows every room in the current job:
 | ✓ | Room is complete. The actual time taken is shown next to the name. |
 | ▶ | Room is currently being cleaned. Shows percentage done and estimated time remaining, or an ETA wall-clock time if a snapshot is available. The estimated total duration for the room is shown alongside a confidence chip. |
 | ○ | Room is queued but not yet started. An ETA wall-clock time is shown if one is available. |
+| ⌀ | Room appears to have been **skipped** — the job moved on to a later room without cleaning this one. Shown with a dashed outline and the name struck through. See [Skipped-room marker](#skipped-room-marker) below. |
 
 The list animates as rooms transition between states — you do not need to refresh the page.
 
@@ -41,6 +44,14 @@ If the integration determines that the vacuum may not have enough charge to fini
 > **May need to recharge to finish remaining rooms**
 
 This warning is based on the live or reanchored estimate. If the vacuum does recharge mid-job, cleaning continues automatically and the warning clears once the job progresses.
+
+---
+
+## Running-long warning
+
+Before a room crosses the full stall threshold, the card flags it as **running long**. When the room currently being cleaned has been going noticeably longer than its learned estimate — and the integration sees no sign that the vacuum has moved on to the next room — the current queue chip gains a warning ring.
+
+This is the gentle, earlier tier below the stall notice below. It simply means "this room is overrunning its estimate." No action is required: many rooms occasionally run long (extra dirt, a re-clean pass, furniture in the way), and the integration keeps refining its estimates as it learns. If the room keeps going, the warning escalates into the stall notice described next.
 
 ---
 
@@ -57,6 +68,16 @@ The elapsed time and expected time are shown in parentheses when available. "Stu
 1. Check the vacuum's physical location if you can. The robot may have found an obstacle, a closed door, or a tangle it cannot clear on its own.
 2. If the vacuum is genuinely stuck, use the vacuum's physical controls or the Home Assistant vacuum entity controls to send it home or to pause it.
 3. If the room simply took longer than usual (furniture moved, etc.), no action is needed — the integration will update its estimates over time.
+
+---
+
+## Skipped-room marker
+
+If the live tracking sees the job advance past a queued room without ever cleaning it, that room is marked as **skipped** in the queue: its chip is drawn with a dashed outline and its name is struck through.
+
+This is a conservative signal — it only appears when the integration can be sure a room was genuinely passed over, not merely cleaned out of order. On most Eufy vacuums, which clean their queue strictly in order, a mid-run skip cannot be detected reliably while the job is still running, so this marker rarely appears live. The authoritative "these rooms were missed" report is the **incomplete run banner** below, which is reconciled after the job ends. The live skipped marker is an early hint for that same situation.
+
+If a room you expected to be cleaned shows up as skipped, check it for closed doors or obstacles the vacuum could not get past, and re-queue it once the run finishes.
 
 ---
 

@@ -286,8 +286,14 @@ learned baselines. See the [external-run ingestion dev doc](../dev/28-external-r
 ### `get_external_pending_runs`
 
 Return the pending external records awaiting review (newest first). Response:
-`{pending: [...], count}`; each record carries a `pending_job_id` used to confirm
-or discard it. Only needs `vacuum_entity_id`.
+`{pending: [...], count}`; each record carries a `pending_job_id` used to confirm,
+discard, or re-segment it. Only needs `vacuum_entity_id`.
+
+Each served record also carries `resegmentable` (bool): `true` when the record
+embeds the raw counter samples needed to re-run segmentation (schema v2), `false`
+for legacy v1 records that can only be merged. The bulky raw sample arrays are
+stripped from the served payload — re-segmentation happens server-side via
+`resegment_external_run`, so the card never needs them.
 
 ### `confirm_external_run`
 
@@ -303,6 +309,47 @@ assignment).
 | `pending_job_id` | yes | From `get_external_pending_runs`. |
 | `room_assignments` | yes | List of `{segment_orders, room_id, edge_mopping, override?, overrides?}` — one per room (merged segments share `segment_orders`). |
 | `rebuild_stats` | no | Rebuild learned stats after graduating (default `true`). |
+
+### `resegment_external_run`
+
+Re-segment a pending external record server-side from its embedded raw samples,
+then rewrite it in place. This backs the review wizard's step-1 room-count stepper
+and per-boundary "Split here" / "Merge up" toggles: rather than the card splitting
+segments client-side, it asks the backend to re-run the real segmenter for a target
+room count or an explicit boundary set, keeping the result internally consistent
+with the timing/area samples. Only v2 records (those with `resegmentable: true`)
+can be re-segmented.
+
+Pass **either** `expected_rooms` **or** `active_boundaries`, not both (they are
+mutually exclusive). Omit both to reset to the confident-only default segmentation
+(the pre-v2 view).
+
+| Field | Required | Description |
+|---|---|---|
+| `vacuum_entity_id` | yes | The vacuum. |
+| `map_id` | yes | The run's map. |
+| `pending_job_id` | yes | From `get_external_pending_runs`. |
+| `expected_rooms` | no | Target room count (integer `>= 1`). Picks the strongest boundaries to yield this many rooms, capped to the detectable pool. Exclusive with `active_boundaries`. |
+| `active_boundaries` | no | Explicit list of boundary candidate IDs to activate (the per-boundary toggle set). Exclusive with `expected_rooms`. |
+
+Supports response. On success returns `{ok: true, ...}` with the re-segmented,
+sample-stripped pending record (its `pending_job_id`, updated `segments`,
+`segment_count`, `suggested_room_count`, the full `candidates` pool, and the
+resulting `active_boundaries`) merged with a selection `meta`:
+
+| `meta` field | When | Description |
+|---|---|---|
+| `mode` | always | `count` (room-count request), `explicit` (boundary set), or `reset` (confident default). |
+| `requested` | `count` mode | The room count you asked for. |
+| `available` | `count` mode | Max rooms detectable from this run (boundaries + 1). |
+| `capped` | `count` mode | `true` when `requested` exceeded `available`. |
+| `capped_at` | `count` mode | The count actually applied after capping. |
+| `message` | when capped | Human-readable note, e.g. `Only 3 room(s) detectable from this run.` |
+
+Returns `{ok: false, error: ...}` **without** touching the stored record when the
+record is missing (`pending_not_found`), is a v1 record with no embedded samples
+(`not_resegmentable`), or the requested selection yields no usable segment
+(`empty_segmentation`) — a usable record is never blanked.
 
 ### `discard_external_run`
 

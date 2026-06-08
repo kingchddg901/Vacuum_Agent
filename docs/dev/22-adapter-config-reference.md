@@ -74,6 +74,9 @@ shared.
     "discovery": { ... },        # optional — how room list is exposed
     "dispatch": { ... },         # required — how to send a clean job
     "mapping": { ... },          # optional — pluggable segmenter engine selection
+    "live_transition": { ... },  # optional — live current-room rollover tuning
+    "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
+    "wash_frequency_bounds": { ... },    # optional — mop-wash interval clamp
 
     # Static catalogs (display + hardware constants)
     "capabilities": { ... },             # optional — explicit capability flags
@@ -1015,6 +1018,119 @@ The two call sites consume the canonical `SegmentationResult` and cache it under
 
 ---
 
+## 13b. `live_transition` — live current-room rollover tuning
+
+Configures the **live** current-room rollover that runs on the 5-second
+job-progress tick while a job is in flight. The vacuum reports no
+"current room" and its raw coordinates drift, so the cleaning-counter
+plateau signal is the reliable transition cue. This block tunes the
+candidate-detection thresholds the live path feeds to
+`find_candidates(...)` / `select_active(...)` in
+`learning/counter_segmentation.py`.
+
+This is **distinct from the finalize/history segmentation path**, which
+is untouched and still uses the byte-identical `segment_counters()`
+back-compat wrapper. `live_transition` only governs the in-run rollover
+inside `ActiveJobTracker._maybe_roll_current_room_by_timing`.
+
+**Every default equals the prior hardcoded constant**, so Eufy is
+byte-identical *except* it now also advances on a `transit` boundary —
+a 60-90 s flat-area inter-room hop the legacy live path discarded (the
+fix for live under-roll). `enabled: false` is a kill-switch back to the
+legacy `segment_counters()` wrapper.
+
+### Schema
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `enabled` | `bool` | `True` | Master switch. `False` reverts the live path to the legacy `segment_counters()` (wash/area_jump-only) wrapper. |
+| `gap_delayed_s` | `float` | `35.0` | Lower gap bound separating a `weak`/delayed blip from a real transition candidate. |
+| `gap_transit_s` | `float` | `60.0` | Start of the `transit` band — a flat-area inter-room hop of 60-90 s. The legacy path effectively set this to infinity (transit dropped); declaring it is what enables transit rollover. |
+| `gap_plateau_s` | `float` | `90.0` | Gap at/above which a blip is a `wash_plateau` (the dock-wash dwell). |
+| `area_jump_m2` | `float` | `2.0` | Forward cleaned-area rise (m²) that marks an `area_jump` candidate. |
+| `cadence_s` | `float` | `30.0` | Expected counter-sample cadence; normalizes gap math against the polling interval. |
+| `rollover_kinds` | `list[str]` | `["wash_plateau", "transit", "area_jump"]` | Which candidate kinds count as a live rollover boundary. Eufy includes `transit`; the legacy set was `{wash_plateau, area_jump}`. |
+| `native_transition_source` | `bool` | `False` | **Reserved.** A brand that exposes real per-room telemetry sets `True` to declare it has a native current-room signal (the counter-plateau inference is then a fallback). No framework consumer yet. |
+
+### Example (from the Eufy adapter)
+
+```python
+"live_transition": {
+    "enabled": True,
+    "gap_delayed_s": 35.0,
+    "gap_transit_s": 60.0,
+    "gap_plateau_s": 90.0,
+    "area_jump_m2": 2.0,
+    "cadence_s": 30.0,
+    "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
+    "native_transition_source": False,
+},
+```
+
+### Where the framework reads it
+
+- `jobs/active_job.py::ActiveJobTracker._live_transition_config` — merges
+  this block over the module-level `_LIVE_TRANSITION_DEFAULTS` (an absent
+  block, or a non-Eufy adapter, behaves exactly as the defaults).
+- `jobs/active_job.py::ActiveJobTracker._live_boundary_count` — feeds the
+  merged values into `find_candidates`/`select_active`; honours `enabled`
+  as the kill-switch.
+
+> **Note — the full segmenter-engine seam is deferred.** This block only
+> tunes the *thresholds* the live rollover feeds into the shared
+> counter-segmentation helpers. Adapter-sourcing the segmenter **engine**
+> for the live/finalize paths (the way [§13a `mapping`](#13a-mapping--pluggable-segmenter-engine-selection)
+> already does for image segmentation) is deferred until a second brand
+> lands. Until then the counter-segmentation engine itself is Eufy-shaped.
+
+**UI builder notes:** Advanced section — collapse by default and pre-fill
+the Eufy defaults. The values are timing thresholds in seconds (plus one
+area delta in m²); render `rollover_kinds` as a multi-select over the
+closed candidate-kind enum (`wash_plateau`, `transit`, `area_jump`,
+`weak`). `native_transition_source` is a single toggle with a "reserved"
+note.
+
+---
+
+## 13c. `anomaly` — live anomaly ratios
+
+Two ratio thresholds for the **live** job-progress anomaly signals
+surfaced by `core/manager.py::get_job_progress_snapshot`. Both defaults
+match the manager's hardcoded fallbacks, so Eufy is unchanged.
+
+### Schema
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `running_long_ratio` | `float` | `1.5` | Soft tier. The current room is flagged `running_long` once its elapsed time reaches `running_long_ratio ×` its learned threshold (and below `stall_ratio ×`, with no pending transition). Surfaces a warning ring on the card chip; disjoint from the hard stall. |
+| `stall_ratio` | `float` | `2.0` | Hard tier. The existing stall threshold — the current room has run `stall_ratio ×` its estimate. |
+
+The snapshot returns `running_long`, `running_long_ratio`, and
+`running_long_room_id` alongside the existing stall fields; the live
+timeline entries gain a `running_long` flag (and a `skipped` flag, fired
+once per skipped room as `EVENT_ROOM_SKIPPED`).
+
+### Example (from the Eufy adapter)
+
+```python
+"anomaly": {
+    "running_long_ratio": 1.5,
+    "stall_ratio": 2.0,
+},
+```
+
+### Where the framework reads it
+
+- `core/manager.py::get_job_progress_snapshot` — reads both ratios with
+  the defaults above as fallbacks; computes the `running_long` /
+  stall tiers.
+
+**UI builder notes:** Advanced section. Two numeric inputs constrained to
+`running_long_ratio < stall_ratio` (a softer tier below the hard stall);
+pre-fill `1.5` / `2.0`.
+
+---
+
 ## 14. `capabilities` — explicit capability flags
 
 Explicit capability flag declarations that override or supplement the
@@ -1201,9 +1317,13 @@ editor for `steps` and `notes` (numbered/bulleted lists). Make
 
 ## 17. `water_model_configs` — per-model tank measurements
 
-Physical water-tank dimensions per model. **Pure measurements — no
-logic.** The estimator reads these to convert tank-percent deltas
-into ml.
+Physical water-tank dimensions per model, plus the optional flow-rate /
+margin tuning the estimator reads. The tank dimensions are **pure
+measurements — no logic**; the estimator reads them to convert
+tank-percent deltas into ml. The tuning keys (added so a non-Eufy dock
+can carry its own flow rates and warning margin) all **default to the
+Eufy-measured values** when absent, so an adapter that omits them
+behaves exactly as before.
 
 ### Schema
 
@@ -1214,9 +1334,18 @@ Top-level is `dict[model_code, TankConfig]`. Each `TankConfig`:
 | `robot_internal_tank_ml` | `float` | yes | Capacity of the robot's onboard water reservoir in ml. |
 | `dock_clean_tank_capacity_ml` | `float` | no | Capacity of the dock's clean-water tank in ml. Omit for models with no dock clean tank. |
 | `dock_wash_overhead_ml_per_cycle` | `float` | no | Measured water consumption per mop-wash cycle, in ml. Subtracted from total dock-water delta to isolate floor-mopping water. Omit for models with no dock wash cycle. |
+| `water_rates` | `dict[str, float]` | no | First-pass floor-application flow rate in **ml/min, keyed by canonical water level** (`off`/`low`/`medium`/`high`). Replaces the default table wholesale when declared. Absent → the Eufy-measured default `{off: 0.0, low: 3.2, medium: 4.0, high: 5.3}` (unknown levels fall back to `4.0`). Read by `planning/run_plan.py::_water_rate_ml_per_minute` as `rate_override`. |
+| `low_clean_water_margin_ml` | `float` | no | Dock clean-tank remaining (ml) at/below which the run plan raises the "low clean water" margin warning. Default `300.0` (Eufy dock tuning). Read in `planning/run_plan.py` (`_build_effective_start_plan` water block). |
 
-These values **must be measured on real hardware**. They are not
-calculated; the estimator's accuracy depends on the measurement.
+The first three (tank dimensions) **must be measured on real hardware** —
+they are not calculated, and the estimator's accuracy depends on the
+measurement. `water_rates` likewise should be measured per dock; the
+Eufy defaults are the bootstrap fallback.
+
+> A closely-related fourth tuning knob — `wash_frequency_bounds`
+> `{min, max, default}` — clamps the mop-wash interval but lives at the
+> **top level** of the adapter config (not inside `water_model_configs`,
+> because it's not per-model). See [§17a](#17a-wash_frequency_bounds--mop-wash-interval-clamp).
 
 ### Example
 
@@ -1226,14 +1355,54 @@ calculated; the estimator's accuracy depends on the measurement.
         "robot_internal_tank_ml": 80.0,
         "dock_clean_tank_capacity_ml": 3080.0,
         "dock_wash_overhead_ml_per_cycle": 120.0,
+        # Optional tuning — omit to inherit the Eufy defaults below:
+        "water_rates": {"off": 0.0, "low": 3.2, "medium": 4.0, "high": 5.3},
+        "low_clean_water_margin_ml": 300.0,
     },
 },
 ```
 
-**UI builder notes:** Three numeric inputs per model. Show the user a
-methodology note: "These are physical measurements of your specific
-hardware. Fill the dock tank to a known volume, run the cycle, and
-record what the percentage sensor shows."
+The shipping Eufy adapter (`adapters/eufy/water_config.py`) declares only
+the three tank measurements and **inherits both tuning defaults**, so its
+behavior is byte-identical; the two optional keys are shown here as the
+reference a brand port copies from.
+
+**UI builder notes:** Three numeric inputs per model for the tank
+measurements. Show the user a methodology note: "These are physical
+measurements of your specific hardware. Fill the dock tank to a known
+volume, run the cycle, and record what the percentage sensor shows." The
+tuning keys (`water_rates`, `low_clean_water_margin_ml`) belong behind an
+"Advanced" toggle pre-filled with the Eufy defaults.
+
+---
+
+## 17a. `wash_frequency_bounds` — mop-wash interval clamp
+
+**Top-level** block (a sibling of `water_model_configs`, not nested
+inside it — the bounds are per-brand, not per-model). Clamps the
+mid-clean mop-wash interval the run plan derives from the
+`wash_frequency_value_time` helper entity.
+
+### Schema
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `min` | `float` | `15.0` | Lower clamp on the wash interval, in minutes. |
+| `max` | `float` | `25.0` | Upper clamp on the wash interval, in minutes. |
+| `default` | `float` | `20.0` | Fallback interval used when the helper entity is missing, non-numeric, or ≤ 0. |
+
+Defaults are the Eufy X10 firmware range. Read by
+`planning/run_plan.py::_derive_wash_frequency_config`; an absent block
+uses the Eufy values, so Eufy is unchanged.
+
+### Example
+
+```python
+"wash_frequency_bounds": {"min": 15.0, "max": 25.0, "default": 20.0},
+```
+
+**UI builder notes:** Advanced section — three numeric inputs in minutes
+with `min ≤ default ≤ max` validation; pre-fill `15` / `20` / `25`.
 
 ---
 
@@ -1277,10 +1446,13 @@ this table maps schema sections to the modules that consume them:
 | `post_job_wash_amendment` | `core/water_amendment.py`, `__init__.py` (registration call site) |
 | `discovery` | `setup/workflow.py` (`discover_rooms_for_vacuum`) |
 | `dispatch` | `queue/queue_engine.py` (`build_room_clean_payload`), `core/manager.py` (`async_start_room_clean_job`) |
+| `live_transition` | `jobs/active_job.py` (`_live_transition_config`, `_live_boundary_count`) |
+| `anomaly` | `core/manager.py` (`get_job_progress_snapshot`) |
+| `wash_frequency_bounds` | `planning/run_plan.py` (`_derive_wash_frequency_config`) |
 | `capabilities` | `core/capabilities.py` (`detect_capabilities`) |
 | `maintenance_components` | `core/manager.py` (`get_upkeep_snapshot`) |
 | `upkeep_catalog` | `core/manager.py` (`_get_upkeep_model_meta`, `_get_upkeep_item_guide`) |
-| `water_model_configs` | `core/manager.py` (`_get_water_model_config`), `learning/estimator.py` |
+| `water_model_configs` | `planning/run_plan.py` (`_get_water_model_config`, `_water_rate_ml_per_minute`, water block), `learning/estimator.py` |
 
 If you grep for `get_adapter_config(` in `custom_components/eufy_vacuum/`
 you'll find every read site — there is no other path by which the

@@ -486,6 +486,8 @@ export class LearningController {
         return {
           isCompleted: Boolean(backendEntry.completed),
           isCurrent: Boolean(backendEntry.current),
+          isSkipped: Boolean(backendEntry.skipped),
+          isRunningLong: Boolean(backendEntry.running_long),
           percent: Boolean(backendEntry.completed)
             ? 100
             : Number.isFinite(progressPercent)

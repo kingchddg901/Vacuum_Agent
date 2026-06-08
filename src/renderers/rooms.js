@@ -504,10 +504,19 @@ proto.renderRoomsActionBar = function (
                 stateClass = "evcc-queue-chip--completed";
               } else if (entry?.current || progressSnapshot?.isCurrent) {
                 stateClass = "evcc-queue-chip--current";
+              } else if (entry?.skipped || progressSnapshot?.isSkipped) {
+                stateClass = "evcc-queue-chip--skipped";
               } else if (entry?.remaining || entry) {
                 stateClass = "evcc-queue-chip--remaining";
               }
             }
+
+            // running-long: an additive warning modifier on the current chip (the
+            // room has run well past its estimate but isn't a 2x stall yet).
+            const anomalyClass =
+              (entry?.running_long || progressSnapshot?.isRunningLong)
+                ? "evcc-queue-chip--running-long"
+                : "";
 
             let confidenceClass = "";
 
@@ -537,7 +546,7 @@ proto.renderRoomsActionBar = function (
             return `
               <button
                 type="button"
-                class="evcc-queue-chip ${stateClass} ${confidenceClass}"
+                class="evcc-queue-chip ${stateClass} ${confidenceClass} ${anomalyClass}"
                 data-queue-chip="true"
                 data-room-id="${room.id}"
                 data-map-id="${this.escapeHtml(room.mapId)}"

@@ -31,6 +31,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from ..const import DOMAIN, EVENT_JOB_FINISHED, EVENT_RUN_INCOMPLETE
+from .external_ingest import strip_samples
 from .manager import LearningManager
 
 _LOGGER = logging.getLogger(__name__)
@@ -228,6 +229,19 @@ DISCARD_EXTERNAL_RUN_SCHEMA = vol.Schema(
 )
 
 
+SERVICE_RESEGMENT_EXTERNAL_RUN = "resegment_external_run"
+RESEGMENT_EXTERNAL_RUN_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("pending_job_id"): cv.string,
+        # count XOR explicit boundary set (neither => reset to the confident default).
+        vol.Exclusive("expected_rooms", "resegment_mode"): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Exclusive("active_boundaries", "resegment_mode"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
+    }
+)
+
+
 def _get_core_manager(hass: HomeAssistant):
     """Return core integration manager."""
     return hass.data[DOMAIN]["runtime"]
@@ -313,7 +327,33 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
                     "get_external_pending_runs: failed to attach room list"
                 )
             rec["rooms"] = rooms_out
+            # The card re-segments server-side; it never needs the raw samples. Flag
+            # whether this record CAN be re-segmented (v2 embeds them; v1 cannot),
+            # then strip the bulky samples from the served payload.
+            rec["resegmentable"] = bool(rec.get("counter_samples"))
+            strip_samples(rec)
         return result
+
+    async def handle_resegment_external_run(call: ServiceCall) -> dict:
+        core_manager = _get_core_manager(hass)
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        map_id = call.data["map_id"]
+        # get_managed_rooms reads manager state — resolve on the loop, then
+        # re-segment (disk read + segment + write) on the executor.
+        rooms = (
+            core_manager.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            or {}
+        ).get("rooms", {})
+        result = await hass.async_add_executor_job(
+            core_manager.resegment_external_run,
+            vacuum_entity_id,
+            map_id,
+            call.data["pending_job_id"],
+            call.data.get("expected_rooms"),
+            call.data.get("active_boundaries"),
+            rooms,
+        )
+        return result if isinstance(result, dict) else {"ok": False}
 
     async def handle_discard_external_run(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)
@@ -725,6 +765,13 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         LEARNING_DOMAIN,
+        SERVICE_RESEGMENT_EXTERNAL_RUN,
+        handle_resegment_external_run,
+        schema=RESEGMENT_EXTERNAL_RUN_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
+        LEARNING_DOMAIN,
         SERVICE_RUN_LEARNING_ESTIMATE,
         handle_run_learning_estimate,
         schema=RUN_LEARNING_ESTIMATE_SCHEMA,
@@ -826,3 +873,4 @@ async def async_unregister_learning_services(hass: HomeAssistant) -> None:
     hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_TROUBLE_ROOMS_LOG)
     hass.services.async_remove(LEARNING_DOMAIN, SERVICE_GET_INCOMPLETE_RUN_LOG)
     hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RETRY_MISSED_ROOMS)
+    hass.services.async_remove(LEARNING_DOMAIN, SERVICE_RESEGMENT_EXTERNAL_RUN)

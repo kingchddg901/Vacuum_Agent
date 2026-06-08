@@ -5,39 +5,46 @@ cumulative progress counters. This module turns their time series into ordered
 per-room segments **without geometry** — raw coordinates drift across sessions on
 some firmware (Eufy), so position is never consulted here.
 
-Boundary rules (validated in `scratch-external-estimator/` against real runs,
-including a multi-setting external run the same-instant rule got wrong):
+The pipeline is three pure stages so a run can be re-segmented from the SAME
+frozen samples at any granularity (the external-review wizard re-segments
+server-side when the user sets a room count or toggles a boundary):
 
-- **job start** — `cleaning_time` resets to 0; segmentation starts after the last
-  reset (a stale pre-reset value from the previous job is dropped).
-- **long plateau** (gap between `cleaning_time` increments > ``gap_plateau_s``) — a
-  room boundary: the robot is washing (ByRoom) or making a long transit. Pass-turns
-  are seconds, never minutes, so no area check is needed (and the live path can roll
-  the moment the wash starts, before the next room covers any floor).
-- **delayed step** (``gap_delayed_s`` < gap ≤ ``gap_plateau_s``) — a ~40 s hop. It
-  is a **room boundary** iff `cleaning_area` rises (≥ ``area_jump_m2``) in the
-  stretch *after* it, read FORWARD to the next blip; otherwise it is a **multi-pass
-  turn** (re-covering the same room — area stays flat) and does not split.
-- **normal** (gap ≤ ``gap_delayed_s``) — in-room cleaning progress.
+  find_candidates(samples)            -> every detected boundary, ranked + kinded
+  select_active(candidates, ...)      -> pick the active set (count / explicit / default)
+  build_segments(samples, active)     -> the per-room segment dicts for that set
 
-The forward look on the delayed step matters: `cleaning_area` packets lag the
+``segment_counters`` is a thin back-compat wrapper over the three for internal
+queue callers and the existing tests.
+
+Boundary kinds (a blip = a gap between `cleaning_time` increments > ``gap_delayed_s``):
+
+- **wash_plateau** (gap > ``gap_plateau_s``) — a minutes-long mop wash (ByRoom) or
+  long transit. An unambiguous boundary; pass-turns are seconds, never minutes.
+- **transit** (``gap_transit_s`` < gap ≤ ``gap_plateau_s`` AND area stays flat) — a
+  ~60-90 s inter-room hop that covered no new floor yet. A real transition the old
+  rule discarded (it required an area jump), which left under-splits unrecoverable.
+- **area_jump** (`cleaning_area` rises ≥ ``area_jump_m2`` in the stretch AFTER the
+  blip, read FORWARD to the next blip) — new floor after a delayed step.
+- **weak** (a short delayed step, flat area) — most likely a multi-pass turn
+  (re-covering the same room); not a boundary unless the user splits it.
+
+The forward look on the area matters: `cleaning_area` packets lag the
 `cleaning_time` tick, so the next room's area-jump can land a tick *after* the
-boundary. The earlier same-instant rule (area must jump *at* the gap) missed
-path-varied boundaries — a Narrow-intensity room whose area has already plateaued,
-the next room's area catching up a tick later — returning 1 segment for a real
-2-room run.
+boundary. The same-instant rule (area must jump *at* the gap) missed path-varied
+boundaries — a Narrow-intensity room whose area has already plateaued, the next
+room's area catching up a tick later.
 
-``expected_rooms`` (internal: the dispatched queue length) caps over-splitting: the
-counters alone can't tell an edge→fill / progressive-area pass-turn from a true
-boundary, so when more boundaries are found than the queue allows, only the most
-confident are kept (a long plateau outranks a short delayed step). External callers
-pass None and may over-split — the user merges in review.
+Area attribution is recomputed from the samples for whatever active set is chosen
+— this is why re-segmentation is exact and a client-side regroup would not be:
+across a wash_plateau the lagged END area reads FORWARD to the next room's start
+(no new floor is covered in the dock, so the area that posts is THIS room's lag);
+across every other kind it stays same-instant (the rise is the NEXT room's floor).
 
-Per segment we recover exact ``area_delta_m2`` (the room's true size), the active
-clean count (``time_active_s``), the wall-clock span, the battery delta, and the
-inter-segment gap (transit + wash before the room). The caller assigns room
-identity (internal: map segment K → dispatched queue room K) and validates the
-segment count against the expected room count.
+``expected_rooms`` (internal: the dispatched queue length) caps over-splitting:
+the counters alone can't tell an edge→fill / progressive-area pass-turn from a
+true boundary, so when more boundaries are found than the queue allows, only the
+strongest are kept (a long plateau outranks a short delayed step). External
+callers pass None and let the user reconcile in review.
 
 `cleaning_area` and `cleaning_time` update on separate packets that can land out
 of order at the same timestamp (the area lags the clock), so area is read via
@@ -48,6 +55,8 @@ forward, which would undercount the room that owns the lagging tick.
 from __future__ import annotations
 
 import bisect
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
@@ -56,8 +65,21 @@ from .timestamp_utils import UTC, datetime_to_utc_iso, parse_timestamp
 # Defaults (seconds / m²). cleaning_time ticks every ~30 s while cleaning.
 _CADENCE_S = 30.0
 _GAP_DELAYED_S = 35.0   # gap above this = a delayed step (a hop or a pass-turn)
+_GAP_TRANSIT_S = 60.0   # gap above this (≤ plateau) with FLAT area = an inter-room transit
 _GAP_PLATEAU_S = 90.0   # gap above this = an unambiguous boundary (wash / long transit)
 _AREA_JUMP_M2 = 2.0     # cleaning_area delta across a delayed step marking new floor
+
+# Only a true wash/dock plateau forward-reads the lagged area to the next room. A
+# transit covered no new floor; an area_jump's rise is the NEXT room's — both stay
+# same-instant (see build_segments).
+_FORWARD_AREA_KINDS = frozenset({"wash_plateau"})
+
+# Strength for count-ranking (select_active(expected_rooms=...)). Integer kind bands
+# keep wash > transit > area_jump > weak above any plausible area/gap fraction; the
+# settings-flip confidence bonus floats a corroborated cut up within its band. On the
+# legacy wash/area_jump-only pool this reproduces the old (gap>plateau, area_after) sort.
+_KIND_WEIGHT = {"wash_plateau": 4000.0, "transit": 2000.0, "area_jump": 1000.0, "weak": 0.0}
+_CONFIDENT_BONUS = 500.0
 
 
 def _to_dt(value: Any) -> datetime | None:
@@ -79,30 +101,28 @@ def _f(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def segment_counters(
-    samples: list[dict[str, Any]],
-    *,
-    expected_rooms: int | None = None,
-    cadence_s: float = _CADENCE_S,
-    gap_delayed_s: float = _GAP_DELAYED_S,
-    gap_plateau_s: float = _GAP_PLATEAU_S,
-    area_jump_m2: float = _AREA_JUMP_M2,
-) -> list[dict[str, Any]]:
-    """Segment a counter-sample stream into ordered per-room cleaning bouts.
+@dataclass
+class _Window:
+    """A prepared, frame-invariant view of a counter-sample stream.
 
-    ``samples`` is a list of dicts ``{t|observed_at, cleaning_time, cleaning_area,
-    battery}`` (each carrying the last-seen value of both counters). Returns a
-    list of segment dicts in cleaning order; empty if there is no usable signal
-    (e.g. an adapter without these counters). Pure + frame-invariant.
-
-    ``expected_rooms`` (internal callers: the dispatched queue length) caps
-    over-splitting — when more boundaries are found than ``expected_rooms - 1``,
-    only the strongest (largest forward area-rise) are kept. The counters alone
-    cannot separate an edge→fill / progressive-area pass-turn from a real boundary
-    (both show area rising after the gap), so the known room count is the
-    tie-breaker. External callers pass ``None`` and may over-split — the user
-    merges in review.
+    ``incs`` are the cleaning_time increment timestamps (the ~30 s ticks) AFTER the
+    last reset; ``area_at``/``batt_at`` read the monotonic value reached by time t.
+    Pure given the samples — the same stream always yields the same window, so a
+    candidate's ``position`` (its index into ``incs``) is a stable boundary id.
     """
+
+    norm: list[tuple[datetime, float, float, Any]]
+    reset_t: datetime
+    incs: list[tuple[datetime, float]]
+    area_at: Callable[[datetime], float]
+    batt_at: Callable[[datetime], Any]
+
+
+def _prepare_window(samples: list[dict[str, Any]], *, cadence_s: float = _CADENCE_S) -> _Window | None:
+    """Normalize → sort → trim to the last job, and expose area_at/batt_at/incs.
+
+    Returns ``None`` when there is no usable signal (empty stream, or no
+    cleaning_time increments after the reset — e.g. an adapter without counters)."""
     norm: list[tuple[datetime, float, float, Any]] = []
     for s in samples or []:
         if not isinstance(s, dict):
@@ -113,7 +133,7 @@ def segment_counters(
         norm.append((t, _f(s.get("cleaning_time"), -1.0), _f(s.get("cleaning_area"), -1.0), s.get("battery")))
     norm.sort(key=lambda r: r[0])
     if not norm:
-        return []
+        return None
 
     # Job window: start after the LAST cleaning_time reset to 0, dropping any
     # stale pre-reset sample carried over from the previous job.
@@ -156,52 +176,168 @@ def segment_counters(
             incs.append((t, ct))
         last_ct = ct
     if not incs:
-        return []
+        return None
 
-    # Blips = gaps above the 30 s clock (a hop, a mop wash, or a multi-pass turn).
-    # A blip is a room boundary when EITHER it is a long plateau (gap > gap_plateau_s
-    # — a minutes-long wash or transit; pass-turns are seconds) OR cleaning_area
-    # RISES (>= area_jump_m2) in the stretch AFTER it, read FORWARD to the next blip.
-    # The forward look fixes path-varied boundaries the old same-instant check missed
-    # (a Narrow room re-covers so its area has plateaued, and the next room's
-    # area-jump lands a tick later). A short delayed step with flat area after is a
-    # multi-pass turn and does not split.
+    return _Window(norm=norm, reset_t=reset_t, incs=incs, area_at=area_at, batt_at=batt_at)
+
+
+def _classify(
+    gap: float,
+    area_after: float,
+    *,
+    gap_transit_s: float,
+    gap_plateau_s: float,
+    area_jump_m2: float,
+) -> str:
+    """Kind of a blip from its gap and the area covered after it."""
+    if gap > gap_plateau_s:
+        return "wash_plateau"
+    if gap > gap_transit_s and area_after < area_jump_m2:
+        return "transit"
+    if area_after >= area_jump_m2:
+        return "area_jump"
+    return "weak"
+
+
+def find_candidates(
+    samples: list[dict[str, Any]],
+    *,
+    gap_delayed_s: float = _GAP_DELAYED_S,
+    gap_transit_s: float = _GAP_TRANSIT_S,
+    gap_plateau_s: float = _GAP_PLATEAU_S,
+    area_jump_m2: float = _AREA_JUMP_M2,
+    cadence_s: float = _CADENCE_S,
+) -> list[dict[str, Any]]:
+    """Every detected boundary in the stream, in cleaning order — no discards.
+
+    A blip is any gap > ``gap_delayed_s`` between cleaning_time ticks. Each is
+    returned (the selector decides which are active) with::
+
+        {id, position, gap_s, area_after_m2, kind, strength, confident, t}
+
+    ``id`` == ``position`` (the increment-tick index) is a stable handle for the
+    frozen samples — the card toggles boundaries by id. ``confident`` is the
+    geometric base (a wash_plateau only); the ingest layer upgrades it where a
+    settings flip corroborates the cut. ``area_after`` is read FORWARD to the next
+    blip (the area lag). Returns [] when there is no usable signal.
+    """
+    win = _prepare_window(samples, cadence_s=cadence_s)
+    if win is None:
+        return []
+    incs = win.incs
+    area_at = win.area_at
+
     blip_positions = [
         i for i in range(1, len(incs))
         if (incs[i][0] - incs[i - 1][0]).total_seconds() > gap_delayed_s
     ]
-    candidates: list[tuple[float, float, int]] = []  # (area_after, gap, position)
+    out: list[dict[str, Any]] = []
     for n, bi in enumerate(blip_positions):
         nxt = blip_positions[n + 1] if n + 1 < len(blip_positions) else len(incs)
         gap = (incs[bi][0] - incs[bi - 1][0]).total_seconds()
         area_after = area_at(incs[nxt - 1][0]) - area_at(incs[bi][0])
-        if gap > gap_plateau_s or area_after >= area_jump_m2:
-            candidates.append((area_after, gap, bi))
+        kind = _classify(
+            gap, area_after,
+            gap_transit_s=gap_transit_s, gap_plateau_s=gap_plateau_s, area_jump_m2=area_jump_m2,
+        )
+        strength = _KIND_WEIGHT[kind] + max(area_after, 0.0) + min(gap, 600.0) / 600.0
+        out.append(
+            {
+                "id": bi,
+                "position": bi,
+                "gap_s": round(gap, 1),
+                "area_after_m2": round(area_after, 2),
+                "kind": kind,
+                "strength": round(strength, 3),
+                "confident": kind == "wash_plateau",
+                "t": datetime_to_utc_iso(incs[bi][0]),
+            }
+        )
+    return out
 
-    # When the room count is known (internal: the dispatched queue length), keep only
-    # the most-confident boundaries — a long plateau outranks a short delayed step,
-    # then larger forward area-rise wins. The counters alone can't separate an
-    # edge→fill / progressive-area pass-turn from a true boundary, so the queue count
-    # caps over-splitting. External callers pass None and may over-split (user merges).
+
+def select_active(
+    candidates: list[dict[str, Any]],
+    *,
+    expected_rooms: int | None = None,
+    active_ids: list[int] | None = None,
+    default: str = "confident",
+    kinds: set[str] | frozenset[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Pick the active boundary set from a candidate pool, in cleaning order.
+
+    ``kinds`` (allow-list) pre-filters the pool in every mode. Exactly one mode
+    resolves, by precedence:
+
+    - ``active_ids`` — exactly those candidate ids (the per-boundary toggle path;
+      unknown ids ignored, ``[]`` ⇒ one room).
+    - ``expected_rooms`` — the strongest ``expected_rooms - 1`` by (confident,
+      strength); selecting from the full pool lets a higher count activate
+      transit/weak boundaries the legacy filter dropped. Does NOT clamp to the
+      pool — the caller reports any cap.
+    - ``default`` — ``"confident"`` (the default view), ``"all"``, or ``"none"``.
+    """
+    pool = [c for c in candidates if kinds is None or c.get("kind") in kinds]
+
+    if active_ids is not None:
+        ids = {int(x) for x in active_ids}
+        return [c for c in pool if int(c.get("id", c.get("position", -1))) in ids]
+
     if expected_rooms is not None:
         keep = max(int(expected_rooms) - 1, 0)
-        if len(candidates) > keep:
-            candidates.sort(key=lambda c: (c[1] > gap_plateau_s, c[0]), reverse=True)
-            candidates = candidates[:keep]
+        if len(pool) <= keep:
+            return list(pool)
+        ranked = sorted(
+            pool, key=lambda c: (bool(c.get("confident")), _f(c.get("strength"))), reverse=True
+        )[:keep]
+        return sorted(ranked, key=lambda c: int(c.get("position", 0)))
 
-    boundary_at: dict[int, str] = {
-        bi: ("wash_plateau" if gap > gap_plateau_s else "area_jump")
-        for (_area_after, gap, bi) in candidates
+    if default == "confident":
+        return [c for c in pool if c.get("confident")]
+    if default == "none":
+        return []
+    return list(pool)  # "all"
+
+
+def build_segments(
+    samples: list[dict[str, Any]],
+    active_candidates: list[dict[str, Any]],
+    *,
+    cadence_s: float = _CADENCE_S,
+) -> list[dict[str, Any]]:
+    """The ordered per-room segment dicts for a chosen active boundary set.
+
+    Recomputes the window from ``samples`` so area attribution is exact for THIS
+    set (a wash_plateau forward-reads the lagged area; every other kind stays
+    same-instant). Each segment carries ``boundary_id`` — the active candidate id
+    that started it (``None`` for the first) — so the ingest layer can recover the
+    active-boundary list after the trailing-segment drop. Returns [] for no signal.
+    """
+    win = _prepare_window(samples, cadence_s=cadence_s)
+    if win is None:
+        return []
+    incs = win.incs
+    area_at = win.area_at
+    batt_at = win.batt_at
+    norm = win.norm
+    reset_t = win.reset_t
+
+    boundary_at: dict[int, str] = {int(c["position"]): c["kind"] for c in active_candidates}
+    bid_at: dict[int, int] = {
+        int(c["position"]): int(c.get("id", c["position"])) for c in active_candidates
     }
 
-    # Split increments into segments at boundaries; pass-turns stay in-segment.
+    # Split increments into segments at the active boundaries; everything else
+    # stays in-segment (pass-turns and inactive candidates).
     groups: list[list[tuple[datetime, float]]] = [[incs[0]]]
     boundaries: list[str] = ["job_start"]
+    group_bids: list[int | None] = [None]
     for i in range(1, len(incs)):
         kind = boundary_at.get(i)
         if kind is not None:
             groups.append([incs[i]])
             boundaries.append(kind)
+            group_bids.append(bid_at.get(i))
         else:
             groups[-1].append(incs[i])
 
@@ -212,17 +348,13 @@ def segment_counters(
     for idx, g in enumerate(groups):
         start_t = g[0][0]
         end_t, end_ct = g[-1]
-        # Forward-attribute area: cleaning_area packets LAG cleaning_time, so a short
-        # room's m² often finishes posting during the dock AFTER its last tick (live: a
-        # vac bathroom went 1.0 at its last tick -> 3.0 by the next room's start, all
-        # during the prewash dock). Read the END area FORWARD to the next room's start
-        # ONLY across a wash_plateau/dock — no new floor is covered there, so the area
-        # that posts is THIS room's lag. Across an area_jump the rise is the NEXT room's
-        # new floor, so stay same-instant and don't steal it. The last segment reads to
-        # the final sample (trailing dock lag). No-lag runs are unchanged.
+        # Forward-attribute area across a wash_plateau/dock ONLY (the area that posts
+        # there is THIS room's lag); the last segment reads to the final sample
+        # (trailing dock lag). Every other boundary stays same-instant — the rise is
+        # the next room's new floor.
         if idx + 1 >= len(groups):
             area_ref_t = norm[-1][0] if norm else end_t
-        elif boundaries[idx + 1] == "wash_plateau":
+        elif boundaries[idx + 1] in _FORWARD_AREA_KINDS:
             area_ref_t = groups[idx + 1][0][0]
         else:
             area_ref_t = end_t
@@ -235,6 +367,7 @@ def segment_counters(
         out.append(
             {
                 "index": idx,
+                "boundary_id": group_bids[idx],
                 "t_start": datetime_to_utc_iso(start_t),
                 "t_end": datetime_to_utc_iso(end_t),
                 "ct_start": prev_ct,
@@ -254,3 +387,40 @@ def segment_counters(
         prev_area = end_area
         prev_end_t = end_t
     return out
+
+
+def segment_counters(
+    samples: list[dict[str, Any]],
+    *,
+    expected_rooms: int | None = None,
+    cadence_s: float = _CADENCE_S,
+    gap_delayed_s: float = _GAP_DELAYED_S,
+    gap_plateau_s: float = _GAP_PLATEAU_S,
+    area_jump_m2: float = _AREA_JUMP_M2,
+) -> list[dict[str, Any]]:
+    """Segment a counter-sample stream into ordered per-room cleaning bouts.
+
+    Back-compat wrapper over find_candidates → select_active → build_segments for
+    internal queue callers. Legacy semantics: a blip is a boundary iff
+    ``gap > gap_plateau_s`` OR ``area_after >= area_jump_m2``, trimmed to the
+    strongest ``expected_rooms - 1``. The infinite ``gap_transit_s`` collapses the
+    transit band (a 60-90 s flat-area gap stays "weak") and the ``kinds`` filter
+    drops "weak", so the active set is exactly the old candidate set.
+
+    ``samples`` is a list of dicts ``{t|observed_at, cleaning_time, cleaning_area,
+    battery}``. Returns segment dicts in cleaning order; empty if there is no usable
+    signal. Pure + frame-invariant. ``expected_rooms`` (the dispatched queue length)
+    caps over-splitting; external callers pass ``None``.
+    """
+    cands = find_candidates(
+        samples,
+        gap_delayed_s=gap_delayed_s,
+        gap_transit_s=float("inf"),
+        gap_plateau_s=gap_plateau_s,
+        area_jump_m2=area_jump_m2,
+        cadence_s=cadence_s,
+    )
+    active = select_active(
+        cands, expected_rooms=expected_rooms, default="all", kinds={"wash_plateau", "area_jump"}
+    )
+    return build_segments(samples, active, cadence_s=cadence_s)

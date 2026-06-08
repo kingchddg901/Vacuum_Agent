@@ -101,12 +101,79 @@ export function applyExternalJobsRenderers(proto) {
   };
 
   proto._renderExtWizardStep1 = function (w, groups) {
+    return w.resegmentable
+      ? this._renderExtWizardStep1V2(w)
+      : this._renderExtWizardStep1Legacy(w, groups);
+  };
+
+  proto._segFacts = function (seg) {
+    const settings = seg.settings || {};
+    return `${(Number(seg.area_m2) || 0).toFixed(0)} m² · `
+      + `${Math.round((Number(seg.time_wall_s) || 0) / 60)} min · `
+      + `${this.escapeHtml(String(settings.clean_mode || "?"))} · ${seg.pass_count || 1}×`;
+  };
+
+  // v2 (samples saved) — the count stepper + per-boundary split/merge re-segment
+  // server-side. Buttons say what they DO (action-first): "Merge up" collapses a
+  // room into the one above; "Split here" reopens a detected cut inside a room.
+  proto._renderExtWizardStep1V2 = function (w) {
+    const segments = w.segments || [];
+    const count = segments.length;
+    const candidates = Array.isArray(w.candidates) ? w.candidates : [];
+    const maxRooms = candidates.length + 1;
+    const busy = !!w.busy;
+
+    const activeSet = new Set((w.activeBoundaries || []).map(Number));
+    const inactive = candidates.filter((c) => !activeSet.has(Number(c.id)));
+    // A segment owns the inactive cuts whose tick position falls inside its span
+    // (start position .. the next room's start). Positions are stable integers.
+    const starts = segments.map((s, i) => (i === 0 ? 0 : Number(s.boundary_id)));
+    const nextStart = (i) => (i + 1 < segments.length ? starts[i + 1] : Infinity);
+
+    const stepper = `
+      <div class="evcc-ext-count">
+        <span class="evcc-ext-count-label">Rooms</span>
+        <div class="evcc-ext-stepper">
+          <button class="evcc-btn evcc-ext-step" data-action="ext-count-dec" ${busy || count <= 1 ? "disabled" : ""}>−</button>
+          <strong class="evcc-ext-count-n">${count}</strong>
+          <button class="evcc-btn evcc-ext-step" data-action="ext-count-inc" ${busy || count >= maxRooms ? "disabled" : ""}>+</button>
+        </div>
+        <span class="evcc-ext-hint">set the room count, or split / merge below</span>
+      </div>`;
+
+    const rows = segments.map((seg, idx) => {
+      const bid = seg.boundary_id;
+      const head = idx === 0
+        ? `<span class="evcc-ext-seg-start">First room</span>`
+        : `<button class="evcc-ext-merge" data-action="ext-merge-up" data-boundary-id="${bid}" ${busy ? "disabled" : ""}>↥ Merge up</button>`;
+      const within = inactive.filter(
+        (c) => Number(c.id) > starts[idx] && Number(c.id) < nextStart(idx)
+      );
+      const splitBtns = within.map((c) => `
+        <button class="evcc-ext-split-here" data-action="ext-split-here" data-boundary-id="${c.id}" ${busy ? "disabled" : ""}>
+          ↳ Split here${c.confident ? "" : " · uncertain"}
+        </button>`).join("");
+      return `
+        <div class="evcc-ext-seg is-v2">
+          <div class="evcc-ext-seg-row">
+            ${head}
+            <span class="evcc-ext-seg-facts">Room ${idx + 1} · ${this._segFacts(seg)}</span>
+          </div>
+          ${splitBtns ? `<div class="evcc-ext-splits">${splitBtns}</div>` : ""}
+        </div>`;
+    }).join("");
+
+    const cap = w.resegmentMeta && w.resegmentMeta.capped
+      ? `<div class="evcc-ext-blocked">${this.escapeHtml(String(w.resegmentMeta.message || "Capped to the detectable room count."))}</div>`
+      : "";
+
+    return `${stepper}${cap}<div class="evcc-ext-seglist">${rows}</div>`;
+  };
+
+  // v1 (legacy, no samples) — client-side merge-only via the split toggles.
+  proto._renderExtWizardStep1Legacy = function (w, groups) {
     const rows = (w.segments || []).map((seg) => {
       const order = Number(seg.order ?? 0);
-      const settings = seg.settings || {};
-      const facts = `seg ${order} · ${(Number(seg.area_m2) || 0).toFixed(0)} m² · `
-        + `${Math.round((Number(seg.time_wall_s) || 0) / 60)} min · `
-        + `${this.escapeHtml(String(settings.clean_mode || "?"))} · ${seg.pass_count || 1}×`;
       let head;
       if (order === 0) {
         head = `<div class="evcc-ext-seg-start">First room</div>`;
@@ -119,7 +186,7 @@ export function applyExternalJobsRenderers(proto) {
             ${split ? "✂ split here" : "↳ merged"}${confident ? "" : " · uncertain"}
           </button>`;
       }
-      return `<div class="evcc-ext-seg">${head}<div class="evcc-ext-seg-facts">${facts}</div></div>`;
+      return `<div class="evcc-ext-seg">${head}<div class="evcc-ext-seg-facts">seg ${order} · ${this._segFacts(seg)}</div></div>`;
     }).join("");
     return `
       <div class="evcc-ext-count">
@@ -159,10 +226,19 @@ export function applyExternalJobsRenderers(proto) {
     const passChips = [1, 2].map((p) => `<button class="evcc-chip ${passCur === p ? "active" : ""}"
       data-action="ext-set-override" data-order="${order}" data-key="clean_passes" data-value="${p}">${p}×</button>`).join("");
 
-    const detected = [];
-    if (settings.fan_speed) detected.push(`Suction ${this.escapeHtml(String(settings.fan_speed))}`);
-    if (settings.water_level) detected.push(`Water ${this.escapeHtml(String(settings.water_level))}`);
-    if (settings.clean_intensity) detected.push(`Intensity ${this.escapeHtml(String(settings.clean_intensity))}`);
+    // Settings capture is best-effort, so every setting is editable. Options come
+    // from the adapter vocabulary (same source as the room editor); the captured
+    // value is pre-selected. Water only applies to a mop mode.
+    const isMop = modeCur === "mop" || modeCur === "vacuum_mop";
+    const opt = (fn) => (typeof ctx.state[fn] === "function" ? ctx.state[fn]() : []);
+    const suctionRow = this._extSettingRow(order, "Suction", "fan_speed",
+      opt("suctionLevelOptions"), ov.fan_speed ?? settings.fan_speed);
+    const intensityRow = this._extSettingRow(order, "Cleaning Path", "clean_intensity",
+      opt("cleanIntensityOptions"), ov.clean_intensity ?? settings.clean_intensity);
+    const waterRow = isMop
+      ? this._extSettingRow(order, "Water", "water_level",
+          opt("waterLevelOptions"), ov.water_level ?? settings.water_level)
+      : "";
 
     return `
       <div class="evcc-ext-room">
@@ -180,6 +256,9 @@ export function applyExternalJobsRenderers(proto) {
           <div class="evcc-field-label">Passes</div>
           <div class="evcc-chip-row">${passChips}</div>
         </div>
+        ${suctionRow}
+        ${intensityRow}
+        ${waterRow}
         <div class="evcc-editor-field-group evcc-ext-edge">
           <div class="evcc-field-label">Edge mop? <span class="evcc-ext-hint">not detected — please set</span></div>
           <div class="evcc-chip-row">
@@ -189,9 +268,25 @@ export function applyExternalJobsRenderers(proto) {
               data-action="ext-set-edge" data-order="${order}" data-value="false">Off</button>
           </div>
         </div>
-        ${detected.length ? `<div class="evcc-ext-detected">Detected: ${detected.join(" · ")}</div>` : ""}
       </div>
     `;
+  };
+
+  proto._extSettingRow = function (order, label, key, options, current) {
+    if (!Array.isArray(options) || !options.length) return "";
+    const cur = String(current ?? "");
+    const chips = options.map((o) => {
+      const val = String(o.value ?? "");
+      const active = cur && cur.toLowerCase() === val.toLowerCase() ? "active" : "";
+      return `<button class="evcc-chip ${active}"
+        data-action="ext-set-override" data-order="${order}" data-key="${key}"
+        data-value="${this.escapeHtml(val)}">${this.escapeHtml(String(o.label || val))}</button>`;
+    }).join("");
+    return `
+      <div class="evcc-editor-field-group">
+        <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-chip-row">${chips}</div>
+      </div>`;
   };
 
   proto._extAllRoomsOptions = function (ctx, order, selectedId) {

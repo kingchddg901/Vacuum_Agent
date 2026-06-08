@@ -289,11 +289,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
         <div class="evcc-setup-card">
           <h3>If you don't see a vacuum entity in the dropdown</h3>
           <p>
-            This integration sits on top of
+            This integration works on top of whatever Home Assistant
+            integration provides your vacuum — make sure your vacuum is set
+            up and producing a working <code>vacuum.*</code> entity first,
+            then come back here and choose it.
+          </p>
+          <p>
+            Using a Eufy vacuum? The
             <a href="https://github.com/jeppesens/eufy-clean" target="_blank" rel="noopener">eufy-clean</a>
-            — make sure your vacuum is set up and producing a working
-            <code>vacuum.*</code> entity there first, then come back here
-            and choose it.
+            integration provides that entity.
           </p>
         </div>
       </div>
@@ -1152,8 +1156,19 @@ class EufyVacuumCommandCenter extends HTMLElement {
 
     const modalMarkup = `<style>${MODAL_HOST_STYLES}</style>${html}`;
     if (this._modalHost.dataset.renderedHtml !== modalMarkup) {
+      // Preserve each open modal body's scroll across the innerHTML swap. Without
+      // this, every in-modal interaction (room pick, setting tap) re-renders and
+      // jumps the modal back to the top. Bodies map by index (modal order is stable).
+      const prevScroll = Array.from(
+        this._modalHost.querySelectorAll(".evcc-modal-body"),
+        (el) => el.scrollTop,
+      );
       this._modalHost.innerHTML = modalMarkup;
       this._modalHost.dataset.renderedHtml = modalMarkup;
+      const bodies = this._modalHost.querySelectorAll(".evcc-modal-body");
+      prevScroll.forEach((top, i) => {
+        if (top && bodies[i]) bodies[i].scrollTop = top;
+      });
     }
 
     this._bindings?.bindModalHostEvents(this._modalHost);

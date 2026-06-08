@@ -391,20 +391,18 @@ def apply_capability_gate(
     clean_passes = int(settings.get("clean_passes", 1))
     edge_mopping = bool(settings.get("edge_mopping", False))
 
-    # Mop unsupported — downgrade to vacuum-only equivalent.
+    # Mop unsupported — downgrade to the vacuum-only equivalent. Derive path_type /
+    # clean_intensity from the corresponding vacuum-only built-in profile rather than
+    # hardcoding values, so the downgrade follows whatever vocabulary the profile
+    # catalog declares (today the Eufy built-ins → wide/Quick, narrow/Deep).
     if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
-        if resolved_profile_name == "vacuum_mop_deep":
-            clean_mode = "vacuum"
-            water_level = "Off"
-            edge_mopping = False
-            path_type = "narrow"
-            clean_intensity = "Deep"
-        else:
-            clean_mode = "vacuum"
-            water_level = "Off"
-            edge_mopping = False
-            path_type = "wide"
-            clean_intensity = "Quick"
+        fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
+        _, fallback = get_room_profile(profile_name=fallback_name)
+        clean_mode = "vacuum"
+        water_level = "Off"
+        edge_mopping = False
+        path_type = fallback.get("path_type", path_type)
+        clean_intensity = fallback.get("clean_intensity", clean_intensity)
 
     # Vacuum-only mode — water and edge mopping are irrelevant.
     if clean_mode == "vacuum":

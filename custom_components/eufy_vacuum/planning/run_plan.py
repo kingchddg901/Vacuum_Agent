@@ -224,16 +224,22 @@ class RunPlanManager:
         water_level: Any,
         *,
         aliases: dict[str, str] | None = None,
+        rate_override: dict[str, Any] | None = None,
     ) -> float:
-        """Return first-pass floor application water rate by water level."""
+        """Return first-pass floor application water rate (ml/min) by water level.
+
+        ``rate_override`` (adapter ``water_model_configs[...]["water_rates"]``, keyed
+        by canonical level) replaces the default table when declared, so a non-Eufy
+        dock can carry its own flow rates. The default below was measured on the Eufy
+        X10 dock and is the bootstrap fallback."""
         normalized = self._normalize_water_level_key(water_level, aliases=aliases)
-        rates = {
+        table = rate_override if (isinstance(rate_override, dict) and rate_override) else {
             "off": 0.0,
             "low": 3.2,
             "medium": 4.0,
             "high": 5.3,
         }
-        return rates.get(normalized, 4.0)
+        return _safe_float(table.get(normalized, 4.0), 4.0)
 
     def _get_station_clean_water_percent(
         self,
@@ -290,10 +296,16 @@ class RunPlanManager:
         compact_mode = " ".join(raw_mode.split())
         mode_key = _wash_freq_aliases.get(compact_mode, "unknown")
 
-        interval_minutes = _safe_float(interval_state.state if interval_state is not None else None, 20.0)
+        # Wash-cadence interval bounds default to the Eufy X10 firmware range
+        # (15-25 min, default 20); adapters override via ``wash_frequency_bounds``.
+        _wf_bounds = (_get_adapter_config(vacuum_entity_id) or {}).get("wash_frequency_bounds", {})
+        _wf_default = _safe_float(_wf_bounds.get("default"), 20.0)
+        _wf_min = _safe_float(_wf_bounds.get("min"), 15.0)
+        _wf_max = _safe_float(_wf_bounds.get("max"), 25.0)
+        interval_minutes = _safe_float(interval_state.state if interval_state is not None else None, _wf_default)
         if interval_minutes <= 0:
-            interval_minutes = 20.0
-        interval_minutes = max(15.0, min(25.0, interval_minutes))
+            interval_minutes = _wf_default
+        interval_minutes = max(_wf_min, min(_wf_max, interval_minutes))
 
         return {
             "mode": mode_key,
@@ -382,7 +394,9 @@ class RunPlanManager:
                 mopping_room_count += 1
                 if estimated_minutes > 0:
                     projected_mop_minutes += estimated_minutes
-                    room_robot_water_ml = estimated_minutes * self._water_rate_ml_per_minute(water_level, aliases=_water_level_aliases)
+                    room_robot_water_ml = estimated_minutes * self._water_rate_ml_per_minute(
+                        water_level, aliases=_water_level_aliases, rate_override=model_config.get("water_rates")
+                    )
                     robot_water_used_ml += room_robot_water_ml
 
             room_entry = {
@@ -474,10 +488,13 @@ class RunPlanManager:
                 2,
             )
             not_enough_clean_water = clean_water_shortfall_ml > 0
+            # Low-margin warning threshold defaults to 300 ml (Eufy dock tuning);
+            # adapters override via water_model_configs[...]["low_clean_water_margin_ml"].
+            _low_margin_ml = _safe_float(model_config.get("low_clean_water_margin_ml"), 300.0)
             low_clean_water_margin = (
                 not not_enough_clean_water
                 and estimated_clean_tank_remaining_ml is not None
-                and estimated_clean_tank_remaining_ml <= 300.0
+                and estimated_clean_tank_remaining_ml <= _low_margin_ml
             )
 
         return {

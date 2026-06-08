@@ -25,6 +25,7 @@ import pytest
 from custom_components.eufy_vacuum.const import (
     DATA_LEARNING,
     DOMAIN,
+    EVENT_ROOM_SKIPPED,
     EVENT_STALL_DETECTED,
 )
 from custom_components.eufy_vacuum.learning.manager import LearningManager
@@ -138,11 +139,75 @@ def test_progress_stall_fires_once(manager, hass):
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert snap["stall_detected"] is True
     assert snap["stall_ratio"] >= 2.0
+    assert snap["running_long"] is False  # disjoint bands: >=2x is stall, not running_long
 
     # a second poll must NOT re-fire (dedup via _stall_notified_room_ids)
     manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
     assert len(events) == 1
     assert events[0].data["room_id"] == 1
+
+
+def test_progress_running_long(manager, hass):
+    """[PR-10] a single-room job at ~1.7x its rollover threshold (below the 2x stall
+    band) flags running_long but NOT stall. The threshold is read from the live
+    estimate so the test is robust to the estimator's per-room minutes."""
+    _wire(manager, hass)
+    rooms = [{"room_id": 1, "name": "Kitchen", "minutes": 5, "clean_mode": "vacuum"}]
+    _seed_job(manager, minutes_ago=0, queue_room_ids=[1], resolved_rooms=rooms)
+    hass.states.async_set(_VAC, "cleaning")
+    room0 = next(
+        r for r in manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)["timeline"]
+        if r.get("room_id") == 1
+    )
+    threshold = manager.active_job._timing_completion_threshold_minutes(room0)
+    # re-seed so the current room has run ~1.7x the threshold (within [1.5x, 2.0x)).
+    _seed_job(manager, minutes_ago=threshold * 1.7, queue_room_ids=[1], resolved_rooms=rooms)
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["running_long"] is True
+    assert snap["stall_detected"] is False
+    assert snap["running_long_room_id"] == 1
+    room1 = next((r for r in snap["timeline"] if r.get("room_id") == 1), None)
+    assert room1 is not None and room1["running_long"] is True
+
+
+def test_progress_skipped_conservative(manager, hass):
+    """[PR-11] when current_room is ahead of an uncompleted queued room (a non-
+    sequential advance), that room is flagged skipped + fires EVENT_ROOM_SKIPPED once.
+    Eufy's sequential counter rollover keeps this empty in normal runs (the reliable
+    missed-rooms signal is the post-run incomplete_run_log)."""
+    _wire(manager, hass)
+    _seed_job(
+        manager,
+        queue_room_ids=[1, 2, 3],
+        resolved_rooms=[
+            {"room_id": 1, "name": "A", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 2, "name": "B", "minutes": 5, "clean_mode": "vacuum"},
+            {"room_id": 3, "name": "C", "minutes": 5, "clean_mode": "vacuum"},
+        ],
+        completed_room_ids=[2],   # room 2 done, room 1 NOT — current advanced past 1
+        current_room_id=3,
+    )
+    hass.states.async_set(_VAC, "cleaning")
+    events: list = []
+    hass.bus.async_listen(EVENT_ROOM_SKIPPED, lambda e: events.append(e.data))
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert 1 in snap["skipped_room_ids"]
+    assert 1 not in snap["remaining_room_ids"]
+    room1 = next((r for r in snap["timeline"] if r.get("room_id") == 1), None)
+    assert room1 is not None and room1["skipped"] is True
+    # a second poll must NOT re-fire (dedup via _skipped_notified_room_ids)
+    manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert len(events) == 1 and events[0]["room_id"] == 1
+
+
+def test_progress_sequential_no_false_skip(manager, hass):
+    """[PR-12] a normal sequential run (completed prefix) flags NO skips."""
+    _wire(manager, hass)
+    _seed_job(manager, completed_room_ids=[1],
+              completed_rooms=[{"room_id": 1, "actual_duration_minutes": 4.0}])
+    hass.states.async_set(_VAC, "cleaning")
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["skipped_room_ids"] == []
 
 
 async def test_finalize_no_learning(manager):

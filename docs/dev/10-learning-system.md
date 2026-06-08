@@ -161,8 +161,30 @@ area packet lagging the clock at a shared timestamp.
 known (internal: the dispatched queue length) — the counters alone can't tell an
 edge→fill / progressive-area pass-turn from a true boundary, so only the strongest
 boundaries (long plateau > short step, then larger forward rise) are kept. Internal
-callers pass the queue length; **external** (app-started) runs pass `None`, may
-over-split, and the user merges in the review card — see
+(finalize / history) callers pass the queue length and this path is unchanged.
+
+`segment_counters` is now a **byte-identical back-compat wrapper** over a decomposed
+pipeline (`find_candidates` → `select_active` → `build_segments`): it pins
+`gap_transit_s=inf` and `kinds={wash_plateau, area_jump}`, so it sees only the
+plateau/area-jump boundaries it always did. The decomposition adds a third boundary
+**kind** the old single-pass filter dropped — **transit** (a 60–90 s inter-room hop
+with *flat* area, between `_GAP_TRANSIT_S` and `_GAP_PLATEAU_S`) — alongside
+`wash_plateau` (gap > 90 s) and `area_jump` (forward area rise ≥ 2 m²). Only
+`wash_plateau` forward-reads area (`_FORWARD_AREA_KINDS`); transit and area_jump read
+the same-instant area. `find_candidates` emits **every** blip as a candidate;
+`select_active` picks the active set by count XOR explicit-ids XOR confident-only
+default; `build_segments` turns the active set into per-room segments. This same
+transit-aware decomposition now also feeds the **live** job-queue rollover (see
+[07-queue-engine](07-queue-engine.md)) — see the live-detection paragraph below.
+
+**External** (app-started) runs no longer simply over-split into a merge-only card.
+At finalize the full candidate pool **and the raw samples** are embedded in the
+pending record (schema v2), so the review card can re-segment the run server-side at
+any user-set room count or explicit boundary set
+(`learning/external_ingest.resegment_pending_record`, exposed by the
+`resegment_external_run` service) — not just merge. The default view is the
+*confident-only* cuts (matching the pre-v2 segmentation); transit/weak/uncertain cuts
+surface as inactive "split here" candidates. See
 [28-external-run-ingestion](28-external-run-ingestion.md).
 
 The same segmenter also drives **live** room-transition detection: in
@@ -280,6 +302,30 @@ The cancel detection blockers (`floor_time_too_short`, `early_return_likely_canc
 Manual exclusion via the `exclude_learning_job` service adds two additional blockers: `manually_excluded` and whatever reason string was passed (default `manual_exclusion`).
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §7 for the finalization pipeline that evaluates these blockers and writes `used_for_learning` onto the completed job record.
+
+### 3.3 Sanity tag (history snapshot, distinct from the learning gate)
+
+Separate from `used_for_learning`, each job carries an `outcome.sanity_passed` /
+`outcome.sanity_flags` pair used only by the **history snapshot** the card renders
+(`manager.py::get_learning_history_snapshot`), not by the aggregation gate above. The snapshot
+maps known sanity flags (e.g. `failed_sanity` → "This run failed the backend sanity
+checks.") to display text and contributes to the per-job `outlier_score` / the
+"suggest exclude" hint.
+
+Two rules matter here:
+
+- **Only an explicit `False` is a failure.** Both the `outlier_score` bump and the
+  exclude-suggestion check test `item.get("sanity_passed") is False`, *not* a
+  `.get("sanity_passed", True)` default. The jobs index stores the key as `None` for
+  records that never set it, so the old default never fired and tagged **every** such
+  run "failed the backend sanity checks." A missing/`None` value now counts as
+  *not failed*.
+- **Graduated external runs set it `True` explicitly.** `build_graduated_job`
+  (`learning/external_ingest.py`) writes `sanity_passed: True` + `sanity_flags: []`
+  on the graduated `completed_job` outcome — an external run only graduates after
+  passing the tier-1 identity gate (§ [28-external-run-ingestion](28-external-run-ingestion.md)),
+  so it is sane by construction, and the explicit value keeps the history view from
+  ever reading a missing key as a failure.
 
 ---
 

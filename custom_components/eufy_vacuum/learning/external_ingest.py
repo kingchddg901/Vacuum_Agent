@@ -2,22 +2,27 @@
 
 An app-started (external) job is captured into an ``active_jobs`` slot with
 ``status="external"`` (counters + setting selects buffered, no dispatched queue).
-When it finishes, this module turns the raw capture into a *pending record* that
-the review card resolves:
+When it finishes, this module turns the raw capture into a *pending record* (schema
+v2) that the review card resolves:
 
-- **segment** the counters blind (no queue — ``segment_counters`` with
-  ``expected_rooms=None``);
-- **suggest a room count** corroborated by settings-flips: a boundary is
-  *confident* when it is a long wash plateau OR the per-room setting selects
-  changed across it, *uncertain* otherwise (a short area-rise with no flip — an
-  edge->fill turn or a same-settings adjacent room);
+- **find every boundary** (``find_candidates``) and bake the FULL candidate pool
+  into the record — including the transit/weak cuts the legacy filter discarded —
+  so the card can offer a precise "split here" at any of them;
+- the **default segmentation** is the *confident* cuts only (a long wash plateau OR
+  a per-room settings flip across the cut). Uncertain cuts (a short area-rise with
+  no flip — an edge->fill turn or a same-settings adjacent room) and transit/weak
+  cuts default OFF and surface as split-here candidates, matching the pre-v2 view;
 - per segment, bake the recovered ``{area, time, passes, settings}`` plus an
-  **area + settings** ranked, **map-scoped, carpet-filtered** shortlist.
+  **area + settings** ranked, **map-scoped, carpet-filtered** shortlist;
+- **embed the raw samples** (``counter_samples`` / ``settings_samples``) so the run
+  can be re-segmented server-side at any room count or boundary set (see
+  ``resegment_pending_record``); these are stripped before serving to the card.
 
 Identity + edge-mop are filled by the user in review; nothing here touches the
-learned baselines (that is the confirm service, a later wave). Pure given its
-inputs — the caller loads room config + learned baselines and persists the
-returned record atomically under ``external_jobs/``.
+learned baselines (that is the confirm service). Pure given its inputs — the caller
+loads room config + learned baselines and persists the record under
+``external_jobs/``. ``strip_samples`` removes the embedded raw samples on the way
+out to the card.
 """
 
 from __future__ import annotations
@@ -25,7 +30,12 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from ..counter_segmentation import segment_counters
+from ..counter_segmentation import (
+    _GAP_TRANSIT_S,
+    build_segments,
+    find_candidates,
+    select_active,
+)
 from ..timestamp_utils import parse_timestamp
 from .utils import _canonical_clean_mode, _safe_bool, _safe_float, _safe_int
 
@@ -46,7 +56,7 @@ _MOP_MODES = {"mop", "vacuum_mop"}
 # e.g. the trailing 0 m² "Returning to Wash" segment. Dropped from the review.
 _MIN_ROOM_AREA_M2 = 0.5
 
-PENDING_SCHEMA_VERSION = 1
+PENDING_SCHEMA_VERSION = 2
 
 
 def _dt(value: Any) -> datetime | None:
@@ -199,58 +209,85 @@ def _rank_shortlist(
     return [entry for _ss, _at, entry in scored[:_SHORTLIST_SIZE]]
 
 
-def build_pending_record(
-    *,
-    detection_ts: str | None,
-    map_id: Any,
+def _mark_candidate_confidence(
+    candidates: list[dict[str, Any]],
+    counter_samples: list[dict[str, Any]],
+    settings_samples: list[dict[str, Any]],
+) -> None:
+    """Set ``confident`` on each candidate (mutates in place).
+
+    A cut is confident when it is a long wash plateau OR the per-room settings flip
+    across it. Computed the pre-v2 way — over the wash/area_jump finest, comparing
+    the settings at consecutive segment ends — so the default (confident-only) view
+    matches the old segmentation. transit/weak cuts are never confident here: they
+    default OFF and surface only as split-here candidates.
+    """
+    finest = build_segments(
+        counter_samples,
+        select_active(candidates, default="all", kinds={"wash_plateau", "area_jump"}),
+    )
+    confident_ids: set[int] = set()
+    prev_settings: dict[str, str] | None = None
+    for k, seg in enumerate(finest):
+        settings = _segment_settings(settings_samples, seg.get("t_end"))
+        bid = seg.get("boundary_id")
+        if k > 0 and bid is not None:
+            if seg.get("boundary") == "wash_plateau" or (bool(settings) and settings != prev_settings):
+                confident_ids.add(int(bid))
+        prev_settings = settings
+    for c in candidates:
+        c["confident"] = (c.get("kind") == "wash_plateau") or (int(c.get("id", -1)) in confident_ids)
+
+
+def _enrich_segments(
+    segments: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
     counter_samples: list[dict[str, Any]],
     settings_samples: list[dict[str, Any]],
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
-) -> dict[str, Any] | None:
-    """Turn a captured external run into a pending review record, or None when
-    there is no usable cleaning signal (so a false-start writes nothing)."""
-    segments = segment_counters(counter_samples or [])  # blind: no queue
-    if not segments:
-        return None
+    map_id: Any,
+) -> tuple[list[dict[str, Any]], int, list[int]]:
+    """Bake per-segment review fields (settings, passes, shortlist, confidence),
+    drop only TRAILING sub-room segments, and re-index 0..N-1.
 
+    Returns ``(out_segments, confident_count, active_boundary_ids)``. Shared by
+    finalize (build_pending_record) and re-segment so the two never drift. A LEADING
+    or middle ~0 m² segment is KEPT (cleaning_area lags — a short first room can read
+    ~0 m² as its area lands on the next segment); only the end-of-run station clean /
+    re-pass is dropped.
+    """
     area_by_slug = _baseline_area_by_slug(baselines, map_id)
-    out_segments: list[dict[str, Any]] = []
-    confident_boundaries = 0
-    prev_settings: dict[str, str] | None = None
+    conf_by_id = {int(c.get("id", -1)): bool(c.get("confident")) for c in candidates}
 
-    # Drop only TRAILING sub-room segments (the end-of-run station clean / re-pass).
-    # A LEADING or middle ~0 m² segment is KEPT: cleaning_area lags, so a short first
-    # room can read ~0 m² (its area lands on the next segment) yet is a real room.
-    # Find the last real-area segment; drop only what comes after it.
     last_real = -1
-    for _i, _s in enumerate(segments):
-        if _safe_float(_s.get("area_delta_m2")) >= _MIN_ROOM_AREA_M2:
-            last_real = _i
+    for i, seg in enumerate(segments):
+        if _safe_float(seg.get("area_delta_m2")) >= _MIN_ROOM_AREA_M2:
+            last_real = i
 
+    out_segments: list[dict[str, Any]] = []
+    confident_count = 0
+    active_ids: list[int] = []
     for index, seg in enumerate(segments):
         if index > last_real:
             break  # trailing sub-room stretch — drop it and everything after
         order = len(out_segments)  # re-index over KEPT segments
-        boundary = seg.get("boundary")
+        bid = seg.get("boundary_id")
         settings = _segment_settings(settings_samples, seg.get("t_end"))
         passes = _estimate_passes(counter_samples, seg.get("t_start"), seg.get("t_end"))
 
         confident: bool | None = None
         if order > 0:
-            if boundary == "wash_plateau":
-                confident = True  # a minutes-long wash is an unambiguous boundary
-            else:
-                # short delayed step: a settings flip across it corroborates a
-                # real boundary; flat settings => uncertain (edge->fill or a
-                # same-settings adjacent room).
-                confident = bool(settings) and settings != prev_settings
+            confident = bool(conf_by_id.get(int(bid), False)) if bid is not None else False
             if confident:
-                confident_boundaries += 1
+                confident_count += 1
+        if bid is not None:
+            active_ids.append(int(bid))
 
         out_segments.append(
             {
                 "order": order,
+                "boundary_id": bid,
                 "t_start": seg.get("t_start"),
                 "t_end": seg.get("t_end"),
                 "area_m2": _safe_float(seg.get("area_delta_m2")),
@@ -258,7 +295,7 @@ def build_pending_record(
                 "time_active_s": _safe_int(seg.get("time_active_s"), 0),
                 "pass_count": passes,
                 "settings": settings,
-                "boundary": boundary,
+                "boundary": seg.get("boundary"),
                 "confident_boundary": confident,
                 "shortlist": _rank_shortlist(
                     seg_area=_safe_float(seg.get("area_delta_m2")),
@@ -269,8 +306,47 @@ def build_pending_record(
                 ),
             }
         )
-        prev_settings = settings
+    return out_segments, confident_count, active_ids
 
+
+def strip_samples(rec: dict[str, Any]) -> dict[str, Any]:
+    """Remove the embedded raw samples (mutates + returns rec) before serving a
+    pending record to the card — it never needs them; re-segmentation reads them
+    server-side. A no-op on v1 records (the keys are absent)."""
+    rec.pop("counter_samples", None)
+    rec.pop("settings_samples", None)
+    return rec
+
+
+def build_pending_record(
+    *,
+    detection_ts: str | None,
+    map_id: Any,
+    counter_samples: list[dict[str, Any]],
+    settings_samples: list[dict[str, Any]],
+    rooms: dict[str, Any],
+    baselines: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Turn a captured external run into a pending review record (schema v2), or None
+    when there is no usable cleaning signal (so a false-start writes nothing).
+
+    The default segmentation is the *confident* cuts only; the full candidate pool
+    (incl. the transit/weak cuts the legacy filter dropped) and the raw samples are
+    embedded so the card can offer split-here and the server can re-segment to any
+    room count or boundary set.
+    """
+    counter = counter_samples or []
+    settings = settings_samples or []
+    candidates = find_candidates(counter)
+    _mark_candidate_confidence(candidates, counter, settings)
+
+    segments = build_segments(counter, select_active(candidates, default="confident"))
+    if not segments:
+        return None
+
+    out_segments, _confident_count, active_ids = _enrich_segments(
+        segments, candidates, counter, settings, rooms, baselines, map_id
+    )
     if not out_segments:
         return None  # every stretch was sub-room area (no real cleaning signal)
 
@@ -281,11 +357,88 @@ def build_pending_record(
         "detection_ts": detection_ts,
         "map_id": str(map_id),
         "segment_count": len(out_segments),
-        # Default count = confident boundaries only; uncertain cuts are shown as
-        # toggleable "maybe split here" markers (default off) in the card.
-        "suggested_room_count": 1 + confident_boundaries,
+        # Default room count = the confident-only view (= segment_count here);
+        # uncertain / transit / weak cuts surface as split-here candidates.
+        "suggested_room_count": len(out_segments),
+        "gap_transit_s": _GAP_TRANSIT_S,
+        "candidates": candidates,
+        "active_boundaries": active_ids,
+        "counter_samples": counter,
+        "settings_samples": settings,
         "segments": out_segments,
     }
+
+
+def resegment_pending_record(
+    *,
+    pending_record: dict[str, Any],
+    expected_rooms: int | None = None,
+    active_ids: list[int] | None = None,
+    rooms: dict[str, Any],
+    baselines: list[dict[str, Any]],
+) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    """Re-segment a v2 pending record from its embedded samples, returning
+    ``(new_record, meta)`` (``(None, meta)`` when the selection yields no segment —
+    the caller must NOT overwrite a usable record in that case).
+
+    Exactly one selection mode applies: ``active_ids`` (the explicit per-boundary
+    toggle set) XOR ``expected_rooms`` (the strongest N-1, capped to the detectable
+    pool — ``meta`` reports ``capped``/``capped_at``/``available``) XOR neither
+    (reset to the confident-only default). The candidate pool + confidence are
+    recomputed from the FROZEN samples (with the record's stored ``gap_transit_s``),
+    so the result is internally consistent with the segmentation; samples and the
+    full candidate list are preserved in the returned record.
+    """
+    counter = pending_record.get("counter_samples") or []
+    settings = pending_record.get("settings_samples") or []
+    if not counter:
+        return None, {"error": "no_samples"}
+
+    map_id = pending_record.get("map_id")
+    gap_transit_s = _safe_float(pending_record.get("gap_transit_s"), _GAP_TRANSIT_S)
+    candidates = find_candidates(counter, gap_transit_s=gap_transit_s)
+    _mark_candidate_confidence(candidates, counter, settings)
+
+    if active_ids is not None:
+        active = select_active(candidates, active_ids=active_ids)
+        meta: dict[str, Any] = {"mode": "explicit"}
+        suggested = None
+    elif expected_rooms is not None:
+        requested = int(expected_rooms)
+        available = len(candidates) + 1  # max rooms = boundaries + 1
+        capped_at = max(1, min(requested, available))
+        active = select_active(candidates, expected_rooms=capped_at)
+        meta = {
+            "mode": "count",
+            "requested": requested,
+            "available": available,
+            "capped": requested > available,
+            "capped_at": capped_at,
+        }
+        if requested > available:
+            meta["message"] = f"Only {available} room(s) detectable from this run."
+        suggested = capped_at
+    else:
+        active = select_active(candidates, default="confident")
+        meta = {"mode": "reset"}
+        suggested = None
+
+    segments = build_segments(counter, active)
+    out_segments, _confident_count, active_boundary_ids = _enrich_segments(
+        segments, candidates, counter, settings, rooms, baselines, map_id
+    )
+    if not out_segments:
+        return None, meta
+
+    new_record = dict(pending_record)
+    new_record["schema_version"] = PENDING_SCHEMA_VERSION
+    new_record["segment_count"] = len(out_segments)
+    new_record["suggested_room_count"] = suggested if suggested is not None else len(out_segments)
+    new_record["gap_transit_s"] = gap_transit_s
+    new_record["candidates"] = candidates
+    new_record["active_boundaries"] = active_boundary_ids
+    new_record["segments"] = out_segments
+    return new_record, meta
 
 
 # --- Confirm: gate + graduate into a normal completed-job record -------------
@@ -449,6 +602,11 @@ def build_graduated_job(
             "status": "completed",
             "used_for_learning": True,
             "origin": "external",
+            # A run only graduates after passing the tier-1 identity gate and with a
+            # valid duration + room set, so it is sane by construction. Set explicitly
+            # so the history view never reads a missing key as a sanity failure.
+            "sanity_passed": True,
+            "sanity_flags": [],
         },
         "finalized_at": ended_at,
     }

@@ -22,7 +22,8 @@
 discover_rooms:
   name: Discover rooms
   description: >
-    Discover rooms from the underlying eufy-clean integration.
+    Discover rooms from the underlying vacuum integration (whichever
+    integration provides the vacuum.* entity; e.g. eufy-clean for Eufy).
     Results are written to discovery state only — no rooms are created.
     Call save_managed_rooms to create room entities from discovery results.
   fields:

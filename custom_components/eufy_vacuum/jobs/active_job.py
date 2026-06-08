@@ -29,7 +29,7 @@ from ..core.charging import (
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
 from ..const import DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
-from ..counter_segmentation import segment_counters
+from ..counter_segmentation import find_candidates, segment_counters, select_active
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 
 if TYPE_CHECKING:
@@ -83,6 +83,22 @@ def _normalize_pause_timeout_minutes(value: Any) -> int:
 # Per-job counter-sample buffer cap — a normal job is well under this; guards a
 # stuck/never-finalized job from growing the buffer unbounded.
 _MAX_COUNTER_SAMPLES = 2000
+
+# Live current-room rollover tuning. Every value equals the counter_segmentation
+# module default, so an adapter WITHOUT a "live_transition" block behaves exactly as
+# before EXCEPT it now also rolls on a "transit" boundary (a 60-90 s flat-area
+# inter-room hop the legacy live path discarded). Adapters override per-brand via the
+# live_transition block; see ActiveJobTracker._live_transition_config.
+_LIVE_TRANSITION_DEFAULTS: dict[str, Any] = {
+    "enabled": True,
+    "gap_delayed_s": 35.0,
+    "gap_transit_s": 60.0,
+    "gap_plateau_s": 90.0,
+    "area_jump_m2": 2.0,
+    "cadence_s": 30.0,
+    "rollover_kinds": ("wash_plateau", "transit", "area_jump"),
+    "native_transition_source": False,
+}
 
 
 class ActiveJobTracker:
@@ -576,6 +592,53 @@ class ActiveJobTracker:
             return False
         return bool(caps.get("position_lock_reliable", False))
 
+    def _live_transition_config(self, vacuum_entity_id: str) -> dict[str, Any]:
+        """Live rollover tuning, adapter-overridable. Merges the adapter's
+        ``live_transition`` block over ``_LIVE_TRANSITION_DEFAULTS`` so an absent block
+        (or a non-Eufy adapter) behaves as the defaults — the only Eufy change vs the
+        legacy path is the added ``transit`` band."""
+        cfg = dict(_LIVE_TRANSITION_DEFAULTS)
+        block = (_get_adapter_config(vacuum_entity_id) or {}).get("live_transition")
+        if isinstance(block, dict):
+            for key in ("gap_delayed_s", "gap_transit_s", "gap_plateau_s", "area_jump_m2", "cadence_s"):
+                if key in block:
+                    cfg[key] = _safe_float(block[key], cfg[key])
+            if "enabled" in block:
+                cfg["enabled"] = bool(block["enabled"])
+            if "native_transition_source" in block:
+                cfg["native_transition_source"] = bool(block["native_transition_source"])
+            kinds = block.get("rollover_kinds")
+            if isinstance(kinds, (list, tuple)) and kinds:
+                cleaned = tuple(str(k).strip() for k in kinds if str(k).strip())
+                if cleaned:
+                    cfg["rollover_kinds"] = cleaned
+        return cfg
+
+    def _live_boundary_count(self, vacuum_entity_id: str, active_job: dict[str, Any], raw_timeline: list[dict[str, Any]]) -> int:
+        """Number of completed room transitions the live counter signal currently shows
+        (the in-progress room is never counted — expected_rooms caps boundaries at N-1).
+        Transit-aware + adapter-tunable; falls back to the legacy wash/area_jump-only
+        segmentation when the live_transition hook is disabled."""
+        samples = active_job.get("counter_samples", []) or []
+        cfg = self._live_transition_config(vacuum_entity_id)
+        if not cfg["enabled"]:
+            segments = segment_counters(samples, expected_rooms=len(raw_timeline) or None)
+            return max(len(segments) - 1, 0)
+        candidates = find_candidates(
+            samples,
+            gap_delayed_s=cfg["gap_delayed_s"],
+            gap_transit_s=cfg["gap_transit_s"],
+            gap_plateau_s=cfg["gap_plateau_s"],
+            area_jump_m2=cfg["area_jump_m2"],
+            cadence_s=cfg["cadence_s"],
+        )
+        active = select_active(
+            candidates,
+            expected_rooms=len(raw_timeline) or None,
+            kinds=set(cfg["rollover_kinds"]),
+        )
+        return len(active)
+
     def _maybe_roll_current_room_by_timing(
         self,
         *,
@@ -632,15 +695,11 @@ class ActiveJobTracker:
             return active_job
 
         # Counter-plateau boundary — high-confidence + frame-invariant. When the
-        # cleaning counters show a finished room we haven't recorded yet (one more
-        # completed segment than recorded completions), roll now, ahead of the
-        # timing threshold. The last (in-progress) segment is excluded, so this
-        # never rolls the final room. See counter_segmentation.segment_counters.
-        segments = segment_counters(
-            active_job.get("counter_samples", []) or [],
-            expected_rooms=len(raw_timeline) or None,
-        )
-        if len(segments) - 1 > len(completed_room_ids):
+        # cleaning counters show more finished-room transitions than we've recorded,
+        # roll now, ahead of the timing threshold. The in-progress room is never
+        # counted (expected_rooms caps boundaries at N-1), so this never rolls the
+        # final room. Transit-aware + adapter-tunable — see _live_boundary_count.
+        if self._live_boundary_count(vacuum_entity_id, active_job, raw_timeline) > len(completed_room_ids):
             return self._apply_room_rollover(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id,

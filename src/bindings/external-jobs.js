@@ -80,11 +80,46 @@ export function applyExternalJobsBindings(proto) {
       });
     });
 
+    // v1 (legacy) merge-only toggle.
     host.querySelectorAll("[data-action='toggle-external-split']").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
         card._state.toggleExternalSplit(Number(btn.dataset.order));
         render();
+      });
+    });
+
+    // v2 server-side re-segmentation: room count + per-boundary split/merge.
+    host.querySelectorAll("[data-action='ext-count-inc']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const w = card._state.externalWizard();
+        this._resegmentExternal({ expectedRooms: (w?.segments?.length || 1) + 1 });
+      });
+    });
+    host.querySelectorAll("[data-action='ext-count-dec']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const w = card._state.externalWizard();
+        this._resegmentExternal({ expectedRooms: Math.max(1, (w?.segments?.length || 1) - 1) });
+      });
+    });
+    host.querySelectorAll("[data-action='ext-merge-up']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const w = card._state.externalWizard();
+        const bid = Number(btn.dataset.boundaryId);
+        const next = (w?.activeBoundaries || []).map(Number).filter((id) => id !== bid);
+        this._resegmentExternal({ activeBoundaries: next });
+      });
+    });
+    host.querySelectorAll("[data-action='ext-split-here']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const w = card._state.externalWizard();
+        const bid = Number(btn.dataset.boundaryId);
+        const next = Array.from(new Set([...(w?.activeBoundaries || []).map(Number), bid]));
+        this._resegmentExternal({ activeBoundaries: next });
       });
     });
 
@@ -153,6 +188,29 @@ export function applyExternalJobsBindings(proto) {
     host.querySelectorAll("[data-action='ext-wizard-override']").forEach((btn) => {
       btn.addEventListener("click", () => this._submitExternalWizard(true));
     });
+  };
+
+  proto._resegmentExternal = async function (opts) {
+    const card = this.card;
+    const w = card._state.externalWizard();
+    if (!w || !w.resegmentable || w.busy) return;
+    card._state.setExternalWizardBusy(true);
+    card._state.setExternalWizardError(null);
+    card._scheduleRender();
+    try {
+      const res = await card._actions.resegmentExternalRun(w.pendingJobId, w.mapId, opts);
+      if (res && res.ok) {
+        card._state.applyResegmentResult(res);
+      } else {
+        card._state.setExternalWizardError("Re-segment failed — please try again.");
+      }
+    } catch (err) {
+      console.error("[eufy-vacuum-command-center] resegment external failed:", err);
+      card._state.setExternalWizardError("Re-segment failed: " + (err?.message || err));
+    } finally {
+      card._state.setExternalWizardBusy(false);
+      card._scheduleRender();
+    }
   };
 
   proto._submitExternalWizard = async function (override) {

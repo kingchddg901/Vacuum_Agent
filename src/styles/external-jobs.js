@@ -82,13 +82,25 @@ export const externalWizardModalStyles = `
     color: var(--evcc-sem-error);
     border-radius: var(--evcc-radius-inner, 8px); padding: 8px 12px; margin-bottom: 12px; font-size: 0.85rem;
   }
-  .evcc-ext-count { margin-bottom: 12px; color: var(--evcc-text-primary); }
+  .evcc-ext-count {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+    margin-bottom: 12px; color: var(--evcc-text-primary);
+  }
+  .evcc-ext-count-label { font-weight: 600; }
+  .evcc-ext-stepper { display: inline-flex; align-items: center; gap: 8px; }
+  .evcc-ext-step {
+    width: 30px; height: 30px; padding: 0; font-size: 1.05rem; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .evcc-ext-count-n { min-width: 1.4em; text-align: center; font-size: 1.05rem; }
   .evcc-ext-seglist { display: flex; flex-direction: column; gap: 6px; }
   .evcc-ext-seg {
     display: flex; align-items: center; gap: 12px;
     padding: 8px 10px; border-radius: var(--evcc-radius-inner, 8px);
     background: var(--evcc-surface-input);
   }
+  .evcc-ext-seg.is-v2 { flex-direction: column; align-items: stretch; gap: 8px; }
+  .evcc-ext-seg-row { display: flex; align-items: center; gap: 12px; }
   .evcc-ext-seg-start { font-size: 0.8rem; color: var(--evcc-text-secondary); min-width: 110px; }
   .evcc-ext-seg-facts { font-size: 0.82rem; color: var(--evcc-text-secondary); }
   .evcc-ext-split {
@@ -100,6 +112,30 @@ export const externalWizardModalStyles = `
   .evcc-ext-split.is-split {
     color: var(--evcc-accent);
     border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+  }
+  /* v2 action-first controls — the label says what the button DOES. */
+  .evcc-ext-merge {
+    align-self: flex-start; min-width: 110px; text-align: left;
+    border: 1px solid var(--evcc-border-default);
+    background: transparent; color: var(--evcc-text-secondary);
+    border-radius: var(--evcc-radius-inner, 8px); padding: 5px 9px; font-size: 0.78rem; cursor: pointer;
+  }
+  .evcc-ext-merge:hover:not([disabled]) {
+    color: var(--evcc-accent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 40%, transparent);
+  }
+  .evcc-ext-splits { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 12px; }
+  .evcc-ext-split-here {
+    border: 1px dashed var(--evcc-border-default);
+    background: transparent; color: var(--evcc-text-secondary);
+    border-radius: var(--evcc-radius-inner, 8px); padding: 4px 8px; font-size: 0.74rem; cursor: pointer;
+  }
+  .evcc-ext-split-here:hover:not([disabled]) {
+    color: var(--evcc-accent);
+    border-color: color-mix(in srgb, var(--evcc-accent) 50%, transparent);
+  }
+  .evcc-ext-step[disabled], .evcc-ext-merge[disabled], .evcc-ext-split-here[disabled] {
+    opacity: 0.5; cursor: default;
   }
   .evcc-ext-room {
     border: 1px solid var(--evcc-border-default);
@@ -114,6 +150,14 @@ export const externalWizardModalStyles = `
     color: var(--evcc-text-primary);
     border: 1px solid var(--evcc-border-default);
     border-radius: var(--evcc-radius-inner, 8px); padding: 6px 8px; font-size: 0.82rem;
+  }
+  /* Native option popup ignores the var-based select bg on Windows Chrome and
+     renders light text on a white system popup. Pin a solid dark bg + light text
+     (concrete fallbacks) so the room list stays readable — mirrors
+     .evcc-rooms-animal-select option. */
+  .evcc-ext-allrooms option {
+    background: var(--evcc-surface-panel, #1c2127);
+    color:      var(--evcc-text-primary, #f0f2f5);
   }
   .evcc-ext-blocked { color: var(--evcc-sem-warning); font-size: 0.82rem; margin-bottom: 8px; }
   .evcc-modal-footer-row { display: flex; justify-content: space-between; gap: 8px; }

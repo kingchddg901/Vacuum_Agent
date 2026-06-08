@@ -65,6 +65,7 @@ from custom_components.eufy_vacuum.const import DOMAIN
 from custom_components.eufy_vacuum.learning.history_store import LearningHistoryStore
 from custom_components.eufy_vacuum.learning.services import (
     SERVICE_EXCLUDE_LEARNING_JOB,
+    SERVICE_GET_EXTERNAL_PENDING_RUNS,
     SERVICE_GET_INCOMPLETE_RUN_LOG,
     SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
     SERVICE_GET_METRICS_SNAPSHOT,
@@ -73,6 +74,7 @@ from custom_components.eufy_vacuum.learning.services import (
     SERVICE_REANCHOR_LEARNING_TIMELINE,
     SERVICE_REBUILD_LEARNING_STATS,
     SERVICE_RECORD_ESTIMATE_ACCURACY,
+    SERVICE_RESEGMENT_EXTERNAL_RUN,
     SERVICE_RESTORE_LEARNING_JOB,
     SERVICE_RUN_LEARNING_ESTIMATE,
     SERVICE_SAVE_LEARNING_SNAPSHOT,
@@ -196,6 +198,132 @@ async def test_all_learning_services_registered(hass, learning_services):
     ]
     for svc in services:
         assert hass.services.has_service(DOMAIN, svc), f"Missing service: {svc}"
+
+
+# ---------------------------------------------------------------------------
+# External-run: strip-on-serve + server-side re-segmentation
+# ---------------------------------------------------------------------------
+
+def _write_v2_pending(hass, job_id: str, *, strip: bool = False) -> dict:
+    """Build a real v2 pending record (A | wash B | uncertain-jump C) and write it
+    to the vacuum's external_jobs/ dir. ``strip=True`` simulates a legacy v1 record
+    (no embedded samples)."""
+    import json
+    from datetime import datetime, timedelta
+
+    from custom_components.eufy_vacuum.learning.external_ingest import build_pending_record
+
+    base = datetime(2026, 6, 7, 3, 0, 0)
+
+    def c(sec, ct, ca):
+        return {
+            "t": (base + timedelta(seconds=sec)).isoformat(),
+            "cleaning_time": ct, "cleaning_area": ca, "battery": 100,
+        }
+
+    counter = [
+        c(0, 0, 0),
+        c(60, 30, 1), c(90, 60, 2), c(120, 90, 3),
+        c(450, 120, 3), c(480, 150, 5), c(510, 180, 6),   # wash gap 330
+        c(550, 210, 8), c(580, 240, 9), c(610, 270, 10),  # area_jump gap 40
+    ]
+    settings = [{"t": (base + timedelta(seconds=60)).isoformat(), "settings": {"clean_mode": "vacuum"}}]
+    rec = build_pending_record(
+        detection_ts=base.isoformat(), map_id=_MAP,
+        counter_samples=counter, settings_samples=settings, rooms={}, baselines=[],
+    )
+    assert rec is not None
+    if strip:
+        rec.pop("counter_samples", None)
+        rec.pop("settings_samples", None)
+        rec["schema_version"] = 1
+
+    store = LearningHistoryStore(hass)
+    ext_dir = store.get_paths(vacuum_entity_id=_VAC).root / "external_jobs"
+    ext_dir.mkdir(parents=True, exist_ok=True)
+    (ext_dir / f"{job_id}.json").write_text(json.dumps(rec), encoding="utf-8")
+    return rec
+
+
+async def test_get_external_pending_runs_strips_samples(hass, learning_services):
+    """Served v2 record has the bulky samples stripped but keeps candidates /
+    active_boundaries and is flagged resegmentable."""
+    _write_v2_pending(hass, "job_2026-06-07T03-00-00Z")
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_EXTERNAL_PENDING_RUNS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    # find OUR record by id (the external_jobs dir is shared across tests).
+    rec = next(r for r in result["pending"] if r["pending_job_id"] == "job_2026-06-07T03-00-00Z")
+    assert "counter_samples" not in rec and "settings_samples" not in rec
+    assert rec["candidates"] and "active_boundaries" in rec
+    assert rec["resegmentable"] is True
+
+
+async def test_get_external_pending_runs_v1_not_resegmentable(hass, learning_services):
+    _write_v2_pending(hass, "job_2026-06-07T01-00-00Z", strip=True)
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_EXTERNAL_PENDING_RUNS,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    rec = next(r for r in result["pending"] if r["pending_job_id"] == "job_2026-06-07T01-00-00Z")
+    assert rec["resegmentable"] is False
+
+
+async def test_resegment_external_run_round_trip(hass, learning_services):
+    """Re-segment to 3 rooms: the response is stripped + reports the new count, and
+    the on-disk record keeps its samples for the next re-segment."""
+    import json
+
+    rec = _write_v2_pending(hass, "job_2026-06-07T03-00-00Z")
+    assert rec["segment_count"] == 2                       # wash only by default
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_RESEGMENT_EXTERNAL_RUN,
+        {
+            "vacuum_entity_id": _VAC, "map_id": _MAP,
+            "pending_job_id": "job_2026-06-07T03-00-00Z", "expected_rooms": 3,
+        },
+        blocking=True, return_response=True,
+    )
+    assert result["ok"] is True
+    assert result["segment_count"] == 3
+    assert "counter_samples" not in result                 # response is stripped
+
+    store = LearningHistoryStore(hass)
+    path = store.get_paths(vacuum_entity_id=_VAC).root / "external_jobs" / "job_2026-06-07T03-00-00Z.json"
+    on_disk = json.loads(path.read_text(encoding="utf-8"))
+    assert on_disk["counter_samples"]                       # samples preserved on disk
+    assert on_disk["segment_count"] == 3
+
+
+async def test_resegment_external_run_not_resegmentable(hass, learning_services):
+    _write_v2_pending(hass, "job_2026-06-07T01-00-00Z", strip=True)
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_RESEGMENT_EXTERNAL_RUN,
+        {
+            "vacuum_entity_id": _VAC, "map_id": _MAP,
+            "pending_job_id": "job_2026-06-07T01-00-00Z", "expected_rooms": 3,
+        },
+        blocking=True, return_response=True,
+    )
+    assert result["ok"] is False and result["error"] == "not_resegmentable"
+
+
+async def test_resegment_external_run_rejects_both_modes(hass, learning_services):
+    """The schema forbids passing both expected_rooms and active_boundaries."""
+    import voluptuous as vol
+
+    _write_v2_pending(hass, "job_2026-06-07T03-00-00Z")
+    with pytest.raises(vol.Invalid):
+        await hass.services.async_call(
+            DOMAIN, SERVICE_RESEGMENT_EXTERNAL_RUN,
+            {
+                "vacuum_entity_id": _VAC, "map_id": _MAP,
+                "pending_job_id": "job_2026-06-07T03-00-00Z",
+                "expected_rooms": 3, "active_boundaries": [1],
+            },
+            blocking=True, return_response=True,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -19,7 +19,8 @@
 Eufy (the X10 Pro Omni) is the reference adapter because it exercises **every**
 schema block the framework can read: mop/water control, dock wash/dry/empty
 events, post-job water amendment, per-model maintenance + upkeep guides, room
-discovery, a rich dispatch payload, and a CV map segmenter. A minimal adapter
+discovery, a rich dispatch payload, live current-room transition + anomaly
+tuning, and a CV map segmenter. A minimal adapter
 can omit most of these (absent blocks degrade gracefully — see the
 "if absent" column in [22 §consumers](22-adapter-config-reference.md)). Eufy is
 the upper bound, so it's the best thing to read when you want to see how a block
@@ -46,7 +47,7 @@ factor the brand facts into named files.
 |---|---|
 | `adapter.py` | Assembly + registration. `register_eufy_adapter_for_vacuum()`. No brand *data* of its own beyond literals that only make sense here (card option lists, completion sentinels). |
 | `const.py` | `ADAPTER_ID`, `STORAGE_KEY`. |
-| `constants.py` | Tuning scalars: debounce/timeout seconds, low-battery threshold. |
+| `constants.py` | Tuning scalars: debounce/timeout seconds, low-battery threshold, water flow rates (`WATER_RATE_*_ML_PER_MIN`), and wash-interval bounds (`WASH_INTERVAL_{MIN,MAX,DEFAULT}_MINUTES`). |
 | `entities.py` | `build_entity_id()` + every `SUFFIX_*` / `DOMAIN_*` constant — the entity-naming convention. |
 | `vocabulary.py` | State-string sets and alias maps (hard-service, drying, active-run, not-error, cancel-exclusion, water-level/wash-frequency aliases, dock-event triggers). |
 | `discovery.py` | Brand room discovery: `discover_rooms_for_vacuum()` reads the vacuum's `segments` attribute and normalizes it into the framework room shape; `get_active_map_id()` reads the active-map sensor. |
@@ -183,6 +184,36 @@ built-in template or add one to the dispatch engine.
 declare `"noop_fallback"` so the card stops drawing polygon overlays while trace
 tracking keeps working off coordinates.
 
+### `live_transition`
+Drives the **live** current-room rollover off the cleaning-counter plateau
+signal (Eufy reports no "current room" and its coordinates drift, so the counters
+are the reliable transition signal). Every value equals the
+`_LIVE_TRANSITION_DEFAULTS` module fallback in `jobs/active_job.py`, so declaring
+the block changes nothing for Eufy — it's the **documented, adapter-tunable copy**
+of those defaults. `enabled: True`; the gap bands `gap_delayed_s: 35.0` /
+`gap_transit_s: 60.0` / `gap_plateau_s: 90.0`; `area_jump_m2: 2.0`;
+`cadence_s: 30.0`; `rollover_kinds: ["wash_plateau", "transit", "area_jump"]`;
+`native_transition_source: False` (reserved for a brand with native per-room
+telemetry). The one behavioural change vs the legacy live path is the `"transit"`
+band — a 60-90 s flat-area inter-room hop the old live filter discarded — so the
+job now advances on a real transit, not only on wash/area_jump. `enabled: False`
+is a kill-switch back to the legacy wrapper. The finalize/history segmentation
+path is untouched. Consumed by `ActiveJobTracker._live_transition_config()` /
+`_live_boundary_count()`.
+**Pattern:** when a brand's transition signal is inferred (not a native sensor),
+the inference's thresholds belong in config so a port can re-tune them without
+touching `jobs/`. See [22 §live_transition](22-adapter-config-reference.md).
+
+### `anomaly`
+Live anomaly-tuning ratios for the job-progress snapshot
+(`core/manager.py::get_job_progress_snapshot`). `running_long_ratio: 1.5`
+(the **soft** tier — current room over 1.5× its estimate with no pending
+transition) and `stall_ratio: 2.0` (the existing hard stall). Both equal the
+manager fallbacks, so Eufy is unchanged; both are adapter-tunable.
+**Pattern:** thresholds for "this is taking too long" are firmware/brand-paced,
+so they're config scalars, not core constants. See
+[22 §anomaly](22-adapter-config-reference.md).
+
 ### `capabilities`
 Hardware/entity-surface flags are sourced from `detect_capabilities()`
 (`caps.get(...)`) so the registered config matches the install's real entities.
@@ -206,8 +237,31 @@ built from `buttons.py` (§5). See [13-maintenance-manager](13-maintenance-manag
 
 ### `upkeep_catalog` / `water_model_configs`
 Per-model guide library + model→family maps, and tank/flow constants per model.
+`water_model_configs` is projected verbatim from
+`water_config.py::WATER_MODEL_CONFIGS` — today that's the physical tank trio only
+(`robot_internal_tank_ml` / `dock_clean_tank_capacity_ml` /
+`dock_wash_overhead_ml_per_cycle`).
 **Pattern:** model-keyed reference data is plain dict literals in their own
 modules, projected verbatim into the config.
+
+> **Water-rate / wash-interval seam (read by the framework, not yet declared by
+> Eufy).** `planning/run_plan.py` now reads three optional override hooks and
+> falls back to the measured Eufy values when they're absent — which is exactly
+> what Eufy does, so Eufy is byte-identical:
+> - `water_model_configs[<model>]["water_rates"]` — per-canonical-level ml/min,
+>   passed as `rate_override` to `_water_rate_ml_per_minute()`. Eufy rides the
+>   built-in table (`off/low/medium/high = 0/3.2/4.0/5.3`, the
+>   `WATER_RATE_*_ML_PER_MIN` constants).
+> - `water_model_configs[<model>]["low_clean_water_margin_ml"]` — low-water
+>   margin (default `300.0`).
+> - **top-level** `wash_frequency_bounds` `{min, max, default}` — wash-cadence
+>   interval clamp, read in `_derive_wash_frequency_config()` (default
+>   `15/25/20`, the `WASH_INTERVAL_*_MINUTES` constants). Note this is a
+>   *top-level* adapter key, **not** nested under `water_model_configs`.
+>
+> The constants back these defaults in `constants.py` but are **not** wired into
+> the Eufy config dict — a second brand with a different dock declares them to
+> override. See [22-adapter-config-reference](22-adapter-config-reference.md).
 
 ---
 

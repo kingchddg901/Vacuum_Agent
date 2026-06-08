@@ -206,6 +206,34 @@ The rule is: carpet rooms can never mop (water/edge always cleared on carpet), a
 
 `_match_profile_from_fields` scans all room profiles looking for one whose fields exactly match the room's current `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, and `edge_mopping`. If found, `profile_name` is set to the matching profile name. If not found, `profile_name = "custom"`.
 
+> The two-stage pipeline above produces **display/storage** values. A separate, capability-aware stage (`apply_capability_gate`) runs later at **payload-build time** — see §6.1.
+
+### 6.1 — `apply_capability_gate(settings, capabilities, *, resolved_profile_name=None)`
+
+`apply_capability_gate` lives in `profiles/room_profiles.py` (not the manager) and runs at **payload-build time, not during profile resolution** — the resolver produces display/storage values, gating is strictly a payload concern. It returns a new dict (input not mutated) and clamps every field to what the device actually supports, reading the `supports_*` flags from the adapter `capabilities`:
+
+| Capability flag | Effect when `False` |
+|---|---|
+| `supports_water_control` | `water_level → "Off"` |
+| `supports_edge_mopping` | `edge_mopping → False` |
+| `supports_path_control` | `path_type → "wide"` |
+| `supports_passes` (default `True`) | `clean_passes → 1` |
+
+**Mop → vacuum downgrade.** When the device lacks `supports_mop_features` and the room is in a mop mode (`clean_mode in {"mop", "vacuum_mop"}`), the room is downgraded to vacuum-only. The downgrade **derives `path_type` and `clean_intensity` from the corresponding vacuum-only built-in profile** (via `get_room_profile`) rather than hardcoding values, so it follows whatever vocabulary the profile catalog declares:
+
+```
+if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
+    fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
+    _, fallback = get_room_profile(profile_name=fallback_name)
+    clean_mode      = "vacuum"
+    water_level     = "Off"
+    edge_mopping    = False
+    path_type       = fallback.get("path_type", path_type)        # was hardcoded "narrow"/"wide"
+    clean_intensity = fallback.get("clean_intensity", clean_intensity)  # was hardcoded "Deep"/"Quick"
+```
+
+The `resolved_profile_name` argument selects which vacuum profile to mirror: a deep mop profile (`vacuum_mop_deep`) maps to `vacuum_deep`, everything else maps to `vacuum_quick`. With today's Eufy built-ins (§1) this yields the same `narrow`/`Deep` and `wide`/`Quick` values the code used to hardcode — so Eufy output is byte-identical — but a future brand whose catalog declares different `path_type`/`clean_intensity` vocabulary gets the right downgrade for free. After the downgrade (or for any room already in `clean_mode == "vacuum"`), `water_level` and `edge_mopping` are forced off. The returned dict carries `capability_gated: True`.
+
 ---
 
 ## 7. Run Profile Operations
