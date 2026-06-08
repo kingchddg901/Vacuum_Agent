@@ -480,9 +480,10 @@ surface as inactive "split here" candidates the user can activate.
 
 #### `BoundaryCandidate` (inside `candidates`)
 
-Emitted by `find_candidates` in `counter_segmentation.py`; `confident` is upgraded
-in place by `_mark_candidate_confidence` where a per-room settings flip corroborates
-the cut.
+The job-segmenter engine's `JobBoundaryCandidate` contract (§5c), serialized
+as-is. Emitted by `find_candidates` (`counter_segmentation.py`, behind the
+`eufy_counter_v1` engine); `confident` is upgraded in place by
+`_mark_candidate_confidence` where a per-room settings flip corroborates the cut.
 
 ```
 {
@@ -505,9 +506,13 @@ gap ≤ 90 s AND area stays flat — a real inter-room hop the legacy filter dro
 
 #### `PendingSegment` (inside `segments`)
 
-Built by `build_segments` then enriched by `_enrich_segments`. One per kept room
-bout, re-indexed `0..N-1` over the KEPT segments after trailing sub-room stretches
-(area < `_MIN_ROOM_AREA_M2` = 0.5 m²) are dropped.
+The engine's raw `JobSegment` (§5c) **after** the ingest enrichment
+(`_enrich_segments`) — it renames/derives fields (`area_delta_m2` → `area_m2`,
+adds `order`/`pass_count`/`settings`/`confident_boundary`/`shortlist`, drops the
+raw counter fields), so its shape differs from the cross-engine contract. Built by
+`build_segments` then enriched. One per kept room bout, re-indexed `0..N-1` over the
+KEPT segments after trailing sub-room stretches (area < `_MIN_ROOM_AREA_M2` =
+0.5 m²) are dropped.
 
 ```
 {
@@ -717,6 +722,83 @@ Each `RoomTimelineEntry` (§10) re-enriched for the live job with run-state flag
   "elapsed_minutes":   float
   "remaining_minutes": float
 ```
+
+### 5c. Job-Segmentation Engine Contract
+
+The **counter/run** segmenter turns a run's `counter_samples` stream (§5) into
+ordered per-room boundaries and segments. It is pluggable behind the
+`JobSegmenter` Protocol in `learning/job_segmenter_engines.py` (mirroring the
+dispatch-engine seam), selected via the adapter's `job_segmenter.engine`. The
+Eufy engine (`eufy_counter_v1`, `EufyCounterSegmenter`) delegates verbatim to the
+`counter_segmentation.py` primitives. This is a **distinct subsystem** from the
+*map* segmenter (`mapping/segmenter_engines.py`, `eufy_cv_v1`), which segments the
+map image — do not conflate them.
+
+The two TypedDicts below are the **canonical cross-engine contract**: the exact
+field union every engine's `find_candidates` / `build_segments` returns (verified
+field-identical to the dicts produced in `counter_segmentation.py`). They are the
+shape the three consumers read unchanged — live rollover
+(`jobs/active_job.py` `_live_boundary_count`), external-run ingest
+(`learning/external_ingest.py`), and learned history (`learning/history_store.py`
+`_build_transit_blocks`). A future brand supplies its own engine that produces the
+same two shapes, and no consumer changes.
+
+#### `JobBoundaryCandidate`
+
+One detected room boundary in a run, **before** selection (`find_candidates`
+returns all of them, no discards, in cleaning order). The framework selector
+`counter_segmentation.select_active` ranks/filters on `id` / `kind` / `strength` /
+`confident` only — that subset is the brand-agnostic part of the contract. This is
+the raw shape serialized as `BoundaryCandidate` in the pending external record
+(§5a).
+
+```
+{
+  "id":            int     # == position; stable handle for the frozen samples
+  "position":      int     # increment-tick index of the blip
+  "gap_s":         float   # seconds between cleaning_time ticks at the blip
+  "area_after_m2": float   # new floor covered AFTER the blip (read forward to the next blip)
+  "kind":          str     # "wash_plateau" | "transit" | "area_jump" | "weak"
+  "strength":      float   # count-ranking score (kind band + area + gap fraction)
+  "confident":     bool    # geometric base (wash_plateau); ingest may upgrade it
+  "t":             str     # ISO timestamp (UTC) of the blip tick
+}
+```
+
+#### `JobSegment`
+
+One ordered per-room cleaning bout, the **raw** output of `build_segments` (and of
+the `segment_legacy` one-shot composition). The external-ingest `PendingSegment`
+(§5a) is this shape **after** the `_enrich_segments` pass (which renames
+`area_delta_m2` → `area_m2`, re-indexes `index` → `order`, and adds
+`pass_count` / `settings` / `confident_boundary` / `shortlist`).
+
+```
+{
+  "index":          int          # 0-based position in cleaning order
+  "boundary_id":    int | None    # active candidate id that started it; None for the first
+  "t_start":        str           # ISO timestamp (UTC)
+  "t_end":          str           # ISO timestamp (UTC)
+  "ct_start":       float         # cleaning_time at segment start
+  "ct_end":         float         # cleaning_time at segment end
+  "area_start_m2":  float         # cleaning_area at segment start
+  "area_end_m2":    float         # cleaning_area at segment end (forward-read across a wash_plateau)
+  "area_delta_m2":  float         # new floor covered in this segment (floored at 0; never negative)
+  "time_active_s":  float         # cleaning_time seconds (active clock) in the segment
+  "time_wall_s":    float         # wall-clock seconds in the segment
+  "gap_before_s":   float         # idle seconds before this segment opened
+  "battery_delta":  float | None  # battery drop across the segment; None when battery samples are absent
+  "boundary":       str           # boundary kind that opened it ("job_start" for index 0)
+  "increment_count": int          # cleaning_time ticks rolled into this segment
+}
+```
+
+**Tuning** is the engine's `DEFAULT_TUNING` merged under the adapter
+`job_segmenter.tuning` block — the five gap/area/cadence thresholds
+(`gap_delayed_s` 35, `gap_transit_s` 60, `gap_plateau_s` 90, `area_jump_m2` 2.0,
+`cadence_s` 30). The Eufy engine defines them *by reference* to the
+`counter_segmentation` module constants, so the Eufy path can never drift from the
+primitives.
 
 ---
 

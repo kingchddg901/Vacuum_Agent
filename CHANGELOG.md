@@ -44,6 +44,28 @@ only.
   (running-long) and a dashed, struck-through chip (skipped); a new
   `eufy_vacuum_room_skipped` event (`EVENT_ROOM_SKIPPED`) fires once per skipped
   room.
+- **Brand-agnostic JOB-segmenter engine seam.** The counter/run segmenter — the
+  per-room boundary detector that reads the `cleaning_time` / `cleaning_area`
+  counters — is now pluggable, mirroring the dispatch-engine pattern
+  (`learning/job_segmenter_engines.py`, modelled on `queue/dispatch_engines.py`).
+  An adapter selects an engine via a new `job_segmenter.engine` config key; the
+  framework resolves it from `_JOB_SEGMENTER_ENGINES`. This is the COUNTER
+  segmenter — distinct from the MAP segmenter (`mapping/segmenter_engines.py`,
+  `eufy_cv_v1`), which is unchanged. The engine owns the brand-specific stages
+  (`find_candidates`, `build_segments`) and the legacy one-shot composition
+  (`segment_legacy`); `select_active` stays a brand-agnostic *framework* function
+  (`counter_segmentation.select_active`) so the external-review wizard's
+  count/toggle logic is uniform across brands. Canonical cross-engine
+  `JobBoundaryCandidate` / `JobSegment` TypedDicts document the contract.
+  `EufyCounterSegmenter` (`eufy_counter_v1`) delegates verbatim to the
+  `counter_segmentation` primitives and defines its `DEFAULT_TUNING` *by
+  reference* to that module's constants, so the Eufy path is byte-for-byte
+  identical by construction. Unlike the map seam, an absent/unknown engine falls
+  back to the **Eufy** engine (not a noop), so live rollover, external-run ingest,
+  and learned history keep working with no adapter registered. All three counter
+  consumers now route through the engine — learned history
+  (`learning/history_store.py`), external-run ingest
+  (`learning/external_ingest.py`), and live rollover (`jobs/active_job.py`).
 
 ### Changed
 - **Live current-room tracking is now transit-aware.** The 5 s job-progress tick
@@ -66,9 +88,35 @@ only.
   behavior is unchanged; the seam is in place for a second brand.) The room-profile
   capability gate (`profiles/room_profiles.py`) now *derives* the mop→vacuum
   downgrade target from the vacuum-only built-in profile (`get_room_profile`)
-  instead of hardcoding it. (The full brand-agnostic segmenter-engine seam and
-  adapter-sourced room-profile catalog remain deferred until a second brand
-  lands.)
+  instead of hardcoding it.
+- **Boundary thresholds de-duplicated to a single source.** The five gap/area/
+  cadence thresholds (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`,
+  `area_jump_m2`, `cadence_s`) now live **only** in the adapter's
+  `job_segmenter.tuning` block — live rollover, external-run ingest, *and* learned
+  history all read them from the resolved engine tuning. The `live_transition`
+  block was trimmed to just its orchestration knobs (`enabled`, `rollover_kinds`,
+  `native_transition_source`); the five threshold keys were removed from it (and
+  from `_LIVE_TRANSITION_DEFAULTS` in `jobs/active_job.py`). The persisted
+  external-run record field `gap_transit_s` (60.0) is unchanged — only its
+  provenance moved (module constant → resolved engine tuning). Values and behavior
+  are unchanged for Eufy. *(This supersedes the 0.9.16-era note that
+  `live_transition` carried the boundary gaps and cadence.)*
+- **Adapter-sourced room-profile vocabulary.** Room profiles are now resolved from
+  the adapter rather than read straight off the in-code constants. A new adapter
+  `room_profiles` block + `resolve_profile_catalog()` (`profiles/room_profiles.py`)
+  merges the block over the in-code defaults **per key** (`builtins`,
+  `custom_template`, `legacy_aliases`, `default_profile`, the floor-type fan/water
+  defaults, `normalize_defaults`); a None/empty block returns the in-code defaults
+  verbatim. Every resolver gained an optional `catalog` param. The in-code
+  `BUILT_IN_ROOM_PROFILES` stays the framework default and the
+  `_PROTECTED_ROOM_PROFILE_NAMES` source (that module-load binding is untouched);
+  the Eufy adapter declares the block *by reference* to those constants, so Eufy is
+  byte-identical. Wired into the **dispatch** path (`queue/queue_engine.py`
+  `build_room_clean_payload`), which resolves the catalog from the adapter and
+  threads it into per-room resolution and the capability gate. The global/singleton
+  profile editor and the pure room-builder defaults still use the framework default
+  catalog (no per-vacuum context); a second brand's editor UI would show framework
+  defaults until threaded — a documented follow-up.
 
 ### Fixed
 - **Graduated external runs no longer falsely flagged "failed sanity checks."**

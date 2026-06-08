@@ -73,8 +73,10 @@ shared.
     "post_job_wash_amendment": { ... },  # optional — post-job water amendment
     "discovery": { ... },        # optional — how room list is exposed
     "dispatch": { ... },         # required — how to send a clean job
-    "mapping": { ... },          # optional — pluggable segmenter engine selection
-    "live_transition": { ... },  # optional — live current-room rollover tuning
+    "mapping": { ... },          # optional — pluggable MAP segmenter engine selection
+    "job_segmenter": { ... },    # optional — pluggable JOB/run segmenter engine + threshold tuning
+    "live_transition": { ... },  # optional — live current-room rollover orchestration
+    "room_profiles": { ... },    # optional — adapter-sourced room-profile vocabulary
     "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
     "wash_frequency_bounds": { ... },    # optional — mop-wash interval clamp
 
@@ -926,14 +928,19 @@ executing) is the highest-value debugging affordance.
 
 ---
 
-## 13a. `mapping` — pluggable segmenter engine selection
+## 13a. `mapping` — pluggable MAP segmenter engine selection
 
-Selects which segmenter engine drives image-segment analysis for this
-adapter. The framework's `MapSegmenter` registry holds the engines; the
-adapter declares which one to use by name. Engines vary in what kind
-of input they consume (image bytes vs. structured wire data vs. nothing
-at all) but produce the same canonical `SegmentationResult`, so the
-rest of the framework doesn't have to know which engine is selected.
+Selects which **map** segmenter engine drives image-segment analysis for
+this adapter — the subsystem that turns a stored map *image* into
+polygonal room overlays. (The separate **job/run** segmenter that derives
+per-room boundaries from a run's *counter signal* is configured by the
+[§13a.1 `job_segmenter`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning)
+block — don't conflate the two.) The framework's `MapSegmenter` registry
+holds the engines; the adapter declares which one to use by name. Engines
+vary in what kind of input they consume (image bytes vs. structured wire
+data vs. nothing at all) but produce the same canonical
+`SegmentationResult`, so the rest of the framework doesn't have to know
+which engine is selected.
 
 See [11-mapping-system.md §2.0](11-mapping-system.md#20-the-segmenter-engine-seam)
 for the full protocol, the three engine variants, and the
@@ -1018,50 +1025,190 @@ The two call sites consume the canonical `SegmentationResult` and cache it under
 
 ---
 
-## 13b. `live_transition` — live current-room rollover tuning
+## 13a.1 `job_segmenter` — pluggable JOB/run segmenter engine + threshold tuning
 
-Configures the **live** current-room rollover that runs on the 5-second
-job-progress tick while a job is in flight. The vacuum reports no
-"current room" and its raw coordinates drift, so the cleaning-counter
-plateau signal is the reliable transition cue. This block tunes the
-candidate-detection thresholds the live path feeds to
-`find_candidates(...)` / `select_active(...)` in
-`learning/counter_segmentation.py`.
+Selects the **job/run** segmenter engine — the brand-specific detection
+of per-room boundaries from a *run's progress signal* — and carries the
+gap/area/cadence thresholds that detection uses. This is a **different
+subsystem from [§13a `mapping`](#13a-mapping--pluggable-map-segmenter-engine-selection)**:
+the map segmenter reads a map *image* and produces polygonal overlays;
+the job segmenter reads the `cleaning_time` / `cleaning_area` *counters*
+as a run progresses (Eufy has no native "current room" and its
+coordinates drift, so the counter-plateau signal is the reliable
+transition cue) and produces ordered per-room cleaning segments.
+
+The seam mirrors [§13a `mapping`](#13a-mapping--pluggable-map-segmenter-engine-selection)
+and the dispatch-engine seam: the framework's `JobSegmenter` registry
+(`learning/job_segmenter_engines.py::_JOB_SEGMENTER_ENGINES`) holds the
+engines; the adapter declares which one to use by name. All three
+counter-segmentation consumers — **live rollover, external-run ingest,
+and learned history** — resolve their engine *and* their thresholds from
+this one block.
+
+`job_segmenter.tuning` is the **single in-code source** of the five
+gap/area/cadence thresholds. They previously lived inside
+`live_transition`; they have moved here (see the note in
+[§13b](#13b-live_transition--live-current-room-rollover-orchestration)).
+
+### Schema
+
+```python
+"job_segmenter": {
+    "engine":  str,                  # required when `job_segmenter` present
+    "tuning":  dict[str, float],     # optional; validated by the engine (may be partial)
+}
+```
+
+### `engine` *(required when `job_segmenter` is present, str)*
+
+One of the names registered in `learning/job_segmenter_engines.py`
+(`known_job_engine_names()`). Currently:
+
+| Name | What it does |
+|---|---|
+| `eufy_counter_v1` | Counter-plateau detection over `cleaning_time` / `cleaning_area`. Delegates verbatim to the `counter_segmentation` primitives, so the Eufy path is byte-for-byte identical to the pre-engine code. Default for adapters with no native room-transition telemetry. |
+| `noop_job_fallback` | Every stage returns `[]` — no boundaries. For a future brand that emits no segmentable signal. Registered for completeness; **not** the fallback. |
+
+**Fallback is the Eufy engine, not noop** — unlike [§13a
+`mapping`](#13a-mapping--pluggable-map-segmenter-engine-selection),
+which falls back to `noop_fallback`. `get_job_segmenter_engine()` returns
+`eufy_counter_v1` for an absent *or* unknown name (an unknown non-empty
+name is logged as a warning), because the framework's historical default
+(no adapter registered) is Eufy counter segmentation, and live rollover +
+learned history must keep working byte-for-byte in that case. A noop
+fallback would silently stop live rollover. A brand with native
+per-room telemetry registers its own engine here (implementing
+`find_candidates` / `build_segments` to return the same
+`JobBoundaryCandidate` / `JobSegment` shape).
+
+> **What the engine owns vs. what the framework owns.** The pipeline is
+> three stages — `find_candidates → select_active → build_segments`. The
+> engine owns the two brand-specific stages (`find_candidates`,
+> `build_segments`) plus the legacy one-shot composition
+> (`segment_legacy`). **`select_active` stays a framework function**
+> (`counter_segmentation.select_active`) — it is pure ranking/filtering
+> over the candidate *shape*, so the external-review wizard's count/toggle
+> re-selection logic is uniform across brands. The Eufy *kind* literals
+> (`wash_plateau` / `transit` / `area_jump` / `weak`) live at the
+> Eufy-specific call sites, not in an indirection layer — a future brand
+> with a different kind vocabulary supplies its own engine *and* its own
+> kind literals there.
+
+### `tuning` *(optional when `job_segmenter` is present, dict)*
+
+The five gap/area/cadence thresholds. **The engine owns the schema** and
+validates the dict in `validate_tuning(tuning) -> list[str]` (unknown
+keys and non-positive values are flagged); the framework's
+`_validate_adapter` delegates to it at registration time. The dict may be
+partial — the engine merges it over its own `DEFAULT_TUNING` (for
+`eufy_counter_v1`, defined *by reference* to the `counter_segmentation`
+module constants, so it can't drift from the primitives).
+
+| Key | Type | Default | Purpose |
+|-----|------|---------|---------|
+| `gap_delayed_s` | `float` | `35.0` | Lower gap bound separating a `weak`/delayed blip from a real transition candidate. |
+| `gap_transit_s` | `float` | `60.0` | Start of the `transit` band — a flat-area inter-room hop of 60-90 s. |
+| `gap_plateau_s` | `float` | `90.0` | Gap at/above which a blip is a `wash_plateau` (the dock-wash dwell). |
+| `area_jump_m2` | `float` | `2.0` | Forward cleaned-area rise (m²) that marks an `area_jump` candidate. |
+| `cadence_s` | `float` | `30.0` | Expected counter-sample cadence; normalizes gap math against the polling interval. |
+
+### Example (from the Eufy adapter)
+
+```python
+"job_segmenter": {
+    "engine": "eufy_counter_v1",
+    "tuning": {
+        "gap_delayed_s": 35.0,
+        "gap_transit_s": 60.0,
+        "gap_plateau_s": 90.0,
+        "area_jump_m2": 2.0,
+        "cadence_s": 30.0,
+    },
+},
+```
+
+### Where the framework reads it
+
+- `jobs/active_job.py::ActiveJobTracker._live_boundary_count` (live
+  rollover) — resolves the engine + tuning from this block and calls
+  `engine.find_candidates(...)` + the framework `select_active(...)`
+  (enabled), or `engine.segment_legacy(...)` (the `live_transition.enabled`
+  kill-switch).
+- `learning/external_ingest.py` (`build_pending_record` /
+  `resegment_pending_record` / `_mark_candidate_confidence`) — resolves
+  the engine via `_resolve_engine_tuning(vacuum_entity_id)` and calls
+  `engine.find_candidates` / `engine.build_segments`; `select_active`
+  stays a direct framework import. (The persisted v2 record's
+  `gap_transit_s` field is unchanged at `60.0`; only its *provenance*
+  moved — from the module constant to the resolved engine tuning.)
+- `learning/history_store.py::_build_transit_blocks` (learned history) —
+  resolves the engine from the adapter (optional `vacuum_entity_id` param;
+  absent → the Eufy fallback) and calls `engine.segment_legacy(...)`.
+
+> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** `job_segmenter` (like
+> `live_transition` and `room_profiles`) has no entry in
+> `adapters/config_schema.py`; the schema walker iterates *schema* keys,
+> so extra blocks are simply ignored by it. Validation of this block lives
+> in `registry._validate_adapter` (engine required when the block is
+> present, must be a known engine, tuning validated by the engine). Schema
+> entries are a deferred follow-up.
+
+**UI builder notes:** Advanced section — collapse by default and pre-fill
+the Eufy defaults. `engine` is a dropdown over `known_job_engine_names()`;
+the five `tuning` values are timing thresholds in seconds (plus one area
+delta in m²).
+
+---
+
+## 13b. `live_transition` — live current-room rollover orchestration
+
+Configures the **orchestration** of the live current-room rollover that
+runs on the 5-second job-progress tick while a job is in flight. The
+vacuum reports no "current room" and its raw coordinates drift, so the
+cleaning-counter plateau signal is the reliable transition cue.
+
+This block carries **only the live-specific orchestration knobs** —
+`{enabled, rollover_kinds, native_transition_source}`. The
+gap/area/cadence **thresholds** that detection uses are **not here**: they
+moved to [§13a.1 `job_segmenter.tuning`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning),
+the single in-code source now read by live rollover, external ingest, and
+learned history alike. The detection itself routes through the adapter's
+pluggable job-segmenter engine (resolved in `_live_boundary_count`); this
+block decides only *whether* rollover runs and *which boundary kinds*
+advance the live queue.
 
 This is **distinct from the finalize/history segmentation path**, which
-is untouched and still uses the byte-identical `segment_counters()`
-back-compat wrapper. `live_transition` only governs the in-run rollover
-inside `ActiveJobTracker._maybe_roll_current_room_by_timing`.
+is byte-identical and reaches the same engine via `segment_legacy`.
+`live_transition` only governs the in-run rollover inside
+`ActiveJobTracker._maybe_roll_current_room_by_timing`.
 
 **Every default equals the prior hardcoded constant**, so Eufy is
 byte-identical *except* it now also advances on a `transit` boundary —
 a 60-90 s flat-area inter-room hop the legacy live path discarded (the
 fix for live under-roll). `enabled: false` is a kill-switch back to the
-legacy `segment_counters()` wrapper.
+legacy one-shot segmentation (`engine.segment_legacy`, the
+wash/area_jump-only path).
 
 ### Schema
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
-| `enabled` | `bool` | `True` | Master switch. `False` reverts the live path to the legacy `segment_counters()` (wash/area_jump-only) wrapper. |
-| `gap_delayed_s` | `float` | `35.0` | Lower gap bound separating a `weak`/delayed blip from a real transition candidate. |
-| `gap_transit_s` | `float` | `60.0` | Start of the `transit` band — a flat-area inter-room hop of 60-90 s. The legacy path effectively set this to infinity (transit dropped); declaring it is what enables transit rollover. |
-| `gap_plateau_s` | `float` | `90.0` | Gap at/above which a blip is a `wash_plateau` (the dock-wash dwell). |
-| `area_jump_m2` | `float` | `2.0` | Forward cleaned-area rise (m²) that marks an `area_jump` candidate. |
-| `cadence_s` | `float` | `30.0` | Expected counter-sample cadence; normalizes gap math against the polling interval. |
+| `enabled` | `bool` | `True` | Master switch. `False` reverts the live path to the legacy one-shot `engine.segment_legacy` (wash/area_jump-only) composition. |
 | `rollover_kinds` | `list[str]` | `["wash_plateau", "transit", "area_jump"]` | Which candidate kinds count as a live rollover boundary. Eufy includes `transit`; the legacy set was `{wash_plateau, area_jump}`. |
-| `native_transition_source` | `bool` | `False` | **Reserved.** A brand that exposes real per-room telemetry sets `True` to declare it has a native current-room signal (the counter-plateau inference is then a fallback). No framework consumer yet. |
+| `native_transition_source` | `bool` | `False` | **Reserved.** A brand that exposes real per-room telemetry sets `True` to declare it has a native current-room signal (the counter-plateau inference is then a fallback). Parsed, but no framework consumer reads it yet. |
+
+> **The five threshold keys are gone.** `gap_delayed_s`, `gap_transit_s`,
+> `gap_plateau_s`, `area_jump_m2`, and `cadence_s` were **removed** from
+> `live_transition` (and from the module-level `_LIVE_TRANSITION_DEFAULTS`
+> in `jobs/active_job.py`). They now live in
+> [`job_segmenter.tuning`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning).
+> Any older doc or config that put them under `live_transition` is stale.
 
 ### Example (from the Eufy adapter)
 
 ```python
 "live_transition": {
     "enabled": True,
-    "gap_delayed_s": 35.0,
-    "gap_transit_s": 60.0,
-    "gap_plateau_s": 90.0,
-    "area_jump_m2": 2.0,
-    "cadence_s": 30.0,
     "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
     "native_transition_source": False,
 },
@@ -1070,25 +1217,21 @@ legacy `segment_counters()` wrapper.
 ### Where the framework reads it
 
 - `jobs/active_job.py::ActiveJobTracker._live_transition_config` — merges
-  this block over the module-level `_LIVE_TRANSITION_DEFAULTS` (an absent
+  this block over the module-level `_LIVE_TRANSITION_DEFAULTS` (only
+  `enabled` / `rollover_kinds` / `native_transition_source`; an absent
   block, or a non-Eufy adapter, behaves exactly as the defaults).
-- `jobs/active_job.py::ActiveJobTracker._live_boundary_count` — feeds the
-  merged values into `find_candidates`/`select_active`; honours `enabled`
-  as the kill-switch.
-
-> **Note — the full segmenter-engine seam is deferred.** This block only
-> tunes the *thresholds* the live rollover feeds into the shared
-> counter-segmentation helpers. Adapter-sourcing the segmenter **engine**
-> for the live/finalize paths (the way [§13a `mapping`](#13a-mapping--pluggable-segmenter-engine-selection)
-> already does for image segmentation) is deferred until a second brand
-> lands. Until then the counter-segmentation engine itself is Eufy-shaped.
+- `jobs/active_job.py::ActiveJobTracker._live_boundary_count` — reads
+  `enabled` (kill-switch) and `rollover_kinds` (the `select_active` kind
+  filter); the **thresholds** it feeds the engine come from
+  `job_segmenter.tuning`, not from this block.
 
 **UI builder notes:** Advanced section — collapse by default and pre-fill
-the Eufy defaults. The values are timing thresholds in seconds (plus one
-area delta in m²); render `rollover_kinds` as a multi-select over the
+the Eufy defaults. Render `rollover_kinds` as a multi-select over the
 closed candidate-kind enum (`wash_plateau`, `transit`, `area_jump`,
 `weak`). `native_transition_source` is a single toggle with a "reserved"
-note.
+note. The detection *thresholds* are edited in the
+[§13a.1 `job_segmenter`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning)
+form, not here.
 
 ---
 
@@ -1128,6 +1271,100 @@ once per skipped room as `EVENT_ROOM_SKIPPED`).
 **UI builder notes:** Advanced section. Two numeric inputs constrained to
 `running_long_ratio < stall_ratio` (a softer tier below the hard stall);
 pre-fill `1.5` / `2.0`.
+
+---
+
+## 13d. `room_profiles` — adapter-sourced room-profile vocabulary
+
+The default room-profile catalog — the built-in profile presets, the
+custom-profile template, legacy-name aliases, and the per-floor-type
+fan/water defaults — that drive per-room dispatch settings. The in-code
+constants in `profiles/room_profiles.py` remain the framework **default**
+catalog (and the source of `_PROTECTED_ROOM_PROFILE_NAMES`, bound at
+module load — untouched by this block); declaring `room_profiles` lets an
+adapter **override any subset** of that vocabulary per-vacuum.
+
+`resolve_profile_catalog(block)` (in `profiles/room_profiles.py`) merges
+this block over the in-code constants **per key** — a `None`/empty block
+returns the in-code defaults verbatim, so a vacuum without the block (and
+Eufy, which declares it *by reference* to the in-code constants) resolves
+byte-identically. The Eufy adapter declares it so room resolution is
+adapter-sourced and a future brand can inline its own vocabulary.
+
+### Schema
+
+All keys optional; an absent key inherits the in-code default for that
+key.
+
+| Field | Type | In-code default | Purpose |
+|-------|------|-----------------|---------|
+| `default_profile` | `str` | `DEFAULT_ROOM_PROFILE_NAME` (`"vacuum_quick"`) | Profile name a newly-discovered room gets, and the fallback when a requested name is unknown. |
+| `builtins` | `dict[str, dict]` | `BUILT_IN_ROOM_PROFILES` | The built-in profile presets (`vacuum_quick`, `vacuum_deep`, `vacuum_mop_quick`, `vacuum_mop_deep`), each a `ProfileRecord`. |
+| `custom_template` | `dict` | `DEFAULT_CUSTOM_ROOM_PROFILE` | Template for the editable user profile slot (`user_1`). |
+| `legacy_aliases` | `dict[str, str]` | `LEGACY_PROFILE_ALIASES` | Maps retired profile names to current ones (e.g. `vacuum_standard → vacuum_quick`). |
+| `floor_type_water_defaults` | `dict[str, str]` | `FLOOR_TYPE_WATER_DEFAULTS` | Per-floor-type water level applied when a room has no explicit override. |
+| `floor_type_fan_defaults` | `dict[str, str]` | `FLOOR_TYPE_FAN_DEFAULTS` | Per-floor-type fan speed (carpet pile heights). |
+| `normalize_defaults` | `dict` | `DEFAULT_CUSTOM_ROOM_PROFILE` | Per-key fallbacks `normalize_room_profile()` uses to fill missing profile fields. |
+
+### Example (from the Eufy adapter)
+
+The Eufy adapter declares the block **by reference** to the in-code
+constants (no duplication, byte-identical):
+
+```python
+from ...profiles.room_profiles import (
+    BUILT_IN_ROOM_PROFILES, DEFAULT_CUSTOM_ROOM_PROFILE,
+    DEFAULT_ROOM_PROFILE_NAME, FLOOR_TYPE_FAN_DEFAULTS,
+    FLOOR_TYPE_WATER_DEFAULTS, LEGACY_PROFILE_ALIASES,
+)
+
+"room_profiles": {
+    "default_profile": DEFAULT_ROOM_PROFILE_NAME,        # "vacuum_quick"
+    "builtins": BUILT_IN_ROOM_PROFILES,
+    "custom_template": DEFAULT_CUSTOM_ROOM_PROFILE,
+    "legacy_aliases": LEGACY_PROFILE_ALIASES,
+    "floor_type_water_defaults": FLOOR_TYPE_WATER_DEFAULTS,
+    "floor_type_fan_defaults": FLOOR_TYPE_FAN_DEFAULTS,
+    "normalize_defaults": DEFAULT_CUSTOM_ROOM_PROFILE,
+},
+```
+
+### Where the framework reads it
+
+- **Dispatch path** (wired) —
+  `queue/queue_engine.py::build_room_clean_payload` resolves the catalog
+  via `resolve_profile_catalog(get_adapter_config(...)["room_profiles"])`
+  and threads it into `resolve_room_profile_for_room(...)` +
+  `apply_capability_gate(...)`, so per-room dispatch settings are
+  adapter-catalog-sourced. Every resolver in `profiles/room_profiles.py`
+  takes an optional `catalog` param (default `None` → the in-code
+  constants).
+
+> **Deliberate boundary — documented honestly.** The **global/singleton
+> profile editor** (`profiles/manager.py`: `get_room_profiles` /
+> `_finalize_room_update` / `_match_profile_from_fields`) and the pure
+> room-builder defaults (`rooms/room_manager.py::build_managed_rooms`;
+> `room_entities` display fallback) lack per-vacuum context, so they call
+> the resolvers with `catalog=None` and use the **framework default**
+> catalog. This is byte-identical for Eufy; a second brand's editor UI
+> would show framework defaults until threaded — a documented follow-up.
+
+> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter` and
+> `live_transition`, `room_profiles` has no entry in
+> `adapters/config_schema.py` (the schema walker iterates schema keys, so
+> extra blocks are ignored). `registry._validate_adapter` carries a light
+> validation rule: the block must be a dict, `default_profile` a string,
+> and each of `builtins` / `custom_template` / `legacy_aliases` /
+> `floor_type_water_defaults` / `floor_type_fan_defaults` /
+> `normalize_defaults` a dict when present. Schema entries are a deferred
+> follow-up.
+
+**UI builder notes:** Advanced section — most ports inherit the framework
+defaults and declare nothing here. A `ProfileRecord` editor (the same one
+the room editor uses) seeds `builtins` / `custom_template`; the two
+floor-type maps are key-value editors keyed by the canonical floor types
+(`hardwood`, `laminate`, `tile`, `marble`, `carpet_low_pile`,
+`carpet_high_pile`).
 
 ---
 
@@ -1446,7 +1683,10 @@ this table maps schema sections to the modules that consume them:
 | `post_job_wash_amendment` | `core/water_amendment.py`, `__init__.py` (registration call site) |
 | `discovery` | `setup/workflow.py` (`discover_rooms_for_vacuum`) |
 | `dispatch` | `queue/queue_engine.py` (`build_room_clean_payload`), `core/manager.py` (`async_start_room_clean_job`) |
-| `live_transition` | `jobs/active_job.py` (`_live_transition_config`, `_live_boundary_count`) |
+| `mapping` | `mapping/manager.py` (`get_image_segment_suggestions`), `mapping/mapping_services.py` (`_handle_analyze_map_image`) |
+| `job_segmenter` | `jobs/active_job.py` (`_live_boundary_count`), `learning/external_ingest.py` (`build_pending_record`, `resegment_pending_record`, `_resolve_engine_tuning`), `learning/history_store.py` (`_build_transit_blocks`) — engine + thresholds |
+| `live_transition` | `jobs/active_job.py` (`_live_transition_config`, `_live_boundary_count`) — orchestration knobs only (thresholds live in `job_segmenter`) |
+| `room_profiles` | `queue/queue_engine.py` (`build_room_clean_payload` via `resolve_profile_catalog`), `profiles/room_profiles.py` (resolver `catalog` param) |
 | `anomaly` | `core/manager.py` (`get_job_progress_snapshot`) |
 | `wash_frequency_bounds` | `planning/run_plan.py` (`_derive_wash_frequency_config`) |
 | `capabilities` | `core/capabilities.py` (`detect_capabilities`) |

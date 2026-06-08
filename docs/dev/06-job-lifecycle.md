@@ -329,32 +329,55 @@ many *completed* room transitions the live counter-sample stream
 counter-segmentation machinery the finalizer uses, run live each tick — but
 **transit-aware**, where the legacy live path was not.
 
-Behaviour is tuned by `_live_transition_config(vacuum_entity_id)`, which merges
-the adapter's optional `live_transition` block over the module-level
-`_LIVE_TRANSITION_DEFAULTS`. Every default equals the `counter_segmentation`
-module default, so an adapter with no `live_transition` block behaves as before
-— **except** it now also rolls on a `transit` boundary:
+Detection routes through the **pluggable job-segmenter engine**
+(`learning/job_segmenter_engines.py` — the *counter/run* segmenter, distinct
+from the *map* segmenter in `mapping/segmenter_engines.py`). It resolves the
+engine from the adapter's `job_segmenter.engine` (`get_job_segmenter_engine`);
+an absent/unknown name falls back to the Eufy engine (`eufy_counter_v1`), so
+the legacy no-adapter path stays byte-identical — this is a *dispatch-style*
+fallback, **not** the map seam's noop. `select_active` stays a direct framework
+import (`counter_segmentation.select_active`) — it is brand-agnostic ranking
+over the candidate shape and is not on the engine.
 
-- **`enabled: False`** is a kill-switch — it falls back to the legacy
-  `segment_counters(...)` wrapper (wash/area_jump only) and returns
-  `len(segments) - 1`.
-- **`enabled: True`** (the default) calls the decomposed
-  `find_candidates(...)` → `select_active(...)` pipeline with the tuned gaps
-  and `rollover_kinds`, and returns `len(active)`.
+Two adapter blocks shape the result, and they are now **separate concerns**:
+
+- **`job_segmenter.tuning`** is the single source of the gap/area/cadence
+  thresholds (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,
+  `cadence_s`). `_live_boundary_count` reads them from `job_segmenter` and
+  passes them as the engine's `tuning`; the Eufy engine merges a partial/`None`
+  tuning over its own `DEFAULT_TUNING` (defined *by reference* to the
+  `counter_segmentation` module constants, so it can't drift).
+- **`live_transition`** is now **orchestration-only**: `enabled`,
+  `rollover_kinds`, and `native_transition_source` (parsed but reserved — no
+  readers yet). `_live_transition_config(vacuum_entity_id)` merges this block
+  over `_LIVE_TRANSITION_DEFAULTS`, which **no longer carries the five
+  threshold keys** — they moved to `job_segmenter.tuning`. An adapter with no
+  `live_transition` block behaves as before — **except** it now also rolls on a
+  `transit` boundary:
+
+- **`enabled: False`** is a kill-switch — it falls back to the engine's
+  legacy one-shot composition `engine.segment_legacy(...)` (wash/area_jump only;
+  delegates verbatim to the byte-identical `segment_counters` wrapper) and
+  returns `len(segments) - 1`.
+- **`enabled: True`** (the default) calls `engine.find_candidates(...)` →
+  framework `select_active(...)` with the tuned thresholds and `rollover_kinds`,
+  and returns `len(active)`.
 
 The key change is the `transit` kind: a **60–90 s flat-area inter-room hop** —
 the robot crossing into the next room without a wash-station detour or a forward
 area jump. The legacy live path discarded this case, so on a back-to-back room
 pair with no wash between them the live tracker under-rolled and only caught up
 at the timing threshold. The default `rollover_kinds` is therefore
-`("wash_plateau", "transit", "area_jump")`. Brands tune the gap bands and kinds
-per-firmware via their `live_transition` block.
+`("wash_plateau", "transit", "area_jump")`. Brands tune the gap bands
+per-firmware via `job_segmenter.tuning` and the matched kinds via
+`live_transition.rollover_kinds`.
 
-> The finalize/history segmentation path is **untouched** — it still calls the
-> byte-identical `segment_counters` back-compat wrapper. Only the *live*
-> current-room rollover gained transit-awareness. See
+> The finalize/history segmentation path is **byte-identical** — it now also
+> routes through the engine (`engine.segment_legacy`, which delegates verbatim
+> to the `segment_counters` back-compat wrapper). Only the *live* current-room
+> rollover gained transit-awareness. See
 > [22-adapter-config-reference.md](22-adapter-config-reference.md) for the
-> `live_transition` and `anomaly` adapter blocks.
+> `job_segmenter`, `live_transition`, and `anomaly` adapter blocks.
 
 ### Timing completion threshold formula
 

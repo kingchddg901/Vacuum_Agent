@@ -30,13 +30,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from ..counter_segmentation import (
-    _GAP_TRANSIT_S,
-    build_segments,
-    find_candidates,
-    select_active,
-)
+# select_active is the brand-agnostic selection stage (pure ranking/filtering over
+# the candidate shape) — it stays a direct framework import. find_candidates /
+# build_segments are the brand-specific stages, reached through the pluggable
+# job-segmenter engine (the Eufy engine delegates to these same primitives, so the
+# Eufy path is byte-identical; see job_segmenter_engines).
+from ..counter_segmentation import select_active
 from ..timestamp_utils import parse_timestamp
+from .job_segmenter_engines import get_job_segmenter_engine
 from .utils import _canonical_clean_mode, _safe_bool, _safe_float, _safe_int
 
 # Settings-match is the PRIMARY shortlist signal: a room whose config matches the
@@ -57,6 +58,31 @@ _MOP_MODES = {"mop", "vacuum_mop"}
 _MIN_ROOM_AREA_M2 = 0.5
 
 PENDING_SCHEMA_VERSION = 2
+
+
+def _resolve_engine_tuning(vacuum_entity_id: str | None) -> tuple[Any, dict[str, Any]]:
+    """Resolve the (job-segmenter engine, effective tuning) for a vacuum.
+
+    The engine + tuning come from the adapter's ``job_segmenter`` block; an absent
+    block or vacuum id falls back to the Eufy counter engine with its default tuning
+    — so external ingestion stays byte-identical for Eufy and pure for the unit tests
+    (which pass no vacuum id and so never touch the adapter registry). ``eff`` is the
+    engine's ``DEFAULT_TUNING`` overlaid with any adapter overrides: the single source
+    of the gap/area/cadence numbers, including the persisted ``gap_transit_s``."""
+    engine_name = None
+    adapter_tuning = None
+    if vacuum_entity_id:
+        from ..adapters.registry import get_adapter_config
+
+        _js = (get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
+        if isinstance(_js, dict):
+            engine_name = _js.get("engine")
+            adapter_tuning = _js.get("tuning")
+    engine = get_job_segmenter_engine(engine_name)
+    eff: dict[str, Any] = dict(getattr(engine, "DEFAULT_TUNING", {}))
+    if isinstance(adapter_tuning, dict):
+        eff.update({k: v for k, v in adapter_tuning.items() if v is not None})
+    return engine, eff
 
 
 def _dt(value: Any) -> datetime | None:
@@ -213,6 +239,9 @@ def _mark_candidate_confidence(
     candidates: list[dict[str, Any]],
     counter_samples: list[dict[str, Any]],
     settings_samples: list[dict[str, Any]],
+    *,
+    engine: Any,
+    tuning: dict[str, Any],
 ) -> None:
     """Set ``confident`` on each candidate (mutates in place).
 
@@ -222,9 +251,10 @@ def _mark_candidate_confidence(
     matches the old segmentation. transit/weak cuts are never confident here: they
     default OFF and surface only as split-here candidates.
     """
-    finest = build_segments(
+    finest = engine.build_segments(
         counter_samples,
         select_active(candidates, default="all", kinds={"wash_plateau", "area_jump"}),
+        tuning=tuning,
     )
     confident_ids: set[int] = set()
     prev_settings: dict[str, str] | None = None
@@ -326,6 +356,7 @@ def build_pending_record(
     settings_samples: list[dict[str, Any]],
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
+    vacuum_entity_id: str | None = None,
 ) -> dict[str, Any] | None:
     """Turn a captured external run into a pending review record (schema v2), or None
     when there is no usable cleaning signal (so a false-start writes nothing).
@@ -333,14 +364,19 @@ def build_pending_record(
     The default segmentation is the *confident* cuts only; the full candidate pool
     (incl. the transit/weak cuts the legacy filter dropped) and the raw samples are
     embedded so the card can offer split-here and the server can re-segment to any
-    room count or boundary set.
+    room count or boundary set. Segmentation routes through the adapter's job-segmenter
+    engine (``vacuum_entity_id`` resolves it; absent → the Eufy counter engine,
+    byte-identical).
     """
     counter = counter_samples or []
     settings = settings_samples or []
-    candidates = find_candidates(counter)
-    _mark_candidate_confidence(candidates, counter, settings)
+    engine, tuning = _resolve_engine_tuning(vacuum_entity_id)
+    candidates = engine.find_candidates(counter, tuning=tuning)
+    _mark_candidate_confidence(candidates, counter, settings, engine=engine, tuning=tuning)
 
-    segments = build_segments(counter, select_active(candidates, default="confident"))
+    segments = engine.build_segments(
+        counter, select_active(candidates, default="confident"), tuning=tuning
+    )
     if not segments:
         return None
 
@@ -360,7 +396,9 @@ def build_pending_record(
         # Default room count = the confident-only view (= segment_count here);
         # uncertain / transit / weak cuts surface as split-here candidates.
         "suggested_room_count": len(out_segments),
-        "gap_transit_s": _GAP_TRANSIT_S,
+        # Persisted from the resolved engine tuning (the single source); for Eufy this
+        # is the unchanged 60.0. resegment reads it back to reproduce the candidate pool.
+        "gap_transit_s": _safe_float(tuning.get("gap_transit_s"), 60.0),
         "candidates": candidates,
         "active_boundaries": active_ids,
         "counter_samples": counter,
@@ -376,6 +414,7 @@ def resegment_pending_record(
     active_ids: list[int] | None = None,
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
+    vacuum_entity_id: str | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
     """Re-segment a v2 pending record from its embedded samples, returning
     ``(new_record, meta)`` (``(None, meta)`` when the selection yields no segment —
@@ -395,9 +434,15 @@ def resegment_pending_record(
         return None, {"error": "no_samples"}
 
     map_id = pending_record.get("map_id")
-    gap_transit_s = _safe_float(pending_record.get("gap_transit_s"), _GAP_TRANSIT_S)
-    candidates = find_candidates(counter, gap_transit_s=gap_transit_s)
-    _mark_candidate_confidence(candidates, counter, settings)
+    engine, eff = _resolve_engine_tuning(vacuum_entity_id)
+    # Reproduce the candidate pool with the record's stored gap_transit_s over the
+    # resolved tuning (for Eufy: the engine defaults with the record's 60.0).
+    gap_transit_s = _safe_float(
+        pending_record.get("gap_transit_s"), _safe_float(eff.get("gap_transit_s"), 60.0)
+    )
+    seg_tuning = {**eff, "gap_transit_s": gap_transit_s}
+    candidates = engine.find_candidates(counter, tuning=seg_tuning)
+    _mark_candidate_confidence(candidates, counter, settings, engine=engine, tuning=seg_tuning)
 
     if active_ids is not None:
         active = select_active(candidates, active_ids=active_ids)
@@ -423,7 +468,7 @@ def resegment_pending_record(
         meta = {"mode": "reset"}
         suggested = None
 
-    segments = build_segments(counter, active)
+    segments = engine.build_segments(counter, active, tuning=seg_tuning)
     out_segments, _confident_count, active_boundary_ids = _enrich_segments(
         segments, candidates, counter, settings, rooms, baselines, map_id
     )

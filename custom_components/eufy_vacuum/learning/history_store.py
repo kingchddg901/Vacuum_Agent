@@ -30,7 +30,6 @@ from typing import Any
 _LOGGER = logging.getLogger(__name__)
 
 from homeassistant.core import HomeAssistant
-from ..counter_segmentation import segment_counters
 from ..timestamp_utils import parse_timestamp
 from .utils import _iso_now, _safe_bool, _safe_float, _safe_int
 
@@ -50,13 +49,17 @@ def _build_transit_blocks(
     counter_samples: list[dict[str, Any]],
     queue_room_ids: list[Any],
     slug_by_id: dict[int, str | None],
+    vacuum_entity_id: str | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], bool]:
     """Segment the counter-sample stream and map per-room segments onto the
     dispatched queue → per-room timings (with area) + inter-room transit gaps.
 
-    Frame-invariant: counter_segmentation.segment_counters reads the cleaning_time
-    / cleaning_area counters only — never geometry (raw coordinates drift across
-    sessions). Returns (room_timings, transitions, transit_capture_valid).
+    Frame-invariant: the job segmenter reads the cleaning_time / cleaning_area
+    counters only — never geometry (raw coordinates drift across sessions).
+    Segmentation routes through the adapter's pluggable job-segmenter engine
+    (``vacuum_entity_id`` resolves it; absent/unknown → the Eufy counter engine,
+    byte-identical to the legacy ``segment_counters``). Returns (room_timings,
+    transitions, transit_capture_valid).
 
     Internal jobs map segment K → dispatched queue room K. transit_capture_valid
     is True only when the segment count equals the queued room count; a glitchy
@@ -65,7 +68,21 @@ def _build_transit_blocks(
     single-room job → one segment, no transitions, valid=True.
     """
     queue_ids = [_safe_int(r, -1) for r in (queue_room_ids or []) if _safe_int(r, -1) > 0]
-    segs = segment_counters(counter_samples or [], expected_rooms=len(queue_ids) or None)
+
+    from .job_segmenter_engines import get_job_segmenter_engine
+
+    engine_name = None
+    tuning = None
+    if vacuum_entity_id:
+        from ..adapters.registry import get_adapter_config
+
+        _js = (get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
+        if isinstance(_js, dict):
+            engine_name = _js.get("engine")
+            tuning = _js.get("tuning")
+    segs = get_job_segmenter_engine(engine_name).segment_legacy(
+        counter_samples or [], expected_rooms=len(queue_ids) or None, tuning=tuning
+    )
     valid = bool(segs) and len(segs) == len(queue_ids)
 
     room_timings: list[dict[str, Any]] = []
@@ -1033,6 +1050,7 @@ class LearningHistoryStore:
             ),
             queue_room_ids=_queue_ids_for_transit,
             slug_by_id=slug_by_id,
+            vacuum_entity_id=vacuum_entity_id,
         )
 
         return {

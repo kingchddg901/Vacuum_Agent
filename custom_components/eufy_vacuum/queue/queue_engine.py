@@ -9,7 +9,11 @@ try:
 except ImportError:
     from typing_extensions import TypedDict  # type: ignore[assignment]
 
-from ..profiles.room_profiles import apply_capability_gate, resolve_room_profile_for_room
+from ..profiles.room_profiles import (
+    apply_capability_gate,
+    resolve_profile_catalog,
+    resolve_room_profile_for_room,
+)
 
 
 class QueueEntry(TypedDict, total=False):
@@ -201,6 +205,17 @@ def build_room_clean_payload(
     dispatch = dispatch or {}
     selected_ids = set(queue_room_ids or [])
 
+    # Resolve this vacuum's room-profile catalog (default_profile, built-ins, floor-type
+    # defaults) from the adapter's room_profiles block; absent → the in-code defaults
+    # (byte-identical for Eufy). Threaded into per-room resolution + the capability gate
+    # so a brand's profile vocabulary reaches the dispatched settings. Deferred import
+    # keeps queue_engine free of the registry at import time.
+    from ..adapters.registry import get_adapter_config
+
+    _catalog = resolve_profile_catalog(
+        (get_adapter_config(vacuum_entity_id) or {}).get("room_profiles")
+    )
+
     # Outer wrapper field names — fall back to Eufy defaults.
     map_id_field: str = dispatch.get("map_id_field", "map_id")
     map_id_type: str | None = dispatch.get("map_id_type")  # None = legacy auto-cast
@@ -242,12 +257,14 @@ def build_room_clean_payload(
         resolved = resolve_room_profile_for_room(
             room_config=room,
             stored_profiles=stored_profiles,
+            catalog=_catalog,
         )
 
         gated = apply_capability_gate(
             resolved,
             capabilities,
             resolved_profile_name=resolved.get("resolved_profile_name"),
+            catalog=_catalog,
         )
 
         # Canonical (framework-internal) values, before any wire rename.

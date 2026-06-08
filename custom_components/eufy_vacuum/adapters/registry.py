@@ -267,6 +267,60 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 engine = get_segmenter_engine(engine_name)
                 issues.extend(engine.validate_tuning(tuning))
 
+    # Job-segmenter engine check — mirrors the mapping check (deferred import). A
+    # declared block must name a registered job-segmenter engine and pass its tuning
+    # validator. Absent block → the consumers fall back to the Eufy counter engine.
+    job_block = config.get("job_segmenter")
+    if job_block is not None:
+        if not isinstance(job_block, dict):
+            issues.append("'job_segmenter' must be a dict if present")
+        else:
+            from ..learning.job_segmenter_engines import (
+                known_job_engine_names,
+                get_job_segmenter_engine,
+            )
+
+            engine_name = job_block.get("engine")
+            if engine_name is None:
+                issues.append(
+                    "job_segmenter.engine is required when 'job_segmenter' is "
+                    "present; declare 'noop_job_fallback' to disable counter segmentation"
+                )
+            elif engine_name not in known_job_engine_names():
+                issues.append(
+                    f"job_segmenter.engine {engine_name!r} is unknown; "
+                    f"valid names: {sorted(known_job_engine_names())}"
+                )
+            else:
+                tuning = job_block.get("tuning") or {}
+                engine = get_job_segmenter_engine(engine_name)
+                issues.extend(engine.validate_tuning(tuning))
+
+    # Room-profile catalog check — a declared block must be a dict with sane field
+    # types. The framework merges it over the in-code defaults (resolve_profile_catalog),
+    # so a partial block is fine; this only catches a malformed declaration.
+    room_profiles_block = config.get("room_profiles")
+    if room_profiles_block is not None:
+        if not isinstance(room_profiles_block, dict):
+            issues.append("'room_profiles' must be a dict if present")
+        else:
+            default_profile = room_profiles_block.get("default_profile")
+            if default_profile is not None and not isinstance(default_profile, str):
+                issues.append(
+                    f"room_profiles.default_profile must be a string (got {default_profile!r})"
+                )
+            for key in (
+                "builtins",
+                "custom_template",
+                "legacy_aliases",
+                "floor_type_water_defaults",
+                "floor_type_fan_defaults",
+                "normalize_defaults",
+            ):
+                value = room_profiles_block.get(key)
+                if value is not None and not isinstance(value, dict):
+                    issues.append(f"room_profiles.{key} must be a dict if present")
+
     # Dispatch template check — a declared template must resolve to a registered
     # dispatch engine. A schema-valid template with no engine yet (e.g.
     # dreame_room_clean before its engine ships) is rejected at registration

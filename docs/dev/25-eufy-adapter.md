@@ -19,8 +19,9 @@
 Eufy (the X10 Pro Omni) is the reference adapter because it exercises **every**
 schema block the framework can read: mop/water control, dock wash/dry/empty
 events, post-job water amendment, per-model maintenance + upkeep guides, room
-discovery, a rich dispatch payload, live current-room transition + anomaly
-tuning, and a CV map segmenter. A minimal adapter
+discovery, a rich dispatch payload, a CV map segmenter, a counter-based job
+segmenter, the room-profile vocabulary, and live current-room transition +
+anomaly tuning. A minimal adapter
 can omit most of these (absent blocks degrade gracefully — see the
 "if absent" column in [22 §consumers](22-adapter-config-reference.md)). Eufy is
 the upper bound, so it's the best thing to read when you want to see how a block
@@ -182,27 +183,63 @@ built-in template or add one to the dispatch engine.
 `segmenter_engine: "eufy_cv_v1"` + `segmenter_tuning`. See
 [26-eufy-segmentor](26-eufy-segmentor.md). Adapters with no usable map image
 declare `"noop_fallback"` so the card stops drawing polygon overlays while trace
-tracking keeps working off coordinates.
+tracking keeps working off coordinates. **This is the *map* segmenter** (room
+polygons from the map image) — not to be confused with `job_segmenter` below,
+which is a separate subsystem.
+
+### `job_segmenter`
+`engine: "eufy_counter_v1"` + `tuning`. This is the **run/counter** segmenter — a
+*different* subsystem from the `mapping` map segmenter above. It detects per-room
+boundaries from a run's progress signal; for Eufy that's the `cleaning_time` /
+`cleaning_area` counters (no geometry — coordinates drift, so the counters are the
+reliable transition signal). The engine seam mirrors `mapping` and `dispatch`: the
+framework looks the name up in
+`learning/job_segmenter_engines.py::_JOB_SEGMENTER_ENGINES` and `eufy_counter_v1`
+(`EufyCounterSegmenter`) delegates verbatim to the `counter_segmentation`
+primitives, so the Eufy path is byte-identical. One deliberate non-mirror of the
+map seam: an **absent or unknown** engine name falls back to `eufy_counter_v1`
+(*not* `noop`), like `dispatch_engines` — because the historical no-adapter default
+is Eufy counter segmentation, and live rollover + external ingest + learned history
+must keep working. `noop_job_fallback` stays registered for a future brand that
+emits no segmentable signal, but it is **not** the fallback.
+
+`tuning` is the **single in-code source** of the gap/area/cadence thresholds —
+`gap_delayed_s: 35.0` / `gap_transit_s: 60.0` / `gap_plateau_s: 90.0` /
+`area_jump_m2: 2.0` / `cadence_s: 30.0`. All three consumers read it: live rollover
+(`jobs/active_job.py::_live_boundary_count`), external-run ingest
+([28](28-external-run-ingestion.md)), and learned history
+(`learning/history_store.py`). The engine's `DEFAULT_TUNING` is defined *by
+reference* to the `counter_segmentation` module constants, so it can't drift; the
+declared Eufy values equal those defaults, so declaring the block changes nothing.
+**Pattern:** the segmenter the framework uses to split a run into rooms is a
+pluggable engine; the inference thresholds are config (one source), so a port
+re-tunes them without touching `learning/` or `jobs/`. A brand with native
+per-room telemetry registers its own engine here that emits the same
+`JobBoundaryCandidate` / `JobSegment` shape. See
+[22 §job_segmenter](22-adapter-config-reference.md).
 
 ### `live_transition`
-Drives the **live** current-room rollover off the cleaning-counter plateau
-signal (Eufy reports no "current room" and its coordinates drift, so the counters
-are the reliable transition signal). Every value equals the
-`_LIVE_TRANSITION_DEFAULTS` module fallback in `jobs/active_job.py`, so declaring
-the block changes nothing for Eufy — it's the **documented, adapter-tunable copy**
-of those defaults. `enabled: True`; the gap bands `gap_delayed_s: 35.0` /
-`gap_transit_s: 60.0` / `gap_plateau_s: 90.0`; `area_jump_m2: 2.0`;
-`cadence_s: 30.0`; `rollover_kinds: ["wash_plateau", "transit", "area_jump"]`;
-`native_transition_source: False` (reserved for a brand with native per-room
-telemetry). The one behavioural change vs the legacy live path is the `"transit"`
-band — a 60-90 s flat-area inter-room hop the old live filter discarded — so the
-job now advances on a real transit, not only on wash/area_jump. `enabled: False`
-is a kill-switch back to the legacy wrapper. The finalize/history segmentation
-path is untouched. Consumed by `ActiveJobTracker._live_transition_config()` /
-`_live_boundary_count()`.
-**Pattern:** when a brand's transition signal is inferred (not a native sensor),
-the inference's thresholds belong in config so a port can re-tune them without
-touching `jobs/`. See [22 §live_transition](22-adapter-config-reference.md).
+The **orchestration** half of live current-room rollover (the detection thresholds
+live in `job_segmenter.tuning`, above — this block was trimmed to the knobs that
+are live-specific). Eufy's rollover runs off the counter signal because it reports
+no "current room" and its coordinates drift. The block carries exactly three keys:
+`enabled: True` (a kill-switch — `False` routes back to the legacy `segment_legacy`
+wrapper); `rollover_kinds: ["wash_plateau", "transit", "area_jump"]` (which
+candidate kinds advance the live queue); and `native_transition_source: False`
+(reserved for a brand with native per-room telemetry — parsed but no reader yet).
+Every value equals the `_LIVE_TRANSITION_DEFAULTS` module fallback in
+`jobs/active_job.py`, so declaring the block changes nothing for Eufy — it's the
+**documented, adapter-tunable copy** of those defaults. The one behavioural change
+vs the legacy live path is the `"transit"` band — a 60-90 s flat-area inter-room
+hop the old live filter discarded — so the job now advances on a real transit, not
+only on wash/area_jump. The finalize/history segmentation path is untouched.
+Consumed by `ActiveJobTracker._live_transition_config()` (orchestration) /
+`_live_boundary_count()` (which reads the thresholds from the resolved
+`job_segmenter` engine, not from here).
+**Pattern:** keep the inference's *thresholds* in one place
+(`job_segmenter.tuning`) and the *live orchestration* (kill-switch, which kinds
+roll the queue) here, so a port re-tunes either without touching `jobs/`. See
+[22 §live_transition](22-adapter-config-reference.md).
 
 ### `anomaly`
 Live anomaly-tuning ratios for the job-progress snapshot
@@ -213,6 +250,33 @@ manager fallbacks, so Eufy is unchanged; both are adapter-tunable.
 **Pattern:** thresholds for "this is taking too long" are firmware/brand-paced,
 so they're config scalars, not core constants. See
 [22 §anomaly](22-adapter-config-reference.md).
+
+### `room_profiles`
+The room-profile vocabulary — the built-in profiles, the custom-profile template,
+legacy aliases, the default profile name, and the floor-type fan/water default
+maps. Eufy declares the whole block **by reference** to the in-code constants in
+`profiles/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`, `DEFAULT_CUSTOM_ROOM_PROFILE`,
+`LEGACY_PROFILE_ALIASES`, `DEFAULT_ROOM_PROFILE_NAME`, `FLOOR_TYPE_*_DEFAULTS`) — no
+duplication, byte-identical. Those in-code constants stay the framework **default**
+catalog *and* the source of `_PROTECTED_ROOM_PROFILE_NAMES` (bound at module load in
+`profiles/manager.py`); this block is **resolution-only**.
+`resolve_profile_catalog()` merges the block over the constants **per key**, so a
+port can override any subset (just its `builtins`, say) and inherit the rest; a
+None/empty block returns the in-code defaults verbatim. The catalog is threaded
+through the per-room resolvers (`resolve_room_profile_for_room`,
+`apply_capability_gate`, …) on the **dispatch** path
+(`queue/queue_engine.py::build_room_clean_payload`), so per-room dispatch settings
+are adapter-catalog-sourced.
+> **Honest boundary.** The *global* profile-editor (`profiles/manager.py`) and the
+> pure room-builder defaults (`rooms/room_manager.py`) have no per-vacuum context,
+> so they resolve against the framework **default** catalog (`catalog=None`).
+> Byte-identical for Eufy; a second brand's editor UI would show framework defaults
+> until those call sites are threaded — a documented follow-up.
+
+**Pattern:** ship the room vocabulary as adapter config (by reference to the
+framework defaults, so there's nothing to maintain twice); a future brand inlines
+its own profiles/aliases without forking the resolver. See
+[22 §room_profiles](22-adapter-config-reference.md).
 
 ### `capabilities`
 Hardware/entity-surface flags are sourced from `detect_capabilities()`

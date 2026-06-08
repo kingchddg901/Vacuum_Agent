@@ -75,7 +75,9 @@ this is the orientation.
 | `vocabulary` + `completion` | no (recommended) | the raw state strings your vacuum reports (§5) |
 | `capabilities` | no | feature flags (§6) |
 | `discovery` | no | how the room list is exposed (§7) |
-| `mapping` | no | pluggable map segmenter (§8) |
+| `mapping` | no | pluggable **map** segmenter — image → room polygons (§8) |
+| `job_segmenter` + `live_transition` | no | pluggable **job/run** segmenter — counter stream → per-room boundaries — plus live-rollover orchestration (§9) |
+| `room_profiles` | no | adapter-sourced room-profile vocabulary (§10) |
 | `dock_events`, `post_job_wash_amendment`, `error_tracking`, `maintenance_components`, `upkeep_catalog`, `water_model_configs` | no | dock/error/maintenance catalogs — graceful degradation when absent |
 
 ---
@@ -201,6 +203,11 @@ structured room geometry.
 
 ## 8. Map segmentor (optional)
 
+This is the **map** segmenter (image → room polygons). It is a different
+subsystem from the **job/run** segmenter in §9 — do not conflate the two: this
+one turns a *map image* into geometry; that one turns a *run's counter stream*
+into per-room timing boundaries.
+
 `mapping.segmenter_engine` selects a map-image segmenter by name from
 `mapping/segmenter_engines.py` (`eufy_cv_v1`, or `noop_fallback` to disable the
 polygonal overlay while trace-based bounds keep working). The Eufy CV pipeline
@@ -216,13 +223,149 @@ scoring heuristics for your brand's map palette.
 
 ---
 
-## 9. What ports for free (zero changes)
+## 9. Job/run segmentor (optional)
+
+Separate from the map segmentor (§8): this is the **job (run) segmenter**, which
+turns a single run's progress stream into ordered **per-room cleaning bouts** so
+learning can attribute time/area to each room. It lives in
+`learning/job_segmenter_engines.py` and mirrors the dispatch-engine seam exactly
+— a brand registers an engine under a string name and selects it via
+`job_segmenter.engine` in the adapter config.
+
+The Eufy engine (`eufy_counter_v1`) detects per-room boundaries by watching the
+`cleaning_time` / `cleaning_area` counters plateau and jump (Eufy exposes no
+native per-room transition events; coordinates drift). A lidar brand that emits
+a native "now cleaning room N" signal implements `find_candidates` by reading
+those events instead and returns the **same** boundary/segment shape, so the
+three consumers (live rollover, external-run ingest, learned history) never
+change.
+
+**The contract — two TypedDicts.** Every engine speaks
+`JobBoundaryCandidate` (`id`, `position`, `gap_s`, `area_after_m2`, `kind`,
+`strength`, `confident`, `t`) and `JobSegment` (`index`, `boundary_id`,
+`t_start`/`t_end`, `ct_start`/`ct_end`, `area_*_m2`, `time_active_s`,
+`time_wall_s`, `gap_before_s`, `battery_delta`, `boundary`, `increment_count`).
+These are the cross-engine union; consumers read only these fields.
+
+**The `JobSegmenter` Protocol — what the brand implements:**
+
+| Method | Brand owns? | Purpose |
+|---|---|---|
+| `engine_name` | yes | the registry key (e.g. `"eufy_counter_v1"`) |
+| `validate_tuning(tuning)` | yes | return issue strings (`[]` = valid); run at registration |
+| `find_candidates(samples, *, tuning)` | yes | **every** boundary in the stream, in cleaning order — no discards |
+| `build_segments(samples, active, *, tuning)` | yes | the ordered per-room `JobSegment`s for a chosen boundary set |
+| `segment_legacy(samples, *, expected_rooms, tuning)` | yes | one-shot detect → select → build (live-disabled path + learned history) |
+
+**`select_active` is NOT on the engine — the brand does not implement it.** The
+middle stage (ranking/filtering candidates down to the chosen boundary set) is
+the brand-agnostic framework function `counter_segmentation.select_active`; it
+reads only `kind` / `confident` / `strength` / `id` off the candidate shape, so
+the external-review wizard's count/toggle logic stays uniform across brands. The
+engine owns only the two brand-specific stages (`find_candidates`,
+`build_segments`) plus the `segment_legacy` composition.
+
+**Eufy `kind` literals stay at the call sites, not in the engine.** The Eufy
+kind vocabulary (`"wash_plateau"` / `"transit"` / `"area_jump"` / `"weak"`) is
+produced by `find_candidates` and referenced by the Eufy-specific call sites (the
+live `rollover_kinds` list and the legacy `{"wash_plateau", "area_jump"}` filter).
+A brand with a different kind vocabulary supplies its own engine **and** its own
+kind literals at those sites — there is no kind indirection to configure.
+
+**Eufy fallback, not noop (mind the asymmetry with §8).** Unlike the map seam,
+`get_job_segmenter_engine(name)` falls back to the **Eufy** engine for an absent
+or unknown name — like the dispatch seam, *not* a noop — because the historical
+no-adapter default is Eufy counter segmentation and live rollover + history must
+keep working byte-for-byte. A `noop_job_fallback` engine is registered for a
+future brand that genuinely emits no segmentable signal, but you must declare it
+explicitly; it is never the silent default. An *unknown* (non-empty) name logs a
+warning.
+
+**Adapter config.** Declare the engine and its thresholds in a `job_segmenter`
+block; `live_transition` carries only the live-rollover orchestration knobs:
+
+```python
+"job_segmenter": {
+    "engine": "eufy_counter_v1",
+    # The SINGLE in-code source of the gap/area/cadence thresholds — live
+    # rollover, external-run ingest, AND learned history all read these.
+    "tuning": {
+        "gap_delayed_s": 35.0, "gap_transit_s": 60.0, "gap_plateau_s": 90.0,
+        "area_jump_m2": 2.0, "cadence_s": 30.0,
+    },
+},
+"live_transition": {
+    # Orchestration only — NOT thresholds (those moved to job_segmenter.tuning).
+    "enabled": True,                                       # kill-switch
+    "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
+    "native_transition_source": False,                    # reserved; no readers yet
+},
+```
+
+> **Threshold home moved.** The five gap/area/cadence thresholds
+> (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,
+> `cadence_s`) now live **only** in `job_segmenter.tuning`. They are no longer
+> carried in `live_transition` — any older note that listed them there is stale.
+
+`registry._validate_adapter` validates a declared `job_segmenter` block (mirrors
+the mapping check): `engine` is required when the block is present, must be a
+known engine name (`known_job_engine_names()`), and `tuning` is checked by the
+engine's own `validate_tuning`.
+
+**If your brand has no segmentable run signal**, declare
+`{"engine": "noop_job_fallback"}` to opt out explicitly (every stage returns
+`[]`); learning then accumulates no per-room boundaries for that brand.
+
+**Byte-identical by delegation (Eufy).** `EufyCounterSegmenter` delegates
+verbatim to the existing `counter_segmentation` primitives, and its
+`DEFAULT_TUNING` is defined *by reference* to that module's constants — so the
+Eufy path is byte-for-byte identical to the pre-engine code, and drift is a
+compile-time impossibility rather than a vigilance task. Copy this engine as the
+shape reference for a new brand.
+
+---
+
+## 10. Room-profile vocabulary (optional)
+
+A brand can override the room-profile vocabulary via a `room_profiles` block.
+The in-code catalog in `profiles/room_profiles.py` (`BUILT_IN_ROOM_PROFILES`,
+`DEFAULT_CUSTOM_ROOM_PROFILE`, the floor-type defaults, the legacy aliases, and
+`DEFAULT_ROOM_PROFILE_NAME`) is the framework **default**; `resolve_profile_catalog(block)`
+merges your block over those constants **per key**, so you can override any
+subset and a `None`/empty block yields the defaults verbatim (byte-identical).
+
+```python
+"room_profiles": {
+    "default_profile": "vacuum_quick",
+    "builtins": {...}, "custom_template": {...}, "legacy_aliases": {...},
+    "floor_type_water_defaults": {...}, "floor_type_fan_defaults": {...},
+    "normalize_defaults": {...},
+},
+```
+
+The Eufy adapter declares this block **by reference** to the in-code constants
+(no duplication). `registry._validate_adapter` applies a light check: the block
+must be a dict, `default_profile` a string, and the catalog sub-keys dicts.
+
+**Honest boundary.** The catalog is wired into the **dispatch** path only
+(`queue/queue_engine.py::build_room_clean_payload` resolves it from the adapter
+and threads it into per-room profile resolution + capability gating). The
+**global profile editor** (`profiles/manager.py`) and the pure room-builder
+defaults (`rooms/room_manager.py`) lack per-vacuum context, so they use the
+framework default catalog. For Eufy this is byte-identical; for a second brand
+those editor surfaces would show framework defaults until threaded — a documented
+follow-up, not a wired feature.
+
+---
+
+## 11. What ports for free (zero changes)
 
 These subsystems operate entirely on the internal data model / HA service calls
 and need no brand work:
 
 - **Learning** (`learning/`) — consumes canonical `resolved_rooms` + lifecycle
-  events.
+  events. Per-room *run segmentation* is the one pluggable seam here (§9); the
+  rest (history store, external ingest, accumulation) is brand-agnostic.
 - **Queue engine** (`queue/queue_engine.py`) — ordering, enabled-room filtering,
   access graph, blocker/modifier rules, start protection.
 - **Room rules** (`rooms/`, `queue/`) — blockers, modifiers, access graph,
@@ -238,7 +381,7 @@ and need no brand work:
 
 ---
 
-## 10. Validate with the contract harness
+## 12. Validate with the contract harness
 
 There is no fork to maintain. The brand-agnostic **adapter conformance suite**
 (`tests/adapters/test_adapter_contract.py`) validates *any* adapter's config
@@ -250,7 +393,7 @@ CV segmentor, your model catalog) live under `tests/adapters/<brand>/`.
 
 ---
 
-## 11. Port checklist
+## 13. Port checklist
 
 Each step is independently testable.
 
@@ -264,15 +407,28 @@ Each step is independently testable.
 3. **Choose a `dispatch.template`.** If an existing shape fits, configure field
    names + value maps. If not, add an engine in `dispatch_engines.py`.
 4. **Set `capabilities`** flags for the hardware. Set `discovery` for how rooms
-   are listed. Set `mapping` to `noop_fallback` unless you wrote a segmentor.
-5. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
+   are listed. Set `mapping.segmenter_engine` to `noop_fallback` unless you wrote
+   a map segmentor (§8).
+5. **Decide the job/run segmenter (§9).** If you can reuse the Eufy
+   counter-plateau engine, declare `job_segmenter.{engine: "eufy_counter_v1",
+   tuning}` and the `live_transition` orchestration knobs. If your brand emits
+   native room-transition events, write a `JobSegmenter` engine (`find_candidates`
+   plus `build_segments` plus `validate_tuning`, returning the
+   `JobBoundaryCandidate` / `JobSegment` shape — `select_active` is
+   framework-provided), register it in
+   `_JOB_SEGMENTER_ENGINES`, and name it here. To opt out, declare
+   `noop_job_fallback`. *(Optional — an absent block falls back to the Eufy
+   engine.)* Optionally declare a `room_profiles` catalog (§10) to override the
+   default profile vocabulary.
+6. **Build the config dict** in `adapters/<brand>/adapter.py` and register it
    from `async_setup_entry`.
-6. **Add the brand to `ADAPTER_BUILDERS`** and run `pytest tests/adapters` — the
+7. **Add the brand to `ADAPTER_BUILDERS`** and run `pytest tests/adapters` — the
    conformance suite must pass.
-7. **Run a real job with learning disabled**: confirm the dispatch reaches the
+8. **Run a real job with learning disabled**: confirm the dispatch reaches the
    vacuum, the job is observed active, it auto-finalizes, and the active-job
-   record clears. Then enable learning and confirm per-room timing accumulates.
-8. **(Optional) Map overlay**: place a PNG at the maps path and use the card's
+   record clears. Then enable learning and confirm per-room timing accumulates
+   into the per-room segments your job segmenter produced.
+9. **(Optional) Map overlay**: place a PNG at the maps path and use the card's
    bounds calibration, or rely on colour-coded bounds boxes with no image.
 
 If the brand has a real user base, ship the adapter upstream as a new

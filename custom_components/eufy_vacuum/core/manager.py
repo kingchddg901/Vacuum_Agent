@@ -2739,6 +2739,7 @@ class EufyVacuumManager:
                 settings_samples=settings_samples,
                 rooms=rooms,
                 baselines=baselines,
+                vacuum_entity_id=vacuum_entity_id,
             )
             if record is None:
                 return None
@@ -2936,6 +2937,7 @@ class EufyVacuumManager:
             active_ids=active_boundaries,
             rooms=rooms or {},
             baselines=baselines,
+            vacuum_entity_id=vacuum_entity_id,
         )
         if new_record is None:
             return {"ok": False, "error": "empty_segmentation", **meta}

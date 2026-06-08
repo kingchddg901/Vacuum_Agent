@@ -73,6 +73,14 @@ from .upkeep_catalog import (
 )
 from .upkeep_guides import UPKEEP_GUIDE_LIBRARY
 from .water_config import WATER_MODEL_CONFIGS
+from ...profiles.room_profiles import (
+    BUILT_IN_ROOM_PROFILES,
+    DEFAULT_CUSTOM_ROOM_PROFILE,
+    DEFAULT_ROOM_PROFILE_NAME,
+    FLOOR_TYPE_FAN_DEFAULTS,
+    FLOOR_TYPE_WATER_DEFAULTS,
+    LEGACY_PROFILE_ALIASES,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -507,21 +515,35 @@ def register_eufy_adapter_for_vacuum(
             },
         },
 
+        "job_segmenter": {
+            # Selects the pluggable JOB (run) segmenter engine — the brand-specific
+            # detection of per-room boundaries from a run's progress signal. The
+            # framework looks the name up in
+            # learning.job_segmenter_engines._JOB_SEGMENTER_ENGINES; an absent or
+            # unknown engine falls back to eufy_counter_v1 (NOT noop), so live rollover
+            # + external ingest + learned history keep working. eufy_counter_v1 reads
+            # the cleaning_time / cleaning_area counters (no geometry; coordinates
+            # drift). `tuning` is the SINGLE source of the gap/area/cadence thresholds —
+            # live rollover, external ingest, AND learned history all read it. A brand
+            # with native room-transition telemetry registers its own engine here.
+            "engine": "eufy_counter_v1",
+            "tuning": {
+                "gap_delayed_s": 35.0,
+                "gap_transit_s": 60.0,
+                "gap_plateau_s": 90.0,
+                "area_jump_m2": 2.0,
+                "cadence_s": 30.0,
+            },
+        },
+
         "live_transition": {
-            # Drives LIVE current-room rollover from the cleaning-counter plateau
-            # signal. Eufy reports no "current room" and its coordinates drift, so the
-            # counters are the reliable transition signal. Defaults equal the
-            # counter_segmentation module values; the only behavior change vs the legacy
-            # live path is the added "transit" band (a 60-90 s flat-area inter-room hop
-            # the legacy path discarded). A brand with native per-room telemetry can
-            # declare native_transition_source (reserved). See
+            # LIVE current-room rollover orchestration. The gap/area/cadence thresholds
+            # now live in job_segmenter.tuning (the single source); this block carries
+            # only the live-specific knobs: the kill-switch, which boundary kinds advance
+            # the live queue (the "transit" band is the only behavior change vs the
+            # legacy path), and the reserved native_transition_source. See
             # ActiveJobTracker._live_transition_config.
             "enabled": True,
-            "gap_delayed_s": 35.0,
-            "gap_transit_s": 60.0,
-            "gap_plateau_s": 90.0,
-            "area_jump_m2": 2.0,
-            "cadence_s": 30.0,
             "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
             "native_transition_source": False,
         },
@@ -532,6 +554,23 @@ def register_eufy_adapter_for_vacuum(
             # stall; both ratios are adapter-tunable.
             "running_long_ratio": 1.5,
             "stall_ratio": 2.0,
+        },
+
+        "room_profiles": {
+            # Default room-profile vocabulary. The in-code catalog
+            # (profiles/room_profiles.py) is the framework DEFAULT + the
+            # _PROTECTED_ROOM_PROFILE_NAMES source; Eufy declares it here BY REFERENCE
+            # (no duplication, byte-identical) so room resolution is adapter-sourced and
+            # a future brand can inline its own catalog / vocabulary. The framework's
+            # resolve_profile_catalog() merges this block over the in-code constants per
+            # key, so any subset can be overridden; an absent block uses the defaults.
+            "default_profile": DEFAULT_ROOM_PROFILE_NAME,
+            "builtins": BUILT_IN_ROOM_PROFILES,
+            "custom_template": DEFAULT_CUSTOM_ROOM_PROFILE,
+            "legacy_aliases": LEGACY_PROFILE_ALIASES,
+            "floor_type_water_defaults": FLOOR_TYPE_WATER_DEFAULTS,
+            "floor_type_fan_defaults": FLOOR_TYPE_FAN_DEFAULTS,
+            "normalize_defaults": DEFAULT_CUSTOM_ROOM_PROFILE,
         },
 
         "capabilities": {

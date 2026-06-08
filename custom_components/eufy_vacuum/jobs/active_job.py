@@ -29,7 +29,10 @@ from ..core.charging import (
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
 from ..const import DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
-from ..counter_segmentation import find_candidates, segment_counters, select_active
+# select_active is the brand-agnostic selection stage (stays a direct framework
+# import); find_candidates / segment_legacy route through the pluggable job-segmenter
+# engine (resolved per-vacuum in _live_boundary_count).
+from ..counter_segmentation import select_active
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 
 if TYPE_CHECKING:
@@ -84,18 +87,15 @@ def _normalize_pause_timeout_minutes(value: Any) -> int:
 # stuck/never-finalized job from growing the buffer unbounded.
 _MAX_COUNTER_SAMPLES = 2000
 
-# Live current-room rollover tuning. Every value equals the counter_segmentation
-# module default, so an adapter WITHOUT a "live_transition" block behaves exactly as
-# before EXCEPT it now also rolls on a "transit" boundary (a 60-90 s flat-area
-# inter-room hop the legacy live path discarded). Adapters override per-brand via the
-# live_transition block; see ActiveJobTracker._live_transition_config.
+# Live current-room rollover ORCHESTRATION knobs only — an adapter WITHOUT a
+# "live_transition" block behaves as before EXCEPT it now also rolls on a "transit"
+# boundary (a 60-90 s flat-area inter-room hop the legacy live path discarded). The
+# gap/area/cadence THRESHOLDS live in the adapter's job_segmenter.tuning (the single
+# source, resolved by the job-segmenter engine in _live_boundary_count); this block
+# carries only enabled / rollover_kinds / native_transition_source. See
+# ActiveJobTracker._live_transition_config.
 _LIVE_TRANSITION_DEFAULTS: dict[str, Any] = {
     "enabled": True,
-    "gap_delayed_s": 35.0,
-    "gap_transit_s": 60.0,
-    "gap_plateau_s": 90.0,
-    "area_jump_m2": 2.0,
-    "cadence_s": 30.0,
     "rollover_kinds": ("wash_plateau", "transit", "area_jump"),
     "native_transition_source": False,
 }
@@ -593,16 +593,14 @@ class ActiveJobTracker:
         return bool(caps.get("position_lock_reliable", False))
 
     def _live_transition_config(self, vacuum_entity_id: str) -> dict[str, Any]:
-        """Live rollover tuning, adapter-overridable. Merges the adapter's
-        ``live_transition`` block over ``_LIVE_TRANSITION_DEFAULTS`` so an absent block
-        (or a non-Eufy adapter) behaves as the defaults — the only Eufy change vs the
-        legacy path is the added ``transit`` band."""
+        """Live rollover ORCHESTRATION, adapter-overridable. Merges the adapter's
+        ``live_transition`` block over ``_LIVE_TRANSITION_DEFAULTS`` — enabled /
+        rollover_kinds / native_transition_source only. The gap/area/cadence thresholds
+        are NOT here: they live in ``job_segmenter.tuning`` (the single source), resolved
+        by the job-segmenter engine in ``_live_boundary_count``."""
         cfg = dict(_LIVE_TRANSITION_DEFAULTS)
         block = (_get_adapter_config(vacuum_entity_id) or {}).get("live_transition")
         if isinstance(block, dict):
-            for key in ("gap_delayed_s", "gap_transit_s", "gap_plateau_s", "area_jump_m2", "cadence_s"):
-                if key in block:
-                    cfg[key] = _safe_float(block[key], cfg[key])
             if "enabled" in block:
                 cfg["enabled"] = bool(block["enabled"])
             if "native_transition_source" in block:
@@ -618,20 +616,28 @@ class ActiveJobTracker:
         """Number of completed room transitions the live counter signal currently shows
         (the in-progress room is never counted — expected_rooms caps boundaries at N-1).
         Transit-aware + adapter-tunable; falls back to the legacy wash/area_jump-only
-        segmentation when the live_transition hook is disabled."""
+        segmentation when the live_transition hook is disabled.
+
+        Detection routes through the adapter's pluggable job-segmenter engine (absent
+        block → the Eufy counter engine, byte-identical); ``select_active`` stays the
+        brand-agnostic framework selection."""
+        from ..learning.job_segmenter_engines import get_job_segmenter_engine
+
         samples = active_job.get("counter_samples", []) or []
         cfg = self._live_transition_config(vacuum_entity_id)
+        # Engine + thresholds both come from the adapter's job_segmenter block (the
+        # single source); absent → the Eufy counter engine + its DEFAULT_TUNING. The
+        # engine merges a partial/None tuning over its own defaults.
+        _js = (_get_adapter_config(vacuum_entity_id) or {}).get("job_segmenter") or {}
+        engine = get_job_segmenter_engine(_js.get("engine") if isinstance(_js, dict) else None)
+        tuning = _js.get("tuning") if isinstance(_js, dict) else None
+
         if not cfg["enabled"]:
-            segments = segment_counters(samples, expected_rooms=len(raw_timeline) or None)
+            segments = engine.segment_legacy(
+                samples, expected_rooms=len(raw_timeline) or None, tuning=tuning
+            )
             return max(len(segments) - 1, 0)
-        candidates = find_candidates(
-            samples,
-            gap_delayed_s=cfg["gap_delayed_s"],
-            gap_transit_s=cfg["gap_transit_s"],
-            gap_plateau_s=cfg["gap_plateau_s"],
-            area_jump_m2=cfg["area_jump_m2"],
-            cadence_s=cfg["cadence_s"],
-        )
+        candidates = engine.find_candidates(samples, tuning=tuning)
         active = select_active(
             candidates,
             expected_rooms=len(raw_timeline) or None,

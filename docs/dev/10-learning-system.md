@@ -143,8 +143,9 @@ change, building a `counter_samples` stream. Capture degrades gracefully —
 adapters that don't declare these entities never subscribe and fall back to the
 constant overhead (§5.3).
 
-`counter_segmentation.segment_counters()` turns that stream into ordered per-room
-segments **without geometry**. A boundary is a **long plateau** (gap between
+The job segmenter (`counter_segmentation`'s primitives, reached through the engine seam
+described below) turns that stream into ordered per-room segments **without geometry**.
+A boundary is a **long plateau** (gap between
 cleaning_time ticks > ~90 s, e.g. the ByRoom mop-wash) or a **delayed step**
 (~40 s gap) after which `cleaning_area` **rises ≥ ~2 m²** in the stretch *before
 the next blip* (new floor = a room transition); a delayed step with **flat** area
@@ -163,7 +164,7 @@ edge→fill / progressive-area pass-turn from a true boundary, so only the stron
 boundaries (long plateau > short step, then larger forward rise) are kept. Internal
 (finalize / history) callers pass the queue length and this path is unchanged.
 
-`segment_counters` is now a **byte-identical back-compat wrapper** over a decomposed
+`segment_counters` is a **byte-identical back-compat wrapper** over a decomposed
 pipeline (`find_candidates` → `select_active` → `build_segments`): it pins
 `gap_transit_s=inf` and `kinds={wash_plateau, area_jump}`, so it sees only the
 plateau/area-jump boundaries it always did. The decomposition adds a third boundary
@@ -177,6 +178,30 @@ default; `build_segments` turns the active set into per-room segments. This same
 transit-aware decomposition now also feeds the **live** job-queue rollover (see
 [07-queue-engine](07-queue-engine.md)) — see the live-detection paragraph below.
 
+**The three consumers reach these stages through a pluggable job-segmenter engine,
+not by importing `counter_segmentation` directly** (`learning/job_segmenter_engines.py`,
+mirroring the dispatch-engine seam of `queue/dispatch_engines.py`). The adapter
+selects an engine via its `job_segmenter.engine` block; `get_job_segmenter_engine(name)`
+resolves it, **falling back to the Eufy engine** (`eufy_counter_v1`,
+`EufyCounterSegmenter`) for an absent/unknown name — *not* a noop — so live rollover and
+learned history keep working byte-for-byte with no adapter registered. The Eufy engine
+delegates **verbatim** to the `counter_segmentation` primitives (`find_candidates`,
+`build_segments`, and `segment_counters` for its `segment_legacy`), and its
+`DEFAULT_TUNING` (`gap_delayed_s`/`gap_transit_s`/`gap_plateau_s`/`area_jump_m2`/`cadence_s`)
+is defined *by reference* to that module's constants, so the Eufy path can never drift
+from the pre-engine code. **`select_active` stays a framework function** in
+`counter_segmentation` — it is pure ranking over the candidate *shape* (`kind` /
+`confident` / `strength` / `id`), so it is brand-agnostic and is **not** on the engine;
+the engine owns only the brand-specific `find_candidates` / `build_segments` stages. The
+cross-engine contract is two TypedDicts (`JobBoundaryCandidate`, `JobSegment`) — the
+exact union the primitives already emit — so a future brand emitting the same shape needs
+no consumer changes. (The Eufy `kind` literals — `wash_plateau` / `transit` / `area_jump`
+/ `weak`, and the `kinds={wash_plateau, area_jump}` legacy filter — stay at the Eufy call
+sites as the documented extension point.) The gap/area/cadence thresholds now live in the
+adapter's `job_segmenter.tuning` block (see [07-queue-engine](07-queue-engine.md)); the
+`counter_segmentation` module constants remain the framework defaults the Eufy engine
+references.
+
 **External** (app-started) runs no longer simply over-split into a merge-only card.
 At finalize the full candidate pool **and the raw samples** are embedded in the
 pending record (schema v2), so the review card can re-segment the run server-side at
@@ -184,21 +209,32 @@ any user-set room count or explicit boundary set
 (`learning/external_ingest.resegment_pending_record`, exposed by the
 `resegment_external_run` service) — not just merge. The default view is the
 *confident-only* cuts (matching the pre-v2 segmentation); transit/weak/uncertain cuts
-surface as inactive "split here" candidates. See
+surface as inactive "split here" candidates. `build_pending_record` /
+`resegment_pending_record` / `_mark_candidate_confidence` call the resolved engine's
+`find_candidates` / `build_segments` (an optional `vacuum_entity_id` selects the
+adapter's engine; absent → the Eufy fallback, byte-identical) while importing
+`select_active` directly as a framework function. The persisted v2 `gap_transit_s`
+field (Eufy: unchanged `60.0`) now sources from the resolved engine tuning rather than
+the module constant — same value, moved provenance. See
 [28-external-run-ingestion](28-external-run-ingestion.md).
 
 The same segmenter also drives **live** room-transition detection: in
-`jobs/active_job._maybe_roll_current_room_by_timing`, when `segment_counters` shows
-a completed segment beyond the recorded completions, it fires `EVENT_ROOM_FINISHED`
+`jobs/active_job._maybe_roll_current_room_by_timing`, when the per-vacuum boundary
+count (`_live_boundary_count`, via the resolved engine's `find_candidates` + framework
+`select_active`, or `engine.segment_legacy` under the disabled kill-switch) exceeds the
+recorded completions, it fires `EVENT_ROOM_FINISHED`
 (`source="counter_plateau"`) ahead of the timing threshold — a high-confidence,
 frame-invariant boundary. Geometry/bounds confirmation is **capability-gated**
 (`position_lock_reliable` — the adapter's call; Eufy = false because its frame
 drifts), so on Eufy the plateau + timing carry the rollover and the bounds check
 never wrongly blocks it, while a brand with a stable lock re-enables it.
 
-At finalization, `_build_transit_blocks` (`learning/history_store.py`) maps the
-segments onto the dispatched queue order (internal: segment K → queue room K) and
-writes three additive blocks to the job record's `job` object:
+At finalization, `_build_transit_blocks` (`learning/history_store.py`) resolves the
+job-segmenter engine from the adapter (optional `vacuum_entity_id` param; absent/unknown
+→ the Eufy fallback) and calls `engine.segment_legacy(...)` — byte-identical to the
+legacy `segment_counters` — then maps the segments onto the dispatched queue order
+(internal: segment K → queue room K) and writes three additive blocks to the job
+record's `job` object:
 
 | Field | Shape | Meaning |
 |---|---|---|

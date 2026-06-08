@@ -22,8 +22,10 @@ The engine takes three inputs and produces one output.
   `supports_path_control`, `supports_edge_mopping`, `supports_passes`).
   Sourced from `get_vacuum_capabilities()`.
 - **Stored profiles** — the custom room-profile library from
-  `data["profiles"]["room_profiles"]`, merged with built-in profiles via
-  `merge_profile_dicts` in `profiles/room_profiles.py`.
+  `data["profiles"]["room_profiles"]`, merged with the built-in profiles via
+  `merge_profile_dicts` in `profiles/room_profiles.py`. The built-in side of
+  that merge comes from the adapter-resolved catalog (see §4), not directly
+  from the in-code constants.
 
 **What the engine does NOT do**
 
@@ -126,10 +128,28 @@ engine reads stored values; it does not compute order from any other source.
 
 ## 4. Profile Resolution
 
+Before resolving any room, `build_room_clean_payload` resolves the vacuum's
+**room-profile catalog** from the adapter. It calls
+`get_adapter_config(vacuum_entity_id)` (deferred import of `adapters/registry.py`),
+reads the adapter's `room_profiles` block, and passes it through
+`resolve_profile_catalog` (`profiles/room_profiles.py`). That returns a catalog
+dict (`builtins`, `custom_template`, `legacy_aliases`, `default_profile`,
+`floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults`),
+merging the adapter block over the in-code constants *per key*. A None/empty
+block yields the in-code defaults verbatim — so for Eufy, whose `room_profiles`
+block is declared by reference to those same constants, the catalog **is** the
+in-code defaults and resolution is byte-identical to pre-refactor.
+
+The resolved `_catalog` is then threaded into both
+`resolve_room_profile_for_room` and `apply_capability_gate` (the `catalog=`
+argument) so a brand's profile vocabulary — built-ins, legacy aliases, and
+floor-type fan/water defaults — reaches the dispatched per-room settings.
+
 For each room, the engine resolves which cleaning settings to use:
 
 1. `room["profile_name"]` is looked up in the merged profile library
-   (custom + built-in) via `resolve_room_profile_for_room`.
+   (custom + built-in) via `resolve_room_profile_for_room`, using the
+   adapter-resolved catalog.
 2. If the profile name is `"custom"` or not found, the room's direct fields
    (`fan_speed`, `water_level`, etc.) are used as-is.
 3. The resolved settings are passed through `_protected_room_config` in
@@ -137,8 +157,9 @@ For each room, the engine resolves which cleaning settings to use:
    - Carpet rooms: `clean_mode` downgraded from mop/vacuum_mop to `"vacuum"`;
      `water_level` forced to `"Off"`; `edge_mopping` forced to `False`.
    - Non-mop modes: `water_level` forced to `"Off"`; `edge_mopping` to `False`.
-4. Capability gating is applied via `apply_capability_gate` — removes fields
-   the vacuum hardware doesn't support.
+4. Capability gating is applied via `apply_capability_gate` (also passed the
+   resolved catalog) — removes fields the vacuum hardware doesn't support and
+   derives the mop→vacuum downgrade fallback from the catalog's built-ins.
 
 The final `ResolvedRoom` records both the `selected_profile_name` (what the
 room stored) and the `resolved_profile_name` (what was actually used).

@@ -50,6 +50,14 @@ class EffectiveRoomSettings(TypedDict, total=False):
     edge_mopping: bool
     capability_gated: bool      # added by apply_capability_gate() in Wave 3
 
+# The default profile a newly-discovered room gets. The in-code constants below are
+# the framework DEFAULT catalog AND the source of _PROTECTED_ROOM_PROFILE_NAMES
+# (profiles/manager.py) — they stay authoritative. An adapter's "room_profiles" block
+# OVERRIDES any subset of them per-vacuum via resolve_profile_catalog(); the resolver
+# functions take an optional ``catalog`` (a resolved block) and fall back to these
+# constants when it is None, so every call without a catalog is byte-identical.
+DEFAULT_ROOM_PROFILE_NAME = "vacuum_quick"
+
 BUILT_IN_ROOM_PROFILES: dict[str, dict[str, Any]] = {
     "vacuum_quick": {
         "label": "Vacuum Only Quick",
@@ -130,27 +138,57 @@ FLOOR_TYPE_FAN_DEFAULTS: dict[str, str] = {
 }
 
 
-def get_default_room_profiles() -> dict[str, dict[str, Any]]:
-    """Return default room profiles including the legacy user slot."""
-    profiles = deepcopy(BUILT_IN_ROOM_PROFILES)
-    profiles["user_1"] = deepcopy(DEFAULT_CUSTOM_ROOM_PROFILE)
+def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
+    """Merge an adapter ``room_profiles`` block over the in-code defaults, per key.
+
+    Returns a catalog dict (builtins / custom_template / legacy_aliases /
+    default_profile / floor_type_water_defaults / floor_type_fan_defaults /
+    normalize_defaults). A None/empty block yields the in-code defaults verbatim, so
+    a vacuum without the block resolves byte-identically. The in-code constants remain
+    the framework default + the _PROTECTED_ROOM_PROFILE_NAMES source regardless."""
+    block = block if isinstance(block, dict) else {}
+    return {
+        "builtins": block.get("builtins") or BUILT_IN_ROOM_PROFILES,
+        "custom_template": block.get("custom_template") or DEFAULT_CUSTOM_ROOM_PROFILE,
+        "legacy_aliases": block.get("legacy_aliases") or LEGACY_PROFILE_ALIASES,
+        "default_profile": block.get("default_profile") or DEFAULT_ROOM_PROFILE_NAME,
+        "floor_type_water_defaults": block.get("floor_type_water_defaults") or FLOOR_TYPE_WATER_DEFAULTS,
+        "floor_type_fan_defaults": block.get("floor_type_fan_defaults") or FLOOR_TYPE_FAN_DEFAULTS,
+        "normalize_defaults": block.get("normalize_defaults") or DEFAULT_CUSTOM_ROOM_PROFILE,
+    }
+
+
+def get_default_room_profiles(catalog: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    """Return default room profiles including the legacy user slot.
+
+    ``catalog`` (a resolved ``room_profiles`` block) overrides the built-ins +
+    custom template; None uses the in-code constants (byte-identical)."""
+    cat = catalog or {}
+    profiles = deepcopy(cat.get("builtins") or BUILT_IN_ROOM_PROFILES)
+    profiles["user_1"] = deepcopy(cat.get("custom_template") or DEFAULT_CUSTOM_ROOM_PROFILE)
     return profiles
 
 
-def normalize_room_profile(profile: dict[str, Any] | None) -> dict[str, Any]:
-    """Return a fully normalized room profile dict with safe defaults for all keys."""
+def normalize_room_profile(
+    profile: dict[str, Any] | None, catalog: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Return a fully normalized room profile dict with safe defaults for all keys.
+
+    Missing keys fall back to the catalog's ``normalize_defaults`` (the adapter's, or
+    the in-code ``DEFAULT_CUSTOM_ROOM_PROFILE`` when ``catalog`` is None — byte-identical)."""
     source = profile or {}
+    d = (catalog or {}).get("normalize_defaults") or DEFAULT_CUSTOM_ROOM_PROFILE
 
     return {
-        "label": str(source.get("label", "User Profile 1")),
-        "clean_mode": str(source.get("clean_mode", "vacuum")),
-        "fan_speed": str(source.get("fan_speed", "Max")),
-        "water_level": str(source.get("water_level", "Off")),
-        "clean_intensity": str(source.get("clean_intensity", "Standard")),
-        "path_type": str(source.get("path_type", "wide")),
-        "clean_passes": int(source.get("clean_passes", 1)),
-        "edge_mopping": bool(source.get("edge_mopping", False)),
-        "mop_required": bool(source.get("mop_required", False)),
+        "label": str(source.get("label", d.get("label", "User Profile 1"))),
+        "clean_mode": str(source.get("clean_mode", d.get("clean_mode", "vacuum"))),
+        "fan_speed": str(source.get("fan_speed", d.get("fan_speed", "Max"))),
+        "water_level": str(source.get("water_level", d.get("water_level", "Off"))),
+        "clean_intensity": str(source.get("clean_intensity", d.get("clean_intensity", "Standard"))),
+        "path_type": str(source.get("path_type", d.get("path_type", "wide"))),
+        "clean_passes": int(source.get("clean_passes", d.get("clean_passes", 1))),
+        "edge_mopping": bool(source.get("edge_mopping", d.get("edge_mopping", False))),
+        "mop_required": bool(source.get("mop_required", d.get("mop_required", False))),
     }
 
 
@@ -158,6 +196,7 @@ def merge_profile_dicts(
     *,
     built_in_profiles: dict[str, dict[str, Any]],
     stored_profiles: dict[str, dict[str, Any]] | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Return built-in profiles merged with stored custom profiles; stored values overwrite built-ins."""
     merged = deepcopy(built_in_profiles)
@@ -167,15 +206,20 @@ def merge_profile_dicts(
         profile_key = str(profile_name or "").strip()
         if not profile_key:
             continue
-        merged[profile_key] = normalize_room_profile(profile)
+        merged[profile_key] = normalize_room_profile(profile, catalog=catalog)
 
     return merged
 
 
-def _normalize_profile_name(profile_name: str | None) -> str:
+def _normalize_profile_name(
+    profile_name: str | None, catalog: dict[str, Any] | None = None
+) -> str:
     """Normalize profile names and map legacy aliases."""
-    raw = str(profile_name or "vacuum_quick").strip()
-    return LEGACY_PROFILE_ALIASES.get(raw, raw)
+    cat = catalog or {}
+    default_name = cat.get("default_profile") or DEFAULT_ROOM_PROFILE_NAME
+    aliases = cat.get("legacy_aliases") or LEGACY_PROFILE_ALIASES
+    raw = str(profile_name or default_name).strip()
+    return aliases.get(raw, raw)
 
 
 def _normalize_floor_type(floor_type: str | None) -> str:
@@ -196,24 +240,30 @@ def get_room_profile(
     *,
     profile_name: str | None,
     stored_profiles: dict[str, dict[str, Any]] | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Return ``(resolved_name, normalized_profile)`` for the given profile name.
 
-    Falls back to ``vacuum_quick`` when the name is unknown.
+    Falls back to the catalog's ``default_profile`` (the in-code ``vacuum_quick`` when
+    ``catalog`` is None) when the name is unknown.
     """
     merged = merge_profile_dicts(
-        built_in_profiles=get_default_room_profiles(),
+        built_in_profiles=get_default_room_profiles(catalog=catalog),
         stored_profiles=stored_profiles,
+        catalog=catalog,
     )
 
-    normalized_name = _normalize_profile_name(profile_name)
+    normalized_name = _normalize_profile_name(profile_name, catalog=catalog)
     profile = merged.get(normalized_name)
 
     if profile is None:
-        normalized_name = "vacuum_quick"
+        normalized_name = (catalog or {}).get("default_profile") or DEFAULT_ROOM_PROFILE_NAME
+        profile = merged.get(normalized_name)
+    if profile is None:
+        normalized_name = DEFAULT_ROOM_PROFILE_NAME
         profile = merged[normalized_name]
 
-    return normalized_name, normalize_room_profile(profile)
+    return normalized_name, normalize_room_profile(profile, catalog=catalog)
 
 
 def get_available_profile_names(
@@ -246,17 +296,19 @@ def get_available_profiles(
     *,
     capabilities: dict[str, Any] | None = None,
     stored_profiles: dict[str, dict[str, Any]] | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> dict[str, dict[str, Any]]:
     """Return normalized profiles filtered to those allowed by the vacuum's capabilities."""
     all_profiles = merge_profile_dicts(
-        built_in_profiles=get_default_room_profiles(),
+        built_in_profiles=get_default_room_profiles(catalog=catalog),
         stored_profiles=stored_profiles,
+        catalog=catalog,
     )
 
     allowed_names = set(get_available_profile_names(capabilities=capabilities))
 
     return {
-        name: normalize_room_profile(profile)
+        name: normalize_room_profile(profile, catalog=catalog)
         for name, profile in all_profiles.items()
         if name in allowed_names
     }
@@ -266,6 +318,7 @@ def resolve_profile_name_for_constraints(
     *,
     profile_name: str,
     floor_type: str,
+    catalog: dict[str, Any] | None = None,
 ) -> str:
     """Resolve the final profile name after applying hard constraints.
 
@@ -274,7 +327,7 @@ def resolve_profile_name_for_constraints(
     - vacuum_mop_quick -> vacuum_quick
     - vacuum_mop_deep -> vacuum_deep
     """
-    normalized_name = _normalize_profile_name(profile_name)
+    normalized_name = _normalize_profile_name(profile_name, catalog=catalog)
 
     if not floor_type.startswith("carpet"):
         return normalized_name
@@ -295,16 +348,25 @@ def resolve_room_profile_for_room(
     *,
     room_config: dict[str, Any],
     stored_profiles: dict[str, dict[str, Any]] | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> EffectiveRoomSettings:
     """Resolve final effective settings for a room from its profile and metadata.
 
     Resolution order: selected profile → floor-type defaults →
     hard constraints (carpet forces vacuum-only) → per-room overrides.
     Returns an ``EffectiveRoomSettings`` dict; does not mutate inputs.
-    """
+
+    ``catalog`` (a resolved adapter ``room_profiles`` block) sources the built-ins,
+    legacy aliases, and floor-type fan/water defaults; None uses the in-code
+    constants (byte-identical)."""
+    cat = catalog or {}
+    fan_defaults = cat.get("floor_type_fan_defaults") or FLOOR_TYPE_FAN_DEFAULTS
+    water_defaults = cat.get("floor_type_water_defaults") or FLOOR_TYPE_WATER_DEFAULTS
+
     selected_profile_name, selected_profile = get_room_profile(
         profile_name=room_config.get("profile_name"),
         stored_profiles=stored_profiles,
+        catalog=catalog,
     )
 
     floor_type = _normalize_floor_type(room_config.get("floor_type"))
@@ -312,11 +374,13 @@ def resolve_room_profile_for_room(
     resolved_profile_name = resolve_profile_name_for_constraints(
         profile_name=selected_profile_name,
         floor_type=floor_type,
+        catalog=catalog,
     )
 
     _, resolved_profile = get_room_profile(
         profile_name=resolved_profile_name,
         stored_profiles=stored_profiles,
+        catalog=catalog,
     )
 
     resolved_clean_mode = str(room_config.get("clean_mode", resolved_profile.get("clean_mode", "vacuum")))
@@ -332,14 +396,14 @@ def resolve_room_profile_for_room(
     # Carpet overrides fan speed and suppresses water; hard floors apply
     # per-surface water defaults only when the room has no explicit override.
     if floor_type.startswith("carpet"):
-        resolved_fan_speed = FLOOR_TYPE_FAN_DEFAULTS.get(floor_type, "Max")
+        resolved_fan_speed = fan_defaults.get(floor_type, "Max")
         resolved_water_level = "Off"
     elif "water_level" not in room_config:
-        resolved_water_level = FLOOR_TYPE_WATER_DEFAULTS.get(floor_type, "Low")
+        resolved_water_level = water_defaults.get(floor_type, "Low")
 
     # Mop mode with water Off is invalid — fall back to the floor's water default.
     if resolved_clean_mode in {"mop", "vacuum_mop"} and resolved_water_level == "Off" and not floor_type.startswith("carpet"):
-        resolved_water_level = FLOOR_TYPE_WATER_DEFAULTS.get(floor_type, "Low")
+        resolved_water_level = water_defaults.get(floor_type, "Low")
 
     # Edge mopping is only meaningful for mop modes on non-carpet floors.
     if resolved_clean_mode not in {"mop", "vacuum_mop"} or floor_type.startswith("carpet"):
@@ -368,6 +432,7 @@ def apply_capability_gate(
     capabilities: dict,
     *,
     resolved_profile_name: str | None = None,
+    catalog: dict[str, Any] | None = None,
 ) -> dict:
     """Return a copy of ``settings`` with values clamped to device capabilities.
 
@@ -397,7 +462,7 @@ def apply_capability_gate(
     # catalog declares (today the Eufy built-ins → wide/Quick, narrow/Deep).
     if not supports_mop and clean_mode in {"mop", "vacuum_mop"}:
         fallback_name = "vacuum_deep" if resolved_profile_name == "vacuum_mop_deep" else "vacuum_quick"
-        _, fallback = get_room_profile(profile_name=fallback_name)
+        _, fallback = get_room_profile(profile_name=fallback_name, catalog=catalog)
         clean_mode = "vacuum"
         water_level = "Off"
         edge_mopping = False

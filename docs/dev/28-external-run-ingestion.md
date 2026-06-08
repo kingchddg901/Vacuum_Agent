@@ -146,7 +146,7 @@ card never needs them; re-segmentation reads them on the server.
   "map_id": "6",
   "segment_count": 2,
   "suggested_room_count": 2,            // = the confident-only segment count (§5)
-  "gap_transit_s": 60.0,               // the transit-band threshold used (re-segment reads it back)
+  "gap_transit_s": 60.0,               // the transit-band threshold used, from the resolved engine tuning (re-segment reads it back)
   "candidates": [                      // EVERY detected blip — the split-here menu
     { "id": 7, "position": 7, "gap_s": 95.0, "area_after_m2": 0.0,
       "kind": "wash_plateau", "strength": 4000.16, "confident": true, "t": "...Z" },
@@ -184,24 +184,43 @@ to the legacy merge-only review, see §5a.)
 
 ## 5. Segmentation, the suggested count, and the shortlist
 
-**Segmentation is now a three-stage pipeline** in
+**Segmentation is now a three-stage pipeline** whose brand-specific stages live
+behind the **pluggable job-segmenter engine**
+([`learning/job_segmenter_engines.py`](../../custom_components/eufy_vacuum/learning/job_segmenter_engines.py))
+— the **counter/run** segmenter, not the map segmenter
+([`mapping/segmenter_engines.py`](../../custom_components/eufy_vacuum/mapping/segmenter_engines.py),
+`eufy_cv_v1`, unchanged). The Eufy engine (`eufy_counter_v1`) delegates **verbatim**
+to the primitives in
 [`counter_segmentation.py`](../../custom_components/eufy_vacuum/counter_segmentation.py)
-([10-learning-system](10-learning-system.md) §segmenter), so the *same frozen
-samples* can be re-cut at any granularity (this is what makes §5a exact):
+([10-learning-system](10-learning-system.md) §segmenter), so the same frozen
+samples can be re-cut at any granularity (this is what makes §5a exact):
 
 ```
-find_candidates(samples)        -> EVERY blip, kinded + ranked  (no discards)
-select_active(candidates, ...)  -> pick the active set (count / explicit / default)
-build_segments(samples, active) -> the per-room segment dicts for THAT set
+engine.find_candidates(samples)     -> EVERY blip, kinded + ranked  (no discards)   [engine]
+select_active(candidates, ...)      -> pick the active set (count / explicit / default)  [framework]
+engine.build_segments(samples, …)   -> the per-room segment dicts for THAT set      [engine]
 ```
 
-`build_pending_record` calls all three **blind** (no dispatched queue to
+`find_candidates` / `build_segments` are the **brand-specific** stages, reached
+through the engine; `select_active` is pure ranking/filtering over the candidate
+*shape*, so it stays a **direct framework import**
+(`counter_segmentation.select_active`) and is shared across brands. The engine is
+resolved per-vacuum by `_resolve_engine_tuning(vacuum_entity_id)` (new optional
+param on `build_pending_record` / `resegment_pending_record`; absent → the Eufy
+`eufy_counter_v1` engine + its `DEFAULT_TUNING`, byte-identical, and what the unit
+tests hit since they pass no vacuum id). The gap/area/cadence thresholds — including
+the persisted `gap_transit_s` — now come from that resolved engine tuning (the
+adapter's `job_segmenter.tuning` overlaid on `DEFAULT_TUNING`), not from a direct
+`counter_segmentation` module constant. `external_ingest.py` no longer imports
+`segment_counters` (only `select_active`).
+
+`build_pending_record` runs the pipeline **blind** (no dispatched queue to
 constrain it):
 
-1. `find_candidates(counter_samples)` returns **every** `cleaning_time` blip (a
-   gap > `gap_delayed_s` ≈ 35 s) as a `{id, position, gap_s, area_after_m2, kind,
-   strength, confident, t}` dict — `id == position` (the increment-tick index) is
-   a stable handle the card toggles by. The **kinds** are:
+1. `engine.find_candidates(counter_samples)` returns **every** `cleaning_time` blip
+   (a gap > `gap_delayed_s` ≈ 35 s) as a `JobBoundaryCandidate` `{id, position,
+   gap_s, area_after_m2, kind, strength, confident, t}` dict — `id == position` (the
+   increment-tick index) is a stable handle the card toggles by. The **kinds** are:
    - **`wash_plateau`** (gap > `gap_plateau_s` ≈ 90 s) — a minutes-long mop wash
      (ByRoom) or long transit. Unambiguous.
    - **`transit`** (`gap_transit_s` ≈ 60 s < gap ≤ 90 s **and** area stays flat) —
@@ -214,8 +233,9 @@ constrain it):
      (re-covering the same room); not a boundary unless the user splits it.
 2. `_mark_candidate_confidence` then upgrades `confident` on each candidate (see
    "Suggested room count" below).
-3. `select_active(candidates, default="confident")` keeps **only the confident
-   cuts** for the default view; `build_segments` materializes the per-room dicts.
+3. `select_active(candidates, default="confident")` (framework) keeps **only the
+   confident cuts** for the default view; `engine.build_segments` materializes the
+   per-room dicts.
 
 > **The default segmentation is the confident-only view** — it reproduces the
 > pre-v2 segmentation exactly (`segment_counters` is now a byte-identical
@@ -295,9 +315,12 @@ re-cut the run **without re-capturing it**. The card calls
 to `external_ingest.resegment_pending_record`, **rewrites the file in place**, and
 returns the new sample-stripped record + a selection `meta`.
 
-`resegment_pending_record` re-runs `find_candidates` (with the record's stored
-`gap_transit_s`) + `_mark_candidate_confidence` over the **frozen** samples, then
-picks the active set by exactly one mode, then `build_segments` + the shared
+`resegment_pending_record` resolves the same per-vacuum engine
+(`_resolve_engine_tuning`, absent → Eufy fallback) and re-runs
+`engine.find_candidates` (over the resolved tuning, but pinned to the record's
+stored `gap_transit_s` so the pool reproduces exactly) + `_mark_candidate_confidence`
+over the **frozen** samples, then picks the active set by exactly one mode (via the
+framework `select_active`), then `engine.build_segments` + the shared
 `_enrich_segments`:
 
 | Mode | Input | `select_active` call | `meta` |
@@ -492,9 +515,10 @@ settings instead of forming a parallel bucket. See
 | Area | File |
 |---|---|
 | Segmenter (shared, 3-stage) | `custom_components/eufy_vacuum/counter_segmentation.py` (`find_candidates`, `select_active`, `build_segments`; `segment_counters` is the back-compat wrapper) |
+| Job-segmenter engine seam | `learning/job_segmenter_engines.py` (`EufyCounterSegmenter`/`eufy_counter_v1` delegates to the primitives verbatim; `get_job_segmenter_engine` falls back to Eufy; `JobBoundaryCandidate`/`JobSegment` TypedDicts) |
 | Capture + external slot | `jobs/active_job.py` (`record_counter_sample`, `_snapshot_settings_selects`, `start_external_capture`, `_MAX_COUNTER_SAMPLES`) |
 | Detection + orchestration | `listeners/lifecycle.py`, `core/manager.py` (`maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `resegment_external_run`, `discard_external_run`) |
-| Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `_enrich_segments`, `strip_samples`, `resegment_pending_record`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
+| Pending record + re-segment + gate + graduate | `learning/external_ingest.py` (`build_pending_record`, `resegment_pending_record`, `_resolve_engine_tuning`, `_enrich_segments`, `strip_samples`, `gate_segment_identity`, `build_graduated_job`, `load_pending_runs`) |
 | Services + event | `learning/services.py` (`resegment_external_run` incl.), `const.py` (`EVENT_EXTERNAL_RUN_PENDING`) |
 | Adapter contract | `adapters/eufy/adapter.py`, `adapters/config_schema.py` |
 | Card | `src/{state,actions,renderers,bindings,styles}/external-jobs.js` |

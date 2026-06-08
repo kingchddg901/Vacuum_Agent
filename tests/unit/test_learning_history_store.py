@@ -775,6 +775,21 @@ def test_build_transit_blocks_no_samples():
     assert timings == [] and transitions == [] and valid is False
 
 
+def test_build_transit_blocks_engine_routed_is_identical():
+    """[HS-T4b] routing through the job-segmenter engine (via vacuum_entity_id) is
+    byte-identical to the default no-id path. An Eufy/unregistered adapter has no
+    job_segmenter block, so it resolves to the Eufy counter engine, which delegates
+    verbatim to segment_counters — the Wave-2 byte-identical guarantee."""
+    common = dict(
+        counter_samples=_TWO_ROOM_SAMPLES,
+        queue_room_ids=[1, 2],
+        slug_by_id={1: "kitchen", 2: "bath"},
+    )
+    base = _build_transit_blocks(**common)
+    routed = _build_transit_blocks(**common, vacuum_entity_id="vacuum.alfred")
+    assert routed == base
+
+
 def test_build_completed_job_payload_emits_transit_blocks(tmp_path):
     """[HS-T5] counter_samples on active_job_state surface as job.transitions +
     per-room area."""
