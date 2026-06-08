@@ -8,7 +8,7 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
-## [0.9.17] - Unreleased
+## [0.9.17] - 2026-06-08
 
 ### Added
 - **External-run review wizard: server-side re-segmentation.** The "review an
