@@ -1,7 +1,7 @@
 {
   "domain": "eufy_vacuum",
   "name": "Vacuum Agent",
-  "after_dependencies": ["frontend", "http", "panel_custom"],
+  "after_dependencies": ["frontend", "http", "panel_custom", "recorder"],
   "codeowners": ["@kingchddg90"],
   "config_flow": true,
   "documentation": "https://github.com/kingchddg901/Vacuum_Agent",
