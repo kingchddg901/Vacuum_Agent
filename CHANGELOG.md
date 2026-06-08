@@ -10,6 +10,12 @@ only.
 
 ## [0.9.17] - 2026-06-08
 
+> The external-run capture + review capability in this release was driven entirely by
+> [@chubban-lgtm](https://github.com/chubban-lgtm)'s question in
+> [#4](https://github.com/kingchddg901/Vacuum_Agent/issues/4) — *"does it not use the
+> runs from the eufy app for learning review?"* I didn't think it was possible at first;
+> a little digging proved otherwise. Thank you.
+
 ### Added
 - **External-run review wizard: server-side re-segmentation.** The "review an
   external (app-driven) run" flow no longer only lets you merge rooms client-side
