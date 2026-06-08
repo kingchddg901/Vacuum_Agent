@@ -940,6 +940,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         },
     },
 
+    "external_mid_run_statuses": {
+        "type": "list",
+        "required": False,
+        "description": (
+            "task_status strings meaning the robot docked MID-run and will resume "
+            "(mop wash / dust empty / recharge-resume). The external-run finalizer "
+            "holds the run open while task_status is one of these instead of closing "
+            "it at the dock, so a vacuum->mop run stays one multi-segment record."
+        ),
+    },
+
     # === SETTINGS SELECTS (external-run capture) ===========================
 
     "settings_selects": {

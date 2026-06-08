@@ -83,6 +83,7 @@ export function applyExternalJobsState(proto) {
       segments,
       splits,
       assignments,
+      rooms: Array.isArray(run?.rooms) ? run.rooms : [],
       step: 1,
       blocked: null,
       busy: false,

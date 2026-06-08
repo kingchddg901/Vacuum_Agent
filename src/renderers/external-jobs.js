@@ -195,14 +195,12 @@ export function applyExternalJobsRenderers(proto) {
   };
 
   proto._extAllRoomsOptions = function (ctx, order, selectedId) {
-    const state = ctx.state;
-    let rooms = [];
-    try {
-      rooms = state.rooms?.() || state.managedRooms?.() || state.allRooms?.() || [];
-    } catch (_e) {
-      rooms = [];
-    }
-    if (!Array.isArray(rooms) || !rooms.length) return "";
+    // Full room list (every room on the run's map), attached to the pending
+    // record by get_external_pending_runs. This is the fallback when the right
+    // room isn't in the top-3 shortlist — without it the user is stuck.
+    const w = ctx.state.externalWizard?.();
+    const rooms = Array.isArray(w?.rooms) ? w.rooms : [];
+    if (!rooms.length) return "";
     const opts = rooms.map((r) => {
       const id = r.room_id ?? r.id;
       const name = r.name || r.slug || id;
@@ -211,7 +209,7 @@ export function applyExternalJobsRenderers(proto) {
     }).join("");
     return `
       <select class="evcc-ext-allrooms" data-action="ext-pick-room-select" data-order="${order}">
-        <option value="">… all rooms</option>${opts}
+        <option value="">… pick another room</option>${opts}
       </select>`;
   };
 

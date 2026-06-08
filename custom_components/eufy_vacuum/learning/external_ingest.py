@@ -27,14 +27,24 @@ from typing import Any
 
 from ..counter_segmentation import segment_counters
 from ..timestamp_utils import parse_timestamp
-from .utils import _safe_bool, _safe_float, _safe_int
+from .utils import _canonical_clean_mode, _safe_bool, _safe_float, _safe_int
 
-# Settings-match nudge (m²-equivalent) so a matching clean_mode breaks ties
-# between similar-area rooms without overriding a clear area mismatch.
-_SETTINGS_MATCH_BONUS = 1.5
+# Settings-match is the PRIMARY shortlist signal: a room whose config matches the
+# captured mode/passes/intensity/fan/water is far more reliable than area, because
+# cleaning_area is path/pass-cumulative (an odd path or extra pass inflates it, a
+# light pass deflates it). Weights — mode + passes move identity/time the most.
+_MATCH_W_MODE = 4.0
+_MATCH_W_PASSES = 3.0
+_MATCH_W_INTENSITY = 2.0
+_MATCH_W_FAN = 1.0
+_MATCH_W_WATER = 1.0
 _SHORTLIST_SIZE = 3
-_COLD_ROOM_SCORE = -999.0   # no learned area yet → ranks last, still selectable
+_COLD_ROOM_SCORE = -999.0   # no learned area yet → area tiebreak ranks last
 _MOP_MODES = {"mop", "vacuum_mop"}
+# A stretch that covered less than this much NEW floor is not a room — it is a
+# re-pass, transit-to-dock, or an end-of-run station clean (mop wash / dust empty),
+# e.g. the trailing 0 m² "Returning to Wash" segment. Dropped from the review.
+_MIN_ROOM_AREA_M2 = 0.5
 
 PENDING_SCHEMA_VERSION = 1
 
@@ -42,7 +52,13 @@ PENDING_SCHEMA_VERSION = 1
 def _dt(value: Any) -> datetime | None:
     if isinstance(value, datetime):
         return value
-    return parse_timestamp(value)
+    # Segment t_start/t_end are naive UTC (segment_counters strips the "Z" when it
+    # isoformats), while counter/settings samples keep "...Z". parse_timestamp's
+    # default treats naive as LOCAL, which shifts a segment's end by the server's UTC
+    # offset — pushing a non-final segment past every sample so _segment_settings and
+    # _estimate_passes read the LAST segment's values (cross-contaminating per-room
+    # settings and defaulting passes to 1). These timestamps are UTC: parse as UTC.
+    return parse_timestamp(value, assume_local_naive=False)
 
 
 def _segment_settings(
@@ -108,18 +124,34 @@ def _baseline_area_by_slug(
     return out
 
 
+def _setting_eq(a: Any, b: Any) -> float:
+    """1.0 when two setting strings match case-insensitively (and non-empty)."""
+    sa = str(a or "").strip().lower()
+    sb = str(b or "").strip().lower()
+    return 1.0 if sa and sa == sb else 0.0
+
+
 def _rank_shortlist(
     *,
     seg_area: float,
-    seg_clean_mode: str | None,
+    seg_settings: dict[str, Any] | None,
+    seg_passes: int,
     rooms: dict[str, Any],
     area_by_slug: dict[str, float],
 ) -> list[dict[str, Any]]:
-    """Top-N rooms for a segment: area-match (learned size) + settings-match
-    (clean_mode), map already scoped by the caller, carpet dropped when mopped."""
-    mode = str(seg_clean_mode or "").strip().lower()
+    """Top-N rooms for a segment, ranked SETTINGS-first.
+
+    cleaning_area is path/pass-cumulative, not a room's unique floor size, so it is
+    a poor identity signal (an odd path or extra pass inflates it, a light pass
+    deflates it). A room whose *config* matches the captured mode/passes/intensity/
+    fan/water is far more reliable, so the weighted settings-match is the primary
+    sort key and area-distance is only a tiebreak among settings-equal rooms. The
+    map is already scoped by the caller; carpet rooms drop for a mopped segment.
+    """
+    settings = seg_settings or {}
+    mode = _canonical_clean_mode(settings.get("clean_mode"))
     mopped = mode in _MOP_MODES
-    scored: list[tuple[float, dict[str, Any]]] = []
+    scored: list[tuple[float, float, dict[str, Any]]] = []
     for rid, room in (rooms or {}).items():
         if not isinstance(room, dict):
             continue
@@ -127,25 +159,44 @@ def _rank_shortlist(
         is_carpet = str(room.get("floor_type", "")).strip().lower().startswith("carpet")
         if mopped and is_carpet:
             continue  # a mopped segment cannot be a carpet room (override = all-rooms)
+
+        settings_score = 0.0
+        if mode and _canonical_clean_mode(room.get("clean_mode")) == mode:
+            settings_score += _MATCH_W_MODE
+        if seg_passes and _safe_int(room.get("clean_passes"), 0) == seg_passes:
+            settings_score += _MATCH_W_PASSES
+        settings_score += _MATCH_W_INTENSITY * _setting_eq(
+            settings.get("clean_intensity"), room.get("clean_intensity")
+        )
+        settings_score += _MATCH_W_FAN * _setting_eq(
+            settings.get("fan_speed"), room.get("fan_speed")
+        )
+        settings_score += _MATCH_W_WATER * _setting_eq(
+            settings.get("water_level"), room.get("water_level")
+        )
+
         learned_area = area_by_slug.get(slug)
-        score = -abs(_safe_float(seg_area) - learned_area) if learned_area else _COLD_ROOM_SCORE
-        if mode and str(room.get("clean_mode", "")).strip().lower() == mode:
-            score += _SETTINGS_MATCH_BONUS
+        area_tiebreak = (
+            -abs(_safe_float(seg_area) - learned_area) if learned_area else _COLD_ROOM_SCORE
+        )
         scored.append(
             (
-                score,
+                settings_score,
+                area_tiebreak,
                 {
                     "room_id": _safe_int(rid, -1),
                     "slug": slug,
                     "name": room.get("name"),
                     "is_carpet": is_carpet,
                     "learned_area_m2": learned_area,
-                    "score": round(score, 2),
+                    "settings_score": round(settings_score, 2),
+                    "score": round(area_tiebreak, 2),
                 },
             )
         )
-    scored.sort(key=lambda s: s[0], reverse=True)
-    return [entry for _score, entry in scored[:_SHORTLIST_SIZE]]
+    # primary: settings-match DESC; tiebreak: area distance (closer first).
+    scored.sort(key=lambda s: (s[0], s[1]), reverse=True)
+    return [entry for _ss, _at, entry in scored[:_SHORTLIST_SIZE]]
 
 
 def build_pending_record(
@@ -168,11 +219,22 @@ def build_pending_record(
     confident_boundaries = 0
     prev_settings: dict[str, str] | None = None
 
-    for seg in segments:
-        order = _safe_int(seg.get("index"), 0)
+    # Drop only TRAILING sub-room segments (the end-of-run station clean / re-pass).
+    # A LEADING or middle ~0 m² segment is KEPT: cleaning_area lags, so a short first
+    # room can read ~0 m² (its area lands on the next segment) yet is a real room.
+    # Find the last real-area segment; drop only what comes after it.
+    last_real = -1
+    for _i, _s in enumerate(segments):
+        if _safe_float(_s.get("area_delta_m2")) >= _MIN_ROOM_AREA_M2:
+            last_real = _i
+
+    for index, seg in enumerate(segments):
+        if index > last_real:
+            break  # trailing sub-room stretch — drop it and everything after
+        order = len(out_segments)  # re-index over KEPT segments
         boundary = seg.get("boundary")
         settings = _segment_settings(settings_samples, seg.get("t_end"))
-        clean_mode = settings.get("clean_mode")
+        passes = _estimate_passes(counter_samples, seg.get("t_start"), seg.get("t_end"))
 
         confident: bool | None = None
         if order > 0:
@@ -194,21 +256,23 @@ def build_pending_record(
                 "area_m2": _safe_float(seg.get("area_delta_m2")),
                 "time_wall_s": _safe_int(seg.get("time_wall_s"), 0),
                 "time_active_s": _safe_int(seg.get("time_active_s"), 0),
-                "pass_count": _estimate_passes(
-                    counter_samples, seg.get("t_start"), seg.get("t_end")
-                ),
+                "pass_count": passes,
                 "settings": settings,
                 "boundary": boundary,
                 "confident_boundary": confident,
                 "shortlist": _rank_shortlist(
                     seg_area=_safe_float(seg.get("area_delta_m2")),
-                    seg_clean_mode=clean_mode,
+                    seg_settings=settings,
+                    seg_passes=passes,
                     rooms=rooms,
                     area_by_slug=area_by_slug,
                 ),
             }
         )
         prev_settings = settings
+
+    if not out_segments:
+        return None  # every stretch was sub-room area (no real cleaning signal)
 
     return {
         "schema_version": PENDING_SCHEMA_VERSION,

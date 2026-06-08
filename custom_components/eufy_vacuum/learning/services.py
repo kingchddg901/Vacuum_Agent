@@ -278,10 +278,42 @@ async def async_register_learning_services(hass: HomeAssistant) -> None:
 
     async def handle_get_external_pending_runs(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)
-        return await hass.async_add_executor_job(
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        result = await hass.async_add_executor_job(
             core_manager.get_external_pending_runs,
-            call.data["vacuum_entity_id"],
+            vacuum_entity_id,
         )
+        # Attach the full per-map room list so the review wizard can offer EVERY
+        # room, not just the top-3 shortlist (which can miss the right one).
+        # Resolved loop-side, like confirm, because get_managed_rooms reads
+        # manager state.
+        for rec in (result or {}).get("pending", []) or []:
+            rooms_out: list[dict] = []
+            try:
+                rooms_dict = (
+                    core_manager.get_managed_rooms(
+                        vacuum_entity_id=vacuum_entity_id, map_id=rec.get("map_id")
+                    )
+                    or {}
+                ).get("rooms", {})
+                for rid, room in rooms_dict.items():
+                    try:
+                        room_id = int(rid)
+                    except (TypeError, ValueError):
+                        room_id = rid
+                    rooms_out.append(
+                        {
+                            "room_id": room_id,
+                            "slug": room.get("slug"),
+                            "name": room.get("name") or room.get("slug"),
+                        }
+                    )
+            except Exception:
+                _LOGGER.exception(
+                    "get_external_pending_runs: failed to attach room list"
+                )
+            rec["rooms"] = rooms_out
+        return result
 
     async def handle_discard_external_run(call: ServiceCall) -> dict:
         core_manager = _get_core_manager(hass)

@@ -87,6 +87,54 @@ def test_byroom_confident_count_area_ranked_carpet_dropped():
     assert "den" in seg1_slugs
 
 
+def test_shortlist_settings_match_beats_area_match():
+    # Segment area 2 m² matches HALL's learned size (2.0), but the captured mode is
+    # vacuum_mop, which matches KITCHEN's config (hall is vacuum). cleaning_area is
+    # path/pass-cumulative and unreliable for identity, so the settings-match must
+    # win the shortlist over the closer area. (This is the kitchen/bathroom case
+    # from live: an odd path/extra pass moved the area onto the wrong room.)
+    counter = [_c(0, 0, 0), _c(30, 30, 0.7), _c(60, 60, 1.4), _c(90, 90, 2.0)]
+    settings = [_ss(30, {"clean_mode": "vacuum_mop", "fan_speed": "Max"})]
+    rec = _build(counter, settings)
+    assert rec is not None
+    slugs = [s["slug"] for s in rec["segments"][0]["shortlist"]]
+    assert slugs[0] == "kitchen"  # mode-match wins, not the area-match hall
+    assert "hall" in slugs and slugs.index("kitchen") < slugs.index("hall")
+
+
+def test_zero_area_segment_dropped():
+    # An end-of-run station clean (mop wash / dust empty) ticks cleaning_time with
+    # NO new area — a 0 m² "Returning to Wash" stretch. It must not surface as a room.
+    counter = [
+        _c(0, 0, 0),
+        _c(60, 30, 1), _c(90, 60, 2), _c(120, 90, 3), _c(150, 120, 4),   # room A -> 4 m²
+        _c(540, 150, 4), _c(570, 180, 4), _c(600, 210, 4),               # wash + re-pass: 0 new area
+    ]
+    settings = [_ss(60, {"clean_mode": "vacuum_mop"})]
+    rec = _build(counter, settings)
+    assert rec is not None
+    assert all(s["area_m2"] >= 0.5 for s in rec["segments"])   # no ~0 m² artifact survives
+    assert any(s["area_m2"] >= 3.5 for s in rec["segments"])   # the real room is kept
+
+
+def test_leading_zero_area_room_kept_when_area_lags():
+    # cleaning_area lags: a short first room can read ~0 m² (its area lands on the
+    # NEXT segment). A LEADING 0 m² segment must be KEPT (a real room), unlike a
+    # trailing station clean. (This is the kitchen-dropped regression from live.)
+    counter = [
+        _c(0, 0, 0),
+        _c(60, 30, 0), _c(90, 60, 0), _c(120, 90, 0),        # room A: ticks, area 0 (lag)
+        _c(540, 120, 0),                                      # 420s wash plateau, area still 0
+        _c(570, 150, 3), _c(600, 180, 6), _c(630, 210, 8),    # room B: area 0->8 (incl A's)
+    ]
+    settings = [_ss(60, {"clean_mode": "vacuum"}), _ss(570, {"clean_mode": "vacuum_mop"})]
+    rec = _build(counter, settings)
+    assert rec is not None
+    assert rec["segment_count"] == 2              # leading 0 m² room kept, plus room B
+    assert rec["segments"][0]["area_m2"] < 0.5    # room A read ~0 (the lag)
+    assert rec["segments"][1]["area_m2"] >= 7.0   # room B carries the area
+
+
 def test_settings_flip_makes_short_step_confident():
     counter = [
         _c(0, 0, 0),
@@ -129,6 +177,47 @@ def test_pass_count_estimated_for_multipass_room():
     assert rec["segment_count"] == 1
     assert rec["segments"][0]["pass_count"] == 2
     assert rec["segments"][0]["settings"]["clean_mode"] == "vacuum"
+
+
+def test_utc_samples_naive_segment_no_cross_contamination(monkeypatch):
+    """Regression (live, W6): segment t_start/t_end are naive UTC (segment_counters
+    strips the "Z"), while captured samples keep "...Z". If naive is parsed as LOCAL,
+    a non-final segment's window shifts past every sample, so it inherits the LAST
+    segment's settings AND _estimate_passes can't see its own samples (defaults to 1
+    pass). Force a non-UTC server tz so the bug bites unless naive is parsed as UTC."""
+    from datetime import timezone
+
+    import custom_components.eufy_vacuum.timestamp_utils as tsu
+
+    monkeypatch.setattr(tsu, "_LOCAL_TZ", timezone(timedelta(hours=-4)))
+
+    def _cz(sec, ct, ca):
+        return {
+            "t": (_BASE + timedelta(seconds=sec)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "cleaning_time": ct, "cleaning_area": ca, "battery": 100,
+        }
+
+    def _ssz(sec, settings):
+        return {"t": (_BASE + timedelta(seconds=sec)).strftime("%Y-%m-%dT%H:%M:%SZ"), "settings": settings}
+
+    counter = [
+        _cz(0, 0, 0),
+        _cz(60, 30, 1), _cz(90, 60, 2), _cz(120, 90, 3),         # room A: vacuum / Quick / High
+        _cz(540, 120, 4), _cz(570, 150, 6), _cz(600, 180, 8),    # room B pass 1: area -> 8
+        _cz(630, 210, 8), _cz(660, 240, 8),                      # room B pass 2: area flat
+    ]
+    settings = [
+        _ssz(60, {"clean_mode": "vacuum", "clean_intensity": "Quick", "water_level": "High"}),
+        _ssz(540, {"clean_mode": "vacuum_mop", "clean_intensity": "Narrow", "water_level": "Medium"}),
+    ]
+    rec = _build(counter, settings)
+    assert rec is not None and rec["segment_count"] == 2
+    # seg0 keeps ITS captured settings — the bug pasted room B's (Narrow/Medium) here.
+    assert rec["segments"][0]["settings"]["clean_intensity"] == "Quick"
+    assert rec["segments"][0]["settings"]["water_level"] == "High"
+    assert rec["segments"][1]["settings"]["clean_intensity"] == "Narrow"
+    # passes detected per-segment — the shifted window defaulted both to 1.
+    assert rec["segments"][1]["pass_count"] == 2
 
 
 def test_cold_rooms_have_no_area_but_are_still_listed():

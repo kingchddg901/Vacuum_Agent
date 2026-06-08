@@ -9,9 +9,10 @@ import hashlib
 import logging
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.event import async_call_later
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
 from .charging import (
@@ -49,6 +50,20 @@ from .storage import EufyVacuumStorage
 
 
 _LOGGER = logging.getLogger(__name__)
+
+# Grace window before an app-started (external) run is finalized once the robot
+# reaches the dock: it may be docking MID-run (mop prewash, recharge) and about to
+# resume. If it resumes within this window the run stays one record (the dock
+# becomes a cleaning_time plateau the segmenter splits into a room boundary); if it
+# stays docked, the timer finalizes. Sized just above the observed vacuum->mop
+# prewash dock (~3.5 min end-to-end in HA) so a mixed-mode multi-room run merges; a
+# recharge longer than this still fragments. Tune as needed. See
+# maybe_handle_external_run.
+EXTERNAL_FINALIZE_GRACE_S = 300  # 5 minutes
+# Safety cap on how many times the grace re-checks a still-docked external run that
+# task_status reports as mid-run (washing / emptying / recharging). 8 x 5 min ≈ 40
+# min — well past any real station cycle — then we finalize regardless.
+EXTERNAL_GRACE_MAX_RECHECKS = 8
 
 # Standard HA vacuum platform states that indicate an active or faulted vacuum.
 # These are defined by the HA vacuum integration, not by any specific brand.
@@ -2512,18 +2527,29 @@ class EufyVacuumManager:
         vacuum_state = str(getattr(state_obj, "state", "") or "").strip().lower()
 
         if external_map_id is not None:
-            # In progress: finalize once the robot is home. External runs hide
-            # active_cleaning_target, so we key the end on the vacuum entity.
+            # In progress. External runs hide active_cleaning_target, so we key the
+            # end on the vacuum entity — but NOT immediately: the robot may be
+            # docking mid-run (mop prewash, recharge) and about to resume.
+            key = (vacuum_entity_id, external_map_id)
+            timers = self._external_grace_timers()
+            if vacuum_state == "cleaning":
+                # Resumed after a mid-run dock — cancel the pending grace finalize so
+                # the whole run stays ONE record (the dock gap becomes a cleaning_time
+                # plateau the segmenter splits into a room boundary => multi-segment).
+                cancel = timers.pop(key, None)
+                if cancel:
+                    cancel()
+                return False
             if vacuum_state in {"docked", "idle"}:
-                slot = self.get_active_job(
-                    vacuum_entity_id=vacuum_entity_id, map_id=external_map_id
-                )
-                await self._finalize_external_run(
-                    vacuum_entity_id=vacuum_entity_id,
-                    map_id=external_map_id,
-                    slot=slot,
-                )
-                return True
+                # Defer the finalize by the grace window; if it resumes we cancel
+                # above, otherwise the timer fires _external_grace_finalize.
+                if key not in timers:
+                    timers[key] = async_call_later(
+                        self.hass,
+                        EXTERNAL_FINALIZE_GRACE_S,
+                        self._external_grace_cb(vacuum_entity_id, external_map_id),
+                    )
+                return False
             return False
 
         if vacuum_state == "cleaning":
@@ -2534,6 +2560,137 @@ class EufyVacuumManager:
                 )
                 return True
         return False
+
+    def _external_grace_timers(self) -> dict[tuple[str, str], Any]:
+        """Pending grace-window finalize cancels, keyed by (vacuum, map). Lazily
+        created so we needn't touch __init__; in-memory only (a restart drops them,
+        and the next dock event reschedules)."""
+        timers = getattr(self, "_ext_grace_timers", None)
+        if timers is None:
+            timers = {}
+            self._ext_grace_timers = timers
+        return timers
+
+    def _external_grace_checks(self) -> dict[tuple[str, str], int]:
+        """Per-(vacuum, map) count of grace re-checks while task_status stayed
+        mid-run; capped by EXTERNAL_GRACE_MAX_RECHECKS. Lazily created."""
+        checks = getattr(self, "_ext_grace_checks", None)
+        if checks is None:
+            checks = {}
+            self._ext_grace_checks = checks
+        return checks
+
+    def _external_status_is_mid_run(self, vacuum_entity_id: str) -> bool:
+        """True when the vacuum's task_status reports a mid-run station cycle (mop
+        wash / dust empty / recharge-resume) — the robot is docked but WILL resume,
+        so an external run must not be finalized. Values are adapter-declared
+        (external_mid_run_statuses) and compared case-insensitively."""
+        from ..adapters.registry import get_adapter_config
+
+        cfg = get_adapter_config(vacuum_entity_id) or {}
+        mid_run = cfg.get("external_mid_run_statuses") or []
+        if not mid_run:
+            return False
+        entity_id = (cfg.get("entities", {}) or {}).get("task_status")
+        if not entity_id:
+            return False
+        state_obj = self.hass.states.get(entity_id)
+        value = str(getattr(state_obj, "state", "") or "").strip().lower()
+        return value in {str(s).strip().lower() for s in mid_run}
+
+    def _external_grace_cb(self, vacuum_entity_id: str, map_id: str):
+        @callback
+        def _fire(_now) -> None:
+            self._external_grace_timers().pop((vacuum_entity_id, map_id), None)
+            self.hass.async_create_task(
+                self._external_grace_finalize(vacuum_entity_id, map_id)
+            )
+
+        return _fire
+
+    async def _external_grace_finalize(self, vacuum_entity_id: str, map_id: str) -> None:
+        """Grace window elapsed with the robot still home. Finalize the external run
+        UNLESS task_status says it is mid-run (washing the mop / emptying dust /
+        recharging to resume) — then it will come back, so re-check instead of
+        closing it. We persist here ourselves (the listener path saves separately)."""
+        key = (vacuum_entity_id, map_id)
+        checks = self._external_grace_checks()
+        slot = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if slot.get("status") != "external":
+            checks.pop(key, None)
+            return  # already resumed or cleared
+        state_obj = self.hass.states.get(vacuum_entity_id)
+        state = str(getattr(state_obj, "state", "") or "").strip().lower()
+        if state not in {"docked", "idle"}:
+            checks.pop(key, None)
+            return  # resumed (raced the cancel) — leave open for the next dock
+        n = checks.get(key, 0)
+        if self._external_status_is_mid_run(vacuum_entity_id) and n < EXTERNAL_GRACE_MAX_RECHECKS:
+            # Still in a mid-run station cycle — keep the run open and re-check.
+            checks[key] = n + 1
+            self._external_grace_timers()[key] = async_call_later(
+                self.hass,
+                EXTERNAL_FINALIZE_GRACE_S,
+                self._external_grace_cb(vacuum_entity_id, map_id),
+            )
+            return
+        checks.pop(key, None)
+        await self._finalize_external_run(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, slot=slot
+        )
+        await self.async_save()
+
+    async def _extract_return_overhead(
+        self, vacuum_entity_id: str, start_ts: Any, end_ts: Any
+    ) -> dict[str, Any]:
+        """Sum the wall time the robot spent returning/docked/paused BETWEEN cleaning
+        within an external run (mop prewash, recharge) by reading the recorder for the
+        run window — so the merged run books that span as overhead, not cleaning.
+        Best-effort: returns zero on any failure (the record still writes)."""
+        empty = {"return_overhead_s": 0, "return_intervals": []}
+        try:
+            from homeassistant.components.recorder import get_instance, history
+
+            from ..timestamp_utils import parse_timestamp
+
+            start = parse_timestamp(start_ts)
+            end = parse_timestamp(end_ts)
+            if not start or not end or end <= start:
+                return empty
+            states = await get_instance(self.hass).async_add_executor_job(
+                history.state_changes_during_period,
+                self.hass,
+                start,
+                end,
+                vacuum_entity_id,
+            )
+            rows = (states or {}).get(vacuum_entity_id, []) or []
+            non_cleaning = {"returning", "returning_to_dock", "docked", "paused", "idle"}
+            overhead = 0.0
+            intervals: list[dict[str, Any]] = []
+            for i, st in enumerate(rows):
+                value = str(getattr(st, "state", "") or "").strip().lower()
+                t0 = getattr(st, "last_changed", None) or getattr(st, "last_updated", None)
+                t1 = (
+                    getattr(rows[i + 1], "last_changed", None)
+                    if i + 1 < len(rows)
+                    else end
+                )
+                if value in non_cleaning and t0 and t1:
+                    seconds = (t1 - t0).total_seconds()
+                    if seconds > 0:
+                        overhead += seconds
+                        intervals.append(
+                            {
+                                "state": value,
+                                "start": t0.isoformat(),
+                                "seconds": round(seconds),
+                            }
+                        )
+            return {"return_overhead_s": round(overhead), "return_intervals": intervals}
+        except Exception:
+            _LOGGER.exception("external finalize: return-overhead extraction failed")
+            return empty
 
     async def _finalize_external_run(
         self, *, vacuum_entity_id: str, map_id: str, slot: dict[str, Any]
@@ -2546,6 +2703,14 @@ class EufyVacuumManager:
             self.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             or {}
         ).get("rooms", {})
+
+        # Returning/dock overhead from the recorder, bounded to the last cleaning
+        # tick so the final (true-end) dock isn't counted — books mid-run docks
+        # (mop prewash / recharge) as overhead, not cleaning.
+        last_t = counter_samples[-1].get("t") if counter_samples else detection_ts
+        overhead = await self._extract_return_overhead(
+            vacuum_entity_id, detection_ts, last_t
+        )
 
         def _build_and_write() -> dict[str, Any] | None:
             import json
@@ -2573,6 +2738,8 @@ class EufyVacuumManager:
             )
             if record is None:
                 return None
+            record["return_overhead_s"] = overhead["return_overhead_s"]
+            record["return_intervals"] = overhead["return_intervals"]
             safe_ts = (
                 str(detection_ts or "unknown").split("+")[0].split(".")[0].replace(":", "-")
             )

@@ -262,6 +262,23 @@ def register_eufy_adapter_for_vacuum(
             "mop_intensity":   {"entity_id": f"select.{object_id}_mop_intensity",      "value_map": None},
         },
 
+        # task_status values that mean "docked mid-run, will resume" (mop prewash,
+        # dust empty, recharge-resume). The external-run finalizer HOLDS the run open
+        # while task_status is one of these, instead of closing it at the dock — so a
+        # vacuum->mop run stays one multi-segment record. Source strings:
+        # robovac_mqtt/api/parser.py::_map_task_status — VERIFIED against robovac_mqtt
+        # 1.10.0 (jeppesens/eufy-clean); re-check this list when that integration
+        # updates. An unrecognized value just falls back to the time-based grace, so a
+        # string drift DEGRADES (loses the long-wash hold) rather than crashing.
+        "external_mid_run_statuses": [
+            "Returning to Wash",
+            "Washing Mop",
+            "Returning to Empty",
+            "Emptying Dust",
+            "Returning to Charge",
+            "Charging (Resume)",
+        ],
+
         "vocabulary": {
             # Dock/task states — sourced from vocabulary.py
             # See prompts 3 and 4 for extraction provenance.

@@ -51,6 +51,8 @@ import bisect
 from datetime import datetime
 from typing import Any
 
+from .timestamp_utils import UTC, datetime_to_utc_iso, parse_timestamp
+
 # Defaults (seconds / m²). cleaning_time ticks every ~30 s while cleaning.
 _CADENCE_S = 30.0
 _GAP_DELAYED_S = 35.0   # gap above this = a delayed step (a hop or a pass-turn)
@@ -59,22 +61,12 @@ _AREA_JUMP_M2 = 2.0     # cleaning_area delta across a delayed step marking new 
 
 
 def _to_dt(value: Any) -> datetime | None:
-    """Coerce a timestamp (datetime or tolerant ISO string) to datetime."""
+    """Coerce a timestamp to an aware UTC datetime via the shared timestamp_utils,
+    so segment timestamps never drift between naive and "...Z". Counter/settings
+    samples are UTC, so a naive string is read as UTC (not local)."""
     if isinstance(value, datetime):
-        return value
-    if value is None:
-        return None
-    s = str(value).strip()
-    if not s:
-        return None
-    if s.endswith("Z"):
-        s = s[:-1]
-    if "+" in s:
-        s = s.split("+", 1)[0]
-    try:
-        return datetime.fromisoformat(s)
-    except (TypeError, ValueError):
-        return None
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
+    return parse_timestamp(value, assume_local_naive=False)
 
 
 def _f(value: Any, default: float = 0.0) -> float:
@@ -220,7 +212,21 @@ def segment_counters(
     for idx, g in enumerate(groups):
         start_t = g[0][0]
         end_t, end_ct = g[-1]
-        end_area = area_at(end_t)
+        # Forward-attribute area: cleaning_area packets LAG cleaning_time, so a short
+        # room's m² often finishes posting during the dock AFTER its last tick (live: a
+        # vac bathroom went 1.0 at its last tick -> 3.0 by the next room's start, all
+        # during the prewash dock). Read the END area FORWARD to the next room's start
+        # ONLY across a wash_plateau/dock — no new floor is covered there, so the area
+        # that posts is THIS room's lag. Across an area_jump the rise is the NEXT room's
+        # new floor, so stay same-instant and don't steal it. The last segment reads to
+        # the final sample (trailing dock lag). No-lag runs are unchanged.
+        if idx + 1 >= len(groups):
+            area_ref_t = norm[-1][0] if norm else end_t
+        elif boundaries[idx + 1] == "wash_plateau":
+            area_ref_t = groups[idx + 1][0][0]
+        else:
+            area_ref_t = end_t
+        end_area = area_at(area_ref_t)
         b_start = batt_at(start_t)
         b_end = batt_at(end_t)
         battery_delta: float | None = None
@@ -229,8 +235,8 @@ def segment_counters(
         out.append(
             {
                 "index": idx,
-                "t_start": start_t.isoformat(),
-                "t_end": end_t.isoformat(),
+                "t_start": datetime_to_utc_iso(start_t),
+                "t_end": datetime_to_utc_iso(end_t),
                 "ct_start": prev_ct,
                 "ct_end": end_ct,
                 "area_start_m2": round(prev_area, 2),

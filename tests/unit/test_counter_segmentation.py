@@ -76,6 +76,24 @@ def test_nomop_transition_delayed_step_area_jump():
     assert segs[0]["area_delta_m2"] == 3.0
 
 
+def test_forward_area_attribution_across_dock():
+    """cleaning_area lags: a short room's m² can finish posting DURING the dock after
+    it. Across a wash_plateau we forward-read to the next room's start, so the lagged
+    area lands on the right (short) room instead of inflating the next one. (This is
+    the live vac-bathroom case: 1 m² at its last tick -> 3 m² by the next room's start.)"""
+    samples = [
+        _s(0, 0, 0),
+        _s(30, 30, 0), _s(60, 60, 1),        # room A: ct 0->60, only 1 m² posted by its last tick
+        _s(280, 90, 3),                       # 220s dock (wash_plateau): A's area finishes 1->3
+        _s(310, 120, 4), _s(340, 150, 5),     # room B: area 3->5
+    ]
+    segs = segment_counters(samples)
+    assert len(segs) == 2
+    assert segs[1]["boundary"] == "wash_plateau"
+    assert segs[0]["area_delta_m2"] == 3.0   # forward-read captured A's dock-lagged m² (not 1.0)
+    assert segs[1]["area_delta_m2"] == 2.0   # room B: 5 - 3, not inflated
+
+
 def test_multipass_turn_is_not_a_boundary():
     """A ~40 s delayed step with FLAT area is a pass-turn, not a room boundary."""
     samples = [
