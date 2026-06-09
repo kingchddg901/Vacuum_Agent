@@ -15,13 +15,8 @@ Coverage targets
 
 from __future__ import annotations
 
-import pytest
-
+from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import setup_map
-
-
-_VAC = "vacuum.alfred"
-_MAP = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -92,7 +87,7 @@ async def test_build_queue_excludes_disabled_rooms(manager):
     """[MQ-9] Disabled rooms are excluded from queue_room_ids."""
     setup_map(manager, _VAC, _MAP, count=3)
     # Disable room 2
-    manager.data["maps"][_VAC][_MAP]["rooms"]["2"]["enabled"] = False
+    set_room_field(manager, 2, enabled=False)
     result = manager.build_queue(vacuum_entity_id=_VAC, map_id=_MAP)
     assert 2 not in result["queue_room_ids"]
     assert len(result["queue_room_ids"]) == 2

@@ -92,6 +92,60 @@ The richest example is `test_learning_services.py`:
 When you start a new test file for a subsystem, look for an existing file in the
 same domain first — the seeding helper you need has often already been written.
 
+## Shared factories: `tests/_factories.py`
+
+Behaviour-preserving builders for the setup the suite had copy-pasted. Each is an
+*extraction* — it produces exactly the data or effect the inline code it replaces
+produced — so a refactored test asserts the identical thing. Import from anywhere
+(`tests` is a package): `from tests._factories import ...`.
+
+| Helper | Signature | Replaces |
+|--------|-----------|----------|
+| `VAC` / `MAP` / `ENTRY_ID` | constants | the per-file `_VAC = "vacuum.alfred"` / `_MAP = "1"` / `_ENTRY_ID = "test_entry_id"` literals |
+| `get_room_data` | `(manager, room_id, *, vac=VAC, map_id=MAP) -> dict` | the copy-pasted `manager.data.get("maps",{})…get(str(room_id),{})` lookup chain in `_make_*` entity builders (returns `{}` when absent) |
+| `set_room_field` | `(manager, room_id, *, vac=VAC, map_id=MAP, **fields) -> dict` | inline writes like `manager.data["maps"][VAC][MAP]["rooms"]["1"]["enabled"] = False` (mutates an **existing** room; does not create rooms or pop keys) |
+| `make_manager_mock` | `(*, run_profiles=None, **attrs) -> MagicMock` | the stub-manager builder (`async_save` as an `AsyncMock`, `reset_maintenance` / `start_run_profile`, a preloaded saved-run-profile library) used by button/platform tests |
+
+Two conventions keep refactored tests readable:
+
+- **Defaults cover what a test does NOT assert on.** A test that asserts a field
+  passes it explicitly, so "what's under test" stays visible at the call site.
+- **Extract from real use.** Add a helper only when a live test needs it, and only
+  if it reproduces that test's inline code exactly — never speculatively.
+
+Route only **setup** through the factory; keep assertions verbatim. The helpers are
+pure dict/mock operations and touch no production code, so they never change which
+`custom_components` lines a test exercises.
+
+> Not every duplicated line belongs in the factory. A one-off `.values()` loop or a
+> bespoke per-test seed is clearer left inline — forcing it through a helper is
+> churn, not dedup. `make_mock_hass` (the `MagicMock()` + `config.config_dir`
+> idiom) is deliberately **not** in the factory yet: a two-line block in large
+> files, too low-value to justify a refactor.
+
+### Refactoring setup safely: `scripts/diff_test_equiv.py`
+
+When extracting a helper from an existing test, prove the change is
+behaviour-preserving **before** it lands. The differential harness runs an
+untouched ORIGINAL and a factored CLONE and checks three things hold:
+
+1. same set of test names (nothing dropped, renamed, or added),
+2. both fully green with the same pass count,
+3. identical executed-line set on the module(s) under test — the objective proof
+   the clone exercises the same code paths.
+
+```
+docker run --rm -v "<repo>:/workspace" -w /workspace eufy-vacuum-test \
+    python scripts/diff_test_equiv.py <original> <clone> \
+        --cov custom_components/eufy_vacuum
+```
+
+`=> EQUIVALENT` (exit 0) means the refactor is safe to cut over. Point `--cov` at
+the specific module under test, or at the whole `custom_components/eufy_vacuum`
+package for the strongest (line-for-line) check. The recommended flow: clone into
+a staging dir excluded from the gate, validate every clone EQUIVALENT, then cut
+over all at once.
+
 ## Key `hass.data[DOMAIN]` keys
 
 Fixtures and handlers locate each other through these (defined in `const.py`):

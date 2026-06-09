@@ -25,10 +25,8 @@ import pytest
 
 from custom_components.eufy_vacuum.planning.run_plan import RunPlanManager
 
+from tests._factories import VAC as _VAC, set_room_field
 from .conftest import setup_map
-
-
-_VAC = "vacuum.alfred"
 
 
 @pytest.fixture
@@ -39,10 +37,9 @@ def rp(manager):
 def _seed(manager, map_id, rooms_config):
     """Seed N managed rooms then merge per-room overrides; return the bucket."""
     setup_map(manager, _VAC, map_id, count=len(rooms_config))
-    bucket = manager.data["maps"][_VAC][map_id]["rooms"]
     for i, cfg in enumerate(rooms_config, start=1):
-        bucket[str(i)].update(cfg)
-    return bucket
+        set_room_field(manager, i, map_id=map_id, **cfg)
+    return manager.data["maps"][_VAC][map_id]["rooms"]
 
 
 def _blocker(entity, *, reason="window_open"):

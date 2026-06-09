@@ -17,17 +17,12 @@ Coverage targets
 
 from __future__ import annotations
 
-import pytest
-
 from homeassistant.core import ServiceCall
 
 from custom_components.eufy_vacuum.const import EVENT_ROOM_STARTED
 
+from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import setup_map
-
-
-_VAC = "vacuum.alfred"
-_MAP = "6"
 
 
 def _register_dispatch(hass) -> list[ServiceCall]:
@@ -44,9 +39,8 @@ def _register_dispatch(hass) -> list[ServiceCall]:
 def _seed_enabled(manager, count=2):
     setup_map(manager, _VAC, _MAP, count=count)
     rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
-    for i, room in enumerate(rooms.values(), start=1):
-        room["enabled"] = True
-        room["order"] = i
+    for i, rid in enumerate(rooms, start=1):
+        set_room_field(manager, rid, enabled=True, order=i)
     return rooms
 
 

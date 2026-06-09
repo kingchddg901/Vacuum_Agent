@@ -17,29 +17,18 @@ from custom_components.eufy_vacuum.sensor.dock_event import EufyVacuumDockEventS
 from custom_components.eufy_vacuum.sensor.room_history import EufyVacuumRoomCleaningHistorySensor
 from custom_components.eufy_vacuum.sensor.room_rule_status import EufyVacuumRoomRuleStatusSensor
 
+from tests._factories import VAC as _VAC, MAP as _MAP, ENTRY_ID as _ENTRY_ID, get_room_data
 from .conftest import setup_map
-
-
-_VAC = "vacuum.alfred"
-_MAP = "1"
-_ENTRY_ID = "test_entry_id"
 
 
 def _make_room_sensor(cls, manager, hass, *, room_id: int = 1):
     """Build a room sensor entity and wire hass."""
-    room_data = (
-        manager.data.get("maps", {})
-        .get(_VAC, {})
-        .get(_MAP, {})
-        .get("rooms", {})
-        .get(str(room_id), {})
-    )
     entity = cls(
         coordinator_key=_ENTRY_ID,
         vacuum_entity_id=_VAC,
         map_id=_MAP,
         room_id=room_id,
-        room_data=room_data,
+        room_data=get_room_data(manager, room_id),
     )
     entity.hass = hass
     return entity

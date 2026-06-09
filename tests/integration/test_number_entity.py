@@ -21,31 +21,23 @@ from custom_components.eufy_vacuum.number import (
     EufyVacuumRoomOrderNumber,
 )
 
+from tests._factories import VAC as _VAC, MAP as _MAP, ENTRY_ID as _ENTRY_ID
+from tests._factories import get_room_data, set_room_field
 from .conftest import setup_map
 
 
-_VAC = "vacuum.alfred"
-_MAP = "1"
-_ENTRY_ID = "test_entry_id"
 _COMPONENT = "main_brush"
 _DEFAULT_INTERVAL = 200.0
 
 
 def _make_order_number(manager, hass, *, room_id: int = 1) -> EufyVacuumRoomOrderNumber:
     """Build an EufyVacuumRoomOrderNumber and wire hass."""
-    room_data = (
-        manager.data.get("maps", {})
-        .get(_VAC, {})
-        .get(_MAP, {})
-        .get("rooms", {})
-        .get(str(room_id), {})
-    )
     entity = EufyVacuumRoomOrderNumber(
         coordinator_key=_ENTRY_ID,
         vacuum_entity_id=_VAC,
         map_id=_MAP,
         room_id=room_id,
-        room_data=room_data,
+        room_data=get_room_data(manager, room_id),
     )
     entity.hass = hass
     return entity
@@ -70,7 +62,7 @@ def _make_interval_number(manager) -> EufyVacuumMaintenanceIntervalNumber:
 def test_room_order_number_native_value_reflects_room_order(hass, manager):
     """[NE-1] native_value returns the room's current order as a float."""
     setup_map(manager, _VAC, _MAP, count=1)
-    manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["order"] = 3
+    set_room_field(manager, 1, order=3)
 
     entity = _make_order_number(manager, hass)
     assert entity.native_value == 3.0

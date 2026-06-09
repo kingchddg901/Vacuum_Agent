@@ -20,11 +20,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import make_rooms, seed_discovery, setup_map
-
-
-_VAC = "vacuum.alfred"
-_MAP = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -76,7 +73,7 @@ async def test_save_managed_rooms_sets_is_configured(manager):
 async def test_save_managed_rooms_preserves_existing_settings(manager):
     """[MR-2] Existing room settings survive a re-save."""
     setup_map(manager, _VAC, _MAP, count=2)
-    manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["fan_speed"] = "quiet"
+    set_room_field(manager, 1, fan_speed="quiet")
 
     # Re-seed and re-save with the same rooms
     seed_discovery(manager, _VAC, _MAP, make_rooms(_MAP, 2))

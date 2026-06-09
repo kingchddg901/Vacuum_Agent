@@ -27,17 +27,15 @@ from custom_components.eufy_vacuum.setup.drift import (
     update_drift_history,
 )
 
+from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import setup_map
-
-
-_VAC = "vacuum.alfred"
-_MAP = "1"
 
 
 def _mark_rooms_configured(manager, vacuum_entity_id: str, map_id: str) -> None:
     """Mark all rooms in a map bucket as configured (is_configured=True)."""
-    for room in manager.data["maps"][vacuum_entity_id][map_id]["rooms"].values():
-        room["is_configured"] = True
+    for room_id in manager.data["maps"][vacuum_entity_id][map_id]["rooms"]:
+        set_room_field(manager, room_id, vac=vacuum_entity_id, map_id=map_id,
+                       is_configured=True)
 
 
 # ---------------------------------------------------------------------------
