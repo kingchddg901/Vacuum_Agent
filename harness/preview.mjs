@@ -26,10 +26,30 @@ import { mountHarness, renderTab, VIEW_ORDER } from "./lib/mount-page.mjs";
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..");
 const OUT = join(repo, "harness", "out", "preview");
-const FULL_GALLERIES = ["rooms-active", "review-badges", "mapping-badges"];
-// The tabs those galleries are the populated, all-states version of — skipped
-// from the plain tab tour so the preview carries no empty-stub duplicate.
-const GALLERY_TAB_IDS = new Set(["rooms", "learning_review", "mapping_review"]);
+// Full-surface galleries previewed per theme (the dot-* header clips are
+// excluded — too small to be theme-expressive). Includes the External Jobs
+// subtab + the two review-wizard steps so a theme is shown on the modal too.
+const FULL_GALLERIES = [
+  "rooms-active",
+  "review-badges",
+  "mapping-badges",
+  "external-jobs",
+  "external-wizard-step1",
+  "external-wizard-step2",
+  "metrics-overview",
+  "maintenance",
+  "room-rules",
+];
+// The tabs those galleries are the populated version of — skipped from the plain
+// tab tour so the preview carries no empty-stub duplicate.
+const GALLERY_TAB_IDS = new Set([
+  "rooms",
+  "learning_review",
+  "mapping_review",
+  "metrics",
+  "maintenance",
+  "room_rules",
+]);
 
 function exportsToProcess() {
   const arg = process.argv[2];
@@ -218,19 +238,31 @@ for (const file of files) {
       ];
   const shots = [];
   for (const v of views) {
-    const res =
-      v.kind === "gallery"
-        ? await page.evaluate(
-            ([gid, b]) => window.__evcc.renderGallery(gid, { bundle: b, freeze: true, width: 520 }),
-            [v.id, bundle],
-          )
-        : await renderTab(page, v.id, { bundle, freeze: true, width: 520 });
+    let res;
+    let clip = null;
+    if (v.kind === "gallery") {
+      // A modal gallery (the review wizard) mounts its own host; emulate dark so
+      // the modal matches the card, and clip the shot to the modal shell.
+      const isModal = await page.evaluate(
+        (gid) => Boolean((window.__evcc.gallery.find((g) => g.id === gid) || {}).modal),
+        v.id,
+      );
+      await page.emulateMedia({ colorScheme: isModal ? "dark" : "light" });
+      res = await page.evaluate(
+        ([gid, b]) => window.__evcc.renderGallery(gid, { bundle: b, freeze: true, width: 520 }),
+        [v.id, bundle],
+      );
+      clip = res.clip;
+    } else {
+      await page.emulateMedia({ colorScheme: "light" });
+      res = await renderTab(page, v.id, { bundle, freeze: true, width: 520 });
+    }
     if (!res.ok) {
       console.error(`  ${name}/${v.id}: ${res.error}`);
       continue;
     }
     const shotId = v.kind === "tab" ? `tab-${v.id}` : v.id;
-    const buf = await page.locator("#evcc-host").screenshot();
+    const buf = await (clip ? page.locator(clip).first() : page.locator("#evcc-host")).screenshot();
     writeFileSync(join(outDir, `${shotId}.png`), buf);
     shots.push({ id: shotId, b64: buf.toString("base64") });
 

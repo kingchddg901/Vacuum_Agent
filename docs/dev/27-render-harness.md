@@ -65,7 +65,7 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 
 | Member | Purpose |
 |---|---|
-| `render(view, opts)` | Render one tab. `opts`: `bundle`, `overrides`, `controller`, `width`, `freeze`. Returns `{ok, error?, misses}` — never throws to the page. |
+| `render(view, opts)` | Render one tab. `opts`: `bundle`, `overrides`, `controller`, `width`, `freeze`, `modal` (a renderer name to mount as a body-level modal — §3). Returns `{ok, error?, misses}` — never throws to the page. |
 | `renderGallery(id, opts)` | Render an all-states gallery entry (§3). |
 | `ingestTheme(envelope)` | The intake gate (§6). |
 | `semanticTokens` | The registry-derived semantic-color token set (§3). |
@@ -96,7 +96,25 @@ Distinguishability is relative: whether error-red is confusable with success-
 green can only be judged with the two co-present and adjacent at real size. A
 gallery of all states in real layout is that instrument; isolated swatches are
 not. Current galleries: rooms (queue + confidence tiers), learning review (job
-badges), mapping review (the six bounds badges), and a status-dot strip.
+badges), the **External Jobs** subtab (app-started runs awaiting review), the
+two-step **review wizard** (modal), mapping review (the six bounds badges), and a
+status-dot strip — plus **populated single-tab fixtures** (metrics, maintenance,
+room rules) that stub a tab's data accessors with realistic content. Those last
+serve a purpose beyond colorblind validation: the theme-preview gallery (§7)
+renders them so a shared theme shows on real content, not empty stub tabs. (They
+are deliberately date-math-free so the baselines stay deterministic.)
+
+**Subtab and modal capture.** The per-tab shooter renders each tab at its default
+subtab, so non-default surfaces are captured as gallery fixtures instead. A fixture
+flips a subtab by overriding its state accessor (e.g. `reviewSubtab: () =>
+"external"`). A **body-level modal** — the review wizard mounts to `document.body`
+via `main.js` `_renderModals()`, not `renderView` — is captured by naming its
+renderer in the fixture's `modal:` field; `render()` then mounts that one modal
+into a shadow-root host with `MODAL_HOST_STYLES` (faithful to the ship path), and
+the entry's `clip` crops the shot to the modal shell. Modal entries render under
+emulated `prefers-color-scheme: dark` so the modal matches the (dark) card — the
+default bundle doesn't theme the modal host, which would otherwise trip the modal's
+light-hardening.
 
 The gallery is **enumerated from the token registry**, not hand-listed.
 `harness/semantic-tokens.js` derives the semantic-color set from the *Status,
@@ -219,8 +237,9 @@ recolored by it — the config is the seed, the render is the deliverable.
   data, not code.
 - **Preview** (`harness/preview.mjs`) — builds the gallery from
   `gallery/themes/*.json`. Per theme, scope drives the detail render: a full
-  theme → the all-states galleries plus a tour of the card tabs; a texture-scoped
-  export → the rooms gallery. It also writes a single-room-card **thumbnail** per
+  theme → the all-states galleries, the populated single-tab fixtures (so the
+  theme shows on real content, not empty stubs), and a tour of the remaining tabs;
+  a texture-scoped export → the rooms gallery. It also writes a single-room-card **thumbnail** per
   theme and a lobby `index.html` that grids those thumbnails (each linking its
   detail page) under a **"+ Submit a theme"** button (§8). A per-theme
   `_contact-sheet.png` is produced too — the submission bot embeds it inline in

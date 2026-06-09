@@ -145,10 +145,12 @@ the lifecycle and active-job state for that map). Per-action results are nested 
 ### 6.2 Vocabulary / trigger sets used
 
 The wash / dry / empty "already in progress" checks read **dock-event trigger** state
-strings from `adapter_config["dock_events"]["triggers"]`, falling back to built-in
-defaults when a trigger key is absent:
+strings from `adapter_config["dock_events"]["triggers"]`. There is **no brand fallback**:
+an adapter that omits a trigger key gets an empty set for that check (no detection) rather
+than inheriting Eufy's vocabulary. The sets the Eufy adapter declares (in
+`adapters/eufy/vocabulary.py`):
 
-| Trigger key | Used to check | Built-in fallback |
+| Trigger key | Used to check | Eufy-declared set |
 |---|---|---|
 | `last_mop_wash`  | `wash_mop` already washing | `{"washing", "washing mop"}` |
 | `last_dry_start` | `dry_mop` already drying / `stop_dry_mop` not drying | `{"drying", "drying mop", "drying pads", "mop drying"}` |
@@ -219,8 +221,8 @@ Called by `listeners/dock_events.py` when the dock status transitions through a 
 ```python
 adapter_config["dock_events"]["triggers"] = {
     "last_mop_wash":    ["washing", "washing mop"],
-    "last_dust_empty":  ["recycling waste water"],
-    "last_dry_start":   ["drying"],
+    "last_dust_empty":  ["dust emptying", "emptying dust", "emptying dust bin"],
+    "last_dry_start":   ["drying", "drying mop", "drying pads", "mop drying"],
 }
 ```
 

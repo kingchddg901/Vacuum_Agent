@@ -371,7 +371,7 @@ See [03-data-model.md](03-data-model.md) for the complete shape of each key.
 
 ## 7. Event System
 
-The integration fires seven events on `hass.bus`. All type strings are
+The integration fires nine events on `hass.bus`. All type strings are
 constants in `const.py`.
 
 | Event constant | String value | Fired from | Key payload fields |
@@ -381,8 +381,10 @@ constants in `const.py`.
 | `EVENT_JOB_FINISHED` | `eufy_vacuum_job_finished` | `listeners/lifecycle.py`, `listeners/pause_timeout.py`, `services/job_control.py`, `learning/services.py` | `vacuum_entity_id`, `map_id`, `job_id`, `status`, `reason_detail`, `used_for_learning`, `finalized_at`, `room_count`, `job_path` |
 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | `listeners/path_blockers.py` | `vacuum_entity_id`, `map_id`, `trigger_entity_id`, `trigger_entity_state`, `affected_remaining_room_ids`, `path_block_action`, `action_taken` |
 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | `core/manager.py` inside `get_job_progress_snapshot` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
+| `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | `core/manager.py` inside `get_job_progress_snapshot` — non-sequential advance (~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |
 | `EVENT_RUN_INCOMPLETE` | `eufy_vacuum_run_incomplete` | `learning/services.py` after finalization | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids`, `missed_rooms` |
 | `EVENT_JOB_PROGRESS_TICK` | `eufy_vacuum_job_progress_tick` | `listeners/job_progress.py` periodic tick | `vacuum_entity_id`, `map_id` — lightweight polling signal for automations |
+| `EVENT_EXTERNAL_RUN_PENDING` | `eufy_vacuum_external_run_pending` | `core/manager.py` — external (app-started) run finalized to a pending review record | `vacuum_entity_id`, `map_id`, `record_path`, `segment_count`, `detection_ts` |
 
 ### Subscribing in automations
 

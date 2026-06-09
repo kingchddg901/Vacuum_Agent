@@ -346,7 +346,7 @@ The card calls `_findThemeSensor(hass)` in `main.js` on every `hass` setter invo
 
 2. **Fallback scan:** if the primary ID is absent (HA appended a collision suffix like `_2`), scan all of `Object.values(hass.states)` and find the first entity whose `attributes.vacuum_entity_id` matches the configured vacuum entity ID.
 
-The sensor entity name is built by `build_entity_name(vacuum_entity_id, "Theme State")` which produces names like `Alfred Theme State`, and the unique ID uses the pattern `{vacuum_entity_id_with_underscores}_theme_state`, so the slug is predictable in the normal case.
+The sensor uses HA's entity-name composition (`_attr_has_entity_name = True` + the `theme_state` translation key), so the device name and the "Theme State" entity name combine into display names like `Alfred Theme State`, and the unique ID uses the pattern `{vacuum_entity_id_with_underscores}_theme_state` (`vacuum_entity_id.replace(".", "_") + "_theme_state"`), so the slug is predictable in the normal case.
 
 ### How state changes propagate to the card
 

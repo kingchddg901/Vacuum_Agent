@@ -786,9 +786,7 @@ the per-room ones and keep only the id list + batch passes. So the same
 `room_fields` block describes fan speed, water level, clean mode, edge
 mopping, path type, and clean intensity regardless of the wire shape.
 
-For the Eufy (rows) engine the per-room dict looks like:
-
-A per-room dict for a mop-capable Eufy job looks like:
+For the Eufy (rows) engine, a per-room dict for a mop-capable job looks like:
 
 ```python
 {

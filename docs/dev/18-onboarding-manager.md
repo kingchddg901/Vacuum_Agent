@@ -142,7 +142,7 @@ manager.check_for_new_rooms(
 
 Reads the current room count from the adapter-declared discovery source (`adapter_config["discovery"]["room_list_entity"]` / `["room_list_attribute"]`, defaulting to the vacuum entity's `segments` attribute) and compares it to the stored `room_count_at_last_check`. Returns a plain **bool**: `True` when `current_count > last_count`. Returns `False` if the source state is missing or the attribute is not a list. It does **not** update the stored count.
 
-The caller (typically `listeners/discovery.py`) decides whether to show a notification.
+It is exposed on `EufyVacuumManager` via a thin delegation wrapper (`EufyVacuumManager.check_for_new_rooms`). It has no live in-framework caller today — the auto-discovery path that keeps drift fresh (`listeners/discovery.py` → `setup/drift.py::run_discovery_pass`) uses the counter-based room-drift history (see [22-adapter-config-reference §12](22-adapter-config-reference.md)), not this single-shot count comparison. A caller would decide whether to show a notification.
 
 ### 4.4 `reset_onboarding`
 
@@ -169,7 +169,7 @@ Clears all flags for the (vacuum, map) pair back to defaults and returns a resul
 {"vacuum_entity_id": str, "map_id": str, "reset": True}
 ```
 
-Called by `RoomMapManager.rebuild_map()` when a map is rebuilt from scratch.
+Exposed on `EufyVacuumManager` via a thin delegation wrapper (`EufyVacuumManager.reset_onboarding`); intended for the map-rebuild-from-scratch flow. It has no live in-framework caller today — `RoomMapManager.rebuild_map()` rebuilds the map bucket but does **not** currently reset onboarding state.
 
 ### 4.5 `get_rooms_onboarding_summary`
 
@@ -211,7 +211,7 @@ A room with `confirmed == False` or missing from the dict counts as unconfirmed.
 | Caller | Method | When |
 |---|---|---|
 | `RoomMapManager.save_managed_rooms()` | `mark_rooms_discovered()`, `confirm_floor_type()` | After rooms written to storage |
-| `RoomMapManager.rebuild_map()` | `reset_onboarding()` | Map rebuild from scratch |
-| `listeners/discovery.py` | `check_for_new_rooms()` | After each discovery pass |
+| `EufyVacuumManager` delegation only (no live caller) | `reset_onboarding()` | Intended for map rebuild from scratch — not yet wired |
+| `EufyVacuumManager` delegation only (no live caller) | `check_for_new_rooms()` | Predicate; the live drift path uses `setup/drift.py` instead |
 | Panel setup tab | `get_onboarding_state()` | On render |
 | Panel room editor | `confirm_floor_type()` | User saves floor type |

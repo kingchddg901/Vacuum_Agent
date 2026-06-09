@@ -3,8 +3,7 @@
 The maintenance subsystem tracks consumable wear (main brush, side brush, filter,
 sensors, mop) against adapter-declared components: it reads remaining-life
 sources, computes status tiers, builds the upkeep snapshot, resolves the
-care-guide metadata per component, and resets counters. Covered by **21 tests
-across 2 files**.
+care-guide metadata per component, and resets counters. Covered by **34 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/maintenance/`
 Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-maintenance-manager.md)

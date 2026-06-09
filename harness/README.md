@@ -23,7 +23,7 @@ One fixture × N bundles = the whole matrix, free.
 
 | Path | What |
 |---|---|
-| `mount-entry.js` | Browser entry; exposes `window.__evcc.render(view, opts)`. Bundled by `build.mjs`. |
+| `mount-entry.js` | Browser entry; exposes `window.__evcc.render(view, opts)` (incl. `opts.modal` for body-level modals). Bundled by `build.mjs`. |
 | `fixtures/stub-state.js` | Recording null-object stub (drives the smoke test). |
 | `fixtures/gallery.js` | All-states galleries: real fixtures that force every colored branch onto one screen. |
 | `semantic-tokens.js` | The registry-derived semantic-color token set — the one enum the gallery and CVD share. |
@@ -43,8 +43,15 @@ One fixture × N bundles = the whole matrix, free.
 colored state at once** — the honest instrument for colorblind validation
 (distinguishability is relative; states must be co-present at real size, not
 a swatch strip). Current galleries: rooms (queue + confidence tiers), learning
-review (job badges), mapping review (the six bounds badges), and a status-dot
-strip (one real header per state).
+review (job badges), the External Jobs subtab + the two-step review wizard,
+mapping review (the six bounds badges), and a status-dot strip (one real header
+per state).
+
+A fixture reaches a **subtab** by overriding its state accessor
+(`reviewSubtab: () => "external"`); a **body-level modal** (the wizard mounts to
+`document.body`, not `renderView`) is named in the entry's `modal:` field and
+mounted into a shadow-root modal host, clipped to the modal shell. Modal entries
+render under emulated dark scheme to match the card.
 
 `semantic-tokens.js` derives the semantic-color token set from the registry.
 The `gallery-completeness` test asserts every such token is claimed by a

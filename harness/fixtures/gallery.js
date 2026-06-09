@@ -325,6 +325,283 @@ const STATUS_DOTS = DOT_STATES.map((d) => ({
 }));
 
 /* =========================================================
+   EXTERNAL JOBS — the "app-started runs" review subtab
+   =========================================================
+   The Learning Review view has two subtabs; the per-tab shooter
+   only captures the default (History). This forces the External
+   Jobs subtab (reviewSubtab -> "external") with a pending list so
+   the app-started-run review surface gets its own baseline.
+   ========================================================= */
+
+const EXTERNAL_JOBS = {
+  id: "external-jobs",
+  view: "learning_review",
+  label: "Learning Review — External Jobs subtab (app-started runs awaiting review)",
+  tokens: [],
+  state: {
+    reviewSubtab: () => "external",
+    externalBrand: () => "Eufy",
+    externalPendingRuns: () => [
+      {
+        pending_job_id: "ext_2026-06-06T14-20",
+        detection_ts: "2026-06-06T14:20:00Z",
+        suggested_room_count: 3,
+        segments: [{ area_m2: 18 }, { area_m2: 24 }, { area_m2: 11 }],
+      },
+      {
+        pending_job_id: "ext_2026-06-05T09-05",
+        detection_ts: "2026-06-05T09:05:00Z",
+        suggested_room_count: 1,
+        segments: [{ area_m2: 32 }],
+      },
+    ],
+  },
+};
+
+/* =========================================================
+   EXTERNAL REVIEW WIZARD — the two-step modal (body-level)
+   =========================================================
+   The wizard mounts to a body-level modal host (main.js
+   _renderModals), NOT renderView — so it is captured via the
+   harness `modal` opt (renders renderExternalWizardModal into the
+   modal host) and clipped to the modal shell. One shared run's
+   data drives both steps: step 1 = confirm room count (v2 re-
+   segment: count stepper + split/merge), step 2 = name each room
+   + correct settings. An uncertain inactive cut inside rooms 1 & 2
+   exercises the "Split here · uncertain" affordance.
+   ========================================================= */
+
+const WIZARD_SEGMENTS = [
+  { order: 0, boundary_id: 0,  area_m2: 18, time_wall_s: 840,  pass_count: 1, settings: { clean_mode: "vacuum" } },
+  { order: 1, boundary_id: 30, area_m2: 24, time_wall_s: 1200, pass_count: 2, settings: { clean_mode: "vacuum_mop", fan_speed: "high", water_level: "high", clean_intensity: "deep" } },
+  { order: 2, boundary_id: 66, area_m2: 11, time_wall_s: 540,  pass_count: 1, settings: { clean_mode: "vacuum" } },
+];
+
+// Full boundary menu; activeBoundaries (30, 66) are the cuts currently in play.
+// The two inactive cuts (12, 66-internal 48) are uncertain — they surface as
+// "Split here · uncertain" inside the room whose span contains them.
+const WIZARD_CANDIDATES = [
+  { id: 12, confident: false },
+  { id: 30, confident: true },
+  { id: 48, confident: false },
+  { id: 66, confident: true },
+];
+
+const WIZARD_ROOMS = [
+  { room_id: "1", name: "Kitchen" },
+  { room_id: "2", name: "Living Room" },
+  { room_id: "3", name: "Bedroom" },
+  { room_id: "4", name: "Office" },
+];
+
+// Step-2 room groups (v2 = one group per segment), each lead carrying a
+// shortlist + captured settings so the room panels render fully populated.
+const WIZARD_GROUPS = [
+  { orders: [0], segments: [WIZARD_SEGMENTS[0]], lead: { order: 0, pass_count: 1, settings: WIZARD_SEGMENTS[0].settings, shortlist: [{ room_id: "1", name: "Kitchen", learned_area_m2: 17 }, { room_id: "4", name: "Office", learned_area_m2: 21 }] } },
+  { orders: [1], segments: [WIZARD_SEGMENTS[1]], lead: { order: 1, pass_count: 2, settings: WIZARD_SEGMENTS[1].settings, shortlist: [{ room_id: "2", name: "Living Room", learned_area_m2: 25 }] } },
+  { orders: [2], segments: [WIZARD_SEGMENTS[2]], lead: { order: 2, pass_count: 1, settings: WIZARD_SEGMENTS[2].settings, shortlist: [{ room_id: "3", name: "Bedroom", learned_area_m2: 12 }] } },
+];
+
+function wizardState(step) {
+  const w = {
+    pendingJobId: "ext_2026-06-06T14-20",
+    mapId: "main",
+    step,
+    resegmentable: true,
+    segments: WIZARD_SEGMENTS,
+    candidates: WIZARD_CANDIDATES,
+    activeBoundaries: [30, 66],
+    splits: {},
+    assignments: {
+      0: { room_id: "1", edge_mopping: false, override: false, overrides: {} },
+      1: { room_id: "2", edge_mopping: true,  override: false, overrides: { clean_mode: "vacuum_mop", water_level: "high" } },
+      2: { room_id: "3", edge_mopping: false, override: false, overrides: {} },
+    },
+    rooms: WIZARD_ROOMS,
+    suggestedRoomCount: 3,
+    resegmentMeta: null,
+    blocked: null,
+    busy: false,
+    error: null,
+  };
+  return {
+    isExternalWizardOpen: () => true,
+    externalWizard: () => w,
+    externalWizardGroups: () => WIZARD_GROUPS,
+    // Step-2 setting chips read their options from the adapter vocabulary,
+    // same accessors the room editor uses.
+    suctionLevelOptions: () => [{ value: "standard", label: "Standard" }, { value: "high", label: "High" }, { value: "max", label: "Max" }],
+    cleanIntensityOptions: () => [{ value: "standard", label: "Standard" }, { value: "deep", label: "Deep" }],
+    waterLevelOptions: () => [{ value: "low", label: "Low" }, { value: "medium", label: "Medium" }, { value: "high", label: "High" }],
+  };
+}
+
+const EXTERNAL_WIZARD_STEP1 = {
+  id: "external-wizard-step1",
+  view: "learning_review",
+  label: "External review wizard — step 1 (confirm room count: stepper + split / merge)",
+  tokens: [],
+  modal: "renderExternalWizardModal",
+  clip: ".evcc-external-wizard-modal",
+  state: wizardState(1),
+};
+
+const EXTERNAL_WIZARD_STEP2 = {
+  id: "external-wizard-step2",
+  view: "learning_review",
+  label: "External review wizard — step 2 (name each room + correct settings)",
+  tokens: [],
+  modal: "renderExternalWizardModal",
+  clip: ".evcc-external-wizard-modal",
+  state: wizardState(2),
+};
+
+/* =========================================================
+   POPULATED TABS — theme-showcase fixtures
+   =========================================================
+   The per-tab shooter renders these tabs from the stub null-object,
+   which leaves them EMPTY (zeros / "No data") — so a theme preview
+   shows the theme recoloring blank panels. These fixtures populate
+   the data-bearing accessors with realistic content so the theme
+   gallery (and the docs shots) show each tab fully rendered. They are
+   deliberately date-math-free so the visual baselines stay
+   deterministic (e.g. maintenance omits `reset_at`, which would drive
+   a now-relative "Due in N days" line).
+   ========================================================= */
+
+const METRICS_OVERVIEW = {
+  id: "metrics-overview",
+  view: "metrics",
+  label: "Metrics — overview (learned profiles, time windows, learning quality)",
+  tokens: [],
+  state: {
+    metricsSnapshot: () => ({
+      available: true,
+      message: "Usage, learning quality, water, and dock metrics across the learning dataset.",
+      updated_at: "2026-06-07T08:30:00Z",
+    }),
+    metricsActiveTab: () => "learning",
+    metricsTabOptions: () => [
+      { value: "learning", label: "Learning" },
+      { value: "rooms", label: "Rooms" },
+      { value: "profiles", label: "Profiles" },
+      { value: "water", label: "Water" },
+      { value: "dock", label: "Dock" },
+      { value: "battery", label: "Battery" },
+    ],
+    metricsOverview: () => ({
+      metrics: {
+        job_count: 128,
+        learning_used_count: 96,
+        excluded_count: 7,
+        mid_job_recharge_count: 4,
+        wash_cycle_count: 41,
+      },
+      metric_windows: {
+        today: { total_duration_minutes: 78, job_count: 2, learning_used_count: 2, total_water_used_ml: 410, mid_job_recharge_count: 0 },
+        last_7_days: { total_duration_minutes: 506, job_count: 11, learning_used_count: 9, total_water_used_ml: 2870, mid_job_recharge_count: 1 },
+        last_30_days: { total_duration_minutes: 2184, job_count: 47, learning_used_count: 38, total_water_used_ml: 11540, mid_job_recharge_count: 3 },
+      },
+    }),
+    metricsFilters: () => ({ room_slug: "", profile_key: "", status: "", used_for_learning: "" }),
+    metricsFilterRoomOptions: () => [
+      { value: "kitchen", label: "Kitchen" },
+      { value: "living_room", label: "Living Room" },
+      { value: "bedroom", label: "Bedroom" },
+      { value: "office", label: "Office" },
+    ],
+    metricsFilterProfileOptions: () => [
+      { value: "vacuum_mop_deep", label: "Deep Mop", subtitle: "vacuum + mop · deep" },
+      { value: "vacuum_quick", label: "Vacuum Quick", subtitle: "vacuum · standard" },
+    ],
+    metricsFilterStatusOptions: () => [
+      { value: "completed", label: "Completed" },
+      { value: "cancelled", label: "Cancelled" },
+    ],
+    metricsFilterUsedOptions: () => [
+      { value_key: "true", label: "Used" },
+      { value_key: "false", label: "Not Used" },
+    ],
+    // Only `.length` of each array is read → drives the mini-card counts.
+    metricsLearningStats: () => ({ exact: new Array(6).fill(0), baselines: new Array(4).fill(0), accuracy: new Array(9).fill(0) }),
+    metricsFoundProfiles: () => [
+      { profile_key: "vacuum_mop_deep", profile_label: "Deep Mop", profile_subtitle: "Kitchen", room_slug: "kitchen", room_label: "Kitchen", trust_level: "trusted", run_count: 24, learning_run_count: 21, trust_reason_text: "21 of 24 runs within tolerance" },
+      { profile_key: "vacuum_quick", profile_label: "Vacuum Quick", profile_subtitle: "Living Room", room_slug: "living_room", room_label: "Living Room", trust_level: "building_trust", run_count: 9, learning_run_count: 5, trust_reason_text: "5 of 9 runs used — needs 3 more" },
+      { profile_key: "vacuum_mop_standard", profile_label: "Standard Mop", profile_subtitle: "Bedroom", room_slug: "bedroom", room_label: "Bedroom", trust_level: "trusted", run_count: 17, learning_run_count: 16, trust_reason_text: "16 of 17 runs within tolerance" },
+      { profile_key: "vacuum_eco", profile_label: "Eco Vacuum", profile_subtitle: "Office", room_slug: "office", room_label: "Office", trust_level: "low_confidence", run_count: 4, learning_run_count: 2, trust_reason_text: "Only 2 usable runs so far" },
+    ],
+  },
+};
+
+const MAINTENANCE = {
+  id: "maintenance",
+  view: "maintenance",
+  label: "Maintenance — consumables + station (healthy / warning / replace states)",
+  tokens: [],
+  state: {
+    // Everything hangs off this one accessor. `reset_at` is intentionally
+    // omitted so the now-relative "Due in N days" projection never fires.
+    dashboardUpkeep: () => ({
+      attention_summary: "2 items need attention soon",
+      updated_at: "2026-06-07T07:30:00Z",
+      attention_count: 2,
+      highest_priority_status_label: "Replace Soon",
+      station_water: 28,
+      station_water_label: null,
+      model_meta: { name: "Eufy X10 Pro Omni", guide_family_name: "X-Series Omni" },
+      maintenance_items: [
+        { kind: "maintenance", component: "rolling_brush", entity_id: "sensor.alfred_rolling_brush_life", label: "Rolling Brush", status: "good", remaining_percent: 78, remaining_hours: 234, interval_hours: 300, used_since_reset_hours: 66, guide: { display: { frequency: "every_2_weeks" } } },
+        { kind: "maintenance", component: "side_brush", entity_id: "sensor.alfred_side_brush_life", label: "Side Brush", status: "warning", remaining_percent: 18, remaining_hours: 36, interval_hours: 200, used_since_reset_hours: 164, guide: { display: { frequency: "monthly" } } },
+        { kind: "maintenance", component: "filter", entity_id: "sensor.alfred_filter_life", label: "Dust Filter", status: "good", remaining_percent: 64, remaining_hours: 96, interval_hours: 150, used_since_reset_hours: 54, guide: { display: { frequency: "every_3_months" } } },
+        { kind: "maintenance", component: "sensors", entity_id: "sensor.alfred_sensor_cleaning", label: "Cliff & Wall Sensors", status: "replace_soon", remaining_percent: 9, remaining_hours: 8, interval_hours: 90, used_since_reset_hours: 82, guide: { display: { frequency: "weekly" } } },
+      ],
+      replacement_items: [
+        { kind: "replacement", component: "mop_pads", entity_id: "sensor.alfred_mop_pad_life", label: "Mop Pads", status: "good", remaining_percent: 72, usage_hours: 84, max_life_hours: 300, guide: { display: { frequency: "every_2_months" } } },
+        { kind: "replacement", component: "dust_bag", entity_id: "sensor.alfred_dust_bag", label: "Dust Bag", status: "replace_now", remaining_percent: 3, usage_hours: 196, max_life_hours: 200, guide: { display: { frequency: "as_needed" } } },
+      ],
+    }),
+    maintenanceActiveTab: () => "maintenance_items",
+    dashboardPlannedWaterEstimate: () => ({ available_clean_tank_ml: 1280 }),
+    dashboardAttentionSummary: () => "2 items need attention soon",
+    dashboardStatusSummary: () => "Maintenance snapshot up to date",
+    activeMaintenanceModalItem: () => null,
+  },
+};
+
+const ROOM_RULES = {
+  id: "room-rules",
+  view: "room_rules",
+  label: "Room Rules — per-room blocker + modifier rules (entity-driven)",
+  tokens: [],
+  state: {
+    getRoomsForActiveMap: () => [
+      { id: "1", mapId: "main", name: "Kitchen", order: 1, enabled: true, clean_mode: "vacuum", rules: [{}, {}] },
+      { id: "2", mapId: "main", name: "Living Room", order: 2, enabled: true, clean_mode: "vacuum", rules: [{}] },
+      { id: "3", mapId: "main", name: "Bedroom", order: 3, enabled: true, clean_mode: "vacuum", rules: [] },
+      { id: "4", mapId: "main", name: "Office", order: 4, enabled: true, clean_mode: "vacuum", rules: [{}, {}, {}] },
+    ],
+    resolvedRoomRulesRoom: () => ({ id: "1", mapId: "main", name: "Kitchen", order: 1 }),
+    // null => render the rule LIST, not the editor (stub null-object reads truthy).
+    roomRulesDraft: () => null,
+    roomRulesDraftMode: () => null,
+    roomRulesSaveError: () => null,
+    roomRulesForRoom: (roomId) =>
+      String(roomId) === "1"
+        ? [
+            { id: "rule_door_open", kind: "blocker", label: "Skip when front door is open", entity_id: "binary_sensor.front_door", enabled: true },
+            { id: "rule_guest_mode", kind: "modifier", label: "Quiet clean in guest mode", entity_id: "input_boolean.guest_mode", enabled: true, fan_out_room_ids: ["2"] },
+          ]
+        : [],
+    ruleConditionSummary: (rule) =>
+      rule.entity_id === "binary_sensor.front_door"
+        ? "When binary_sensor.front_door is on"
+        : "When input_boolean.guest_mode is on",
+    ruleEffectSummary: (rule) =>
+      rule.kind === "blocker" ? "Skip this room" : "Fan speed → Quiet, Clean passes → 1",
+  },
+};
+
+/* =========================================================
    EXPORT
    ========================================================= */
 
@@ -332,5 +609,11 @@ export const GALLERY = [
   ROOMS_ACTIVE,
   LEARNING_REVIEW,
   MAPPING_REVIEW,
+  EXTERNAL_JOBS,
+  EXTERNAL_WIZARD_STEP1,
+  EXTERNAL_WIZARD_STEP2,
+  METRICS_OVERVIEW,
+  MAINTENANCE,
+  ROOM_RULES,
   ...STATUS_DOTS,
 ];

@@ -3,7 +3,7 @@
 The themes subsystem owns the dashboard-card theme library: preloaded built-in
 themes, the user library (save-as-new / overwrite / rename / delete), the active
 theme + working draft, import/export, and the update-callback fan-out that
-refreshes theme-bound entities. Covered by **55 tests across 4 files**.
+refreshes theme-bound entities. Covered by **56 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/themes/`
 Architecture reference: [docs/dev/20-theme-system.md](../../dev/20-theme-system.md)

@@ -25,6 +25,8 @@ The system is entirely optional. The core integration runs without it; the learn
 | `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. |
 | `services.py` | HA service registration only. No math. Each handler validates inputs and delegates to `LearningManager`. |
 | `utils.py` | Shared helpers (`_safe_int`, `_safe_float`, `_safe_bool`, etc.) used across the learning package. |
+| `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. |
+| `job_segmenter_engines.py` | The pluggable `JobSegmenter` engine seam (`eufy_counter_v1`) over the counter-plateau primitives; selected by adapter config, with an Eufy fallback. |
 
 ---
 
@@ -147,7 +149,7 @@ The job segmenter (`counter_segmentation`'s primitives, reached through the engi
 described below) turns that stream into ordered per-room segments **without geometry**.
 A boundary is a **long plateau** (gap between
 cleaning_time ticks > ~90 s, e.g. the ByRoom mop-wash) or a **delayed step**
-(~40 s gap) after which `cleaning_area` **rises ≥ ~2 m²** in the stretch *before
+(~35 s gap) after which `cleaning_area` **rises ≥ ~2 m²** in the stretch *before
 the next blip* (new floor = a room transition); a delayed step with **flat** area
 after it is a multi-pass turn, *not* a boundary. The area-rise is read **forward**
 to the next blip, not at the same instant — area packets lag the clock, so the

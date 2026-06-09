@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **~90 tests across many files**.
+timestamp utils, models, map manager). Covered by **119 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`, `repairs.py`,

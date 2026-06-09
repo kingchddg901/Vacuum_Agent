@@ -187,9 +187,11 @@ There is no `display_name` field. Maps with empty `rooms` dicts are **not** excl
 | Caller | Function | When |
 |---|---|---|
 | `rooms/room_crud.py` | `ensure_map_bucket()`, `rebuild_map_bucket()` | `save_managed_rooms()`, `rebuild_map()` |
-| `rooms/room_crud.py` | `save_map_discovery_snapshot()` | `discover_rooms()` |
-| `setup/status.py` | `get_vacuum_maps_summary()` | `get_setup_status()` |
-| `setup/workflow.py` | `get_map_bucket()` | `import_active_map()` existence check |
-| `setup/delete.py` | reads `data["maps"]` directly | `delete_map()` protection evaluation |
+| `rooms/room_crud.py` | `get_map_bucket()`, `get_vacuum_maps_summary()` | `get_managed_rooms()`, `get_managed_maps_summary()` |
+| `core/manager.py` | `get_map_bucket()` | queue and room-clean payload builds |
+| `rooms/access_graph.py`, `profiles/manager.py` | `get_map_bucket()`, `ensure_map_bucket()` | automation-metadata reads, room/run-profile reads |
+| `setup/delete.py` | reads `data["maps"]` directly | map-delete protection evaluation |
+
+> `save_map_discovery_snapshot()` has no current caller — it writes the `last_discovery` / `discovered_rooms` metadata keys (see §3.3) but the live discovery path (`rooms/room_crud.py::discover_rooms()`) caches into `data["discovery"]` directly instead.
 
 > **See also:** [15-setup-system](15-setup-system.md) §3 for the `import_active_map` workflow that calls `ensure_map_bucket()` and `rebuild_map_bucket()`; [08-rooms-system](08-rooms-system.md) §5 for `RoomMapManager` (`rooms/room_crud.py`) which reads and writes the rooms dict inside each map bucket.

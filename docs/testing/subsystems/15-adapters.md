@@ -6,7 +6,7 @@ maintenance components), loaded from storage and validated against a schema. The
 one concrete adapter (`adapters/eufy/`) lives behind this boundary and has its
 own focused suite in `tests/adapters/eufy/`. Covered by **30 framework tests
 across 2 files** (`test_adapters.py` + the brand-agnostic
-`test_adapter_contract.py` conformance harness), plus **91 Eufy-adapter tests**.
+`test_adapter_contract.py` conformance harness), plus **120 Eufy-adapter tests**.
 
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)
@@ -17,11 +17,11 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `registry.py` | 117 | 96% | `test_adapters.py` | integration |
+| `registry.py` | 141 | 91% | `test_adapters.py` | integration |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 865 | 70% | `tests/adapters/eufy/` | adapter |
-| `eufy/adapter.py` | 39 | 93% | `tests/adapters/eufy/` | adapter |
+| `eufy/adapter.py` | 40 | 95% | `tests/adapters/eufy/` | adapter |
 | `eufy/discovery.py` | 54 | 100% | `test_discovery.py` | adapter |
 | `eufy/entities.py` | 24 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
@@ -59,7 +59,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 `adapters/eufy/*` is **counted in the coverage number** — we always test the
 adapters we ship, so the figure includes them. The Eufy adapter is well covered
-(91 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
+(120 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
 and the `buttons`/`entities` data shape sit at or near 100%. The one visible thin
 spot is the CV `segmentor` (70%), which needs heavy image fixtures and is the
 natural place a second-brand effort would invest; `adapter.py` (the big assembly

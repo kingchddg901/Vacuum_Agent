@@ -7,8 +7,8 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **~220 tests across 6 files** (214 test functions; parametrized
-cases bring the run to 221).
+is exercised by **354 tests across 10 files** (347 test functions, expanded by
+parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
 Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-system.md)
@@ -19,16 +19,23 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
-| `utils.py` | 32 | 95% | `tests/unit/test_learning_utils.py` | unit (pure) |
-| `estimator.py` | 336 | 96% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
-| `history_store.py` | 393 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
-| `stats_rebuilder.py` | 333 | 94% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 506 | 91% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `utils.py` | 52 | 97% | `tests/unit/test_learning_utils.py` | unit (pure) |
+| `estimator.py` | 410 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
+| `history_store.py` | 428 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
+| `stats_rebuilder.py` | 460 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
+| `job_finalizer.py` | 519 | 89% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
 | `manager.py` | 680 | 91% | `tests/integration/test_learning_services.py` | integration |
-| `services.py` | 186 | 99% | `tests/integration/test_learning_services.py` | integration |
+| `services.py` | 241 | 91% | `tests/integration/test_learning_services.py` | integration |
+| `external_ingest.py` | 281 | 92% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
+| `counter_segmentation.py` | 165 | 95% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
+
+`counter_segmentation.py` lives at the package root (not under `learning/`) — it
+is the shared counter-plateau segmentation primitive used here and by the jobs
+subsystem's live rollover, tabled here alongside the engine that wraps it.
 
 Numbers are line coverage with branch coverage enabled, measured by running all
-six files together (see [running-tests §per-file vs combined](../02-running-tests.md#per-file-vs-combined-coverage)).
+these files together (see [running-tests §per-file vs combined](../02-running-tests.md#per-file-vs-combined-coverage)).
 
 ---
 
@@ -77,6 +84,21 @@ read/snapshot services (history snapshot, metrics snapshot, room estimates),
 exclude/restore round-trips, finalize variants (forced status, cancelled,
 completed-clears-incomplete), accuracy recording and the trust-metrics path, the
 old-format jobs-index rebuild, and `async_preload_learning_stats` guards.
+
+### `external_ingest.py` — app-started-run capture + review wizard
+Detection of runs started outside HA, the pending-record build + persistence, the
+re-segmentation service, and the confirm path that turns a reviewed run into a
+learned job (the v2 samples-saved re-segment plus the v1 fallback).
+
+### `job_segmenter_engines.py` — pluggable job-segmenter seam
+The `JobSegmenter` registry + the `eufy_counter_v1` engine: byte-identical
+delegation to `counter_segmentation` (the fidelity battery), `DEFAULT_TUNING`
+mirroring the module constants, and the Eufy-fallback for an absent/unknown engine.
+
+### `counter_segmentation.py` — counter-plateau segmentation primitives
+`find_candidates` / `select_active` / `build_segments` — the frame-invariant
+plateau detection shared by live rollover, external-run ingest, and learned
+history; the engine above delegates to these.
 
 ---
 

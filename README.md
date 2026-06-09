@@ -17,7 +17,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 - **Learning system and ETA** — the integration records how long each room takes and uses that data to estimate job completion times. Estimates improve with each run.
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
 - **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces twelve sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
-- **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
+- **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
@@ -81,6 +81,8 @@ Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/
 
 ## Screenshots
 
+> **Live gallery:** [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/) renders the real card under every community-submitted theme — each tab, the External Jobs subtab, and the review wizard — rebuilt automatically by the [render harness](docs/dev/27-render-harness.md) on every push to `master`.
+
 <details>
 <summary><strong>Click to expand the full panel tour</strong></summary>
 
@@ -113,6 +115,14 @@ Cycle count, zone-aware charge rates (low / high / mid-job), per-job drain rates
 Inspect every recorded run, exclude outliers (test runs, false completions, bad room attribution), and see which profiles match the current settings.
 
 ![Learning Review tab](docs/screenshots/learning-review.png)
+
+### External Jobs review
+
+Runs you start from the **Eufy app** (not just HA-dispatched jobs) are captured and surface here for review — confirm the room count (split or merge the detected cuts), name each room, and correct its settings — so app-started cleans feed learning too.
+
+![External Jobs subtab — app-started runs awaiting review](docs/screenshots/external-jobs.png)
+![Review wizard step 1 — confirm the room count](docs/screenshots/external-wizard-step1.png)
+![Review wizard step 2 — name each room and correct settings](docs/screenshots/external-wizard-step2.png)
 
 ### Room Rules
 
@@ -176,7 +186,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - [Automation examples](docs/advanced/04-automation-examples.md)
 - [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
 - [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](docs/dev/README.md) — reading-order index for all 27 dev docs
+- [Developer docs](docs/dev/README.md) — reading-order index for all 28 dev docs
 - [Render harness](docs/dev/27-render-harness.md) — headless visual-regression, colorblind validation, and theme previews ([how to run](docs/testing/07-render-harness.md))
 - [Adapter config reference](docs/dev/22-adapter-config-reference.md) — the schema for per-vacuum brand config
 - [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)

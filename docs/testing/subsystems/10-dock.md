@@ -3,7 +3,7 @@
 The dock subsystem owns mop-wash / mop-dry / dust-empty actions: it resolves the
 upstream button entity per action, **gates** each action against capability,
 dock state, and job state, dispatches the gated action, and records dock-event
-timestamps + debounced counters. Covered by **18 tests in 1 file**.
+timestamps + debounced counters. Covered by **26 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/dock/`
 Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.md)

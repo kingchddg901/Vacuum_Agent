@@ -197,22 +197,19 @@ This converts each vertex to percentage of image dimensions [0–100]. The card 
 
 ### 2.11 `image_runtime_capabilities`
 
-`image_runtime_capabilities()` probes whether each optional library is importable and returns a dict:
+`image_runtime_capabilities()` (in `mapping/segment_primitives.py`) probes whether each optional library is importable and returns a dict:
 
 ```python
 {
-    "opencv":          {"available": bool, "version": str|None, "error": str|None},
-    "numpy":           {...},
+    "numpy":           {"available": bool, "version": str|None, "error": str|None},
     "pillow":          {...},
     "scipy":           {...},
     "scipy_ndimage":   {...},
-    "skimage":         {...},
-    "cv_pipeline_ready":       bool,  # True if opencv + numpy available
-    "fallback_pipeline_ready": bool,  # True if pillow + numpy + scipy.ndimage available
+    "pipeline_ready":  bool,  # True if pillow + numpy + scipy.ndimage available
 }
 ```
 
-Currently only the fallback pipeline (Pillow + NumPy + SciPy) is implemented. The OpenCV path is reserved for a future higher-performance implementation.
+The pipeline depends only on Pillow + NumPy + SciPy; `pipeline_ready` is the single readiness gate. There is no OpenCV or scikit-image dependency.
 
 ---
 

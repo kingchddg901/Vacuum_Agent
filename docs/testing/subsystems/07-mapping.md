@@ -5,7 +5,7 @@ boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →
 `trace_segmentation` → `trace_review`), an image-segmentation stack
 (`segment_primitives`, `segmenter_engines`), a coordinate tracker
 (`tracker`), and two large orchestrators (`manager`, `mapping_services`).
-Covered by **~265 tests across 15 files** — the trace/image primitives are
+Covered by **306 tests across 15 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.

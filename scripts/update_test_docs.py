@@ -8,7 +8,7 @@ untouched.
 
 How to run (inside the test container, so pytest + the package import cleanly):
 
-    docker run --rm -v "C:\\Users\\CKing\\Documents\\GITHUB\\Vacuum_Agent:/workspace" \\
+    docker run --rm -v "C:\\Users\\CKing\\Documents\\GITHUB\\eufy-vacuum-manager:/workspace" \\
         -w /workspace eufy-vacuum-test python scripts/update_test_docs.py
 
 That regenerates coverage.json, then rewrites the docs in place. Add --dry-run
@@ -77,8 +77,8 @@ def run_coverage() -> None:
     subprocess.run(cmd, cwd=REPO, check=True)
 
 
-def collect_case_count() -> int | None:
-    """Number of test items after parametrization (pytest --collect-only)."""
+def cases_per_file() -> dict[str, int]:
+    """relpath -> collected case count (post-parametrization), via --collect-only."""
     try:
         out = subprocess.run(
             ["python", "-m", "pytest", *TEST_PATHS, "-p", "no:cacheprovider",
@@ -86,9 +86,27 @@ def collect_case_count() -> int | None:
             cwd=REPO, check=True, capture_output=True, text=True,
         ).stdout
     except (subprocess.CalledProcessError, OSError) as exc:
-        print("  warn: could not collect case count:", exc)
-        return None
-    return sum(1 for line in out.splitlines() if "::" in line)
+        print("  warn: could not collect case counts:", exc)
+        return {}
+    counts: dict[str, int] = {}
+    for line in out.splitlines():
+        if "::" not in line:
+            continue
+        rel = line.split("::", 1)[0].replace("\\", "/").strip()
+        counts[rel] = counts.get(rel, 0) + 1
+    return counts
+
+
+def funcs_per_file() -> dict[str, int]:
+    """relpath -> number of `def test_` functions in each test file."""
+    func_re = re.compile(r"^\s*(?:async\s+)?def test_", re.MULTILINE)
+    out: dict[str, int] = {}
+    for rel in TEST_PATHS:
+        for p in (REPO / rel).rglob("test_*.py"):
+            out[p.relative_to(REPO).as_posix()] = len(
+                func_re.findall(p.read_text(encoding="utf-8"))
+            )
+    return out
 
 
 def load_coverage() -> dict:
@@ -108,7 +126,14 @@ def build_index(cov: dict) -> dict[str, dict]:
     return index
 
 
+# Root-level modules that conceptually belong to a subsystem doc despite not
+# living in its package dir, so they're tabled + counted there, not orphaned.
+FILE2DOC = {"counter_segmentation.py": "06-learning"}
+
+
 def doc_of(rel: str) -> str:
+    if rel in FILE2DOC:
+        return FILE2DOC[rel]
     return DIR2DOC.get(rel.split("/")[0], PLATFORMS_DOC)
 
 
@@ -154,6 +179,89 @@ class Editor:
             if not self.dry_run:
                 path.write_text(new, encoding="utf-8")
             print(f"  upd  [{path.name}] {label} ({n})")
+
+
+# A test-file reference in a coverage-map cell: `test_x.py` or
+# `tests/unit/test_x.py`, optionally followed by a layer hint "(unit)" / "(int)".
+MENTION_RE = re.compile(
+    r"`([\w/]*test_\w+\.py)`(?:\s*\((unit|int|integration|adapter|adapters)[^)]*\))?"
+)
+_LAYER_DIR = {"unit": "unit", "int": "integration", "integration": "integration",
+              "adapter": "adapters", "adapters": "adapters"}
+
+
+def _resolve_testfile(ref: str, hint: str | None,
+                      by_base: dict[str, list[str]]) -> str | None:
+    """Map a coverage-map test-file reference to a single tests/ relpath."""
+    ref = ref.replace("\\", "/")
+    base = ref.rsplit("/", 1)[-1]
+    cands = by_base.get(base, [])
+    if "/" in ref:                       # already a full relpath
+        return ref if ref in cands else None
+    if len(cands) == 1:                  # unambiguous basename
+        return cands[0]
+    if hint:                             # disambiguate the unit/integration dup
+        want = _LAYER_DIR.get(hint)
+        for c in cands:
+            if f"/{want}/" in c:
+                return c
+    return None
+
+
+def collect_doc_testfiles(by_base: dict[str, list[str]]) -> dict[str, set[str]]:
+    """Per subsystem doc stem, the set of tests/ relpaths its coverage-map table
+    lists (parsed from the test-file column of each module row)."""
+    out: dict[str, set[str]] = {}
+    for doc in DOCS.glob("subsystems/*.md"):
+        if doc.stem == "README":
+            continue
+        for line in doc.read_text(encoding="utf-8").splitlines():
+            m = ROW_RE.match(line.rstrip("\n"))
+            if not m:
+                continue
+            for mb in MENTION_RE.finditer(m.group("rest")):
+                rel = _resolve_testfile(mb.group(1), mb.group(2), by_base)
+                if rel:
+                    out.setdefault(doc.stem, set()).add(rel)
+    return out
+
+
+# A regular subsystem header: "**N tests across M files**" / "**~N tests in 1
+# file**" (may wrap a line). The two irregular headers (15-adapters' framework/
+# Eufy split, 18-platforms' "many files") don't match and are flagged for a
+# hand-fix.
+HEADER_RE = re.compile(r"\*\*\s*~?\d+\s+tests\s+(?:across|in)\s+\d+\s+files?\s*\*\*")
+FUNC_NOTE_RE = re.compile(r"\(\d+ test functions")
+
+
+def update_subsystem_headers(
+    doc_testfiles: dict[str, set[str]], cases: dict[str, int],
+    funcs: dict[str, int], editor: "Editor",
+) -> None:
+    """Rewrite each subsystem map's "N tests across M files" header (and the
+    "(F test functions)" note where present) from the files its table lists.
+    `M` is the count of distinct test files (unit and integration variants of
+    one module count as two)."""
+    for stem in sorted(doc_testfiles):
+        rels = doc_testfiles[stem]
+        doc = DOCS / "subsystems" / f"{stem}.md"
+        n_cases = sum(cases.get(r, 0) for r in rels)
+        n_funcs = sum(funcs.get(r, 0) for r in rels)
+        m = len(rels)
+        word = "file" if m == 1 else "files"
+        joiner = "in" if m == 1 else "across"
+        print(f"  {stem}: {n_cases} cases / {n_funcs} funcs / {m} files")
+        text = doc.read_text(encoding="utf-8")
+        if HEADER_RE.search(text):
+            editor.sub(doc, HEADER_RE.pattern,
+                       f"**{n_cases} tests {joiner} {m} {word}**",
+                       label="header count")
+        else:
+            print(f"  WARN [{doc.name}] no regular '**N tests across M files**' "
+                  f"header — irregular, fix by hand")
+        if FUNC_NOTE_RE.search(text):
+            editor.sub(doc, FUNC_NOTE_RE.pattern,
+                       f"({n_funcs} test functions", label="func note")
 
 
 def fmt_stmt(totals: dict) -> str:
@@ -285,8 +393,14 @@ def main() -> None:
     cov = load_coverage()
     index = build_index(cov)
     totals = cov["totals"]
-    cases = None if args.no_collect else collect_case_count()
+    cases_map = {} if args.no_collect else cases_per_file()
+    cases = sum(cases_map.values()) or None
     files, funcs = count_tests()
+    fpf = funcs_per_file()
+    by_base: dict[str, list[str]] = {}
+    for _rel in fpf:
+        by_base.setdefault(_rel.rsplit("/", 1)[-1], []).append(_rel)
+    doc_testfiles = collect_doc_testfiles(by_base)
 
     print(f"\ntotals: {fmt_stmt(totals)}% statement / "
           f"{totals['percent_covered_display']}% combined")
@@ -298,6 +412,8 @@ def main() -> None:
     update_subsystem_index(subsystem_totals(claimed, index), totals, editor)
     update_overview(totals, editor)
     update_readme(totals, files, funcs, cases, editor)
+    print("\nper-subsystem test counts:")
+    update_subsystem_headers(doc_testfiles, cases_map, fpf, editor)
     report_unclaimed(claimed, index)
 
     print(f"\n{'(dry-run) ' if args.dry_run else ''}done — "

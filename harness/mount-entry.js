@@ -34,7 +34,7 @@ import {
   VIEWS,
   VIEW_ORDER,
 } from "../src/render-cycle.js";
-import { STYLES } from "../src/styles/index.js";
+import { STYLES, MODAL_HOST_STYLES } from "../src/styles/index.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { GALLERY } from "./fixtures/gallery.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
@@ -107,7 +107,16 @@ const FREEZE_STYLE = `
    FRAME (byte-faithful to src/main.js _ensureShellFrame)
    ========================================================= */
 
-function frameHtml(view, headerHtml, viewHtml, freeze) {
+function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
+  // Body-level modal host, mirroring main.js _renderModals(): in the live card,
+  // modals mount to document.body with their OWN MODAL_HOST_STYLES (the shadow
+  // modalStyles are inert). We reproduce that as a sibling of <ha-card> in the
+  // shadow root so it inherits the host's --evcc-* tokens and Playwright's
+  // shadow-piercing clip can crop straight to the modal.
+  const modalBlock = modalHtml
+    ? `<style data-evcc-modal-host-style>${MODAL_HOST_STYLES}</style>`
+      + `<div class="evcc-modal-host" data-evcc-modal-host>${modalHtml}</div>`
+    : "";
   return `
     <style data-evcc-style-root>${STYLES}</style>
     <style data-evcc-harness-chrome>${HA_CARD_SHIM}</style>
@@ -123,6 +132,7 @@ function frameHtml(view, headerHtml, viewHtml, freeze) {
         <div data-evcc-mobile-overlay-root></div>
       </div>
     </ha-card>
+    ${modalBlock}
   `;
 }
 
@@ -141,10 +151,13 @@ function frameHtml(view, headerHtml, viewHtml, freeze) {
  * @param {object} [opts.overrides] - per-accessor real state returns.
  * @param {number} [opts.width]     - host width in px (default 500).
  * @param {boolean}[opts.freeze]    - freeze animations for determinism.
+ * @param {string} [opts.modal]     - a renderer method name (e.g.
+ *   "renderExternalWizardModal") to render as a body-level modal host. Opt-in
+ *   because the stub null-object makes every modal's isOpen() accessor truthy.
  * @returns {{view,ok,error?,stack?,headerLen?,viewLen?,misses:{state:string[],hass:string[]}}}
  */
 function render(view, opts = {}) {
-  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false } = opts;
+  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null } = opts;
 
   const stateMisses = new Set();
   const hassMisses = new Set();
@@ -171,6 +184,12 @@ function render(view, opts = {}) {
     const ctx = buildRenderContext(card); // real builder; view comes from card._view
     const headerHtml = renderHeader(ctx);
     const viewHtml = renderView(ctx);
+    // Body-level modals (main.js _renderModals) live outside renderView, so a
+    // fixture that wants one names its renderer via opts.modal. We render only
+    // that one — NOT every modal renderer — because the null-object would make
+    // each modal's isOpen() guard truthy and emit garbage for unrelated shots.
+    const modalHtml =
+      modal && typeof renderers[modal] === "function" ? renderers[modal](ctx) : "";
 
     const root = document.getElementById("root");
     root.innerHTML = "";
@@ -180,7 +199,7 @@ function render(view, opts = {}) {
     root.appendChild(host);
 
     const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = frameHtml(view, headerHtml, viewHtml, freeze);
+    shadow.innerHTML = frameHtml(view, headerHtml, viewHtml, freeze, modalHtml);
 
     // Apply the bundle exactly as src/styles/apply-theme.js does:
     // inline custom properties on the shadow host.
@@ -193,6 +212,7 @@ function render(view, opts = {}) {
     result.ok = true;
     result.headerLen = headerHtml.length;
     result.viewLen = viewHtml.length;
+    result.modalLen = modalHtml.length;
   } catch (err) {
     result.ok = false;
     result.error = String((err && err.message) || err);
@@ -224,6 +244,7 @@ function renderGallery(id, opts = {}) {
     bundle: { ...(entry.bundle || {}), ...(opts.bundle || {}) },
     width: opts.width,
     freeze: opts.freeze,
+    modal: entry.modal ?? null,
   });
   return { ...res, id, clip: entry.clip ?? null, label: entry.label };
 }
@@ -297,5 +318,6 @@ window.__evcc = {
     label: g.label,
     tokens: g.tokens,
     clip: g.clip ?? null,
+    modal: g.modal ?? null,
   })),
 };

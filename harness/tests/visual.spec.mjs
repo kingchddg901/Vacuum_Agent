@@ -27,6 +27,12 @@ const GALLERY_IDS = [
   "rooms-active",
   "review-badges",
   "mapping-badges",
+  "external-jobs",
+  "external-wizard-step1",
+  "external-wizard-step2",
+  "metrics-overview",
+  "maintenance",
+  "room-rules",
   "dot-cleaning",
   "dot-returning",
   "dot-paused",
@@ -64,6 +70,14 @@ test.describe("visual regression", () => {
   for (const id of GALLERY_IDS) {
     test(`gallery ${id}`, async ({ page }) => {
       await mountHarness(page);
+      // Modal fixtures mount their own host; headless defaults to light, which
+      // flips the modal's light-hardening on while the card stays dark. Emulate
+      // dark for modal shots so the modal matches the card.
+      const isModal = await page.evaluate(
+        (gid) => Boolean((window.__evcc.gallery.find((g) => g.id === gid) || {}).modal),
+        id,
+      );
+      await page.emulateMedia({ colorScheme: isModal ? "dark" : "light" });
       const res = await page.evaluate(
         ([gid]) => window.__evcc.renderGallery(gid, { freeze: true, width: 520 }),
         [id],

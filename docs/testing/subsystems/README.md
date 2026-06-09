@@ -8,8 +8,8 @@ mapping) then peripheral subsystems and the HA-facing layers.
 
 | # | Subsystem | Map | Cov |
 |---|-----------|-----|----:|
-| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 91% |
-| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 93% |
+| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 84% |
+| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 91% |
 | 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 94% |
 | 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 95% |
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 91% |
@@ -39,7 +39,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 94.1% statement coverage** (91% combined with `--cov-branch`, adapters
+**Total: 92.9% statement coverage** (90% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

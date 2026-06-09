@@ -492,7 +492,7 @@ Five HA platforms create entities:
 
 | Platform | Entity classes |
 |---|---|
-| `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×6), ActiveRunError, LastDeviceError |
+| `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×12), ActiveRunError, LastDeviceError |
 | `switch.py` | RoomEnabledSwitch (one per configured room) |
 | `number.py` | RoomOrderNumber (one per room), MaintenanceIntervalNumber (one per component) |
 | `button.py` | MaintenanceResetButton (one per component), SavedRunProfileButton (one per exposed profile) |
@@ -504,7 +504,7 @@ groups all entities under a single HA device per vacuum ("Alfred" not "Alfred
 Rooms").
 
 `EufyVacuumActiveJobSensor` (one per vacuum/map) is defined in
-`sensor/lifecycle.py` and instantiated in `sensor/__init__.py`. The six
+`sensor/lifecycle.py` and instantiated in `sensor/__init__.py`. The 12
 `BatteryHealth` sensors are the exception to the "one class per file under
 `sensor/`" rule: they are defined in `battery/sensors.py` and injected into the
 sensor platform via `build_battery_sensors`, not as classes under `sensor/`.

@@ -64,6 +64,7 @@ Returns a list of room dicts:
 [
     {
         "room_id": int,
+        "map_id":  str,
         "name":    str,
         "slug":    str,
     },
@@ -115,7 +116,7 @@ Builds the managed room dict from raw discovery data. Key is `str(room_id)`.
 - If `enabled_room_ids` is supplied (not `None`) and the `room_id` is **not** in it, the room is **skipped** (`continue`) — it is not included in the result at all.
 - If a matching room exists in `existing_rooms` (by room_id): preserves all existing user settings (fan speed, clean mode, etc.) and updates `name` and `slug` from discovery data.
 - If the room is new: initializes with safe defaults — `clean_mode="vacuum"`, `fan_speed="Max"`, `water_level="Off"`, `profile_name="vacuum_quick"`, `clean_passes=1`, `edge_mopping=False`, etc.
-- Sets `is_configured = True` for every room that makes it into the result — including a room in `enabled_room_ids` is the user's explicit approval. This flag is what the setup drift tracker uses to distinguish managed rooms from newly discovered ones.
+- Sets `is_configured = True` for every room that makes it into the result — including a room in `enabled_room_ids` counts as the user's explicit approval. This flag is what the setup drift tracker uses to distinguish managed rooms from newly discovered ones.
 - Sets `enabled = True` for new rooms (existing rooms keep their stored `enabled` value). Note: membership in `enabled_room_ids` gates *inclusion*, not the `enabled` flag.
 - Sets `floor_type` from `floor_types` dict if present, otherwise defaults to `"hardwood"`.
 
@@ -260,7 +261,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `clean_passes` | int | Number of cleaning passes; minimum 1. (The "1 or 2" cap is a frontend modifier constraint, not a room-model rule.) |
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |
-| `order` | int | Zero-based dispatch order (defaults to a zero-based index) |
+| `order` | int | Dispatch order (defaults to the room's 1-based position in discovery order) |
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 

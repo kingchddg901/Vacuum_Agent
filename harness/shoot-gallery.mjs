@@ -42,6 +42,10 @@ const entries = await page.evaluate(() => window.__evcc.gallery);
 const shots = [];
 
 for (const entry of entries) {
+  // Modal fixtures mount their own host; headless defaults to light, flipping
+  // the modal's light-hardening on while the card stays dark. Emulate dark for
+  // modal shots so the modal matches the card; leave the rest at the default.
+  await page.emulateMedia({ colorScheme: entry.modal ? "dark" : "light" });
   const res = await page.evaluate(
     ([id, b, w]) => window.__evcc.renderGallery(id, { bundle: b, width: w }),
     [entry.id, bundle, width],
