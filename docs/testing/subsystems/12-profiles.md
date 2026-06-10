@@ -42,5 +42,13 @@ normalization + matching helpers are unit-tested in isolation.
 
 ## Known gaps
 
-`manager.py` (88%) is diffuse — single-line defensive returns and not-found
-guards scattered across the CRUD methods; no contiguous untested behavior block.
+`manager.py` (94%) is diffuse — single-line defensive returns and not-found
+guards scattered across the CRUD methods (the `_safe_int` empty/except path at
+50–53, and `reason: ...` early-returns / `continue` skip-guards for non-dict
+entries at 403, 474, 623, 756, 1014–1033); no contiguous untested behavior block.
+
+`room_profiles.py` (94%) is likewise defensive: the `TypedDict` ImportError
+fallback shim (10–11), empty-name `continue` guards (208), legacy-value
+migrations and aliases ("carpet"→`carpet_low_pile` at 234, `vacuum_mop_standard`
+at 342), the double-fallback when even `default_profile` is missing (263–264),
+and a capability-gating branch (484). All intentionally left uncovered.

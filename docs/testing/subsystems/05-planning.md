@@ -50,6 +50,10 @@ build rule dicts, and binary-sensor states drive rule matches.
 
 ## Known gaps
 
-`run_plan.py` (90%) leaves two fan-out per-target guards (the `int()`-except on a
-non-numeric target and the not-selected continue), module-level helper guards,
-and water-usage partial branches — all defensive.
+`run_plan.py` (91%) leaves two fan-out per-target guards (the `int()`-except on a
+non-numeric target id and the not-selected `continue`), the module-level helper
+except-paths (`_safe_int` / `_safe_float` `TypeError`/`ValueError` arms), the
+`by_time` wash-cycle branch and other water-usage partial branches, and the
+defensive early-returns / disabled-rule and non-dict-room skips inside
+`get_runtime_path_block_report` (no-queue, no-remaining, structural-issue, and
+unchanged-signature returns) — all defensive or low-value branch tails.

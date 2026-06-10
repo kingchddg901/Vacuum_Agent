@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **354 tests across 10 files** (347 test functions, expanded by
+is exercised by **356 tests across 11 files** (349 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -24,7 +24,7 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | `history_store.py` | 428 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
 | `stats_rebuilder.py` | 460 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
 | `job_finalizer.py` | 519 | 89% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 680 | 91% | `tests/integration/test_learning_services.py` | integration |
+| `manager.py` | 680 | 91% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
 | `services.py` | 241 | 91% | `tests/integration/test_learning_services.py` | integration |
 | `external_ingest.py` | 281 | 92% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
@@ -84,6 +84,9 @@ read/snapshot services (history snapshot, metrics snapshot, room estimates),
 exclude/restore round-trips, finalize variants (forced status, cancelled,
 completed-clears-incomplete), accuracy recording and the trust-metrics path, the
 old-format jobs-index rebuild, and `async_preload_learning_stats` guards.
+
+`test_learning_profile_label.py` additionally covers `manager._settings_profile_label`
+(SPL-1/SPL-2) as a focused unit.
 
 ### `external_ingest.py` — app-started-run capture + review wizard
 Detection of runs started outside HA, the pending-record build + persistence, the
@@ -165,16 +168,32 @@ restored in a `finally` ([gotchas §2-3](../05-gotchas-and-pitfalls.md)).
 
 ## Known gaps (deliberately untested)
 
-Coverage is high; the remainder is mostly unreachable-without-mocking or dead:
+Coverage is high (89-100% per module); the remainder is mostly defensive
+guards, inactive code, or paths reachable only by injecting malformed data.
 
-- `job_finalizer` cancel detection's estimate-driven sub-branches
-  (`early_return_likely_cancelled`, the learning-estimate call at 1195-1202) —
-  need a non-zero learning estimate staged; low value.
-- Defensive `except` blocks across all modules (e.g. `job_finalizer` 1316-1321,
-  1411-1412; `manager` 1924-1925) — reachable only by injecting malformed data.
-- `manager` 796-821 legacy list-shape accuracy fallback — the canonical path is
-  the dict shape; the list branch is a back-compat guard.
-- `_auto_derive_room_boundary` (`job_finalizer` 1451/1455) — currently inactive.
+- **`job_finalizer` cancel-detection sub-branches** — the
+  `early_return_likely_cancelled` return (line 1258) and the learning-estimate
+  call it depends on (`manager._get_learning_manager()` / `expected_room_minutes`
+  at 1218-1219) need a non-zero learning estimate staged to reach; low value.
+  The floor-time fast-path above it (around 1203-1216) is similarly conditional.
+- **Defensive `except` / `# pragma: no cover` blocks across all modules** —
+  e.g. `job_finalizer` 1354-1359 (incomplete-run-log write) and 1449-1453
+  (trouble-rooms write), and the per-room `estimate_failed` handler logic in
+  `manager`. Reachable only by injecting malformed data; intentionally skipped.
+- **`manager` accuracy-normalization guards (800, 805, 808, 813, 822)** —
+  scattered defensive branches in the accuracy-stats normalization loop: the
+  `else: accuracy_entries = []` fallback when neither dict nor list shape is
+  present, the non-dict / empty-slug `continue` guards, and the
+  percent/confidence-weight derive-from-default else-branches. The canonical
+  dict shape is fully covered; these are back-compat / malformed-input guards.
+- **`manager` direct reload path (271-284)** — the immediate
+  reload-from-disk helper; integration tests drive the executor-backed preload
+  instead, so this synchronous variant is uncovered. Low value.
+- **`_auto_derive_room_boundary` (`job_finalizer` 1455-1503)** — currently
+  inactive: the method runs its eligibility gates then unconditionally returns
+  None (skip-log at 1497-1503). Uncovered lines 1489/1493 are room-guard
+  branches inside that inert gate. No behavior to test until the feature is
+  re-activated.
 
 These are skipped on purpose ([conventions §what not to test](../04-patterns-and-conventions.md#what-not-to-test)).
 

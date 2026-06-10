@@ -3,7 +3,7 @@
 The maintenance subsystem tracks consumable wear (main brush, side brush, filter,
 sensors, mop) against adapter-declared components: it reads remaining-life
 sources, computes status tiers, builds the upkeep snapshot, resolves the
-care-guide metadata per component, and resets counters. Covered by **34 tests in 1 file**.
+care-guide metadata per component, and resets counters. Covered by **36 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/maintenance/`
 Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-maintenance-manager.md)
@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-mainte
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 233 | 92% | `test_maintenance_manager.py` | integration |
+| `manager.py` | 233 | 93% | `test_maintenance_manager.py` | integration |
 
 (The reset / set-interval *services* are in [17 — services](17-services.md) via
 `test_services_maintenance_reset.py`; the remaining-life *sensors* are in
@@ -46,5 +46,19 @@ and `register_adapter_config(...)` supplies the `maintenance_components` and
 
 ## Known gaps
 
-`manager.py` (88%) leaves scattered `(TypeError, ValueError)` coercion guards in
-the wear-math helpers and a few interval-clamp branches — defensive.
+`manager.py` (93%) — the uncovered lines are almost all defensive
+`(TypeError, ValueError)` coercion guards: the `_safe_int` / `_safe_float`
+/ `_hours_text` sentinel fallbacks (50-51, 60-61, 92-93), the three
+attribute-coercion `except` blocks in `get_upkeep_snapshot` for
+`usage_hours` / `total_life_hours` / `remaining_hours` (307-308, 311-312,
+315-316), the interval-override coercion fallback (387-388), and the
+`usage_hours` coercion `pass` in `get_maintenance_remaining` (600-601).
+The `_display_label` normalize-to-empty guard (71) is similarly a trivial
+near-unreachable branch. All intentionally uncovered.
+
+`_get_replacement_reset_entity`'s `entity_suffixes` primary
+resolution path (247-252 — the states-table hit and the registry
+fallback return) is now covered: MNT-14c exercises the live-state hit and
+MNT-14d the registry-only hit in `test_maintenance_manager.py`. The
+older reset-entity tests that set `entity_suffixes` to an absent value
+still additionally exercise the `token_sets` fallback.

@@ -2,7 +2,7 @@
 
 The setup subsystem owns the integration lifecycle around a config entry: the
 guided setup workflow + progress, start-protection state, map deletion, and the
-room-drift detector (new/removed segments since last check). Covered by **92 tests across 9 files**.
+room-drift detector (new/removed segments since last check). Covered by **95 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/setup/` (+ `__init__.py` entry wiring)
 Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.md)
@@ -45,8 +45,21 @@ the entry-level wiring. `protection.py` is pure and unit-tested.
 
 ## Known gaps
 
-`__init__.py` (83%) is the largest gap and is **integration-boot territory** —
-`async_setup_entry` orchestration (battery-rebaseline service registration,
-mapping-tracker position registration, subsystem wiring) only runs under a full
-config-entry boot, a different test class than this suite. `drift.py` / `delete.py`
-(88%) leave defensive coercion guards.
+The top-level integration entry file `custom_components/eufy_vacuum/__init__.py`
+(193 stmts, **88%**) is the largest remaining gap and is **integration-boot
+territory**: `async_setup_entry` orchestration (battery-rebaseline service
+registration, mapping-tracker position registration, subsystem wiring) only runs
+under a full config-entry boot — a different test class than this suite. Note this
+is *not* the setup-package `setup/__init__.py` shown in the table above, which is a
+docstring-only file (0 stmts, 100%).
+
+Within the subsystem package itself, the only real gap is `drift.py` (88%): its
+missing lines are all defensive coercion guards — `isinstance(...)` bucket/room
+type checks and `except (TypeError, ValueError): continue` room-id coercions in
+`_list_configured_room_ids`, `_room_lookup`, `reject_rooms`, and
+`run_discovery_pass`, plus the stale-history-pop cleanup line. These are
+intentionally uncovered (defensive-by-design; covering them would mean feeding
+malformed storage dicts purely to exercise the guard). `status.py` (93%) and
+`workflow.py` (97%) likewise leave only a defensive `isinstance` bucket guard, a
+multi-vacuum drift branch, and the no-manager-available early return. `delete.py`
+(97%) and `protection.py` (100%) have no remaining gaps.

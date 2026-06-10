@@ -8,24 +8,24 @@ mapping) then peripheral subsystems and the HA-facing layers.
 
 | # | Subsystem | Map | Cov |
 |---|-----------|-----|----:|
-| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 84% |
-| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 91% |
-| 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 94% |
+| 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 88% |
+| 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 93% |
+| 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 95% |
 | 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 95% |
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 91% |
 | 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 92% |
-| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 92% |
+| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 94% |
 | 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 94% |
-| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 92% |
-| 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 97% |
+| 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 93% |
+| 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 98% |
 | 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 92% |
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 94% |
-| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 95% |
+| 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 98% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
 | 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 77%¹ |
-| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 89% |
+| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 90% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 97% |
-| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 94% |
+| 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 95% |
 
 ¹ Includes the concrete Eufy adapter (`adapters/eufy/*`), now counted in the
 number. The framework adapter code (registry/loader/schema) sits in the mid-90s
@@ -39,7 +39,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 92.9% statement coverage** (90% combined with `--cov-branch`, adapters
+**Total: 94.1% statement coverage** (91% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

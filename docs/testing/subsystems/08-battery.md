@@ -73,13 +73,39 @@ Three patterns:
 
 ## Known gaps
 
-`manager.py` (72%) leaves the **HA wiring** uncovered: `start`/`stop`,
-`_wire_vacuum`, `_on_state_event`, `_sample_now`, and the `_is_charging`
-substring fallback — these need registered state-change listeners and real
-battery/charging entities. Also the `post_job` charge-linkage helper
-(`_attach_post_job_charge_if_pending`) and a few `_classify_session_kind` edge
-branches. All reachable with a fuller fixture; the core wear/health math is
-covered.
+`manager.py` (91%) is mostly covered, including the HA wiring and the
+charging/session-classification paths that earlier revisions of this doc
+listed as gaps. The HA-wiring path (`start`/`stop`, `_wire_vacuum`,
+`_on_state_event`, `_sample_now`, and the `_is_charging` substring fallback)
+is exercised by `test_wire_and_state_event` [BM-18] and
+`test_is_charging_delegates_and_fallback` [BM-14]; `_classify_session_kind`
+and `_attach_post_job_charge_if_pending` by [BM-17]/[BM-19]/[BM-20].
+
+What's left is defensive-by-design or low-value edge branches, intentionally
+left uncovered under the ~90% meaningful-coverage ceiling:
+
+- **Defensive guards** — the `except ValueError` in the listener-unsub
+  (manager.py:269-270), the `_wire_vacuum` already-wired re-entry guard
+  (:328), the `_has_active_job` non-dict guards (:390, :393), the legacy
+  `min_per_pct` clear in `rebaseline` (:896), the `_attach_post_job` malformed
+  `recorded_ts` / opened-before-job drops (:1039-1040, :1044), and the
+  `_parse_iso` passthrough/except branches (:1112, :1117-1118).
+- **Sanity-timeout & ring-buffer trims** — the 12 h stale-session force-close
+  (:585-586) and the `HISTORY_LIMIT` history truncation (:695); both need a
+  long-gap or 50+-session fixture to reach.
+- **`_close_session` kind-specific branches** — the `mid_job` rate-stat call
+  (:704), the `post_job` linkage call (:724), and the `mid_job` return in
+  `_classify_session_kind` (:735). The underlying helpers are unit-tested
+  directly ([BM-15], [BM-17]); only the in-`_close_session` dispatch for those
+  kinds is uncovered (the `_feed`-driven session tests close `idle` sessions).
+- **`_compute_regime_pct` fallback paths** — the within-window skip/append and
+  the no-recent / non-positive-current fallbacks (:849, :852, :862, :866).
+
+Other modules are at the ceiling: `job_metrics.py` (98%) — only the
+`(TypeError, ValueError)` est-parse guard (:156-157); `sensors.py` (97%) —
+the no-`hass` write-state guard (:166) and the non-dict bucket skip (:485);
+`store.py` and `__init__.py` at 100%. The core wear/health/session math is
+fully covered.
 
 ---
 

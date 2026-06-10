@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
 
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
-| `manager.py` | 165 | 97% | `tests/integration/test_dock_manager.py` | integration |
+| `manager.py` | 165 | 98% | `tests/integration/test_dock_manager.py` | integration |
 
 (`__init__.py` is trivial; the dock *services* layer is covered separately by
 `tests/integration/test_services_dock.py`.)
@@ -38,7 +38,10 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
   `performed=False` with the gate reason.
 - **Entity resolution** — `_get_dock_action_entity` resolves a present button
   from the adapter's `dock_events.action_buttons` (the test registers a config
-  with `entity_suffixes`); an action absent from that map resolves to `None`.
+  with `entity_suffixes`); an action absent from that map resolves to `None`. A
+  token-fallback test [DK-17] also exercises resolution of a differently-named
+  button via the adapter's `token_sets` when no `entity_suffix` matches
+  (firmware-naming drift).
 
 ---
 
@@ -55,6 +58,20 @@ one field to drive a single gate branch. Dispatch tests register a fake
 
 ## Known gaps
 
-`manager.py` (92%) leaves the token-fallback path in `_get_dock_action_entity`
-(`manager._find_button_entity_by_tokens`) and one debounce edge branch. Both are
-reachable with more setup; the gating + dispatch + event logic is covered.
+`manager.py` (98%) has one uncovered line, a narrow fall-through branch:
+
+- **Line 94** — inside `_get_dock_action_entity`, the registry-only arm of the
+  `entity_suffixes` loop (`registry.async_get(entity_id)` matches an entity that
+  is in the registry but not in `hass.states`). The states-present arm and the
+  `token_sets` fallback are both covered ([DK-15], [DK-17]).
+
+The `except Exception:` in `record_dock_event`'s debounce timestamp-parse
+(malformed `*_last_counted_at`, line 392) is now covered:
+`test_record_event_malformed_debounce_timestamp` [DK-2b] registers a non-zero
+`debounce_seconds` and seeds an unparseable stored timestamp, so
+`datetime.fromisoformat` raises and the recovery branch is genuinely exercised
+(its `_LOGGER.debug` log body remains `# pragma: no cover`).
+
+The remaining gap is a defensive recovery branch; the gating, dispatch,
+entity-resolution (suffix + token fallback), and event-counting logic
+(including malformed-timestamp recovery) are covered.

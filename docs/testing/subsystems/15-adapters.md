@@ -6,7 +6,7 @@ maintenance components), loaded from storage and validated against a schema. The
 one concrete adapter (`adapters/eufy/`) lives behind this boundary and has its
 own focused suite in `tests/adapters/eufy/`. Covered by **30 framework tests
 across 2 files** (`test_adapters.py` + the brand-agnostic
-`test_adapter_contract.py` conformance harness), plus **120 Eufy-adapter tests**.
+`test_adapter_contract.py` conformance harness), plus **95 Eufy-adapter tests**.
 
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)
@@ -59,17 +59,31 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 `adapters/eufy/*` is **counted in the coverage number** — we always test the
 adapters we ship, so the figure includes them. The Eufy adapter is well covered
-(120 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
+(95 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
 and the `buttons`/`entities` data shape sit at or near 100%. The one visible thin
 spot is the CV `segmentor` (70%), which needs heavy image fixtures and is the
-natural place a second-brand effort would invest; `adapter.py` (the big assembly
-function) is at 93%. See [01 — overview](../01-overview.md) for the three-layer
-split.
+natural place a second-brand effort would invest; `adapter.py` (95%) is missing
+only line 110 — the `return None` guard in the small helper `_button_block_or_none`
+when a button key is absent from both candidates and tokens maps. See
+[01 — overview](../01-overview.md) for the three-layer split.
 
 ---
 
 ## Known gaps
 
-`registry.py` (94%) leaves a few defensive accessors. The real gap is **CV
-`segmentor` depth** (70%) — the image-pipeline long tail that needs fixture-heavy
-tests, tracked as a known thin spot rather than a framework miss.
+`registry.py` (91%) leaves only defensive validator arms uncovered — the
+`append`-an-issue branches that reject a malformed stored adapter config
+(`job_segmenter` / `room_profiles` / `dispatch` block-shape checks, missing
+`registry.py` lines 276, 285, 290, 305, 309, 322, 409, 436, 442). These are
+error paths for invalid storage, not real behavior holes. `adapter.py` (95%)
+is missing one line (110), the `return None` guard in `_button_block_or_none`
+for a component with no reset button — likewise defensive.
+
+The one substantive thin spot is **CV `segmentor` depth** (70%) — the
+image-pipeline long tail that needs heavy fixtures. The uncovered lines cluster
+in the localized-bins child keep/reject branches inside the main segmentation
+pass (~1300–1346) and the localized dedup-prune plus count-deficit recovery loop
+(~1371–1465), with scattered split-variant scoring helpers elsewhere. This is
+tested in `tests/adapters/eufy/test_segmentor.py` and `test_segmentor_splitters.py`
+and is held at ~70% on purpose — the natural place a second-brand effort would
+invest, tracked as a known thin spot rather than a framework miss.

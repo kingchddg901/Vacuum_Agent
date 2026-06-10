@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **157 tests across 14 files**.
+contract). Covered by **158 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | Source module | Stmts | Cov | Test file |
 |---------------|------:|----:|-----------|
 | `job_control.py` | 115 | 100% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
-| `run_profiles.py` | 89 | 96% | `test_services_run_profiles.py` |
+| `run_profiles.py` | 89 | 100% | `test_services_run_profiles.py` |
 | `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
 | `setup.py` | 85 | 90% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
@@ -54,6 +54,23 @@ manager method to raise and assert the wrapped exception type.
 
 ## Known gaps
 
-`adapter_config.py` (82%) and `run_profiles.py` (86%) leave some validation/guard
-branches; `setup.py` leaves a few partial branches. The handler success + error
-paths are covered.
+The remaining misses are almost all defensive, not untested behavior:
+
+- **`manager is None` early-returns (defensive)** — `setup.py:147, 174, 204, 232`
+  and `adapter_config.py:64-65, 103` are runtime-not-available guards that return
+  a `{"status": "error"}` stub or log-and-return. Unreachable in the
+  fixture-registered service set, intentionally uncovered.
+- **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
+  `except` → default 20), `_common.py:96` (non-dict `completed_job` guard) and
+  `:101` (alternate `finalize_result`-shaped `job_path` extraction).
+- **Registered-wrapper closure (trivial)** — `rooms.py:165`, the `discover_rooms`
+  inner async wrapper; the `_handle_discover_rooms` it delegates to is exercised
+  directly.
+
+Note `adapter_config.py:68-78` (missing `adapter_id` / missing `dispatch.template`
+guards) are `# pragma: no cover` by design and so are excluded from the miss list.
+
+Module coverage: `setup.py` 90%, `adapter_config.py` 94%, `_common.py` 89%,
+`errors.py` 95%, `rooms.py` 97%; the remaining eight modules (including
+`run_profiles.py`, now at 100%) are at 100%. The handler success + error contracts
+are covered.

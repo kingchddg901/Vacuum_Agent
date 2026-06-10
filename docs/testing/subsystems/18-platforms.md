@@ -26,8 +26,8 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `button.py` | 134 | 88% | `test_button_entity.py` |
-| `number.py` | 121 | 94% | `test_number_entity.py` |
-| `switch.py` | 63 | 92% | `test_switch_entity.py` |
+| `number.py` | 121 | 97% | `test_number_entity.py` |
+| `switch.py` | 63 | 98% | `test_switch_entity.py` |
 | `binary_sensor.py` | 67 | 92% | `test_platform_files.py` |
 | `room_entities.py` | 74 | 98% | `test_platform_files.py` |
 | `config_flow.py` | 38 | 94% | `test_config_flow.py` |
@@ -67,8 +67,31 @@ Pure helpers (`timestamp_utils`, `models`, `map_manager`) are unit-tested.
 
 ## Known gaps
 
-`sensor/__init__.py` (81%) and `button.py` (88%) leave diffuse per-entity
-`native_value` branches and the button stale-removal / existing-write paths,
-which need a **full entity-platform registration** harness (a registered entity
-with a real platform) rather than a recording `async_add_entities`. Display-only,
-low severity.
+The remaining misses across the platform layer fall into two families.
+
+**Callback-driven dynamic-entity sync (display-only, low severity).** The
+`sensor/__init__.py` post-setup callbacks — the room-history / room-rule-status
+**sync add-remove** paths (build desired set, drop stale registry entries, add
+new entities), the per-vacuum **refresh** callbacks, the theme refresh, and the
+hourly safety-net tick — are now exercised end-to-end by INIT-6/7/8 in
+`tests/integration/test_init_setup.py` via the full-boot harness (adding a room
+and firing the update callback registers new sensors; the rule-status + theme
+refreshes push observable state; the hourly tick refreshes history sensors).
+What remains uncovered is on the *other* platforms: `button.py` (88%, lines
+95–101 / 107–108) leaves the twin run-profile **stale-removal** and
+**existing-write** branches, and `number.py` (94%) / `switch.py` (92%) leave the
+`_on_rooms_updated` add-new-entities path. These call `async_remove()` /
+`async_write_ha_state()` on **registered** entities, so exercising them needs a
+**full entity-platform registration** harness (a registered entity on a real
+platform) rather than the recording `async_add_entities` the current tests use;
+only white-box spies are otherwise possible. Display-only, low severity.
+
+**Defensive guards and `# pragma: no cover` branches (intentional).** The rest
+is defensive and deliberately uncovered: the `hass is None` / wrong-vacuum /
+wrong-map early returns in the tracker/event callbacks
+(`binary_sensor.py` 43/103/106, `sensor/lifecycle.py` 127/130/155/166/168),
+the `# pragma: no cover` `except` blocks and fallback branches in the top-level
+`__init__.py` (88% — exercised end-to-end by `test_init_setup`, not per-unit),
+and trivial leaf lines (`entity_helpers.py` floor-guidance map, `config_flow.py`
+119 options-flow no-vacuum branch, `models/models.py` 10–11, the `isinstance`
+guards in `button.py` 152/157/247). Not worth covering.
