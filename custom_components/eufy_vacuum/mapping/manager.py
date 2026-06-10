@@ -1763,11 +1763,9 @@ class MappingManager:
 
         sample = (float(vacuum_x), float(vacuum_y))
         # Traces always start armed now that the vacuum→pixel transform
-        # (legacy System A) has been removed — target-room gating cannot fire.
+        # (legacy System A) has been removed — target-room gating cannot fire,
+        # so every sample is recorded unconditionally.
         trace.setdefault("samples", []).append(sample)
-        if not trace.get("armed"):
-            trace["armed"] = True
-            trace["arm_reason"] = "ungated"
         return True
 
     def close_room_boundary(
