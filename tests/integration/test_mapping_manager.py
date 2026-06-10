@@ -10,6 +10,7 @@ Coverage targets
 [MGR-2]  update_room_bounds with empty samples is a no-op.
 [MGR-3]  clear_room_bounds resets a room; unknown room → room_not_found.
 [MGR-4]  exclude/restore room job bounds recompute bounds; baseline protected.
+[MGR-4b] exclude with an out-of-range job_index -> index_out_of_range failure contract.
 [MGR-5]  trace capture lifecycle: start → status → append → stop → list → get → delete.
 [MGR-6]  cancel_trace_capture discards the active session.
 [MGR-7]  get_trace_run / delete_trace_run_by_id report not-found.
@@ -127,6 +128,20 @@ def test_exclude_restore_job_bounds(mapping_manager):
     base = mapping_manager.exclude_room_job_bounds(
         vacuum_entity_id=_VAC, map_id="excl", room_id="3", job_index=1)
     assert base["reason"] == "baseline_protected"
+
+
+def test_exclude_job_bounds_index_out_of_range(mapping_manager):
+    """[MGR-4b] a job_index past the end of job_bounds_history is rejected with the
+    re-seg wizard's public failure contract {'success': False, 'reason':
+    'index_out_of_range'} — the guard short-circuits before mutating any entry."""
+    mapping_manager.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id="excloor", samples=[(0.0, 0.0), (8.0, 8.0)],
+        rooms={"3": {"is_transition": False}},
+    )
+    oor = mapping_manager.exclude_room_job_bounds(
+        vacuum_entity_id=_VAC, map_id="excloor", room_id="3", job_index=99)
+    assert oor["success"] is False
+    assert oor["reason"] == "index_out_of_range"
 
 
 # ---------------------------------------------------------------------------

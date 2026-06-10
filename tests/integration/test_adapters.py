@@ -118,6 +118,29 @@ def test_validate_adapter():
         {"mapping": {"segmenter_engine": "noop_fallback"}}) == []
 
 
+def test_validate_adapter_job_segmenter_block():
+    """[RG-4] job_segmenter block is the 2nd-brand JobSegmenter seam contract.
+
+    A declared block that is not-a-dict / omits the engine / names an unknown
+    engine must surface a checked issue (so registration rejects a brand that
+    would otherwise silently fall back to the Eufy counter engine), mirroring
+    the mapping.segmenter_engine contract. The declared 'noop_job_fallback'
+    sentinel must pass clean.
+    """
+    # block present but not a dict
+    assert "'job_segmenter' must be a dict if present" in _validate_adapter(
+        {"job_segmenter": "x"})
+    # block present but no engine declared
+    assert any("job_segmenter.engine is required" in i
+               for i in _validate_adapter({"job_segmenter": {}}))
+    # unknown engine name
+    assert any("is unknown" in i for i in _validate_adapter(
+        {"job_segmenter": {"engine": "bogus_job_engine"}}))
+    # the documented disable sentinel passes validation
+    assert _validate_adapter(
+        {"job_segmenter": {"engine": "noop_job_fallback"}}) == []
+
+
 # ---------------------------------------------------------------------------
 # bare-function fallback shims (no active coordinator)
 # ---------------------------------------------------------------------------

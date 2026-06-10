@@ -201,6 +201,52 @@ def test_estimate_full_path(rpm, hass):
     assert len(out["rooms"]) == 1
 
 
+def test_estimate_no_station_water_leaves_clean_tank_unknown(rpm, hass):
+    """[RPM-7b] no station-water sensor (percent None) → estimate still available
+    but the clean-tank fields stay None (arc 476->500: clean-tank block skipped)."""
+    rm, mgr = rpm
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "water_model_configs": {
+            "X8": {
+                "model_name": "X8 Pro",
+                "robot_internal_tank_ml": 80,
+                "dock_clean_tank_capacity_ml": 4000,
+                "dock_wash_overhead_ml_per_cycle": 100,
+            },
+        },
+        # No water_level entity declared → station_water_percent resolves to None.
+        "entities": {
+            "wash_frequency_mode": "select.wash_mode",
+            "wash_frequency_value_time": "number.wash_interval",
+        },
+        "vocabulary": {"wash_frequency_mode_aliases": {"by room": "by_room"}},
+    })
+    mgr._get_upkeep_model_meta.return_value = {"code": "X8", "name": "X8 Pro"}
+    mgr.get_vacuum_capabilities.return_value = {"entities": {}}
+    hass.states.async_set("select.wash_mode", "By Room")
+    hass.states.async_set("number.wash_interval", "20")
+
+    out = rm.estimate_job_water_usage(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"room_id": 1, "name": "Kitchen",
+                         "clean_mode": "vacuum_mop", "water_level": "high"}],
+        room_timeline=[{"room_id": 1, "minutes": 10}],
+    )
+    assert out["available"] is True
+    # robot/wash accounting still computed
+    assert out["estimated_robot_water_used_ml"] == pytest.approx(53.0)
+    assert out["estimated_dock_wash_water_used_ml"] == pytest.approx(200.0)
+    # but the station-water-derived clean-tank contract fields are left unknown
+    assert out["station_clean_water_percent"] is None
+    assert out["available_clean_tank_ml"] is None
+    assert out["estimated_clean_tank_remaining_ml"] is None
+    assert out["estimated_clean_tank_remaining_percent"] is None
+    assert out["clean_water_shortfall_ml"] is None
+    assert out["not_enough_clean_water"] is False
+    assert out["low_clean_water_margin"] is False
+
+
 # ---------------------------------------------------------------------------
 # run-plan helpers
 # ---------------------------------------------------------------------------

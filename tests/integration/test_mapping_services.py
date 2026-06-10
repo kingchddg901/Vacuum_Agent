@@ -209,6 +209,22 @@ async def test_link_one_to_one(hass, mapping_services):
     assert "s1" not in links
 
 
+async def test_link_blank_segment_id(hass, mapping_services):
+    """[MSH-6b] whitespace-only segment_id strips empty → missing_segment_id.
+
+    Guards the strip-then-guard ordering at mapping_services.py:1033-1037 in
+    _handle_set_segment_room_link: a blanked segment_id must short-circuit to
+    the ``{"saved": False, "reason": "missing_segment_id"}`` failure contract
+    the card reads, *before* touching the map bucket or persisting anything.
+    """
+    _seed_segments(mapping_services)
+    result = await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "segment_id": "   ", "room_id": "3"})
+    assert result["saved"] is False
+    assert result["reason"] == "missing_segment_id"
+
+
 # ---------------------------------------------------------------------------
 # set_companion_anchor
 # ---------------------------------------------------------------------------
@@ -225,6 +241,22 @@ async def test_companion_anchor_set_and_clear(hass, mapping_services):
                            {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "3"})
     assert clearres["action"] == "cleared"
     assert "3" not in clearres["companion_anchors"]
+
+
+async def test_companion_anchor_blank_room_id(hass, mapping_services):
+    """[MSH-7b] whitespace-only room_id strips empty → missing_room_id.
+
+    Guards the strip-then-guard ordering at mapping_services.py:1087-1092 in
+    _handle_set_companion_anchor: a blanked room_id must short-circuit to the
+    ``{"saved": False, "reason": "missing_room_id"}`` failure contract the card
+    reads, *before* touching the map bucket or persisting any anchor.
+    """
+    _seed_segments(mapping_services)
+    result = await _call(hass, SERVICE_SET_COMPANION_ANCHOR,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "room_id": "   ", "pct_x": 25.0, "pct_y": 75.0})
+    assert result["saved"] is False
+    assert result["reason"] == "missing_room_id"
 
 
 # ---------------------------------------------------------------------------

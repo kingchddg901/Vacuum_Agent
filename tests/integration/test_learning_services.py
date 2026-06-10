@@ -25,6 +25,8 @@ Coverage targets
 [LS-21] finalize with active_job started_at covers wall-clock derivation + trace_run_id.
 [LS-22] finalize single completed room with trace_run_id covers boundary derivation check.
 [LS-23] get_learning_history_snapshot with seeded jobs runs full enrichment loop.
+[LS-23c] clean_passes>1 room profile appends '<N> Pass' to save_suggested_label (manager 1091->1092).
+[LS-23d] _filter_jobs_since includes a now-anchored job in metric_windows['today'] (manager 1378->1379).
 [LS-24] get_metrics_snapshot with seeded jobs returns populated metrics.
 [LS-25] save_learning_snapshot with managed rooms covers access-graph loop body.
 [LS-26] get_room_learning_estimates with learned stats hits the learned-match branch.
@@ -101,6 +103,9 @@ def _seed_completed_job(
     status: str = "completed",
     used_for_learning: bool = True,
     duration_minutes: float = 30.0,
+    clean_times: int = 1,
+    started_at: str = "2026-01-01T09:00:00+00:00",
+    ended_at: str = "2026-01-01T09:30:00+00:00",
 ) -> dict:
     """Seed a minimal completed job directly via LearningHistoryStore."""
     if room_slugs is None:
@@ -112,7 +117,7 @@ def _seed_completed_job(
             "name": slug.replace("_", " ").title(),
             "clean_mode": "vacuum",
             "clean_intensity": "standard",
-            "clean_times": 1,
+            "clean_times": clean_times,
             "is_carpet": False,
         }
         for i, slug in enumerate(room_slugs)
@@ -121,8 +126,8 @@ def _seed_completed_job(
         "record_type": "completed_job",
         "job_id": job_id,
         "job": {
-            "started_at": "2026-01-01T09:00:00+00:00",
-            "ended_at": "2026-01-01T09:30:00+00:00",
+            "started_at": started_at,
+            "ended_at": ended_at,
             "duration_minutes": duration_minutes,
             "room_count": len(rooms),
         },
@@ -987,6 +992,87 @@ async def test_get_learning_history_snapshot_with_seeded_jobs(hass, learning_ser
     assert "j-hist-002" in seeded_ids
 
 
+async def test_history_snapshot_multipass_appends_pass_to_suggested_label(hass, learning_services):
+    """[LS-23c] A room profile observed with clean_passes>1 appends '<N> Pass' to
+    the public save_suggested_label (manager 1091->1092).
+
+    This is the inline suggested-label builder in the room-profile enrichment loop
+    (a separate payload from _settings_profile_label's 'N Passes' subtitle). The
+    save_suggested_label feeds the card's save-candidate flow, so its content is a
+    caller-visible contract. Seeding clean_times=2 carries through the rebuilder
+    (room_profiles[].clean_passes = clean_times) so the >1 branch fires.
+    """
+    _seed_completed_job(hass, _VAC, "j-pass-002", room_slugs=["kitchen"], clean_times=2)
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    profiles = result.get("room_profiles", [])
+    kitchen = [
+        p for p in profiles
+        if str(p.get("room_slug", "")).strip().lower() == "kitchen"
+        and _safe_int_local(p.get("clean_passes")) == 2
+    ]
+    assert kitchen, "expected a kitchen room profile observed with clean_passes=2"
+    label = kitchen[0].get("save_suggested_label", "")
+    # The >1-pass branch appended the '<N> Pass' fragment to the public label.
+    assert label.endswith("2 Pass"), f"save_suggested_label missing pass count: {label!r}"
+
+
+async def test_history_snapshot_metric_window_includes_recent_job(hass, learning_services):
+    """[LS-23d] _filter_jobs_since includes a job whose anchor >= the window start,
+    populating the public summary.metric_windows['today'] bucket (manager 1378->1379).
+
+    The pre-existing seeded test uses a 2026-01-01 fixture date that lands BEFORE
+    every window, so only the false (exclude) branch is exercised. Anchoring a job
+    at 'now' lands it inside the today window (midnight-UTC start), traversing the
+    true (append) branch and proving the recency filter feeds the metric bucket.
+    """
+    from custom_components.eufy_vacuum.timestamp_utils import utc_now
+
+    now = utc_now()
+    started = now.replace(microsecond=0).isoformat()
+    _seed_completed_job(
+        hass, _VAC, "j-today-001", room_slugs=["kitchen"],
+        started_at=started, ended_at=started,
+    )
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False},
+        blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    windows = result.get("summary", {}).get("metric_windows", {})
+    # The recency filter appended the now-anchored job into every window bucket.
+    assert windows.get("today", {}).get("job_count", 0) >= 1
+    assert windows.get("last_7_days", {}).get("job_count", 0) >= 1
+    assert windows.get("last_30_days", {}).get("job_count", 0) >= 1
+
+
+def _safe_int_local(value, default: int = 0) -> int:
+    """Local int coercion mirror so the test does not import a private helper."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 async def test_history_snapshot_accepts_list_shaped_accuracy(hass, learning_services, monkeypatch):
     """[LS-23b] accuracy_stats with a LIST-shaped 'rooms' (externally-produced
     payloads) is accepted alongside the dict shape — the elif-list branch."""
@@ -1327,8 +1413,22 @@ async def test_finalize_error_seconds_exceeds_cleaning_time(hass, learning_servi
 # [LS-30] forced_lifecycle_state="failed" sets outcome
 # ---------------------------------------------------------------------------
 
-async def test_finalize_forced_lifecycle_state_failed(hass, learning_services):
-    """[LS-30] forced_lifecycle_state sets outcome without forced_outcome_status (lines 402-420)."""
+@pytest.mark.parametrize(
+    "forced_lifecycle_state, expected_status",
+    [
+        # [LS-30] was_failed branch (job_finalizer 418->419).
+        ("failed", "failed"),
+        # was_cancelled branch (job_finalizer 416->417): a forced cancel
+        # lifecycle, with no forced_outcome_status, must classify the saved
+        # outcome.status as "cancelled" — the contract the incomplete-run-log
+        # writer reads to decide whether to log a missed-rooms banner.
+        ("cancelled", "cancelled"),
+    ],
+)
+async def test_finalize_forced_lifecycle_state_sets_outcome(
+    hass, learning_services, forced_lifecycle_state, expected_status
+):
+    """[LS-30] forced_lifecycle_state sets outcome.status without forced_outcome_status (lines 402-420)."""
     from custom_components.eufy_vacuum.const import DOMAIN
     from custom_components.eufy_vacuum.learning.services import _get_learning_manager
 
@@ -1346,11 +1446,11 @@ async def test_finalize_forced_lifecycle_state_failed(hass, learning_services):
             ended_at="2026-01-01T09:30:00+00:00",
             used_for_learning=False,
             rebuild_stats=False,
-            forced_lifecycle_state="failed",
+            forced_lifecycle_state=forced_lifecycle_state,
         )
     )
     outcome = result.get("completed_job", {}).get("outcome", {})
-    assert outcome.get("status") == "failed"
+    assert outcome.get("status") == expected_status
 
 
 # ---------------------------------------------------------------------------

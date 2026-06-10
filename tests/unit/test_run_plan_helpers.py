@@ -74,6 +74,16 @@ def test_settings_profile_display_custom():
     assert "2 Passes" in out["profile_subtitle"]
 
 
+def test_settings_profile_display_path_type_in_subtitle():
+    """[RP-4] a path_type label is appended to the profile subtitle (arc 144->145)."""
+    out = _settings_profile_display(
+        room_name="kitchen", selected_profile_name="", clean_mode="vacuum",
+        fan_speed="Max", path_type="deep_clean", clean_passes=1)
+    # path_type → _display_label → "Deep Clean", carried into the subtitle bits
+    assert out["path_type_label"] == "Deep Clean"
+    assert "Deep Clean" in out["profile_subtitle"]
+
+
 def test_room_surface_labels():
     """[RP-5]"""
     out = _room_surface_labels(floor_type="carpet_low_pile")

@@ -288,6 +288,29 @@ def test_resume_non_paused_noop(tracker, manager):
     assert "paused_duration_seconds" not in job or job["paused_duration_seconds"] == 0
 
 
+@pytest.mark.parametrize("bad_paused_at", ["", "not-a-timestamp"])
+def test_resume_missing_paused_at_skips_accumulation(tracker, manager, bad_paused_at):
+    """[AJI-16b] a paused job whose paused_at is empty/unparseable still resumes
+    (status→started, paused_at cleared) but the unparseable timestamp is NOT
+    turned into a bogus pause delta — the prior accumulated totals are preserved
+    rather than corrupted. Traverses the 1317->1325 no-accumulation arc."""
+    _seed(
+        manager, status="paused",
+        paused_at=bad_paused_at,
+        paused_duration_seconds=10,
+        current_room_paused_seconds=5,
+    )
+    job = tracker.resume_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        resumed_at="2026-01-01T09:00:30+00:00")
+    # lifecycle transition still completes
+    assert job["status"] == "started"
+    assert job["paused_at"] is None
+    # no parseable paused_at → no delta accumulated; prior totals preserved
+    assert job["paused_duration_seconds"] == 10
+    assert job["current_room_paused_seconds"] == 5
+
+
 # ---------------------------------------------------------------------------
 # completed-room recording
 # ---------------------------------------------------------------------------

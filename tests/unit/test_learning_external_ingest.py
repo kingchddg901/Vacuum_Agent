@@ -226,6 +226,56 @@ def test_utc_samples_naive_segment_no_cross_contamination(monkeypatch):
     assert rec["segments"][1]["pass_count"] == 2
 
 
+def test_adapter_tuning_overrides_persisted_gap_transit():
+    """Arc 83->84: when the adapter declares a job_segmenter.tuning block, its
+    non-None values merge OVER the engine defaults, and the override is the value
+    persisted as the record's gap_transit_s (the single source resegment reads back
+    to reproduce the candidate pool). A None sibling value must NOT clobber the
+    default (the gap/area/cadence dedup contract). Registered via the bare-function
+    registry (no coordinator/hass), then torn down."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config,
+        unregister_adapter_config,
+    )
+
+    vac = "vacuum.tuning_override"
+    register_adapter_config(
+        vac,
+        {
+            "adapter_id": "test",
+            "job_segmenter": {
+                "engine": "eufy_counter_v1",
+                # gap_transit_s overridden away from the 60.0 default; gap_delayed_s
+                # is None and must be ignored (default survives — dedup contract).
+                "tuning": {"gap_transit_s": 123.0, "gap_delayed_s": None},
+            },
+        },
+    )
+    try:
+        counter = [_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)]
+        rec = build_pending_record(
+            detection_ts=_BASE.isoformat(), map_id="6",
+            counter_samples=counter, settings_samples=[_ss(30, {"clean_mode": "vacuum"})],
+            rooms=_ROOMS, baselines=_BASELINES,
+            vacuum_entity_id=vac,
+        )
+        assert rec is not None
+        # The adapter override (123.0), not the engine default (60.0), is persisted.
+        assert rec["gap_transit_s"] == 123.0
+    finally:
+        unregister_adapter_config(vac)
+
+    # Control: with NO adapter (the legacy/unit path), the default 60.0 is persisted —
+    # proving the override above came from the merge, not a coincidence.
+    plain = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=[_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)],
+        settings_samples=[_ss(30, {"clean_mode": "vacuum"})],
+        rooms=_ROOMS, baselines=_BASELINES,
+    )
+    assert plain["gap_transit_s"] == 60.0
+
+
 def test_cold_rooms_have_no_area_but_are_still_listed():
     # no baselines -> every room is cold; still surfaced (unranked), nothing crashes.
     counter = [_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)]

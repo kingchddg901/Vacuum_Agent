@@ -328,6 +328,37 @@ def test_translate_vertex_accumulation(hass, mapping_services, pil):
     assert r2["saved"] is True
 
 
+def test_translate_vertex_reset_pops_adjustment(hass, mapping_services, pil):
+    """[IMG-15b] a vertex move that nets back to (0,0) is the reset-to-default
+    mutation: the vertex is popped from the stored moves (manager.py 2320->2327)
+    and, since it was the segment's only adjustment, the whole adjustment is popped
+    from the package too (2332->2344). The public payload reflects the reset:
+    vertex_moves empties and `adjustment` becomes None."""
+    # a dedicated map_id keeps this segment's adjustment state independent of the
+    # accumulation test (both persist to disk under segment_id "fake_1").
+    _MR = "reset"
+    mm = _get_mapping_manager(hass)
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MR,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="primary")
+    r1 = mm.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MR, segment_id="fake_1",
+        vertex_moves=[{"index": 0, "delta_x": 5, "delta_y": 5}])
+    assert r1["saved"] is True and r1["vertex_moves"] == [
+        {"index": 0, "delta_x": 5, "delta_y": 5}]
+    assert r1["adjustment"] is not None
+    # the exact negation drives the vertex net to zero -> reset both arcs
+    r2 = mm.translate_image_segment(
+        vacuum_entity_id=_VAC, map_id=_MR, segment_id="fake_1",
+        vertex_moves=[{"index": 0, "delta_x": -5, "delta_y": -5}])
+    assert r2["saved"] is True
+    assert r2["vertex_moves"] == []          # 2320->2327: vertex popped
+    assert r2["adjustment"] is None          # 2332->2344: adjustment popped
+    # and it is genuinely gone from the persisted package, not just the response
+    data = mm._ensure_map_data(_VAC, _MR)
+    assert "fake_1" not in data["package"].get("segment_adjustments", {})
+
+
 def test_get_suggestions_enriches_matched_room(hass, mapping_services, pil):
     """[IMG-16] get_image_segment_suggestions cross-links a matched segment: the
     segment gains matched_room_id/label and the roster room gains the linked

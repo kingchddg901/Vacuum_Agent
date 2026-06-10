@@ -305,3 +305,23 @@ def test_path_block_no_affected_returns_none(rp, hass, manager):
         trigger_entity_id="binary_sensor.nobody", trigger_entity_state="on")
     assert report is None
     assert "last_path_block_signature" not in manager.data["active_jobs"][_VAC]["spm11b"]
+
+
+def test_path_block_all_rooms_completed_returns_none(rp, hass, manager):
+    """[SP-11c] when every queued room is already completed there is nothing
+    remaining → no path-block report fires even though the blocker entity is on
+    (completion-time early return, arc 1278->1279)."""
+    _seed(manager, "spm11c", [
+        {"enabled": True, "is_dock_room": True, "grants_access_to": [2],
+         "rules": [_blocker("binary_sensor.win")]},
+        {"enabled": True},
+    ])
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["spm11c"] = {
+        "status": "started", "job_id": "j4", "queue_room_ids": [1, 2],
+        "completed_room_ids": [1, 2], "last_path_block_signature": "stale"}
+    # blocker entity is on, but it can't affect an already-finished queue.
+    hass.states.async_set("binary_sensor.win", "on")
+    report = manager.get_runtime_path_block_report(
+        vacuum_entity_id=_VAC, map_id="spm11c",
+        trigger_entity_id="binary_sensor.win", trigger_entity_state="on")
+    assert report is None

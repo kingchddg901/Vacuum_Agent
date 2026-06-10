@@ -17,6 +17,8 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [PB-1]  path_blockers: pause_and_event → pause + EVENT_PATH_BLOCKED.
 [PB-2]  path_blockers: cancel_and_event → cancel + JOB_FINISHED + PATH_BLOCKED.
 [PB-3]  path_blockers: event_only → just EVENT_PATH_BLOCKED.
+[PB-4]  path_blockers: pause_and_event + already-paused job → action_taken=already_paused, no pause call.
+[PB-5]  path_blockers: cancel_and_event + cancel returns not-cancelled → action_taken=cancel_failed, no JOB_FINISHED.
 [LC-1]  lifecycle: completion signals met → finalize + JOB_FINISHED + save.
 [LC-2]  lifecycle: signals not met → observed recorded, no finalize/event.
 """
@@ -223,6 +225,53 @@ async def test_path_blocker_event_only(hass):
     await hass.async_block_till_done()
     path_blockers.remove(hass)
     assert blocked[0].data["action_taken"] == "event_only"
+
+
+async def test_path_blocker_pause_already_paused(hass):
+    """[PB-4] pause_and_event on an already-paused job short-circuits.
+
+    Protects the idempotent path-block contract (path_blockers.py:138-139):
+    when the active job is already 'paused', the listener reports
+    action_taken='already_paused' on EVENT_PATH_BLOCKED and does NOT issue a
+    redundant async_pause_active_job call.
+    """
+    m = _wire_path_blocker(
+        hass, path_block_action="pause_and_event", job_status="paused")
+    m.async_pause_active_job = AsyncMock(return_value={"paused": True})
+    blocked = _collect(hass, EVENT_PATH_BLOCKED)
+    hass.states.async_set("binary_sensor.win", "off")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "on")
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    assert len(blocked) == 1
+    assert blocked[0].data["action_taken"] == "already_paused"
+    # no redundant pause issued, and no action_result attached for the no-op
+    m.async_pause_active_job.assert_not_awaited()
+    assert "action_result" not in blocked[0].data
+
+
+async def test_path_blocker_cancel_fails(hass):
+    """[PB-5] cancel_and_event when cancel reports not-cancelled.
+
+    Protects the cancel-failure outcome contract (path_blockers.py:151-162):
+    when async_cancel_active_job returns {'cancelled': False}, the listener
+    reports action_taken='cancel_failed' on EVENT_PATH_BLOCKED and does NOT
+    fire EVENT_JOB_FINISHED (mirrors the [PT-3] pause-timeout failure path).
+    """
+    m = _wire_path_blocker(hass, path_block_action="cancel_and_event")
+    m.async_cancel_active_job = AsyncMock(return_value={"cancelled": False})
+    blocked = _collect(hass, EVENT_PATH_BLOCKED)
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set("binary_sensor.win", "off")
+    path_blockers.register(hass)
+    hass.states.async_set("binary_sensor.win", "on")
+    await hass.async_block_till_done()
+    path_blockers.remove(hass)
+    assert len(blocked) == 1
+    assert blocked[0].data["action_taken"] == "cancel_failed"
+    assert finished == []
+    m.async_cancel_active_job.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
