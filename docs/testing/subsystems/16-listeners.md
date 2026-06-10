@@ -4,7 +4,7 @@ The listeners subsystem wires HA state-change events to manager actions:
 lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes, and
 pause-timeout escalation — plus the registration/teardown plumbing. Covered by
-**61 tests across 4 files**.
+**63 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/listeners/`
 Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
@@ -16,7 +16,7 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `lifecycle.py` | 116 | 88% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
-| `path_blockers.py` | 103 | 86% | `test_listeners_state_driven.py` | integration |
+| `path_blockers.py` | 103 | 88% | `test_listeners_state_driven.py` | integration |
 | `job_metrics.py` | 67 | 86% | `test_listeners_active.py` | integration |
 | `dock_events.py` | 64 | 90% | `test_listeners_active.py` | integration |
 | `discovery.py` | 69 | 99% | `test_listeners_timers.py` | integration |

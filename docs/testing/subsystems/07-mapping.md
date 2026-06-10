@@ -5,7 +5,7 @@ boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →
 `trace_segmentation` → `trace_review`), an image-segmentation stack
 (`segment_primitives`, `segmenter_engines`), a coordinate tracker
 (`tracker`), and two large orchestrators (`manager`, `mapping_services`).
-Covered by **333 tests across 15 files** — the trace/image primitives are
+Covered by **337 tests across 15 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -28,7 +28,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
 | `tracker.py` | 344 | 93% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 650 | 94% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 650 | 95% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 
