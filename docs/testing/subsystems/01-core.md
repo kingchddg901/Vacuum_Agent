@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **144 tests across 9 files**.
+low-battery-return reads. Covered by **145 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
@@ -46,7 +46,8 @@ so its own tests target the logic that genuinely lives in the orchestrator.
   None, missing `started_at` → not finalized, full job → `completed_job`.
 - **Room-history ingest** — `_ingest_jobs_index_entry_into_room_history`
   (newer-wins merge, bad-row skips).
-- **Pure helpers** (`CMH`, unit) — `_safe_float`, `_hours_text`,
+- **Pure helpers** (`CMH`, unit) — `_safe_float`, `_safe_int`,
+  `_normalize_path_block_action`, `_hours_text`, `_display_label`,
   `_settings_profile_display`.
 - **Delegation seams** (`MD`) — every thin forwarder (`return self.<sub>.x(...)`)
   is smoke-tested through the manager so a delegation lost in a refactor fails
