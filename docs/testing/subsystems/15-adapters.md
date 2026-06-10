@@ -6,7 +6,7 @@ maintenance components), loaded from storage and validated against a schema. The
 one concrete adapter (`adapters/eufy/`) lives behind this boundary and has its
 own focused suite in `tests/adapters/eufy/`. Covered by **30 framework tests
 across 2 files** (`test_adapters.py` + the brand-agnostic
-`test_adapter_contract.py` conformance harness), plus **120 Eufy-adapter tests**.
+`test_adapter_contract.py` conformance harness), plus **157 Eufy-adapter tests**.
 
 <!-- The two bold counts above are HAND-MAINTAINED. update_test_docs.py's
 single-header model can't compute the framework-vs-Eufy split, so it WARNs and
@@ -28,7 +28,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `registry.py` | 141 | 91% | `test_adapters.py` | integration |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
-| `eufy/segmentor.py` | 865 | 83% | `tests/adapters/eufy/` | adapter |
+| `eufy/segmentor.py` | 866 | 85% | `tests/adapters/eufy/` | adapter |
 | `eufy/adapter.py` | 40 | 95% | `tests/adapters/eufy/` | adapter |
 | `eufy/discovery.py` | 54 | 100% | `test_discovery.py` | adapter |
 | `eufy/entities.py` | 24 | 100% | `test_buttons_entities.py` | adapter |
@@ -67,10 +67,11 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 `adapters/eufy/*` is **counted in the coverage number** — we always test the
 adapters we ship, so the figure includes them. The Eufy adapter is well covered
-(120 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
+(157 tests in `tests/adapters/eufy/`): `model_catalog`, `discovery`, `lifecycle`,
 and the `buttons`/`entities` data shape sit at or near 100%. The CV `segmentor`
-is now **83%** (the splitter helpers + recovery / scoring / issue-tag paths are
-covered); its remaining tail is the localized-bins pipeline branch (see Known
+is now **85%** (the splitter helpers + recovery / scoring / issue-tag paths are
+covered, and the localized-sibling prune is an extracted, unit-tested helper);
+its remaining tail is the localized-bins pipeline branch (see Known
 gaps), the natural place a second-brand effort would invest. `adapter.py` (95%) is missing
 only line 110 — the `return None` guard in the small helper `_button_block_or_none`
 when a button key is absent from both candidates and tokens maps. See
@@ -88,14 +89,17 @@ error paths for invalid storage, not real behavior holes. `adapter.py` (95%)
 is missing one line (110), the `return None` guard in `_button_block_or_none`
 for a component with no reset button — likewise defensive.
 
-The one remaining thin spot is **CV `segmentor` depth** (83%, up from 70% after
-the splitter / recovery / scoring / issue-tag tests). What's left is the genuinely
+The one remaining thin spot is **CV `segmentor` depth** (85%, up from 70% after
+the splitter / recovery / scoring / issue-tag tests, then the
+`_prune_localized_siblings` extraction — the localized-sibling rank /
+overlap-dedup / top-4 cap used to be inline in the pipeline and is now a pure
+helper unit-tested directly, `[SP-prune]`). What's left is the genuinely
 CV-fragile long tail: the localized-bins child keep/reject + re-score branches
 that only fire when a single >120k-px component splits into multiple colour
-pockets inside the full pipeline (~1318–1393), the overlap-dedup drop
-(1409–1411), and a few threshold-tuned artifact heuristics (~1300–1316) — each
+pockets inside the full pipeline (~1357–1385), the final overlap-dedup drop
+(~1427–1429), and a few threshold-tuned artifact heuristics (~1339–1355) — each
 needs a synthetic fill tuned to the exact HSV/morphology interplay, brittle to
-force and to `--cov` perturbation. Plus the env-gated scipy-absent guard (904)
-and defensive continues (1017-1018, 1061, 1073). Tested in
+force and to `--cov` perturbation. Plus the env-gated scipy-absent guard (943)
+and defensive continues (1056-1057, 1100, 1112). Tested in
 `test_segmentor.py` + `test_segmentor_splitters.py`; held here on purpose, a known
 thin spot rather than a framework miss.

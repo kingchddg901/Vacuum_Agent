@@ -22,7 +22,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 12 | Profiles (per-room cleaning profiles) | [12-profiles](12-profiles.md) | 94% |
 | 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 98% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
-| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 87%¹ |
+| 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 88%¹ |
 | 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 90% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 97% |
 | 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 95% |

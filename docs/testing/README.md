@@ -3,8 +3,8 @@
 How the test suite is built, how to run it, and how to add to it without
 rebuilding the scaffolding every time.
 
-The suite currently has **1,936 test functions** across **118 test files**
-(38 unit, 72 integration, 8 adapter) — 2,194 cases after parametrization — all
+The suite currently has **1,940 test functions** across **118 test files**
+(38 unit, 72 integration, 8 adapter) — 2,198 cases after parametrization — all
 green, running on Python 3.14 inside a Linux container. Those exercise the
 **135 source modules** under
 `custom_components/eufy_vacuum/` to **95.6% coverage** (93% combined with
