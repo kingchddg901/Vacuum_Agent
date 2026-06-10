@@ -28,6 +28,11 @@ Coverage targets
 
 from __future__ import annotations
 
+import json
+import os
+import re
+from pathlib import Path
+
 import pytest
 
 from custom_components.eufy_vacuum.mapping.manager import (
@@ -544,3 +549,133 @@ def test_normalize_package_legacy_image_path_becomes_primary(mapping_manager):
     assert primary["image_path"] == "/tmp/legacy_map.png"
     assert primary["role"] == "primary"
     assert primary["width"] == 64 and primary["height"] == 48
+
+
+def test_load_map_data_strips_legacy_calibration(mapping_manager):
+    """[MGR-29] a map file still carrying a legacy 'calibration' block has it
+    popped on load AND the file is resaved without it (one-way System-A purge),
+    while non-calibration keys are preserved."""
+    data = {"rooms": {}, "calibration": {"matrix": [[1, 0, 0], [0, 1, 0]]}}
+    mapping_manager._save_map_data(_VAC, "calib", data)
+
+    loaded = mapping_manager._load_map_data(_VAC, "calib")
+    # return value: calibration stripped, other keys kept
+    assert "calibration" not in loaded
+    assert loaded.get("rooms") == {}
+
+    # persistence: the migration was written through to disk, not just in-memory
+    raw = json.loads(
+        mapping_manager._map_json_path(_VAC, "calib").read_text(encoding="utf-8")
+    )
+    assert "calibration" not in raw
+    assert raw.get("rooms") == {}
+
+
+def test_set_dock_anchor_optional_fields(hass, mapping_manager):
+    """[MGR-15b] docked + all optional args populate dock['vacuum'] (994),
+    dock['exclusion_radius'] (996) and dock['notes'] (998); the package
+    normalize round-trip (digits=4 / round-2 / _clean_text) preserves them.
+    Passing only vacuum_x without vacuum_y leaves dock['vacuum'] None — the
+    both-required semantics of the 994 `and` guard."""
+    hass.states.async_set(_VAC, "docked")
+    result = mapping_manager.set_dock_anchor(
+        vacuum_entity_id=_VAC, map_id="dockopt", pixel_x=10.0, pixel_y=20.0,
+        vacuum_x=1.0, vacuum_y=2.0, exclusion_radius=0.5, notes="by sofa")
+    assert result["saved"] is True
+    dock = result["dock"]
+    assert dock["vacuum"] == [1.0, 2.0]
+    assert dock["exclusion_radius"] == 0.5
+    assert dock["notes"] == "by sofa"
+
+    # only vacuum_x supplied (no vacuum_y) → the `and` guard skips dock['vacuum']
+    half = mapping_manager.set_dock_anchor(
+        vacuum_entity_id=_VAC, map_id="dockhalf", pixel_x=1.0, pixel_y=2.0,
+        vacuum_x=1.0)
+    assert half["dock"]["vacuum"] is None
+
+
+def test_set_dock_room_with_notes(mapping_manager):
+    """[MGR-16b] notes given → set_dock_room writes dock['notes'] (1035)
+    alongside the room id, surviving the package normalize round-trip."""
+    result = mapping_manager.set_dock_room(
+        vacuum_entity_id=_VAC, map_id="dockroomnotes", room_id="3", notes="hall")
+    assert result["saved"] is True
+    assert result["dock"]["room_id"] == "3"
+    assert result["dock"]["notes"] == "hall"
+
+
+
+
+def _learning_jobs_dir(mapping_manager, vac: str) -> Path:
+    """The dir _write_job_bounds globs (mirrors manager.py:1679-1686).
+
+    slug = re.sub(r"[^a-z0-9_]", "_", vac.lower()) — `vacuum.alfred` -> `vacuum_alfred`.
+    """
+    slug = re.sub(r"[^a-z0-9_]", "_", vac.lower())
+    jobs = (
+        Path(mapping_manager.hass.config.config_dir)
+        / "eufy_vacuum" / "learning" / slug / "jobs"
+    )
+    jobs.mkdir(parents=True, exist_ok=True)
+    for _old in jobs.glob('job_*.json'):  # isolate from prior tests (phac reuses one config dir)
+        _old.unlink()
+    return jobs
+
+
+def _write_job_file(path: Path, payload: dict, mtime: float) -> None:
+    """Write a learning job file with a deterministic mtime (no real sleep)."""
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    os.utime(path, (mtime, mtime))
+
+
+def test_write_job_bounds_injects_into_newest_job_file(mapping_manager):
+    """[MGR-33] update_room_bounds writes job_bounds into the newest learning job
+    file (manager.py:1689-1695). Two files with strictly-increasing mtimes prove
+    the sorted(...)[-1] newest-pick: job_002 (newer) gets room_bounds injected
+    with the run's min_x/max_x; job_001 (older) is left untouched.
+
+    Dedicated map id — the shared config_dir means other tests write room-3 bounds
+    (see [MGR-1]); the on-disk job file under test is keyed only by vacuum slug, so
+    map id keeps the bounds snapshot side isolated and the injected value exact."""
+    jobs = _learning_jobs_dir(mapping_manager, _VAC)
+    older = jobs / "job_001.json"
+    newer = jobs / "job_002.json"
+    _write_job_file(older, {"mapping": {"existing_key": 1}}, mtime=1_000.0)
+    _write_job_file(newer, {"foo": "bar"}, mtime=2_000.0)  # strictly later -> newest
+
+    mapping_manager.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id="wjb_newest",
+        samples=[(0.0, 0.0), (10.0, 10.0)],
+        rooms={"3": {"is_transition": False}},
+    )
+
+    # newest file (the [-1] pick) gained room_bounds reflecting the run's extent
+    new_payload = json.loads(newer.read_text(encoding="utf-8"))
+    bounds = new_payload["mapping"]["room_bounds"]["3"]
+    assert bounds["min_x"] == 0.0 and bounds["max_x"] == 10.0
+    assert new_payload["foo"] == "bar"  # pre-existing top-level data preserved
+
+    # older file untouched — guards the newest-only selection
+    old_payload = json.loads(older.read_text(encoding="utf-8"))
+    assert old_payload == {"mapping": {"existing_key": 1}}
+    assert "room_bounds" not in old_payload["mapping"]
+
+
+def test_write_job_bounds_preserves_existing_mapping_keys(mapping_manager):
+    """[MGR-34] the setdefault at manager.py:1694 must not clobber an existing
+    'mapping' dict: injecting room_bounds keeps prior mapping keys intact."""
+    jobs = _learning_jobs_dir(mapping_manager, _VAC)
+    job = jobs / "job_010.json"
+    _write_job_file(job, {"mapping": {"existing_key": 1}}, mtime=3_000.0)
+
+    mapping_manager.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id="wjb_preserve",
+        samples=[(0.0, 0.0), (10.0, 10.0)],
+        rooms={"3": {"is_transition": False}},
+    )
+
+    payload = json.loads(job.read_text(encoding="utf-8"))
+    assert payload["mapping"]["existing_key"] == 1      # not clobbered
+    assert "room_bounds" in payload["mapping"]          # and the new key landed
+    assert payload["mapping"]["room_bounds"]["3"]["max_x"] == 10.0
+

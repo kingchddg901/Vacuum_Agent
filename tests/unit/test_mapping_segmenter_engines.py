@@ -189,3 +189,37 @@ def test_engine_unavailable_shape():
     assert result["summary"]["segment_count"] == 0
     # only the CV engine attaches a runtime block
     assert result["engine_diagnostics"] == {}
+
+
+def test_cv_reshape_runtime_only_omits_segmentation():
+    """[SE-17] _reshape degraded path (302->304 false edge): a raw output that
+    carries a runtime block but NO "segmentation" block (mirrors the
+    pipeline_unavailable / image_unreadable returns) must hoist only runtime
+    into engine_diagnostics and must NOT fabricate a "segmentation" block that
+    downstream consumers would wrongly trust."""
+    raw = {
+        "available": False,
+        "reason": "pipeline_unavailable",
+        "message": "CV pipeline could not be loaded.",
+        "runtime": {"numpy": True, "scipy": False, "pillow": True},
+        "segments": [],
+    }
+    result = EufyCVSegmenter()._reshape(raw)
+    assert result["engine_diagnostics"] == {"runtime": {"numpy": True, "scipy": False, "pillow": True}}
+    assert "segmentation" not in result["engine_diagnostics"]
+    assert result["available"] is False
+    assert result["reason"] == "pipeline_unavailable"
+    assert result["engine"] == "eufy_cv_v1"
+    assert result["segments"] == []
+
+
+def test_cv_reshape_no_diagnostic_blocks_yields_empty_diagnostics():
+    """[SE-18] _reshape contract lock (304->307 false edge): a raw output with
+    NEITHER a "segmentation" nor a "runtime" block produces an empty
+    engine_diagnostics dict while preserving the universal result contract."""
+    raw = {"available": True, "reason": "ready", "segments": [], "summary": {}}
+    result = EufyCVSegmenter()._reshape(raw)
+    assert result["engine_diagnostics"] == {}
+    assert result["available"] is True
+    assert result["engine"] == "eufy_cv_v1"
+

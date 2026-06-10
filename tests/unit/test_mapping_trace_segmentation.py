@@ -285,3 +285,79 @@ def test_merge_short_segments_merges_last_into_left():
     assert count == 1 and len(out) == 1
     assert out[0]["sample_count"] == 23
     assert out[0]["diagnostics"]["boundary_state"] == "outside"
+
+
+def test_merge_short_segments_middle_into_smaller_left():
+    """[TS-21] a short MIDDLE segment merges into its SMALLER (left) neighbor
+    (the `segments[i-1].sample_count <= segments[i+1].sample_count -> target=i-1`
+    branch). left=14, middle=3(<15), right=30 -> middle absorbed left; right intact."""
+    segs = [_seg(0, 0, 13), _seg(1, 14, 16), _seg(2, 17, 46)]  # 14, 3, 30 samples
+    merged, count = _merge_short_segments(segs)
+    assert count == 1
+    assert len(merged) == 2
+    # Middle (3) absorbed into the LEFT neighbor (14 < 30).
+    assert merged[0]["start_index"] == 0
+    assert merged[0]["end_index"] == 16
+    assert merged[0]["sample_count"] == 17
+    # The larger right neighbor survives unmerged.
+    assert merged[1]["start_index"] == 17
+    assert merged[1]["end_index"] == 46
+    assert merged[1]["sample_count"] == 30
+
+
+def test_merge_short_segments_middle_into_smaller_right():
+    """[TS-22] a short MIDDLE segment merges into its SMALLER (right) neighbor
+    (the `else -> target=i+1` branch). left=30, middle=3(<15), right=14 ->
+    middle absorbed right; left intact."""
+    segs = [_seg(0, 0, 29), _seg(1, 30, 32), _seg(2, 33, 46)]  # 30, 3, 14 samples
+    merged, count = _merge_short_segments(segs)
+    assert count == 1
+    assert len(merged) == 2
+    # The larger left neighbor survives unmerged.
+    assert merged[0]["start_index"] == 0
+    assert merged[0]["end_index"] == 29
+    assert merged[0]["sample_count"] == 30
+    # Middle (3) absorbed into the RIGHT neighbor (14 < 30).
+    assert merged[1]["start_index"] == 30
+    assert merged[1]["end_index"] == 46
+    assert merged[1]["sample_count"] == 17
+
+
+def test_merge_short_segments_middle_tie_prefers_left():
+    """[TS-23] equal-size neighbors -> the `<=` tie goes to the LEFT neighbor
+    (target=i-1). left=20, middle=3(<15), right=20 -> middle absorbed left."""
+    segs = [_seg(0, 0, 19), _seg(1, 20, 22), _seg(2, 23, 42)]  # 20, 3, 20 samples
+    merged, count = _merge_short_segments(segs)
+    assert count == 1
+    assert len(merged) == 2
+    # Tie resolves to the LEFT neighbor.
+    assert merged[0]["start_index"] == 0
+    assert merged[0]["end_index"] == 22
+    assert merged[0]["sample_count"] == 23
+    # Right neighbor survives unmerged.
+    assert merged[1]["start_index"] == 23
+    assert merged[1]["end_index"] == 42
+    assert merged[1]["sample_count"] == 20
+
+
+def test_merge_similar_segments_both_zero_density():
+    """[TS-21] two adjacent zero-density segments are density-similar and merge
+    (the `density_a == 0 and density_b == 0` elif branch)."""
+    segs = [_seg(0, 0, 19, speed=10.0, density=0.0),
+            _seg(1, 20, 39, speed=10.0, density=0.0)]
+    merged, count = _merge_similar_segments(segs)
+    assert count == 1
+    assert len(merged) == 1
+    assert merged[0]["end_index"] == 39
+    assert merged[0]["diagnostics"]["mean_density"] == 0.0
+
+
+def test_merge_similar_segments_mismatched_density_no_merge():
+    """[TS-21] one zero-density and one non-zero-density neighbor are NOT
+    density-similar — they stay split and no ZeroDivisionError is raised."""
+    segs = [_seg(0, 0, 19, speed=10.0, density=0.0),
+            _seg(1, 20, 39, speed=10.0, density=5.0)]
+    merged, count = _merge_similar_segments(segs)
+    assert count == 0
+    assert len(merged) == 2
+

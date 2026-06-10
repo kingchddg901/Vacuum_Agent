@@ -252,3 +252,22 @@ def test_angle_zero_for_degenerate_segments():
     """[MB-18] Degenerate zero-length segment → returns 0.0."""
     angle = _angle_between_segments((5.0, 5.0), (5.0, 5.0), (10.0, 5.0))
     assert angle == 0.0
+
+
+def test_score_sliver_area_guard_blocks_corridor_false_positive():
+    """[MB-14b] A 4+ vertex near-zero-area sliver → score=0.0, is_candidate=False.
+
+    This clears the line-314 vertex-count guard (4 vertices) but is rejected by
+    the poly_area < 1.0 degenerate-area guard. The sliver's bounding box has
+    aspect_ratio = 5.0 (0.5 wide / 0.1 tall), which alone would set
+    is_candidate=True via the >=3.5 corridor signal — so this asserts the area
+    guard actively suppresses a false-positive corridor classification, not
+    merely that a degenerate shape returns zero.
+    """
+    # 4 vertices clears the count guard; shoelace area = 0.05 < 1.0;
+    # aspect_ratio = 0.5 / 0.1 = 5.0 would otherwise trip the corridor signal.
+    sliver = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.1], [0.0, 0.1]]
+    score, is_candidate = score_transition_candidate(sliver)
+    assert score == 0.0
+    assert is_candidate is False
+

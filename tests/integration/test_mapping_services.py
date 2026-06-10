@@ -134,6 +134,39 @@ async def test_adjust_segment_stores_delta(hass, mapping_services):
     assert "translated_manual" in s1["issues"]
 
 
+async def test_adjust_segment_zeroes_out_drops_stored_adjustment(hass, mapping_services):
+    """[MSH-3b] netting an accumulated offset back to 0 removes the stored adjustment.
+
+    Exercises the ``else: adjustments.pop(segment_id, None)`` cleanup branch:
+    once every offset/edge nets to zero with no vertex moves, the prior entry
+    is dropped and the segment reverts to its seeded (un-translated) geometry.
+    """
+    _seed_segments(mapping_services)
+    # store a delta first, so there's an entry to remove
+    stored = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "segment_id": "s1", "delta_x": 5})
+    assert stored["saved"] is True
+    assert stored["adjustment"] is not None
+
+    # net it back to zero → handler pops the entry, so adjustment is None
+    reset = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                         "segment_id": "s1", "delta_x": -5})
+    assert reset["saved"] is True
+    assert reset["adjustment"] is None
+
+    # observable on the next read: geometry back to seeded origin, no manual
+    # flag, summary count cleared, and no leftover adjustments entry
+    segments = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                           {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    s1 = next(s for s in segments["segments"] if s["segment_id"] == "s1")
+    assert s1["polygon_pixel"][0][0] == 0
+    assert "translated_manual" not in s1.get("issues", [])
+    assert segments["summary"]["adjusted_count"] == 0
+    assert "s1" not in segments["adjustments"]
+
+
 # ---------------------------------------------------------------------------
 # set_segment_room_link
 # ---------------------------------------------------------------------------
@@ -291,3 +324,72 @@ async def test_review_trace_run_missing(hass, mapping_services):
                           "run_id": "ghost", "room_id": 1})
     assert isinstance(result, dict)
     assert "verdict" in result
+
+
+async def test_adjust_segment_blank_id(hass, mapping_services):
+    """[MSH-2b] whitespace-only segment_id strips empty → missing_segment_id.
+
+    Guards the strip-then-guard ordering at mapping_services.py:948-951:
+    the handler must reject the blanked id with ``missing_segment_id``
+    *before* the segment-existence lookup, so the reason is distinct from
+    the seeded-but-unknown ``segment_not_found`` case (MSH-2).
+    """
+    _seed_segments(mapping_services)
+    result = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "   "})
+    assert result["saved"] is False
+    assert result["reason"] == "missing_segment_id"
+
+
+async def test_adjust_segment_vertex_moves_accumulate(hass, mapping_services):
+    """[MSH-3a] vertex_moves on the same index accumulate into one entry.
+
+    Two adjust calls (delta_x 5 then 3) on vertex index 0 of "s1" merge into a
+    single move whose delta is the sum — exercising the accumulate branch of the
+    vertex-merge loop (mapping_services.py:985-989).
+    """
+    _seed_segments(mapping_services)
+    first = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                         "segment_id": "s1",
+                         "vertex_moves": [{"index": 0, "delta_x": 5}]})
+    assert first["saved"] is True
+    second = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "segment_id": "s1",
+                          "vertex_moves": [{"index": 0, "delta_x": 3}]})
+    # single merged entry, deltas summed (5 + 3 = 8), delta_y untouched
+    assert second["adjustment"]["vertex_moves"] == [
+        {"index": 0, "delta_x": 8, "delta_y": 0}
+    ]
+
+
+async def test_adjust_segment_vertex_move_cancels_to_zero(hass, mapping_services):
+    """[MSH-3b] a vertex move that nets to zero pops the whole adjustment.
+
+    After +8 on vertex 0, sending -8 nets the move to zero, emptying the move
+    set; with no offsets/edges either, the segment's adjustment is removed
+    entirely — the pop branch of the vertex-merge loop (mapping_services.py:
+    990-991) mirroring the card's "Vertex reset" button. The next read shows
+    s1's polygon back at its un-translated seed coords.
+    """
+    _seed_segments(mapping_services)
+    await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                 "segment_id": "s1",
+                 "vertex_moves": [{"index": 0, "delta_x": 8}]})
+    reset = await _call(hass, SERVICE_ADJUST_MAP_SEGMENT,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                         "segment_id": "s1",
+                         "vertex_moves": [{"index": 0, "delta_x": -8}]})
+    # adjustment for s1 is gone from the response and from the stored bucket
+    assert reset["adjustment"] is None
+    bucket = ensure_map_bucket(
+        data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    assert "s1" not in bucket.get("image_segment_adjustments", {})
+    # and the polygon reads back at its un-translated seed coords
+    segments = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                           {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    s1 = next(s for s in segments["segments"] if s["segment_id"] == "s1")
+    assert s1["polygon_pixel"][0] == [0, 0]
+

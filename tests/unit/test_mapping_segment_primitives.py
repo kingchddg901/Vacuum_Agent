@@ -24,6 +24,7 @@ Coverage targets
 [SP-19] estimate_alignment: identical masks → score 1.0 at scale 1.0.
 [SP-20] transform_mask: unit-scale centering + shift; off-canvas → empty.
 [SP-21] transform_scalar_image: unit-scale centering of a float image.
+[SP-21b] transform_scalar_image: non-unit-scale bilinear (order=1) resample branch.
 [SP-22] transform_color_image: per-channel transform preserves channel count.
 [SP-23] mask_edge_band: dilate-XOR-erode produces a non-empty edge ring (scipy).
 [SP-24] normalized_color_features: per-pixel chromaticity channels sum to 1.
@@ -236,6 +237,36 @@ def test_transform_scalar_image_unit_scale(np):
     assert out.sum() == pytest.approx(4.0)
 
 
+def test_transform_scalar_image_non_unit_scale(np):
+    """[SP-21b] non-unit-scale (|scale-1|>1e-6) takes the _NDIMAGE.zoom(order=1)
+    bilinear branch: enlarged footprint, intermediate values, centered placement.
+
+    Requires scipy.ndimage for the float zoom (the order-1 path that distinguishes
+    this from transform_mask's order-0/bool resample).
+    """
+    pytest.importorskip("scipy.ndimage")
+    img = np.zeros((4, 4), dtype=np.float32)
+    img[1:3, 1:3] = 1.0  # solid 2x2 interior block of value 1.0
+
+    out = transform_scalar_image(img, 2.0, 0, 0, (16, 16))
+
+    # (a) shape + dtype of the float canvas
+    assert out.shape == (16, 16)
+    assert out.dtype == np.float32
+    # (b) 2x upscale enlarges the nonzero footprint (~4x area growth)
+    assert np.count_nonzero(out) > np.count_nonzero(img)
+    assert np.count_nonzero(out) >= 12
+    # (c) bilinear, not nearest: order=1 produces values strictly between 0 and 1,
+    #     which an order=0 (nearest) resample would NOT
+    assert bool(((out > 0) & (out < 1.0)).any())
+    # (d) centered: the footprint sits in the middle, corners stay empty
+    assert np.count_nonzero(out[6:10, 6:10]) > 0
+    assert np.count_nonzero(out[:2, :2]) == 0
+    assert np.count_nonzero(out[:2, -2:]) == 0
+    assert np.count_nonzero(out[-2:, :2]) == 0
+    assert np.count_nonzero(out[-2:, -2:]) == 0
+
+
 def test_transform_color_image(np):
     """[SP-22] each channel is transformed; channel count preserved."""
     img = np.ones((2, 2, 3), dtype=np.float32)
@@ -262,3 +293,81 @@ def test_normalized_color_features(np):
     feats = normalized_color_features(rgb)
     assert feats.shape == (2, 2, 3)
     assert np.allclose(feats.sum(axis=2), 1.0)
+
+
+def test_mask_to_polygon_rdp_collapse_fallback(np):
+    """[SP-25] RDP fallback: a single-pixel mask whose 4-corner loop RDP-collapses
+    below 4 vertices reverts to best_loop, so a drawable (>=4 vertex) polygon is
+    always returned (segmentor.py:1198 would otherwise drop this region)."""
+    mask = np.zeros((5, 5), dtype=bool)
+    mask[2, 2] = True
+    polygon, raw_count = mask_to_polygon(mask)
+    # raw loop is the 4 corners of the unit pixel
+    assert raw_count == 4
+    # fallback restored best_loop instead of returning the 2-point RDP collapse
+    assert len(polygon) == 4
+    assert len(polygon) == raw_count  # matches raw, not <4
+    # the restored polygon is exactly the unit-pixel corners (order-insensitive)
+    assert sorted(map(tuple, polygon)) == [(2.0, 2.0), (2.0, 3.0), (3.0, 2.0), (3.0, 3.0)]
+
+
+def test_transform_scalar_image_non_unit_scale(np):
+    """[SP-21b] non-unit-scale (|scale-1|>1e-6) takes the _NDIMAGE.zoom(order=1)
+    bilinear branch: enlarged footprint, intermediate values, centered placement.
+
+    Requires scipy.ndimage for the float zoom (the order-1 path that distinguishes
+    this from transform_mask's order-0/bool resample).
+    """
+    pytest.importorskip("scipy.ndimage")
+    img = np.zeros((4, 4), dtype=np.float32)
+    img[1:3, 1:3] = 1.0  # solid 2x2 interior block of value 1.0
+
+    out = transform_scalar_image(img, 2.0, 0, 0, (16, 16))
+
+    # (a) shape + dtype of the float canvas
+    assert out.shape == (16, 16)
+    assert out.dtype == np.float32
+    # (b) 2x upscale enlarges the nonzero footprint (~4x area growth)
+    assert np.count_nonzero(out) > np.count_nonzero(img)
+    assert np.count_nonzero(out) >= 12
+    # (c) bilinear, not nearest: order=1 produces values strictly between 0 and 1,
+    #     which an order=0 (nearest) resample would NOT
+    assert bool(((out > 0) & (out < 1.0)).any())
+    # (d) centered: the footprint sits in the middle, corners stay empty
+    assert np.count_nonzero(out[6:10, 6:10]) > 0
+    assert np.count_nonzero(out[:2, :2]) == 0
+    assert np.count_nonzero(out[:2, -2:]) == 0
+    assert np.count_nonzero(out[-2:, :2]) == 0
+    assert np.count_nonzero(out[-2:, -2:]) == 0
+
+
+def test_estimate_alignment_recovers_shifted_candidate(np):
+    """[SP-25] a strictly-better transformed candidate replaces ``best``.
+
+    Reference and candidate are SAME-shape (60, 60) arrays so transform_mask's
+    centering is identical for both; the candidate's True block is shifted +6 px
+    in x.  The unit/zero baseline IoU is degraded (0.3333), so the brute-force
+    grid must find a better alignment and take the update branch — recovering
+    shift_x=-6 at score 1.0.  Drives the best-update inside estimate_alignment.
+
+    Requires scipy.ndimage (transform_mask uses ndimage.zoom for the non-unit
+    scales in the search grid).
+    """
+    pytest.importorskip("scipy.ndimage")
+    ref = np.zeros((60, 60), dtype=bool)
+    ref[10:22, 10:22] = True
+    cand = np.zeros((60, 60), dtype=bool)
+    cand[10:22, 16:28] = True  # same array shape; True region shifted +6 px in x
+
+    # Baseline (no transform) is degraded: 12x12 blocks overlap by 6 columns.
+    baseline = transform_mask(cand, 1.0, 0, 0, (60, 60))
+    assert round(mask_iou(ref, baseline), 4) == pytest.approx(0.3333)
+
+    # The grid finds the -6 px x-shift that perfectly re-aligns the candidate,
+    # so the update branch fires and replaces best with that scale/shift/score.
+    result = estimate_alignment(ref, cand)
+    assert result["score"] == pytest.approx(1.0)
+    assert result["shift_x"] == -6
+    assert result["shift_y"] == 0
+    assert result["scale"] == pytest.approx(1.0)
+

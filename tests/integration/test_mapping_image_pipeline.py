@@ -213,6 +213,34 @@ def test_get_image_segment_suggestions_missing_image(hass, mapping_services):
     assert "image" in result and "available_variants" in result["image"]
 
 
+def test_get_suggestions_picks_distinct_assist_variant(hass, mapping_services, pil):
+    """[IMG-6b] with two on-disk variants, the suggestions image block names the
+    preferred variant AND records a *distinct* non-preferred variant as the assist
+    image (the assist-selection break at manager.py 2067-2069). 'dark' is preferred;
+    'light' is the distinct assist (different _light.png path)."""
+    mm = _get_mapping_manager(hass)
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MAP,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="dark")
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MAP,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="light")
+
+    result = mm.get_image_segment_suggestions(vacuum_entity_id=_VAC, map_id=_MAP)
+    image = result["image"]
+    # preferred = first of (dark, primary, light) with an image on disk
+    assert image["variant"] == "dark"
+    # the break at 2067 selected the distinct non-preferred variant as the assist
+    assert image["assist_variant"] == "light"
+    assert image["assist_image_path"] is not None
+    assert image["assist_image_path"].endswith("_light.png")
+    # primary image path is the preferred (dark) one — assist is genuinely distinct
+    assert image["image_path"].endswith("_dark.png")
+    assert image["assist_image_path"] != image["image_path"]
+    # both saved variants are advertised (a legacy "primary" mirror is also kept)
+    assert {"dark", "light"} <= set(image["available_variants"])
+
+
 def test_translate_missing_id(hass, mapping_services):
     """[IMG-7]"""
     result = _get_mapping_manager(hass).translate_image_segment(
@@ -457,3 +485,62 @@ async def test_upload_pil_read_fallback(hass, mapping_services, pil, monkeypatch
     # measurement failed → returned dims fall back to the declared ones
     assert res["actual_width"] == 8
     assert res["actual_height"] == 8
+
+
+def test_get_suggestions_picks_distinct_assist_variant(hass, mapping_services, pil):
+    """[IMG-6b] with two on-disk variants, the suggestions image block names the
+    preferred variant AND records a *distinct* non-preferred variant as the assist
+    image (the assist-selection break at manager.py 2067-2069). 'dark' is preferred;
+    'light' is the distinct assist (different _light.png path)."""
+    mm = _get_mapping_manager(hass)
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MAP,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="dark")
+    mm.save_map_image(vacuum_entity_id=_VAC, map_id=_MAP,
+                      image_base64=_tiny_png_b64(pil), image_width=8,
+                      image_height=8, variant="light")
+
+    result = mm.get_image_segment_suggestions(vacuum_entity_id=_VAC, map_id=_MAP)
+    image = result["image"]
+    # preferred = first of (dark, primary, light) with an image on disk
+    assert image["variant"] == "dark"
+    # the break at 2067 selected the distinct non-preferred variant as the assist
+    assert image["assist_variant"] == "light"
+    assert image["assist_image_path"] is not None
+    assert image["assist_image_path"].endswith("_light.png")
+    # primary image path is the preferred (dark) one — assist is genuinely distinct
+    assert image["image_path"].endswith("_dark.png")
+    assert image["assist_image_path"] != image["image_path"]
+    # both saved variants are advertised (a legacy "primary" mirror is also kept)
+    assert {"dark", "light"} <= set(image["available_variants"])
+
+
+async def test_delete_one_variant_retains_others(hass, mapping_services, pil):
+    """[IMG-23] delete_map_image with multiple variants: popping the deleted one
+    keeps the rest. Covers the `if variants:` retain branch (map_bucket
+    ['image_variants']=variants) and the remaining_variants result key — the
+    multi-variant contract IMG-11 (single-variant -> empty) cannot prove."""
+    # upload TWO variants for the same map
+    for variant in ("default", "dark"):
+        up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+            "vacuum_entity_id": _VAC, "map_id": _MAP,
+            "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8,
+            "variant": variant})
+        assert up["saved"] is True
+
+    # delete only "default" — "dark" must survive
+    deleted = await _svc(hass, SERVICE_DELETE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "variant": "default"})
+
+    assert deleted["deleted"] is True
+    assert deleted["variant"] == "default"
+    assert "dark" in deleted["remaining_variants"]
+    assert "default" not in deleted["remaining_variants"]
+
+    # the surviving variant is genuinely retained, not nuked: deleting it now
+    # still finds the recorded entry (would be not_found if the retain branch
+    # had clobbered the dict).
+    dark_deleted = await _svc(hass, SERVICE_DELETE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "variant": "dark"})
+    assert dark_deleted["deleted"] is True
+    assert dark_deleted["remaining_variants"] == []
