@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **356 tests across 11 files** (349 test functions, expanded by
+is exercised by **373 tests across 11 files** (366 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -24,9 +24,9 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | `history_store.py` | 428 | 91% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
 | `stats_rebuilder.py` | 460 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
 | `job_finalizer.py` | 519 | 89% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
-| `manager.py` | 680 | 91% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
+| `manager.py` | 680 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
 | `services.py` | 241 | 91% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 281 | 92% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `external_ingest.py` | 281 | 93% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
 | `counter_segmentation.py` | 165 | 95% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
 
@@ -180,12 +180,12 @@ guards, inactive code, or paths reachable only by injecting malformed data.
   e.g. `job_finalizer` 1354-1359 (incomplete-run-log write) and 1449-1453
   (trouble-rooms write), and the per-room `estimate_failed` handler logic in
   `manager`. Reachable only by injecting malformed data; intentionally skipped.
-- **`manager` accuracy-normalization guards (800, 805, 808, 813, 822)** —
+- **`manager` accuracy-normalization guards (800, 805, 808)** —
   scattered defensive branches in the accuracy-stats normalization loop: the
-  `else: accuracy_entries = []` fallback when neither dict nor list shape is
-  present, the non-dict / empty-slug `continue` guards, and the
-  percent/confidence-weight derive-from-default else-branches. The canonical
-  dict shape is fully covered; these are back-compat / malformed-input guards.
+  `else: accuracy_entries = []` shape fallback and the non-dict / empty-slug
+  `continue` guards. (The percent/confidence-weight derive paths at 813/822 are
+  now covered.) The canonical dict shape is fully covered; the rest are
+  back-compat / malformed-input guards.
 - **`manager` direct reload path (271-284)** — the immediate
   reload-from-disk helper; integration tests drive the executor-backed preload
   instead, so this synchronous variant is uncovered. Low value.

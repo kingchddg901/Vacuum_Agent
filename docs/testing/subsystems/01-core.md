@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **118 tests across 9 files**.
+low-battery-return reads. Covered by **144 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 1527 | 87% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_core_manager_helpers.py` (unit) | int + unit |
+| `manager.py` | 1527 | 98% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_core_manager_helpers.py` (unit) | int + unit |
 | `error_tracker.py` | 316 | 89% | `test_core_error_tracker.py` | integration |
 | `capabilities.py` | 117 | 97% | `test_core_capabilities.py` | integration |
 | `charging.py` | 39 | 100% | `test_charging.py` (unit) | unit |
@@ -71,22 +71,19 @@ without `AttributeError`.
 
 ## Known gaps
 
-`manager.py` (87%) — the **external-run capture/review orchestration**
-(`maybe_handle_external_run` / `_external_grace_finalize`, roughly
-`manager.py:2491-2943`) is now covered by `EXT-1..EXT-5` in
-`test_manager_lifecycle_status.py` (open-slot, dispatched short-circuit,
-cancel-on-resume, grace-finalize-clears, defer-when-mid-run), so the grace-window
-finalize flow that used to be the largest uncovered block is exercised in core.
-
-What remains is intentionally uncovered: `async_setup_entry`-class wiring reachable
-only on a full integration boot, and the defensive bad-row / skip guards in the
-room-history ingest helpers (`continue` / `return False` on malformed completed
-jobs, e.g. `_ingest_completed_job_into_room_history`). Pure best-effort log-only
-excepts (`_async_save_logged` at :654, `_refresh_room_derived_state` at :559, the
-`get_lifecycle_state` error-tracker read at :2144) carry `# pragma: no cover`.
-Deliberately measured because they escape into behavior: the `_notify_*` fan-out
-excepts (skip-one-continue resilience, `MD-7`) and the snapshot-degrade except
-(`SS-7`).
+`manager.py` (98%) — the external-run capture/review orchestration
+(`maybe_handle_external_run` / `_external_grace_finalize` / `confirm` /
+`resegment` / `get_external_pending_runs` / `discard`), the room-history ingest
+helpers, the registry-model backfill, the init migrations, the job/dock
+delegations, and the progress snapshot are now all covered (the EXT-*, CMR-*,
+init-migration, delegation, and progress suites). What's left (~2%, ~16 lines) is
+the defensive tail: `# pragma: no cover` best-effort log-only excepts
+(`_async_save_logged`, `_refresh_room_derived_state`, the `get_lifecycle_state`
+read at :1721), a few malformed-input guards (:820, :1921, :2930), the
+recorder-dependent return-overhead extraction (skipped when no recorder is
+configured under test), and a handful of not-taken partial branches. The
+`_notify_*` fan-out excepts (`MD-7`) and the snapshot-degrade except (`SS-7`) are
+covered because they escape into behavior.
 
 The remaining per-module gaps are within the held ceiling: `error_tracker.py`
 (89%) and `water_amendment.py` (91%) are short of the others only on defensive
