@@ -6,7 +6,15 @@ maintenance components), loaded from storage and validated against a schema. The
 one concrete adapter (`adapters/eufy/`) lives behind this boundary and has its
 own focused suite in `tests/adapters/eufy/`. Covered by **30 framework tests
 across 2 files** (`test_adapters.py` + the brand-agnostic
-`test_adapter_contract.py` conformance harness), plus **95 Eufy-adapter tests**.
+`test_adapter_contract.py` conformance harness), plus **120 Eufy-adapter tests**.
+
+<!-- The two bold counts above are HAND-MAINTAINED. update_test_docs.py's
+single-header model can't compute the framework-vs-Eufy split, so it WARNs and
+skips this doc's headline (the WARN is expected, not a bug). Update them by hand
+on adapter test changes — collect-only case counts:
+  framework = tests/integration/test_adapters.py + tests/adapters/test_adapter_contract.py
+  Eufy      = tests/adapters/eufy/ -->
+
 
 Source: `custom_components/eufy_vacuum/adapters/`
 Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-system.md), [docs/dev/22-adapter-config-reference.md](../../dev/22-adapter-config-reference.md)

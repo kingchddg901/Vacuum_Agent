@@ -130,14 +130,11 @@ branches, the room-bounds-snapshot archive enrichment, the raw-sample rolloff +
 multi-room orphan drop, the short/similar-segment merge branches, the RDP
 fallback / non-unit zoom / alignment-recovery primitives, the degraded `_reshape`
 diagnostics, and the sliver area guard). What remains is uncovered **on purpose**,
-per the ~90% held-ceiling policy — defensive guards and a couple of removal
-candidates, not coverage debt:
+per the ~90% held-ceiling policy — defensive guards, not coverage debt:
 
 - **`manager.py`** (92%) — non-dict/malformed-input coercion guards across the
   package/dock/roster normalizers, except-on-parse blocks, and not-taken partial
-  branches. The `append_trace_point` re-arm at **1769-1770 is dead code**
-  (unreachable since System-A gating was removed) — a *removal* candidate, not a
-  test target.
+  branches.
 - **`mapping_services.py`** (94%) — the `_handle_analyze_map_image` tuning-override /
   light-assist wiring (834-846) is **deferred**: a robust test fights the dual image
   store (`save_map_image` writes the per-map JSON store while the handler probes the
@@ -149,9 +146,10 @@ candidates, not coverage debt:
   skip at 707 is a redundant defensive short-circuit (its normal path is covered by
   `test_room_completed_event`), deliberately left.
 - **`trace_segmentation.py`** (95%) — None-ts / empty-window / zero-baseline guards
-  and threshold-duplicate artifacts. The `boundary_state` classification at 367-370
-  is a **write-only diagnostic with no consumers** (no Python, test, or frontend
-  reads it) — another *removal* candidate, not a test target.
+  and threshold-duplicate artifacts. The outside/mixed `boundary_state` branches
+  (367-370) are covered only on the merge-recompute path, not on the initial build
+  with a polygon — thin duplicate-coverage, not dead code (the merge passes read
+  `boundary_ratio` and a test asserts the recomputed state).
 - **`segment_primitives.py`** (94%), **`trace_review.py`** (95%), **`boundary.py`**
   (99%) — empty-mask divide-by-zero returns, optional-dependency guards, unreachable
   malformed-edge artifacts, and the `<3-unique-point` hull fallback (boundary 269,

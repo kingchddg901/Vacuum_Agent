@@ -55,8 +55,7 @@ and hass. Two layers:
 > and `run_plan`.
 
 The spatial pipeline is now covered (see the `AJS` integration suite below); the
-remaining ~10% (~49 statements) is defensive guards and edge branches — see
-**Known gaps**.
+remaining ~8% is defensive guards and edge branches — see **Known gaps**.
 
 ---
 
@@ -98,14 +97,14 @@ delegates.
 
 ## Known gaps
 
-`active_job.py` (90%) is considered **done** for this subsystem. The spatial
+`active_job.py` (92%) is considered **done** for this subsystem. The spatial
 surface — `_get_robot_position`, `_robot_outside_room_bounds`, the access-graph
 walk (`_access_graph_path` via `_detect_transition_room_from_position`), and the
 `_maybe_roll_current_room_by_timing` slow / fast / counter-plateau / transit /
 wash rollover paths (all firing `EVENT_ROOM_FINISHED`) — and the recharge state
 machine (pending → start → in-progress→ended accumulation) are now covered.
 
-What remains uncovered (~10%, ~49 statements) is deliberately left and is almost
+What remains uncovered (~8%) is deliberately left and is almost
 entirely defensive or edge-only:
 - The `_safe_float` `except` branch and the `_position_lock_reliable` non-dict
   caps guard (defensive coercion).
