@@ -81,10 +81,12 @@ when a button key is absent from both candidates and tokens maps. See
 
 ## Known gaps
 
-`registry.py` (91%) leaves only defensive validator arms uncovered — the
+`registry.py` (94%) leaves only defensive validator arms uncovered — the
 `append`-an-issue branches that reject a malformed stored adapter config
-(`job_segmenter` / `room_profiles` / `dispatch` block-shape checks, missing
-`registry.py` lines 276, 285, 290, 305, 309, 322, 409, 436, 442). These are
+(`room_profiles` / `dispatch` block-shape checks, missing `registry.py` lines
+305, 309, 322, 409, 436, 442). The `job_segmenter` engine-validation arms
+(not-a-dict / missing / unknown engine) are now covered — `test_adapters.py`
+asserts that contract so an unknown engine can't silently fall back. The rest are
 error paths for invalid storage, not real behavior holes. `adapter.py` (95%)
 is missing one line (110), the `return None` guard in `_button_block_or_none`
 for a component with no reset button — likewise defensive.
