@@ -23,6 +23,7 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 
 from __future__ import annotations
 
+import json
 from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock
 
@@ -293,3 +294,69 @@ async def test_lifecycle_no_finalize_when_incomplete(hass):
     assert finished == []
     m.finalize_learning_for_active_job.assert_not_awaited()
     m.record_active_lifecycle_observed.assert_called()
+
+
+_LC_AMENDMENT_ADAPTER = {
+    "adapter_id": "t", "source": "t",
+    "entities": {
+        "task_status": "sensor.alfred_task",
+        "dock_status": "sensor.alfred_dock",
+        "active_cleaning_target": "sensor.alfred_target",
+        "active_map": "sensor.alfred_map",
+    },
+    # Required by water_amendment.py:96-107 — without trigger_states/commit_state,
+    # register_post_job_water_amendment discards the job_id and the observable
+    # effect ("j1" in _water_amendment_jobs) never appears.
+    "post_job_wash_amendment": {
+        "trigger_states": ["washing"],
+        "commit_state": "drying",
+    },
+}
+
+
+async def test_lifecycle_registers_water_amendment_for_mop_job(hass, tmp_path):
+    """[LC-3] finalized MOP job → post-job water amendment registered.
+
+    Mirrors [LC-1] but takes the POSITIVE branch of the gate at lifecycle.py:319
+    (_has_mop and _job_path and _job_id and _amendment_enabled): resolved_rooms
+    declares clean_mode="mop" and finalize returns a real job_path, so the
+    listener calls _register_post_job_water_amendment. Observable surface is the
+    same one [WA-2] asserts: the job_id lands in DOMAIN["_water_amendment_jobs"].
+    """
+    register_adapter_config(_VAC, _LC_AMENDMENT_ADAPTER)
+    m = _mgr(hass)
+    m.get_active_job.return_value = {
+        "status": "started", "has_observed_active_lifecycle": True,
+        "queue_room_ids": []}
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    # real completed-job file on disk (mirrors _write_job in test_core_water_amendment)
+    job = {"job_id": "j1", "water": {"station_clean_water_percent": 80.0,
+                                     "actual_mop_wash_count": 0}}
+    path = tmp_path / "job_j1.json"
+    path.write_text(json.dumps(job), encoding="utf-8")
+    m.finalize_learning_for_active_job = AsyncMock(return_value={
+        "job_id": "j1", "job_path": str(path),
+        "completed_job": {"resolved_rooms": [{"clean_mode": "mop"}],
+                          "water": {"station_clean_water_percent": 80.0,
+                                    "actual_mop_wash_count": 0}}})
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    # pre-run states identical to [LC-1]: target cleared, task not yet complete.
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    # single completion transition: task flips to completed → finalize + amendment
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert len(finished) == 1
+    m.finalize_learning_for_active_job.assert_awaited()
+    # the gate fired _register_post_job_water_amendment for the mop job
+    assert "j1" in hass.data[DOMAIN]["_water_amendment_jobs"]
+    # commit to cancel the pending 180s amendment timeout (avoid lingering-timer
+    # teardown noise) — same pattern as [WA-2].
+    hass.states.async_set("sensor.alfred_dock", "drying")
+    await hass.async_block_till_done()

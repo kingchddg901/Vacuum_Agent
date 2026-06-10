@@ -217,6 +217,57 @@ def test_dreame_omits_null_fields():
         assert absent not in p
 
 
+def test_edge_and_path_per_room_writes_when_caps_enabled():
+    """[DE-11b] capability-gated edge_mopping + path_type land on the wire.
+
+    Symmetric with the water_level branch the Dreame tests already cover: when
+    a brand declares ``edge_mopping``/``path_type`` as real wire fields AND the
+    vacuum advertises supports_edge_mopping/supports_path_control, the mop-mode
+    per-room edge write and the unconditional per-room path write must both
+    appear in each room dict. No shipped adapter declares these fields, so this
+    is the only path that drives ``build_room_clean_payload``'s edge/path
+    branches. Asserted on the Eufy list-of-dicts wire shape, where the gated
+    writes are directly observable per room.
+    """
+    rooms = {
+        "3": {"room_id": 3, "name": "Kitchen", "enabled": True, "order": 1,
+              "clean_mode": "vacuum_mop", "edge_mopping": True, "path_type": "narrow"},
+        "2": {"room_id": 2, "name": "Bath", "enabled": True, "order": 2,
+              "clean_mode": "vacuum_mop", "edge_mopping": False, "path_type": "wide"},
+    }
+    dispatch = {
+        "room_fields": {
+            # Declare edge_mopping/path_type as real wire fields (drop the
+            # field_name:None that every shipped adapter uses for these two).
+            "edge_mopping": {"field_name": "edge",
+                             "value_map": {"True": 1, "False": 0}},
+            "path_type": {"field_name": "route"},
+            "clean_mode": {"field_name": None},        # still global / off-wire
+            "clean_intensity": {"field_name": None},
+        },
+    }
+    result = build_room_clean_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=rooms,
+        queue_room_ids=[3, 2],
+        capabilities={
+            "supports_mop_features": True,
+            "supports_water_control": True,
+            "supports_edge_mopping": True,
+            "supports_path_control": True,
+        },
+        dispatch=dispatch,
+    )
+    wire_rooms = result["payload"]["rooms"]
+    assert [r["id"] for r in wire_rooms] == [3, 2]          # order preserved
+    # edge branch (queue_engine.py:295-296): value-mapped per room, both present
+    assert [r["edge"] for r in wire_rooms] == [1, 0]
+    # path branch (queue_engine.py:298-299): per-room path_type written through
+    assert [r["route"] for r in wire_rooms] == ["narrow", "wide"]
+    # off-wire fields stay off the wire even with caps on
+    assert all("clean_mode" not in r and "clean_intensity" not in r
+               for r in wire_rooms)
+
+
 def test_dreame_repeats_is_array_clamped():
     """[DE-12] per-room repeats array, clamped to passes_max (not collapsed)."""
     rooms = {

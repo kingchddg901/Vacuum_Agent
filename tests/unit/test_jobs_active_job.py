@@ -445,3 +445,61 @@ def test_live_no_rollover_when_room_in_progress():
     )
     assert updated["completed_room_ids"] == []
     assert updated["current_room_id"] == 1
+
+
+# ---------------------------------------------------------------------------
+# _live_transition_config (live-rollover orchestration — adapter-override merge)
+# ---------------------------------------------------------------------------
+
+def test_live_transition_config_defaults_passthrough(tracker, monkeypatch):
+    """[AJ-21] No adapter `live_transition` block → a *copy* of the defaults.
+
+    The returned dict equals _LIVE_TRANSITION_DEFAULTS but must be a distinct
+    object: mutating the return must not corrupt the shared module constant.
+    """
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    from custom_components.eufy_vacuum.jobs.active_job import _LIVE_TRANSITION_DEFAULTS
+
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {})
+    cfg = tracker._live_transition_config("vacuum.alfred")
+    assert cfg == _LIVE_TRANSITION_DEFAULTS
+    assert cfg is not _LIVE_TRANSITION_DEFAULTS  # distinct object
+    cfg["enabled"] = "tampered"
+    assert _LIVE_TRANSITION_DEFAULTS["enabled"] is True  # constant untouched
+
+
+def test_live_transition_config_full_override(tracker, monkeypatch):
+    """[AJ-22] Adapter block overrides every key: bool-coerces enabled /
+    native_transition_source and converts a list of rollover_kinds into a
+    whitespace-stripped tuple."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {
+        "live_transition": {
+            "enabled": False,
+            "native_transition_source": True,
+            "rollover_kinds": ["transit", " wash_plateau "],
+        }
+    })
+    cfg = tracker._live_transition_config("vacuum.alfred")
+    assert cfg == {
+        "enabled": False,
+        "native_transition_source": True,
+        "rollover_kinds": ("transit", "wash_plateau"),
+    }
+
+
+def test_live_transition_config_blank_rollover_kinds_falls_back(tracker, monkeypatch):
+    """[AJ-23] rollover_kinds that strip to all-empty → the after-clean empty
+    guard keeps the default tuple; enabled / native_transition_source unspecified
+    stay at their defaults."""
+    from custom_components.eufy_vacuum.jobs import active_job as _aj
+    from custom_components.eufy_vacuum.jobs.active_job import _LIVE_TRANSITION_DEFAULTS
+
+    monkeypatch.setattr(_aj, "_get_adapter_config", lambda v: {
+        "live_transition": {"rollover_kinds": ["", "   "]}
+    })
+    cfg = tracker._live_transition_config("vacuum.alfred")
+    assert cfg["rollover_kinds"] == _LIVE_TRANSITION_DEFAULTS["rollover_kinds"]
+    assert cfg["enabled"] == _LIVE_TRANSITION_DEFAULTS["enabled"]
+    assert cfg["native_transition_source"] == _LIVE_TRANSITION_DEFAULTS["native_transition_source"]

@@ -95,12 +95,32 @@ def test_record_event_counts_with_debounce(dock, manager):
 
 
 def test_record_event_malformed_debounce_timestamp(dock, manager):
-    """[DK-2b] an unparseable last-counted timestamp falls through the debounce
-    (except branch) and still counts, rather than crashing."""
+    """[DK-2b] with a NON-ZERO debounce configured, an unparseable stored
+    ``*_last_counted_at`` makes ``datetime.fromisoformat`` raise; the except
+    branch swallows it, leaves ``should_count`` True, and still counts the
+    event (rather than crashing or silently dropping the count).
+
+    The non-zero debounce is load-bearing: without it ``debounce == 0`` skips
+    the whole try/except, so this case must register one to actually reach the
+    malformed-timestamp recovery path.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy_test", "source": "code",
+        "dock_events": {"debounce_seconds": {"last_mop_wash": 60}},
+    })
+    # Seed an unparseable last-counted timestamp so the debounce comparison
+    # (which only runs because debounce > 0) hits the except branch.
     manager.data.setdefault("dock_events", {})[_VAC] = {
         "last_mop_wash_last_counted_at": "not-a-timestamp",
         "mop_wash_count": 0,
     }
+    dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
+    events = dock.get_dock_events(vacuum_entity_id=_VAC)
+    assert events["mop_wash_count"] == 1
+    # the recovery rewrote last_counted_at to a parseable value, so a second
+    # immediate event is now genuinely debounced (proves we took the count path,
+    # not that debounce was a no-op).
     dock.record_dock_event(vacuum_entity_id=_VAC, event_type="last_mop_wash")
     assert dock.get_dock_events(vacuum_entity_id=_VAC)["mop_wash_count"] == 1
 

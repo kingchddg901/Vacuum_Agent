@@ -93,3 +93,27 @@ def test_reset(hass):
     result = ob.reset_onboarding(vacuum_entity_id=_VAC, map_id=_MAP)
     assert result["reset"] is True
     assert data["onboarding"][_VAC][_MAP]["rooms_discovered"] is False
+
+
+def test_disabled_room_does_not_block_completion(hass):
+    """[OB-1] A disabled+unconfirmed room is excluded from
+    enabled_rooms_needing_floor_type, so onboarding reaches 'complete' once the
+    only enabled room is confirmed — the disabled room never gates completion.
+    """
+    data: dict = {}
+    ob = OnboardingManager(data, hass)
+    # Map with one enabled and one disabled room, both unconfirmed.
+    _seed_rooms(data, {"1": {"enabled": True}, "2": {"enabled": False}})
+    ob.mark_rooms_discovered(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # Disabled room "2" is excluded despite being unconfirmed; only "1" is needed.
+    state1 = ob.get_onboarding_state(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert state1["enabled_rooms_needing_floor_type"] == ["1"]
+    assert state1["status"] == "floor_type_needed"
+
+    # Confirming only the enabled room completes onboarding — "2" is never confirmed.
+    ob.confirm_floor_type(vacuum_entity_id=_VAC, map_id=_MAP, room_id="1")
+    state2 = ob.get_onboarding_state(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert state2["status"] == "complete"
+    assert state2["onboarding_complete"] is True
+    assert state2["enabled_rooms_needing_floor_type"] == []

@@ -10,11 +10,14 @@ Coverage targets
 [SRN-6]  rename_run_profile updates the profile name.
 [SRN-7]  rename_run_profile raises ServiceValidationError for unknown profile_id.
 [SRN-8]  overwrite_run_profile raises ServiceValidationError for unknown profile_id.
+[SRN-8b] overwrite_run_profile happy-path persists and returns the overwritten payload.
 [SRN-9]  delete_run_profile removes the profile from the library.
 [SRN-10] delete_run_profile raises ServiceValidationError for unknown profile_id.
 """
 
 from __future__ import annotations
+
+from unittest.mock import AsyncMock
 
 import pytest
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
@@ -229,6 +232,32 @@ async def test_overwrite_run_profile_service_unknown_raises(hass, manager_with_s
             blocking=True,
             return_response=True,
         )
+
+
+async def test_overwrite_run_profile_service_succeeds(hass, manager_with_services, monkeypatch):
+    """[SRN-8b] overwrite_run_profile happy-path: an existing profile is overwritten
+    from the current enabled-room snapshot -> returns overwritten=True and persists
+    via async_save (the success path that neither failure-path test exercises)."""
+    # A profile saved by _save_profile carries enabled rooms, so the manager's
+    # current-snapshot is non-empty -> overwrite succeeds (not no_rooms_selected).
+    profile_id = await _save_profile(hass, manager_with_services, "Original")
+
+    # Mirror the DK-11/MR-5 persistence-assertion pattern: swap async_save for an
+    # AsyncMock so we can observe that the handler fired persistence on success.
+    saver = AsyncMock()
+    monkeypatch.setattr(manager_with_services, "async_save", saver)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        "overwrite_run_profile",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id},
+        blocking=True,
+        return_response=True,
+    )
+
+    assert result.get("overwritten") is True
+    assert result.get("profile_id") == profile_id
+    saver.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

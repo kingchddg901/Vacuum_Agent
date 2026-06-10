@@ -17,16 +17,24 @@ Coverage targets
 [INIT-4] setup with the full companion-entity stack present → capability
          detection enables mop/dock/position/maintenance features so the
          switch/number/button/sensor platforms construct those entities.
+[INIT-6] adding a room then firing the room-update callback adds NEW history +
+         rule-status sensors to the registry (dynamic-entity sync).
+[INIT-7] the rule-status + theme refresh callbacks push observable state writes;
+         saving a new theme makes the theme sensor report the new theme name.
+[INIT-8] the hourly safety-net tick refreshes room-history sensors without crash.
 """
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
 
+import homeassistant.util.dt as dt_util
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
 from custom_components.eufy_vacuum import async_remove_entry
 from custom_components.eufy_vacuum.const import (
@@ -198,6 +206,141 @@ async def test_setup_with_maps_and_rooms(hass, hass_storage, mock_config_entry):
     await hass.async_block_till_done()
     tracker = hass.data[DOMAIN][DATA_ERROR_TRACKER]
     assert tracker.get_active_run_latch(_VAC) is None
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+def _boot_storage_one_room():
+    """Storage payload with one stored vacuum + map "6" holding a single room.
+
+    Mirrors the [INIT-5] seed but with only room "1" so the dynamic-sync tests
+    can observe the *new*-room branch when a second room is introduced.
+    """
+    return {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}},
+        "maps": {_VAC: {"6": {
+            "map_id": "6", "metadata": {}, "summary": {},
+            "rooms": {
+                "1": {"room_id": 1, "name": "Kitchen", "enabled": True},
+            }}}},
+    }}
+
+
+async def test_room_update_callback_adds_new_entities(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-6] adding a room + notifying builds & registers new room sensors.
+
+    Boots with a single stored room, then introduces room "3" into the
+    manager's live map data and fires _notify_rooms_updated. The registered
+    sync callbacks must construct a *new* history sensor AND a *new*
+    rule-status sensor and push them through async_add_entities, so both land
+    in the entity registry. We observe the registry growing with unique_ids
+    that carry the "_6_3" room coordinate.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+
+    def _room_3_unique_ids():
+        return {
+            e.unique_id
+            for e in reg.entities.values()
+            if e.platform == DOMAIN and "_6_3_" in (e.unique_id or "")
+        }
+
+    # Room "3" does not exist yet → no sensors for it.
+    assert _room_3_unique_ids() == set()
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    # A newly-introduced, user-configured room. ``is_configured`` is the
+    # entity-creation gate sort_room_items enforces, so without it the room
+    # would be treated as discovered-but-unapproved and never materialize.
+    rt.data["maps"][_VAC]["6"]["rooms"]["3"] = {
+        "room_id": 3, "name": "Office", "enabled": True, "is_configured": True,
+    }
+    rt._notify_rooms_updated(vacuum_entity_id=_VAC, map_id="6")
+    await hass.async_block_till_done()
+
+    new_ids = _room_3_unique_ids()
+    # Both the history and rule-status sync callbacks fired → two new entities.
+    assert any(uid.endswith("_cleaning_history") for uid in new_ids), new_ids
+    assert any(uid.endswith("_rule_status") for uid in new_ids), new_ids
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_refresh_callbacks_push_state(hass, hass_storage, mock_config_entry):
+    """[INIT-7] rule-status + theme refresh callbacks write observable state.
+
+    _notify_room_rule_status_updated drives the rule-status refresh callback
+    (a no-crash state-write fan-out). save_theme_as_new fires the theme update
+    callback through the targeted-vacuum branch; afterwards the theme sensor's
+    HA state reflects the new theme name, proving the scheduled state write
+    actually reached hass.states.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    theme_entity_id = reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_theme_state"
+    )
+    assert theme_entity_id is not None
+    # No theme selected yet.
+    assert hass.states.get(theme_entity_id).state == "none"
+
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    # Rule-status refresh fan-out — must not raise and must flush cleanly.
+    rt._notify_room_rule_status_updated(vacuum_entity_id=_VAC, map_id="6")
+    await hass.async_block_till_done()
+
+    # Saving a new theme activates it and fires the theme callback for this
+    # vacuum (targeted-vacuum branch). The sensor state must update to "X".
+    rt.themes.save_theme_as_new(vacuum_entity_id=_VAC, name="X")
+    await hass.async_block_till_done()
+    assert hass.states.get(theme_entity_id).state == "X"
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_hourly_refresh_tick(hass, hass_storage, mock_config_entry):
+    """[INIT-8] the hourly safety-net interval refreshes history sensors.
+
+    Advancing the clock past the registered 1-hour interval fires
+    _handle_hourly_refresh, which schedules a state write on every room-history
+    sensor. The tick must complete without crashing and the history sensor must
+    still hold a live state afterwards.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass_storage[_STORAGE_KEY] = _boot_storage_one_room()
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+
+    from homeassistant.helpers import entity_registry as er
+    reg = er.async_get(hass)
+    history_entity_id = reg.async_get_entity_id(
+        "sensor", DOMAIN, "vacuum_alfred_6_1_cleaning_history"
+    )
+    assert history_entity_id is not None
+
+    async_fire_time_changed(
+        hass, dt_util.utcnow() + timedelta(hours=1, seconds=5)
+    )
+    await hass.async_block_till_done()
+
+    # Sensor survived the tick and still reports a state (no exception thrown).
+    assert hass.states.get(history_entity_id) is not None
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()

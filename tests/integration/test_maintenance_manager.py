@@ -18,6 +18,8 @@ Coverage targets
 [MNT-10] get_maintenance_remaining: no source → source_available False.
 [MNT-11] get_upkeep_snapshot returns a structured dict (no components).
 [MNT-12] get_upkeep_snapshot populates items from an adapter maintenance component.
+[MNT-14c] _get_replacement_reset_entity: entity_suffixes primary route — states-table hit + unconfigured component → None.
+[MNT-14d] _get_replacement_reset_entity: entity_suffixes primary route — registry-only hit (no live state).
 """
 
 from __future__ import annotations
@@ -221,6 +223,54 @@ def test_upkeep_item_guide_builds_sub_dicts(mnt):
     assert mnt._get_upkeep_item_guide(
         vacuum_entity_id=_VAC, model_code="X8",
         component="ghost", item_kind="maintenance") is None
+
+
+def test_reset_entity_suffix_states_hit(mnt, hass):
+    """[MNT-14c] the adapter-declared entity_suffixes list is the PRIMARY route:
+    a live states-table entry at button.{object_id}_{suffix} resolves directly
+    (no token fallback needed); an unconfigured component resolves to None."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush", "main_brush_reset"],
+            "token_sets": [],
+        }}},
+    })
+    # First declared suffix is present in the states table → returned as-is.
+    hass.states.async_set("button.alfred_reset_main_brush", "idle")
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) == "button.alfred_reset_main_brush"
+    # A component with no reset_button config falls through every route → None.
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="ghost",
+    ) is None
+
+
+def test_reset_entity_suffix_registry_hit(mnt, hass):
+    """[MNT-14d] the entity_suffixes primary route also resolves via the entity
+    registry when there is no live state (registry.async_get branch) — the
+    suffix-built entity_id is returned even though hass.states has nothing."""
+    from homeassistant.helpers import entity_registry as er
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {"main_brush": {"reset_button": {
+            "entity_suffixes": ["reset_main_brush", "main_brush_reset"],
+            "token_sets": [],
+        }}},
+    })
+    # No hass.states set — only a registry entry whose entity_id matches the
+    # suffix-built id button.alfred_reset_main_brush.
+    er.async_get(hass).async_get_or_create(
+        "button", "eufy_vacuum", "alfred_reset_main_brush",
+        suggested_object_id="alfred_reset_main_brush",
+    )
+    assert hass.states.get("button.alfred_reset_main_brush") is None
+    assert mnt._get_replacement_reset_entity(
+        vacuum_entity_id=_VAC, component="main_brush",
+    ) == "button.alfred_reset_main_brush"
 
 
 def test_reset_entity_token_fallback(mnt, hass):

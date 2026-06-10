@@ -22,9 +22,23 @@ Coverage targets
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 import pytest
 
-from custom_components.eufy_vacuum.const import DATA_ERROR_TRACKER, DOMAIN
+import homeassistant.util.dt as dt_util
+from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+from custom_components.eufy_vacuum.adapters.registry import (
+    register_adapter_config,
+    unregister_adapter_config,
+)
+from custom_components.eufy_vacuum.const import (
+    DATA_ERROR_TRACKER,
+    DOMAIN,
+    EVENT_EXTERNAL_RUN_PENDING,
+)
+from custom_components.eufy_vacuum.core.manager import EXTERNAL_FINALIZE_GRACE_S
 
 from .conftest import setup_map
 
@@ -173,3 +187,164 @@ def test_start_status_water_warning(manager, hass, monkeypatch, estimate, reason
     assert out["water_warning"] is True
     assert out["water_warning_reason"] == reason
     assert out["warning"] is True
+
+
+# ---------------------------------------------------------------------------
+# maybe_handle_external_run + _external_grace_finalize — app-started run
+# detection and the dock grace-window finalize. Real manager, real timers
+# driven by async_fire_time_changed (no wall-clock sleeps).
+#
+# [EXT-1]  cleaning with no dispatched job opens an "external" capture slot.
+# [EXT-1b] a dispatched (started) job short-circuits: no external slot opens.
+# [EXT-2]  a mid-run dock resume cancels the pending grace finalize.
+# [EXT-3]  staying docked past the grace window fires the finalize → slot clears.
+# [EXT-4]  a mid-run task_status defers the close → slot stays + timer reschedules.
+# ---------------------------------------------------------------------------
+
+_EXT_ADAPTER = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {
+        "active_map": "sensor.alfred_active_map",
+        "task_status": "sensor.alfred_task",
+    },
+    "external_mid_run_statuses": ["washing mop", "emptying dust"],
+}
+
+
+def _ext_setup(manager):
+    """Shared setup: a 2-room map on "6" + the external-aware adapter config."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _EXT_ADAPTER)
+
+
+async def test_external_run_opens_capture_slot(manager, hass):
+    """[EXT-1] cleaning + active_map set + no dispatched job → external slot."""
+    _ext_setup(manager)
+    try:
+        hass.states.async_set("sensor.alfred_active_map", "6")
+        hass.states.async_set(_VAC, "cleaning")
+
+        opened = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+
+        assert opened is True
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "external"
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_run_short_circuits_when_dispatched(manager, hass):
+    """[EXT-1b] a dispatched (started) job owns the run → no external slot opens."""
+    _ext_setup(manager)
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})["6"] = {
+            "status": "started"
+        }
+        hass.states.async_set("sensor.alfred_active_map", "6")
+        hass.states.async_set(_VAC, "cleaning")
+
+        opened = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+
+        assert opened is False
+        # the internal job is untouched — no external capture clobbered it.
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "started"
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_run_cancels_grace_on_resume(manager, hass):
+    """[EXT-2] a mid-run dock schedules a grace finalize; resuming cancels it."""
+    _ext_setup(manager)
+    try:
+        # open the external slot directly, then dock to schedule the timer.
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "docked")
+
+        scheduled = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+        assert scheduled is False
+        timers = manager._external_grace_timers()
+        assert (_VAC, "6") in timers  # a finalize is pending
+
+        # robot resumes mid-run → the pending finalize must be cancelled.
+        hass.states.async_set(_VAC, "cleaning")
+        resumed = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+
+        assert resumed is False
+        assert (_VAC, "6") not in manager._external_grace_timers()  # cancelled
+        # the capture slot survives — the run is still one record.
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "external"
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_grace_finalize_clears_slot(manager, hass):
+    """[EXT-3] docked past the grace window with a non-mid-run task → finalize.
+
+    The timer fires _external_grace_finalize, which clears the capture slot
+    (back to the default idle state). Asserting the cleared slot is the clean
+    observable for "the run was finalized"."""
+    _ext_setup(manager)
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set("sensor.alfred_task", "Charging")  # NOT mid-run
+
+        deferred = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+        assert deferred is False
+        assert (_VAC, "6") in manager._external_grace_timers()
+
+        # advance virtual time past the grace window so the timer fires.
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] != "external"  # finalized → slot cleared
+        assert slot["status"] == "idle"
+        assert (_VAC, "6") not in manager._external_grace_timers()
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_grace_finalize_defers_when_mid_run(manager, hass):
+    """[EXT-4] task_status reports a mid-run station cycle → finalize is deferred.
+
+    _external_status_is_mid_run keeps the run open and reschedules the grace
+    timer instead of closing it, so the slot stays "external"."""
+    _ext_setup(manager)
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "docked")
+        # "Washing Mop" matches external_mid_run_statuses (case-insensitive).
+        hass.states.async_set("sensor.alfred_task", "Washing Mop")
+
+        deferred = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+        assert deferred is False
+        assert (_VAC, "6") in manager._external_grace_timers()
+
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+
+        # still mid-run → NOT finalized; slot held open + a fresh timer rescheduled.
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "external"
+        assert (_VAC, "6") in manager._external_grace_timers()
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)

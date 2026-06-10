@@ -86,3 +86,31 @@ def test_discover_payload(hass, manager):
     payload = discover_rooms_payload(hass, vacuum_entity_id=_VAC)
     assert payload["room_count"] == 1
     assert payload["active_map_id"] == "6"
+
+
+def test_discover_rooms_from_other_entity(hass, manager):
+    """[RD-6] room_list_entity = concrete entity id sources from that entity, not the vacuum."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "discovery": {
+            "room_list_entity": "sensor.alfred_rooms",  # concrete id, NOT the "vacuum_entity" sentinel
+            "room_list_attribute": "segments",
+            "room_id_key": "id",
+            "room_name_key": "name",
+        },
+    })
+    # Decoy on the vacuum entity: must NOT be sourced.
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 99, "name": "WrongEntity"}]})
+    # Real room list lives on the other entity.
+    hass.states.async_set("sensor.alfred_rooms", "ok", {"segments": [
+        {"id": 1, "name": "Kitchen"},
+        {"id": 2, "name": "Bath"},
+    ]})
+
+    rooms = discover_rooms_for_vacuum(hass, vacuum_entity_id=_VAC, map_id="6")
+
+    ids = [r["room_id"] for r in rooms]
+    assert ids == [1, 2]                 # sourced from sensor.alfred_rooms
+    assert rooms[0]["name"] == "Kitchen"
+    assert 99 not in ids                 # vacuum entity's decoy was NOT used

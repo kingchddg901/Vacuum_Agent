@@ -174,6 +174,56 @@ async def test_dock_events_records_emptying_trigger(hass, manager):
     assert "last_dust_empty" in dock_data
 
 
+_DRY_DURATION_ENTITY = "sensor.alfred_dry_duration"
+
+_ADAPTER_WITH_DRY = {
+    "adapter_id": "test_dry",
+    "source": "test",
+    "entities": {
+        "dock_status": _DOCK_STATUS_ENTITY,
+        "dry_duration": _DRY_DURATION_ENTITY,
+    },
+    "dock_events": {
+        "triggers": {
+            "last_dry_start": ["drying"],
+        }
+    },
+}
+
+
+async def test_dock_events_captures_dry_duration_from_entity(hass, manager):
+    """[LS-2] A last_dry_start trigger reads the adapter's dry_duration entity and
+    records it on the dock event; an unknown/unavailable/"" reading is filtered to
+    None and does NOT overwrite the previously captured duration."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_WITH_DRY)
+    hass.states.async_set(_DRY_DURATION_ENTITY, "1h45m")
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+
+    dock_events.register(hass)
+
+    # idle -> drying: reads dry_duration entity and records it on the event.
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "drying")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert "last_dry_start" in dock_data
+    assert dock_data["last_dry_duration"] == "1h45m"
+
+    # Sentinel-filter branch: dry_duration goes unavailable, then a fresh
+    # idle -> drying transition fires. The (unknown/unavailable/"") guard passes
+    # None through to record_dock_event, which must NOT overwrite the prior value.
+    hass.states.async_set(_DRY_DURATION_ENTITY, "unavailable")
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+    hass.states.async_set(_DOCK_STATUS_ENTITY, "drying")
+    await hass.async_block_till_done()
+
+    dock_data = manager.data.get("dock_events", {}).get(_VAC, {})
+    assert dock_data["last_dry_duration"] == "1h45m"  # unchanged, not "unavailable"
+
+
 # ---------------------------------------------------------------------------
 # [LS-5] — [LS-6] job_metrics
 # ---------------------------------------------------------------------------
