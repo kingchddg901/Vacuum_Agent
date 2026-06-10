@@ -29,6 +29,7 @@ Coverage targets
 [SP-oversize]  localize_oversized: guards (None rgb, below floor).
 [SP-keep]      _component_should_keep: every keep/drop branch.
 [SP-cascade]   _split_suspicious_component: wall-cut win + total miss.
+[SP-prune]     _prune_localized_siblings: rank + sibling-overlap dedup + top-4 cap.
 """
 
 from __future__ import annotations
@@ -905,6 +906,69 @@ def test_assist_hue_three_bins_accept_disjoint():
     assert debug["accepted"] is True
     assert debug["reason"] == "accepted"
     assert isinstance(masks, list) and len(masks) >= 2
+
+
+# --- _prune_localized_siblings (rank + sibling-overlap dedup + top-4 cap) -----
+
+def _localized_seg(mask, confidence, *, fill=0.5, compactness=0.5, area=None):
+    """A minimal localized-bins child segment dict for _prune_localized_siblings."""
+    return {
+        "_global_mask": mask,
+        "_split_method": "localized_bins",
+        "confidence": confidence,
+        "fill_ratio": fill,
+        "compactness": compactness,
+        "area_pixels": int(mask.sum()) if area is None else area,
+    }
+
+
+def test_prune_localized_keeps_disjoint_ranked():
+    """[SP-prune] disjoint children are all kept, ordered strongest-first
+    (confidence desc), with no dedup."""
+    m0 = np.zeros((10, 40), dtype=bool); m0[:, 0:5] = True
+    m1 = np.zeros((10, 40), dtype=bool); m1[:, 12:17] = True
+    m2 = np.zeros((10, 40), dtype=bool); m2[:, 24:29] = True
+    segs = [_localized_seg(m1, 0.5), _localized_seg(m2, 0.9), _localized_seg(m0, 0.7)]
+
+    out, deduped = S._prune_localized_siblings(segs, 0)
+
+    assert deduped == 0
+    assert [s["confidence"] for s in out] == [0.9, 0.7, 0.5]  # ranked, all kept
+
+
+def test_prune_localized_drops_overlapping_sibling():
+    """[SP-prune] a lower-ranked child overlapping a kept sibling by >= 0.35 is
+    dropped and counted; a disjoint child still survives."""
+    base = np.zeros((10, 20), dtype=bool); base[:, 0:10] = True    # strongest, kept
+    overl = np.zeros((10, 20), dtype=bool); overl[:, 3:13] = True  # 0.7 overlap -> dropped
+    far = np.zeros((10, 20), dtype=bool); far[:, 15:20] = True     # disjoint -> kept
+    segs = [_localized_seg(base, 0.9), _localized_seg(overl, 0.5), _localized_seg(far, 0.4)]
+
+    out, deduped = S._prune_localized_siblings(segs, 0)
+
+    assert deduped == 1
+    assert [s["confidence"] for s in out] == [0.9, 0.4]  # overlapping 0.5 dropped
+
+
+def test_prune_localized_caps_at_four():
+    """[SP-prune] more than four disjoint children -> only the top four by rank."""
+    segs = []
+    for i in range(6):
+        m = np.zeros((10, 70), dtype=bool); m[:, i * 10:i * 10 + 5] = True
+        segs.append(_localized_seg(m, 0.50 + i * 0.05))
+
+    out, deduped = S._prune_localized_siblings(segs, 0)
+
+    assert deduped == 0
+    assert len(out) == 4
+    assert [round(s["confidence"], 2) for s in out] == [0.75, 0.70, 0.65, 0.60]
+
+
+def test_prune_localized_empty_is_noop():
+    """[SP-prune] empty input -> ([], unchanged count); the unconditional call site
+    relies on this (the `if localized_segments:` guard was removed)."""
+    out, deduped = S._prune_localized_siblings([], 3)
+    assert out == [] and deduped == 3
 
 
 def test_assist_hue_overlap_dedup_then_accept():

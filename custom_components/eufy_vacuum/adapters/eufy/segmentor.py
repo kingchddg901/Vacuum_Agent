@@ -830,6 +830,45 @@ def _split_suspicious_component(
     return [], None, debug_entries
 
 
+def _prune_localized_siblings(
+    localized_segments: list[dict[str, Any]],
+    deduped_count: int,
+) -> tuple[list[dict[str, Any]], int]:
+    """Rank localized-bins child segments and drop overlapping siblings.
+
+    A localized-bins split can emit several overlapping children for one oversized
+    parent component. Rank them strongest-first (confidence -> fill_ratio ->
+    compactness -> area_pixels) and keep a child only if its mask does not overlap
+    an already-kept sibling by >= 0.35 (each drop bumps ``deduped_count``), capping
+    at the top 4. Returns the pruned list and the updated dedupe counter; an empty
+    input is a no-op (sorted([]) -> []).
+    """
+    ranked = sorted(
+        localized_segments,
+        key=lambda item: (
+            -float(item.get("confidence", 0.0)),
+            -float(item.get("fill_ratio", 0.0)),
+            -float(item.get("compactness", 0.0)),
+            -float(item.get("area_pixels", 0)),
+        ),
+    )
+    pruned_localized: list[dict[str, Any]] = []
+    for candidate in ranked:
+        candidate_mask = candidate.get("_global_mask")
+        sibling_overlap = False
+        for kept in pruned_localized:
+            kept_mask = kept.get("_global_mask")
+            overlap_a, overlap_b = _component_overlap_ratio(candidate_mask, kept_mask)
+            if max(overlap_a, overlap_b) >= 0.35:
+                sibling_overlap = True
+                deduped_count = int(deduped_count) + 1
+                break
+        if sibling_overlap:
+            continue
+        pruned_localized.append(candidate)
+    return pruned_localized[:4], deduped_count
+
+
 # -- Component keep/drop decision ---------------------------------------------
 
 def _component_should_keep(
@@ -1367,30 +1406,9 @@ def _detect_room_segments_pipeline(
         item for item in segments
         if str(item.get("_split_method") or "") != "localized_bins"
     ]
-    if localized_segments:
-        localized_segments.sort(
-            key=lambda item: (
-                -float(item.get("confidence", 0.0)),
-                -float(item.get("fill_ratio", 0.0)),
-                -float(item.get("compactness", 0.0)),
-                -float(item.get("area_pixels", 0)),
-            )
-        )
-        pruned_localized: list[dict[str, Any]] = []
-        for candidate in localized_segments:
-            candidate_mask = candidate.get("_global_mask")
-            sibling_overlap = False
-            for kept in pruned_localized:
-                kept_mask = kept.get("_global_mask")
-                overlap_a, overlap_b = _component_overlap_ratio(candidate_mask, kept_mask)
-                if max(overlap_a, overlap_b) >= 0.35:
-                    sibling_overlap = True
-                    deduped_count = int(deduped_count) + 1
-                    break
-            if sibling_overlap:
-                continue
-            pruned_localized.append(candidate)
-        localized_segments = pruned_localized[:4]
+    localized_segments, deduped_count = _prune_localized_siblings(
+        localized_segments, deduped_count
+    )
 
     segments = other_segments + localized_segments
     segments.sort(key=lambda item: (-float(item.get("area_pixels", 0)), str(item.get("segment_id", ""))))
