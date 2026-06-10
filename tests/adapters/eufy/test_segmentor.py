@@ -174,13 +174,35 @@ def _dumbbell_map_png(tmp_path) -> str:
 
 
 def test_detect_segments_oversized_region(tmp_path):
-    """[ECV-7] an oversized single room triggers the suspicious/oversized path."""
+    """[ECV-7] an oversized single room triggers the suspicious/oversized path.
+
+    A near-full-frame single room (area% ~0.81) is flagged as a suspicious
+    split candidate; when the erosion splitter cannot break it, the parent
+    itself reaches the emit loop and is dropped via the generic drop-reason
+    branches: ``area_percent > 0.45`` (segmentor.py 1296-1298) and the
+    non-localized ``oversized_region`` reject (1305-1308). The observable
+    consequences are: the oversized parent never survives as a kept clean
+    segment, the suspicious-split pass logged >=1 candidate, and >=1 region
+    was dropped during candidate scoring.
+    """
     path = _oversized_map_png(str(tmp_path))
     result = detect_room_segments(image_path=path, min_area_pixels=200)
-    # Pipeline completes; the oversized parent is flagged + dropped, so it must
-    # not survive as a clean segment.
+    # Pipeline completes with a valid envelope.
     assert result["available"] is True
     assert isinstance(result["segments"], list)
+
+    # The oversized parent must NOT survive as a kept clean segment: nothing
+    # with area_percent past the >0.45 drop threshold may remain. (1296-1298)
+    assert all(
+        float(seg.get("area_percent", 0.0)) <= 0.45 for seg in result["segments"]
+    ), [seg.get("area_percent") for seg in result["segments"]]
+
+    stages = result["segmentation"]["stages"]
+    # The suspicious-region split pass flagged the oversized component.
+    assert stages["suspicious_region_split_pass"]["split_candidates"] >= 1
+    # ...and at least one region was dropped during candidate scoring, which is
+    # where the generic area_percent/oversized_region drop branches fire.
+    assert stages["candidate_scoring"]["dropped_regions"] >= 1
 
 
 def test_detect_segments_dumbbell_split(tmp_path):
@@ -212,6 +234,224 @@ def test_detect_segments_expected_room_count(tmp_path):
     )
     assert result["available"] is True
     assert isinstance(result["segments"], list)
+
+
+def _l_shaped_map_png(tmp_path) -> str:
+    """Write a map with one L-shaped single-hue room + one normal room.
+
+    The L-shaped green room (two thin arms sharing a corner) has a large bbox
+    relative to its filled area, so at a high ``min_area_pixels`` it falls below
+    the keep cutoff and is deferred rather than emitted. The magenta room is a
+    compact square that survives on its own. With ``expected_room_count`` set,
+    the recovery pass must reach back into the deferred pile and rescue the L.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 240), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    green = (60, 160, 90)
+    draw.rectangle([30, 30, 120, 60], fill=green)    # horizontal arm
+    draw.rectangle([30, 30, 60, 150], fill=green)     # vertical arm
+    draw.rectangle([160, 160, 210, 210], fill=(160, 80, 160))  # normal room
+    path = os.path.join(tmp_path, "l_shaped.png")
+    img.save(path)
+    return path
+
+
+def test_detect_recovery_pass_rescues_deferred(tmp_path):
+    """[ECV-11] expected_room_count recovery rescues a deferred region.
+
+    Exercises the deficit loop, the issue/area filters, the recovery-mode
+    ``_component_should_keep`` call, and the recovered-candidate mutation +
+    append: a rescued region picks up the ``recovered_count_deficit`` issue, a
+    confidence floor of 0.62, a reassigned segment id, and is counted in
+    ``recovery_pass.recovered_regions``.
+    """
+    path = _l_shaped_map_png(str(tmp_path))
+    # High min_area_pixels so the low-bbox-fill L room is deferred in the base
+    # run but recoverable when a higher room count is expected.
+    base = detect_room_segments(image_path=path, min_area_pixels=9000)
+    rec = detect_room_segments(
+        image_path=path, min_area_pixels=9000, expected_room_count=4
+    )
+
+    assert base["available"] is True
+    assert rec["available"] is True
+    # The recovery pass must add at least the deferred L room back.
+    assert len(rec["segments"]) > len(base["segments"])
+    assert (
+        rec["segmentation"]["stages"]["recovery_pass"]["recovered_regions"] >= 1
+    )
+    # A rescued segment carries the deficit marker and the confidence floor.
+    recovered = [
+        seg for seg in rec["segments"]
+        if "recovered_count_deficit" in seg.get("issues", [])
+    ]
+    assert recovered, "expected at least one recovered_count_deficit segment"
+    assert any(seg["confidence"] >= 0.62 for seg in recovered)
+    # tiny_region is stripped when a region is promoted out of the deferred pile.
+    assert all("tiny_region" not in seg["issues"] for seg in recovered)
+
+
+# --- in-pipeline per-component issue tagging ([ECV-11..13]) -----------------
+#
+# These exercise the issue-tag branches in the connected-component loop of
+# detect_room_segments (segmentor.py ~1108-1117). Each synthetic room is shaped
+# so exactly one geometric signal trips, and we assert the tag string appears on
+# an emitted segment's `issues` list — observable behavior, not geometry.
+#
+# NOTE on `touches_border` (segmentor.py:1111): not covered here on purpose.
+# The pipeline runs binary_closing(5x5, iters=2) + binary_opening(3x3) on every
+# component BEFORE computing its bbox, which insets a flush-to-edge room ~6px off
+# the array boundary (empirically min x/y == 6). The border check is `x<=1 or
+# y<=1 or x+w>=width-1 or ...`, so a clean synthetic room can never satisfy it on
+# the kept-segment path, and non-localized deferred regions are not surfaced in
+# the result. Forcing it would require an unstable localized_bins split child and
+# is not a deterministic real-behavior assertion.
+
+
+def _all_segment_issues(result) -> set:
+    """Union of `issues` across every emitted segment."""
+    tags: set = set()
+    for segment in result.get("segments", []):
+        tags.update(segment.get("issues") or [])
+    return tags
+
+
+def _l_shape_map_png(tmp_path) -> str:
+    """A thin single-hue L-shaped room: low bbox fill_ratio (< 0.42).
+
+    The L is two narrow arms inside a large bounding box, so the component's
+    area / (bbox w*h) falls well under 0.42, tripping the 'possible_merge' tag
+    (segmentor.py:1113) without being large enough to trigger the suspicious-
+    merge split (area stays under the 5200-px split floor).
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 240), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    color = (60, 160, 90)
+    draw.rectangle([40, 40, 60, 160], fill=color)    # thin vertical arm
+    draw.rectangle([40, 140, 160, 160], fill=color)  # thin horizontal arm
+    path = os.path.join(tmp_path, "l_shape.png")
+    img.save(path)
+    return path
+
+
+def _tiny_room_map_png(tmp_path) -> str:
+    """A small saturated room: area_percent < 0.015 with no assist agreement.
+
+    ~28x28 on a 240x240 frame => area_percent ~0.01, below the 0.015 floor;
+    with no assist image the variant agreement is 0 (< 0.5), so the
+    'tiny_region' tag fires (segmentor.py:1109). The room is still above the
+    min-area keep floor, so it survives into the emitted segments.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 240), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([100, 100, 127, 127], fill=(160, 80, 160))
+    path = os.path.join(tmp_path, "tiny_room.png")
+    img.save(path)
+    return path
+
+
+def _thin_cross_map_png(tmp_path) -> str:
+    """A small thin single-hue cross: low compactness AND small area.
+
+    Two ~4px arms give compactness < 0.08 and area_percent < 0.02 (both
+    conditions of segmentor.py:1117), tagging 'fragmented_candidate'. The arm
+    span keeps the component well clear of the frame edge so the border-inset
+    morphology does not delete it.
+    """
+    from PIL import Image, ImageDraw
+
+    img = Image.new("RGB", (240, 240), (20, 20, 20))
+    draw = ImageDraw.Draw(img)
+    color = (60, 90, 200)
+    draw.rectangle([100, 60, 104, 170], fill=color)  # thin vertical arm
+    draw.rectangle([60, 113, 170, 117], fill=color)  # thin horizontal arm
+    path = os.path.join(tmp_path, "thin_cross.png")
+    img.save(path)
+    return path
+
+
+def test_detect_low_fill_possible_merge(tmp_path):
+    """[ECV-11] a low bbox-fill L-shaped room is tagged 'possible_merge'."""
+    path = _l_shape_map_png(str(tmp_path))
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is True
+    assert "possible_merge" in _all_segment_issues(result)
+
+
+def test_detect_tiny_region_issue(tmp_path):
+    """[ECV-12] a sub-1.5%-area room with no assist agreement -> 'tiny_region'."""
+    path = _tiny_room_map_png(str(tmp_path))
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is True
+    assert "tiny_region" in _all_segment_issues(result)
+
+
+def test_detect_fragmented_candidate(tmp_path):
+    """[ECV-13] a small thin cross (low compactness + small area) is tagged
+    'fragmented_candidate'."""
+    path = _thin_cross_map_png(str(tmp_path))
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is True
+    assert "fragmented_candidate" in _all_segment_issues(result)
+
+
+def test_detect_segment_scoring_fields(tmp_path):
+    """[ECV-11] the per-region scoring block populates every derived key.
+
+    Two saturated rectangular rooms run the full local issue-tagging +
+    _component_should_keep + confidence-computation + candidate-assembly block
+    (segmentor.py ~1216-1293). This asserts the *observable* scoring contract on
+    a kept segment rather than any one branch: each derived field exists and
+    holds a value from its allowed range. It also confirms the split-emit
+    accounting counter survives into the result envelope as an int (line 1533;
+    the split count itself is exercised by the dumbbell test).
+    """
+    path = _map_png(str(tmp_path), saturated=True)
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+
+    assert result["available"] is True
+    assert len(result["segments"]) >= 1
+    seg = result["segments"][0]
+
+    # Structural role / segmentation state / edit readiness are enum-valued.
+    assert seg["structural_role"] in {
+        "hub",
+        "connector",
+        "spine",
+        "room",
+        "uncertain",
+    }
+    assert seg["segmentation_state"] in {
+        "clean",
+        "merged_candidate",
+        "fragmented_candidate",
+        "review",
+    }
+    assert seg["edit_readiness"] in {"ready", "review"}
+
+    # Confidence is clamped into [0.05, 0.99] (segmentor.py line 1247).
+    assert 0.05 <= seg["confidence"] <= 0.99
+
+    # A kept segment cleared the <4-point drop (lines 1198-1200).
+    assert isinstance(seg["point_count_simplified"], int)
+    assert seg["point_count_simplified"] >= 4
+
+    # center_pixel is a 2-element [x, y] list.
+    assert isinstance(seg["center_pixel"], list)
+    assert len(seg["center_pixel"]) == 2
+
+    # issues is a list (the local issue-tagging block always seeds it).
+    assert isinstance(seg["issues"], list)
+
+    # The split-emit accounting counter is wrapped as an int in the envelope.
+    split_pass = result["segmentation"]["stages"]["suspicious_region_split_pass"]
+    assert isinstance(split_pass["split_generated_regions"], int)
 
 
 # --- pure quality / role / state classifiers (no image needed) --------------

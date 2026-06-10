@@ -15,6 +15,7 @@ Coverage targets
 
 from __future__ import annotations
 
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from tests._factories import VAC as _VAC, MAP as _MAP, set_room_field
 from .conftest import setup_map
 
@@ -138,3 +139,94 @@ async def test_clear_queue_returns_empty_state(manager):
     result = manager.clear_queue(vacuum_entity_id=_VAC, map_id=_MAP)
     assert result["queue_room_ids"] == []
     assert result["room_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# [DISP-1] — [DISP-2] _dispatch_clean_payload envelope shapes
+#
+# The method under test is core/manager.py::_dispatch_clean_payload (~3732-3753;
+# the conceptual "room clean dispatch"). It reads the adapter's dispatch config
+# and emits one of two service-call envelopes:
+#   - direct-merge {entity_id, **payload}      when NO 'command' is declared
+#     (Dreame-style vacuum_clean_segment) — manager.py line 3752
+#   - wrapped {entity_id, command, params}     when a 'command' IS declared
+#     (Eufy/Roborock/Ecovacs send_command) — manager.py line 3750
+# A recording service captures call.data so we assert the exact emitted shape.
+#
+# Cleanup: register_adapter_config routes to the per-test AdapterCoordinator
+# (wired by the `manager` fixture), whose registry is torn down with the
+# fixture; the recording services live on the function-scoped `hass`. No manual
+# teardown / no scheduled timers — the call is synchronous-await with no later().
+# ---------------------------------------------------------------------------
+
+async def test_dispatch_clean_payload_direct_merge_no_command(manager, hass):
+    """[DISP-1] With no declared 'command' (Dreame vacuum_clean_segment), the
+    payload is merged directly into the service data — {entity_id, **payload},
+    with NO 'command'/'params' wrapper (manager.py line 3752)."""
+    register_adapter_config(
+        _VAC,
+        {
+            "adapter_id": "dreame_direct_merge",
+            "dispatch": {
+                "service_domain": "vacuum",
+                "service_name": "clean_segment",
+                "command": "",
+            },
+            "entities": {"task_status": "sensor.alfred_task_status"},
+        },
+    )
+    recorded: list[dict] = []
+
+    async def _recorder(call):
+        recorded.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "clean_segment", _recorder)
+
+    await manager._dispatch_clean_payload(
+        vacuum_entity_id=_VAC,
+        payload={"segments": [1, 2], "fan": "Quiet"},
+    )
+    await hass.async_block_till_done()
+
+    assert recorded == [{"entity_id": _VAC, "segments": [1, 2], "fan": "Quiet"}]
+    # Direct-merge envelope must NOT wrap into command/params.
+    assert "command" not in recorded[0]
+    assert "params" not in recorded[0]
+
+
+async def test_dispatch_clean_payload_wrapped_with_command(manager, hass):
+    """[DISP-2] With a declared 'command' (Eufy room_clean send_command), the
+    payload is wrapped into {entity_id, command, params} (manager.py line 3750).
+    Contrast branch proving both sides of the same dispatch seam."""
+    register_adapter_config(
+        _VAC,
+        {
+            "adapter_id": "eufy_wrapped",
+            "dispatch": {
+                "service_domain": "vacuum",
+                "service_name": "send_command",
+                "command": "room_clean",
+            },
+            "entities": {"task_status": "sensor.alfred_task_status"},
+        },
+    )
+    recorded: list[dict] = []
+
+    async def _recorder(call):
+        recorded.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "send_command", _recorder)
+
+    await manager._dispatch_clean_payload(
+        vacuum_entity_id=_VAC,
+        payload={"segments": [1, 2], "fan": "Quiet"},
+    )
+    await hass.async_block_till_done()
+
+    assert recorded == [
+        {
+            "entity_id": _VAC,
+            "command": "room_clean",
+            "params": {"segments": [1, 2], "fan": "Quiet"},
+        }
+    ]

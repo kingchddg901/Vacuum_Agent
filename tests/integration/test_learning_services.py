@@ -1060,6 +1060,79 @@ async def test_save_snapshot_with_rooms_covers_access_graph_loop(hass, learning_
 
 
 # ---------------------------------------------------------------------------
+# [LS-25b] _build_access_graph_context — non-granted edge counts as a jump,
+#          and resolved_rooms fallback when the queue has no queue_room_ids.
+# ---------------------------------------------------------------------------
+
+async def test_access_graph_non_granted_edge_counts_as_jump(hass, learning_services):
+    """[LS-25b] Queue order [2, 1] over a graph that only grants 1->2 yields a
+    jump (the 2->1 pair is NOT a granted edge), so graph_jump_count==1 and
+    graph_transition_count==0 (manager line 478, else-branch of the pair loop)."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    # Only room 1 grants access to room 2; the reverse edge (2->1) does NOT exist.
+    rooms_bucket = (
+        learning_services.data
+        .get("maps", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", {})
+    )
+    rooms_bucket["1"]["grants_access_to"] = [2]
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning = _get_learning_manager(hass)
+
+    # Queue ordered [2, 1] — the single pair (2 -> 1) is not in room 2's grants.
+    ctx = learning._build_access_graph_context(
+        manager=core_manager,
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        queue_state={"queue_room_ids": [2, 1]},
+        payload_state={},
+    )
+
+    assert ctx["queue_room_ids"] == [2, 1]
+    assert ctx["pair_count"] == 1
+    assert ctx["graph_jump_count"] == 1        # 2 -> 1 is a jump (line 478)
+    assert ctx["graph_transition_count"] == 0  # no granted edge traversed
+    assert ctx["present"] is True              # the 1 -> 2 edge means a graph exists
+    assert ctx["graph_coherence_score"] == 0.0
+
+
+async def test_access_graph_resolved_rooms_fallback_when_queue_empty(hass, learning_services):
+    """[LS-25c] When queue_state carries no queue_room_ids, the room order is
+    derived from payload_state.resolved_rooms (manager 461->468 fallback)."""
+    from tests.integration.conftest import setup_map
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    setup_map(learning_services, _VAC, _MAP, count=2)
+    rooms_bucket = (
+        learning_services.data
+        .get("maps", {}).get(_VAC, {}).get(_MAP, {}).get("rooms", {})
+    )
+    rooms_bucket["1"]["grants_access_to"] = [2]
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning = _get_learning_manager(hass)
+
+    # Empty queue forces the resolved_rooms fallback; order [1, 2] follows a
+    # granted edge so it counts as a transition (proves the fallback ids feed
+    # the same pair loop).
+    ctx = learning._build_access_graph_context(
+        manager=core_manager,
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+        queue_state={"queue_room_ids": []},
+        payload_state={"resolved_rooms": [{"room_id": 1}, {"room_id": 2}]},
+    )
+
+    assert ctx["queue_room_ids"] == [1, 2]      # fallback fired (461->468)
+    assert ctx["pair_count"] == 1
+    assert ctx["graph_transition_count"] == 1   # 1 -> 2 is a granted edge
+    assert ctx["graph_jump_count"] == 0
+
+
+# ---------------------------------------------------------------------------
 # [LS-26] get_room_learning_estimates — learned-match branch
 # ---------------------------------------------------------------------------
 
@@ -1570,6 +1643,85 @@ async def test_get_learning_history_snapshot_used_for_learning_filter(hass, lear
 
 
 # ---------------------------------------------------------------------------
+# [LS-60] get_learning_history_snapshot profile_key + used_for_learning filters
+#         prune room_profiles rows (manager _profile_matches lines 971, 978)
+# ---------------------------------------------------------------------------
+
+async def test_history_snapshot_room_profile_filters_prune(hass, learning_services):
+    """[LS-60] profile_key prunes non-matching room_profiles (manager line 971) and
+    used_for_learning=True keeps only profiles with learning_run_count>0 (line 978).
+
+    Seeds three single-room completed jobs in distinct rooms — kitchen and bedroom
+    are learning-eligible, study is excluded (used_for_learning=False) — then
+    rebuilds so the jobs index carries one room_profiles entry per room (profile_key
+    is slug-derived, so each room yields a distinct key with run_count==1 and
+    learning_run_count 1/1/0 respectively). The unfiltered snapshot is read first to
+    discover the live profile_key values (the key string is deterministic but built
+    from the full settings signature, so observing it is more robust than hardcoding).
+    """
+    _seed_completed_job(hass, _VAC, "j-pf-kitchen", room_slugs=["kitchen"], used_for_learning=True)
+    _seed_completed_job(hass, _VAC, "j-pf-bedroom", room_slugs=["bedroom"], used_for_learning=True)
+    # study: excluded from learning → its room_profiles row has learning_run_count == 0
+    _seed_completed_job(hass, _VAC, "j-pf-study", room_slugs=["study"], used_for_learning=False)
+
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # Unfiltered snapshot: discover the room_profiles rows the rebuild produced.
+    full = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC},
+        blocking=True, return_response=True,
+    )
+    profiles = full.get("room_profiles", [])
+    by_slug = {
+        str(p.get("room_slug", "")).strip().lower(): p
+        for p in profiles
+        if isinstance(p, dict)
+    }
+    # The three seeded rooms must each have surfaced a distinct profile row.
+    for slug in ("kitchen", "bedroom", "study"):
+        assert slug in by_slug, f"{slug} profile missing from {sorted(by_slug)}"
+    kitchen_key = str(by_slug["kitchen"].get("profile_key", "")).strip().lower()
+    bedroom_key = str(by_slug["bedroom"].get("profile_key", "")).strip().lower()
+    assert kitchen_key and bedroom_key and kitchen_key != bedroom_key
+    # The excluded study run produced a learning_run_count of 0; kitchen/bedroom > 0.
+    assert by_slug["study"].get("learning_run_count", -1) == 0
+    assert by_slug["kitchen"].get("learning_run_count", 0) > 0
+    assert by_slug["bedroom"].get("learning_run_count", 0) > 0
+
+    # --- profile_key filter (manager line 971) ---
+    # Filtering on kitchen's key keeps only kitchen rows; bedroom (and study) pruned.
+    by_key = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "profile_key": by_slug["kitchen"]["profile_key"]},
+        blocking=True, return_response=True,
+    )
+    key_profiles = by_key.get("room_profiles", [])
+    assert key_profiles, "profile_key filter pruned everything"
+    returned_keys = {str(p.get("profile_key", "")).strip().lower() for p in key_profiles}
+    assert returned_keys == {kitchen_key}
+    assert bedroom_key not in returned_keys  # the non-matching row was pruned (971)
+
+    # --- used_for_learning=True filter (manager line 978) ---
+    # Only profiles with learning_run_count>0 survive → study (count 0) is dropped.
+    learned = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "used_for_learning": True},
+        blocking=True, return_response=True,
+    )
+    learned_profiles = learned.get("room_profiles", [])
+    assert learned_profiles, "used_for_learning filter pruned everything"
+    assert all(p.get("learning_run_count", 0) > 0 for p in learned_profiles)
+    learned_slugs = {str(p.get("room_slug", "")).strip().lower() for p in learned_profiles}
+    assert "study" not in learned_slugs  # learning_run_count==0 row pruned (978)
+    assert {"kitchen", "bedroom"} <= learned_slugs
+
+
+# ---------------------------------------------------------------------------
 # [LS-39] async_preload_learning_stats guard when already cached
 # ---------------------------------------------------------------------------
 
@@ -1927,3 +2079,553 @@ async def test_finalize_pushes_battery_metrics_to_manager(hass, learning_service
 
     assert fake.calls, "record_job_metrics was not called"
     assert fake.calls[0][0] == _VAC
+
+
+# ---------------------------------------------------------------------------
+# [LS-54] _auto_record_accuracy returns None when no room yields a usable actual
+# ---------------------------------------------------------------------------
+
+async def test_auto_record_accuracy_no_estimate_returns_none(hass, learning_services):
+    """[LS-54] _auto_record_accuracy meaningful skips (manager lines 685, 711).
+
+    A room carrying neither estimated_minutes nor avg_minutes has estimated<=0,
+    so it is skipped (line 685 continue). With the single room skipped, no room
+    produces a usable actual, so room_actuals stays empty and the method returns
+    None (line 711) — nothing is recorded.
+    """
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    learning = _get_learning_manager(hass)
+
+    # duration_minutes>0 plus a non-empty rooms list clear the early guard at
+    # line 657; the room has a slug (passes line 675) but no estimate, so the
+    # per-room estimate<=0 skip at line 685 fires and leaves room_actuals empty,
+    # driving the no-usable-actual return at line 711.
+    result = learning._auto_record_accuracy(
+        result={
+            "completed_job": {
+                "job": {"duration_minutes": 30},
+                "job_profile": {"rooms": [{"slug": "kitchen"}]},
+            }
+        },
+        vacuum_entity_id=_VAC,
+        map_id=_MAP,
+    )
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# [LS-58] accuracy normalization prefers EXPLICIT percent/weight over derived
+# ---------------------------------------------------------------------------
+
+async def test_history_snapshot_accuracy_uses_explicit_percent_and_weight(
+    hass, learning_services, monkeypatch
+):
+    """[LS-58] An accuracy entry carrying explicit avg_abs_error_percent and
+    confidence_weight is taken verbatim, not re-derived (manager lines 813, 822).
+
+    The normalizer at lines 802-833 has two prefer-explicit branches:
+      - line 813: use entry["avg_abs_error_percent"] when present, instead of
+        deriving it from the fractional mean_abs_pct_error (line 815-817).
+      - line 822: use entry["confidence_weight"] when present, instead of
+        synthesizing it from min(sample_count, 5) (line 824).
+
+    We feed an entry with sample_count=4, avg_abs_error_percent=12.5,
+    confidence_weight=3.0 and NO mean_abs_pct_error. The chosen values are
+    distinguishable from their fallbacks:
+      - derived percent (no mean_abs_pct_error) would be 0.0, not 12.5.
+      - synthesized weight from sample_count=4 would be 4.0, not 3.0.
+    Both surface (rounded to 2 dp) on the kitchen room's trust block via
+    build_trust_metrics, so the snapshot output proves the explicit branches fired.
+    """
+    # Seed a completed kitchen job and rebuild so the kitchen room surfaces in
+    # the snapshot's index_rooms (and thus carries a trust block).
+    _seed_completed_job(hass, _VAC, "j-explicit-acc-001", room_slugs=["kitchen"])
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # Intercept the snapshot's accuracy read with an explicit-fields entry. The
+    # read happens via self.store.load_accuracy_stats(vacuum_entity_id=...), so
+    # patching the class method controls exactly what the normalizer sees —
+    # independent of whatever the rebuild wrote to disk.
+    monkeypatch.setattr(
+        LearningHistoryStore,
+        "load_accuracy_stats",
+        lambda self, *, vacuum_entity_id: {
+            "rooms": [
+                {
+                    "slug": "kitchen",
+                    "sample_count": 4,
+                    "avg_abs_error_percent": 12.5,
+                    "confidence_weight": 3.0,
+                }
+            ]
+        },
+    )
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    assert isinstance(result, dict)
+
+    rooms = result.get("rooms", [])
+    kitchen = next(
+        (r for r in rooms if str(r.get("room_slug", "")).lower() == "kitchen"), None
+    )
+    assert kitchen is not None, (
+        f"kitchen not in snapshot rooms: {[r.get('room_slug') for r in rooms]}"
+    )
+    # Explicit percent taken verbatim (line 813) — NOT the 0.0 derived fallback.
+    assert kitchen.get("avg_abs_error_percent") == 12.5
+    # Explicit weight taken verbatim (line 822) — NOT the 4.0 synthesized from
+    # min(sample_count=4, 5).
+    assert kitchen.get("confidence_weight") == 3.0
+    assert kitchen.get("accuracy_sample_count") == 4
+
+
+# ---------------------------------------------------------------------------
+# [LS-67] restore_learning_job — defensive outcome/learning_blockers normalization
+# ---------------------------------------------------------------------------
+
+async def test_restore_learning_job_normalizes_malformed_outcome(
+    hass, learning_services
+):
+    """[LS-67] restore_learning_job coerces malformed archived fields before
+    restoring (manager.py lines 1664 + 1668).
+
+    Two defensive guards run before the restore mutation:
+      - line 1664: a non-dict ``outcome`` is replaced with ``{}`` so the
+        subsequent ``outcome[...] = ...`` writes don't crash.
+      - line 1668: a non-list ``learning_blockers`` (e.g. a bare int written by
+        an old/corrupt record) is replaced with ``[]`` so the comprehension at
+        1669-1675 can iterate it.
+
+    Both archived shapes are written straight to disk via the store (the helper
+    ``_seed_completed_job`` only ever produces a well-formed outcome, so we build
+    the malformed payloads inline, mirroring the [LS-13] round-trip seeding). The
+    top-level record stays a dict so ``load_completed_job`` returns it rather than
+    None. We then drive SERVICE_RESTORE_LEARNING_JOB and assert the observable,
+    normalized result: restore succeeds, ``outcome`` is a dict,
+    ``used_for_learning`` is flipped True, and ``learning_blockers`` is a (sorted)
+    list — proving each guard turned junk into the expected restored shape.
+    """
+    store = LearningHistoryStore(hass)
+
+    def _base_job(job_id: str, outcome) -> dict:
+        return {
+            "record_type": "completed_job",
+            "job_id": job_id,
+            "job": {
+                "ended_at": "2026-01-01T10:00:00+00:00",
+                "duration_minutes": 30.0,
+                "room_count": 1,
+            },
+            "battery": {"start": 80, "end": 60, "used": 20},
+            "water": {},
+            "job_profile": {
+                "map_id": _MAP_INT,
+                "room_count": 1,
+                "room_slugs": ["kitchen"],
+                "rooms": [],
+            },
+            "resolved_rooms": [],
+            "queue": {"queue_room_ids": [1], "queue_rooms": []},
+            "outcome": outcome,
+        }
+
+    # --- Case A: line 1668 — outcome is a dict, but learning_blockers is an int.
+    store.save_completed_job(
+        vacuum_entity_id=_VAC,
+        job_id="j-ls67-int-blockers",
+        payload=_base_job(
+            "j-ls67-int-blockers",
+            {"learning_blockers": 123, "excluded_from_learning": True},
+        ),
+    )
+
+    rest_a = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_RESTORE_LEARNING_JOB,
+        {"vacuum_entity_id": _VAC, "job_id": "j-ls67-int-blockers"},
+        blocking=True,
+        return_response=True,
+    )
+    assert rest_a["restored"] is True
+    outcome_a = rest_a["completed_job"]["outcome"]
+    assert isinstance(outcome_a, dict)
+    assert outcome_a["used_for_learning"] is True
+    assert outcome_a["excluded_from_learning"] is False
+    # int blockers were coerced to [] (line 1668), so the normalized result is an
+    # empty sorted list — not a crash and not the bare int.
+    assert isinstance(outcome_a["learning_blockers"], list)
+    assert outcome_a["learning_blockers"] == []
+
+    # --- Case B: line 1664 — outcome itself is not a dict (a bare string).
+    store.save_completed_job(
+        vacuum_entity_id=_VAC,
+        job_id="j-ls67-str-outcome",
+        payload=_base_job("j-ls67-str-outcome", "totally-not-a-dict"),
+    )
+
+    rest_b = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_RESTORE_LEARNING_JOB,
+        {"vacuum_entity_id": _VAC, "job_id": "j-ls67-str-outcome"},
+        blocking=True,
+        return_response=True,
+    )
+    assert rest_b["restored"] is True
+    outcome_b = rest_b["completed_job"]["outcome"]
+    # non-dict outcome was replaced with {} (line 1664) and then populated by the
+    # restore mutation, so it is a dict carrying the restored fields.
+    assert isinstance(outcome_b, dict)
+    assert outcome_b["used_for_learning"] is True
+    assert outcome_b["excluded_from_learning"] is False
+    assert isinstance(outcome_b["learning_blockers"], list)
+    assert outcome_b["learning_blockers"] == []
+
+
+# ---------------------------------------------------------------------------
+# [LS-64] profile_key filter swaps summary.selected_profile for the ENRICHED entry
+# ---------------------------------------------------------------------------
+
+async def test_history_snapshot_profile_filter_selects_enriched_profile(hass, learning_services):
+    """[LS-64] A profile_key filter sets summary.selected_profile to the matching
+    *enriched* room-profile entry (manager line 1321).
+
+    selected_profile starts as filtered_room_profiles[0] — the raw jobs-index
+    entry (manager line 1317). Line 1321 then replaces it with the matching
+    enriched_room_profiles entry found by profile_key. Only the enriched entry
+    carries the trust block + found_profile dict the rebuilt index row lacks, so
+    asserting those keys are present on summary.selected_profile (and that it is
+    the same object surfaced in result['room_profiles']) proves the swap ran.
+    """
+    # Seed a single-room completed job + REBUILD so the jobs index gains a
+    # room_profiles list with a real per-room profile_key signature.
+    _seed_completed_job(hass, _VAC, "j-pkfilter-001", room_slugs=["kitchen"])
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": _VAC, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+
+    # Read an UNFILTERED snapshot first to learn a real profile_key. The kitchen
+    # profile must be present after the rebuild.
+    unfiltered = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC}, blocking=True, return_response=True,
+    )
+    all_profiles = unfiltered.get("room_profiles", [])
+    kitchen_profile = next(
+        (p for p in all_profiles if str(p.get("room_slug", "")).lower() == "kitchen"),
+        None,
+    )
+    assert kitchen_profile is not None, (
+        f"no kitchen room_profile after rebuild: "
+        f"{[p.get('room_slug') for p in all_profiles]}"
+    )
+    profile_key = kitchen_profile.get("profile_key")
+    assert profile_key  # the rebuilt index carries a concrete signature
+
+    # Now call WITH the profile_key filter — this drives the line-1321 swap.
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": _VAC, "profile_key": profile_key},
+        blocking=True, return_response=True,
+    )
+
+    selected = result.get("summary", {}).get("selected_profile")
+    # The swap populated selected_profile (raw [0] was non-None; line 1321 kept it).
+    assert selected is not None
+    assert selected.get("profile_key") == profile_key
+
+    # It is the ENRICHED entry: only enriched_room_profiles carry these keys.
+    assert "found_profile" in selected
+    assert "trust_score" in selected
+    assert isinstance(selected.get("found_profile"), dict)
+
+    # And it is the very entry surfaced in result['room_profiles'] (the swap reads
+    # from enriched_room_profiles, which is exactly what 'room_profiles' returns).
+    filtered_profiles = result.get("room_profiles", [])
+    match = next(
+        (p for p in filtered_profiles if p.get("profile_key") == profile_key), None
+    )
+    assert match is not None
+    assert selected == match
+
+
+# ---------------------------------------------------------------------------
+# [LS-68..LS-70] enriched_jobs outlier / exclude-suggestion branches
+# (manager.py lines 1243, 1248->1255, 1262-1270)
+# ---------------------------------------------------------------------------
+
+def _seed_job_with_outcome(
+    hass,
+    vacuum_entity_id: str,
+    job_id: str,
+    *,
+    room_slug: str = "kitchen",
+    duration_minutes: float = 30.0,
+    status: str = "completed",
+    used_for_learning: bool = True,
+    sanity_passed: bool = True,
+    excluded_from_learning: bool = False,
+    cancel_detection: dict | None = None,
+    clean_mode: str = "vacuum",
+) -> dict:
+    """Seed a single-room completed job with explicit outcome flags.
+
+    Mirrors ``_seed_completed_job`` but exposes the outcome fields the
+    enriched-jobs branches key off of: ``sanity_passed`` (so the failed-sanity
+    short-circuit at manager 1259 can be avoided), ``excluded_from_learning``
+    (the +1 outlier contribution at 1243), and ``cancel_detection`` (the
+    cancel-likely suggestion at 1262-1264). ``clean_mode`` changes the room's
+    profile signature so a job can share a room average but miss the profile
+    average (driving short_vs_room at 1268-1270). The rebuilder copies these
+    straight from ``outcome``/``job_profile`` into the jobs index, so a real
+    REBUILD propagates them — no monkeypatch needed.
+    """
+    room = {
+        "slug": room_slug,
+        "room_id": 1,
+        "name": room_slug.replace("_", " ").title(),
+        "clean_mode": clean_mode,
+        "clean_intensity": "standard",
+        "clean_times": 1,
+        "is_carpet": False,
+    }
+    outcome: dict = {
+        "status": status,
+        "used_for_learning": used_for_learning,
+        "sanity_passed": sanity_passed,
+        "excluded_from_learning": excluded_from_learning,
+        "learning_blockers": [],
+    }
+    if cancel_detection is not None:
+        outcome["cancel_detection"] = cancel_detection
+    payload = {
+        "record_type": "completed_job",
+        "job_id": job_id,
+        "job": {
+            "started_at": "2026-01-01T09:00:00+00:00",
+            "ended_at": f"2026-01-01T09:{int(duration_minutes) % 60:02d}:00+00:00",
+            "duration_minutes": duration_minutes,
+            "room_count": 1,
+        },
+        "battery": {"start": 85, "end": 60, "used": 25},
+        "water": {},
+        "job_profile": {
+            "map_id": _MAP_INT,
+            "room_count": 1,
+            "room_slugs": [room_slug],
+            "rooms": [room],
+        },
+        "resolved_rooms": [room],
+        "queue": {"queue_room_ids": [1], "queue_rooms": [room]},
+        "outcome": outcome,
+    }
+    LearningHistoryStore(hass).save_completed_job(
+        vacuum_entity_id=vacuum_entity_id, job_id=job_id, payload=payload
+    )
+    return payload
+
+
+async def _rebuild_and_snapshot_jobs(hass, vacuum_entity_id: str) -> list[dict]:
+    """REBUILD the learning index then return the snapshot's enriched jobs list."""
+    await hass.services.async_call(
+        DOMAIN, SERVICE_REBUILD_LEARNING_STATS,
+        {"vacuum_entity_id": vacuum_entity_id, "rebuild_csv": False}, blocking=True,
+    )
+    await hass.async_block_till_done()
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_GET_LEARNING_HISTORY_SNAPSHOT,
+        {"vacuum_entity_id": vacuum_entity_id}, blocking=True, return_response=True,
+    )
+    return result.get("jobs", [])
+
+
+async def test_enriched_job_short_vs_profile_suggests_exclude(hass, learning_services):
+    """[LS-68] A single-room job far shorter than its PROFILE average is flagged
+    exclude_suggested='short_duration_vs_profile' (manager 1265-1267).
+
+    Five same-profile kitchen jobs establish the profile average; the 1-minute
+    one sits well under 35% of it. The job is completed, learning-eligible, and
+    sanity-passed (so the cancelled/failed-sanity short-circuits at 1256/1259
+    don't fire), and it shares the base profile signature, so short_vs_profile
+    (checked first) is the branch that wins.
+    """
+    for i in range(4):
+        _seed_job_with_outcome(
+            hass, _VAC, f"j-short-base-{i}", room_slug="kitchen", duration_minutes=30.0,
+        )
+    _seed_job_with_outcome(
+        hass, _VAC, "j-short-outlier", room_slug="kitchen", duration_minutes=1.0,
+    )
+
+    jobs = await _rebuild_and_snapshot_jobs(hass, _VAC)
+    outlier = next(j for j in jobs if j.get("job_id") == "j-short-outlier")
+
+    assert outlier["exclude_suggested"] is True
+    assert outlier["exclude_suggested_reason"] == "short_duration_vs_profile"
+    # A full-length sibling is NOT suggested for exclusion (none of 1256-1270 fire).
+    sibling = next(j for j in jobs if j.get("job_id") == "j-short-base-0")
+    assert sibling["exclude_suggested"] is False
+    assert sibling["exclude_suggested_reason"] is None
+
+
+async def test_enriched_job_short_vs_room_suggests_exclude(hass, learning_services):
+    """[LS-68b] When the short job's profile signature does NOT match the room's
+    profile average (so short_vs_profile can't fire), the room-average branch
+    flags exclude_suggested='short_duration_vs_room' (manager 1268-1270).
+
+    Four 30-minute vacuum jobs build the 'pantry' room average. The 1-minute
+    outlier is a *mop* job: it still belongs to the pantry room (so the room
+    average applies and it is 35%+ short of it), but its own profile signature
+    has only the single 1-minute sample, so short_vs_profile (1<=0.35) is False
+    and execution falls through to short_vs_room.
+    """
+    for i in range(4):
+        _seed_job_with_outcome(
+            hass, _VAC, f"j-room-base-{i}", room_slug="pantry",
+            duration_minutes=30.0, clean_mode="vacuum",
+        )
+    _seed_job_with_outcome(
+        hass, _VAC, "j-room-outlier", room_slug="pantry",
+        duration_minutes=1.0, clean_mode="mop",
+    )
+
+    jobs = await _rebuild_and_snapshot_jobs(hass, _VAC)
+    outlier = next(j for j in jobs if j.get("job_id") == "j-room-outlier")
+
+    assert outlier["exclude_suggested"] is True
+    assert outlier["exclude_suggested_reason"] == "short_duration_vs_room"
+
+
+async def test_enriched_job_cancel_likely_suggests_exclude(hass, learning_services):
+    """[LS-69] A cancel-likely job (per its stored cancel_detection) is flagged
+    exclude_suggested with the detector's reason (manager 1262-1264).
+
+    The job is completed + learning-eligible + sanity-passed and NOT short, so
+    the only branch that can fire is the cancel_detection.cancel_likely one. The
+    rebuilder copies outcome.cancel_detection verbatim into the index entry, so
+    the reason surfaces as exclude_suggested_reason (1248->1255 also runs: the
+    detector dict is echoed back with a human label/text attached).
+    """
+    _seed_job_with_outcome(
+        hass, _VAC, "j-cancel-like", room_slug="den", duration_minutes=30.0,
+        cancel_detection={"cancel_likely": True, "reason": "cancel_like"},
+    )
+
+    jobs = await _rebuild_and_snapshot_jobs(hass, _VAC)
+    job = next(j for j in jobs if j.get("job_id") == "j-cancel-like")
+
+    assert job["exclude_suggested"] is True
+    assert job["exclude_suggested_reason"] == "cancel_like"
+    # The detector block is carried through on the enriched job.
+    assert job["cancel_detection"]["cancel_likely"] is True
+
+
+async def test_enriched_job_excluded_adds_outlier_point(hass, learning_services):
+    """[LS-70] An excluded_from_learning job carries a +1.0 outlier_score
+    contribution over an otherwise-identical non-excluded job (manager 1243).
+
+    Two same-duration single-room jobs (so the duration-vs-average outlier
+    contributions are identical) differ only in outcome.excluded_from_learning.
+    The excluded one's outlier_score is exactly 1.0 higher.
+    """
+    _seed_job_with_outcome(
+        hass, _VAC, "j-excl-yes", room_slug="study", duration_minutes=30.0,
+        excluded_from_learning=True,
+    )
+    _seed_job_with_outcome(
+        hass, _VAC, "j-excl-no", room_slug="study", duration_minutes=30.0,
+        excluded_from_learning=False,
+    )
+
+    jobs = await _rebuild_and_snapshot_jobs(hass, _VAC)
+    excluded = next(j for j in jobs if j.get("job_id") == "j-excl-yes")
+    plain = next(j for j in jobs if j.get("job_id") == "j-excl-no")
+
+    assert excluded["excluded_from_learning"] is True
+    assert plain["excluded_from_learning"] is False
+    # The +1.0 from the excluded_from_learning branch (line 1243) is the only
+    # difference between two otherwise-identical jobs.
+    assert excluded["outlier_score"] >= 1.0
+    assert excluded["outlier_score"] == round(plain["outlier_score"] + 1.0, 2)
+
+
+# ---------------------------------------------------------------------------
+# [LS-55] finalize_learning_for_active_job derives battery_end from the live
+#         adapter battery entity when the caller omits it
+#         (tag note: the prompt asked for [LS-54], but [LS-54] is already taken
+#          by test_auto_record_accuracy_no_estimate_returns_none above, so this
+#          claims the next free number).
+# ---------------------------------------------------------------------------
+
+async def test_finalize_active_job_derives_battery_end_from_entity(hass, learning_services):
+    """[LS-55] When battery_end is omitted, finalize_learning_for_active_job reads
+    it from the live battery via manager._get_battery_level (manager.py 3598-3599).
+
+    _get_battery_level resolves the adapter's ``entities.battery`` sensor first
+    (core/charging.get_battery_level 50-58), so we register an adapter config that
+    points at a battery sensor, set that sensor to a KNOWN level, then finalize an
+    active job WITHOUT passing battery_end. The derived level must flow through to
+    completed_job["battery"]["end"] (and "used" = start - end), proving the
+    derivation fired rather than a default 0.
+    """
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+
+    _BATT = "sensor.alfred_battery"
+    _DERIVED_END = 47  # distinct from battery_start (90) and from the default 0
+
+    # Point the adapter battery entity at a sensor and give it a known reading so
+    # _get_battery_level returns _DERIVED_END (read-from-adapter-entity path).
+    register_adapter_config(_VAC, {
+        "adapter_id": "test_battery_derive",
+        "source": "test",
+        "entities": {"battery": _BATT},
+    })
+    hass.states.async_set(_BATT, str(_DERIVED_END))
+
+    # Sanity: confirm the manager reads the adapter battery entity before relying
+    # on it for the derivation (note in the plan).
+    core_manager = hass.data[DOMAIN]["runtime"]
+    assert core_manager._get_battery_level(_VAC) == _DERIVED_END
+
+    # Ensure the learning manager is wired under DATA_LEARNING so the manager
+    # method finds it (the manager getter does not lazily create one).
+    _get_learning_manager(hass)
+
+    # Active job with started_at + battery_start; a resolved room so the completed
+    # job is well-formed. Fixed timestamps → deterministic, no real clock.
+    _seed_active_job(
+        learning_services, _VAC, _MAP,
+        started_at="2026-01-01T09:00:00+00:00",
+        battery_start=90,
+        resolved_rooms=[
+            {"room_id": 1, "slug": "kitchen", "name": "Kitchen",
+             "clean_mode": "vacuum", "clean_intensity": "standard",
+             "clean_times": 1, "is_carpet": False}
+        ],
+    )
+
+    # Call the manager method directly WITHOUT battery_end → forces the derivation.
+    result = await core_manager.finalize_learning_for_active_job(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        ended_at="2026-01-01T09:30:00+00:00",
+        rebuild_stats=False,
+    )
+
+    assert isinstance(result, dict)
+    completed = result.get("completed_job", {})
+    battery = completed.get("battery", {})
+    # The omitted battery_end was derived from the live adapter entity.
+    assert battery.get("end") == _DERIVED_END
+    assert battery.get("start") == 90
+    assert battery.get("used") == 90 - _DERIVED_END

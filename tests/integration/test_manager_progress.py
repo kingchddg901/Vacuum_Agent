@@ -296,3 +296,143 @@ def test_ingest_jobs_index_into_room_history(manager):
     ing(vacuum_entity_id=_VAC, index_entry=older)
     assert manager.data["room_history"][_VAC]["6"]["1"]["last_cleaned_at"] == \
         "2026-01-01T10:00:00+00:00"
+
+
+def test_payload_state_enrichment_skips_non_dict_rooms(manager):
+    """[PS-1] get_payload_state enriches each dict room in resolved_rooms with
+    settings-profile-display + surface labels, and the loop *continues past* a
+    non-dict entry (manager.py:2025) rather than enriching or emitting it.
+
+    Seeds the payload bucket directly on manager.data (the exact dict
+    get_payload_state reads at L2005-2018) with one valid room dict plus a bare
+    string. The returned resolved_rooms must contain exactly the one enriched
+    dict; the non-dict is dropped.
+    """
+    manager.data.setdefault("payloads", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC,
+        "map_id": _MAP,
+        "payload": {"map_id": _MAP, "rooms": []},
+        "resolved_rooms": [
+            {
+                "room_id": 1,
+                "name": "Kitchen",
+                "clean_mode": "vacuum",
+                "fan_speed": "max",
+                "floor_type": "hard",
+                "clean_passes": 2,
+            },
+            "not-a-dict",  # the non-dict the loop must skip (manager.py:2025)
+        ],
+        "room_count": 2,
+    }
+
+    state = manager.get_payload_state(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    resolved = state["resolved_rooms"]
+    # the string was dropped — exactly one enriched dict survives
+    assert len(resolved) == 1
+    room = resolved[0]
+    assert isinstance(room, dict)
+
+    # original fields carried through
+    assert room["room_id"] == 1
+    assert room["name"] == "Kitchen"
+
+    # _settings_profile_display enrichment keys present on the surviving room
+    assert "profile_label" in room
+    assert room["clean_mode_label"] == "Vacuum"
+    assert room["fan_speed_label"] == "Max"
+    assert room["clean_passes_label"] == "2 Passes"
+    assert isinstance(room["is_custom_profile"], bool)
+
+    # _room_surface_labels enrichment key present
+    assert "floor_type_label" in room
+
+    # nothing in the output is a non-dict (the skip held)
+    assert all(isinstance(r, dict) for r in resolved)
+
+
+def test_progress_transition_room_position(manager, hass, monkeypatch):
+    """[PROG-T1] When the access-graph + live position detect an intermediate
+    transition room between the last-completed room and the next queued room,
+    the snapshot's position_room_id (the animal-icon room the card draws) becomes
+    that transition room id — even though it is NOT in the queue and
+    current_room_id is preserved as the next unfinished queued room.
+
+    Covers core/manager.py::get_job_progress_snapshot line 3236 (the
+    `position_room_id = transition_room_id` branch). The branch only runs when
+    status == 'started', a current room is derived, AND completed_room_ids is
+    non-empty (it needs a last-completed room to walk *from*).
+
+    Setup: queue [1, 2] with room 1 completed and room 2 the in-progress room.
+    Because room 2 is the only remaining unresolved room, the timing-rollover
+    helper returns early (a final room never rolls), so current_room_id stays 2
+    deterministically and no EVENT_ROOM_FINISHED / timers are scheduled. We keep
+    the current-room elapsed (2 min) below its 5-min estimate so the bounds-exit
+    / stall machinery never engages — the only behaviour under test is the
+    transition-room substitution.
+
+    The real _detect_transition_room_from_position consults the access graph and
+    live robot-position entities (neither present in this harness, so it would
+    return None and the branch would be a no-op). We monkeypatch it to a fixed
+    99 to prove the snapshot actually *uses* its return value for the icon
+    position while leaving current_room_id intact.
+    """
+    _wire(manager, hass)
+    _seed_job(
+        manager,
+        minutes_ago=2,  # elapsed (~2m) < 5m estimate → no bounds-exit/stall
+        completed_room_ids=[1],
+        completed_rooms=[{"room_id": 1, "actual_duration_minutes": 4.0}],
+        current_room_id=2,
+    )
+    hass.states.async_set(_VAC, "cleaning")
+
+    # Force the access-graph/position detector to report an intermediate
+    # transition room (99) the robot is passing through between room 1 → room 2.
+    # Keyword-only signature (vacuum_entity_id/map_id/from_room_id/to_room_id);
+    # a **kw lambda accepts them all and asserts nothing about call shape.
+    monkeypatch.setattr(
+        manager, "_detect_transition_room_from_position", lambda **kw: 99
+    )
+
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    # The animal-icon room follows the detected transition room (line 3236)...
+    assert snap["position_room_id"] == 99
+    # ...while the queued-progress current room is preserved as the next
+    # unfinished queued room (room 2), so timeline is_current flags stay correct.
+    assert snap["current_room_id"] == 2
+    # The transition room is purely positional: it must not be invented into the
+    # timeline / queue accounting.
+    assert 99 not in [r.get("room_id") for r in snap["timeline"]]
+    assert 99 not in snap["completed_room_ids"]
+    assert 99 not in snap["remaining_room_ids"]
+    # Sanity: the branch's preconditions held (started job with a completed room).
+    assert snap["status"] == "started"
+    assert 1 in snap["completed_room_ids"]
+
+
+def test_progress_transition_room_none_falls_back_to_current(manager, hass, monkeypatch):
+    """[PROG-T1] Companion negative: when the detector finds no transition room
+    (returns None — the real behaviour with no access graph / position data),
+    position_room_id falls back to current_room_id (the `position_room_id =
+    current_room_id` initializer is left untouched). Proves the line-3236
+    substitution is gated on a non-None detection."""
+    _wire(manager, hass)
+    _seed_job(
+        manager,
+        minutes_ago=2,
+        completed_room_ids=[1],
+        completed_rooms=[{"room_id": 1, "actual_duration_minutes": 4.0}],
+        current_room_id=2,
+    )
+    hass.states.async_set(_VAC, "cleaning")
+
+    monkeypatch.setattr(
+        manager, "_detect_transition_room_from_position", lambda **kw: None
+    )
+
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+
+    assert snap["position_room_id"] == snap["current_room_id"] == 2

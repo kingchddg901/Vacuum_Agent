@@ -18,6 +18,10 @@ Coverage targets
 [LS-3]  get_start_status: a paused job blocks the start (reason job_paused).
 [LS-4]  get_start_status: incomplete floor-type onboarding blocks (onboarding_required).
 [LS-5]  get_start_status: every selected room blocked → all_selected_rooms_blocked.
+[LS-6]  get_lifecycle_state: adapter vocabulary is read + lower-cased when the
+        caller omits the explicit sets (the _vocab_frozenset raw-present branch).
+[LS-7]  get_lifecycle_state: after start clears the payload, the active job's
+        rooms + payload are folded into the lifecycle metadata (the fallback copy).
 """
 
 from __future__ import annotations
@@ -190,6 +194,129 @@ def test_start_status_water_warning(manager, hass, monkeypatch, estimate, reason
 
 
 # ---------------------------------------------------------------------------
+# get_lifecycle_state — adapter-vocabulary lookup + active-job payload fallback
+#
+# These exercise the two internal branches the dashboard relies on but which
+# none of the LS-1..5 tests reach, because those pass no adapter config:
+#   * _vocab_frozenset (the raw-present branch): the adapter's vocabulary is
+#     read AND lower-cased when the caller omits the explicit sets.
+#   * the post-start fallback: once a run starts and the prepared payload is
+#     cleared, lifecycle metadata is rebuilt from the running job's rooms.
+# ---------------------------------------------------------------------------
+
+_VOCAB_ADAPTER = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {
+        # task_status feeds evaluate_job_lifecycle's hard-service check.
+        "task_status": "sensor.alfred_task",
+    },
+    # Mixed-case on purpose: a faithful match only happens if get_lifecycle_state
+    # lower-cases the vocab (manager.py:2071) the same way _norm lower-cases the
+    # live entity state. drying/active_run lists are empty → those keys fall back.
+    "vocabulary": {
+        "hard_service_states": ["Washing Mop"],
+        "drying_states": [],
+        "active_run_task_states": ["Cleaning"],
+    },
+}
+
+
+def test_lifecycle_reads_and_lowercases_adapter_vocabulary(manager, hass):
+    """[LS-6] omitting the explicit sets drives the adapter-vocabulary lookup.
+
+    Registering ``hard_service_states: ["Washing Mop"]`` (mixed case) and setting
+    the task-status entity to the same mixed-case string is a hard-service match
+    ONLY if the vocab was read and lower-cased by ``_vocab_frozenset`` — the
+    live entity side is lower-cased by ``_norm`` regardless. So a resulting
+    ``mid_job_service`` lifecycle is the observable proof the raw-present branch
+    (manager.py:2071) executed; an empty-fallback frozenset would never match
+    and the state would fall through to ``ready``.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _VOCAB_ADAPTER)
+    try:
+        hass.states.async_set("sensor.alfred_task", "Washing Mop")
+
+        # NOTE: no hard_service_states/drying_states/active_run_task_states args
+        # → the manager must source them from the adapter registry (lines 2065-2079).
+        out = manager.get_lifecycle_state(vacuum_entity_id=_VAC, map_id=_MAP)
+
+        # structural: the lifecycle surface the card consumes.
+        assert out["vacuum_entity_id"] == _VAC
+        assert out["map_id"] == _MAP
+        assert "lifecycle_state" in out and "message" in out and "blocking" in out
+        # behavioural: the lower-cased vocab matched the lower-cased task status.
+        assert out["lifecycle_state"] == "mid_job_service"
+        assert out["blocking"] is True
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+def test_lifecycle_falls_back_to_active_job_rooms_after_start(manager, hass):
+    """[LS-7] a started run whose prepared payload was cleared still reports rooms.
+
+    After dispatch the manager clears the prepared payload (``get_payload_state``
+    then yields empty ``resolved_rooms`` and an empty ``payload``). The lifecycle
+    builder must fall back to the *running* job's room list (manager.py:2105-2107)
+    and its payload (manager.py:2108-2109) so the dashboard keeps describing the
+    in-flight run. We observe the copy via ``job_metadata``: the room count/ids
+    come from the job's resolved_rooms, and the map_id comes from the job's
+    payload — a sentinel that the default payload (map_id == _MAP) would never
+    produce, so it can only be present if line 2109 copied it.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    try:
+        # Stored payload state with NO selection — empty resolved_rooms AND a
+        # falsy payload ({}) so both fallback copies (2107 + 2109) are exercised.
+        manager.data.setdefault("payloads", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC,
+            "map_id": _MAP,
+            "payload": {},
+            "resolved_rooms": [],
+            "room_count": 0,
+        }
+        # A live, started job carrying the run's rooms + a sentinel payload map_id.
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC,
+            "map_id": _MAP,
+            "status": "started",
+            "job_id": "j-ls7",
+            "resolved_rooms": [
+                {"room_id": 1, "slug": "kitchen", "name": "Kitchen"},
+                {"room_id": 2, "slug": "den", "name": "Den"},
+            ],
+            "payload": {
+                "map_id": "EXT-SENTINEL",
+                "rooms": [{"id": 1}, {"id": 2}],
+            },
+        }
+        # Sanity: the public payload-state surface really has no selection, so the
+        # fallback (not a pre-populated payload) is what supplies the rooms below.
+        ps = manager.get_payload_state(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert ps.get("resolved_rooms") == []
+        assert not ps.get("payload")
+
+        out = manager.get_lifecycle_state(vacuum_entity_id=_VAC, map_id=_MAP)
+
+        meta = out["job_metadata"]
+        # resolved_rooms fallback (line 2107): two rooms from the running job.
+        assert meta["room_count"] == 2
+        assert meta["room_ids"] == [1, 2]
+        # payload fallback (line 2109): the job's payload map_id, not the default.
+        assert meta["map_id"] == "EXT-SENTINEL"
+        assert out["active_job_exists"] is True
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+# ---------------------------------------------------------------------------
 # maybe_handle_external_run + _external_grace_finalize — app-started run
 # detection and the dock grace-window finalize. Real manager, real timers
 # driven by async_fire_time_changed (no wall-clock sleeps).
@@ -348,3 +475,233 @@ async def test_external_grace_finalize_defers_when_mid_run(manager, hass):
         for _cancel in list(manager._external_grace_timers().values()):
             _cancel()
         unregister_adapter_config(_VAC)
+
+
+# ---------------------------------------------------------------------------
+# External-grace state-machine residual branches — the in-progress slot that
+# neither resumed nor docked, the two _external_status_is_mid_run guard rails,
+# and the two _external_grace_finalize early-outs (slot already cleared / the
+# robot raced the cancel back to cleaning). All real manager, no wall clock.
+#
+# [EXT-5] in-progress external slot + vacuum state NOT cleaning/docked/idle
+#         (e.g. "paused") → no-op: returns False, schedules NO grace timer.
+# [EXT-6] _external_status_is_mid_run False when the adapter declares no
+#         external_mid_run_statuses (the empty-list guard).
+# [EXT-7] _external_status_is_mid_run False when mid-run statuses exist but the
+#         adapter wires no task_status entity (nothing to read).
+# [EXT-8] _external_grace_finalize early-out when the slot is no longer
+#         "external" (already resumed/cleared): no finalize, slot stays cleared.
+# [EXT-9] _external_grace_finalize early-out when the robot raced the cancel back
+#         to "cleaning": the slot is left "external" for the next dock.
+# ---------------------------------------------------------------------------
+
+# An adapter that declares mid-run statuses but NO task_status entity wiring,
+# for the _external_status_is_mid_run "no entity" guard ([EXT-7]).
+_EXT_ADAPTER_NO_TASK = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {"active_map": "sensor.alfred_active_map"},
+    "external_mid_run_statuses": ["washing mop"],
+}
+
+# An adapter with NO mid-run statuses declared, for the empty-list guard ([EXT-6]).
+_EXT_ADAPTER_NO_MIDRUN = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {
+        "active_map": "sensor.alfred_active_map",
+        "task_status": "sensor.alfred_task",
+    },
+}
+
+
+async def test_external_run_noop_when_state_neither_cleaning_nor_home(manager, hass):
+    """[EXT-5] external slot open but the vacuum is in a state that is neither
+    "cleaning" (resume) nor "docked"/"idle" (dock) — e.g. "paused" — so the state
+    machine does nothing: returns False and schedules no grace finalize."""
+    _ext_setup(manager)
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "paused")  # not cleaning, not docked/idle
+
+        handled = await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+
+        assert handled is False
+        # neither cancelled nor scheduled a finalize: the slot just stays open.
+        assert (_VAC, "6") not in manager._external_grace_timers()
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "external"
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+def test_external_status_mid_run_false_without_declared_statuses(manager, hass):
+    """[EXT-6] an adapter that declares no external_mid_run_statuses can never be
+    mid-run — even if the task_status entity currently reads a wash cycle."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _EXT_ADAPTER_NO_MIDRUN)
+    try:
+        hass.states.async_set("sensor.alfred_task", "Washing Mop")
+        assert manager._external_status_is_mid_run(_VAC) is False
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_external_status_mid_run_false_without_task_entity(manager, hass):
+    """[EXT-7] mid-run statuses are declared but the adapter wires no task_status
+    entity → there is nothing to read, so it is never treated as mid-run."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _EXT_ADAPTER_NO_TASK)
+    try:
+        assert manager._external_status_is_mid_run(_VAC) is False
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_grace_finalize_skips_when_slot_not_external(manager, hass):
+    """[EXT-8] the grace timer fired, but the slot is no longer "external" (the run
+    already resumed or was cleared). _external_grace_finalize early-outs: it does
+    not finalize, does not reschedule, and leaves the cleared slot untouched."""
+    _ext_setup(manager)
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        manager.clear_active_job(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "docked")
+
+        await manager._external_grace_finalize(_VAC, "6")
+
+        # slot stays cleared (idle); nothing rescheduled.
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "idle"
+        assert (_VAC, "6") not in manager._external_grace_timers()
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_grace_finalize_skips_when_raced_back_to_cleaning(manager, hass):
+    """[EXT-9] the grace timer fired but the robot raced the cancel and is "cleaning"
+    again. _external_grace_finalize early-outs on the not-docked/idle guard: the
+    external slot is LEFT open for the next dock rather than being finalized."""
+    _ext_setup(manager)
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id="6")
+        hass.states.async_set(_VAC, "cleaning")  # resumed — not docked/idle
+
+        await manager._external_grace_finalize(_VAC, "6")
+
+        # not finalized: the run is still one open external record.
+        slot = manager.get_active_job(vacuum_entity_id=_VAC, map_id="6")
+        assert slot["status"] == "external"
+        assert (_VAC, "6") not in manager._external_grace_timers()
+    finally:
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+# ---------------------------------------------------------------------------
+# _resolve_active_map_id — the adapter active_map -> map id lookup the external-
+# run capture path keys on. Synchronous, no timers scheduled; reads only the
+# registry + hass.states, so it's fully deterministic. Reuses the EXT recipe:
+# register_adapter_config in setup, unregister in a finally.
+#
+# [EXT-5a] no active_map entity configured -> None (2496); a configured entity
+#          whose state is missing / unknown / unavailable / none / blank -> None
+#          (2500); a real map-id state -> str(value).
+# ---------------------------------------------------------------------------
+
+# Adapter config WITH an active_map entity wired (case b/c below). Kept minimal
+# so it validates clean (no mapping/dispatch/job_segmenter blocks).
+_RESOLVE_ADAPTER_WITH_MAP = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {"active_map": "sensor.alfred_active_map"},
+}
+
+# Adapter config with an entities block but NO active_map key (case d / line 2496).
+_RESOLVE_ADAPTER_NO_MAP = {
+    "adapter_id": "t",
+    "source": "t",
+    "entities": {"task_status": "sensor.alfred_task"},
+}
+
+
+@pytest.mark.parametrize(
+    "missing_state",
+    ["unknown", "unavailable", "none", ""],
+)
+def test_resolve_active_map_id_missing_state_returns_none(
+    manager, hass, missing_state
+):
+    """[EXT-5a] a configured active_map entity in a non-value state -> None (2500).
+
+    Covers every sentinel the guard rejects (unknown/unavailable/none/blank)
+    plus, via the no-set case below, the entity-absent-from-the-state-machine
+    branch (state_obj is None -> getattr default None)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _RESOLVE_ADAPTER_WITH_MAP)
+    try:
+        hass.states.async_set("sensor.alfred_active_map", missing_state)
+        assert manager._resolve_active_map_id(_VAC) is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_resolve_active_map_id_unset_entity_returns_none(manager, hass):
+    """[EXT-5a] entity configured but never set in the state machine -> None (2500).
+
+    state_obj is None, so getattr(state_obj, "state", None) is None and the
+    sentinel guard returns None — the run-not-started case the capture path sees
+    before the device reports its active map."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _RESOLVE_ADAPTER_WITH_MAP)
+    try:
+        # deliberately do NOT async_set sensor.alfred_active_map
+        assert hass.states.get("sensor.alfred_active_map") is None
+        assert manager._resolve_active_map_id(_VAC) is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_resolve_active_map_id_returns_value(manager, hass):
+    """[EXT-5a] a configured active_map entity with a real map id -> str(value)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _RESOLVE_ADAPTER_WITH_MAP)
+    try:
+        hass.states.async_set("sensor.alfred_active_map", _MAP)
+        resolved = manager._resolve_active_map_id(_VAC)
+        assert resolved == _MAP
+        assert isinstance(resolved, str)
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_resolve_active_map_id_no_entity_configured_returns_none(manager, hass):
+    """[EXT-5a] adapter config has no active_map entity -> None (2496).
+
+    The `if not entity_id` guard short-circuits before any state lookup, so even
+    with a populated state machine the resolver yields None when the brand maps
+    no active-map signal."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _RESOLVE_ADAPTER_NO_MAP)
+    try:
+        # a populated state would resolve if active_map were wired — prove the
+        # guard ignores it because no active_map entity is configured.
+        hass.states.async_set("sensor.alfred_active_map", _MAP)
+        assert manager._resolve_active_map_id(_VAC) is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_resolve_active_map_id_no_adapter_config_returns_none(manager, hass):
+    """[EXT-5a] no adapter registered at all -> None (2496 via empty cfg).
+
+    get_adapter_config returns None, the `or {}` yields an empty cfg, and the
+    missing active_map entity hits the same 2496 guard. No register/unregister
+    needed; the registry is left clean."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    assert manager._resolve_active_map_id(_VAC) is None

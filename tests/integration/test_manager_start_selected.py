@@ -227,3 +227,84 @@ async def test_start_run_profile_success(manager, hass):
     assert res["started"] is True
     assert res["profile_id"] == pid
     assert len(calls) == 1
+
+
+async def test_clear_room_selections_after_start_flips_enabled_room(manager, hass):
+    """[CSS-1] _clear_room_selections_after_start changed path: an enabled room
+    flips to enabled=False while an already-disabled room is left untouched, and
+    because something changed the summary is rebuilt to reflect zero enabled.
+
+    setup_map(count=2) seeds both rooms enabled by default; room "2" is then
+    explicitly disabled, so the clear must flip only room "1" (line 626-630),
+    skip the already-off room "2" (line 625), and run the changed-tail (line 636).
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    set_room_field(manager, 2, enabled=False)
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+
+    # Precondition: room "1" enabled (changed path), room "2" already off (line 625).
+    assert rooms["1"]["enabled"] is True
+    assert rooms["2"]["enabled"] is False
+
+    manager._clear_room_selections_after_start(
+        vacuum_entity_id=_VAC, map_id=_MAP)
+
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    # Changed path (line 626-630): the enabled room is now off.
+    assert rooms["1"]["enabled"] is False
+    # Already-off room left exactly as-is (line 625 skip).
+    assert rooms["2"]["enabled"] is False
+    # Other per-room fields survive the flip (only `enabled` is rewritten).
+    assert rooms["1"]["name"] == "Room 1"
+    # Something changed → the summary was rebuilt (the changed-tail ran).
+    assert manager.data["maps"][_VAC][_MAP]["summary"]["enabled_count"] == 0
+
+
+async def test_clear_room_selections_after_start_noop_skips_and_returns(
+    manager, hass
+):
+    """[CSS-2] Skip + early-return branches: a non-dict room entry is skipped
+    (line 623), an already-disabled room is skipped (line 625), and with nothing
+    enabled the method early-returns before rebuilding the summary (line 633),
+    leaving every entry — including the non-dict one — untouched. Separately, a
+    map id with no rooms returns without raising (line 618).
+
+    The non-dict entry is asserted only on this no-change path on purpose: the
+    changed-tail summary builder requires numeric-keyed dict rooms, so a non-dict
+    entry can only coexist with a call that takes the line-633 early return.
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+    # Disable the only real room so the flip loop has a disabled dict to skip
+    # (line 625) and nothing left enabled → line-633 early return.
+    set_room_field(manager, 1, enabled=False)
+    rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
+    rooms["junk"] = "x"   # non-dict entry the flip loop must skip (line 623)
+
+    before = {
+        k: (dict(v) if isinstance(v, dict) else v) for k, v in rooms.items()
+    }
+    # Sanity: no enabled rooms remain, so the flip loop changes nothing.
+    assert all(
+        not v.get("enabled", False)
+        for v in before.values()
+        if isinstance(v, dict)
+    )
+
+    manager._clear_room_selections_after_start(
+        vacuum_entity_id=_VAC, map_id=_MAP)
+
+    after = {
+        k: (dict(v) if isinstance(v, dict) else v)
+        for k, v in manager.data["maps"][_VAC][_MAP]["rooms"].items()
+    }
+    # Nothing changed (line 633 early-return): every entry — including the
+    # non-dict one (line 623 skip) — is exactly as it was.
+    assert after == before
+    assert after["junk"] == "x"
+
+    # Empty/no-rooms map id → ensure_map_bucket yields rooms={} → returns (line 618).
+    manager._clear_room_selections_after_start(
+        vacuum_entity_id=_VAC, map_id="no_such_map")
+    assert manager.data["maps"][_VAC]["no_such_map"]["rooms"] == {}

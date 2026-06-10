@@ -15,7 +15,7 @@ Coverage targets
 
 from __future__ import annotations
 
-from custom_components.eufy_vacuum.learning.manager import _settings_profile_label
+from custom_components.eufy_vacuum.learning.manager import _profile_name_label, _settings_profile_label
 
 
 def test_settings_profile_label_full_subtitle():
@@ -52,3 +52,65 @@ def test_settings_profile_label_defaults_omit_optional_bits():
     assert "Passes" not in sub        # single pass omitted
     assert "Edge Mopping" not in sub  # edge off omitted
     assert "Off" not in sub           # water "off" omitted
+
+
+def test_settings_profile_label_preset_selected_via_resolved():
+    """[SPL-3] preset selected != resolved → subtitle shows 'Selected via Resolved' (line 186).
+
+    selected='vacuum_quick' is a known preset (so is_custom stays False) but differs
+    from the resolved preset 'vacuum_deep', so the first subtitle branch fires and
+    emits the bridge label 'Vacuum Quick via Vacuum Deep'.
+    """
+    out = _settings_profile_label(
+        selected_profile_name="vacuum_quick",
+        resolved_profile_name="vacuum_deep",
+        clean_mode="vacuum",
+    )
+    assert out["is_custom_profile"] is False
+    sub = out["profile_subtitle"] or ""
+    assert "Vacuum Quick via Vacuum Deep" in sub
+    assert out["selected_profile_label"] == "Vacuum Quick"
+    assert out["resolved_profile_label"] == "Vacuum Deep"
+
+
+def test_settings_profile_label_custom_falls_back_to_resolved():
+    """[SPL-4] custom/no-selected path → subtitle shows resolved label alone (line 188).
+
+    selected='custom' forces is_custom True, skipping the preset branch; the elif
+    appends the resolved label 'Vacuum Deep' on its own.
+    """
+    out = _settings_profile_label(
+        selected_profile_name="custom",
+        resolved_profile_name="vacuum_deep",
+        clean_mode="vacuum",
+    )
+    assert out["is_custom_profile"] is True
+    sub = out["profile_subtitle"] or ""
+    assert "Vacuum Deep" in sub
+    assert "via" not in sub  # bridge branch (line 186) did NOT fire
+
+
+# ---------------------------------------------------------------------------
+# _profile_name_label — friendly label for a preset/custom profile name.
+#
+# [PNL-1] a replacement-keyed name maps to its curated label (replacements
+#         branch, lines 142-143).
+# [PNL-2] a non-empty, non-keyed name falls through to _display_label(normalized)
+#         (line 144 fallback) — e.g. 'morning_deep' -> 'Morning Deep'.
+# [PNL-3] an empty value short-circuits to None (empty-text guard, lines 131-132).
+# ---------------------------------------------------------------------------
+
+
+def test_profile_name_label_replacement_keyed():
+    """[PNL-1] curated replacement key wins over the generic fallback."""
+    assert _profile_name_label("vacuum_quick") == "Vacuum Quick"
+
+
+def test_profile_name_label_fallback_display_label():
+    """[PNL-2] non-keyed name title-cases via _display_label (line 144)."""
+    assert _profile_name_label("morning_deep") == "Morning Deep"
+
+
+def test_profile_name_label_empty_is_none():
+    """[PNL-3] empty value returns None (no label to build)."""
+    assert _profile_name_label("") is None

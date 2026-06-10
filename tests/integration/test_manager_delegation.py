@@ -18,11 +18,14 @@ Coverage targets
 [MD-4]  run-plan delegations (incl. get_runtime_path_block_report).
 [MD-5]  room CRUD + maps delegations.
 [MD-6]  upkeep / maintenance delegations.
+[CMR-1] _find_button_entity_by_tokens: prefix-skip + all-tokens match + None miss.
 """
 
 from __future__ import annotations
 
 import pytest
+
+from homeassistant.helpers import entity_registry as er
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
@@ -166,6 +169,42 @@ def test_notify_callback_resilience(manager, register, notify):
     assert seen, "the surviving callback should still fire after one raises"
 
 
+def test_find_button_entity_by_tokens(manager):
+    """[CMR-1] _find_button_entity_by_tokens scans the entity registry for a
+    button whose entity_id starts with ``button.<object_id>_`` and contains
+    every required token.
+
+    Covers manager.py:803 (skip a registry entity whose id doesn't match the
+    ``button.<object_id>_`` prefix) and :806 (return None when no entity carries
+    all required tokens). The match path returns the matching ``entry.entity_id``.
+    """
+    reg = er.async_get(manager.hass)
+    # The target reset button for vacuum object_id "alfred".
+    reg.async_get_or_create(
+        "button", "eufy_vacuum", "uid_reset",
+        suggested_object_id="alfred_main_brush_reset",
+    )
+    # An unrelated button whose id fails the button.alfred_ prefix → exercises
+    # the prefix-skip continue (803). It carries the same tokens, so if the
+    # prefix gate were absent it would be a false positive.
+    reg.async_get_or_create(
+        "button", "eufy_vacuum", "uid_other",
+        suggested_object_id="other_main_brush_reset",
+    )
+    assert manager.hass.states.get("button.alfred_main_brush_reset") is None
+
+    # Match path: prefix matches and all tokens present → returns the entity_id.
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["main_brush", "reset"],
+    ) == "button.alfred_main_brush_reset"
+
+    # Miss path (806): a token no registered button carries → None, even though
+    # the prefix-matching button.alfred_main_brush_reset exists.
+    assert manager._find_button_entity_by_tokens(
+        object_id="alfred", required_tokens=["nonexistent"],
+    ) is None
+
+
 def test_remaining_delegations_forward(mgr):
     """[MD-8] the remaining manager seams forward to their subsystems without
     AttributeError — the #11/#13 bug-class net (a delegation lost in a refactor).
@@ -210,3 +249,56 @@ def test_remaining_delegations_forward(mgr):
     assert isinstance(mgr._confirmation_token_for_preflight(
         vacuum_entity_id=_VAC, map_id=_MAP,
         selected_room_ids=[1, 2], included_room_ids=[1], blocked_room_ids=[2]), str)
+
+
+@pytest.mark.parametrize("method", [
+    "async_wash_mop",
+    "async_dry_mop",
+    "async_empty_dust",
+    "async_stop_dry_mop",
+])
+async def test_async_dock_action_delegations(mgr, method):
+    """[MD-9] async dock-action delegations forward to DockManager.
+
+    async_wash_mop / async_dry_mop / async_empty_dust / async_stop_dry_mop are
+    the manager's async delegations; each awaits
+    DockManager._async_run_dock_action and returns its dict. With the bare mgr
+    fixture (no docked vacuum_state, no dock action button entities) the action
+    is gated, so a *blocked* dict comes back — which still covers the delegation
+    line and proves the await/forward wiring is intact (the #11/#13 bug-class).
+    """
+    out = await getattr(mgr, method)(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert isinstance(out, dict)
+    # The gated path returns the structured action result, not a bare {}.
+    assert out["performed"] is False
+    assert out["allowed"] is False
+    assert "reason" in out
+
+
+@pytest.mark.parametrize("method,flag,reason", [
+    ("async_pause_active_job", "paused", "no_started_job"),
+    ("async_resume_active_job", "resumed", "no_paused_job"),
+    ("async_cancel_active_job", "cancelled", "no_active_job"),
+])
+async def test_async_job_control_delegations(mgr, method, flag, reason):
+    """[MD-8] async job-control delegations forward to ActiveJobTracker.
+
+    async_pause_active_job / async_resume_active_job / async_cancel_active_job
+    are the manager's async delegations (manager.py:3526/3530/3534); each awaits
+    the matching ActiveJobTracker coroutine and returns its dict. With the bare
+    mgr fixture no active job is seeded, so the tracked job is the default
+    ``status == "idle"`` state. Each method therefore takes its no-job
+    short-circuit *before* issuing any ``vacuum.*`` service call or entering the
+    cancel-confirm poll loop, returning a structured negative-result dict. That
+    still covers the delegation/forward line and proves the await wiring is
+    intact (the #11/#13 bug-class), while keeping the test deterministic — no
+    real services, no asyncio.sleep, no timers to cancel.
+    """
+    out = await getattr(mgr, method)(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert isinstance(out, dict)
+    # The no-job path returns the structured negative result, not a bare {}.
+    assert out[flag] is False
+    assert out["reason"] == reason
+    assert out["vacuum_entity_id"] == _VAC
+    assert out["map_id"] == _MAP
+    assert isinstance(out["active_job"], dict)
