@@ -1887,6 +1887,52 @@ async def test_async_preload_learning_stats_guard_when_cached(hass, learning_ser
     assert _VAC not in learning._learning_stats_loading
 
 
+async def test_confirm_external_run_service_refreshes_cache(hass, learning_services, monkeypatch):
+    """[LS-40] the confirm-external-run SERVICE handler invalidates + preloads the
+    learning-stats cache after a successful confirm with rebuild_stats, so the card
+    sees the graduated job (services.py handle_confirm_external_run 283-290).
+    confirm_external_run is covered by CXR; it's stubbed here to isolate the
+    handler's post-confirm cache refresh."""
+    from custom_components.eufy_vacuum.const import DOMAIN
+    from custom_components.eufy_vacuum.learning.services import (
+        SERVICE_CONFIRM_EXTERNAL_RUN,
+        _get_learning_manager,
+    )
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    core_manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    learning = _get_learning_manager(hass)
+
+    monkeypatch.setattr(
+        core_manager, "confirm_external_run",
+        lambda *a, **k: {"ok": True, "job_id": "ext-x", "rebuilt": True},
+    )
+    invalidated: list = []
+    preloaded: list = []
+    monkeypatch.setattr(
+        learning, "_invalidate_learning_stats_cache",
+        lambda *, vacuum_entity_id: invalidated.append(vacuum_entity_id),
+    )
+    monkeypatch.setattr(
+        learning, "async_preload_learning_stats",
+        lambda *, vacuum_entity_id: preloaded.append(vacuum_entity_id),
+    )
+
+    result = await hass.services.async_call(
+        DOMAIN, SERVICE_CONFIRM_EXTERNAL_RUN,
+        {
+            "vacuum_entity_id": _VAC, "map_id": _MAP,
+            "pending_job_id": "job_x", "room_assignments": [{"room_id": 1}],
+            "rebuild_stats": True,
+        },
+        blocking=True, return_response=True,
+    )
+
+    assert result["ok"] is True
+    assert invalidated == [_VAC]  # cache invalidated for the vacuum ...
+    assert preloaded == [_VAC]    # ... and preloaded so the card refreshes
+
+
 # ---------------------------------------------------------------------------
 # _detect_cancel_likely_run — helpers + branch coverage [LS-40..LS-47]
 # ---------------------------------------------------------------------------
