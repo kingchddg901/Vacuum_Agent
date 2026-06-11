@@ -1663,6 +1663,52 @@ async def test_finalize_completed_job_sync_path(hass, learning_services):
     assert result.get("vacuum_entity_id") == _VAC
 
 
+async def test_finalize_overhead_observed_from_transit_capture(hass, learning_services):
+    """[LS-35b] when the built job is transit_capture_valid, finalize enriches
+    job.overhead_observed: inter_room_minutes is the OBSERVED summed transit
+    (not the cleaning-time-derived base). Drives job_finalizer 729-739 — the
+    per-room transit enrichment branch, reachable only with captured transitions.
+    Reuses the proven two-room counter-sample stream from the history-store suite.
+    """
+    from custom_components.eufy_vacuum.const import DOMAIN
+    from custom_components.eufy_vacuum.learning.services import _get_learning_manager
+    from tests.unit.test_learning_history_store import _TWO_ROOM_SAMPLES
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    learning = _get_learning_manager(hass)
+
+    # seed an active job carrying the captured counter stream + queue so the
+    # build segments it into two rooms (transit_capture_valid=True).
+    _seed_active_job(
+        learning_services, _VAC, _MAP,
+        started_at="2026-01-01T09:00:00+00:00",
+        queue_room_ids=[1, 2],
+        queue_rooms=[{"room_id": 1, "slug": "kitchen"}, {"room_id": 2, "slug": "bath"}],
+        resolved_rooms=[{"room_id": 1, "slug": "kitchen"}, {"room_id": 2, "slug": "bath"}],
+        counter_samples=_TWO_ROOM_SAMPLES,
+    )
+
+    result = await hass.async_add_executor_job(
+        lambda: learning.finalize_completed_job(
+            manager=core_manager,
+            vacuum_entity_id=_VAC,
+            map_id=_MAP,
+            battery_start=85,
+            battery_end=60,
+            started_at="2026-01-01T09:00:00+00:00",
+            ended_at="2026-01-01T09:30:00+00:00",
+            used_for_learning=False,
+            rebuild_stats=False,
+        )
+    )
+    job = result["completed_job"]["job"]
+    assert job["transit_capture_valid"] is True
+    assert job["transitions"][0]["transit_seconds"] == 330
+    # the enrichment overrode inter_room_minutes with the observed transit sum
+    # (330s / 60 = 5.5), proving the capture-valid branch ran (not the base).
+    assert job["overhead_observed"]["inter_room_minutes"] == 5.5
+
+
 # ---------------------------------------------------------------------------
 # [LS-36] finalize with rebuild_stats=True, rebuild_csv=True
 # ---------------------------------------------------------------------------
