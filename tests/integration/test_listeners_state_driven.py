@@ -345,6 +345,73 @@ async def test_lifecycle_active_starts_mapping_trace_job(hass, manager, monkeypa
     assert started["args"][1] == _MAP
 
 
+async def test_lifecycle_advance_phase_skips_finalize_and_saves(hass, manager, monkeypatch):
+    """[LS-13] When a watched state change drives an active job to completion but
+    manager.maybe_advance_phase(...) returns True (a sequenced job advancing to a
+    next phase), the lifecycle handler must take the re-dispatch branch — set
+    any_changes=True and continue — rather than finalizing (lifecycle.py 247-252).
+
+    Drive it: seed a started active job already past has_observed_active_lifecycle,
+    declare a task_status entity, fire task_status -> 'completed' so the completion
+    check passes, stub maybe_advance_phase True and maybe_handle_external_run False
+    (so the ONLY thing that can set any_changes is the advance-phase branch).
+    Observable effects: finalize_learning_for_active_job is NEVER awaited, and the
+    end-of-pass manager.async_save() runs (proving any_changes became True at 251).
+    """
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_LIFECYCLE)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    # Active, already-moving job: has_observed_active_lifecycle survives
+    # _normalize_active_job (setdefault), so the completion guard at 237 passes.
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started",
+        "vacuum_entity_id": _VAC,
+        "map_id": _MAP,
+        "queue_room_ids": [1],
+        "has_observed_active_lifecycle": True,
+    }
+
+    advance_calls: list[tuple] = []
+    finalize_calls: list[tuple] = []
+    save_calls: list[int] = []
+
+    async def _advance(*, vacuum_entity_id, map_id):
+        advance_calls.append((vacuum_entity_id, map_id))
+        return True  # sequenced job advanced -> caller must skip finalization
+
+    async def _no_external(*, vacuum_entity_id):
+        return False  # isolate any_changes to the advance-phase branch
+
+    async def _finalize(**kwargs):
+        finalize_calls.append(kwargs)
+        return None
+
+    async def _save():
+        save_calls.append(1)
+
+    monkeypatch.setattr(manager, "maybe_advance_phase", _advance)
+    monkeypatch.setattr(manager, "maybe_handle_external_run", _no_external)
+    monkeypatch.setattr(manager, "finalize_learning_for_active_job", _finalize)
+    monkeypatch.setattr(manager, "async_save", _save)
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "cleaning")
+    await hass.async_block_till_done()
+    lifecycle.register(hass)
+
+    # task_status -> completed: completion signals match (active_target is "" since
+    # no active_cleaning_target entity is declared, which is in the clear sentinels).
+    hass.states.async_set(_TASK_STATUS_ENTITY, "completed")
+    await hass.async_block_till_done()
+
+    # The advance-phase branch ran: maybe_advance_phase was consulted with this
+    # vacuum/map, finalization was SKIPPED, and the end-of-pass save fired because
+    # any_changes was set True at lifecycle.py:251.
+    assert (_VAC, _MAP) in advance_calls
+    assert finalize_calls == []  # 251 `continue` skipped the finalize path
+    assert save_calls == [1]     # any_changes -> manager.async_save() ran
+
+
 # ---------------------------------------------------------------------------
 # [LS-9] path_blockers
 # ---------------------------------------------------------------------------

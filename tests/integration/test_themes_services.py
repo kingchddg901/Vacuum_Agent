@@ -16,6 +16,8 @@ Coverage targets
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
 
 from homeassistant.exceptions import ServiceValidationError
@@ -92,6 +94,41 @@ async def test_overwrite_theme_service_raises_for_unknown(hass, manager_with_the
             blocking=True,
             return_response=True,
         )
+
+
+async def test_overwrite_theme_service_saves_and_returns_result(hass, manager_with_theme_services):
+    """[TS-3] overwrite_theme success path persists and returns the mutation result.
+
+    Drives the handler past _raise_if_failed (themes/services.py:166) into the
+    save+return tail (167-168): the existing-theme branch returns ok=True, so the
+    handler must call manager.async_save() and return the real result dict.
+    """
+    manager = manager_with_theme_services
+    theme_id = await _save_theme(hass, "Overwrite Me")
+
+    # Spy on the real async_save (wraps -> persistence still runs) to confirm the
+    # handler's save tail executed, while asserting the returned result too.
+    real_async_save = manager.async_save
+    spy = AsyncMock(wraps=real_async_save)
+    manager.async_save = spy
+    try:
+        result = await hass.services.async_call(
+            DOMAIN,
+            "overwrite_theme",
+            {"vacuum_entity_id": _VAC, "theme_id": theme_id},
+            blocking=True,
+            return_response=True,
+        )
+    finally:
+        manager.async_save = real_async_save
+
+    # Returned result is the manager's real overwrite mutation response (line 168).
+    assert result["ok"] is True
+    assert result["theme_id"] == theme_id
+    assert result.get("active_theme_id") == theme_id
+    assert result.get("draft_dirty") is False
+    # The save tail (line 167) ran.
+    spy.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------

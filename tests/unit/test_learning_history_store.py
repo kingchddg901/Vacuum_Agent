@@ -603,6 +603,17 @@ def test_build_completed_job_payload_cancelled_blocks_learning(tmp_path):
     assert "job_cancelled" in payload["outcome"]["learning_blockers"]
 
 
+def test_build_completed_job_payload_interrupted_blocks_learning(tmp_path):
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        **_make_build_args(was_interrupted=True)
+    )
+    assert payload["outcome"]["used_for_learning"] is False
+    assert payload["outcome"]["status"] == "interrupted"
+    assert "job_interrupted" in payload["outcome"]["learning_blockers"]
+    assert payload["outcome"]["was_interrupted"] is True
+
+
 def test_build_completed_job_payload_test_job_blocks_learning(tmp_path):
     store = _make_store(tmp_path)
     payload = store.build_completed_job_payload(**_make_build_args(is_test_job=True))

@@ -2821,3 +2821,53 @@ async def test_finalize_active_job_derives_battery_end_from_entity(hass, learnin
     assert battery.get("end") == _DERIVED_END
     assert battery.get("start") == 90
     assert battery.get("used") == 90 - _DERIVED_END
+
+
+# ---------------------------------------------------------------------------
+# [LS-71] discard_external_run SERVICE handler resolves the manager + delegates
+#         (services.py handle_discard_external_run, lines 358-364)
+# ---------------------------------------------------------------------------
+
+async def test_discard_external_run_service_delegates_to_manager(
+    hass, learning_services, monkeypatch
+):
+    """[LS-71] The discard-external-run SERVICE handler resolves the core manager
+    and delegates to core_manager.discard_external_run, returning its result
+    verbatim (services.py handle_discard_external_run, lines 358-364).
+
+    discard_external_run (the disk-mutating delete of a pending external record)
+    is covered by its own unit tests; it is stubbed here to isolate the handler's
+    two jobs: (1) resolve the runtime core manager via _get_core_manager and
+    (2) hand the schema-validated call fields to the delegate on the executor,
+    then surface its return to the caller. We assert the observable result the
+    card would see AND spy on the exact positional args the delegate received,
+    proving the handler forwarded vacuum_entity_id + pending_job_id in order.
+    """
+    from custom_components.eufy_vacuum.const import DOMAIN
+    from custom_components.eufy_vacuum.learning.services import (
+        SERVICE_DISCARD_EXTERNAL_RUN,
+    )
+
+    core_manager = hass.data[DOMAIN]["runtime"]
+    core_manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+
+    captured: list = []
+
+    def _fake_discard(vacuum_entity_id, pending_job_id):
+        captured.append((vacuum_entity_id, pending_job_id))
+        return {"ok": True, "discarded": pending_job_id}
+
+    monkeypatch.setattr(core_manager, "discard_external_run", _fake_discard)
+
+    result = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_DISCARD_EXTERNAL_RUN,
+        {"vacuum_entity_id": _VAC, "pending_job_id": "ext-pending-99"},
+        blocking=True,
+        return_response=True,
+    )
+
+    # The handler returned the delegate's result unchanged ...
+    assert result == {"ok": True, "discarded": "ext-pending-99"}
+    # ... and forwarded exactly the schema fields, in positional order.
+    assert captured == [(_VAC, "ext-pending-99")]
