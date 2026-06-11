@@ -201,6 +201,50 @@ def test_estimate_full_path(rpm, hass):
     assert len(out["rooms"]) == 1
 
 
+@pytest.mark.parametrize("mode_state, alias, expected_mode, expected_count", [
+    ("By Time", {"by time": "by_time"}, "by_time", 3),  # 60 mop-min // 20-min interval
+    ("Off", {"off": "off"}, "off", 2),                  # 0 cycles, floored to 2 bookends
+])
+def test_estimate_wash_cycles_non_by_room(rpm, hass, mode_state, alias, expected_mode, expected_count):
+    """[RPM-7b/c] non-by_room wash cadence: by_time = projected mop minutes //
+    interval (run_plan 447-448); off / unmapped = 0 cycles, floored to the 2
+    bookend washes (449-450). Only by_room (RPM-7) was covered before."""
+    rm, mgr = rpm
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "water_model_configs": {
+            "X8": {
+                "model_name": "X8 Pro",
+                "robot_internal_tank_ml": 80,
+                "dock_clean_tank_capacity_ml": 4000,
+                "dock_wash_overhead_ml_per_cycle": 100,
+            },
+        },
+        "entities": {
+            "water_level": "sensor.alfred_water",
+            "wash_frequency_mode": "select.wash_mode",
+            "wash_frequency_value_time": "number.wash_interval",
+        },
+        "vocabulary": {"wash_frequency_mode_aliases": alias},
+    })
+    mgr._get_upkeep_model_meta.return_value = {"code": "X8", "name": "X8 Pro"}
+    mgr.get_vacuum_capabilities.return_value = {
+        "entities": {"water_level": "sensor.alfred_water"}}
+    hass.states.async_set("sensor.alfred_water", "75")
+    hass.states.async_set("select.wash_mode", mode_state)
+    hass.states.async_set("number.wash_interval", "20")
+
+    out = rm.estimate_job_water_usage(
+        vacuum_entity_id=_VAC,
+        resolved_rooms=[{"room_id": 1, "name": "Kitchen",
+                         "clean_mode": "vacuum_mop", "water_level": "high"}],
+        room_timeline=[{"room_id": 1, "minutes": 60}],
+    )
+    assert out["available"] is True
+    assert out["wash_frequency_mode"] == expected_mode
+    assert out["wash_cycle_count"] == expected_count
+
+
 def test_estimate_no_station_water_leaves_clean_tank_unknown(rpm, hass):
     """[RPM-7b] no station-water sensor (percent None) → estimate still available
     but the clean-tank fields stay None (arc 476->500: clean-tank block skipped)."""
