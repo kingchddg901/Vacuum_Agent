@@ -14,6 +14,7 @@ Coverage targets
 [ECV-5]  detect_room_segments: assist image → exercises the wall-cut branch.
 [ECV-6]  detect_room_segments: max_segments caps the returned segment count.
 [ECV-7]  detect_room_segments: Pillow/scipy stack unavailable -> pipeline_unavailable.
+[ECV-8]  detect_room_segments: dense adversarial map exercises the CV long tail.
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -128,6 +129,33 @@ def test_detect_segments_pipeline_unavailable_without_cv_stack(tmp_path, monkeyp
     assert result["reason"] == "pipeline_unavailable"
     assert result["segments"] == []
     assert "runtime" in result
+
+
+def test_detect_room_segments_on_dense_adversarial_map():
+    """[ECV-8] a dense SYNTHETIC adversarial map (built by merging then randomly
+    re-segmenting a sparse mapping run — no real-world data) drives the CV long tail
+    that hand-tuned blobs can't reliably reach: the localized-bins child branches,
+    the threshold-tuned artifact heuristics, full per-segment scoring / role / state
+    classification, and the overlap-dedup pass (~33 segmentor lines). Structural
+    assertions only — count band + the classification surface + the multi-role,
+    merge-aware outcome — never exact geometry, since --cov can perturb CV."""
+    fixture = os.path.join(os.path.dirname(__file__), "fixtures", "adversarial_map.png")
+    result = detect_room_segments(image_path=fixture, min_area_pixels=1200)
+
+    assert result["available"] is True
+    segments = result["segments"]
+    assert isinstance(segments, list) and len(segments) >= 10
+    # every segment carries the full public classification surface
+    assert all(
+        {"structural_role", "segmentation_state", "confidence", "edit_readiness", "issues"}
+        <= set(s) for s in segments
+    )
+    roles = {s["structural_role"] for s in segments}
+    states = {s["segmentation_state"] for s in segments}
+    # the dense map exercises the multi-role classifier ...
+    assert {"room", "connector"} <= roles and len(roles) >= 3
+    # ... and the merge-candidate detection (the adversarial 'merged rooms' trait)
+    assert "merged_candidate" in states
 
 
 def test_detect_segments_with_assist_image(tmp_path):
