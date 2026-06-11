@@ -442,6 +442,27 @@ def test_confirm_external_run_graduates_with_override(manager):
     assert [r["slug"] for r in saved["job_profile"]["rooms"]] == ["kitchen"]
 
 
+def test_confirm_external_run_rebuilds_stats(manager):
+    """[CXR-2b] the DEFAULT confirm path (rebuild_stats=True) rebuilds the learning
+    aggregates after graduating the run, so the result reports rebuilt=True — this
+    is the card's normal confirm (the service schema defaults rebuild_stats=True).
+    CXR-2 covers the opted-out (rebuild_stats=False) variant; this drives the
+    rebuild branch at manager.py 2835-2847."""
+    pending_id = "job_cxr2b_rebuild"
+    _write_pending(manager, _VAC, pending_id)
+
+    result = manager.confirm_external_run(
+        _VAC, _MAP, pending_id,
+        room_assignments=[{"segment_orders": [0], "room_id": 1, "override": True}],
+        rooms=_CONFIRM_ROOMS,
+        rebuild_stats=True,
+    )
+
+    assert result["ok"] is True
+    assert result["job_id"] == f"ext-{pending_id}"
+    assert result["rebuilt"] is True  # the rebuild branch ran and succeeded
+
+
 def test_confirm_external_run_blocked_without_override(manager):
     """[CXR-3] without override, an assignment whose segment area (6.0 m²) is far
     outside the room's mature learned band (avg 50 m²) fails the tier-1 identity
