@@ -15,6 +15,7 @@ Coverage targets
 [ECV-6]  detect_room_segments: max_segments caps the returned segment count.
 [ECV-7]  detect_room_segments: Pillow/scipy stack unavailable -> pipeline_unavailable.
 [ECV-8]  detect_room_segments: dense adversarial map exercises the CV long tail.
+[ECV-9]  detect_room_segments: real fused-rooms map drives the localized-bins split.
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -156,6 +157,33 @@ def test_detect_room_segments_on_dense_adversarial_map():
     assert {"room", "connector"} <= roles and len(roles) >= 3
     # ... and the merge-candidate detection (the adversarial 'merged rooms' trait)
     assert "merged_candidate" in states
+
+
+def test_detect_room_segments_on_real_fused_map():
+    """[ECV-9] a real Eufy map run exactly as the integration runs it — DARK primary
+    + LIGHT assist — whose adjacent rooms fuse with the blue background into a single
+    >120k component. This is the only input that reaches the deepest CV tier: the
+    localized-bins SPLIT *accepting* and its child-handling (reclaim / rank / prune of
+    the recovered room pockets), ~10 lines no over-segmented synthetic can touch (the
+    accept gate is a narrow hue window). Structural assertions only — the fused blob
+    must come back as multiple rooms (the split worked) — never exact geometry."""
+    here = os.path.dirname(__file__)
+    result = detect_room_segments(
+        image_path=os.path.join(here, "fixtures", "localized_map_dark.png"),
+        assist_image_path=os.path.join(here, "fixtures", "localized_map_light.png"),
+        image_variant="dark",
+        assist_variant="light",
+        min_area_pixels=1200,
+    )
+    assert result["available"] is True
+    segments = result["segments"]
+    # the fused blue blob was split back into multiple rooms by localized-bins
+    assert isinstance(segments, list) and len(segments) >= 5
+    assert all(
+        {"structural_role", "segmentation_state", "confidence", "edit_readiness", "issues"}
+        <= set(s) for s in segments
+    )
+    assert len({s["structural_role"] for s in segments}) >= 2
 
 
 def test_detect_segments_with_assist_image(tmp_path):
