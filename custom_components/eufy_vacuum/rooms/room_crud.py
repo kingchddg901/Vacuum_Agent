@@ -177,6 +177,12 @@ class RoomMapManager:
         Does not affect the upstream Eufy map.  Callers must fire
         ``_notify_rooms_updated`` afterward so platform callbacks remove
         stale entities.  Returns a summary of what was removed.
+
+        No cross-map access-graph cleanup is needed: ``grants_access_to``
+        targets are bare room IDs scoped to a single map (room identity is
+        vacuum+map+room), and every consumer resolves them only against that
+        same map's room set.  A grant on a remaining map can never reference a
+        room on the map being removed, so there is nothing to strip.
         """
         map_id_str = str(map_id)
         removed: dict[str, Any] = {
@@ -219,17 +225,6 @@ class RoomMapManager:
                 map_id=map_id_str,
             )
             removed["active_job_cleared"] = True
-
-        # Drop stale room-id references from any remaining map's access graph.
-        remaining_maps = self._manager.data.get("maps", {}).get(vacuum_entity_id, {})
-        for other_bucket in remaining_maps.values():
-            for room in other_bucket.get("rooms", {}).values():
-                gat = room.get("grants_access_to")
-                if isinstance(gat, list) and gat:
-                    room["grants_access_to"] = [
-                        rid for rid in gat
-                        if rid not in removed.get("_deleted_room_ids", set())
-                    ]
 
         return removed
 

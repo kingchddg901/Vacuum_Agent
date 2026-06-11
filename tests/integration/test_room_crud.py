@@ -12,6 +12,10 @@ Coverage targets
 [RC-3] remove_map deletes the bucket + reports removals.
 [RC-4] get_vacuum_maps summarizes known maps.
 [RC-5] rebuild_map rebuilds from discovery.
+[RC-6] remove_map clears related history/rule/active-job state.
+[RC-7] discover_rooms runs discovery + caches the payload.
+[RC-8] remove_map leaves sibling maps' access-graph grants untouched
+       (grants are map-scoped room IDs; nothing to strip cross-map).
 """
 
 from __future__ import annotations
@@ -100,22 +104,56 @@ def test_rebuild_map(rmm):
 
 def test_remove_map_clears_related_state(rmm):
     """[RC-6] remove_map also clears history / rule-status / active-job slots and
-    walks remaining maps' access graphs."""
+    leaves any remaining map's access graph untouched."""
     rm, mgr = rmm
     _seed_discovery(mgr, _DISCOVERED)
     rm.save_managed_rooms(vacuum_entity_id=_VAC, map_id=_MAP)
     mgr.data.setdefault("room_history", {}).setdefault(_VAC, {})[_MAP] = {"1": {}}
     mgr.data.setdefault("room_rule_status", {}).setdefault(_VAC, {})[_MAP] = {"x": 1}
     mgr.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {"status": "started"}
-    # a second map remains, with an access-graph grant list to walk
+    # a second map remains, with an access-graph grant list
     mgr.data["maps"][_VAC]["7"] = {"rooms": {"5": {"grants_access_to": [1, 2]}}}
 
     removed = rm.remove_map(vacuum_entity_id=_VAC, map_id=_MAP)
     assert removed["history_removed"] is True
     assert removed["rule_status_removed"] is True
     assert removed["active_job_cleared"] is True
-    # the remaining map's grant list is still present (walked without error)
+    # the remaining map's grant list is left exactly as-is
     assert mgr.data["maps"][_VAC]["7"]["rooms"]["5"]["grants_access_to"] == [1, 2]
+
+
+def test_remove_map_leaves_sibling_grants_with_shared_ids(rmm):
+    """[RC-8] Grant targets are map-scoped room IDs, so removing one map must
+    never touch a sibling map's grants — even when both maps reuse the same
+    numeric room IDs.
+
+    Regression guard: an earlier cleanup loop tried to strip the removed map's
+    room IDs from every other map's ``grants_access_to``. That was a no-op as
+    written, but had it ever fired it would have corrupted sibling grants that
+    happen to share a numeric ID with the removed map (here: map ``9`` grants
+    to rooms 1/2, which are *its own* rooms, not map ``6``'s).
+    """
+    rm, mgr = rmm
+    mgr.data["maps"] = {
+        _VAC: {
+            # the map being removed — its rooms use ids 1 and 2
+            "6": {"rooms": {"1": {"room_id": 1}, "2": {"room_id": 2}}},
+            # sibling map reuses the SAME numeric ids; its grants mean its own rooms
+            "9": {
+                "rooms": {
+                    "1": {"room_id": 1, "grants_access_to": [2]},
+                    "2": {"room_id": 2, "grants_access_to": [1]},
+                }
+            },
+        }
+    }
+
+    rm.remove_map(vacuum_entity_id=_VAC, map_id="6")
+
+    assert "6" not in mgr.data["maps"][_VAC]
+    sibling = mgr.data["maps"][_VAC]["9"]["rooms"]
+    assert sibling["1"]["grants_access_to"] == [2]
+    assert sibling["2"]["grants_access_to"] == [1]
 
 
 def test_discover_rooms_caches_payload(manager, hass):
