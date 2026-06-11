@@ -11,6 +11,7 @@ __pycache__/
 .coverage.*
 coverage.json
 htmlcov/
+htmlcov_scratch/
 .pytest_cache/
 
 # Node / card build
