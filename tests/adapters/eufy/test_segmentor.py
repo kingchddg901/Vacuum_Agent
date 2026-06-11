@@ -13,6 +13,7 @@ Coverage targets
 [ECV-4]  detect_room_segments: unreadable image path → available False.
 [ECV-5]  detect_room_segments: assist image → exercises the wall-cut branch.
 [ECV-6]  detect_room_segments: max_segments caps the returned segment count.
+[ECV-7]  detect_room_segments: Pillow/scipy stack unavailable -> pipeline_unavailable.
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -110,6 +111,23 @@ def test_detect_segments_unreadable_path(tmp_path):
     assert result["available"] is False
     assert result["reason"] == "image_unreadable"
     assert result["segments"] == []
+
+
+def test_detect_segments_pipeline_unavailable_without_cv_stack(tmp_path, monkeypatch):
+    """[ECV-7] when the Pillow/scipy stack is unavailable (_PIL_SCIPY_READY False),
+    the pipeline degrades gracefully — available=False / reason=pipeline_unavailable
+    / segments=[] — instead of crashing. The test image HAS scipy, so the env flag
+    is patched off to drive the guard at segmentor.py 942-949."""
+    path = _map_png(str(tmp_path), saturated=True)  # valid image: no image_unreadable
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.adapters.eufy.segmentor._PIL_SCIPY_READY",
+        False,
+    )
+    result = detect_room_segments(image_path=path, min_area_pixels=200)
+    assert result["available"] is False
+    assert result["reason"] == "pipeline_unavailable"
+    assert result["segments"] == []
+    assert "runtime" in result
 
 
 def test_detect_segments_with_assist_image(tmp_path):
