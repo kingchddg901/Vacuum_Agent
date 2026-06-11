@@ -28,6 +28,7 @@ from custom_components.eufy_vacuum.listeners import (
     lifecycle,
     path_blockers,
 )
+from .conftest import setup_map
 
 
 _VAC = "vacuum.alfred"
@@ -302,6 +303,46 @@ async def test_lifecycle_task_status_change_no_active_job_no_error(hass, manager
 
     hass.states.async_set(_TASK_STATUS_ENTITY, "completed")
     await hass.async_block_till_done()
+
+
+async def test_lifecycle_active_starts_mapping_trace_job(hass, manager, monkeypatch):
+    """[LS-12] a watched state change that finds the job in an ACTIVE lifecycle —
+    with the mapping tracker not yet tracking this vacuum — kicks off the tracker's
+    trace-capture job for the active rooms (lifecycle.py 186-211). get_lifecycle_state
+    is stubbed to report active; its own derivation is covered in the core suite."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    register_adapter_config(_VAC, _ADAPTER_LIFECYCLE)
+    setup_map(manager, _VAC, _MAP, count=1)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "status": "started", "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "queue_room_ids": [1],
+    }
+    monkeypatch.setattr(
+        manager, "get_lifecycle_state",
+        lambda **kwargs: {"lifecycle_state": "active_job_running"},
+    )
+
+    started: dict = {}
+
+    class _FakeTracker:
+        def __init__(self):
+            self._active_job = {}
+
+        def start_job(self, *, vacuum_entity_id, map_id, rooms):
+            started["args"] = (vacuum_entity_id, map_id, rooms)
+
+    hass.data[DOMAIN]["mapping_tracker"] = _FakeTracker()
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "idle")
+    await hass.async_block_till_done()
+    lifecycle.register(hass)
+
+    hass.states.async_set(_TASK_STATUS_ENTITY, "cleaning")
+    await hass.async_block_till_done()
+
+    assert "args" in started  # the tracker's trace-capture job was started
+    assert started["args"][0] == _VAC
+    assert started["args"][1] == _MAP
 
 
 # ---------------------------------------------------------------------------
