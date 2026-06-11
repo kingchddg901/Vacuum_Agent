@@ -147,7 +147,6 @@ per-room entities. It:
 | `make_room_unique_id(...)` | Builds a stable `{vacuum_key}_{map_id}_{room_id}_{suffix}` unique ID |
 | `sort_room_items(rooms)` | Sorts room dict by `order` then `name`; filters to `is_configured=True` |
 | `get_floor_type_label(floor_type)` | Maps a floor_type key to a human-readable label |
-| `get_floor_water_guidance(floor_type)` | Returns mop water guidance for a given floor type |
 
 ### button platform
 

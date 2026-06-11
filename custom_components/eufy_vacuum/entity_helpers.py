@@ -93,19 +93,3 @@ def get_floor_type_label(floor_type: str) -> str:
         "carpet": "Carpet",
     }
     return mapping.get(str(floor_type), str(floor_type).replace("_", " ").title())
-
-
-def get_floor_water_guidance(floor_type: str) -> str:
-    """Return recommended water guidance for a floor type."""
-    mapping = {
-        "hardwood": "Low",
-        "laminate": "Low",
-        "tile": "Medium",
-        "marble": "Low",
-        "granite": "Low",
-        "concrete": "Medium",
-        "carpet_low_pile": "Vacuum only",
-        "carpet_high_pile": "Vacuum only",
-        "carpet": "Vacuum only",
-    }
-    return mapping.get(str(floor_type), "Unknown")
