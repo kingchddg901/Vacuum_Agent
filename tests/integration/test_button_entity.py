@@ -16,9 +16,11 @@ Coverage targets
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from homeassistant.helpers import entity_registry as er
 
 import custom_components.eufy_vacuum.button as button_mod
 from custom_components.eufy_vacuum.button import (
@@ -26,6 +28,7 @@ from custom_components.eufy_vacuum.button import (
     EufyVacuumSavedRunProfileButton,
     _slugify_profile_name,
 )
+from custom_components.eufy_vacuum.const import DOMAIN
 
 from tests._factories import VAC as _VAC, MAP as _MAP, make_manager_mock
 from .conftest import setup_map
@@ -253,3 +256,41 @@ async def test_run_profile_button_built_at_setup(hass, manager):
     run_buttons = [e for e in captured if isinstance(e, EufyVacuumSavedRunProfileButton)]
     assert len(run_buttons) == 1
     assert run_buttons[0].available is True
+
+
+async def test_run_profile_button_reconciliation_removes_stale(hass, manager):
+    """[BE-13] un-exposing a previously-exposed saved profile makes the callback
+    remove its now-stale run button: it is dropped from the in-memory map (its
+    HA-owned async_remove is invoked) AND un-registered from the entity registry,
+    so no orphaned button lingers for a profile that is no longer exposed."""
+    manager.ensure_vacuum_record(vacuum_entity_id="vacuum.alfred")
+    setup_map(manager, "vacuum.alfred", _REAL_MAP, count=1)
+    pid = manager.save_run_profile(
+        vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP, name="Evening")["profile_id"]
+    manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = True
+
+    entry = MagicMock()
+    entry.async_on_unload = MagicMock()
+    captured: list = []
+    await button_mod.async_setup_entry(
+        hass, entry, lambda entities, *a, **k: captured.extend(entities))
+
+    # the exposed profile built one run button at setup; capture its identity
+    run_button = next(e for e in captured if isinstance(e, EufyVacuumSavedRunProfileButton))
+    unique_id = run_button.unique_id
+    # async_remove is HA's own teardown; stub it so an un-added test entity can't
+    # error, and assert the reconcile invokes it.
+    run_button.async_remove = AsyncMock()
+
+    # register the button so the reconcile's registry un-register path is exercised
+    registry = er.async_get(hass)
+    registry.async_get_or_create("button", DOMAIN, unique_id)
+    assert registry.async_get_entity_id("button", DOMAIN, unique_id) is not None
+
+    # un-expose the profile → the now-stale button must be reconciled away
+    manager.data["run_profiles"]["vacuum.alfred"][_REAL_MAP][pid]["expose_as_button"] = False
+    manager._notify_run_profiles_updated(vacuum_entity_id="vacuum.alfred", map_id=_REAL_MAP)
+    await hass.async_block_till_done()
+
+    run_button.async_remove.assert_awaited()  # popped + removed from the platform
+    assert registry.async_get_entity_id("button", DOMAIN, unique_id) is None  # un-registered
