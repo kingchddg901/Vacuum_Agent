@@ -47,8 +47,9 @@ Reads the active map ID from the entity declared at `adapter_config["entities"][
 ```python
 discover_rooms_for_vacuum(
     hass: HomeAssistant,
+    *,
     vacuum_entity_id: str,
-    map_id: int | None = None,
+    map_id: str | None = None,
 ) -> list[dict]
 ```
 
@@ -102,10 +103,11 @@ Convenience wrapper that returns:
 
 ```python
 build_managed_rooms(
+    *,
     discovered_rooms: list[dict],
-    existing_rooms: dict[str, dict],
-    enabled_room_ids: list[int] | None,
-    floor_types: dict[str, str],
+    existing_rooms: dict[str, dict] | None = None,
+    enabled_room_ids: list[int] | list[str] | None = None,
+    floor_types: dict[int, str] | None = None,
 ) -> dict[str, dict]
 ```
 
@@ -168,8 +170,9 @@ Examples: `"Living Room"` → `"living_room"`, `"Bedroom #2"` → `"bedroom_#2"`
 
 ```python
 manager.room_map.discover_rooms(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str | None = None,
+    map_id: str | None = None,
 ) -> dict
 ```
 
@@ -184,11 +187,12 @@ Returns the discovery payload dict.
 
 ```python
 manager.room_map.save_managed_rooms(
+    *,
     vacuum_entity_id: str,
-    map_id: int | str,
-    enabled_room_ids: list[int] | None = None,
-    floor_types: dict[str, str] | None = None,
-) -> None
+    map_id: str,
+    enabled_room_ids: list[int] | list[str] | None = None,
+    floor_types: dict[int, str] | None = None,
+) -> dict   # summary {vacuum_entity_id, map_id, room_count, rooms, summary}
 ```
 
 1. Reads discovery cache from `data["discovery"][vacuum][str(map_id)]`.
@@ -216,24 +220,27 @@ Removes all integration data for the (vacuum, map) pair:
 3. Removes learning history from `data["room_history"][vacuum][map_id_str]`.
 4. Removes rule state from `data["room_rule_status"][vacuum][map_id_str]`.
 5. Resets the active job slot for `data["active_jobs"][vacuum][map_id_str]`.
-6. Drops stale access-graph references in remaining maps where `grants_access_to` pointed to rooms on the removed map.
 
 Returns a summary of what was removed.
+
+No cross-map access-graph cleanup is performed, and none is needed. `grants_access_to` targets are bare room IDs scoped to a single map — room identity is vacuum+map+room, and every consumer (`_build_room_access_views`, `_validate_room_access_graph`, `_normalized_managed_rooms_with_automation`) resolves them only against that same map's room set. A grant on a remaining map therefore can never reference a room on the map being removed (even if both maps happen to reuse the same numeric room ID, those IDs denote *different* rooms). There is nothing to strip, so `remove_map` leaves sibling maps' grants untouched.
 
 ### 5.4 `rebuild_map`
 
 ```python
 manager.room_map.rebuild_map(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
-) -> None
+    map_id: str,
+    preserve_existing_settings: bool = True,
+) -> dict
 ```
 
 Rebuilds the managed room set from the discovery cache, preserving existing room settings where possible:
 
 1. Reads discovery cache from `data["discovery"][vacuum][map_id_str]`.
 2. Reads existing rooms.
-3. Calls `map_manager.rebuild_map_bucket()` with `preserve_existing_settings=True`.
+3. Calls `map_manager.rebuild_map_bucket()`, forwarding the `preserve_existing_settings` argument (defaults to `True`).
 4. Calls `_refresh_room_derived_state()` to re-run profile matching on all rooms.
 5. Calls `_notify_rooms_updated()` to rebuild HA entities.
 

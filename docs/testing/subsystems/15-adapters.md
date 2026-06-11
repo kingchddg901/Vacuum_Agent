@@ -4,7 +4,7 @@ The adapter subsystem is the brand-abstraction boundary: a registry maps each
 vacuum entity to an adapter config (entities, vocabulary, water/upkeep models,
 maintenance components), loaded from storage and validated against a schema. The
 one concrete adapter (`adapters/eufy/`) lives behind this boundary and has its
-own focused suite in `tests/adapters/eufy/`. Covered by **30 framework tests
+own focused suite in `tests/adapters/eufy/`. Covered by **31 framework tests
 across 2 files** (`test_adapters.py` + the brand-agnostic
 `test_adapter_contract.py` conformance harness), plus **160 Eufy-adapter tests**.
 

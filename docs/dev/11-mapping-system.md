@@ -416,7 +416,7 @@ The `_<variant>` suffix is omitted when `variant == "primary"` or `variant == "d
 
 The browser URL is: `/eufy_vacuum/maps/<vacuum_slug>/map_<map_id>[_<variant>].png`
 
-Additionally, image metadata (width, height, path, browser_url) is recorded in the map's `image_variants` dict inside `map_<map_id>.json` and kept in sync with the `image_segment_adjustments` and `image_segments` results stored in the same JSON via the runtime's HA storage manager.
+Additionally, image metadata (width, height, path, browser_url) is recorded in the map's `image_variants` dict inside `map_<map_id>.json`. The `image_segment_adjustments` and `image_segments` results are stored separately in the runtime HA `.storage` Store (the map bucket), not in `map_<map_id>.json` — see §9.1.
 
 ---
 

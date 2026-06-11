@@ -117,4 +117,4 @@ A **Rebuild from Archive** button appears on the room card when the following co
 
 Click **Rebuild from Archive**. The card shows "Rebuilding…" while the backend re-processes the archive and writes new job history entries. After it completes, the snapshot refreshes and the bounds table appears.
 
-If neither the Clear All button nor the Rebuild button appears on a room card, that room has no archive and no current bounds: the only way to establish bounds is to run the vacuum in that room.
+The Clear All button is always present on a room card, but is disabled when the room has no bounds. A disabled Clear All button alongside no Rebuild button means the room has no archive and no current bounds: the only way to establish bounds is to run the vacuum in that room.

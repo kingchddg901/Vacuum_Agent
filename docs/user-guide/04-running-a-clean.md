@@ -52,7 +52,7 @@ Once a job starts, the action bar updates to reflect the live state:
 
 ## Pausing a Job
 
-Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed (the job's status is `started`). After you press **Pause**:
+Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed — its visibility keys off the vacuum entity state being `cleaning`, not the tracked job status. After you press **Pause**:
 
 - The vacuum pauses.
 - The tracked job status changes to `paused`.
@@ -63,7 +63,7 @@ Press the **Pause** button while a job is running. The button is only visible wh
 
 ## Resuming a Job
 
-Press the **Resume** button to send a start command to the vacuum and resume the tracked job. The **Resume** button only appears when the job status is `paused`. After resuming, the job status returns to `started`, the **Pause** button reappears, and the card continues tracking progress where it left off. Paused time is accumulated separately so elapsed-time estimates remain accurate.
+Press the **Resume** button to send a start command to the vacuum and resume the tracked job. The **Resume** button only appears when the vacuum entity state is `paused` (its visibility keys off the vacuum state, not the tracked job status). After resuming, the job status returns to `started`, the **Pause** button reappears, and the card continues tracking progress where it left off. Paused time is accumulated separately so elapsed-time estimates remain accurate.
 
 ---
 

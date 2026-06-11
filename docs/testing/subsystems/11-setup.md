@@ -46,7 +46,7 @@ the entry-level wiring. `protection.py` is pure and unit-tested.
 ## Known gaps
 
 The top-level integration entry file `custom_components/eufy_vacuum/__init__.py`
-(193 stmts, **88%**) is the largest remaining gap and is **integration-boot
+(193 stmts, **90%**) is the largest remaining gap and is **integration-boot
 territory**: `async_setup_entry` orchestration (battery-rebaseline service
 registration, mapping-tracker position registration, subsystem wiring) only runs
 under a full config-entry boot — a different test class than this suite. Note this

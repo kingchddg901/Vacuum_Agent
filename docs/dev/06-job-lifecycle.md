@@ -120,7 +120,10 @@ pause_timeout_minutes_override)`
    `{"started": False, "reason": "vacuum_missing"}`.
 5. **Command dispatch** — calls `vacuum.send_command` with
    `command="room_clean"` and the payload as `params` (blocking).
-6. **Active job initialisation** — calls `build_active_job_state` then enriches:
+6. **Active job initialisation** — calls `build_active_job_state` then enriches.
+   Note that `started_at`, `battery_start`, and `job_id` are captured *before*
+   dispatch (`manager.py:3858-3860`, i.e. ahead of step 5) and only attached onto
+   the active job here during this enrichment:
    - `job_metadata` from `build_job_metadata_from_payload`
    - `job_id` (generated as `"job_{YYYY-MM-DDTHH-MM-SS}"`)
    - `started_at` (UTC ISO timestamp)

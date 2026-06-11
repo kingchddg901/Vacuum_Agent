@@ -42,7 +42,7 @@ Each entry stores:
 | `minutes_stddev` | Standard deviation of that duration across samples |
 | `avg_battery_used` | Average battery percentage consumed |
 | `sample_count` | Number of learning jobs that contributed |
-| `avg_abs_error_percent` | Mean absolute percentage error between past estimates and actuals |
+| `mean_abs_pct_error` | Mean absolute error between past estimates and actuals (a fraction, not a percent) — stored separately in `accuracy_stats.json` under the same room key, not in the per-room stats entry |
 
 The accuracy data (estimate versus actual) is stored separately in `accuracy_stats.json` and is used to apply a penalty to confidence when your past estimates for a room have been consistently wrong.
 

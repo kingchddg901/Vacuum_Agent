@@ -89,7 +89,7 @@ config/eufy_vacuum/battery/<object_id>/sessions.csv
 config/eufy_vacuum/battery/<object_id>/samples.jsonl
 ```
 
-- **sessions.csv** — one row per completed charge session: start/end timestamps, duration, start/end battery, delta percent, avg/min/max rate, sample count, ended reason ("full" vs "stopped"), and session kind ("mid_job", "post_job", "idle"). Open in any spreadsheet.
+- **sessions.csv** — one row per completed charge session: start/end timestamps, duration, start/end battery, delta percent, avg/min/max rate, sample count, and ended reason ("full" vs "stopped"). Open in any spreadsheet.
 - **samples.jsonl** — every battery sample as a JSON object on its own line: timestamp, battery level, charging flag, delta from previous sample, instantaneous rate, zone, drain added, cumulative cycles. The integration also writes a `rejected_delta_pct` field on samples where the per-sample guard threw out the observation (firmware glitches, HA-restart gaps); on accepted samples it's null. Easy to tail or process with `jq`.
 
 These files grow forever; the integration doesn't trim them. If they get unwieldy, archive and rotate them yourself — nothing else reads them, so removing them won't break the live sensors or the card.

@@ -4,7 +4,7 @@ The listeners subsystem wires HA state-change events to manager actions:
 lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes, and
 pause-timeout escalation — plus the registration/teardown plumbing. Covered by
-**63 tests across 4 files**.
+**65 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/listeners/`
 Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `lifecycle.py` | 116 | 88% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
+| `lifecycle.py` | 116 | 93% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
 | `path_blockers.py` | 103 | 88% | `test_listeners_state_driven.py` | integration |
 | `job_metrics.py` | 67 | 86% | `test_listeners_active.py` | integration |
 | `dock_events.py` | 64 | 90% | `test_listeners_active.py` | integration |
@@ -55,15 +55,12 @@ are intentionally left uncovered (`# pragma: no cover` on the unsubscribe
 excepts), early-return guards on malformed/duplicate events, and a few
 adapter-config sub-branches:
 
-- **`lifecycle.py` (88%)** — the largest real gap. Missing the mid-job
-  `mapping_tracker.start_job` branch (187-211, fires only when active-lifecycle
-  is first observed and no tracker job exists yet). The post-job mop-water
-  amendment registration (319-331, gated on a finalized mop job) is now covered
-  by `test_listeners_active.py`. The remaining misses (100, 108, 123,
-  187/193/196/204, 251-252, 280) are early-return guards (no manager / no
-  matched vacuum), the executor-job wrappers around the tracker's start/end
-  (defensive), and the `maybe_advance_phase` sequenced-job branch (251-252, no
-  adapter ships sequenced jobs today). The auto-finalize except (268) is
+- **`lifecycle.py` (93%)** — only lines 100, 108, 123, 280 remain uncovered.
+  These are early-return guards (no manager / no matched vacuum) and the
+  executor-job wrapper around the tracker's `end_job` (defensive). The mid-job
+  `mapping_tracker.start_job` branch (187-211) and the post-job mop-water
+  amendment registration (319-331, gated on a finalized mop job) are now
+  covered by `test_listeners_active.py`. The auto-finalize except (268) is
   `# pragma: no cover`.
 - **`path_blockers.py` (86%)** — watcher-build filter branches that drop
   malformed/disabled/non-blocker rules (73, 76, 78, 81) and event-dedup guards

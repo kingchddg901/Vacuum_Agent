@@ -58,10 +58,10 @@ The `gallery-completeness` test asserts every such token is claimed by a
 gallery entry (or allowlisted with a reason) — so a new colored state-token
 fails the gate until it has a fixture row.
 
-> Note: the mapping-review badge colors come from **non-registry** vars
-> (`--evcc-success/--evcc-warning/--evcc-error/--evcc-accent/--evcc-text-muted`),
-> so they sit outside the token registry and the CVD enum. Tracked as a
-> single-source-of-truth gap to fold into `--evcc-sem-*`.
+> Note: mapping-review badges are registry-backed (Wave-4): ok→`--evcc-sem-success`,
+> likely+warn→`--evcc-sem-warning`, outlier→`--evcc-sem-error`,
+> baseline→`--evcc-sem-info`, excluded→`--evcc-text-muted`; the `--evcc-sem-*`
+> tokens are in the CVD enum.
 
 ## Visual regression
 

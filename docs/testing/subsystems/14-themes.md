@@ -3,7 +3,7 @@
 The themes subsystem owns the dashboard-card theme library: preloaded built-in
 themes, the user library (save-as-new / overwrite / rename / delete), the active
 theme + working draft, import/export, and the update-callback fan-out that
-refreshes theme-bound entities. Covered by **63 tests across 5 files**.
+refreshes theme-bound entities. Covered by **64 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/themes/`
 Architecture reference: [docs/dev/20-theme-system.md](../../dev/20-theme-system.md)
@@ -15,15 +15,16 @@ Architecture reference: [docs/dev/20-theme-system.md](../../dev/20-theme-system.
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `manager.py` | 251 | 95% | `test_themes_manager.py`, `test_themes_manager_deep.py`, `test_themes_import_scoped.py` | integration |
-| `services.py` | 103 | 98% | `test_themes_services.py` | integration |
+| `services.py` | 103 | 100% | `test_themes_services.py` | integration |
 | `preloaded.py` | 25 | 94% | `test_themes_preloaded.py` (unit) | unit |
 
 ---
 
 ## What's tested
 
-- **Library CRUD** — save-as-new, overwrite, rename, delete; the preloaded
-  built-ins are protected.
+- **Library CRUD** — save-as-new, overwrite, rename, delete. Preloaded built-ins
+  are re-seeded on restart but are not delete-protected at the manager/service
+  layer.
 - **Active theme + draft** — set active, update working draft, revert draft.
 - **Import / export** — round-trip of a theme payload (legacy full import that
   adds a new library theme), plus **scoped per-floor-type import**
@@ -56,9 +57,9 @@ class — deliberately measured, not pragma'd. The update-callback fan-out excep
 (`_notify_updated`, 59-68) is now *covered* by the raising-callback test
 ([TMD-3]).
 
-`services.py` (98%) — only the success tail of `handle_overwrite_theme`
-(`async_save` + return, 167-168) is unexercised; every handler's failure path
-and the surrounding success paths are covered.
+`services.py` (100%) — fully covered; every handler's failure path and success
+path, including the `handle_overwrite_theme` `async_save` + return tail, is
+exercised.
 
 `preloaded.py` (94%) — one line: the idempotent re-seed skip
 (`ensure_preloaded_theme_library`, 536) that leaves an already-present built-in

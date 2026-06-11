@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The error tracker observes vacuum error signals in real time and latches them into three per-device fields (two single-value latches plus one ring buffer — see §3) so the learning system can harvest a meaningful error payload at job-end. It does **not** expose HA entities or fire events directly — it is an internal accumulator consumed by `learning/job_finalizer.py`.
+The error tracker observes vacuum error signals in real time and latches them into three per-device fields (two single-value latches plus one ring buffer — see §3) so the learning system can harvest a meaningful error payload at job-end. It is consumed by `learning/job_finalizer.py` at job-end **and** surfaced through three HA entities (`sensor.<obj>_active_run_error`, `sensor.<obj>_last_device_error`, `binary_sensor.<obj>_active_run_has_error`) that subscribe via `add_update_listener`.
 
 **Design goals:**
 
@@ -156,7 +156,7 @@ When a secondary-channel error is detected **before** the primary channel fires 
 async_call_later(hass, _ERROR_MESSAGE_GRACE_SECONDS, _on_grace_expired)
 ```
 
-During the grace window the tracker waits for the `error_message` sensor to update with a real message. If the primary channel fires within the window, the grace timer is cancelled and the primary-channel message is used. If the window expires while the device is still in error state, the error is finalized with `error_message = "Unknown error during run"` and `source = "secondary_channel"`.
+During the grace window the tracker waits for the `error_message` sensor to update with a real message. If the primary channel fires within the window, the grace timer is cancelled and the primary-channel message is used. If the window expires while the device is still in error state, the error is finalized with `error_message = "Unknown error during run"` and `code = None` (no `source` field is recorded).
 
 The grace callback is stored per-vacuum and cancelled on rising primary-channel edge.
 
@@ -224,11 +224,9 @@ The tracker reads the following from the adapter registry at runtime:
 | `entities.error_message` | Primary channel entity ID |
 | `entities.task_status` | Secondary channel B entity ID |
 | `vocabulary.not_error_sentinels` | Brand-specific non-error strings merged into the generic sentinel set |
-| `error_tracking.task_status_error_value` | Task status string that triggers secondary channel (default: `"error"`) |
-| `error_tracking.grace_window_seconds` | Grace window duration (default: `_ERROR_MESSAGE_GRACE_SECONDS = 5`) |
-| `error_tracking.error_code_attribute_names` | Attribute key list for numeric error code extraction |
+| `error_tracking.unknown_error_message` | Placeholder text used on grace expiry (default: `"Unknown error during run"`) |
 
-All lookups use `get_adapter_value()` with safe fallbacks — the tracker degrades gracefully if adapter config is incomplete.
+All lookups use `get_adapter_config()` with safe fallbacks — the tracker degrades gracefully if adapter config is incomplete. Note: the grace window duration is the hardcoded module constant `_ERROR_MESSAGE_GRACE_SECONDS = 5`, the secondary-channel error value is a hardcoded `== "error"` comparison, and the error-code attribute keys are a hardcoded tuple (`"error_code"`, `"code"`, `"errorCode"`) — these are **not** read from the adapter registry.
 
 ---
 

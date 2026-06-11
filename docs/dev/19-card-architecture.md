@@ -37,14 +37,14 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 | `resume_active_job` | `vacuum_entity_id` | |
 | `cancel_active_job` | `vacuum_entity_id` | |
 | `vacuum.return_to_base` | `entity_id` (HA vacuum entity) | Standard HA vacuum service — not in eufy_vacuum domain |
-| `clear_queue` | `vacuum_entity_id`, `map_id` | Clears the pending run queue without stopping a running job |
+| `clear_queue` | `vacuum_entity_id` | Optional: `map_id` (defaults to active map). Clears the pending run queue without stopping a running job |
 | `clear_active_job` | `vacuum_entity_id` | |
 
 #### Room management
 
 | Service | Required fields | Notes |
 |---|---|---|
-| `update_room_fields` | `vacuum_entity_id`, `map_id`, `room_id` | Optional: `clean_mode`, `fan_speed`, `clean_intensity`, `clean_passes`, `water_level`, `edge_mopping`, `profile_name`, `is_transition`, `grants_access_to`, `is_dock_room`. Omit null optional fields — HA schema rejects them |
+| `update_room_fields` | `vacuum_entity_id`, `map_id`, `room_id` | Optional: `enabled`, `clean_mode`, `fan_speed`, `clean_intensity`, `clean_passes`, `water_level`, `edge_mopping`, `is_transition`, `grants_access_to`, `is_dock_room`, `rules`. Omit null optional fields — HA schema rejects them |
 | `discover_rooms` | `vacuum_entity_id` | Interrogates the vacuum for the current room list |
 | `save_managed_rooms` | `vacuum_entity_id` | Persists discovered rooms into integration storage |
 | `get_room_access_editor` | `vacuum_entity_id`, `map_id` | Returns room access graph for editing |
@@ -186,7 +186,7 @@ The integration creates one switch per room per map: `switch.{object_id}_{map_sl
 vacuum_entity_id, map_id, room_id, room_name, slug,
 order, profile_name, clean_mode, fan_speed, water_level,
 clean_intensity, clean_passes, edge_mopping, floor_type,
-carpet, grants_access_to, is_dock_room, is_transition, rules
+carpet, grants_access_to, is_dock_room, rules
 ```
 
 The card discovers room switches by scanning `hass.states` for entities whose attributes contain `vacuum_entity_id` matching the configured vacuum. It does not rely on a fixed naming pattern.
@@ -539,11 +539,11 @@ The active map ID comes from `sensor.{object_id}_active_map` state value.
 **Has side effects — understand before calling:**
 
 - `start_selected_rooms` — starts the vacuum. Do not call without confirming `get_start_status` returns non-blocked. Do not call with `returnResponse = true` (HA rejects it).
-- `clear_queue` — disables all rooms and clears the queue. Irreversible without re-enabling rooms.
+- `clear_queue` — empties the pending run queue only; does **not** disable rooms (the card UI disables rooms as a separate composite action before calling it).
 - `finalize_learning_job` — fires `eufy_vacuum_run_incomplete` if rooms were missed. Call only when a job ends.
 - `setup_delete_map` — destroys a map and all its room data. Requires a confirmation token for high-protection maps.
 - `wash_mop`, `dry_mop`, `empty_dust` — physically operate dock hardware.
-- `update_room_fields` — null optional fields (`water_level`, `profile_name`) must be omitted, not sent as null. HA schema validation will reject them.
+- `update_room_fields` — null optional fields (e.g. `water_level`) must be omitted, not sent as null. HA schema validation will reject them.
 - `apply_run_profile` — overwrites current room selection and settings with saved profile values.
 - `revert_draft` — discards unsaved theme editor changes.
 

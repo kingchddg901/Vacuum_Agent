@@ -86,7 +86,7 @@ room's `clean_mode` requires them.
 | `clean_times` | `int` | Number of cleaning passes (always ≥ 1) |
 | `fan_speed` | `str` | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
-| `clean_intensity` | `str` | `"Quick"`, `"Standard"`, `"Intense"`, `"Deep"`, etc. |
+| `clean_intensity` | `str` | `"Quick"`, `"Narrow"`, `"Deep"` |
 | `water_level` | `str` | Only when `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `path_type` | `str` | Only when `supports_path_control` |
@@ -152,11 +152,11 @@ For each room, the engine resolves which cleaning settings to use:
    adapter-resolved catalog.
 2. If the profile name is `"custom"` or not found, the room's direct fields
    (`fan_speed`, `water_level`, etc.) are used as-is.
-3. The resolved settings are passed through `_protected_room_config` in
-   `ProfileManager` — this enforces carpet/mop invariants:
-   - Carpet rooms: `clean_mode` downgraded from mop/vacuum_mop to `"vacuum"`;
+3. Carpet/mop invariants are enforced inside `resolve_room_profile_for_room`
+   itself (carpet/floor-type defaults), not by a separate pass:
+   - Carpet rooms: `fan_speed` set to the floor-type fan default;
      `water_level` forced to `"Off"`; `edge_mopping` forced to `False`.
-   - Non-mop modes: `water_level` forced to `"Off"`; `edge_mopping` to `False`.
+   - Non-mop modes (and carpet): `edge_mopping` forced to `False`.
 4. Capability gating is applied via `apply_capability_gate` (also passed the
    resolved catalog) — removes fields the vacuum hardware doesn't support and
    derives the mop→vacuum downgrade fallback from the catalog's built-ins.
@@ -210,7 +210,7 @@ One room is marked `is_dock_room: true` — the root of the graph.
 | State | Condition | Effect |
 |---|---|---|
 | `"blank"` | No dock room, no `grants_access_to` entries | Basic runs allowed; rule-requiring runs blocked |
-| `"partial"` | Some config exists but validation fails | All rule-based runs blocked |
+| `"partial"` | Some config exists but validation fails | All runs blocked (basic and rule-based) until the graph is completed or all access settings are cleared |
 | `"complete"` | Fully valid graph | All runs and rules allowed |
 
 ### How the graph is traversed for rule evaluation
@@ -304,8 +304,10 @@ Stores the result in `self.data["queue"][vacuum_entity_id][map_id]` and updates
 manager.build_room_payload(vacuum_entity_id=..., map_id=...)
 ```
 
-Calls `build_room_clean_payload`. Reads current queue state, resolves profiles,
-applies capability gating, builds the full API payload. Stores the result in
+Resolves the brand dispatch engine (`get_dispatch_engine(dispatch.template)`)
+and calls its `build_payload(...)`; for the Eufy engine that delegates to
+`build_room_clean_payload`, which reads current queue state, resolves profiles,
+applies capability gating, and builds the full API payload. Stores the result in
 `self.data["payloads"][vacuum_entity_id][map_id]`.
 
 Called when the user changes a room setting or the queue is rebuilt. Does
@@ -317,10 +319,11 @@ At job start, `RunPlanManager._build_effective_start_plan`
 (`planning/run_plan.py`) is called instead of `build_queue` +
 `build_room_payload`. It re-evaluates all blocker and modifier rules against
 live HA state, computes the effective room set with blocked rooms removed and
-modifier changes applied, then calls `build_queue_from_managed_rooms` and
-`build_room_clean_payload` on this effective room set. The resulting
-`queue_state` and `payload_state` are what actually get stored and sent to the
-vacuum.
+modifier changes applied, then calls `build_queue_from_managed_rooms` and the
+resolved dispatch engine's `build_payload` / `build_phases` (which for the Eufy
+engine delegate to `build_room_clean_payload`) on this effective room set. The
+resulting `queue_state` and `payload_state` are what actually get stored and
+sent to the vacuum.
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §1 for when `build_queue` and `build_room_payload` are called from the manager and §1 Preflight for the full `_build_effective_start_plan` call site; [16-profile-manager](16-profile-manager.md) §6 for the profile finalization pipeline that runs inside `build_room_clean_payload`.
 

@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **119 tests across 11 files**.
+timestamp utils, models, map manager). Covered by **120 tests across 11 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`, `repairs.py`,
@@ -25,7 +25,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/dock_event.py` | 24 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` |
-| `button.py` | 134 | 88% | `test_button_entity.py` |
+| `button.py` | 134 | 93% | `test_button_entity.py` |
 | `number.py` | 121 | 97% | `test_number_entity.py` |
 | `switch.py` | 63 | 98% | `test_switch_entity.py` |
 | `binary_sensor.py` | 67 | 92% | `test_platform_files.py` |
@@ -35,7 +35,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `timestamp_utils.py` | 37 | 98% | `test_timestamp_utils.py` (unit) |
 | `models/models.py` | 131 | 98% | `test_models.py` (unit) |
 | `maps/map_manager.py` | 41 | 100% | `test_maps_map_manager.py` (unit) |
-| `entity_helpers.py` | 24 | 88% | `test_platform_files.py` |
+| `entity_helpers.py` | 21 | 96% | `test_platform_files.py` |
 | `_frontend_url.py` | 10 | 100% | `test_platform_files.py` |
 
 ---
@@ -77,10 +77,9 @@ hourly safety-net tick — are now exercised end-to-end by INIT-6/7/8 in
 `tests/integration/test_init_setup.py` via the full-boot harness (adding a room
 and firing the update callback registers new sensors; the rule-status + theme
 refreshes push observable state; the hourly tick refreshes history sensors).
-What remains uncovered is on the *other* platforms: `button.py` (88%, lines
-95–101 / 107–108) leaves the twin run-profile **stale-removal** and
-**existing-write** branches, and `number.py` (94%) / `switch.py` (92%) leave the
-`_on_rooms_updated` add-new-entities path. These call `async_remove()` /
+What remains uncovered is on the *other* platforms: `button.py` (93%, lines
+107–108) leaves the run-profile **existing-write** branch, and `number.py`
+(97%) / `switch.py` (98%) leave the `_on_rooms_updated` add-new-entities path. These call `async_remove()` /
 `async_write_ha_state()` on **registered** entities, so exercising them needs a
 **full entity-platform registration** harness (a registered entity on a real
 platform) rather than the recording `async_add_entities` the current tests use;

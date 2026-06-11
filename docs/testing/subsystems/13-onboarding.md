@@ -54,4 +54,6 @@ tests, but not this one.)
   The no-state path (line 184) is tested; this is the malformed-attribute
   defensive guard. Defensive-by-design, intentionally uncovered.
 
-`get_rooms_onboarding_summary` is fully covered (`test_summary`, OB-4).
+`get_rooms_onboarding_summary` is statement-covered (`test_summary`, OB-4) but
+not 100% branch-covered — the all-complete loop continuation (`211->205`) is
+unexercised because the test seeds only an incomplete map.

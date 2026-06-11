@@ -52,7 +52,7 @@ lifecycle listener: vacuum→cleaning + no dispatched job   ── detection (§
       ▼
 active_jobs slot, status="external"  (counters + setting selects buffer in)  ── capture (§3)
       │
-      ▼  (robot returns home: vacuum→docked/idle)
+      ▼  (robot returns home: vacuum→docked/idle → 5-min grace; held open while mid-run)
 finalize → find_candidates (every blip) + select_active (confident default)
            + build_segments + recover per-segment {area,time,passes,settings}
            + EMBED the raw samples + candidate pool                       ── pending record (§4,§5)
@@ -98,10 +98,17 @@ per-map internal loop (which only handles `status in {started, paused}`).
   declares, not a Eufy-specific call).
 - **Start:** vacuum state `cleaning` + no external slot → `start_external_capture`
   opens a slot with `status="external"` + `started_at`.
-- **End:** an external slot exists + vacuum state `docked`/`idle` → finalize
-  (§4) and clear the slot. External runs hide `active_cleaning_target`, so the
-  end is keyed on the **vacuum entity returning home**, not the completion
-  signals the internal path uses.
+- **End:** an external slot exists + vacuum state `docked`/`idle` → **arm a
+  5-minute grace timer** (`EXTERNAL_FINALIZE_GRACE_S` = 300), not an immediate
+  finalize. The timer holds the run open while `task_status` is a mid-run
+  station cycle (mop wash / dust empty / recharge-resume): on expiry
+  `_external_grace_finalize` re-checks and re-arms (up to
+  `EXTERNAL_GRACE_MAX_RECHECKS` = 8) instead of closing it, and a resume to
+  `cleaning` cancels the pending timer so the whole run stays one record. Only
+  after the grace window clears with no mid-run status does it finalize (§4) and
+  clear the slot. External runs hide `active_cleaning_target`, so the end is
+  keyed on the **vacuum entity returning home**, not the completion signals the
+  internal path uses.
 
 **Capture** reuses the existing metrics chokepoint. The slot is in-flight
 (`started_at` set, no `ended_at`), so
@@ -132,8 +139,9 @@ On finalize, `_finalize_external_run` runs the captured stream through
 The v2 record is **self-contained**: it embeds the raw `counter_samples` /
 `settings_samples` and the **full candidate pool** so the run can be re-segmented
 server-side (§5a) at any room count or boundary set, with no re-capture. The
-samples are bounded at finalize by `_MAX_COUNTER_SAMPLES` (= 2000, in
-`jobs/active_job.py`), so the on-disk record stays ~100–200 KB worst case. They
+samples are bounded at capture time by `_MAX_COUNTER_SAMPLES` (= 2000, in
+`jobs/active_job.py` — each `record_counter_sample` append trims to the cap), so
+the on-disk record stays ~100–200 KB worst case. They
 are **stripped** (`strip_samples`) before the record is served to the card — the
 card never needs them; re-segmentation reads them on the server.
 

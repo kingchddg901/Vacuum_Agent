@@ -172,7 +172,7 @@ module (flat file) or a subsystem package. Here is the full map:
 
 ### HA platform modules
 
-`binary_sensor.py`, `button.py`, `number.py`, `select.py`, `sensor/`,
+`binary_sensor.py`, `button.py`, `number.py`, `sensor/`,
 `switch.py` — each owns its `async_setup_entry` and entity classes. Room
 entities share the base class in `room_entities.py`.
 
@@ -250,7 +250,7 @@ core/manager.py — start_selected_rooms()
      ├── Runs preflight rule evaluation (per-room blockers/modifiers)
      ├── Calls manager._update_room_rule_status_snapshot() → data["room_rule_status"]
      └── Returns queue, payload, preflight summary
-  3. Calls active_job.write_active_job_state(...)
+  3. Calls active_job.record_active_job_transition(...)
      └── Writes data["active_jobs"][vacuum][map_id]
   4. Calls hass.services.async_call("vacuum", "send_command", payload)
      └── Sends room_clean payload to upstream vacuum entity
@@ -260,7 +260,9 @@ core/manager.py — start_selected_rooms()
   │
   ▼
 listeners/lifecycle.py  (state-change listener on vacuum entity)
-  Calls manager.handle_vacuum_state_change(state, attrs)
+  Inlines state handling (no single entry-point method); on completion
+  calls manager.finalize_learning_for_active_job(...) then
+  manager.mark_active_job_finalized(...)
   → Updates data["active_jobs"] lifecycle fields
   │
   ▼
@@ -273,7 +275,7 @@ listeners/job_progress.py  (5s time-interval ticker)
   │
   ▼
 listeners/dock_events.py  (state-change listener on dock sensors)
-  Calls manager.handle_dock_event(...)
+  Calls manager.record_dock_event(...)
   → Records dock event in data["dock_events"]
   → Triggers finalization
   │

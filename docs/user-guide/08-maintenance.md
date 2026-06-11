@@ -77,7 +77,7 @@ Below that:
 
 The **Interval** section shows the current maintenance interval (in hours) for the item along with the manufacturer-recommended default and the maximum allowed override. Enter a new value and click **Save** to persist it; click **Default** to put the manufacturer's recommended interval back into the input (you still need to click **Save** to commit).
 
-Intervals are stored per vacuum per component and persist across restarts. The value is shared with the matching `number.<vacuum>_<component>_maintenance_interval` entity, so changes made on the card show up on the entity (and the reverse). Editing the interval does not reset the counter — the new value takes effect immediately and the "remaining" figure recalculates from current usage.
+Intervals are stored per vacuum per component and persist across restarts. The value is shared with the matching maintenance-interval number entity for that component (e.g. `number.<vacuum>_<component>_maintenance_interval`, with the exact id derived by Home Assistant from the device and component names), so changes made on the card show up on the entity (and the reverse). Editing the interval does not reset the counter — the new value takes effect immediately and the "remaining" figure recalculates from current usage.
 
 Use this when the default cleaning frequency does not suit your environment — for example, lowering the filter interval in a pet household, or raising the brush interval if your floors stay clean enough that the default warning fires too soon.
 

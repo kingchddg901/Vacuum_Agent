@@ -81,7 +81,7 @@ Watches all lifecycle-watch entities across all managed vacuums. Drives job star
 
 | Constant | Value | Description |
 |---|---|---|
-| `_ACTIVE_LIFECYCLE_STATES` | `{"active_job_running", "mid_job_service"}` | Task-status values that count as "active lifecycle observed" |
+| `_ACTIVE_LIFECYCLE_STATES` | `{"active_job_running", "mid_job_service"}` | lifecycle_state values (from evaluate_job_lifecycle) that count as "active lifecycle observed" |
 | `_DEFAULT_COMPLETION_TASK_STATUS` | `"completed"` | Default task_status string signalling job done |
 | `_DEFAULT_CLEAR_SENTINELS` | `frozenset({"", "unknown", "unavailable", "none", "null"})` | Default active_cleaning_target values that indicate target cleared |
 
@@ -95,7 +95,7 @@ On each state change, the `_process()` coroutine runs:
 
 1. `record_active_job_transition(vacuum_entity_id, new_state)` — records state machine transitions.
 2. `update_active_job_recharge_observation(vacuum_entity_id)` — tracks mid-job recharge events.
-3. If dock entity changed: check for mop-wash trigger, call `record_dock_mop_wash_from_lifecycle()` if applicable.
+3. If dock entity changed: check for mop-wash trigger, call `update_active_job_mop_wash_observation()` if applicable.
 4. `record_active_lifecycle_observed(vacuum_entity_id)` — sets `has_observed_active_lifecycle = True` when task_status enters an active lifecycle state.
 5. Completion check.
 
@@ -110,7 +110,7 @@ has_observed_active_lifecycle == True          (set when task_status entered an 
 ```
 
 On completion:
-1. `finalize_learning_for_active_job(vacuum_entity_id)` — called in executor (blocking).
+1. `finalize_learning_for_active_job(vacuum_entity_id)` — awaited directly (async).
 2. `mark_active_job_finalized(vacuum_entity_id)` — closes the active job slot.
 3. Fires `eufy_vacuum_job_finished` event with payload from `job_finished_event_data()`.
 4. If job was a mop job: `register_post_job_water_amendment()` — wires the water amendment watcher.
@@ -156,7 +156,7 @@ On watched entity state change to `"on"`:
 1. Reads the `path_block_action` for the active job. Values:
    - `"event_only"` (default): fires `eufy_vacuum_path_blocked` only.
    - `"pause_and_event"`: pauses the job and fires the event.
-   - `"cancel_and_event"`: cancels the job, fires `eufy_vacuum_path_blocked`, then fires `eufy_vacuum_job_finished`.
+   - `"cancel_and_event"`: cancels the job, fires `eufy_vacuum_job_finished`, then fires `eufy_vacuum_path_blocked`.
 
 ---
 

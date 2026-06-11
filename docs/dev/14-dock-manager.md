@@ -255,6 +255,6 @@ result dict (`updated: True` with `old_count`/`new_count`, or `updated: False` w
 | Panel dock-action service | `async_wash_mop()` / `async_dry_mop()` / `async_stop_dry_mop()` / `async_empty_dust()` | User presses dock action button |
 | Panel dock status API | `get_dock_action_status()` | On panel render |
 | Panel maintenance tab | `set_dock_event_count()` | User corrects counter |
-| `maintenance/manager.py` | reads `data["dock_events"]` directly | `get_upkeep_snapshot()` |
+| `maintenance/manager.py` | `get_dock_events()` (public accessor) | `get_upkeep_snapshot()` |
 
 > **See also:** [13-maintenance-manager](13-maintenance-manager.md) §7 for how dock event counts are consumed to compute maintenance remaining hours; [22-adapter-config-reference](22-adapter-config-reference.md) §vocabulary for the `dock_status` state strings that trigger event detection.

@@ -545,14 +545,14 @@ total_minutes = room_minutes_total + overhead_minutes
 
 **Mop wash detail:**
 
-The wash mode and interval are read live from HA entities derived from the vacuum entity ID:
+The wash mode and interval are read live from HA entities whose IDs are resolved from the adapter registry config — not string-formatted in the estimator:
 
 ```
-mode entity:     select.{object_id}_wash_frequency_mode
-interval entity: number.{object_id}_wash_frequency_value_time
+mode entity:     adapter_cfg["entities"]["wash_frequency_mode"]
+interval entity: adapter_cfg["entities"]["wash_frequency_value_time"]
 ```
 
-Where `object_id` is the part of the vacuum entity id after the dot (e.g. `alfred` from `vacuum.alfred`).
+`_load_mop_wash_config` calls `_get_adapter_config(vacuum_entity_id)` and reads those keys from its `entities` dict. The Eufy adapter populates them via `build_entity_id(...)`, so for Eufy they resolve to `select.{object_id}_wash_frequency_mode` / `number.{object_id}_wash_frequency_value_time` (where `object_id` is the part of the vacuum entity id after the dot, e.g. `alfred` from `vacuum.alfred`).
 
 The interval is clamped to `[15.0, 25.0]` minutes and defaults to `20.0` when unavailable.
 

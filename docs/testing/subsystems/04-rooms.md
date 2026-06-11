@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **134 tests across 6 files**.
+engine that gates/modifies rooms at start). Covered by **135 tests across 6 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.md), [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `access_graph.py` | 404 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
-| `room_crud.py` | 88 | 97% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
+| `room_crud.py` | 82 | 99% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
 | `room_discovery.py` | 68 | 94% | `test_room_discovery.py` | integration |
 | `room_manager.py` | 40 | 100% | `test_room_manager.py` (unit) | unit |
 | `utils.py` | 2 | 100% | `test_rooms_utils.py` (unit) | unit |

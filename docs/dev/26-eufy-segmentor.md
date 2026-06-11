@@ -72,7 +72,7 @@ ops, HSV helpers, RDP). Input is a **filesystem path** to a clean, *unlabeled*
 Eufy map PNG; output is a pure-Python `SegmentationResult` dict.
 
 Coordinate space is **canvas pixel space** — origin top-left, y-down. Segment IDs
-are **positional** (`segment_0`, `segment_1`, …), *not* vendor room IDs; matching
+are **positional** (`segment_1`, `segment_2`, …, 1-based), *not* vendor room IDs; matching
 canvas segments to vendor room IDs happens downstream (`matched_room_id` is always
 `None` here).
 
@@ -198,7 +198,7 @@ Distinguish two unrelated concepts that both contain the word "recovery":
 Each **segment** (canonical fields):
 
 ```
-segment_id        str           # "segment_0", positional — NOT a vendor room id
+segment_id        str           # "segment_1", positional (1-based) — NOT a vendor room id
 polygon_pixel     [[x, y], …]   # canvas pixel space
 bbox              {x, y, width, height}
 area_pixels       int
@@ -219,7 +219,7 @@ variant-agreement scores.
 
 ---
 
-## 9. Gotchas (and why coverage is ~70%)
+## 9. Gotchas (and why coverage is ~91%)
 
 - **No cv2.** Everything is `scipy.ndimage` + hand-rolled geometry in
   `segment_primitives.py`. A second-brand author copies

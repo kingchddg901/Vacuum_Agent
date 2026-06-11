@@ -12,7 +12,7 @@ something to aim at.
 
 The technical contract (definition shape, coordinate space, allowed poses,
 battery-state hook, theme tokens) lives in the integration's
-[animal-svg dev doc](../dev/animal-svg.md). This file is purely
+[animal-svg dev doc](../dev/24-animal-svg.md). This file is purely
 about *making them look good*.
 
 ## What "good" means here
@@ -133,7 +133,9 @@ A few non-goals worth stating:
   parrot's `wingLeft`/`wingRight` are optional. Skip them if your animal
   doesn't need them — empty strings or absent keys are fine.
 - **Don't fight the coordinate space.** ViewBox is `-10 -10 500 340` and
-  anatomy anchors are documented in the README. You can deviate, but pose
+  anatomy anchors are documented in the
+  [animal-svg dev doc](../dev/24-animal-svg.md) under "Coordinate space".
+  You can deviate, but pose
   transforms pivot around those anchors regardless, so significant
   deviation produces strange motion.
 
@@ -184,9 +186,7 @@ you the pose name and walks away.
 
 Open `demo.html` (served at `/eufy_vacuum/frontend/animal-svg/demo.html` if
 the integration is installed, or open it directly from the file editor).
-Walk through every pose for your animal. Then walk through each
-`battery-state` value (`good`, `mid`, `warn`, `low`, `charging`) and
-re-check every pose. All thirty (6 × 5) combinations should look
+Walk through every pose for your animal. All six poses should look
 intentional, not accidental.
 
 If any pose looks broken at the default size *and* at 2× scale, fix it

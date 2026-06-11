@@ -54,7 +54,7 @@ Two layers, against the real `manager` fixture:
 
 ## How it's tested
 
-Three patterns:
+Four patterns:
 1. **Pure import** — `job_metrics`.
 2. **`tmp_path`** — `store`.
 3. **Mock manager** — `sensors`: the entities only read `manager.get_record()`,

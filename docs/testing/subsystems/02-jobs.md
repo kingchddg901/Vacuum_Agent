@@ -36,8 +36,8 @@ The whole module is pure, so coverage is near-total:
   invalid payload) and the canned-message fallback.
 
 ### `active_job.py` — active-job tracking (prefixes `AJ` unit, `AJI` integration)
-`active_job.py` is mostly a 1,673-line `ActiveJobTracker` bound to the manager
-and hass. Two layers:
+`active_job.py` is a 1,673-line file that is mostly the `ActiveJobTracker` class
+(lines 104-1673), bound to the manager and hass. Two layers:
 - **`AJ` (unit, `MagicMock` manager)** — module helpers (`_safe_int`,
   `_normalize_path_block_action`, …) and the pure tracker methods:
   `_default_active_job_state`, `_derive_active_job_current_room_id`,

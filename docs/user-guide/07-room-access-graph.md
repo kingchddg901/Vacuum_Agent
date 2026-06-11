@@ -22,7 +22,7 @@ The modal has three sections:
 
 Each room in the "Rooms Accessed From Here" section is shown as a chip button. Click a chip to toggle whether this room grants access to that room. A highlighted chip means the link is active.
 
-A room that is already claimed as a target by a different room is not shown as an available option. You cannot give two rooms the same outbound target.
+A room that is already claimed as a target by a different room is shown but disabled (it appears greyed out and cannot be selected here). You cannot give two rooms the same outbound target.
 
 When you have finished making changes, click **Save Access**. The Save button is disabled while there are unresolved graph issues.
 

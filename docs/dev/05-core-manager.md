@@ -229,9 +229,11 @@ post-start, persist. Returns a structured start summary.
 ### `get_job_progress_snapshot`
 
 Reads active job state, computes elapsed/expected times per room (active_job),
-checks bounds via MappingTracker, fires `EVENT_STALL_DETECTED` if stall
-threshold is exceeded, returns a complete card-ready progress payload. Too
-many concerns for one subsystem.
+emits a timing-only bounds-exit signal (`awaiting_bounds_exit`) when
+`current_room_elapsed_minutes` exceeds the timing-completion threshold —
+`mapping_available` / `mapping_used` are always `False` — fires
+`EVENT_STALL_DETECTED` if stall threshold is exceeded, returns a complete
+card-ready progress payload. Too many concerns for one subsystem.
 
 ### `get_dashboard_snapshot`
 

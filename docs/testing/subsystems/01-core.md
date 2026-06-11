@@ -87,6 +87,6 @@ configured under test), and a handful of not-taken partial branches. The
 covered because they escape into behavior.
 
 The remaining per-module gaps are within the held ceiling: `error_tracker.py`
-(89%) and `water_amendment.py` (91%) are short of the others only on defensive
+(89%) and `water_amendment.py` (92%) are short of the others only on defensive
 except/guard paths; `capabilities.py` (97%), `charging.py` (100%) and
 `storage.py` (100%) are effectively complete.

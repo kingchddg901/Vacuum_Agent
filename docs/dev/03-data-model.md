@@ -807,7 +807,7 @@ primitives.
 ### 6a. Room profiles
 
 Custom room profiles are stored at `data["profiles"]["room_profiles"]`.
-Built-in profiles (e.g. `"vacuum_quick"`, `"mop_light"`) are compiled at
+Built-in profiles (e.g. `"vacuum_quick"`, `"vacuum_mop_quick"`) are compiled at
 runtime from `profiles/room_profiles.py` and never written to storage — only
 user-created profiles appear in storage.
 
@@ -1421,7 +1421,7 @@ completed for each vacuum.
   "completed_steps":    list[str]             # ordered list of completed step IDs
   "last_advanced_at":   str | None            # ISO timestamp of last step completion
   "rejected_rooms":     list[int]             # room IDs the user dismissed during setup
-  "room_drift_history": dict[room_id_str, list[DriftHistoryEntry]]
+  "room_drift_history": dict[room_id_str, DriftHistoryEntry]   # one entry per room_id
 }
 ```
 
@@ -1434,13 +1434,15 @@ before the state machine was introduced.
 
 ### `DriftHistoryEntry`
 
+A single dict per `room_id` (not a list), written by `setup/drift.py`.
+
 ```
 {
-  "detected_at":   str    # ISO timestamp
-  "drift_type":    str    # "new_room" | "missing_room" | "name_change"
-  "room_id":       int
-  "old_name":      str | None
-  "new_name":      str | None
+  "missing_passes":   int           # consecutive drift passes the room was absent
+  "seen_passes":      int           # consecutive drift passes the room was present
+  "last_seen_at":     str | None    # ISO timestamp the room was last discovered
+  "first_missed_at":  str | None    # ISO timestamp the current missing streak began
+  "first_seen_at":    str | None    # ISO timestamp the room was first discovered
 }
 ```
 

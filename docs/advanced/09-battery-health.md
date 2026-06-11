@@ -327,10 +327,10 @@ Use `tail -f` or `jq` for live monitoring; rotate or archive periodically since 
 One row per completed charge session, header on first write:
 
 ```csv
-start_ts,end_ts,duration_min,start_battery,end_battery,delta_pct,avg_rate_per_min,min_rate_per_min,max_rate_per_min,samples,ended_reason,kind
+start_ts,end_ts,duration_min,start_battery,end_battery,delta_pct,avg_rate_per_min,min_rate_per_min,max_rate_per_min,samples,ended_reason
 ```
 
-`kind` is one of `mid_job` / `post_job` / `idle`. `ended_reason` is `full` (battery hit 100 %) or `stopped` (charging ended early). Open in any spreadsheet for trend charting.
+`ended_reason` is `full` (battery hit 100 %) or `stopped` (charging ended early). Open in any spreadsheet for trend charting.
 
 ---
 

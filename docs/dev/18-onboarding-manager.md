@@ -202,7 +202,7 @@ Floor type confirmation is per-room, not per-map. The `floor_types_confirmed` di
 {"1": True, "2": True, "3": False}
 ```
 
-A room with `confirmed == False` or missing from the dict counts as unconfirmed. Unconfirmed rooms block the `"complete"` status but do **not** block jobs from running — they surface as warnings in the panel.
+A room with `confirmed == False` or missing from the dict counts as unconfirmed. Unconfirmed **enabled** rooms block the `"complete"` status AND hard-block job start via the core start-status `onboarding_required` gate (`blocked`, not a warning); disabled rooms are excluded and never gate completion or starting.
 
 ---
 

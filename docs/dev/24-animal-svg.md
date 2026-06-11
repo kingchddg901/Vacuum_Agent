@@ -58,13 +58,13 @@ Then anywhere in a card:
 |------------|--------|---------|-----------|
 | `animal`   | `cat`, `dog`, `raccoon`, `parrot`, `snake`, or any registered animal | `cat` | Triggers full re-render |
 | `pose`     | `animating`, `standing`, `curled`, `alert`, `walking`, `warning` | `standing` | Triggers full re-render |
-| `width`    | any CSS length | `360px` | Applied to host (`:host { width: ... }`) |
-| `height`   | any CSS length | `240px` | Applied to host |
+| `width`    | any CSS length | `360px` | Applied to host (`:host { width: ... }`); observed, triggers full re-render |
+| `height`   | any CSS length | `240px` | Applied to host; observed, triggers full re-render |
 | `battery-state` | `good`, `mid`, `warn`, `low`, `charging` | absent ≡ `good` | Pure CSS — re-targets `--animal-eye` to the matching framework default (`good`=green, `mid`=yellow, `warn`=orange, `low`=red, `charging`=blue). Themes can override via `--evcc-animal-eye-*` tokens. `charging` additionally drives a gentle brightness pulse on elements tagged `.animal-eyes`. |
 
-`animal` and `pose` are observed and trigger a full re-render via
-`attributeChangedCallback`. `width`, `height`, and `battery-state` work without
-re-rendering — `battery-state` is implemented as five `:host([battery-state="X"])`
+`animal`, `pose`, `width`, and `height` are all observed and trigger a full
+re-render via `attributeChangedCallback`. Only `battery-state` works without
+re-rendering — it is implemented as five `:host([battery-state="X"])`
 CSS rules plus a keyframe animation, so flipping through values is essentially
 free.
 
@@ -421,8 +421,7 @@ what works; the contributing guide tells you what looks finished.
 Open `demo.html` in a browser (use the HA file editor or any static-file
 viewer that can serve `/config/www/` or `/eufy_vacuum/frontend/`). The page
 builds a grid of every registered animal and lets you scrub through every
-pose. Pass `?battery-state=charging` (or `low` / `warn` / `mid` / `good`)
-in the URL to test each band.
+pose.
 
 If you see "animal-svg: unknown animal" in the host element, the registration
 file did not run — check the browser console for a load error in `manifest.js`.

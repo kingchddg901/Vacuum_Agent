@@ -23,7 +23,7 @@ The adapter system is the **brand abstraction layer**. Every piece of brand-spec
 
 ### 2.1 AdapterCoordinator
 
-`AdapterCoordinator` is instantiated once per config entry in `EufyVacuumManager.__init__()`. It sets itself as the module-level `_active_coordinator` pointer on creation, enabling the legacy shim functions to route through it.
+`AdapterCoordinator` is instantiated once per config entry in `__init__.py::async_setup_entry`. It sets itself as the module-level `_active_coordinator` pointer on creation, enabling the legacy shim functions to route through it.
 
 ```python
 coordinator = AdapterCoordinator(hass, entry)   # sets _active_coordinator
@@ -221,6 +221,7 @@ Dict keyed by component_id. Each entry:
 | `max_interval_hours` | float | Maximum allowed user-override interval |
 | `label` | str | Display name |
 | `icon` | str | MDI icon |
+| `reset_button` | dict \| None | Upstream replacement-counter reset button resolution (`entity_suffixes` + `token_sets`); absent = no reset button |
 
 ### 3.5 `capabilities` block
 
@@ -290,7 +291,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 1. Read `vacuum.attributes.detected_model` to determine `model_family` via `_detect_model_family()`.
 2. Build `entity_candidates` dict (two naming-variant candidates per entity where robovac_mqtt uses different suffixes between versions).
 3. Build `capability_hints` dict — model-based boolean hints for `detect_capabilities()`.
-4. Call `detect_capabilities(hass, vacuum_entity_id, entity_candidates, model_family, capability_hints, maintenance_components)` — probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
+4. Call `detect_capabilities(hass, *, vacuum_entity_id, detected_model, entity_candidates, model_family, capability_hints, maintenance_components)` (all args after `hass` are keyword-only) — probes the HA entity registry and state machine; returns capability flags and resolved entity IDs.
 5. Build the full `config` dict from all sub-modules: `entities.py`, `buttons.py`, `vocabulary.py`, `maintenance_components.py`, `upkeep_catalog.py`, `upkeep_guides.py`, `water_config.py`, `constants.py`.
 6. Strip `None` values from the entities dict (absent entities degrade gracefully per the schema).
 7. Call `register_adapter_config(vacuum_entity_id, config)`.

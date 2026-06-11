@@ -233,7 +233,7 @@ This service returns control state, not job progress. For current job progress u
 
 ### `get_lifecycle_state`
 
-Returns the current lifecycle state for a vacuum. Possible states include `ready`, `cleaning`, `dock_drying`, `cancelled`, and `failed`.
+Returns the current lifecycle state for a vacuum. Possible states are `ready`, `active_job_running`, `vacuum_busy`, `dock_drying`, `mid_job_service`, and `map_mismatch`.
 
 | Parameter | Required |
 |---|---|
@@ -264,7 +264,7 @@ Persists the default paused-job auto-cancel timeout. Used when a start call does
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `pause_timeout_minutes_default` | Yes | Minutes before a paused job is auto-cancelled. `0` disables auto-cancel. Range: 0–1440. |
+| `pause_timeout_minutes_default` | Yes | Minutes before a paused job is auto-cancelled. `0` disables auto-cancel. Range: 0 or greater (no upper bound). |
 
 ### `get_upkeep_snapshot`
 
@@ -567,7 +567,7 @@ Records that a maintenance component has been cleaned or replaced, resetting its
 | Parameter | Required | Notes |
 |---|---|---|
 | `vacuum_entity_id` | Yes | |
-| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"side_brush"`, `"filter"`). Valid values: `brush`, `side_brush`, `filter`, `mop`, `sensor`. |
+| `component` | Yes | Component ID as declared in the adapter's `maintenance_components` block (e.g. `"side_brush"`, `"filter"`). Valid values: `filter`, `sensor`, `side_brush`, `rolling_brush`, `mopping_cloth`, `cleaning_tray`, `swivel_wheel`. |
 
 Supports response.
 

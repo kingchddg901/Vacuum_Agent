@@ -29,9 +29,11 @@ The card renders using the _resolved_ result of merging active theme + working d
 
 ## 2. Token Architecture
 
-### The 18 token groups
+### Token groups
 
 Groups are editor-only metadata. They organize the token editor UI and have no effect on backend persistence, which remains a flat dictionary.
+
+The static groups below are the fixed editor order. Between **Modals & Overlays** and **Shared Foundations** the registry combiner (`src/theme-tokens/index.js:144-145`) splices in a dynamic **Animal Companion** section: an "Animal Companion" parent group plus one "Animal Companion — &lt;Name&gt;" sub-group per registered animal, sourced from the live AnimalSVG registry (`src/theme-tokens/animals.js`) rather than hand-listed — mirroring the Floor Textures parent/sub-group treatment. So the real editor list is the 18 static groups plus the per-animal section, not a fixed 18.
 
 | Group | Purpose |
 |---|---|
@@ -224,7 +226,7 @@ CVD gate validates.
 
 **How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
 
-**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI should prevent this at the UI layer, but the backend does not enforce it.
+**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`theme.js:313`, `id !== defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
 
 **The `theme_follow_ha` default:** If `default_theme_id` is missing or points to a nonexistent entry, it is reset to `theme_follow_ha` at seeding time. `theme_follow_ha` has empty `colors` and `tokens`, which means no `--evcc-` variables are injected — the card's CSS falls through to its static defaults.
 
@@ -438,11 +440,11 @@ No schema migration is needed — the flat storage format means new tokens simpl
 
 ### How to add a new token group
 
-1. **Add the group name** to `THEME_GROUPS` in `src/theme-tokens/groups.js`. Order in this array determines the order groups appear in the editor.
+1. **Add the group name** to `STATIC_GROUPS_BEFORE_ANIMALS` (or `STATIC_GROUPS_AFTER_ANIMALS`) in `src/theme-tokens/groups.js`. Order in these arrays determines the order groups appear in the editor.
 
 2. **Create the group file** (e.g. `src/theme-tokens/my-group.js`). Import a typed helper from `helpers.js` or create one with `makeTypedGroupToken("My Group Name", "color")`. Export a constant array of token entries.
 
-3. **Register in `index.js`:** import the exported array and add it to `GROUPED_TOKEN_SETS`.
+3. **Register in `index.js`:** import the exported array and add it to `STATIC_BEFORE_ANIMALS` (or `STATIC_AFTER_ANIMALS`) in `src/theme-tokens/index.js`.
 
 4. **Add a section in the token editor template** so the new group renders in the UI (the editor iterates `THEME_GROUPS` and renders a collapsible section per group).
 
@@ -503,13 +505,16 @@ Usage from the card (or anywhere in HA):
 
 **Why it's a separate resource:** the component is a self-registering standalone module rather than part of the card bundle, so adding an animal (a new file in `animals/` plus a line in `manifest.js`) does not force a card rebuild. It ships under the integration's `frontend/` directory and is served at `/eufy_vacuum/frontend/animal-svg/`.
 
-### Wiring it into a theme (planned, not yet implemented)
+### How it's wired today
 
-Future direction:
+The map view renders the companion live. `src/renderers/map.js:306` emits `<animal-svg animal="${animal}" pose="${pose}" width=... height=... battery-state=...>` at the room anchor, and `_vacuumStateToPose()` (`src/renderers/map.js:21-31`) derives the pose from the canonical HA vacuum state:
 
-1. Add a `mascot` token to `theme-tokens/groups.js` — value is one of the registered animal names.
-2. In `applyDynamicTheme`, render `<animal-svg animal="${mascot}" pose="${derived_pose}">` in the map view.
-3. Derive `pose` from vacuum state — e.g. `docked → curled`, `cleaning → walking`, `error → warning`.
-4. The pose mapping itself becomes a theme-token (`mascot_pose_map`), letting different themes drive different mascot behaviours from the same state.
+- `cleaning → alert`
+- `returning → walking`
+- `paused → standing`
+- `error → warning`
+- `docked` / `idle` (and the default) `→ curled`
+
+The Animal Companion token group (parent + per-animal sub-groups, with `--evcc-animal-*` keys) lives in `src/theme-tokens/animals.js` and is spliced into the live registry by `src/theme-tokens/index.js` `rebuild()` (lines 129-158).
 
 The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.

@@ -43,7 +43,7 @@ from your real HA doesn't bleed in.
 
 ### 1d. Verify the fallback panel
 
-- ☐ A sidebar entry **"Eufy Vacuum"** appears (regression check for #2)
+- ☐ A sidebar entry **"Vacuum Agent"** appears (regression check for #2)
 - ☐ Clicking it opens a "setup needed" placeholder card
 - ☐ The placeholder shows step-by-step instructions pointing back at
   Settings → Devices & Services → Configure
@@ -90,7 +90,7 @@ To also exercise the happy path (real vacuum picked → per-vacuum panel registe
   Vacuum blank, edit Notes, submit
 - ☐ Integration reloads cleanly (check logs for `INFO` reload line, no
   ERROR or WARNING new lines)
-- ☐ Sidebar still shows "Eufy Vacuum"; clicking it still shows the
+- ☐ Sidebar still shows "Vacuum Agent"; clicking it still shows the
   placeholder
 
 ### 1f. Restart HA

@@ -66,7 +66,7 @@ Byte-identical for Eufy throughout. A second brand's dispatched per-room setting
 | Room profile | `user_{YYYYMMDDTHHMMSS}` | `user_20260530T141522` |
 | Run profile | `rp_{YYYYMMDDTHHMMSS}` | `rp_20260530T141522` |
 
-Timestamps are UTC-formatted at creation time. IDs are not guaranteed globally unique — collision probability is low at human interaction rates.
+ID timestamps use naive local time (`datetime.now()`) at creation time. IDs are not guaranteed globally unique — collision probability is low at human interaction rates.
 
 ---
 
@@ -204,7 +204,7 @@ Deletes a user room profile. Returns `reason="protected_profile"` for built-ins,
 
 ## 6. Room Profile Finalization Pipeline
 
-When a room's settings are saved (via `update_room_settings()` or initial import), the settings pass through a two-stage pipeline:
+When a room's settings are saved via `update_room_fields()`, the settings pass through a two-stage pipeline:
 
 ### Stage 1 — `_protected_room_config(room: dict) -> dict`
 
@@ -407,7 +407,6 @@ Restores a saved room selection to the live room data:
 |---|---|---|
 | Panel room editor | `get_room_profiles()`, `save_user_room_profile()`, `overwrite_room_profile()`, `rename_room_profile()`, `delete_room_profile()` | Room settings save/edit |
 | Panel run profile tab | `get_saved_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()` | Run profile CRUD |
-| `rooms/room_crud.py` | `_finalize_room_update()` | Every room settings write |
-| Panel initial map import | `_finalize_room_update()` (via save_managed_rooms) | Room creation on import |
+| `core/manager.py` (`update_room_fields`) | `_finalize_room_update()` | Every per-room settings write (service `services/rooms.py`) |
 
 > **See also:** [08-rooms-system](08-rooms-system.md) §6 for the room data model that profiles are merged into; [07-queue-engine](07-queue-engine.md) §4 for how run profiles are resolved at queue build time before the payload is sent to the vacuum.

@@ -38,7 +38,7 @@ Every public function in `workflow.py` and `delete.py` returns an `ActionResult`
 {
     ...base fields...
     "code":     str,              # machine-readable reason code
-    "warnings": list[str],        # non-fatal notices (e.g. "no maps remain")
+    "warnings": list[str],        # non-fatal notices (e.g. "This vacuum now has no imported maps.")
 }
 ```
 
@@ -299,10 +299,10 @@ async def delete_map(hass, *, vacuum_entity_id, map_id, confirmation_token=None)
 1. `manager.remove_map(vacuum_entity_id, map_id_str)` — removes all data for the map.
 2. `manager._notify_rooms_updated(vacuum, map_id)` — triggers entity-platform cleanup.
 3. `manager._notify_run_profiles_updated(vacuum, map_id)` — triggers run-profile cleanup.
-4. Entity registry sweep: removes any `eufy_vacuum`-platform entities whose `unique_id` starts with `{vacuum_object_id}_{map_id}_` to catch stragglers missed by platform teardown callbacks.
+4. Entity registry sweep: removes any `eufy_vacuum`-platform entities whose `unique_id` starts with `{vacuum_entity_id with '.'->'_'}_{map_id}_` (e.g. `vacuum_alfred_6_`) to catch stragglers missed by platform teardown callbacks.
 5. `manager.async_save()`.
 
-Returns `"success"` with `warnings=["no maps remain"]` if the vacuum now has no imported maps.
+Returns `"success"` with `warnings=["This vacuum now has no imported maps. Import a new map to resume cleaning."]` if the vacuum now has no imported maps.
 
 ---
 

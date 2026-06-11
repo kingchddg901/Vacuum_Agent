@@ -68,6 +68,7 @@ action:
 Fires when the integration determines the robot has begun cleaning a new room. There are two firing sites:
 
 - `source: "job_start"` — fired immediately after a job is started, for the first room in the queue
+- `source: "counter_plateau"` — fired when the live cleaned-area counter plateaus, signalling the robot has moved on to the next room (the primary live-rollover path for Eufy)
 - `source: "timing_rollover"` — fired when the previous room's timing threshold is exceeded and the integration advances to the next room in the queue
 - `source: "bounds_exit_early"` — fired when a confident coordinate signal advances to the next room before the timing threshold is reached
 
@@ -81,7 +82,7 @@ Fires when the integration determines the robot has begun cleaning a new room. T
 | `room_id` | `str` | Room ID as a string |
 | `room_name` | `str` | Human-readable room name |
 | `started_at` | `str \| null` | ISO 8601 timestamp of when the room started |
-| `source` | `str` | One of `"job_start"`, `"timing_rollover"`, or `"bounds_exit_early"` |
+| `source` | `str` | One of `"job_start"`, `"counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"` |
 | `completed_room_ids` | `list[int]` | List of room IDs already completed in this job |
 
 ### Example trigger
@@ -115,7 +116,7 @@ action:
 
 ### When it fires
 
-Fires when the integration marks a room complete and advances to the next one. This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room. The rollover happens either because the room's timing threshold was exceeded (`source: "timing_rollover"`) or because a confident coordinate signal advanced past the room early (`source: "bounds_exit_early"`).
+Fires when the integration marks a room complete and advances to the next one. This is the same `_maybe_roll_current_room_by_timing` path that also fires `eufy_vacuum_room_started` for the following room. The rollover happens because the live cleaned-area counter plateaued (`source: "counter_plateau"`, the primary live path for Eufy), because the room's timing threshold was exceeded (`source: "timing_rollover"`), or because a confident coordinate signal advanced past the room early (`source: "bounds_exit_early"`).
 
 ### Payload fields
 
@@ -127,7 +128,7 @@ Fires when the integration marks a room complete and advances to the next one. T
 | `room_id` | `str` | ID of the room that was just completed |
 | `room_name` | `str` | Human-readable name of the completed room |
 | `completed_at` | `str` | ISO 8601 timestamp of completion |
-| `source` | `str` | Either `"timing_rollover"` or `"bounds_exit_early"` |
+| `source` | `str` | One of `"counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"` |
 | `actual_duration_minutes` | `float` | How long the robot spent in the room, in minutes, rounded to 2 decimal places |
 | `confidence` | `float \| null` | Confidence score from the timing estimate, or `null` if no estimate was available |
 | `completed_room_ids` | `list[int]` | Full list of room IDs now completed in this job (includes the room just finished) |

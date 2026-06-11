@@ -72,9 +72,11 @@ Tokens are organized into the following groups, in this order:
 | Status, Confidence & Alerts | Status dot colors, confidence-level chip colors, alert surface colors |
 | Learning & Metrics | Estimate badge styles, learning panel surfaces, confidence tiers |
 | Modals & Overlays | Modal backdrop, modal surface, modal header and footer |
+| Animal Companion | Parent group of the map companion: global mascot tokens shared by every animal |
+| Animal Companion — &lt;Name&gt; | One sub-group per registered animal (Cat, Dog, Raccoon, …) holding that animal's colors; generated from the registered animal list, not hand-listed |
 | Shared Foundations | Cross-cutting values: gap, radius, font scale, hover lift, transition speed |
 
-The Floor Texture sub-groups (Tile, Wood, Marble, etc.) are nested visually under the parent Floor Textures group. Their headers display the sub-group name without the parent prefix, so "Floor Textures — Tile" appears as just "Tile" when expanded.
+The Floor Texture sub-groups (Tile, Wood, Marble, etc.) are nested visually under the parent Floor Textures group. Their headers display the sub-group name without the parent prefix, so "Floor Textures — Tile" appears as just "Tile" when expanded. The Animal Companion sub-groups follow the same parent/sub-group nesting, and their list grows automatically as new mascot files are registered.
 
 All groups are open by default on first visit. Clicking a group header collapses or expands it, and that state is remembered for the rest of the session.
 
