@@ -762,8 +762,11 @@ class LearningEstimator:
         )
         accuracy_stats = self._load_accuracy_stats(vacuum_entity_id=vacuum_entity_id)
 
-        # Stale detection.
-        stats_stale = self._is_stats_stale(vacuum_entity_id=vacuum_entity_id)
+        # Stale detection — reuse the already-loaded room_stats_data (the estimate
+        # is computed on the event loop via the dashboard snapshot, so avoid a second read).
+        stats_stale = self._is_stats_stale(
+            vacuum_entity_id=vacuum_entity_id, room_stats_data=room_stats_data
+        )
         rebuilt_at = (room_stats_data or {}).get("rebuilt_at")
 
         # Transit / travel-time indices (frame-invariant). Built from the already

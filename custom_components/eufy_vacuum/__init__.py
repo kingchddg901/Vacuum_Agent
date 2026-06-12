@@ -16,6 +16,7 @@ and the job-finished event payload builder.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import os
@@ -47,6 +48,7 @@ from .adapters.config_loader import load_stored_adapter_configs
 from .battery.manager import BatteryHealthManager
 from .core.error_tracker import ErrorTracker
 from .core.manager import EufyVacuumManager
+from .learning.history_store import LearningHistoryStore
 from .learning.manager import LearningManager
 from .learning.services import (
     async_register_learning_services,
@@ -244,6 +246,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN][DATA_RUNTIME] = manager
     entry.runtime_data = manager  # Bronze: store runtime object in ConfigEntry.runtime_data
     hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
+
+    # Warm the learning room_stats read cache off-loop, so the (loop-bound)
+    # dashboard-snapshot estimate never blocks on disk reading room_stats.json —
+    # not even on the first snapshot after a restart. See LearningHistoryStore.
+    _learning_store = LearningHistoryStore(hass)
+    for _vac in manager.get_known_vacuum_ids():
+        try:
+            await hass.async_add_executor_job(
+                functools.partial(_learning_store.load_room_stats, vacuum_entity_id=_vac)
+            )
+        except Exception:  # pragma: no cover - never block setup on a cache warm
+            _LOGGER.debug(
+                "eufy_vacuum: room_stats cache warm failed for %s", _vac, exc_info=True
+            )
 
     battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
     battery_manager.start(manager.get_known_vacuum_ids())

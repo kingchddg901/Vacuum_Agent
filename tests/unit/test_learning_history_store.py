@@ -43,6 +43,29 @@ def test_build_payload_room_slugs_from_queue_rooms(tmp_path):
     assert "kitchen" in jp["room_slugs"] and "bath" in jp["room_slugs"]
 
 
+def test_room_stats_cached_per_hass(tmp_path):
+    """[HS-cache] load_room_stats serves from an hass-scoped cache so the hot
+    dashboard-snapshot estimate doesn't re-read room_stats.json off the event loop
+    on every call; save_room_stats (the sole writer) refreshes it. Guards against
+    reintroducing the on-loop blocking read flagged by HA (history_store.py:165)."""
+    store = _make_store(tmp_path)
+    store.hass.data = {}  # real dict — the MagicMock default would no-op the cache
+    vac = "vacuum.alfred"
+
+    store.save_room_stats(vacuum_entity_id=vac, payload={"room_stats": [{"v": 1}]})
+    assert store.load_room_stats(vacuum_entity_id=vac) == {"room_stats": [{"v": 1}]}
+
+    # Out-of-band file change (NOT via save) — the cache keeps serving the cached
+    # value, proving the read does not re-hit disk.
+    path = store.get_room_stats_path(vacuum_entity_id=vac)
+    path.write_text(json.dumps({"room_stats": [{"v": 999}]}), encoding="utf-8")
+    assert store.load_room_stats(vacuum_entity_id=vac) == {"room_stats": [{"v": 1}]}
+
+    # save_room_stats refreshes the cache to the new value.
+    store.save_room_stats(vacuum_entity_id=vac, payload={"room_stats": [{"v": 2}]})
+    assert store.load_room_stats(vacuum_entity_id=vac) == {"room_stats": [{"v": 2}]}
+
+
 def _minimal_completed_job(
     *,
     job_id: str = "job-001",

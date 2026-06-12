@@ -462,9 +462,10 @@ class LearningHistoryStore:
         vacuum_entity_id: str,
         payload: dict[str, Any],
     ) -> Path:
-        """Save learned room stats JSON."""
+        """Save learned room stats JSON (and refresh the shared read cache)."""
         path = self.get_room_stats_path(vacuum_entity_id=vacuum_entity_id)
         self.write_json(path, payload)
+        self._room_stats_cache()[str(path)] = payload if isinstance(payload, dict) else None
         return path
 
     def save_jobs_index(
@@ -487,14 +488,30 @@ class LearningHistoryStore:
         payload = self.read_json(self.get_job_stats_path(vacuum_entity_id=vacuum_entity_id))
         return payload if isinstance(payload, dict) else None
 
+    def _room_stats_cache(self) -> dict[str, "dict[str, Any] | None"]:
+        """The shared room_stats read cache. Scoped to ``hass.data`` so it is shared
+        across the many LearningHistoryStore instances (estimator, rebuilder, …) yet
+        fresh per hass (so tests don't bleed). The dashboard-snapshot estimate reads
+        room_stats on the event loop frequently — caching keeps that off disk —
+        and ``save_room_stats`` (the SOLE writer of the file) refreshes it, so reads
+        never go stale."""
+        return self.hass.data.setdefault("_eufy_vacuum_room_stats_cache", {})
+
     def load_room_stats(
         self,
         *,
         vacuum_entity_id: str,
     ) -> dict[str, Any] | None:
-        """Load learned room stats JSON."""
-        payload = self.read_json(self.get_room_stats_path(vacuum_entity_id=vacuum_entity_id))
-        return payload if isinstance(payload, dict) else None
+        """Load learned room stats JSON (cached; see _room_stats_cache)."""
+        path = self.get_room_stats_path(vacuum_entity_id=vacuum_entity_id)
+        cache = self._room_stats_cache()
+        key = str(path)
+        if key in cache:
+            return cache[key]
+        payload = self.read_json(path)
+        data = payload if isinstance(payload, dict) else None
+        cache[key] = data
+        return data
 
     def load_jobs_index(
         self,
