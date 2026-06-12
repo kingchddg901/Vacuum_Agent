@@ -562,6 +562,16 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Composer: rotate the selected shape
+    root.querySelectorAll("[data-action='compose-rotate']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.rotateComposeShape(id, Number(btn.dataset.deg ?? 0));
+        this.card._scheduleRender();
+      });
+    });
+
     // Composer: tap the map to drop the selected shape there (coarse placement).
     // Hooks the config canvas's click; bails on shape-taps (those select) and on
     // taps that were really a pan-drag (_mapDragOccurred).

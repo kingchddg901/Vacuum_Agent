@@ -100,11 +100,15 @@ export function applyMapState(proto) {
   };
 
   proto.addComposeShape = function (type) {
-    const id = `draft_${this._composeNextId++}`;
+    // Guarantee a fresh id even if loaded shapes reused earlier draft_N ids
+    // (the counter resets on page load; reloaded shapes keep their saved ids).
+    const used = new Set(this.composeDraft().map((s) => s.id));
+    let id;
+    do { id = `draft_${this._composeNextId++}`; } while (used.has(id));
     const off = (this.composeDraft().length % 6) * 5; // cascade so adds don't stack
     const shape = type === "circle"
       ? { id, type: "circle", cx: 28 + off, cy: 28 + off, r: 14 }
-      : { id, type: "rect", x: 22 + off, y: 22 + off, w: 28, h: 22 };
+      : { id, type: "rect", x: 22 + off, y: 22 + off, w: 28, h: 22, angle: 0 };
     this.composeDraft().push(shape);
     this._composeSelectedId = id;
     return shape;
@@ -210,6 +214,15 @@ export function applyMapState(proto) {
   // bucketed by `group` (default = each shape's own id, i.e. one room each), so
   // merge/cut (shared group + op:subtract) drops in later with no change here.
   proto.composeToSegments = function () {
+    const rectCorners = (s) => {
+      const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+      const rad = ((s.angle || 0) * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+      const rot = (px, py) => [
+        Math.round((cx + (px - cx) * cos - (py - cy) * sin) * 100) / 100,
+        Math.round((cy + (px - cx) * sin + (py - cy) * cos) * 100) / 100,
+      ];
+      return [rot(s.x, s.y), rot(s.x + s.w, s.y), rot(s.x + s.w, s.y + s.h), rot(s.x, s.y + s.h)];
+    };
     const groups = {};
     for (const s of this.composeDraft()) {
       const g = s.group ?? s.id;
@@ -222,7 +235,9 @@ export function applyMapState(proto) {
           ? { type: "circle", cx: s.cx, cy: s.cy, r: s.r }
           : s.type === "polygon"
             ? { type: "polygon", points: s.points }
-            : { type: "rect", x: s.x, y: s.y, w: s.w, h: s.h };
+            : s.angle
+              ? { type: "polygon", points: rectCorners(s) }   // rotated rect -> polygon
+              : { type: "rect", x: s.x, y: s.y, w: s.w, h: s.h };
         if (s.op === "subtract") p.op = "subtract";
         return p;
       }),
@@ -248,6 +263,14 @@ export function applyMapState(proto) {
     this._composeDraft = draft;
     this._composeSelectedId = null;
     this._composeLoadedFor = data?.map_id ?? null;
+    // Advance the id counter past any reloaded draft_N ids so new shapes can't
+    // collide with one that came back from a save.
+    let maxN = 0;
+    for (const s of draft) {
+      const m = /(\d+)$/.exec(s.id);
+      if (m) maxN = Math.max(maxN, Number(m[1]));
+    }
+    this._composeNextId = maxN + 1;
   };
 
   proto.maybeLoadComposeDraft = function (data) {
@@ -264,6 +287,25 @@ export function applyMapState(proto) {
     if (!s) return;
     const rid = roomId == null ? undefined : String(roomId);
     s.room_id = (s.room_id != null && String(s.room_id) === rid) ? undefined : rid;
+  };
+
+  // Rotate (deg). Rects carry an angle (applied at render + baked to a polygon on
+  // save); polygons rotate their points about the bbox centre; circles no-op.
+  proto.rotateComposeShape = function (id, deg) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s || s.type === "circle") return;
+    if (s.type === "rect") {
+      s.angle = ((((s.angle || 0) + deg) % 360) + 360) % 360;
+      return;
+    }
+    const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    const rad = (deg * Math.PI) / 180, cos = Math.cos(rad), sin = Math.sin(rad);
+    s.points = s.points.map(([x, y]) => [
+      Math.round((cx + (x - cx) * cos - (y - cy) * sin) * 100) / 100,
+      Math.round((cy + (x - cx) * sin + (y - cy) * cos) * 100) / 100,
+    ]);
   };
 
   proto._getSegmentIds = function () {

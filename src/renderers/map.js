@@ -265,7 +265,12 @@ export function applyMapRenderers(proto) {
     // Anchor is keyed by room ID when available, else by segment ID
     // so unlinked segments can still hold a user-placed position.
     const roomId    = state.roomIdForSegment(targetSeg.segment_id);
-    const lookupKey = roomId != null ? String(roomId) : `seg_${targetSeg.segment_id}`;
+    // When docked, the mascot homes to a single map-level "dock" spot (not a
+    // room) — drag it once to park it anywhere, e.g. on the sun of a space map.
+    // Falls back to the resolved segment's centroid until that spot is set.
+    const lookupKey = isAtDock
+      ? "dock"
+      : (roomId != null ? String(roomId) : `seg_${targetSeg.segment_id}`);
     let pct_x, pct_y;
     const stored = state.roomDotAnchor?.(lookupKey);
 
@@ -288,11 +293,10 @@ export function applyMapRenderers(proto) {
     // via :host([battery-state="X"]) rules, plus a charging pulse.
     const batteryState = state.batteryState?.() ?? "good";
 
-    // Anchor key: prefer room ID; fall back to segment ID so unlinked
-    // segments can still have user-placed anchors.
-    const anchorKey = roomId != null
-      ? String(roomId)
-      : `seg_${targetSeg.segment_id}`;
+    // Anchor key matches the lookup key — so dragging the DOCKED mascot writes
+    // the shared "dock" spot, while dragging it mid-clean writes the per-room
+    // anchor as before.
+    const anchorKey = lookupKey;
 
     const W = Math.round(64 * scale);
     const H = Math.round(44 * scale);
@@ -302,7 +306,7 @@ export function applyMapRenderers(proto) {
       style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"
       data-action="map-dot-click"
       data-anchor-key="${this.escapeHtml(anchorKey)}"
-      title="Drag to reposition"
+      title="${isAtDock ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"
     ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
   };
 
@@ -594,7 +598,10 @@ export function applyMapRenderers(proto) {
       const pts = (s.points || []).map(([x, y]) => `${x},${y}`).join(" ");
       return `<polygon ${attrs} points="${pts}"/>`;
     }
-    return `<rect ${attrs} x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+    const rot = s.angle
+      ? ` transform="rotate(${s.angle} ${s.x + s.w / 2} ${s.y + s.h / 2})"`
+      : "";
+    return `<rect ${attrs}${rot} x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
   };
 
   proto._renderComposerToolbar = function (state) {
@@ -636,7 +643,6 @@ export function applyMapRenderers(proto) {
     if (id == null) return "";
     const s = (state.composeDraft?.() ?? []).find((x) => x.id === id);
     if (!s) return "";
-    const isRect = s.type !== "circle";
     const step = state.composeStep?.() ?? 3;
     const mv = (dx, dy, glyph, label) => `
       <button class="evcc-map-nudge-btn" data-action="compose-move"
@@ -646,7 +652,7 @@ export function applyMapRenderers(proto) {
         data-action="compose-step" data-step="${n}">${label}</button>`;
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Selected: <em>${isRect ? "rectangle" : "circle"}</em></div>
+        <div class="evcc-map-config-section-title">Selected: <em>${s.type}</em></div>
         <div class="evcc-compose-tools">
           ${stepBtn(1, "Fine")}${stepBtn(3, "Med")}${stepBtn(7, "Coarse")}
         </div>
@@ -660,12 +666,17 @@ export function applyMapRenderers(proto) {
           <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="0.85" title="Shrink">－ Scale</button>
           <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="1.18" title="Grow">＋ Scale</button>
         </div>
-        ${isRect ? `
+        ${s.type === "rect" ? `
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="-1">－ W</button>
           <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="1">＋ W</button>
           <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="-1">－ H</button>
           <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="1">＋ H</button>
+        </div>` : ""}
+        ${s.type !== "circle" ? `
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="-15" title="Rotate left">↺ Rotate</button>
+          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="15" title="Rotate right">↻ Rotate</button>
         </div>` : ""}
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="compose-deselect" title="Stop editing this shape">Done</button>
