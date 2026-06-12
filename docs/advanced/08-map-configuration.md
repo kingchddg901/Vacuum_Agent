@@ -52,6 +52,47 @@ The Image Variants section (CV mode) shows the dark, light, and default variants
 
 ---
 
+### Image size, resolution & format
+
+Every image you upload — a CV variant or a custom backdrop — is sent to Home Assistant inside a **single websocket message**, and HA caps that message at **4 MiB** (an aiohttp default; there is no configuration option to raise it). Images travel base64-encoded, which inflates them by ~33 %, so the practical ceilings are:
+
+| | Value |
+|---|---|
+| Hard websocket frame limit | **4 MiB** (4,194,304 bytes) — exceeding it drops the connection |
+| Safe **encoded** payload (what the card targets) | ≤ ~3.4 MB of base64 (**~19 % under** the frame limit) |
+| Equivalent **raw image** size (the rec) | ≤ **~2.5 MB** |
+| Where uploads begin to fail | ~3 MB of raw image and up |
+
+The recommended ~2.5 MB raw target deliberately sits **10–20 % under** the point where uploads start to fail, so there is margin for the JSON envelope and format variation. Stay under it and an image uploads at full quality with no recompression.
+
+If a payload overruns the limit, HA closes the socket: the browser console shows `ERR_CONNECTION_LOST` (logged as a bare `3`), often followed by unrelated "Subscription not found" noise while the frontend reconnects. The upload status shows **"Image too large even after resizing — pick a smaller image."**
+
+The card sizes every upload to stay under that ceiling automatically, but it does so **differently for the two image roles** — which is why their recommendations differ.
+
+#### CV variants (dark / light / default) — keep these small yourself
+
+These feed the segmenter, so the card must **not** silently shrink them: rescaling would knock the dark/light pair out of alignment (the segmenter only tolerates a ~6 % scale difference between them) and push small rooms below the segmentor's fixed pixel-area thresholds, quietly degrading room detection. So the card **passes a CV image through untouched when it fits**, and **rejects it with a clear message when it doesn't** — it never downscales it for you.
+
+In practice this is rarely a problem — an Eufy app screenshot is usually 1,000–1,600 px on the long side and well under 300 KB. Guidelines:
+
+- **Format:** **PNG** (lossless — it preserves the crisp, flat room colours the segmentor keys on). JPEG technically works but its compression blurs colour boundaries; avoid it for CV captures.
+- **Resolution:** whatever the app renders, no upscaling needed. A long side of roughly **1,200–2,500 px** is the sweet spot; there is no benefit to multi-thousand-pixel CV images and they risk the size ceiling.
+- **Match the pair:** keep your dark and light captures at the **same resolution and crop** so their polygons align (see [Capturing a good map image](#capturing-a-good-map-image)).
+- If you ever see the "too large" message on a CV upload, re-crop tighter or export at a lower resolution.
+
+#### Custom backdrops — bring any picture; the card fits it
+
+A custom-layout backdrop is a **display / tracing image only** — it is never segmented — so the card is free to resize it for you:
+
+- It caps the long side at **2,048 px** and re-encodes to **WebP** (small, high quality) when your browser's encoder is confirmed to preserve transparency, falling back to **PNG** otherwise. It then keeps shrinking until the payload fits, so even a 10 MB photo uploads — just progressively softer the larger it started.
+- For the **sharpest** result, pre-size the backdrop to **≤ 2,048 px on the long side** and **≤ ~2.5 MB** so it uploads at full quality with **no** recompression. (If it already fits, the card sends your original file byte-for-byte.)
+- **Transparency is preserved.** A PNG or WebP with a transparent background — a cut-out tree, a planet, a logo — keeps its alpha channel, so the themeable Map surface shows through behind it. **Never flatten such an image to JPEG** before uploading; JPEG has no alpha and replaces the transparent area with a solid colour.
+- **Aspect ratio:** the backdrop is stretched to fill the square drawing grid (`object-fit: fill`), so the composer's 0–100 % coordinates line up cell-for-cell with the picture. A roughly **square** image looks most natural, but any ratio works — your drawn rooms map onto it proportionally. The stored pixel dimensions become the canvas your shapes rasterise against, so resolution never distorts geometry (only the aspect ratio is visible). See [How the custom backdrop renders](#how-the-custom-backdrop-renders).
+
+> **Rule of thumb.** Aim for a long side of **1,500–2,048 px** and a file **under ~2.5 MB** for any image (that target is ~10–20 % under the failure point). CV screenshots are normally already smaller; oversized custom backdrops are auto-fitted, but look best when you pre-size them.
+
+---
+
 ### Capturing a good map image
 
 The quality of segment detection depends heavily on the map image you provide. Follow these steps to capture the cleanest possible input for each variant. Repeat the full sequence for both your dark and light captures, keeping orientation and crop consistent between them.
@@ -91,7 +132,7 @@ The Default variant does not require a separate capture. Upload whichever of you
 ### Uploading a variant
 
 1. Click the **Upload** button next to the variant you want to replace.
-2. A file picker opens. Select a PNG, JPEG, WebP, or BMP image file.
+2. A file picker opens. Select a PNG, JPEG, WebP, or BMP image file. For the segmenter, prefer a **PNG** kept at a modest resolution (see [Image size, resolution & format](#image-size-resolution--format)) — CV variants are uploaded as-is and an oversized one is **rejected** rather than silently shrunk.
 3. The card uploads the file (showing "Uploading…"), then immediately triggers a re-analysis (showing "Analysing…"), then fetches the updated segments.
 
 The backend converts non-PNG uploads to PNG before saving. It stores the file at `eufy_vacuum/maps/<vacuum_id>/map_<map_id>_<suffix>.png` (the dark variant uses the suffix `_dark`, light uses `_light`, default has no suffix). The browser URL for the stored file is recorded and used to render the map image in the card.
@@ -216,6 +257,8 @@ The modes are not exclusive: because CV and every custom layout persist independ
 #### Uploading a custom backdrop image
 
 Each layout needs its own backdrop before you can draw on it. With a layout active, open the **Custom backdrop** section (bottom panel, custom mode), click **Upload** (or **Replace**), and pick a PNG, JPEG, WebP, or BMP. The card passes the active `layout_id` to `upload_map_image`; the server forces the variant key to `custom_<layout_id>`, saves the image, records its pixel dimensions, and repoints the layout's `backdrop_variant`. Unlike the CV variants, uploading a backdrop does **not** trigger analysis — it is a tracing image only.
+
+Because a backdrop is display-only, the card **automatically fits it** to Home Assistant's websocket limit: it caps the long side at 2,048 px and re-encodes (alpha-preserving WebP, or PNG when the browser can't keep transparency in WebP), so even a large photo uploads. An image that already fits is sent unchanged. For the crispest backdrop, pre-size it to ≤ 2,048 px and ≤ ~2.5 MB, and keep transparency in a PNG/WebP — see [Image size, resolution & format](#image-size-resolution--format).
 
 The backdrop renders with `object-fit: fill` so it stretches to fill the square draw grid (see [How the custom backdrop renders](#how-the-custom-backdrop-renders)), and its recorded width × height is the pixel canvas the active layout's shapes rasterise against. You cannot save custom segments until the active layout has a backdrop — without one the server has no pixel dimensions to rasterise into and the save is rejected (`reason: no_custom_backdrop`).
 

@@ -79,11 +79,15 @@ export function applyMapRenderers(proto) {
     const imageUrl = state.mapImageUrl();
 
     if (!segmentsData?.available || !imageUrl) {
+      const isCustom = (state.segmentationMode?.() ?? "cv") === "custom";
+      const hint = isCustom
+        ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
+        : "Upload and analyze a map image to enable map view.";
       return `
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">
             <p>No map image available.</p>
-            <p class="evcc-map-unavailable-hint">Upload and analyze a map image to enable map view.</p>
+            <p class="evcc-map-unavailable-hint">${hint}</p>
           </div>
         </div>
       `;
@@ -566,10 +570,15 @@ export function applyMapRenderers(proto) {
      surfaces it in the config map area once it lands. */
 
   proto._renderCustomBackdropSection = function (variants, actionStatus, state) {
-    const custom  = variants?.custom;
-    const isBusy  = actionStatus?.type === "upload" && actionStatus?.variant === "custom"
+    // Each custom layout owns its backdrop under a per-layout variant key
+    // (custom_<id>); the legacy single-custom flow uses the shared "custom".
+    // Read + upload against the ACTIVE layout's key so the status + Upload button
+    // reflect THIS layout, not whichever shared image happens to exist.
+    const variantKey = state?.activeCustomLayout?.()?.backdrop_variant || "custom";
+    const custom  = variants?.[variantKey];
+    const isBusy  = actionStatus?.type === "upload" && actionStatus?.variant === variantKey
                     && actionStatus?.status === "busy";
-    const isError = actionStatus?.type === "upload" && actionStatus?.variant === "custom"
+    const isError = actionStatus?.type === "upload" && actionStatus?.variant === variantKey
                     && actionStatus?.status === "error";
     const statusText = custom ? `${custom.width} × ${custom.height}` : "no backdrop yet";
     const statusCls  = custom
@@ -591,7 +600,7 @@ export function applyMapRenderers(proto) {
           <button
             class="evcc-map-config-btn${isBusy ? " evcc-map-config-btn--busy" : ""}"
             data-action="upload-map-variant"
-            data-variant="custom"
+            data-variant="${this.escapeHtml(variantKey)}"
             ${isBusy ? "disabled" : ""}
           >${isBusy ? "Uploading…" : custom ? "Replace" : "Upload"}</button>
         </div>

@@ -106,15 +106,17 @@ export function applyMapState(proto) {
 
   proto.mapImageUrl = function () {
     const variants = this._mapSegmentsData?.image_variants ?? {};
-    // In custom mode the authored polygons sit on the ACTIVE layout's backdrop;
-    // fall back to the shared custom / segmenter variants so a partially-set-up
-    // map still shows something.
+    // In custom mode the authored polygons sit on the ACTIVE layout's OWN
+    // backdrop (custom_<id>). Show only that: a per-layout backdrop that has
+    // not been uploaded yet must read as "missing" (-> upload prompt), never
+    // silently borrow a sibling layout's image. Only the shared/legacy "custom"
+    // variant keeps the CV-image fallback, for trace-over on the pre-layout flow.
     if (this.segmentationMode() === "custom") {
-      const v = this.activeCustomLayout()?.backdrop_variant;
-      return (
-        (v ? variants[v] : null)
-        ?? variants.custom ?? variants.dark ?? variants.default ?? variants.light
-      )?.browser_url ?? null;
+      const v = this.activeCustomLayout()?.backdrop_variant || "custom";
+      const own = variants[v];
+      if (own) return own.browser_url ?? null;
+      if (v !== "custom") return null;
+      return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
     }
     return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
   };

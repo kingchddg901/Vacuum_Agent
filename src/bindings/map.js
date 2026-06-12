@@ -297,11 +297,23 @@ export function applyMapBindings(proto) {
           this.card._scheduleRender();
 
           try {
-            const base64 = await _fileToBase64(file);
+            // Fit the image under HA's websocket frame limit before sending.
+            // CV variants (dark/light/default) feed the segmenter, so they are
+            // passed through untouched if they fit and hard-fail otherwise (a
+            // silent rescale would desync the dark/light alignment and drop small
+            // rooms); custom backdrops are display-only, so they downscale +
+            // recompress (alpha-safe) to fit.
+            const isCustom = variant.startsWith("custom");
+            const fitted = await _imageFileToFittedBase64(
+              file,
+              isCustom ? { maxDim: 2048, allowDownscale: true } : { allowDownscale: false },
+            );
+            if (!fitted) throw new Error("Could not prepare the image for upload");
+            const base64 = fitted.base64;
             // A custom backdrop targets the ACTIVE layout (custom_<id> variant);
             // the server forces the variant key from layout_id.
             const opts = { variant };
-            if (variant.startsWith("custom")) {
+            if (isCustom) {
               const lid = this.card._state.activeCustomLayoutId?.();
               if (lid) opts.layout_id = lid;
             }
@@ -323,7 +335,7 @@ export function applyMapBindings(proto) {
             console.error("[eufy-vacuum-command-center] Map upload failed:", err);
             this.card._state.setMapActionStatus({
               type: "upload", variant, status: "error",
-              message: err?.message ?? "Upload failed",
+              message: _uploadErrorMessage(err),
             });
             this.card._scheduleRender();
           }
@@ -582,7 +594,20 @@ export function applyMapBindings(proto) {
         try {
           // Backend payload is id + primitives only; room_id rides separately.
           const backendSegments = segments.map((seg) => ({ id: seg.id, primitives: seg.primitives }));
-          await this.card._actions.setCustomSegments(mapId, backendSegments);
+          const res = await this.card._actions.setCustomSegments(mapId, backendSegments);
+          // The segmenter rasterises onto THIS layout's backdrop; with none uploaded
+          // it bails (saved:false). Surface that instead of silently saving room
+          // links onto segments that never persisted (a layout that won't render).
+          if (!res?.saved) {
+            const reason = res?.reason === "no_custom_backdrop"
+              ? "Upload a backdrop image for this layout first (Custom backdrop, below)."
+              : (res?.reason ? `Save failed: ${res.reason}` : "Save failed");
+            this.card._state.setMapActionStatus?.({
+              type: "compose-save", status: "error", message: reason,
+            });
+            this.card._scheduleRender();
+            return;
+          }
           // Reconcile room links per SEGMENT (= group), not per shape — a merged
           // room is one segment whose id is the group id.
           for (const seg of segments) {
@@ -1231,19 +1256,208 @@ function _pinchDist(touches) {
 }
 
 /* =========================================================
-   FILE → BASE64
+   FILE → FITTED BASE64  (websocket-safe image upload)
+   =========================================================
+   HA's websocket caps a single inbound frame at 4 MiB (aiohttp's
+   default max_msg_size; HA exposes no knob to raise it). A raw
+   high-res PNG base64-encodes ~33% larger, so anything past ~3 MB of
+   raw image overruns the frame: HA closes the socket and callService
+   rejects with the bare number 3 (ERR_CONNECTION_LOST). So we shrink
+   the payload BEFORE upload, with two profiles:
+
+   - CV variants (dark/light/default) are consumed by the segmenter.
+     Their absolute pixels matter (fixed area floors) and the dark/light
+     pair must stay within ~6% scale of each other for alignment, so we
+     MUST NOT silently rescale them: pass through if the original fits,
+     otherwise hard-fail and ask for a smaller screenshot.
+   - Custom backdrops are display/tracing images only (never segmented),
+     so we downscale + recompress them freely to fit. Transparency must
+     survive (the backdrop composites over a themeable surface), so we
+     encode WebP only when a round-trip probe proves THIS engine keeps
+     alpha, else PNG (always alpha-safe).
    ========================================================= */
 
-function _fileToBase64(file) {
+// ~3.24 MiB of base64 — ~19% under HA's 4 MiB frame, leaving ~800 KB of
+// headroom for the JSON envelope. Images whose base64 fits this upload at full
+// quality (no recompression); larger custom backdrops downscale to meet it.
+const _WS_SAFE_BASE64_BYTES = 3_400_000;
+
+// Decoded byte count of a base64 string (no data: prefix): 4 chars -> 3 bytes,
+// minus '=' padding. This — not the string length — is the size to budget.
+function _b64Bytes(b64) {
+  const n = b64.length;
+  if (!n) return 0;
+  let pad = 0;
+  if (b64.charCodeAt(n - 1) === 61) pad++;
+  if (n > 1 && b64.charCodeAt(n - 2) === 61) pad++;
+  return Math.floor((n * 3) / 4) - pad;
+}
+
+function _blobToBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload  = () => {
-      const result = reader.result;
-      // strip "data:image/...;base64," prefix
+    reader.onerror = () => reject(reader.error || new Error("FileReader failed"));
+    reader.onload = () => {
+      const result = String(reader.result || "");
       const comma = result.indexOf(",");
       resolve(comma >= 0 ? result.slice(comma + 1) : result);
     };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(blob);
   });
+}
+
+// Decode a File to something drawable, honoring EXIF orientation. Prefer
+// createImageBitmap({imageOrientation:'from-image'}); fall back to <img> (which
+// applies orientation by default) when it is unavailable or rejects the options.
+async function _decodeImageFile(file) {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+      return { source: bmp, width: bmp.width, height: bmp.height, close: () => bmp.close?.() };
+    } catch (_) {
+      /* options bag rejected (older Safari) — fall through to the <img> path */
+    }
+  }
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error("Could not decode image file"));
+      im.src = url;
+    });
+    return {
+      source: img,
+      width: img.naturalWidth,
+      height: img.naturalHeight,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch (e) {
+    URL.revokeObjectURL(url);
+    throw e;
+  }
+}
+
+// Does this engine's canvas WebP encoder PRESERVE alpha? Some emit a valid
+// image/webp blob with the alpha channel flattened to opaque — a MIME-type
+// check can't see that. Round-trip a transparent pixel and read it back.
+let _webpAlphaOk = null;
+async function _canEncodeWebpAlpha() {
+  if (_webpAlphaOk != null) return _webpAlphaOk;
+  try {
+    const c = document.createElement("canvas");
+    c.width = c.height = 2;
+    const ctx = c.getContext("2d", { alpha: true });
+    ctx.clearRect(0, 0, 2, 2); // (0,0) stays fully transparent
+    ctx.fillStyle = "rgba(255,0,0,1)";
+    ctx.fillRect(1, 1, 1, 1); // (1,1) opaque
+    const blob = await new Promise((res) => c.toBlob(res, "image/webp", 0.8));
+    if (!blob || blob.type !== "image/webp" || typeof createImageBitmap !== "function") {
+      _webpAlphaOk = false;
+      return false;
+    }
+    const bmp = await createImageBitmap(blob);
+    const c2 = document.createElement("canvas");
+    c2.width = c2.height = 2;
+    const ctx2 = c2.getContext("2d", { alpha: true });
+    ctx2.clearRect(0, 0, 2, 2);
+    ctx2.drawImage(bmp, 0, 0);
+    bmp.close?.();
+    _webpAlphaOk = ctx2.getImageData(0, 0, 1, 1).data[3] === 0; // transparent pixel survived?
+  } catch (_) {
+    _webpAlphaOk = false;
+  }
+  return _webpAlphaOk;
+}
+
+function _encodeCanvas(source, w, h, mime, quality) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d", { alpha: true });
+  if (!ctx) return Promise.reject(new Error("Could not get a 2D canvas context"));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(source, 0, 0, w, h); // onto a cleared (transparent) canvas — alpha kept
+  return new Promise((resolve, reject) =>
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error("canvas.toBlob returned null (encode failed)"))),
+      mime,
+      quality,
+    ),
+  );
+}
+
+// Returns { base64, width, height, mime, bytes }.
+//   allowDownscale=false (CV variants) → passthrough if it fits, else throw.
+//   allowDownscale=true  (backdrop)    → downscale + recompress to fit the ceiling.
+async function _imageFileToFittedBase64(
+  file,
+  { maxDim = 2048, ceilingBytes = _WS_SAFE_BASE64_BYTES, allowDownscale = true } = {},
+) {
+  // 1) Byte-passthrough: if the original already fits, upload it verbatim —
+  //    lossless, alpha-perfect, and (for CV) no rescale that could desync the
+  //    dark/light pair or trip the segmentor's pixel-area floors. Cheap-estimate
+  //    from file.size first so we don't base64 a huge file just to discard it.
+  if (Math.ceil(file.size / 3) * 4 <= ceilingBytes) {
+    const original = await _blobToBase64(file);
+    const bytes = _b64Bytes(original);
+    if (bytes <= ceilingBytes) {
+      return { base64: original, width: null, height: null, mime: file.type || null, bytes };
+    }
+  }
+
+  // 2) Too big. CV variants must never be silently downscaled.
+  if (!allowDownscale) {
+    throw new Error(
+      "Image too large for upload. Crop or shrink this map screenshot to a smaller file, then try again.",
+    );
+  }
+
+  // 3) Custom backdrop: decode + recompress, shrinking until it fits the frame.
+  const dec = await _decodeImageFile(file);
+  try {
+    const { source, width: srcW, height: srcH } = dec;
+    if (!srcW || !srcH) throw new Error("Decoded image has zero size (corrupt or unsupported file)");
+    const mime = (await _canEncodeWebpAlpha()) ? "image/webp" : "image/png";
+
+    let curMax = Math.max(1, Math.floor(maxDim));
+    let quality = 0.85;
+    let best = null;
+    let warned = false;
+    for (let i = 0; i < 7; i++) {
+      const ratio = Math.min(1, curMax / Math.max(srcW, srcH)); // never upscale
+      const outW = Math.max(1, Math.round(srcW * ratio));
+      const outH = Math.max(1, Math.round(srcH * ratio));
+      const blob = await _encodeCanvas(source, outW, outH, mime, mime === "image/webp" ? quality : undefined);
+      const base64 = await _blobToBase64(blob);
+      const bytes = _b64Bytes(base64);
+      const result = { base64, width: outW, height: outH, mime, bytes };
+      if (!best || bytes < best.bytes) best = result;
+      if (ratio < 1 && !warned) {
+        console.warn(
+          `[eufy-vacuum-command-center] backdrop downscaled to ${outW}×${outH} to fit the upload limit`,
+        );
+        warned = true;
+      }
+      if (bytes <= ceilingBytes) return result;
+      const nextMax = Math.max(256, Math.floor(curMax * 0.8));
+      if (mime === "image/webp" && quality > 0.5) quality = +(quality - 0.1).toFixed(2);
+      if (nextMax === curMax && (mime !== "image/webp" || quality <= 0.5)) break; // floors hit
+      curMax = nextMax;
+    }
+    return best; // smallest we could make it; err===3 mapper covers a true overrun
+  } finally {
+    dec.close?.();
+  }
+}
+
+// Map a callService rejection to a user-facing message. A bare numeric 3
+// (ERR_CONNECTION_LOST) or a "Connection lost" Error means the WS frame was
+// dropped — almost always the payload still overran HA's 4 MiB limit.
+function _uploadErrorMessage(err) {
+  if (err === 3 || (err && typeof err.message === "string" && /connection lost/i.test(err.message))) {
+    return "Image too large even after resizing — please pick a smaller image.";
+  }
+  return err && err.message ? err.message : "Upload failed";
 }
