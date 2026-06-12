@@ -2082,6 +2082,37 @@ set_segmentation_mode:
             - cv
             - custom
 
+set_custom_segments:
+  name: Set custom segments
+  description: >
+    Author no-CV map segments from primitive shapes (replace-all). Rebuilds the
+    map's custom segment set from the supplied list; each segment's primitives
+    (rect/circle/polygon, coordinates in 0-100 map percentages, optional
+    op: subtract) are rasterised server-side into a polygon. Requires a 'custom'
+    backdrop image (uploaded via upload_map_image) for the pixel dimensions.
+    Never runs the segmenter.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    segments:
+      name: Segments
+      description: >
+        List of {id?, primitives: [...]}. A primitive is
+        {type: rect|circle|polygon, op?: add|subtract, ...coords in 0-100%}.
+      required: true
+      selector:
+        object: {}
+
 set_companion_anchor:
   name: Set companion anchor
   description: >

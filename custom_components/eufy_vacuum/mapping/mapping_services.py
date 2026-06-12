@@ -22,12 +22,14 @@ from ..const import (
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
+    SERVICE_SET_CUSTOM_SEGMENTS,
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
 )
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
 from .manager import MappingManager
+from .segment_primitives import polygon_area, rasterize_primitives
 from .tracker import EVENT_BOUNDARY_SAVED
 
 _LOGGER = logging.getLogger(__name__)
@@ -353,6 +355,24 @@ SET_SEGMENTATION_MODE_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("mode"): vol.In(["cv", "custom"]),
+    }
+)
+
+# Author no-CV custom segments from a primitive list (replace-all). The handler
+# rasterises each segment server-side (segment_primitives.rasterize_primitives).
+SET_CUSTOM_SEGMENTS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("segments"): [
+            vol.Schema(
+                {
+                    vol.Optional("id"): cv.string,
+                    vol.Required("primitives"): list,
+                },
+                extra=vol.ALLOW_EXTRA,
+            )
+        ],
     }
 )
 
@@ -995,6 +1015,116 @@ async def _handle_set_segmentation_mode(hass: HomeAssistant, call: ServiceCall) 
     return {"saved": True, "mode": mode, "segment_count": len(active)}
 
 
+def _build_custom_segment(
+    segment_id: str, polygon_pixel: list[list[int]], *, map_w: int, map_h: int
+) -> dict:
+    """Wrap an authored polygon in the same segment shape CV produces, so
+    get_map_segments / room-linking / dispatch treat custom and CV segments
+    identically."""
+    xs = [p[0] for p in polygon_pixel]
+    ys = [p[1] for p in polygon_pixel]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    area = abs(polygon_area([(float(x), float(y)) for x, y in polygon_pixel]))
+    total = max(1, int(map_w) * int(map_h))
+    return {
+        "segment_id": segment_id,
+        "source": "custom",
+        "polygon_pixel": polygon_pixel,
+        "bbox": {
+            "x": min_x, "y": min_y,
+            "width": max(1, max_x - min_x), "height": max(1, max_y - min_y),
+        },
+        "area_pixels": int(round(area)),
+        "area_percent": round(area / total * 100, 2),
+        "center_pixel": [round((min_x + max_x) / 2, 1), round((min_y + max_y) / 2, 1)],
+        "point_count_raw": len(polygon_pixel),
+        "point_count_simplified": len(polygon_pixel),
+        "confidence": 1.0,
+        "quality": "custom",
+        "structural_role": "room",
+        "segmentation_state": "custom",
+        "edit_readiness": "ready",
+        "matched_room_id": None,
+        "matched_room_label": None,
+        "issues": [],
+    }
+
+
+async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Author custom (no-CV) segments from primitives — REPLACE-ALL into the map's
+    custom_segments store.
+
+    Each segment's pct-space primitives are rasterised + traced into a polygon
+    (segment_primitives.rasterize_primitives -> mask_to_polygon), scaled to the
+    'custom' backdrop's pixel dims, and wrapped as a CV-shaped segment. Requires
+    the custom backdrop (for the dims). Never invokes the segmenter. Stable ``id``
+    fields are preserved (auto ``custom_N`` otherwise) so segment_room_links survive
+    re-saves. The rasterisation runs in the executor (mask_to_polygon is blocking).
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    seg_inputs: list = call.data["segments"]
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+
+    backdrop = (map_bucket.get("image_variants") or {}).get("custom") or {}
+    map_w = backdrop.get("width")
+    map_h = backdrop.get("height")
+    if not map_w or not map_h:
+        return {"saved": False, "reason": "no_custom_backdrop"}
+
+    def _rasterise_all() -> tuple[list[dict], int]:
+        built: list[dict] = []
+        skipped = 0
+        used_ids: set[str] = set()
+        for i, seg in enumerate(seg_inputs):
+            sid = str(seg.get("id") or "").strip() or f"custom_{i + 1}"
+            base, n = sid, 1
+            while sid in used_ids:  # de-dup defensively
+                n += 1
+                sid = f"{base}_{n}"
+            used_ids.add(sid)
+            poly = rasterize_primitives(
+                seg.get("primitives") or [], width=int(map_w), height=int(map_h)
+            )
+            if not poly:
+                skipped += 1
+                continue
+            built.append(
+                _build_custom_segment(sid, poly, map_w=int(map_w), map_h=int(map_h))
+            )
+        return built, skipped
+
+    built, skipped = await hass.async_add_executor_job(_rasterise_all)
+
+    map_bucket["custom_segments"] = {
+        "available": bool(built),
+        "engine": "custom",
+        "analyzed_at": utc_now_iso(),
+        "image": {"width": int(map_w), "height": int(map_h), "variant": "custom"},
+        "segments": built,
+        "summary": {"segment_count": len(built)},
+    }
+    await manager.async_save()
+
+    _LOGGER.debug(
+        "set_custom_segments: %s/%s -> %d segments (%d skipped)",
+        vacuum_entity_id, map_id, len(built), skipped,
+    )
+    return {
+        "saved": True,
+        "segment_count": len(built),
+        "skipped": skipped,
+        "segment_ids": [s["segment_id"] for s in built],
+    }
+
+
 async def _handle_adjust_map_segment(hass: HomeAssistant, call: ServiceCall) -> dict:
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     map_id: str = call.data["map_id"]
@@ -1553,6 +1683,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
 
+    async def set_custom_segments(call: ServiceCall) -> dict:
+        return await _handle_set_custom_segments(hass, call)
+
     async def delete_map_image(call: ServiceCall) -> dict:
         return await _handle_delete_map_image(hass, call)
 
@@ -1575,6 +1708,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_SEGMENTATION_MODE, set_segmentation_mode,
         schema=SET_SEGMENTATION_MODE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_CUSTOM_SEGMENTS, set_custom_segments,
+        schema=SET_CUSTOM_SEGMENTS_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ADJUST_MAP_SEGMENT, adjust_map_segment,

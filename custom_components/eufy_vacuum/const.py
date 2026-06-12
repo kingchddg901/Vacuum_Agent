@@ -139,6 +139,9 @@ SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"
+# Author no-CV custom segments from primitives (rasterised server-side into the
+# same polygon shape CV produces); replace-all into the custom_segments store.
+SERVICE_SET_CUSTOM_SEGMENTS = "set_custom_segments"
 
 # ----------------------
 # Theme services

@@ -28,6 +28,8 @@ Coverage targets
 [SP-22] transform_color_image: per-channel transform preserves channel count.
 [SP-23] mask_edge_band: dilate-XOR-erode produces a non-empty edge ring (scipy).
 [SP-24] normalized_color_features: per-pixel chromaticity channels sum to 1.
+[SP-RAST-1] rasterize_primitives: a pct rect -> rectangle polygon in map px; empty -> [].
+[SP-RAST-2] rasterize_primitives: subtract clears an edge; polygon primitive round-trips.
 """
 
 from __future__ import annotations
@@ -52,6 +54,7 @@ from custom_components.eufy_vacuum.mapping.segment_primitives import (
     normalize_polygon,
     normalized_color_features,
     polygon_area,
+    rasterize_primitives,
     rdp,
     transform_color_image,
     transform_mask,
@@ -370,4 +373,55 @@ def test_estimate_alignment_recovers_shifted_candidate(np):
     assert result["shift_x"] == -6
     assert result["shift_y"] == 0
     assert result["scale"] == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Primitive rasterization (PIL + numpy)
+# ---------------------------------------------------------------------------
+
+def test_rasterize_primitives_rect(np):
+    """[SP-RAST-1] a single pct rect rasterises to a rectangle polygon in the
+    map's pixel space (bbox/area ~ the rect); an empty primitive list yields []."""
+    pytest.importorskip("PIL")
+    poly = rasterize_primitives(
+        [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}],
+        width=100, height=100,
+    )
+    assert poly
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    assert min(xs) == pytest.approx(10, abs=2)
+    assert max(xs) == pytest.approx(40, abs=2)
+    assert min(ys) == pytest.approx(10, abs=2)
+    assert max(ys) == pytest.approx(40, abs=2)
+    area = abs(polygon_area([(float(x), float(y)) for x, y in poly]))
+    assert area == pytest.approx(900, rel=0.15)
+    # nothing drawn -> empty polygon
+    assert rasterize_primitives([], width=100, height=100) == []
+
+
+def test_rasterize_primitives_subtract_and_polygon(np):
+    """[SP-RAST-2] subtract clears (an edge cut shrinks the outer outline) and an
+    explicit polygon primitive round-trips through the same extraction."""
+    pytest.importorskip("PIL")
+    full = rasterize_primitives(
+        [{"type": "rect", "x": 0, "y": 0, "w": 50, "h": 50}],
+        width=100, height=100,
+    )
+    cut = rasterize_primitives(
+        [
+            {"type": "rect", "x": 0, "y": 0, "w": 50, "h": 50},
+            {"type": "rect", "x": 25, "y": 0, "w": 25, "h": 50, "op": "subtract"},
+        ],
+        width=100, height=100,
+    )
+    full_area = abs(polygon_area([(float(x), float(y)) for x, y in full]))
+    cut_area = abs(polygon_area([(float(x), float(y)) for x, y in cut]))
+    assert cut_area < full_area  # the right half was removed
+    # an explicit polygon primitive also produces a polygon
+    tri = rasterize_primitives(
+        [{"type": "polygon", "points": [[20, 20], [60, 20], [40, 60]]}],
+        width=100, height=100,
+    )
+    assert len(tri) >= 3
 

@@ -44,6 +44,7 @@ from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_RESTORE_ROOM_JOB_BOUNDS,
     SERVICE_SAVE_MAP_IMAGE,
     SERVICE_SET_SEGMENTATION_MODE,
+    SERVICE_SET_CUSTOM_SEGMENTS,
     SERVICE_TRANSLATE_IMAGE_SEGMENT,
     SERVICE_UPLOAD_MAP_IMAGE,
     _get_mapping_manager,
@@ -400,6 +401,73 @@ async def test_segmentation_mode_switches_segment_store(hass, mapping_services, 
     assert {s["segment_id"] for s in cv["segments"]} == {"fake_1"}
     # both stores still present after the round-trip
     assert bucket["custom_segments"]["segments"][0]["segment_id"] == "custom_1"
+
+
+async def _upload_custom_backdrop(hass, pil, *, map_id=_MAP):
+    await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": map_id,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8,
+        "variant": "custom"})
+
+
+async def test_set_custom_segments_authors_polygons(hass, mapping_services, pil):
+    """[CUST-1] set_custom_segments rasterises pct primitives into CV-shaped custom
+    segments (stable id preserved, auto custom_N otherwise); get_map_segments serves
+    them with real polygons + computed pct in custom mode."""
+    await _upload_custom_backdrop(hass, pil)
+    res = await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [
+            {"id": "living", "primitives": [
+                {"type": "rect", "x": 10, "y": 10, "w": 40, "h": 40}]},
+            {"primitives": [
+                {"type": "polygon", "points": [[55, 55], [90, 55], [72, 90]]}]},
+        ]})
+    assert res["saved"] is True
+    assert res["segment_count"] == 2
+    assert res["segment_ids"] == ["living", "custom_2"]
+
+    await _svc(hass, SERVICE_SET_SEGMENTATION_MODE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "custom"})
+    got = await _svc(hass, SERVICE_GET_MAP_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["segmentation_mode"] == "custom"
+    assert {s["segment_id"] for s in got["segments"]} == {"living", "custom_2"}
+    living = next(s for s in got["segments"] if s["segment_id"] == "living")
+    assert living["polygon_pixel"]          # real authored polygon
+    assert living["polygon_pct"]            # get_map_segments computed pct from it
+    assert living["structural_role"] == "room"
+    assert living["source"] == "custom"
+
+
+async def test_set_custom_segments_requires_backdrop(hass, mapping_services):
+    """[CUST-2] without a custom backdrop (no pixel dims) the writer refuses."""
+    res = await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": "nobackdrop",
+        "segments": [{"primitives": [
+            {"type": "rect", "x": 0, "y": 0, "w": 50, "h": 50}]}]})
+    assert res["saved"] is False
+    assert res["reason"] == "no_custom_backdrop"
+
+
+async def test_set_custom_segments_replace_all(hass, mapping_services, pil):
+    """[CUST-3] replace-all: a second call rebuilds custom_segments from scratch."""
+    await _upload_custom_backdrop(hass, pil)
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [
+            {"id": "a", "primitives": [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}]},
+            {"id": "b", "primitives": [{"type": "rect", "x": 55, "y": 55, "w": 30, "h": 30}]},
+        ]})
+    res2 = await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [
+            {"id": "c", "primitives": [{"type": "rect", "x": 20, "y": 20, "w": 40, "h": 40}]},
+        ]})
+    assert res2["segment_count"] == 1
+    assert res2["segment_ids"] == ["c"]
+    stored = mapping_services.data["maps"][_VAC][_MAP]["custom_segments"]["segments"]
+    assert [s["segment_id"] for s in stored] == ["c"]   # a, b replaced
 
 
 async def test_upload_bad_base64_service(hass, mapping_services):

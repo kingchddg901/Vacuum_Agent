@@ -239,6 +239,84 @@ def mask_to_polygon(
     return (normalize_polygon(simplified), raw_point_count)
 
 
+# -- primitive rasterization --------------------------------------------------
+
+def rasterize_primitives(
+    primitives: list[dict],
+    *,
+    width: int,
+    height: int,
+    resolution: int = 512,
+    simplify_epsilon: float | None = None,
+) -> list[list[int]]:
+    """Rasterise pct-space primitives into a single polygon in width x height px.
+
+    ``primitives`` is an ordered list of shapes, each a dict with coordinates as
+    0-100 percentages of the map:
+      - ``{"type": "rect", "x", "y", "w", "h"}``
+      - ``{"type": "circle", "cx", "cy", "r"}``
+      - ``{"type": "polygon", "points": [[x, y], ...]}``
+    Each may carry ``"op": "subtract"`` to clear instead of fill (default unions).
+
+    Shapes are drawn in order onto a boolean mask at ``resolution`` px square,
+    then the mask's outer boundary is traced with :func:`mask_to_polygon` and
+    scaled to the map's pixel dimensions. Returns ``[]`` when nothing was drawn or
+    the result is degenerate. This is the no-CV counterpart to the segmentor:
+    the *same* polygon extraction, fed by authored shapes instead of HSV masks.
+    """
+    if PIL_Image is None or np is None:
+        return []
+    from PIL import ImageDraw
+
+    res = max(8, int(resolution))
+    img = PIL_Image.new("1", (res, res), 0)
+    draw = ImageDraw.Draw(img)
+
+    def _p(value: Any) -> int:
+        # pct (0-100) -> working-resolution pixel, clamped to the canvas
+        return max(0, min(res, int(round(float(value) / 100.0 * res))))
+
+    drew = False
+    for prim in primitives or []:
+        if not isinstance(prim, dict):
+            continue
+        ptype = prim.get("type")
+        fill = 0 if prim.get("op") == "subtract" else 1
+        try:
+            if ptype == "rect":
+                x0, y0 = _p(prim["x"]), _p(prim["y"])
+                x1 = _p(float(prim["x"]) + float(prim["w"]))
+                y1 = _p(float(prim["y"]) + float(prim["h"]))
+                draw.rectangle([min(x0, x1), min(y0, y1), max(x0, x1), max(y0, y1)], fill=fill)
+                drew = True
+            elif ptype == "circle":
+                cx, cy, r = _p(prim["cx"]), _p(prim["cy"]), _p(prim["r"])
+                draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=fill)
+                drew = True
+            elif ptype == "polygon":
+                pts = [
+                    (_p(pt[0]), _p(pt[1]))
+                    for pt in (prim.get("points") or [])
+                    if isinstance(pt, (list, tuple)) and len(pt) == 2
+                ]
+                if len(pts) >= 3:
+                    draw.polygon(pts, fill=fill)
+                    drew = True
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    if not drew:
+        return []
+
+    poly, _raw = mask_to_polygon(np.array(img, dtype=bool), simplify_epsilon)
+    if not poly:
+        return []
+
+    sx = float(width) / res
+    sy = float(height) / res
+    return [[int(round(px * sx)), int(round(py * sy))] for px, py in poly]
+
+
 # -- shape metrics ------------------------------------------------------------
 
 def mask_perimeter(mask: Any) -> int:
