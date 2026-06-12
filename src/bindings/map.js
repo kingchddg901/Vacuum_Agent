@@ -464,6 +464,14 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Composer: link the selected shape to a room
+    root.querySelectorAll("[data-action='compose-assign-room']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.assignComposeRoom(btn.dataset.shapeId, btn.dataset.roomId);
+        this.card._scheduleRender();
+      });
+    });
+
     // Composer: save the draft as custom segments (replace-all)
     root.querySelectorAll("[data-action='compose-save']").forEach((btn) => {
       this.card._on(btn, "click", async () => {
@@ -476,6 +484,10 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
         try {
           await this.card._actions.setCustomSegments(mapId, segments);
+          // Now the segments exist, reconcile each shape's room link (set/clear).
+          for (const s of this.card._state.composeDraft()) {
+            await this.card._actions.setSegmentRoomLink(mapId, s.id, s.room_id ?? null);
+          }
           await this.card._actions.getMapSegments(mapId);
           this.card._state.clearMapActionStatus?.();
           this.card._scheduleRender();

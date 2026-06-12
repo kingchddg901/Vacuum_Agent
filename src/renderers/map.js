@@ -613,6 +613,7 @@ export function applyMapRenderers(proto) {
         <div class="evcc-map-config-adj-meta">${count} shape${count === 1 ? "" : "s"}${hasSel ? "" : (count ? " · tap one to edit" : " · add a shape to start")}</div>
       </div>
       ${this._renderComposerSelectedControls(state)}
+      ${this._renderComposerRoomAssign(state)}
       <div class="evcc-map-config-section">
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="compose-delete" ${hasSel ? "" : "disabled"}>Delete</button>
@@ -671,6 +672,43 @@ export function applyMapRenderers(proto) {
         </div>
       </div>
     `;
+  };
+
+  proto._renderComposerRoomAssign = function (state) {
+    const id = state.composeSelectedId?.();
+    if (id == null) return "";
+    const draft = state.composeDraft?.() ?? [];
+    const shape = draft.find((x) => x.id === id);
+    if (!shape) return "";
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    if (!rooms.length) {
+      return `
+        <div class="evcc-map-config-section evcc-map-config-section--hint">
+          <p>No rooms discovered for this map yet — link a shape to a room here once they appear.</p>
+        </div>`;
+    }
+    const chips = rooms.map((room) => {
+      const linkedHere   = shape.room_id != null && String(room.id) === String(shape.room_id);
+      const takenByOther = !linkedHere && draft.some(
+        (s) => s.id !== shape.id && s.room_id != null && String(s.room_id) === String(room.id),
+      );
+      let cls = "evcc-map-room-assign-chip";
+      if (linkedHere)   cls += " evcc-map-room-assign-chip--linked";
+      if (takenByOther) cls += " evcc-map-room-assign-chip--taken";
+      return `
+        <button class="${cls}" data-action="compose-assign-room"
+          data-shape-id="${this.escapeHtml(String(shape.id))}"
+          data-room-id="${this.escapeHtml(String(room.id))}"
+          ${takenByOther ? "disabled" : ""}
+          title="${takenByOther ? "Already linked to another shape"
+            : linkedHere ? "Unlink" : "Link to " + this.escapeHtml(room.name)}"
+        >${this.escapeHtml(room.name)}${linkedHere ? " ✓" : ""}</button>`;
+    }).join("");
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Link to room</div>
+        <div class="evcc-map-room-assign-chips">${chips}</div>
+      </div>`;
   };
 
   proto._renderVariantsSection = function (variants, summary, actionStatus, state) {

@@ -256,6 +256,16 @@ export function applyMapState(proto) {
     this.loadComposeDraftFromSegments(data);
   };
 
+  // Link the shape to a room (set on the draft; persisted on Save by segment id).
+  // Tapping the already-linked room clears it. 1:1 — the chip UI disables rooms
+  // already taken by another shape.
+  proto.assignComposeRoom = function (id, roomId) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    const rid = roomId == null ? undefined : String(roomId);
+    s.room_id = (s.room_id != null && String(s.room_id) === rid) ? undefined : rid;
+  };
+
   proto._getSegmentIds = function () {
     if (!this._selectedSegmentIds) this._selectedSegmentIds = new Set();
     return this._selectedSegmentIds;
