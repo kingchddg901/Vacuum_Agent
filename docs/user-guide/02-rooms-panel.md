@@ -9,7 +9,7 @@ The panel is divided into two main areas:
 - **Action bar** — at the top, showing the queue summary, primary action buttons, and the ordered list of queued rooms.
 - **Room grid** — below the action bar, showing a card for every room on your active map.
 
-A toggle in the top-left of the room grid lets you switch between a list view (cards) and a map view (room positions overlaid on the floor plan).
+A toggle in the top-left of the room grid lets you switch between a list view (cards) and a map view (room positions overlaid on the floor plan). To set up that floor plan — upload a map image or draw your own rooms — see [Making your own maps](16-making-your-own-maps.md).
 
 ## Including and excluding rooms
 

@@ -1,18 +1,10 @@
 ## Map Configuration
 
-The **Map Configuration** view lets you upload map image variants and define the segment polygons that the integration uses to render the interactive floor plan. There are two ways to get those polygons: **Auto (CV)**, where the integration detects rooms from an uploaded map screenshot, and one or more named **custom layouts**, where you draw the rooms by hand from primitive shapes. A single map can hold **many** custom layouts — for example a "solar system" image and a "tree" image as two separate layouts on the same physical map — each with its own backdrop, hand-drawn rooms, room links, and mascot dock spot. A **Segmentation** picker selects between Auto (CV) and any of the named layouts; all of them persist independently, so switching never loses any of them. You access the view from the Rooms view, not from the navigation bar — it has no tab of its own.
+The **Map Configuration** view lets you upload map image variants and define the segment polygons that the integration uses to render the interactive floor plan. There are two ways to get those polygons: **Auto (CV)**, where the integration detects rooms from an uploaded map screenshot, and one or more named **custom layouts**, where you draw the rooms by hand from primitive shapes. A single map can hold **many** custom layouts — for example a "solar system" image and a "tree" image as two separate layouts on the same physical map — each with its own backdrop, hand-drawn rooms, room links, and mascot dock spot. A **Segmentation** picker selects between Auto (CV) and any of the named layouts; all of them persist independently, so switching never loses any of them.
 
----
+> **This page is the technical reference** — image variants, the segment data model, the services, and the internals. For the hands-on, click-by-click guide to setting a map up, see **[Making your own maps](../user-guide/16-making-your-own-maps.md)** in the user guide.
 
-### Accessing map config mode
-
-Map configuration is available when the map view is active in the Rooms tab. To open it:
-
-1. Go to the **Rooms** view.
-2. Enable map view if it is not already active.
-3. Click **Configure map** (the configure button inside the map view).
-
-The card switches to the `MAP_CONFIG` view. A back arrow labeled "Rooms" in the top-left returns you to the Rooms view. All segment polygons remain visible in the map panel throughout.
+You reach the view by enabling **map view** in the Rooms tab and clicking **Configure map**; it opens the `MAP_CONFIG` view (a "Rooms" back-arrow returns you), with all segment polygons visible in the map panel throughout.
 
 ---
 
@@ -26,14 +18,7 @@ The Map Configuration view has three areas:
 
 #### The map-view toolbar
 
-The **map view** in the Rooms tab (the thing you open the config view *from*) carries its own toolbar alongside the list/map and Configure buttons. From left to right it offers:
-
-- **Companion animal** select — pick which animal sprite renders on the map (cat, dog, raccoon, parrot, snake).
-- **Icon size** slider — scale the sprite from 0.5× to 3× (default 1×).
-- **Companion toggle** (paw icon) — show or hide the mascot. Independent of the animal selection, so toggling off then on keeps your chosen animal. Persisted per vacuum (`evcc_animal_on_<vacuum>`, default on).
-- **Floor-texture toggle** (hatch icon) — show or hide every floor-texture surface, both the map polygons and the room-card layers. Persisted per vacuum (`evcc_floor_tex_<vacuum>`, default on).
-
-The **Segmentation** picker (Auto (CV) plus the custom-layout chips) is not on this toolbar — it lives in the bottom panel of the Map Configuration view itself.
+The Rooms-tab map view carries its own toolbar (companion-animal select, icon-size slider, mascot toggle, floor-texture toggle) — walkthrough in the user guide's [The mascot and floor textures](../user-guide/16-making-your-own-maps.md#the-mascot-and-floor-textures). For reference, the two toggles persist per vacuum in `localStorage`: **`evcc_animal_on_<vacuum>`** (mascot, default on) and **`evcc_floor_tex_<vacuum>`** (floor textures, default on). The **Segmentation** picker (Auto (CV) plus the custom-layout chips) is *not* on this toolbar — it lives in the bottom panel of the Map Configuration view itself.
 
 ---
 
@@ -95,45 +80,13 @@ A custom-layout backdrop is a **display / tracing image only** — it is never s
 
 ### Capturing a good map image
 
-The quality of segment detection depends heavily on the map image you provide. Follow these steps to capture the cleanest possible input for each variant. Repeat the full sequence for both your dark and light captures, keeping orientation and crop consistent between them.
-
-#### Preparation
-
-1. Start and immediately cancel a vacuum only job to clear all trace lines on map.
-
-2. **Clear all floor types** — In the Eufy app, open Map Editor and remove all floor type assignments. This strips out texture and pattern overlays, leaving each room as a flat, solid colour for the segmentor to work with.
-
-3. **Switch to 2D mode** — Ensure the map display is set to 2D. 3D mode skews the geometry and perspective, which distorts the polygon shapes the segmentor produces.
-
-4. **Hide all UI overlays** — In the map display settings, turn off room names, furniture, virtual furniture, and obstacles. The capture should show nothing but raw room colour regions.
-
-#### Framing
-
-5. **Set your orientation** — Choose whichever map rotation fits cleanly within the app's viewable area. There is no required direction, but pick one and keep it consistent across all variants. Mismatched orientations between dark and light images will cause polygon misalignment.
-
-6. **Collapse all UI chrome** — Minimise panels, drawers, and toolbars as much as possible. The map should fill the visible area cleanly with no UI elements overlapping its edges or corners.
-
-#### Capture
-
-7. **Take the screenshot.**
-
-8. **Crop tightly** — Crop the screenshot as close to the map boundary as possible, eliminating any remaining UI chrome. Do not clip any part of the map itself. Use the same crop boundary for both variants so their polygons align when overlaid.
-
-#### Second variant
-
-9. **Switch colour mode and repeat** — Toggle the app to the opposite mode (light if you captured in dark, dark if you captured in light) and repeat steps 4–7 without changing orientation or crop boundary. This gives you your matched dark and light pair.
-
-#### Assigning the Default variant
-
-The Default variant does not require a separate capture. Upload whichever of your two images you prefer to see rendered in the card UI day-to-day. It acts as a fallback when no dark variant is present, but can also simply be your preferred display image.
+The step-by-step Eufy-app capture procedure — clearing floor types, 2D mode, hiding overlays, the matched dark/light pair, cropping — lives in the user guide: **[Making your own maps → Capturing a good map image](../user-guide/16-making-your-own-maps.md#capturing-a-good-map-image)**. In short, you produce a matched **dark** + **light** screenshot pair (identical orientation and crop) plus an optional **default** display image. The points that matter for *detection* are below under [Segments](#segments).
 
 ---
 
 ### Uploading a variant
 
-1. Click the **Upload** button next to the variant you want to replace.
-2. A file picker opens. Select a PNG, JPEG, WebP, or BMP image file. For the segmenter, prefer a **PNG** kept at a modest resolution (see [Image size, resolution & format](#image-size-resolution--format)) — CV variants are uploaded as-is and an oversized one is **rejected** rather than silently shrunk.
-3. The card uploads the file (showing "Uploading…"), then immediately triggers a re-analysis (showing "Analysing…"), then fetches the updated segments.
+CV variants are uploaded from the **Image Variants** section (Auto (CV) mode), then analysed — walkthrough in the [user guide](../user-guide/16-making-your-own-maps.md#upload-and-analyse). CV variants are sent **as-is** (an oversized one is rejected, never silently shrunk), so prefer a **PNG** at a modest resolution; see [Image size, resolution & format](#image-size-resolution--format). For reference:
 
 The backend converts non-PNG uploads to PNG before saving. It stores the file at `eufy_vacuum/maps/<vacuum_id>/map_<map_id>_<suffix>.png` (the dark variant uses the suffix `_dark`, light uses `_light`, default has no suffix). The browser URL for the stored file is recorded and used to render the map image in the card.
 
@@ -256,7 +209,7 @@ The modes are not exclusive: because CV and every custom layout persist independ
 
 #### Uploading a custom backdrop image
 
-Each layout needs its own backdrop before you can draw on it. With a layout active, open the **Custom backdrop** section (bottom panel, custom mode), click **Upload** (or **Replace**), and pick a PNG, JPEG, WebP, or BMP. The card passes the active `layout_id` to `upload_map_image`; the server forces the variant key to `custom_<layout_id>`, saves the image, records its pixel dimensions, and repoints the layout's `backdrop_variant`. Unlike the CV variants, uploading a backdrop does **not** trigger analysis — it is a tracing image only.
+Each layout owns its own backdrop, uploaded from the **Custom backdrop** section in custom mode (walkthrough: [user guide](../user-guide/16-making-your-own-maps.md#1-create-a-layout-and-add-its-backdrop)). The card passes the active `layout_id` to `upload_map_image`; the server forces the variant key to `custom_<layout_id>`, saves the image, records its pixel dimensions, and repoints the layout's `backdrop_variant`. Unlike the CV variants, uploading a backdrop does **not** trigger analysis — it is a tracing image only.
 
 Because a backdrop is display-only, the card **automatically fits it** to Home Assistant's websocket limit: it caps the long side at 2,048 px and re-encodes (alpha-preserving WebP, or PNG when the browser can't keep transparency in WebP), so even a large photo uploads. An image that already fits is sent unchanged. For the crispest backdrop, pre-size it to ≤ 2,048 px and ≤ ~2.5 MB, and keep transparency in a PNG/WebP — see [Image size, resolution & format](#image-size-resolution--format).
 
@@ -264,29 +217,13 @@ The backdrop renders with `object-fit: fill` so it stretches to fill the square 
 
 #### Custom segment composer
 
-With a backdrop in place and Custom mode active, the map panel becomes a drawing canvas and the side panel shows the **Compose rooms** toolbar. Each shape you add is, by default, one room. The available tools:
-
-| Tool | What it does |
-|---|---|
-| **＋ Rectangle / ＋ Circle** | Add a new shape to the draft. It becomes the selected shape and its own room. |
-| **Select** | Tap a shape on the canvas to select it and reveal its editing controls. |
-| **Fine / Med / Coarse** | Nudge-step size for move and resize (1 %, 3 %, 7 % of the map; default Med). |
-| **Move pad** (↑ ↓ ← →) | Move the selected shape (or, for a merged room, the whole room — see scope below). |
-| **Tap-to-place** | Tap an empty spot on the canvas to drop the selected shape's centre there. |
-| **－ / ＋ Scale** | Shrink or grow the shape uniformly about its centre. |
-| **－ W / ＋ W / － H / ＋ H** | Resize a **rectangle** by width or height (rectangles only). |
-| **↺ / ↻ Rotate** | Rotate the shape by ±15°. Rectangles carry an `angle` and bake to a polygon on save; polygons rotate their points; circles ignore rotation. |
-| **⛓ Merge** | A two-tap flow: tap Merge, then tap another shape to fold it into this room. The two now rasterise into one segment. |
-| **Make cutout** | On a member of a merged room, mark it `op: subtract` so it carves a hole out of the room instead of adding to it. |
-| **Split out** | Pull a shape back out of its merged room so it is its own room again. |
-| **Move: Room / Piece** | For a merged room, choose whether the move pad and tap-to-place shift the whole room together (**Room**, the default) or just the selected piece (**Piece**). Scale, resize, and rotate are always per-piece. |
-| **Delete / Clear all** | Remove the selected shape, or empty the whole draft. |
+With a backdrop in place and Custom mode active, the map panel becomes a drawing canvas and the side panel shows the **Compose rooms** toolbar — add rectangles/circles, move/scale/resize/rotate, merge, carve cutouts, split, set move-scope, link, and save. The tool-by-tool walkthrough is in the user guide ([Draw your rooms](../user-guide/16-making-your-own-maps.md#2-draw-your-rooms)); the model, linking, and save contract are below.
 
 **Shape model.** Each draft shape is `{ id, type, ...geometry, group?, op?, room_id?, angle? }`. Geometry is in `0–100` map percentages. A shape's `group` defaults to its own `id` — that is what makes an un-merged shape its own room. Merging moves shapes into a shared `group`; an `op: "subtract"` member carves a hole out of that group. Rectangles also carry an `angle`.
 
 **Linking rooms.** When a shape (or merged group) is selected, the **Link to room** chips list every room on the active map. Tapping a chip links the room to that group; tapping the linked room again unlinks it. The relationship is 1:1 — a room already taken by another group shows as disabled. The link is set on the draft and only persisted when you save.
 
-**Saving.** Click **Save rooms**. The composer groups the draft by `group`, orders any `subtract` primitives last within each group, and calls `set_custom_segments` (a **replace-all** write of the **active layout's** custom store; the handler auto-creates a default layout if somehow none is active). It then reconciles the room links **per segment** — one `set_segment_room_link` call per group, using the group id as the segment id, writing to the active layout's own link map — and re-fetches the segments. A save shows an error in the toolbar if the active layout has no backdrop; an empty draft simply no-ops (the Save button makes no service call).
+**Saving.** Click **Save rooms**. The composer groups the draft by `group`, orders any `subtract` primitives last within each group, and calls `set_custom_segments` (a **replace-all** write of the **active layout's** custom store; the handler auto-creates a default layout if somehow none is active). **If that write succeeds**, it then reconciles the room links **per segment** — one `set_segment_room_link` call per group, using the group id as the segment id, writing to the active layout's own link map — and re-fetches the segments. If the active layout has **no backdrop**, the write is rejected (`no_custom_backdrop`) and the save **stops and surfaces that error in the toolbar without writing any room links** — so you never end up with links pointing at segments that were never saved. An empty draft simply no-ops (the Save button makes no service call).
 
 #### How custom segments rasterise
 
