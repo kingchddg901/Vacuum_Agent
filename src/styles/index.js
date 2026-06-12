@@ -231,6 +231,44 @@ export const MODAL_HOST_STYLES = `
     --evcc-chip-radius:
       var(--evcc-chip-radius, 999px);
 
+    /* Map labels — pill behind centroid room names. The alpha keeps text
+       legible over any backdrop (dark CV map or custom photo); dial it per map. */
+    --evcc-map-label-bg:
+      var(--evcc-map-label-bg, rgba(15, 18, 22, 0.60));
+
+    --evcc-map-label-text:
+      var(--evcc-map-label-text, #ffffff);
+
+    --evcc-map-label-text-selected:
+      var(--evcc-map-label-text-selected, #ffffff);
+
+    --evcc-map-label-order-text:
+      var(--evcc-map-label-order-text, #ffffff);
+
+    --evcc-map-tooltip-bg:
+      var(--evcc-map-tooltip-bg, rgba(15, 18, 22, 0.88));
+
+    --evcc-map-tooltip-border:
+      var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
+
+    --evcc-map-tooltip-text:
+      var(--evcc-map-tooltip-text, #f0f2f5);
+
+    --evcc-map-tooltip-hint:
+      var(--evcc-map-tooltip-hint, rgba(240, 242, 245, 0.55));
+
+    --evcc-map-compose-selected-stroke:
+      var(--evcc-map-compose-selected-stroke, #ffffff);
+
+    --evcc-map-compose-cut-fill:
+      var(--evcc-map-compose-cut-fill, rgba(255, 92, 92, 0.12));
+
+    --evcc-map-compose-cut-selected-fill:
+      var(--evcc-map-compose-cut-selected-fill, rgba(255, 92, 92, 0.20));
+
+    --evcc-map-vertex-selected-glow:
+      var(--evcc-map-vertex-selected-glow, rgba(255, 221, 0, 0.9));
+
     --evcc-chip-border:
       var(--evcc-modal-chip-border,
       var(--evcc-border-default));

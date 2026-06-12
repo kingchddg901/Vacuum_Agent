@@ -205,6 +205,7 @@ export const surfaceToken       = makeTypedGroupToken("Cards & Surfaces",       
 export const borderToken        = makeTypedGroupToken("Borders & Shadows",            "color");
 export const chipToken          = makeTypedGroupToken("Chips",                        "color");
 export const roomToken          = makeTypedGroupToken("Room Cards",                   "color");
+export const mapToken           = makeTypedGroupToken("Map",                          "color");
 export const floorTextureToken  = makeTypedGroupToken("Floor Textures",               "number");
 export const queueToken         = makeTypedGroupToken("Queue & Ordering",             "color");
 export const statusToken        = makeTypedGroupToken("Status, Confidence & Alerts",  "color");

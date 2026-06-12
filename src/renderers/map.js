@@ -137,7 +137,6 @@ export function applyMapRenderers(proto) {
                     this._renderFloorTexturePolygon(seg, segFloorTypes[i])
                   ).join("")
                 : ""}
-              <circle class="evcc-map-debug-origin" cx="0" cy="0" r="1.5"/>
             </svg>
             ${this._renderMapAnimal(state, vacuumStatus)}
             ${segments.map((seg) => {
@@ -220,6 +219,7 @@ export function applyMapRenderers(proto) {
      ========================================================= */
 
   proto._renderMapAnimal = function (state, vacuumStatus) {
+    if (!(state.mapAnimalEnabled?.() ?? true)) return "";   // mascot toggled off
     const allSegments = state.mapSegments();
     const rooms       = state.getRoomsForActiveMap?.() ?? [];
 
@@ -510,23 +510,49 @@ export function applyMapRenderers(proto) {
      ========================================================= */
 
   proto._renderSegmentationToggle = function (state) {
-    const mode = state.segmentationMode?.() ?? "cv";
-    const opt = (value, label, hint) => `
-      <button
-        class="evcc-map-mode-btn${mode === value ? " evcc-map-mode-btn--active" : ""}"
-        data-action="set-segmentation-mode"
-        data-mode="${value}"
-        ${mode === value ? 'aria-pressed="true"' : ""}
-        title="${this.escapeHtml(hint)}"
-      >${this.escapeHtml(label)}</button>`;
+    const mode      = state.segmentationMode?.() ?? "cv";
+    const layouts   = state.customLayouts?.() ?? [];
+    const activeId  = state.activeCustomLayoutId?.();
+    const editing   = state.isLayoutEditorOpen?.();
+    const editMode  = state.layoutEditorMode?.() ?? "new";
+    const draftName = state.layoutDraftName?.() ?? "";
+    const esc = (s) => this.escapeHtml(String(s));
+
+    // CV is the special always-present option; each custom layout is its own chip;
+    // "＋ New" opens the inline name editor. Switching a chip swaps the whole
+    // layout (backdrop + authored rooms + links + mascot home).
+    const cvChip = `
+      <button class="evcc-map-mode-btn${mode === "cv" ? " evcc-map-mode-btn--active" : ""}"
+        data-action="set-segmentation-mode" data-mode="cv"
+        title="Detect rooms automatically from the map image">Auto (CV)</button>`;
+    const layoutChips = layouts.map((l) => `
+      <button class="evcc-map-mode-btn${mode === "custom" && String(l.id) === String(activeId) ? " evcc-map-mode-btn--active" : ""}"
+        data-action="set-active-custom-layout" data-layout-id="${esc(l.id)}"
+        title="Custom layout: ${esc(l.name)}">${esc(l.name)}</button>`).join("");
+    const newChip = `
+      <button class="evcc-map-mode-btn" data-action="open-new-layout"
+        title="Add a custom layout (its own backdrop + rooms)">＋ New</button>`;
 
     return `
       <div class="evcc-map-config-section">
         <div class="evcc-map-config-section-title">Segmentation</div>
         <div class="evcc-map-mode-toggle">
-          ${opt("cv", "Auto (CV)", "Detect rooms automatically from the map image")}
-          ${opt("custom", "Custom", "Draw rooms by hand from primitive shapes")}
+          ${cvChip}${layoutChips}${newChip}
         </div>
+        ${editing ? `
+        <div class="evcc-compose-tools">
+          <input type="text" class="evcc-map-config-input" data-layout-field="name"
+            value="${esc(draftName)}" placeholder="Layout name" />
+          <button class="evcc-map-config-btn evcc-map-config-btn--primary"
+            data-action="${editMode === "rename" ? "rename-layout-save" : "create-layout-save"}"
+          >${editMode === "rename" ? "Save" : "Create"}</button>
+          <button class="evcc-map-config-btn" data-action="cancel-layout-editor">Cancel</button>
+        </div>` : ""}
+        ${mode === "custom" && activeId ? `
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="open-rename-layout">Rename</button>
+          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="delete-layout">Delete layout</button>
+        </div>` : ""}
       </div>
     `;
   };
@@ -585,12 +611,29 @@ export function applyMapRenderers(proto) {
   proto._renderComposerShapes = function (state) {
     const draft = state.composeDraft?.() ?? [];
     const selId = state.composeSelectedId?.();
-    return draft.map((s) => this._renderComposerShape(s, s.id === selId)).join("");
+    // Colour only MERGED groups (2+ shapes) so the common one-shape-per-room case
+    // keeps the default accent, while merged rooms share a distinguishing stroke.
+    const groupOf = (s) => s.group ?? s.id;
+    const sizes = {};
+    for (const s of draft) sizes[groupOf(s)] = (sizes[groupOf(s)] || 0) + 1;
+    const palette = ["#5ac8fa", "#ffd60a", "#ff9f0a", "#bf5af2", "#30d158", "#ff6482"];
+    const colorByGroup = {};
+    let ci = 0;
+    for (const s of draft) {
+      const g = groupOf(s);
+      if (sizes[g] >= 2 && !(g in colorByGroup)) colorByGroup[g] = palette[ci++ % palette.length];
+    }
+    return draft
+      .map((s) => this._renderComposerShape(s, s.id === selId, colorByGroup[groupOf(s)] ?? null))
+      .join("");
   };
 
-  proto._renderComposerShape = function (s, isSel) {
-    const cls = `evcc-compose-shape${isSel ? " evcc-compose-shape--selected" : ""}`;
-    const attrs = `class="${cls}" data-action="compose-select" data-shape-id="${this.escapeHtml(String(s.id))}"`;
+  proto._renderComposerShape = function (s, isSel, color) {
+    let cls = "evcc-compose-shape";
+    if (isSel) cls += " evcc-compose-shape--selected";
+    if (s.op === "subtract") cls += " evcc-compose-shape--cut";
+    const style = color ? ` style="--evcc-grp:${color}"` : "";
+    const attrs = `class="${cls}"${style} data-action="compose-select" data-shape-id="${this.escapeHtml(String(s.id))}"`;
     if (s.type === "circle") {
       return `<ellipse ${attrs} cx="${s.cx}" cy="${s.cy}" rx="${s.r}" ry="${s.r}"/>`;
     }
@@ -641,8 +684,14 @@ export function applyMapRenderers(proto) {
   proto._renderComposerSelectedControls = function (state) {
     const id = state.composeSelectedId?.();
     if (id == null) return "";
-    const s = (state.composeDraft?.() ?? []).find((x) => x.id === id);
+    const draft = state.composeDraft?.() ?? [];
+    const s = draft.find((x) => x.id === id);
     if (!s) return "";
+    const grp = s.group ?? s.id;
+    const groupSize = draft.filter((x) => (x.group ?? x.id) === grp).length;
+    const merging = state.composeMergeFrom?.() === s.id;
+    const totalShapes = draft.length;
+    const moveScope = state.composeMoveScope?.() ?? "room";
     const step = state.composeStep?.() ?? 3;
     const mv = (dx, dy, glyph, label) => `
       <button class="evcc-map-nudge-btn" data-action="compose-move"
@@ -656,6 +705,14 @@ export function applyMapRenderers(proto) {
         <div class="evcc-compose-tools">
           ${stepBtn(1, "Fine")}${stepBtn(3, "Med")}${stepBtn(7, "Coarse")}
         </div>
+        ${groupSize >= 2 ? `
+        <div class="evcc-map-config-adj-meta">Move: the whole room, or just this piece</div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn${moveScope === "room" ? " evcc-map-config-btn--primary" : ""}"
+            data-action="compose-move-scope" data-scope="room" title="Move the whole room together">Room</button>
+          <button class="evcc-map-config-btn${moveScope === "piece" ? " evcc-map-config-btn--primary" : ""}"
+            data-action="compose-move-scope" data-scope="piece" title="Move just this shape">Piece</button>
+        </div>` : ""}
         <div class="evcc-map-nudge-pad">
           <div class="evcc-map-nudge-row">${mv(0, -1, "↑", "Up")}</div>
           <div class="evcc-map-nudge-row">${mv(-1, 0, "←", "Left")}${mv(1, 0, "→", "Right")}</div>
@@ -679,6 +736,19 @@ export function applyMapRenderers(proto) {
           <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="15" title="Rotate right">↻ Rotate</button>
         </div>` : ""}
         <div class="evcc-compose-tools">
+          ${merging
+            ? `<button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="compose-merge-cancel" title="Stop merging">Cancel — tap a shape to merge</button>`
+            : `<button class="evcc-map-config-btn" data-action="compose-merge-start" ${totalShapes < 2 ? "disabled" : ""} title="Combine another shape into this room">⛓ Merge</button>`}
+          ${groupSize >= 2 ? `<button class="evcc-map-config-btn" data-action="compose-split" title="Make this shape its own room again">Split out</button>` : ""}
+        </div>
+        ${groupSize >= 2 ? `
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn${s.op === "subtract" ? " evcc-map-config-btn--primary" : ""}"
+            data-action="compose-toggle-op"
+            title="${s.op === "subtract" ? "Carving a hole — tap to fill instead" : "Carve this shape out of the room (cutout)"}"
+          >${s.op === "subtract" ? "⛏ Cutout (carving)" : "Make cutout"}</button>
+        </div>` : ""}
+        <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="compose-deselect" title="Stop editing this shape">Done</button>
         </div>
       </div>
@@ -698,10 +768,12 @@ export function applyMapRenderers(proto) {
           <p>No rooms discovered for this map yet — link a shape to a room here once they appear.</p>
         </div>`;
     }
+    const groupOf = (x) => x.group ?? x.id;
+    const myGroup = groupOf(shape);
     const chips = rooms.map((room) => {
       const linkedHere   = shape.room_id != null && String(room.id) === String(shape.room_id);
       const takenByOther = !linkedHere && draft.some(
-        (s) => s.id !== shape.id && s.room_id != null && String(s.room_id) === String(room.id),
+        (s) => groupOf(s) !== myGroup && s.room_id != null && String(s.room_id) === String(room.id),
       );
       let cls = "evcc-map-room-assign-chip";
       if (linkedHere)   cls += " evcc-map-room-assign-chip--linked";

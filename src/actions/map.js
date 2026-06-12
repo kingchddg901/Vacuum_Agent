@@ -14,6 +14,10 @@ import {
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
+  SERVICE_CREATE_CUSTOM_LAYOUT,
+  SERVICE_RENAME_CUSTOM_LAYOUT,
+  SERVICE_DELETE_CUSTOM_LAYOUT,
+  SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
@@ -263,6 +267,58 @@ export function applyMapActions(proto) {
       DOMAIN,
       SERVICE_SET_CUSTOM_SEGMENTS,
       { vacuum_entity_id: vacuum, map_id: mapId, segments },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /* =========================================================
+     CUSTOM LAYOUTS (named no-CV segmentations per map)
+     ========================================================= */
+
+  /** Activate a custom layout (+ flip to custom mode). Null layoutId auto-creates. */
+  proto.setActiveCustomLayout = async function (mapId, layoutId) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+      { vacuum_entity_id: vacuum, map_id: mapId, layout_id: layoutId ?? null },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /** Create + activate a new named custom layout. */
+  proto.createCustomLayout = async function (mapId, name) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT,
+      { vacuum_entity_id: vacuum, map_id: mapId, name: name ?? "" },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /** Rename a custom layout. */
+  proto.renameCustomLayout = async function (mapId, layoutId, name) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId || !layoutId) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_RENAME_CUSTOM_LAYOUT,
+      { vacuum_entity_id: vacuum, map_id: mapId, layout_id: layoutId, name: name ?? "" },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /** Delete a custom layout (+ its backdrop). */
+  proto.deleteCustomLayout = async function (mapId, layoutId) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId || !layoutId) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_DELETE_CUSTOM_LAYOUT,
+      { vacuum_entity_id: vacuum, map_id: mapId, layout_id: layoutId },
       true,
     );
     return result?.response ?? result ?? null;

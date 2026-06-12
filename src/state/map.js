@@ -37,17 +37,20 @@ export function applyMapState(proto) {
 
   proto.setMapSegmentsData = function (data) {
     const oldMapId = this._mapSegmentsData?.map_id;
+    const oldKey = `${oldMapId ?? ""}:${this._mapSegmentsData?.active_custom_layout_id ?? ""}`;
+    const newKey = `${data?.map_id ?? ""}:${data?.active_custom_layout_id ?? ""}`;
     this._mapSegmentsData = data;
-    if (data?.map_id !== oldMapId) {
-      // Reset overlays when the active map changes — what was true for
-      // the old map's segments has nothing to do with the new map's.
+    if (oldKey !== newKey) {
+      // Reset overlays + draft when the active map OR layout changes — what was
+      // true for the old map/layout's segments has nothing to do with the new.
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
       this._mapAnchorMode = false;
-      this._composeDraft = null;       // new map → fresh draft, reload from its segments
+      this._composeDraft = null;       // new map/layout → fresh draft, reload from its segments
       this._composeSelectedId = null;
+      this._composeMergeFrom = null;
       this._composeLoadedFor = null;
-      this.resetMapTransform();
+      if (data?.map_id !== oldMapId) this.resetMapTransform();
     } else {
       // Same map, fresh data — the backend's authoritative state has
       // landed. Drop any optimistic overlay entries the user clicked
@@ -69,12 +72,49 @@ export function applyMapState(proto) {
     return this._mapSegmentsData?.segmentation_mode ?? "cv";
   };
 
+  // Named custom layouts: a map can hold many (each its own backdrop / segments /
+  // links / mascot anchors). The list + active id ride on every get_map_segments.
+  proto.customLayouts = function () {
+    return this._mapSegmentsData?.custom_layouts ?? [];
+  };
+
+  proto.activeCustomLayoutId = function () {
+    return this._mapSegmentsData?.active_custom_layout_id ?? null;
+  };
+
+  proto.activeCustomLayout = function () {
+    const id = this.activeCustomLayoutId();
+    if (id == null) return null;
+    return (this.customLayouts() || []).find((l) => String(l.id) === String(id)) ?? null;
+  };
+
+  // ---- Custom-layout name editor (create / rename) ----
+  proto._layoutEditor = null;
+  proto._ensureLayoutEditor = function () {
+    if (!this._layoutEditor) this._layoutEditor = { open: false, mode: "new", name: "" };
+    return this._layoutEditor;
+  };
+  proto.isLayoutEditorOpen = function () { return this._ensureLayoutEditor().open === true; };
+  proto.layoutEditorMode = function () { return this._ensureLayoutEditor().mode; };
+  proto.layoutDraftName = function () { return this._ensureLayoutEditor().name; };
+  proto.setLayoutDraftName = function (name) { this._ensureLayoutEditor().name = String(name ?? ""); };
+  proto.openNewLayoutEditor = function () { this._layoutEditor = { open: true, mode: "new", name: "" }; };
+  proto.openRenameLayoutEditor = function () {
+    this._layoutEditor = { open: true, mode: "rename", name: this.activeCustomLayout()?.name ?? "" };
+  };
+  proto.closeLayoutEditor = function () { this._layoutEditor = { open: false, mode: "new", name: "" }; };
+
   proto.mapImageUrl = function () {
     const variants = this._mapSegmentsData?.image_variants ?? {};
-    // In custom mode the authored polygons sit on the custom backdrop; fall
-    // back to the segmenter variants so a partially-set-up map still shows.
+    // In custom mode the authored polygons sit on the ACTIVE layout's backdrop;
+    // fall back to the shared custom / segmenter variants so a partially-set-up
+    // map still shows something.
     if (this.segmentationMode() === "custom") {
-      return (variants.custom ?? variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
+      const v = this.activeCustomLayout()?.backdrop_variant;
+      return (
+        (v ? variants[v] : null)
+        ?? variants.custom ?? variants.dark ?? variants.default ?? variants.light
+      )?.browser_url ?? null;
     }
     return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
   };
@@ -122,11 +162,13 @@ export function applyMapState(proto) {
   proto.deleteComposeShape = function (id) {
     this._composeDraft = this.composeDraft().filter((x) => x.id !== id);
     if (this._composeSelectedId === id) this._composeSelectedId = null;
+    if (this._composeMergeFrom === id) this._composeMergeFrom = null;
   };
 
   proto.clearComposeDraft = function () {
     this._composeDraft = [];
     this._composeSelectedId = null;
+    this._composeMergeFrom = null;
   };
 
   // Move / scale / resize a shape — all button-driven (mobile-friendly, no drag).
@@ -228,20 +270,32 @@ export function applyMapState(proto) {
       const g = s.group ?? s.id;
       (groups[g] = groups[g] || []).push(s);
     }
-    return Object.keys(groups).map((gid) => ({
-      id: gid,
-      primitives: groups[gid].map((s) => {
-        const p = s.type === "circle"
-          ? { type: "circle", cx: s.cx, cy: s.cy, r: s.r }
-          : s.type === "polygon"
-            ? { type: "polygon", points: s.points }
-            : s.angle
-              ? { type: "polygon", points: rectCorners(s) }   // rotated rect -> polygon
-              : { type: "rect", x: s.x, y: s.y, w: s.w, h: s.h };
-        if (s.op === "subtract") p.op = "subtract";
-        return p;
-      }),
-    }));
+    return Object.keys(groups).map((gid) => {
+      const members = groups[gid];
+      // Subtract primitives must be drawn AFTER the fills they carve, whatever
+      // order the shapes were added in (Array.sort is stable).
+      const ordered = [...members].sort(
+        (a, b) => (a.op === "subtract" ? 1 : 0) - (b.op === "subtract" ? 1 : 0),
+      );
+      // The merged room's link is whichever member carries a room_id (group-mates
+      // are kept in sync by assignComposeRoom/mergeComposeShapes).
+      const roomMember = members.find((s) => s.room_id != null);
+      return {
+        id: gid,
+        room_id: roomMember ? roomMember.room_id : undefined,
+        primitives: ordered.map((s) => {
+          const p = s.type === "circle"
+            ? { type: "circle", cx: s.cx, cy: s.cy, r: s.r }
+            : s.type === "polygon"
+              ? { type: "polygon", points: s.points }
+              : s.angle
+                ? { type: "polygon", points: rectCorners(s) }   // rotated rect -> polygon
+                : { type: "rect", x: s.x, y: s.y, w: s.w, h: s.h };
+          if (s.op === "subtract") p.op = "subtract";
+          return p;
+        }),
+      };
+    });
   };
 
   // Re-editability: rebuild the draft from saved custom segments as polygon
@@ -262,7 +316,8 @@ export function applyMapState(proto) {
     }
     this._composeDraft = draft;
     this._composeSelectedId = null;
-    this._composeLoadedFor = data?.map_id ?? null;
+    this._composeMergeFrom = null;
+    this._composeLoadedFor = this._composeKey(data);
     // Advance the id counter past any reloaded draft_N ids so new shapes can't
     // collide with one that came back from a save.
     let maxN = 0;
@@ -273,9 +328,14 @@ export function applyMapState(proto) {
     this._composeNextId = maxN + 1;
   };
 
+  proto._composeKey = function (data) {
+    return `${data?.map_id ?? ""}:${data?.active_custom_layout_id ?? ""}`;
+  };
+
   proto.maybeLoadComposeDraft = function (data) {
     if (!data || (data.segmentation_mode ?? "cv") !== "custom") return;
-    if (this._composeLoadedFor === data.map_id) return;  // already loaded for this map
+    // Key on map AND active layout — switching layouts reloads that layout's shapes.
+    if (this._composeLoadedFor === this._composeKey(data)) return;
     this.loadComposeDraftFromSegments(data);
   };
 
@@ -283,10 +343,132 @@ export function applyMapState(proto) {
   // Tapping the already-linked room clears it. 1:1 — the chip UI disables rooms
   // already taken by another shape.
   proto.assignComposeRoom = function (id, roomId) {
-    const s = this.composeDraft().find((x) => x.id === id);
+    const draft = this.composeDraft();
+    const s = draft.find((x) => x.id === id);
     if (!s) return;
     const rid = roomId == null ? undefined : String(roomId);
-    s.room_id = (s.room_id != null && String(s.room_id) === rid) ? undefined : rid;
+    const next = (s.room_id != null && String(s.room_id) === rid) ? undefined : rid;
+    // A room links to a whole merged group, so set it on every group-mate.
+    const grp = s.group ?? s.id;
+    for (const m of draft) if ((m.group ?? m.id) === grp) m.room_id = next;
+  };
+
+  /* =========================================================
+     MERGE / CUT
+     =========================================================
+     Shapes sharing a `group` rasterise into ONE segment (room); a member with
+     op:"subtract" carves a hole out of it. Group defaults to a shape's own id,
+     so an un-merged shape is its own room. Merge is a two-tap flow (select a
+     target, then tap another shape); _composeMergeFrom holds the target while
+     the next tap is pending. */
+  proto._composeMergeFrom = null;
+  proto.composeMergeFrom = function () { return this._composeMergeFrom; };
+  proto.startComposeMerge = function (id) { this._composeMergeFrom = id ?? null; };
+  proto.cancelComposeMerge = function () { this._composeMergeFrom = null; };
+
+  proto.mergeComposeShapes = function (targetId, memberId) {
+    if (!targetId || !memberId || targetId === memberId) return;
+    const draft = this.composeDraft();
+    const target = draft.find((x) => x.id === targetId);
+    const member = draft.find((x) => x.id === memberId);
+    if (!target || !member) return;
+    const tg = target.group ?? target.id;
+    const mg = member.group ?? member.id;
+    // Move the member's WHOLE current group into the target's group (so chained
+    // merges stay coherent)...
+    for (const s of draft) if ((s.group ?? s.id) === mg) s.group = tg;
+    // ...then unify the room link across the result (target's wins, else member's).
+    const room = target.room_id ?? member.room_id;
+    for (const s of draft) if ((s.group ?? s.id) === tg) s.room_id = room;
+  };
+
+  proto.splitComposeShape = function (id) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    s.group = undefined;    // its own segment again
+    s.op = undefined;       // a standalone cutout is meaningless
+    s.room_id = undefined;  // don't duplicate the group's room link (1:1)
+  };
+
+  proto.toggleComposeOp = function (id) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    s.op = s.op === "subtract" ? undefined : "subtract";
+  };
+
+  /* =========================================================
+     MOVE SCOPE (room vs piece)
+     =========================================================
+     When a merged shape is selected, moving can shift the whole room together
+     ("room", the default) or just the one piece ("piece"). Shaping (scale /
+     resize / rotate) is always per-piece. Standalone shapes ignore the scope. */
+  proto._composeMoveScope = "room";
+  proto.composeMoveScope = function () { return this._composeMoveScope; };
+  proto.setComposeMoveScope = function (scope) {
+    this._composeMoveScope = scope === "piece" ? "piece" : "room";
+  };
+
+  proto._composeGroupMembers = function (id) {
+    const draft = this.composeDraft();
+    const s = draft.find((x) => x.id === id);
+    if (!s) return [];
+    const grp = s.group ?? s.id;
+    return draft.filter((x) => (x.group ?? x.id) === grp);
+  };
+
+  proto._composeIsMerged = function (id) {
+    return this._composeGroupMembers(id).length >= 2;
+  };
+
+  // Translate one shape's geometry in place (no clamp — the caller clamps the group).
+  proto._translateShape = function (s, ddx, ddy) {
+    if (s.type === "circle") { s.cx += ddx; s.cy += ddy; }
+    else if (s.type === "polygon") { s.points = s.points.map(([x, y]) => [x + ddx, y + ddy]); }
+    else { s.x += ddx; s.y += ddy; }
+  };
+
+  // Axis-aligned bbox (pct) over a set of shapes. Rect rotation is ignored here —
+  // this only bounds the group-move clamp, which is coarse by design.
+  proto._composeShapesBBox = function (shapes) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    const grow = (x, y) => {
+      minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+    };
+    for (const s of shapes) {
+      if (s.type === "circle") { grow(s.cx - s.r, s.cy - s.r); grow(s.cx + s.r, s.cy + s.r); }
+      else if (s.type === "polygon") { for (const [x, y] of s.points) grow(x, y); }
+      else { grow(s.x, s.y); grow(s.x + s.w, s.y + s.h); }
+    }
+    return { minX, minY, maxX, maxY };
+  };
+
+  proto.moveComposeGroup = function (id, dx, dy) {
+    const members = this._composeGroupMembers(id);
+    if (!members.length) return;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const bb = this._composeShapesBBox(members);
+    // Clamp the delta so no member leaves the canvas.
+    const ddx = clamp(dx, -bb.minX, 100 - bb.maxX);
+    const ddy = clamp(dy, -bb.minY, 100 - bb.maxY);
+    for (const s of members) this._translateShape(s, ddx, ddy);
+  };
+
+  proto.placeComposeGroup = function (id, pctX, pctY) {
+    const members = this._composeGroupMembers(id);
+    if (!members.length) return;
+    const bb = this._composeShapesBBox(members);
+    this.moveComposeGroup(id, pctX - (bb.minX + bb.maxX) / 2, pctY - (bb.minY + bb.maxY) / 2);
+  };
+
+  // Scope-aware dispatchers used by the move pad and tap-to-place.
+  proto.moveComposeScoped = function (id, dx, dy) {
+    if (this._composeMoveScope === "room" && this._composeIsMerged(id)) this.moveComposeGroup(id, dx, dy);
+    else this.moveComposeShape(id, dx, dy);
+  };
+  proto.placeComposeScoped = function (id, pctX, pctY) {
+    if (this._composeMoveScope === "room" && this._composeIsMerged(id)) this.placeComposeGroup(id, pctX, pctY);
+    else this.placeComposeShape(id, pctX, pctY);
   };
 
   // Rotate (deg). Rects carry an angle (applied at render + baked to a polygon on
@@ -753,5 +935,62 @@ export function applyMapState(proto) {
     try {
       localStorage.setItem(this._animalScaleKey(), String(clamped));
     } catch (_) {}
+  };
+
+  /* =========================================================
+     MASCOT ON / OFF  (per vacuum, localStorage)
+     =========================================================
+     Separate from the animal SELECTION so toggling off then on keeps the chosen
+     animal. Default on. */
+  proto._mapAnimalEnabled = null; // null = not yet read
+  proto._animalEnabledKey = function () {
+    return `evcc_animal_on_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.mapAnimalEnabled = function () {
+    if (this._mapAnimalEnabled === null) {
+      try {
+        this._mapAnimalEnabled = localStorage.getItem(this._animalEnabledKey()) !== "0";
+      } catch (_) {
+        this._mapAnimalEnabled = true;
+      }
+    }
+    return this._mapAnimalEnabled;
+  };
+  proto.setMapAnimalEnabled = function (on) {
+    this._mapAnimalEnabled = !!on;
+    try {
+      localStorage.setItem(this._animalEnabledKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleMapAnimalEnabled = function () {
+    this.setMapAnimalEnabled(!this.mapAnimalEnabled());
+  };
+
+  /* =========================================================
+     FLOOR TEXTURES ON / OFF  (per vacuum, localStorage)
+     =========================================================
+     Hides every floor-texture surface (map polygons + room cards). Default on. */
+  proto._floorTextureEnabled = null; // null = not yet read
+  proto._floorTextureKey = function () {
+    return `evcc_floor_tex_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.floorTextureEnabled = function () {
+    if (this._floorTextureEnabled === null) {
+      try {
+        this._floorTextureEnabled = localStorage.getItem(this._floorTextureKey()) !== "0";
+      } catch (_) {
+        this._floorTextureEnabled = true;
+      }
+    }
+    return this._floorTextureEnabled;
+  };
+  proto.setFloorTextureEnabled = function (on) {
+    this._floorTextureEnabled = !!on;
+    try {
+      localStorage.setItem(this._floorTextureKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleFloorTextureEnabled = function () {
+    this.setFloorTextureEnabled(!this.floorTextureEnabled());
   };
 }

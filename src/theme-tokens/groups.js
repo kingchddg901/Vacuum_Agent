@@ -34,6 +34,7 @@ export const STATIC_GROUPS_BEFORE_ANIMALS = [
   "Borders & Shadows",
   "Chips",
   "Room Cards",
+  "Map",
   "Floor Textures",
   "Floor Textures — Tile",
   "Floor Textures — Wood",

@@ -298,13 +298,20 @@ export function applyMapBindings(proto) {
 
           try {
             const base64 = await _fileToBase64(file);
-            await this.card._actions.uploadMapImage(mapId, base64, { variant });
+            // A custom backdrop targets the ACTIVE layout (custom_<id> variant);
+            // the server forces the variant key from layout_id.
+            const opts = { variant };
+            if (variant.startsWith("custom")) {
+              const lid = this.card._state.activeCustomLayoutId?.();
+              if (lid) opts.layout_id = lid;
+            }
+            await this.card._actions.uploadMapImage(mapId, base64, opts);
             // CV variants (dark/light/default) drive segmentation, so an upload
             // kicks off analyze — the long Pillow/SciPy step (10-30s typical);
             // keeping the variant in the status stops the button reverting to
             // "Upload" while work continues. The "custom" backdrop is a no-CV
             // tracing image and is NEVER segmented, so skip analyze for it.
-            if (variant !== "custom") {
+            if (!variant.startsWith("custom")) {
               this.card._state.setMapActionStatus({ type: "analyze", variant, status: "busy" });
               this.card._scheduleRender();
               await this.card._actions.analyzeMapImage(mapId, { force_reanalyze: true });
@@ -440,6 +447,88 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Custom-layout picker: activate a layout (swaps backdrop + rooms + mascot home)
+    const _mapId = () => this.card._state.mapSegmentsData()?.map_id ?? this.card._state.activeMapId?.() ?? null;
+    root.querySelectorAll("[data-action='set-active-custom-layout']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        const layoutId = btn.dataset.layoutId;
+        if (!mapId || !layoutId) return;
+        try {
+          await this.card._actions.setActiveCustomLayout(mapId, layoutId);
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] set active layout failed:", err);
+        }
+      });
+    });
+
+    // Custom-layout editor: open (new / rename), cancel, name input
+    root.querySelectorAll("[data-action='open-new-layout']").forEach((btn) => {
+      this.card._on(btn, "click", () => { this.card._state.openNewLayoutEditor(); this.card._scheduleRender(); });
+    });
+    root.querySelectorAll("[data-action='open-rename-layout']").forEach((btn) => {
+      this.card._on(btn, "click", () => { this.card._state.openRenameLayoutEditor(); this.card._scheduleRender(); });
+    });
+    root.querySelectorAll("[data-action='cancel-layout-editor']").forEach((btn) => {
+      this.card._on(btn, "click", () => { this.card._state.closeLayoutEditor(); this.card._scheduleRender(); });
+    });
+    root.querySelectorAll("[data-layout-field='name']").forEach((inp) => {
+      this.card._on(inp, "input", () => { this.card._state.setLayoutDraftName(inp.value); });
+    });
+
+    // Custom-layout create
+    root.querySelectorAll("[data-action='create-layout-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        const name = (this.card._state.layoutDraftName?.() ?? "").trim();
+        try {
+          await this.card._actions.createCustomLayout(mapId, name);
+          this.card._state.closeLayoutEditor();
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] create layout failed:", err);
+        }
+      });
+    });
+
+    // Custom-layout rename
+    root.querySelectorAll("[data-action='rename-layout-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        const layoutId = this.card._state.activeCustomLayoutId?.();
+        const name = (this.card._state.layoutDraftName?.() ?? "").trim();
+        if (!mapId || !layoutId || !name) return;
+        try {
+          await this.card._actions.renameCustomLayout(mapId, layoutId, name);
+          this.card._state.closeLayoutEditor();
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] rename layout failed:", err);
+        }
+      });
+    });
+
+    // Custom-layout delete
+    root.querySelectorAll("[data-action='delete-layout']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        const layoutId = this.card._state.activeCustomLayoutId?.();
+        if (!mapId || !layoutId) return;
+        try {
+          await this.card._actions.deleteCustomLayout(mapId, layoutId);
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] delete layout failed:", err);
+        }
+      });
+    });
+
     // Composer: add a shape
     root.querySelectorAll("[data-action='compose-add']").forEach((btn) => {
       this.card._on(btn, "click", () => {
@@ -448,10 +537,18 @@ export function applyMapBindings(proto) {
       });
     });
 
-    // Composer: select a shape
+    // Composer: select a shape — or, mid-merge, fold it into the merge target.
     root.querySelectorAll("[data-action='compose-select']").forEach((el) => {
       this.card._on(el, "click", () => {
-        this.card._state.selectComposeShape(el.dataset.shapeId);
+        const tapped = el.dataset.shapeId;
+        const mergeFrom = this.card._state.composeMergeFrom?.();
+        if (mergeFrom && mergeFrom !== tapped) {
+          this.card._state.mergeComposeShapes(mergeFrom, tapped);
+          this.card._state.cancelComposeMerge();
+          this.card._state.selectComposeShape(mergeFrom);  // keep the target selected
+        } else {
+          this.card._state.selectComposeShape(tapped);
+        }
         this.card._scheduleRender();
       });
     });
@@ -483,10 +580,13 @@ export function applyMapBindings(proto) {
         this.card._state.setMapActionStatus?.({ type: "compose-save", status: "busy" });
         this.card._scheduleRender();
         try {
-          await this.card._actions.setCustomSegments(mapId, segments);
-          // Now the segments exist, reconcile each shape's room link (set/clear).
-          for (const s of this.card._state.composeDraft()) {
-            await this.card._actions.setSegmentRoomLink(mapId, s.id, s.room_id ?? null);
+          // Backend payload is id + primitives only; room_id rides separately.
+          const backendSegments = segments.map((seg) => ({ id: seg.id, primitives: seg.primitives }));
+          await this.card._actions.setCustomSegments(mapId, backendSegments);
+          // Reconcile room links per SEGMENT (= group), not per shape — a merged
+          // room is one segment whose id is the group id.
+          for (const seg of segments) {
+            await this.card._actions.setSegmentRoomLink(mapId, seg.id, seg.room_id ?? null);
           }
           await this.card._actions.getMapSegments(mapId);
           this.card._state.clearMapActionStatus?.();
@@ -528,13 +628,21 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Composer: move scope (whole room vs single piece) for merged shapes
+    root.querySelectorAll("[data-action='compose-move-scope']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setComposeMoveScope(btn.dataset.scope);
+        this.card._scheduleRender();
+      });
+    });
+
     // Composer: move the selected shape by the current step
     root.querySelectorAll("[data-action='compose-move']").forEach((btn) => {
       this.card._on(btn, "click", () => {
         const id = this.card._state.composeSelectedId();
         if (!id) return;
         const step = this.card._state.composeStep?.() ?? 3;
-        this.card._state.moveComposeShape(
+        this.card._state.moveComposeScoped(
           id, Number(btn.dataset.dx ?? 0) * step, Number(btn.dataset.dy ?? 0) * step,
         );
         this.card._scheduleRender();
@@ -572,6 +680,44 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Composer: start a merge (then the next shape-tap folds into this one)
+    root.querySelectorAll("[data-action='compose-merge-start']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.startComposeMerge(id);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: cancel a pending merge
+    root.querySelectorAll("[data-action='compose-merge-cancel']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.cancelComposeMerge();
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: split the selected shape back out of its merged room
+    root.querySelectorAll("[data-action='compose-split']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.splitComposeShape(id);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: toggle the selected shape between fill and cutout
+    root.querySelectorAll("[data-action='compose-toggle-op']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.toggleComposeOp(id);
+        this.card._scheduleRender();
+      });
+    });
+
     // Composer: tap the map to drop the selected shape there (coarse placement).
     // Hooks the config canvas's click; bails on shape-taps (those select) and on
     // taps that were really a pan-drag (_mapDragOccurred).
@@ -579,13 +725,19 @@ export function applyMapBindings(proto) {
     if (composeLayers) {
       this.card._on(composeLayers, "click", (e) => {
         if ((this.card._state.segmentationMode?.() ?? "cv") !== "custom") return;
+        // An empty-canvas tap while merging cancels the merge (rather than placing).
+        if (this.card._state.composeMergeFrom?.()) {
+          this.card._state.cancelComposeMerge();
+          this.card._scheduleRender();
+          return;
+        }
         const id = this.card._state.composeSelectedId?.();
         if (!id) return;
         if (e.target?.closest?.("[data-action='compose-select']")) return;
         if (this.card._mapDragOccurred) { this.card._mapDragOccurred = false; return; }
         const r = composeLayers.getBoundingClientRect();
         if (!r.width || !r.height) return;
-        this.card._state.placeComposeShape(
+        this.card._state.placeComposeScoped(
           id,
           ((e.clientX - r.left) / r.width) * 100,
           ((e.clientY - r.top) / r.height) * 100,
@@ -793,6 +945,20 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-animal-select']").forEach((sel) => {
       this.card._on(sel, "change", () => {
         this.card._state.setMapAnimalSelection?.(sel.value);
+        this.card._scheduleRender();
+      });
+    });
+    // Mascot on/off
+    root.querySelectorAll("[data-action='map-animal-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMapAnimalEnabled?.();
+        this.card._scheduleRender();
+      });
+    });
+    // Floor textures on/off
+    root.querySelectorAll("[data-action='floor-texture-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleFloorTextureEnabled?.();
         this.card._scheduleRender();
       });
     });

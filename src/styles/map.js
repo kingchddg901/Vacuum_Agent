@@ -99,13 +99,6 @@ export const mapStyles = `
     pointer-events: none;
   }
 
-  .evcc-map-debug-origin {
-    fill:           red;
-    stroke:         white;
-    stroke-width:   0.3;
-    pointer-events: none;
-  }
-
   /* =========================================================
      ZOOM TOOLBAR
      =========================================================
@@ -241,17 +234,26 @@ export const mapStyles = `
   }
 
   .evcc-map-label-name {
-    font-size:   0.82rem;
-    font-weight: 700;
-    color:       rgba(240, 242, 245, 0.90);
-    text-shadow: 0 1px 4px rgba(0,0,0,0.90), 0 0 8px rgba(0,0,0,0.65);
-    white-space: nowrap;
-    line-height: 1.2;
-    text-align:  center;
+    font-size:     0.82rem;
+    font-weight:   700;
+    color:         var(--evcc-map-label-text, #ffffff);
+    /* Subtle dark pill behind the text: nearly invisible on the dark CV map
+       (dark-on-dark), but a consistent bed for white text on light / photo
+       custom backdrops (e.g. a near-white sky over green foliage). Both the
+       background (alpha is the legibility knob) and the text colour are theme
+       tokens — tune them in the Theme editor's "Map" group. The tight casing
+       keeps edges crisp over busy mid-tones. */
+    background:    var(--evcc-map-label-bg, rgba(15, 18, 22, 0.60));
+    padding:       1px 7px;
+    border-radius: 7px;
+    text-shadow:   0 0 2px rgba(0, 0, 0, 0.85);
+    white-space:   nowrap;
+    line-height:   1.25;
+    text-align:    center;
   }
 
   .evcc-map-label--selected .evcc-map-label-name {
-    color: #ffffff;
+    color: var(--evcc-map-label-text-selected, #ffffff);
   }
 
   .evcc-map-label-order {
@@ -262,7 +264,7 @@ export const mapStyles = `
     height:          16px;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-map-label-order-text, #fff);
     font-size:       0.58rem;
     font-weight:     700;
     line-height:     1;
@@ -279,9 +281,9 @@ export const mapStyles = `
     flex-direction: column;
     gap:            2px;
     padding:        6px 10px;
-    background:     rgba(15, 18, 22, 0.88);
+    background:     var(--evcc-map-tooltip-bg, rgba(15, 18, 22, 0.88));
     backdrop-filter: blur(6px);
-    border:         1px solid rgba(255, 255, 255, 0.12);
+    border:         1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
     border-radius:  8px;
     pointer-events: none;
     max-width:      180px;
@@ -295,13 +297,13 @@ export const mapStyles = `
   .evcc-map-tooltip-label {
     font-size:   0.82rem;
     font-weight: 600;
-    color:       #f0f2f5;
+    color:       var(--evcc-map-tooltip-text, #f0f2f5);
     white-space: nowrap;
   }
 
   .evcc-map-tooltip-hint {
     font-size: 0.72rem;
-    color:     rgba(240, 242, 245, 0.55);
+    color:     var(--evcc-map-tooltip-hint, rgba(240, 242, 245, 0.55));
     white-space: nowrap;
   }
 
@@ -380,7 +382,7 @@ export const mapStyles = `
     height:          18px;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-map-label-order-text, #fff);
     font-size:       0.68rem;
     font-weight:     700;
     flex-shrink:     0;
@@ -497,7 +499,7 @@ export const mapStyles = `
   }
 
   .evcc-map-vertex-dot--selected {
-    filter: drop-shadow(0 0 1px rgba(255, 221, 0, 0.9));
+    filter: drop-shadow(0 0 1px var(--evcc-map-vertex-selected-glow, rgba(255, 221, 0, 0.9)));
   }
 
   /* =========================================================
@@ -547,10 +549,23 @@ export const mapStyles = `
     letter-spacing: normal;
   }
 
-  /* CV / Custom segmentation toggle (segmented control) */
+  /* CV / Custom layout picker (segmented control; wraps with many layouts) */
   .evcc-map-mode-toggle {
-    display: flex;
-    gap:     6px;
+    display:   flex;
+    flex-wrap: wrap;
+    gap:       6px;
+  }
+
+  /* Layout-name input (create / rename a custom layout) */
+  .evcc-map-config-input {
+    flex:          1 1 8rem;
+    min-width:     0;
+    padding:       5px 9px;
+    border-radius: 7px;
+    border:        1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.14));
+    background:     var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    color:         var(--evcc-text-primary, #eef1f5);
+    font-size:     0.82rem;
   }
 
   .evcc-map-mode-btn {
@@ -583,8 +598,10 @@ export const mapStyles = `
   }
 
   .evcc-compose-shape {
+    /* Stroke uses --evcc-grp (injected only on merged groups) so shapes that
+       share a room share an outline colour; un-merged shapes keep the accent. */
     fill:           var(--evcc-accent-soft, rgba(0, 229, 255, 0.16));
-    stroke:         var(--evcc-accent, #00e5ff);
+    stroke:         var(--evcc-grp, var(--evcc-accent, #00e5ff));
     stroke-width:   0.5;
     cursor:         pointer;
     pointer-events: all;
@@ -592,8 +609,18 @@ export const mapStyles = `
 
   .evcc-compose-shape--selected {
     fill:         var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
-    stroke:       #ffffff;
+    stroke:       var(--evcc-map-compose-selected-stroke, #ffffff);
     stroke-width: 1;
+  }
+
+  /* Cutout: this shape carves a hole out of its merged room. Dashed + a warning
+     tint so it reads as "subtracted" rather than filled. */
+  .evcc-compose-shape--cut {
+    fill:             var(--evcc-map-compose-cut-fill, rgba(255, 92, 92, 0.12));
+    stroke-dasharray: 2 1.4;
+  }
+  .evcc-compose-shape--cut.evcc-compose-shape--selected {
+    fill: var(--evcc-map-compose-cut-selected-fill, rgba(255, 92, 92, 0.20));
   }
 
   /* Custom backdrop fills the square exactly like the 0-100 draw grid, so a

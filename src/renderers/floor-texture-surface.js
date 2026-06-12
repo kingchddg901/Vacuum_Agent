@@ -85,6 +85,7 @@ export function applyFloorTextureSurface(proto) {
      ========================================================= */
 
   proto._renderFloorTextureLayer = function (normalizedRoom) {
+    if (!(this.card?._state?.floorTextureEnabled?.() ?? true)) return ""; // textures off
     const floorType = resolveFloorType({
       floor_type:  normalizedRoom?.floorType  ?? "",
       carpet_type: normalizedRoom?.carpetType ?? "",
@@ -130,6 +131,7 @@ export function applyFloorTextureSurface(proto) {
      ========================================================= */
 
   proto._buildFloorTextureDefs = function (floorTypes) {
+    if (!(this.card?._state?.floorTextureEnabled?.() ?? true)) return ""; // textures off
     const seen     = new Set();
     const patterns = [];
 
@@ -155,6 +157,7 @@ export function applyFloorTextureSurface(proto) {
      ========================================================= */
 
   proto._renderFloorTexturePolygon = function (seg, floorType) {
+    if (!(this.card?._state?.floorTextureEnabled?.() ?? true)) return ""; // textures off
     const polygon = seg.polygon_pct;
     if (!Array.isArray(polygon) || polygon.length < 3) return "";
     if (!getPrimaryTextureUrl(floorType)) return "";

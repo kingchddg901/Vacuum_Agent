@@ -162,7 +162,34 @@ export function applyRoomsRenderers(proto) {
           value="${state.mapAnimalScale?.() ?? 1.0}"
           title="Icon size"
           aria-label="Icon size"
-        >` : ""}
+        >
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.mapAnimalEnabled?.() ?? true) ? " active" : ""}"
+          data-action="map-animal-toggle"
+          title="${(state.mapAnimalEnabled?.() ?? true) ? "Hide companion" : "Show companion"}"
+          aria-label="${(state.mapAnimalEnabled?.() ?? true) ? "Hide companion" : "Show companion"}"
+          aria-pressed="${(state.mapAnimalEnabled?.() ?? true) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+            <ellipse cx="8" cy="10.5" rx="3" ry="2.3"/>
+            <circle cx="3.8" cy="7" r="1.3"/>
+            <circle cx="6.5" cy="4.8" r="1.3"/>
+            <circle cx="9.5" cy="4.8" r="1.3"/>
+            <circle cx="12.2" cy="7" r="1.3"/>
+          </svg>
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.floorTextureEnabled?.() ?? true) ? " active" : ""}"
+          data-action="floor-texture-toggle"
+          title="${(state.floorTextureEnabled?.() ?? true) ? "Hide floor textures" : "Show floor textures"}"
+          aria-label="${(state.floorTextureEnabled?.() ?? true) ? "Hide floor textures" : "Show floor textures"}"
+          aria-pressed="${(state.floorTextureEnabled?.() ?? true) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <rect x="2" y="2" width="12" height="12" rx="1.5"/>
+            <path d="M2 6 L6 2 M2 10 L10 2 M2 14 L14 2 M6 14 L14 6 M10 14 L14 10"/>
+          </svg>
+        </button>` : ""}
       </div>
     `;
   };
