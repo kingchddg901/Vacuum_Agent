@@ -32,6 +32,9 @@ from custom_components.eufy_vacuum.const import (
     DOMAIN,
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
+    SERVICE_SET_SEGMENT_ROOM_LINK,
+    SERVICE_CREATE_CUSTOM_LAYOUT,
+    SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
 )
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.mapping import segmenter_engines
@@ -466,8 +469,50 @@ async def test_set_custom_segments_replace_all(hass, mapping_services, pil):
         ]})
     assert res2["segment_count"] == 1
     assert res2["segment_ids"] == ["c"]
-    stored = mapping_services.data["maps"][_VAC][_MAP]["custom_segments"]["segments"]
+    # Custom segments now live in the active layout (auto-created on first author).
+    bucket = mapping_services.data["maps"][_VAC][_MAP]
+    active = bucket["active_custom_layout_id"]
+    stored = bucket["custom_layouts"][active]["custom_segments"]["segments"]
     assert [s["segment_id"] for s in stored] == ["c"]   # a, b replaced
+
+
+async def test_custom_segment_link_survives_resave(hass, mapping_services, pil):
+    """[CUST-4] the stable-id ↔ link-survival contract (mapping_services.py:1062):
+    a custom segment that keeps its ``id`` across a set_custom_segments re-save keeps
+    its segment_room_link; a re-save under a NEW id orphans the old link inertly (the
+    gone segment never resurfaces). Backs the composer's per-segment link reconcile."""
+    await _upload_custom_backdrop(hass, pil)
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [{"id": "r1", "primitives": [
+            {"type": "rect", "x": 10, "y": 10, "w": 40, "h": 40}]}]})
+    # Author + link in custom mode (the composer's scope) so the link lands in the
+    # active layout's store, not CV's.
+    await _svc(hass, SERVICE_SET_SEGMENTATION_MODE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "custom"})
+    await _svc(hass, SERVICE_SET_SEGMENT_ROOM_LINK, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "r1", "room_id": "3"})
+
+    # Re-save keeping the SAME id (e.g. the shape was nudged) → link survives.
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [{"id": "r1", "primitives": [
+            {"type": "rect", "x": 12, "y": 12, "w": 44, "h": 44}]}]})
+    got = await _svc(hass, SERVICE_GET_MAP_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP})
+    r1 = next(s for s in got["segments"] if s["segment_id"] == "r1")
+    assert r1["room_id"] == "3"            # link survived the stable-id re-save
+
+    # Re-save under a DIFFERENT id → the old link is orphaned but inert: the new
+    # segment carries no link and no ghost room 3 surfaces.
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [{"id": "r2", "primitives": [
+            {"type": "rect", "x": 10, "y": 10, "w": 40, "h": 40}]}]})
+    got2 = await _svc(hass, SERVICE_GET_MAP_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert {s["segment_id"] for s in got2["segments"]} == {"r2"}
+    assert all(s.get("room_id") != "3" for s in got2["segments"])
 
 
 async def test_upload_bad_base64_service(hass, mapping_services):
@@ -741,3 +786,53 @@ async def test_delete_one_variant_retains_others(hass, mapping_services, pil):
         "vacuum_entity_id": _VAC, "map_id": _MAP, "variant": "dark"})
     assert dark_deleted["deleted"] is True
     assert dark_deleted["remaining_variants"] == []
+
+
+async def test_per_layout_segment_isolation(hass, mapping_services, pil):
+    """[LAYOUT-4] HEADLINE: two layouts can each hold a segment with the SAME id
+    linked to a DIFFERENT room — impossible in the old single-store model. Switching
+    layouts swaps backdrop + segments + links with zero collision."""
+    # Layout A — own backdrop, a "living" segment linked to room 3.
+    a = await _svc(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                   {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Tree"})
+    lid_a = a["layout_id"]
+    await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [{"id": "living", "primitives": [
+            {"type": "rect", "x": 10, "y": 10, "w": 40, "h": 40}]}]})
+    await _svc(hass, SERVICE_SET_SEGMENT_ROOM_LINK, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "living", "room_id": "3"})
+
+    # Layout B — own backdrop, ALSO a "living" segment, linked to room 5.
+    b = await _svc(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                   {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Solar"})
+    lid_b = b["layout_id"]
+    await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_b,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8})
+    await _svc(hass, SERVICE_SET_CUSTOM_SEGMENTS, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP,
+        "segments": [{"id": "living", "primitives": [
+            {"type": "rect", "x": 50, "y": 50, "w": 30, "h": 30}]}]})
+    await _svc(hass, SERVICE_SET_SEGMENT_ROOM_LINK, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "living", "room_id": "5"})
+
+    # B is active → "living" links to room 5, on B's backdrop.
+    got_b = await _svc(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got_b["active_custom_layout_id"] == lid_b
+    living_b = next(s for s in got_b["segments"] if s["segment_id"] == "living")
+    assert living_b["room_id"] == "5"
+
+    # Switch to A → SAME segment id, but linked to room 3 (no collision, no bleed).
+    await _svc(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+               {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a})
+    got_a = await _svc(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    living_a = next(s for s in got_a["segments"] if s["segment_id"] == "living")
+    assert living_a["room_id"] == "3"
+    # the two layouts kept independent per-layout backdrops
+    bucket = mapping_services.data["maps"][_VAC][_MAP]
+    assert bucket["custom_layouts"][lid_a]["backdrop_variant"] == f"custom_{lid_a}"
+    assert bucket["custom_layouts"][lid_b]["backdrop_variant"] == f"custom_{lid_b}"

@@ -2157,3 +2157,104 @@ set_companion_anchor:
           step: 0.01
           mode: box
 
+create_custom_layout:
+  name: Create custom layout
+  description: >
+    Create and activate a new named custom segmentation layout for a map — its own
+    backdrop image, authored segments, room links and mascot anchors. Flips the map
+    into custom mode and returns the new layout_id.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: Layout name
+      required: false
+      selector:
+        text: {}
+
+rename_custom_layout:
+  name: Rename custom layout
+  description: Rename an existing custom layout.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    layout_id:
+      name: Layout ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: New name
+      required: true
+      selector:
+        text: {}
+
+delete_custom_layout:
+  name: Delete custom layout
+  description: >
+    Delete a custom layout and its backdrop image. If the active layout is deleted
+    the next one is activated, or the map flips back to CV if none remain.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    layout_id:
+      name: Layout ID
+      required: true
+      selector:
+        text: {}
+
+set_active_custom_layout:
+  name: Set active custom layout
+  description: >
+    Activate a custom layout and flip the map into custom mode. A null or unknown
+    layout_id auto-creates a default layout so custom mode always has a live store.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    layout_id:
+      name: Layout ID
+      description: Omit to auto-create and activate a default layout.
+      required: false
+      selector:
+        text: {}
+

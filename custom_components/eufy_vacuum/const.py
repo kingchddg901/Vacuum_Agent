@@ -142,6 +142,12 @@ SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"
 # Author no-CV custom segments from primitives (rasterised server-side into the
 # same polygon shape CV produces); replace-all into the custom_segments store.
 SERVICE_SET_CUSTOM_SEGMENTS = "set_custom_segments"
+# Named custom layouts — a map can hold many (each its own backdrop / segments /
+# room links / mascot anchors); these CRUD them and pick the active one.
+SERVICE_CREATE_CUSTOM_LAYOUT = "create_custom_layout"
+SERVICE_RENAME_CUSTOM_LAYOUT = "rename_custom_layout"
+SERVICE_DELETE_CUSTOM_LAYOUT = "delete_custom_layout"
+SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout"
 
 # ----------------------
 # Theme services

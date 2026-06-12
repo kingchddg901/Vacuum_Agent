@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+from datetime import datetime
 from typing import Any
 
 import voluptuous as vol
@@ -23,6 +24,10 @@ from ..const import (
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
+    SERVICE_CREATE_CUSTOM_LAYOUT,
+    SERVICE_RENAME_CUSTOM_LAYOUT,
+    SERVICE_DELETE_CUSTOM_LAYOUT,
+    SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
 )
@@ -99,6 +104,13 @@ ALL_MAPPING_SERVICES = (
     # Map UI overlay state (segment→room links, companion anchors)
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
+    # CV/Custom toggle + custom-segment authoring + named custom layouts
+    SERVICE_SET_SEGMENTATION_MODE,
+    SERVICE_SET_CUSTOM_SEGMENTS,
+    SERVICE_CREATE_CUSTOM_LAYOUT,
+    SERVICE_RENAME_CUSTOM_LAYOUT,
+    SERVICE_DELETE_CUSTOM_LAYOUT,
+    SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
 )
 
 # ---------------------------------------------------------------------------
@@ -310,12 +322,21 @@ REVIEW_TRACE_RUN_SCHEMA = vol.Schema(
 # (_handle_analyze_map_image only probes dark/default/light), so a custom-only
 # map is never auto-segmented. Its recorded width/height are the pixel space the
 # custom segment writer rasterises against.
+def _image_variant(value):
+    """Accept the four fixed variants plus per-layout ``custom_<id>`` backdrops."""
+    value = cv.string(value)
+    if value in ("default", "dark", "light", "custom") or value.startswith("custom_"):
+        return value
+    raise vol.Invalid(f"unknown image variant: {value}")
+
+
 UPLOAD_MAP_IMAGE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("image_base64"): cv.string,
-        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light", "custom"]),
+        vol.Optional("variant", default="default"): _image_variant,
+        vol.Optional("layout_id"): cv.string,
         vol.Optional("image_width"): vol.Coerce(int),
         vol.Optional("image_height"): vol.Coerce(int),
     }
@@ -325,7 +346,7 @@ DELETE_MAP_IMAGE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
-        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light", "custom"]),
+        vol.Optional("variant", default="default"): _image_variant,
     }
 )
 
@@ -373,6 +394,41 @@ SET_CUSTOM_SEGMENTS_SCHEMA = vol.Schema(
                 extra=vol.ALLOW_EXTRA,
             )
         ],
+    }
+)
+
+# Named custom layouts (a map can hold many — solar-system image, tree image, ...).
+CREATE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("name"): cv.string,
+    }
+)
+
+RENAME_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("layout_id"): cv.string,
+        vol.Required("name"): cv.string,
+    }
+)
+
+DELETE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("layout_id"): cv.string,
+    }
+)
+
+SET_ACTIVE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        # null / omitted -> auto-create + activate a default layout.
+        vol.Optional("layout_id"): vol.Any(None, cv.string),
     }
 )
 
@@ -611,9 +667,22 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     map_id: str = call.data["map_id"]
     variant: str = call.data.get("variant", "default")
+    layout_id: str | None = call.data.get("layout_id")
     image_b64: str = call.data["image_base64"]
     declared_width: int | None = call.data.get("image_width")
     declared_height: int | None = call.data.get("image_height")
+
+    # Per-layout backdrop: the layout_id forces the variant key (custom_<id>) and
+    # the layout must already exist (validate before writing any file).
+    if layout_id is not None:
+        variant = f"custom_{layout_id}"
+        _mgr = hass.data[DOMAIN][DATA_RUNTIME]
+        _bucket = ensure_map_bucket(
+            data=_mgr.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+        )
+        _migrate_custom_layouts(_bucket)
+        if not isinstance((_bucket.get("custom_layouts") or {}).get(layout_id), dict):
+            return {"saved": False, "reason": "layout_not_found"}
 
     try:
         image_bytes = base64.b64decode(image_b64)
@@ -679,6 +748,11 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
             "width": result["actual_width"],
             "height": result["actual_height"],
         }
+        if layout_id is not None:
+            layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
+            if isinstance(layout, dict):
+                layout["backdrop_variant"] = variant
+                layout["updated_at"] = utc_now_iso()
         await manager.async_save()
 
     _LOGGER.debug("upload_map_image: %s", result)
@@ -922,8 +996,10 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
     # CV-or-Custom: serve whichever segment store the toggle selects. Reading is
     # pure — it never invokes the segmenter — so a custom <-> cv flip is a cheap
     # pointer change and both stores survive a round-trip untouched.
-    mode: str = map_bucket.get("segmentation_mode") or "cv"
-    raw = map_bucket.get("custom_segments" if mode == "custom" else "image_segments") or {}
+    _migrate_custom_layouts(map_bucket)
+    scope = _resolve_active_scope(map_bucket)
+    mode: str = scope["mode"]
+    raw = scope["segments_store"] or {}
     adjustments: dict = map_bucket.get("image_segment_adjustments") or {}
     raw_segments: list = raw.get("segments") or []
 
@@ -931,7 +1007,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
 
     img_variants = map_bucket.get("image_variants") or {}
     img_meta = (
-        (img_variants.get("custom") if mode == "custom" else None)
+        (img_variants.get(scope["backdrop_variant"]) if scope["backdrop_variant"] else None)
         or img_variants.get("dark")
         or img_variants.get("default")
         or img_variants.get("light")
@@ -951,7 +1027,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
     # companion_anchors) so this endpoint serves the same union of
     # image-derived + UI-state data that analyze_map_image does. Card
     # never has to make a second round-trip.
-    links = map_bucket.get("segment_room_links") or {}
+    links = scope["links"]
     if isinstance(links, dict) and links:
         for seg in adjusted_segments:
             if not isinstance(seg, dict):
@@ -961,12 +1037,29 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
             if linked_room is not None:
                 seg["room_id"] = str(linked_room)
 
-    anchors = map_bucket.get("companion_anchors") or {}
+    anchors = scope["anchors"]
+
+    layouts = map_bucket.get("custom_layouts") or {}
+    layouts_summary = [
+        {
+            "id": lay.get("id"),
+            "name": lay.get("name"),
+            "backdrop_variant": lay.get("backdrop_variant"),
+            "segment_count": len((lay.get("custom_segments") or {}).get("segments") or []),
+            "created_at": lay.get("created_at"),
+            "updated_at": lay.get("updated_at"),
+        }
+        for lay in layouts.values()
+        if isinstance(lay, dict)
+    ]
 
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
         "segmentation_mode": mode,
+        "active_custom_layout_id": map_bucket.get("active_custom_layout_id"),
+        "custom_layouts": layouts_summary,
+        "segment_room_links": dict(links) if isinstance(links, dict) else {},
         "available": bool(raw.get("available", False)),
         "analyzed_at": raw.get("analyzed_at"),
         "image": raw.get("image"),
@@ -1006,13 +1099,165 @@ async def _handle_set_segmentation_mode(hass: HomeAssistant, call: ServiceCall) 
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
     )
+    _migrate_custom_layouts(map_bucket)
     map_bucket["segmentation_mode"] = mode
+    # Flipping to custom with no active layout but layouts present: soft-select the
+    # first so the view always resolves a store (hard auto-create is in the CRUD).
+    if mode == "custom" and not _active_custom_layout(map_bucket):
+        layouts = map_bucket.get("custom_layouts") or {}
+        if layouts:
+            map_bucket["active_custom_layout_id"] = sorted(layouts)[0]
     await manager.async_save()
 
-    source = "custom_segments" if mode == "custom" else "image_segments"
-    active = (map_bucket.get(source) or {}).get("segments") or []
+    active = (_resolve_active_scope(map_bucket)["segments_store"] or {}).get("segments") or []
     _LOGGER.debug("set_segmentation_mode: %s/%s -> %s", vacuum_entity_id, map_id, mode)
     return {"saved": True, "mode": mode, "segment_count": len(active)}
+
+
+# ---------------------------------------------------------------------------
+# Custom layouts — named collection of no-CV segmentations per map
+# ---------------------------------------------------------------------------
+#
+# A map can hold MANY named custom layouts (e.g. a "solar system" image and a
+# "tree" image), each owning its own backdrop, authored segments, room links and
+# mascot anchors. CV stays special at the map-bucket level (image_segments + the
+# shared segment_room_links/companion_anchors). The active view is resolved once,
+# through _resolve_active_scope, so CV and custom can never drift.
+
+
+def _generate_custom_layout_id(existing) -> str:
+    """Stable unique id for a new custom layout (mirrors run-profile ids), with a
+    same-second collision guard so rapid creates (and tests) never clash."""
+    base = f"cl_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+    if base not in existing:
+        return base
+    n = 2
+    while f"{base}_{n}" in existing:
+        n += 1
+    return f"{base}_{n}"
+
+
+def _active_custom_layout(map_bucket: dict) -> dict | None:
+    """The active custom layout dict (the one being authored / shown in custom
+    mode), or None when there is no resolvable active layout."""
+    layouts = map_bucket.get("custom_layouts") or {}
+    layout_id = map_bucket.get("active_custom_layout_id")
+    layout = layouts.get(layout_id) if layout_id else None
+    return layout if isinstance(layout, dict) else None
+
+
+def _migrate_custom_layouts(map_bucket: dict) -> None:
+    """Lazily fold a legacy single ``custom_segments`` store into the named
+    ``custom_layouts`` collection. Idempotent + non-destructive: returns at once
+    once ``custom_layouts`` exists, and never deletes the legacy key.
+
+    Today's ``segment_room_links`` / ``companion_anchors`` are SHARED between CV
+    and the single custom store. On migration we COPY into the default layout only
+    the entries that resolve against its custom segments (a link whose seg id is a
+    custom segment; the ``dock`` anchor + anchors for rooms those links point at),
+    leaving CV's map-bucket dicts intact.
+    """
+    if isinstance(map_bucket.get("custom_layouts"), dict):
+        return
+    map_bucket["custom_layouts"] = {}
+    map_bucket.setdefault("active_custom_layout_id", None)
+
+    legacy = map_bucket.get("custom_segments")
+    if not isinstance(legacy, dict) or not legacy.get("segments"):
+        return
+
+    seg_ids = {str(s.get("segment_id")) for s in legacy.get("segments") or []}
+    all_links = map_bucket.get("segment_room_links") or {}
+    links = {sid: rid for sid, rid in all_links.items() if str(sid) in seg_ids}
+    linked_rooms = {str(rid) for rid in links.values()}
+    all_anchors = map_bucket.get("companion_anchors") or {}
+    anchors = {
+        key: val for key, val in all_anchors.items()
+        if key == "dock" or str(key) in linked_rooms
+    }
+
+    layout_id = _generate_custom_layout_id(set())
+    now = utc_now_iso()
+    map_bucket["custom_layouts"][layout_id] = {
+        "id": layout_id,
+        "name": "Custom",
+        "backdrop_variant": "custom",
+        "custom_segments": legacy,
+        "segment_room_links": dict(links),
+        "companion_anchors": dict(anchors),
+        "created_at": now,
+        "updated_at": now,
+    }
+    map_bucket["active_custom_layout_id"] = layout_id
+
+
+def _resolve_active_scope(map_bucket: dict) -> dict:
+    """Resolve the live segment store / link store / anchor store / backdrop
+    variant from (segmentation_mode, active layout). CV → the map-bucket-level
+    keys; custom → the active layout's keys. ``links``/``anchors`` are the real
+    mutable dicts, so the existing 1:1-enforcement and clamp logic is unchanged.
+    Call after ``_migrate_custom_layouts``.
+    """
+    mode = map_bucket.get("segmentation_mode") or "cv"
+    if mode == "custom":
+        layout = _active_custom_layout(map_bucket)
+        if layout is not None:
+            return {
+                "mode": "custom",
+                "layout_id": map_bucket.get("active_custom_layout_id"),
+                "segments_store": layout.setdefault("custom_segments", {}),
+                "links": layout.setdefault("segment_room_links", {}),
+                "anchors": layout.setdefault("companion_anchors", {}),
+                "backdrop_variant": layout.get("backdrop_variant"),
+            }
+        return {
+            "mode": "custom", "layout_id": None,
+            "segments_store": {}, "links": {}, "anchors": {},
+            "backdrop_variant": None,
+        }
+    return {
+        "mode": "cv", "layout_id": None,
+        "segments_store": map_bucket.get("image_segments") or {},
+        "links": map_bucket.setdefault("segment_room_links", {}),
+        "anchors": map_bucket.setdefault("companion_anchors", {}),
+        "backdrop_variant": None,
+    }
+
+
+def _create_layout(
+    map_bucket: dict, name: str, *, backdrop_variant: str | None = None, activate: bool = True
+) -> dict:
+    """Mint + (optionally) activate a new custom layout with empty stores. New
+    layouts get a per-layout ``custom_<id>`` backdrop variant unless one is given."""
+    layouts = map_bucket.setdefault("custom_layouts", {})
+    layout_id = _generate_custom_layout_id(set(layouts))
+    now = utc_now_iso()
+    layout = {
+        "id": layout_id,
+        "name": (name or "").strip() or "Custom",
+        "backdrop_variant": backdrop_variant or f"custom_{layout_id}",
+        "custom_segments": {},
+        "segment_room_links": {},
+        "companion_anchors": {},
+        "created_at": now,
+        "updated_at": now,
+    }
+    layouts[layout_id] = layout
+    if activate:
+        map_bucket["active_custom_layout_id"] = layout_id
+    return layout
+
+
+def _ensure_default_layout(
+    map_bucket: dict, *, backdrop_variant: str = "custom", name: str = "Custom"
+) -> dict:
+    """Return the active custom layout, creating + activating a default one when
+    none exists. Keeps authoring valid with zero layouts — backward-compat with the
+    pre-layout flow (whose backdrop sits at the shared ``custom`` variant)."""
+    layout = _active_custom_layout(map_bucket)
+    if layout is not None:
+        return layout
+    return _create_layout(map_bucket, name, backdrop_variant=backdrop_variant)
 
 
 def _build_custom_segment(
@@ -1073,7 +1318,11 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
         map_id=map_id,
     )
 
-    backdrop = (map_bucket.get("image_variants") or {}).get("custom") or {}
+    _migrate_custom_layouts(map_bucket)
+    layout = _ensure_default_layout(map_bucket)
+
+    variant = layout.get("backdrop_variant") or "custom"
+    backdrop = (map_bucket.get("image_variants") or {}).get(variant) or {}
     map_w = backdrop.get("width")
     map_h = backdrop.get("height")
     if not map_w or not map_h:
@@ -1103,14 +1352,15 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
 
     built, skipped = await hass.async_add_executor_job(_rasterise_all)
 
-    map_bucket["custom_segments"] = {
+    layout["custom_segments"] = {
         "available": bool(built),
         "engine": "custom",
         "analyzed_at": utc_now_iso(),
-        "image": {"width": int(map_w), "height": int(map_h), "variant": "custom"},
+        "image": {"width": int(map_w), "height": int(map_h), "variant": variant},
         "segments": built,
         "summary": {"segment_count": len(built)},
     }
+    layout["updated_at"] = utc_now_iso()
     await manager.async_save()
 
     _LOGGER.debug(
@@ -1225,7 +1475,8 @@ async def _handle_set_segment_room_link(
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
     )
-    links: dict = map_bucket.setdefault("segment_room_links", {})
+    _migrate_custom_layouts(map_bucket)
+    links: dict = _resolve_active_scope(map_bucket)["links"]
 
     if room_id_raw is None or str(room_id_raw).strip() == "":
         # Clear path.
@@ -1280,7 +1531,8 @@ async def _handle_set_companion_anchor(
         vacuum_entity_id=vacuum_entity_id,
         map_id=map_id,
     )
-    anchors: dict = map_bucket.setdefault("companion_anchors", {})
+    _migrate_custom_layouts(map_bucket)
+    anchors: dict = _resolve_active_scope(map_bucket)["anchors"]
 
     if pct_x is None and pct_y is None:
         anchors.pop(room_id, None)
@@ -1305,6 +1557,128 @@ async def _handle_set_companion_anchor(
         "room_id": room_id,
         "action": action,
         "companion_anchors": dict(anchors),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Custom layout CRUD
+# ---------------------------------------------------------------------------
+
+
+async def _handle_create_custom_layout(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Create + activate a new named custom layout (empty stores, per-layout
+    backdrop variant) and flip the map into custom mode so it goes live."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    name: str = str(call.data.get("name") or "").strip() or "Custom"
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layout = _create_layout(map_bucket, name)
+    map_bucket["segmentation_mode"] = "custom"
+    await manager.async_save()
+    _LOGGER.debug("create_custom_layout: %s/%s -> %s", vacuum_entity_id, map_id, layout["id"])
+    return {"saved": True, "layout_id": layout["id"], "layout": dict(layout)}
+
+
+async def _handle_rename_custom_layout(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    layout_id: str = call.data["layout_id"]
+    name: str = str(call.data["name"]).strip()
+    if not name:
+        return {"saved": False, "reason": "missing_name"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
+    if not isinstance(layout, dict):
+        return {"saved": False, "reason": "layout_not_found"}
+    layout["name"] = name
+    layout["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    return {"saved": True, "layout_id": layout_id, "layout": dict(layout)}
+
+
+async def _handle_delete_custom_layout(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Delete a custom layout. Best-effort removes its backdrop file/variant; when
+    the active layout is deleted, reassigns to the first remaining (by name) — or
+    flips back to CV when none remain (so custom mode never has no store)."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    layout_id: str = call.data["layout_id"]
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layouts = map_bucket.get("custom_layouts") or {}
+    layout = layouts.get(layout_id)
+    if not isinstance(layout, dict):
+        return {"saved": False, "reason": "layout_not_found"}
+
+    variant = layout.get("backdrop_variant")
+    meta = (map_bucket.get("image_variants") or {}).pop(variant, None) if variant else None
+    if isinstance(meta, dict) and meta.get("path"):
+        try:
+            await hass.async_add_executor_job(os.remove, meta["path"])
+        except OSError:
+            pass
+
+    layouts.pop(layout_id, None)
+
+    if map_bucket.get("active_custom_layout_id") == layout_id:
+        remaining = sorted(
+            (lay for lay in layouts.values() if isinstance(lay, dict)),
+            key=lambda lay: str(lay.get("name") or ""),
+        )
+        if remaining:
+            map_bucket["active_custom_layout_id"] = remaining[0].get("id")
+        else:
+            map_bucket["active_custom_layout_id"] = None
+            if map_bucket.get("segmentation_mode") == "custom":
+                map_bucket["segmentation_mode"] = "cv"
+
+    await manager.async_save()
+    return {
+        "saved": True,
+        "deleted": True,
+        "layout_id": layout_id,
+        "active_custom_layout_id": map_bucket.get("active_custom_layout_id"),
+        "segmentation_mode": map_bucket.get("segmentation_mode") or "cv",
+    }
+
+
+async def _handle_set_active_custom_layout(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Activate a custom layout (+ flip to custom mode). A null/unknown target
+    auto-creates a default layout, so custom mode always resolves a live store."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    layout_id = call.data.get("layout_id")
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layouts = map_bucket.get("custom_layouts") or {}
+    if layout_id and isinstance(layouts.get(layout_id), dict):
+        map_bucket["active_custom_layout_id"] = layout_id
+    else:
+        _create_layout(map_bucket, "Custom")
+    map_bucket["segmentation_mode"] = "custom"
+    await manager.async_save()
+    return {
+        "saved": True,
+        "active_custom_layout_id": map_bucket.get("active_custom_layout_id"),
+        "mode": map_bucket.get("segmentation_mode"),
     }
 
 
@@ -1686,6 +2060,18 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_custom_segments(call: ServiceCall) -> dict:
         return await _handle_set_custom_segments(hass, call)
 
+    async def create_custom_layout(call: ServiceCall) -> dict:
+        return await _handle_create_custom_layout(hass, call)
+
+    async def rename_custom_layout(call: ServiceCall) -> dict:
+        return await _handle_rename_custom_layout(hass, call)
+
+    async def delete_custom_layout(call: ServiceCall) -> dict:
+        return await _handle_delete_custom_layout(hass, call)
+
+    async def set_active_custom_layout(call: ServiceCall) -> dict:
+        return await _handle_set_active_custom_layout(hass, call)
+
     async def delete_map_image(call: ServiceCall) -> dict:
         return await _handle_delete_map_image(hass, call)
 
@@ -1724,6 +2110,22 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_COMPANION_ANCHOR, set_companion_anchor,
         schema=SET_COMPANION_ANCHOR_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,
+        schema=CREATE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RENAME_CUSTOM_LAYOUT, rename_custom_layout,
+        schema=RENAME_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_DELETE_CUSTOM_LAYOUT, delete_custom_layout,
+        schema=DELETE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT, set_active_custom_layout,
+        schema=SET_ACTIVE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
     )
 
 

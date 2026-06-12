@@ -27,6 +27,10 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_SEGMENT_ROOM_LINK,
+    SERVICE_CREATE_CUSTOM_LAYOUT,
+    SERVICE_RENAME_CUSTOM_LAYOUT,
+    SERVICE_DELETE_CUSTOM_LAYOUT,
+    SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
 )
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
@@ -225,6 +229,38 @@ async def test_link_blank_segment_id(hass, mapping_services):
     assert result["reason"] == "missing_segment_id"
 
 
+async def test_link_inert_when_segment_resegmented_away(hass, mapping_services):
+    """[MSH-6c] segment_room_links DRIFT: when the segment id set changes underneath
+    the links (a re-analysis, or a set_custom_segments replace-all), links keyed by
+    the OLD ids go inert. The read attaches room_id by iterating the CURRENT segments
+    (mapping_services.py:954-959), so a link to a vanished segment can never surface
+    as a ghost room, while a preserved id keeps its link. Pins the inert-by-design
+    safety net that re-analysis (which leaves segment_room_links untouched) and the
+    custom-segment replace-all both rely on — neither prunes the link dict."""
+    _seed_segments(mapping_services, segment_ids=("s1", "s2"))
+    await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "s1", "room_id": "3"})
+    await _call(hass, SERVICE_SET_SEGMENT_ROOM_LINK,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "segment_id": "s2", "room_id": "4"})
+
+    # Re-analysis replaces image_segments with a NEW id set (s1 gone, s2 kept, s9
+    # new); segment_room_links is deliberately left untouched.
+    _seed_segments(mapping_services, segment_ids=("s2", "s9"))
+
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["available"] is True                         # stale link doesn't break the read
+    by_id = {s["segment_id"]: s for s in got["segments"]}
+    assert set(by_id) == {"s2", "s9"}
+    assert all(s.get("room_id") != "3" for s in got["segments"])  # gone s1 → no ghost room 3
+    assert by_id["s2"]["room_id"] == "4"                    # preserved id keeps its link
+    assert by_id["s9"].get("room_id") is None               # brand-new segment has no link
+
+    # The orphaned s1→3 link lingers inertly in the bucket (no pruning today).
+    links = mapping_services.data["maps"][_VAC][_MAP]["segment_room_links"]
+    assert links.get("s1") == "3"
+
+
 # ---------------------------------------------------------------------------
 # set_companion_anchor
 # ---------------------------------------------------------------------------
@@ -268,6 +304,127 @@ async def test_delete_map_image_no_image(hass, mapping_services):
     result = await _call(hass, SERVICE_DELETE_MAP_IMAGE,
                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "variant": "default"})
     assert isinstance(result, dict)
+
+
+# ---------------------------------------------------------------------------
+# Custom layouts (named collection per map)
+# ---------------------------------------------------------------------------
+
+async def test_custom_layout_migration_splits_shared_links(hass, mapping_services):
+    """[LAYOUT-1] a legacy single custom_segments store migrates into ONE default
+    layout; today's SHARED segment_room_links/companion_anchors are split — only the
+    custom-resolved entries copy into the layout, CV's stay on the map bucket."""
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["image_segments"] = {"available": True, "segments": [{"segment_id": "s1"}]}
+    bucket["custom_segments"] = {
+        "available": True, "image": {"width": 100, "height": 100},
+        "segments": [{"segment_id": "c1", "polygon_pixel": [[0, 0], [10, 0], [10, 10]]}],
+        "summary": {"segment_count": 1},
+    }
+    bucket["image_variants"] = {"custom": {"width": 100, "height": 100}}
+    bucket["segment_room_links"] = {"s1": "3", "c1": "5"}   # cv link + custom link
+    bucket["companion_anchors"] = {
+        "3": {"pct_x": 1, "pct_y": 1},      # cv room
+        "5": {"pct_x": 2, "pct_y": 2},      # custom room
+        "dock": {"pct_x": 9, "pct_y": 9},
+    }
+    bucket["segmentation_mode"] = "custom"
+
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+
+    layouts = bucket["custom_layouts"]
+    assert len(layouts) == 1
+    layout = next(iter(layouts.values()))
+    assert bucket["active_custom_layout_id"] == layout["id"]
+    # the layout carries only the custom-resolved overlays
+    assert layout["segment_room_links"] == {"c1": "5"}
+    assert set(layout["companion_anchors"]) == {"5", "dock"}      # not "3" (a CV room)
+    # CV's map-bucket dicts are left intact
+    assert bucket["segment_room_links"] == {"s1": "3", "c1": "5"}
+    # the response (custom mode) serves the layout: c1 linked to room 5
+    c1 = next(s for s in got["segments"] if s["segment_id"] == "c1")
+    assert c1["room_id"] == "5"
+    assert got["active_custom_layout_id"] == layout["id"]
+    assert len(got["custom_layouts"]) == 1
+
+    # idempotent: re-reading doesn't spawn a second layout
+    await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert len(bucket["custom_layouts"]) == 1
+
+
+async def test_custom_layout_crud(hass, mapping_services):
+    """[LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl.
+    delete-active reassigns and delete-last flips back to CV."""
+    a = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Tree"})
+    assert a["saved"] and a["layout_id"]
+    lid_a = a["layout_id"]
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["segmentation_mode"] == "custom"          # create flips to custom + activates
+    assert got["active_custom_layout_id"] == lid_a
+
+    b = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Solar"})
+    lid_b = b["layout_id"]
+    assert lid_b != lid_a
+
+    ren = await _call(hass, SERVICE_RENAME_CUSTOM_LAYOUT,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a, "name": "Oak"})
+    assert ren["layout"]["name"] == "Oak"
+
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    names = {lay["id"]: lay["name"] for lay in got["custom_layouts"]}
+    assert names == {lid_a: "Oak", lid_b: "Solar"}
+    assert got["active_custom_layout_id"] == lid_b       # the 2nd create is active
+
+    await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a})
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["active_custom_layout_id"] == lid_a
+
+    d = await _call(hass, SERVICE_DELETE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a})
+    assert d["deleted"] and d["active_custom_layout_id"] == lid_b   # reassigned
+
+    d2 = await _call(hass, SERVICE_DELETE_CUSTOM_LAYOUT,
+                     {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_b})
+    assert d2["active_custom_layout_id"] is None
+    assert d2["segmentation_mode"] == "cv"               # last delete flips to CV
+
+
+async def test_set_active_auto_creates(hass, mapping_services):
+    """[LAYOUT-3] set_active with no layouts (null target) auto-creates + activates
+    a default and flips to custom — closing the zero-layout trap."""
+    res = await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert res["saved"] and res["mode"] == "custom"
+    assert res["active_custom_layout_id"]
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert len(got["custom_layouts"]) == 1
+    assert got["active_custom_layout_id"] == res["active_custom_layout_id"]
+
+
+async def test_per_layout_anchors_and_dock(hass, mapping_services):
+    """[LAYOUT-6] companion_anchors (incl the reserved 'dock' key) are per-layout —
+    a dock spot set on layout A must not bleed onto layout B."""
+    a = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "A"})
+    lid_a = a["layout_id"]
+    await _call(hass, SERVICE_SET_COMPANION_ANCHOR,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "dock",
+                 "pct_x": 80, "pct_y": 20})
+    got_a = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got_a["companion_anchors"].get("dock") == {"pct_x": 80.0, "pct_y": 20.0}
+
+    await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "B"})   # activates B
+    got_b = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert "dock" not in got_b["companion_anchors"]      # B has its own (empty) anchors
+
+    await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a})
+    got_a2 = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got_a2["companion_anchors"].get("dock") == {"pct_x": 80.0, "pct_y": 20.0}
 
 
 # ---------------------------------------------------------------------------
