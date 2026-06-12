@@ -137,17 +137,26 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 
 #### Mapping / map image
 
-| Service | Notes |
-|---|---|
-| `upload_map_image` | `vacuum_entity_id`, `map_id`, `image_base64` |
-| `analyze_map_image` | `vacuum_entity_id`, `map_id` |
-| `get_map_segments` | `vacuum_entity_id`, `map_id` |
-| `adjust_map_segment` | `vacuum_entity_id`, `map_id`, `segment_id`, adjustment fields |
-| `get_room_bounds_snapshot` | `vacuum_entity_id`, `map_id` |
-| `clear_room_bounds` | `vacuum_entity_id`, `map_id`, `room_id` |
-| `exclude_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` |
-| `restore_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` |
-| `rebuild_room_bounds_from_archive` | `vacuum_entity_id`, `map_id`, `room_id` |
+| Service | Required fields | Notes |
+|---|---|---|
+| `upload_map_image` | `vacuum_entity_id`, `map_id`, `image_base64` | Optional: `variant`, `layout_id`, `image_width`, `image_height`. The `variant` validator accepts `default` \| `dark` \| `light` \| `custom` \| `custom_*` (default `default`). `dark`/`light`/`default` are segmenter inputs. `custom` and the per-layout `custom_<layout_id>` variants are manual-authoring backdrops and are **never auto-segmented** — `analyze_map_image` only probes `dark`/`default`/`light`. Passing `layout_id` forces `variant` to `custom_<layout_id>` and repoints that layout's `backdrop_variant` (returns `{saved: false, reason: "layout_not_found"}` if the layout doesn't exist). The stored variant's `image_width`/`image_height` are the pixel space `set_custom_segments` rasterises against. **response** |
+| `delete_map_image` | `vacuum_entity_id`, `map_id` | Optional: `variant` (same enum). Removes one stored variant; safe to repeat. **response** |
+| `analyze_map_image` | `vacuum_entity_id`, `map_id` | Runs the segmenter on the `dark`/`default` (and assist `light`) variants; caches `image_segments`. **response** |
+| `get_map_segments` | `vacuum_entity_id`, `map_id` | Returns the active segment set plus overlays. Response carries `segmentation_mode`; in `custom` mode it serves the **active layout's** `custom_segments` over its `custom_<layout_id>` backdrop. Also returns `custom_layouts` (list) + `active_custom_layout_id` + `segment_room_links` (see § 1.3 / § 5.1). **response** |
+| `set_segmentation_mode` | `vacuum_entity_id`, `map_id`, `mode` | `mode` ∈ {`cv`, `custom`}. **Flips a per-map flag only — never re-runs the segmenter.** Both the CV base (`image_segments`) and every custom layout persist; the toggle is a pointer flip, so `cv → custom → cv` is lossless. Flipping to `custom` with no active layout soft-selects the first existing layout. **response** |
+| `set_custom_segments` | `vacuum_entity_id`, `map_id`, `segments` | **Replace-all** write of manually-authored segments **into the active custom layout** (auto-creating a default layout if none exists). `segments = [{id?, primitives: [...]}]` (extra keys allowed). A primitive is `{type: rect\|circle\|polygon, op?: subtract, ...pct geom 0-100}`. Each segment is rasterised server-side (`segment_primitives.rasterize_primitives` → `mask_to_polygon`, the same tracer CV uses) into one polygon, scaled to the active layout's backdrop pixel dims. Requires that backdrop (returns `{saved: false, reason: "no_custom_backdrop"}` without it). Degenerate segments are dropped. **response** |
+| `create_custom_layout` | `vacuum_entity_id`, `map_id` | Optional: `name` (default `Custom`). Mints + **activates** a new named layout (its own `custom_<layout_id>` backdrop, segments, room links, mascot anchors) and flips the map into `custom` mode. Returns `{saved, layout_id, layout}`. **response** |
+| `rename_custom_layout` | `vacuum_entity_id`, `map_id`, `layout_id`, `name` | Renames an existing layout. Returns `{saved: false, reason: "layout_not_found"}` for an unknown id, or `missing_name` for a blank name. **response** |
+| `delete_custom_layout` | `vacuum_entity_id`, `map_id`, `layout_id` | Deletes the layout and best-effort removes its backdrop file/variant. If it was active, the next remaining layout (by name) is activated — or the map flips back to `cv` when none remain. Returns the resulting `active_custom_layout_id` + `segmentation_mode`. **response** |
+| `set_active_custom_layout` | `vacuum_entity_id`, `map_id` | Optional: `layout_id`. Activates that layout and flips the map into `custom` mode; a `null`/omitted/unknown `layout_id` auto-creates + activates a default layout so `custom` mode always resolves a live store. **response** |
+| `set_segment_room_link` | `vacuum_entity_id`, `map_id`, `segment_id` | Optional: `room_id` (omit/null to clear). Enforced 1:1 — assigning a room already linked elsewhere drops the older link. Returns the full updated `segment_room_links`. **response** |
+| `set_companion_anchor` | `vacuum_entity_id`, `map_id`, `room_id` | Optional: `pct_x`, `pct_y` (0–100; omit both to clear). Stored as `{room_id: {pct_x, pct_y}}` in `companion_anchors`. The reserved key `dock` holds the docked-mascot home spot. Returns the full updated `companion_anchors`. **response** |
+| `adjust_map_segment` | `vacuum_entity_id`, `map_id`, `segment_id` | Optional adjustment fields (`delta_x`/`delta_y`, `edge_*`, `vertex_moves`). Accumulates into `image_segment_adjustments`; applied at read time. **response** |
+| `get_room_bounds_snapshot` | `vacuum_entity_id`, `map_id` | |
+| `clear_room_bounds` | `vacuum_entity_id`, `map_id`, `room_id` | |
+| `exclude_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` | |
+| `restore_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` | |
+| `rebuild_room_bounds_from_archive` | `vacuum_entity_id`, `map_id`, `room_id` | |
 
 ---
 
@@ -220,6 +229,25 @@ The `sensor.{object_id}_theme_state` entity is the backend's source of truth for
 - `working_draft` — dict of token/color/alpha overrides being edited
 - `draft_dirty` — boolean; true when the draft differs from the saved theme
 - Token, color, and alpha maps for the active theme
+
+#### Map segments read model (`get_map_segments` response)
+
+Map geometry is **not** carried on an entity — it is fetched on demand via `get_map_segments` (response service) and lives in the per-map bucket `data["maps"][vacuum][map_id]`. The stored keys are:
+
+- `image_segments` — the CV base: the canonical `SegmentationResult` from the segmenter engine. CV stays special at the **map-bucket level** — re-running CV re-segments and forces a relink.
+- `custom_layouts` — `{layout_id: {id, name, backdrop_variant, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}}`. A map can hold **many** named custom layouts (e.g. a "solar system" image and a "tree" image), each owning its **own** backdrop, authored segments, room links, and mascot anchors. Two layouts can each have a segment id `living` linked to *different* rooms — impossible in the old single-store model.
+- `active_custom_layout_id` — which layout `custom` mode serves.
+- `segmentation_mode` — `cv` or `custom`. `custom` serves the **active** layout.
+- `image_segment_adjustments` — `{segment_id: {offset_x, offset_y, edge_left/right/top/bottom, vertex_moves: [{index, delta_x, delta_y}]}}`. Applied to CV polygons at read time.
+- `image_variants` — `{name: {variant, path, browser_url, width, height}}`. Each layout's backdrop lives here under `custom_<layout_id>`; the legacy shared `custom` variant remains valid.
+- `segment_room_links` — `{segment_id: room_id}` (enforced 1:1). At the map-bucket level this is **CV's** link store; each custom layout owns its **own** per-layout `segment_room_links`.
+- `companion_anchors` — `{room_id | "dock": {pct_x, pct_y}}` — per-room sprite anchors; the reserved `dock` key holds the docked-mascot home spot. The map-bucket dict is **CV's**; each custom layout owns its **own** per-layout `companion_anchors` (including its own reserved `dock` spot).
+- `custom_segments` (legacy) — the pre-layout single custom store. It is migrated **lazily and non-destructively** into a default `Custom` layout on first read (`_migrate_custom_layouts`): the legacy key is kept, never deleted, and the migration is idempotent.
+- `rooms` — managed room metadata for the map.
+
+**Scope resolution.** Every read/write routes through `_resolve_active_scope(map_bucket)`, which returns the live `{segments_store, links, anchors, backdrop_variant}`: the **CV branch** points at the map-bucket keys; the **custom branch** points at the active layout's keys. `get_map_segments`, `set_segment_room_link`, and `set_companion_anchor` all route through it; `set_custom_segments` targets the active layout (auto-creating a default if none).
+
+The response is derived from these at read time: `polygon_pct`, the per-segment `room_id`, and the applied `adjustments` are all computed in `_handle_get_map_segments`, not stored. The response carries **`segmentation_mode`**, plus **`active_custom_layout_id`**, **`custom_layouts`** (a list of `{id, name, backdrop_variant, segment_count, created_at, updated_at}` summaries), and the active scope's **`segment_room_links`**. When the mode is `custom` the endpoint serves the active layout's `custom_segments` over its `custom_<layout_id>` backdrop. Reading never invokes the segmenter, so a `cv ↔ custom` flip — or a switch between custom layouts — is a cheap, lossless pointer change.
 
 ---
 
@@ -404,7 +432,7 @@ The texture layers are themed entirely through the `Floor Textures — *` token 
 | learning | `state/learning.js` | Live-job learning state: estimate, reanchored estimate, next room, completed rooms, job-active flag; incomplete run log; trouble rooms log |
 | order | `state/order.js` | Generic order selector (scope, item, position) shared by rooms and run profiles |
 | theme | `state/theme.js` | Active theme id, working draft, draft dirty flag, theme library; editor UI state (search query, group filter, open groups) |
-| map | `state/map.js` | Map segments data |
+| map | `state/map.js` | Map segments data; zoom/pan transform; segment selection + segment↔room overlay; dot-anchor overlay; active `segmentation_mode`; the **named custom layouts** — `customLayouts()` / `activeCustomLayoutId()` / `activeCustomLayout()` plus the layout-editor slice (`openNewLayoutEditor` / `openRenameLayoutEditor` / `closeLayoutEditor` / `isLayoutEditorOpen` / `layoutEditorMode` / `layoutDraftName` / `setLayoutDraftName`); the **custom-segment composer draft** (shapes, grouping/merge/cut, move-scope, rotate, nudge step) via `proto.compose*` — the draft load and mascot anchors are keyed on `${map_id}:${active_custom_layout_id}` (`setMapSegmentsData` resets the draft when **either** changes; `_composeKey`/`maybeLoadComposeDraft` reload on a layout switch); animal selection/scale; `mapAnimalEnabled` and `floorTextureEnabled` toggles (localStorage `evcc_animal_on_<vac>` / `evcc_floor_tex_<vac>`, default on) |
 | setup | `state/setup.js` | Setup status; setup loading flag |
 | mapping-review | `state/mapping-review.js` | Room bounds snapshot |
 | confirmations | `state/confirmations.js` | Two-tap confirm state for destructive actions |
@@ -504,7 +532,12 @@ Once per session (load-once):
 On Rooms tab when map_id or vacuum changes:
   - Call get_saved_run_profiles(vacuum_entity_id, map_id)
   - Call get_room_learning_estimates(vacuum_entity_id, map_id)
+
+On map view open / when map_id or vacuum changes:
+  - Call get_map_segments(vacuum_entity_id, map_id)
 ```
+
+`get_map_segments` returns `segmentation_mode`, `active_custom_layout_id`, and the `custom_layouts` list. The card reads these to select the active segment store and backdrop variant: in `cv` mode it shows `image_segments` over the `dark`/`default`/`light` backdrop (rendered `object-fit: contain`); in `custom` mode it shows the **active layout's** `custom_segments` over that layout's `custom_<layout_id>` backdrop (rendered `object-fit: fill`), and renders the `custom_layouts` list as the layout-picker chips. The same response also rebuilds the composer draft once per `${map_id}:${active_custom_layout_id}` (see § 7).
 
 ### 5.2 Event subscriptions needed for real-time updates
 
@@ -702,3 +735,84 @@ _scheduleMyPanelRefresh() {
 ```
 
 Add `clearTimeout(this._myPanelTimer)` to `disconnectedCallback()` to prevent memory leaks.
+
+---
+
+## 7. Custom Segment Composer Architecture
+
+The composer is a UI mode **within the map view**, active when `get_map_segments` reports `segmentation_mode = "custom"`. It lets the user author rooms by hand from primitive shapes — no CV — and writes them back through `set_custom_segments`. The state lives in `src/state/map.js` (the `proto.compose*` methods), bindings in `src/bindings/map.js`, rendering in `src/renderers/map.js`. The composer canvas draws over the **active layout's** `custom_<layout_id>` backdrop variant (rendered `object-fit: fill`, so the authored pct-space lines up with the image the segment writer rasterises against).
+
+A map holds **many named custom layouts**, not one — each with its own backdrop, authored rooms, room links, and mascot anchors. The composer always edits the *active* layout, so everything below is scoped to it.
+
+### 7.0 The layout picker
+
+`_renderSegmentationToggle` (in `src/renderers/map.js`) replaces the old binary CV/Custom toggle with a **layout picker** that mirrors the run-profiles chip strip:
+
+- An always-present **`Auto (CV)`** chip (`data-action="set-segmentation-mode"`, `data-mode="cv"`) selects the map-bucket CV store.
+- One chip **per named layout** (`data-action="set-active-custom-layout"`, `data-layout-id`) — tapping it activates that layout and flips the map into `custom` mode. Switching a chip swaps the whole layout: backdrop, authored rooms, room links, and mascot home all change together.
+- A **`＋ New`** chip (`data-action="open-new-layout"`) opens an inline name editor.
+- When a custom layout is active, a **Rename** (`open-rename-layout`) and **Delete layout** (`delete-layout`) control row appears.
+- The **inline name editor** (`isLayoutEditorOpen` / `layoutEditorMode` / `layoutDraftName`) is a text input plus Create/Save + Cancel; `data-layout-field="name"` feeds `setLayoutDraftName`.
+
+The picker is backed by new actions in `src/actions/map.js`: `createCustomLayout(mapId, name)`, `renameCustomLayout(mapId, layoutId, name)`, `deleteCustomLayout(mapId, layoutId)`, and `setActiveCustomLayout(mapId, layoutId)` — thin wrappers over the four layout services in § 1.1. After any of them resolves, the binding re-fetches `get_map_segments` so the picker and canvas reflect the new active layout.
+
+The **per-layout backdrop upload** rides the shared `upload-map-variant` binding: when the variant starts with `custom`, the binding adds `layout_id = activeCustomLayoutId()` to the `upload_map_image` call, and the server forces the variant key to `custom_<layout_id>` and repoints that layout's `backdrop_variant`.
+
+### 7.1 The draft model
+
+The draft is an in-memory array of **shapes** (not yet persisted). Each shape is one piece of geometry; all coordinates are 0–100 percentages of the map:
+
+| Field | Meaning |
+|---|---|
+| `id` | Stable shape id (`draft_N` for new shapes; reloaded shapes keep their saved segment id) |
+| `type` | `rect` \| `circle` \| `polygon` |
+| geom | `rect`: `x, y, w, h` · `circle`: `cx, cy, r` · `polygon`: `points: [[x, y], …]` |
+| `group?` | Groups merged pieces; **defaults to the shape's own `id`** — an un-merged shape is its own room |
+| `op?` | `subtract` carves the piece out of its group (a cutout); absent = fill |
+| `room_id?` | The room this shape's group is linked to |
+| `angle?` | Rotation in degrees, **rect-only** (applied at render, baked to a polygon on save) |
+
+Composer state on the `VacuumCardState` instance (all `proto.compose*`):
+
+- `composeDraft` — the shape array (lazily `[]`).
+- `composeSelectedId` — the currently selected shape.
+- `composeMergeFrom` — the pending merge target during the two-tap merge flow.
+- `composeMoveScope` — `room` (move the whole group, the default) or `piece` (move just the selected shape). Shaping is always per-piece.
+- `composeStep` — nudge step in pct (Fine 1 / Med 3 / Coarse 7; default 3); scales both move and resize.
+- `composeLoadedFor` — the `${map_id}:${active_custom_layout_id}` key (`_composeKey(data)`) the draft was last reloaded for (the once-per-active-layout guard; switching layouts reloads that layout's shapes).
+
+### 7.2 Operations
+
+All operations are button-driven (mobile-friendly, no drag required), and geometry stays clamped to the 0–100 canvas:
+
+- **Add** — `addComposeShape("rect" | "circle")` appends a cascaded shape and selects it.
+- **Select** — `selectComposeShape(id)`.
+- **Move** — `moveComposeScoped` / `placeComposeScoped` route by `composeMoveScope`: a merged room moves as a group (`moveComposeGroup` / `placeComposeGroup`, clamped on the group bbox) unless scope is `piece`. Standalone shapes ignore the scope.
+- **Tap-to-place** — `placeComposeShape` jumps the selected shape's centre to a tapped point.
+- **Scale** — `scaleComposeShape(id, factor)`, centred.
+- **Resize (W/H)** — `resizeComposeShape(id, dim, delta)`, **rect-only**, centred.
+- **Rotate** — `rotateComposeShape(id, ±15°)`: a rect accumulates `angle`; a polygon rotates its points about its bbox centre; a circle is a no-op.
+- **Merge** — a two-tap flow: `startComposeMerge(targetId)` then `mergeComposeShapes(targetId, memberId)` moves the member's whole group into the target's group (so two pieces rasterise into **one** group-coloured segment) and unifies the room link.
+- **Cut** — `toggleComposeOp(id)` flips a grouped shape to `op: "subtract"` (rendered dashed/red), carving a hole out of its room.
+- **Split** — `splitComposeShape(id)` returns a piece to being its own standalone segment (clears `group`, `op`, and the duplicated `room_id`).
+- **Link to room** — `assignComposeRoom(id, roomId)` sets `room_id` on every group-mate (a room links to a whole merged group, 1:1; re-tapping the linked room clears it).
+
+### 7.3 Save and re-edit
+
+**Save** is a two-step reconcile, driven from the binding:
+
+1. `composeToSegments()` maps the draft to the `set_custom_segments` payload. It buckets shapes by `group` (one bucket = one segment/room), **orders `subtract` primitives last** within each bucket (so cutouts are drawn after the fills they carve), bakes a rotated rect into a `polygon`, and carries the group's `room_id`.
+2. The binding calls `setCustomSegments(mapId, segments)` (replace-all), then reconciles room links **per segment** via `setSegmentRoomLink(mapId, seg.id, seg.room_id ?? null)`, so the new segment ids match their linked rooms.
+
+**Re-edit**: `maybeLoadComposeDraft(data)` runs once per active layout (guarded by `composeLoadedFor` against `_composeKey(data)` = `${map_id}:${active_custom_layout_id}`) and rebuilds the draft from the saved segments via `loadComposeDraftFromSegments`. Because the backend stores polygons (not the original primitives), reloaded shapes come back as editable `polygon` shapes, with their saved `segment_id` and `room_id` preserved. Switching to another layout re-keys the guard and reloads that layout's shapes; it will not clobber an in-progress draft or reload immediately after a save.
+
+### 7.4 Geometry boundaries
+
+One segment = one room. Multiple primitives sharing a `group` merge into a single room. `op: subtract` carves from that room — an **edge cut** yields a concave but still simple polygon, while an **interior hole** cannot be represented by a single boundary polygon (the tracer, `mask_to_polygon`, returns one outer loop). Authors who need a true donut should instead bound the hole with edge cuts. The whole read → adjust → link → dispatch chain is shared with CV segments: `set_custom_segments` wraps each authored polygon in the same segment shape the segmenter produces, so room-linking and dispatch treat custom and CV segments identically.
+
+### 7.5 Map toolbar toggles
+
+Two per-vacuum display toggles live in the Rooms-view map toolbar (`src/renderers/rooms.js`), independent of the composer:
+
+- **Companion (paw button)** — `data-action="map-animal-toggle"` flips `mapAnimalEnabled` (localStorage `evcc_animal_on_<vac>`, default on). When off, `_renderMapAnimal` returns `""`. This is separate from animal *selection* — toggling off then on keeps the chosen animal. When docked/idle the companion homes to the reserved `dock` key in the active scope's `companion_anchors` (a spot, not a room); dragging it there writes that key, falling back to the resolved segment's centroid until set. Because `set_companion_anchor` routes through `_resolve_active_scope`, the `dock` spot (and every room anchor) is **per-layout** in custom mode and lives on the map-bucket dict for CV — so each custom layout can park its mascot in a different place.
+- **Floor textures (hatch button)** — `data-action="floor-texture-toggle"` flips `floorTextureEnabled` (localStorage `evcc_floor_tex_<vac>`, default on). When off, both the map texture surfaces (`_renderFloorTexturePolygon` / `_buildFloorTextureDefs`) and the room-card layers (`_renderFloorTextureLayer`) short-circuit to `""`.

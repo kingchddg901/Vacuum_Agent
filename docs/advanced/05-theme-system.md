@@ -60,6 +60,7 @@ Tokens are organized into the following groups, in this order:
 | Borders & Shadows | Border widths, border colors, shadow depths |
 | Chips | Chip height, padding, radius, colors for each chip state |
 | Room Cards | Room card backgrounds, spacing, and state variants |
+| Map | Map overlay colors — the room-name label pill, the segment tooltip, and the custom-segment composer (selection / cutout / vertex) |
 | Floor Textures | Opacity and blend values shared across all floor texture types |
 | Floor Textures — Tile | Tile-specific texture opacity tokens |
 | Floor Textures — Wood | Wood-specific texture opacity tokens |

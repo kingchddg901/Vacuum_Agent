@@ -16,7 +16,12 @@ All mutations are in-place on the `data` dict. The caller is responsible for cal
 
 ## 2. Map Bucket Schema
 
-The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum_entity_id][str(map_id)]`:
+The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum_entity_id][str(map_id)]`. The bucket is a **union of two concerns** that happen to share the same per-map key:
+
+- **Map management** (owned by `maps/map_manager.py`) — `map_id`, `metadata`, `rooms`, `summary`.
+- **Image analysis + map UI state** (written by external handlers, primarily `mapping/mapping_services.py`) — `image_segments`, `custom_segments`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`.
+
+`map_manager.py` only ever touches the first group; it never reads or initialises the image/UI-state keys. They are listed here because they live in the same bucket and any code that walks `data["maps"]` (delete protection, debug dumps) will encounter them.
 
 ```python
 {
@@ -28,10 +33,66 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
     },
     "rooms":    dict[str, dict],    # room_id_str → managed room dict
     "summary":  dict,               # last-written summary snapshot
+
+    # --- image-analysis / map-UI-state keys (written by mapping/mapping_services.py;
+    #     NOT managed by map_manager.py, NOT pre-initialised by ensure_map_bucket) ---
+    "image_segments":  dict,        # canonical CV SegmentationResult cache (the
+                                    #   base/"cv" segment store). Written by
+                                    #   analyze_map_image; {available, analyzed_at,
+                                    #   image, segments, summary, ...}.
+    "custom_segments": dict,        # user-authored no-CV segment store (replace-all,
+                                    #   written by set_custom_segments). Same shape as
+                                    #   image_segments: {available, engine:"custom",
+                                    #   analyzed_at, image:{width,height,variant:"custom"},
+                                    #   segments, summary}. Coexists with image_segments —
+                                    #   both persist independently.
+    "segmentation_mode": str,       # "cv" | "custom"; pointer that selects which of the
+                                    #   two segment stores get_map_segments serves.
+                                    #   Defaults to "cv" when absent. set_segmentation_mode
+                                    #   only flips this flag — it NEVER re-runs the segmenter.
+    "image_segment_adjustments": {  # per-segment manual edits to CV segments, keyed by
+                                    #   segment_id; applied to polygons at read time.
+        "<segment_id>": {
+            "offset_x":   int,      # whole-shape translation
+            "offset_y":   int,
+            "edge_left":  int,      # per-edge nudge (10% band each side)
+            "edge_right": int,
+            "edge_top":   int,
+            "edge_bottom": int,
+            "vertex_moves": [       # individual vertex deltas
+                {"index": int, "delta_x": int, "delta_y": int},
+            ],
+        },
+    },
+    "image_variants": {             # uploaded backdrop images, keyed by variant name.
+                                    #   Variant ∈ {default, dark, light, custom}. dark/
+                                    #   light/default feed the segmenter; "custom" is the
+                                    #   no-CV authoring backdrop and is never segmented —
+                                    #   its width/height are the px space set_custom_segments
+                                    #   rasterises against.
+        "<variant>": {
+            "variant":     str,     # echoes the key
+            "path":        str,     # on-disk PNG path
+            "browser_url": str,     # /eufy_vacuum/maps/<object_id>/map_<map_id><suffix>.png
+            "width":       int,     # measured pixel dims (PIL), or declared fallback
+            "height":      int,
+        },
+    },
+    "segment_room_links": dict[str, str],   # {segment_id: room_id}; user-assigned 1:1
+                                            #   segment→room mapping. Injected as a
+                                            #   per-segment room_id field at read time.
+    "companion_anchors": {          # {room_id | "dock": {pct_x, pct_y}} companion-sprite
+                                    #   anchor positions, 0-100 % from the image top-left.
+                                    #   The reserved "dock" key is a map-level spot the
+                                    #   docked/idle mascot homes to (NOT a room).
+        "<room_id|'dock'>": {"pct_x": float, "pct_y": float},
+    },
 }
 ```
 
 Metadata keys are written by `save_map_discovery_snapshot()` (`last_discovery`, `discovered_rooms`) and `rebuild_map_bucket()` (`last_rebuild`). There is no `display_name` or `discovered_at` field.
+
+> The image/UI-state keys are documented in full in [16-mapping-system](16-mapping-system.md); their derived read-time fields (`polygon_pct`, injected `room_id`, applied `adjustments`) are computed by `mapping/mapping_services.py::_handle_get_map_segments`, not stored.
 
 ---
 
@@ -61,6 +122,8 @@ Creates the map bucket at `data["maps"][vacuum_entity_id][str(map_id)]` if it do
 ```
 
 Idempotent — safe to call even if the bucket already exists.
+
+> **Image/UI-state keys are not pre-initialised.** `ensure_map_bucket()` writes only `map_id`, `metadata`, `rooms`, and `summary`. The image-analysis / map-UI-state keys (`image_segments`, `custom_segments`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors` — see §2) are written **on demand** by the external handlers in `mapping/mapping_services.py`, each of which calls `ensure_map_bucket()` and then `setdefault()`s the key it owns. Consumers must therefore read these via `bucket.get(key) or {}` rather than assuming presence.
 
 ### 3.2 `get_map_bucket`
 
@@ -179,6 +242,18 @@ There is no `display_name` field. Maps with empty `rooms` dicts are **not** excl
 | `data["maps"][vacuum_entity_id][str(map_id)]["rooms"]` | dict | Managed rooms, keyed by str(room_id) |
 | `data["maps"][vacuum_entity_id][str(map_id)]["metadata"]` | dict | Discovery snapshot + display metadata |
 | `data["maps"][vacuum_entity_id][str(map_id)]["summary"]` | dict | Last written summary snapshot |
+
+The following keys live in the same bucket but are written by `mapping/mapping_services.py`, **not** by `map_manager.py` (none are created by `ensure_map_bucket()` — see §3.1):
+
+| Path | Type | Description |
+|---|---|---|
+| `…[str(map_id)]["image_segments"]` | dict | CV segmentation cache (base "cv" store). Written by `analyze_map_image` |
+| `…[str(map_id)]["custom_segments"]` | dict | User-authored no-CV segment store (replace-all). Written by `set_custom_segments`; coexists with `image_segments` |
+| `…[str(map_id)]["segmentation_mode"]` | str | `"cv"` \| `"custom"`; selects which segment store `get_map_segments` serves. Default `"cv"`. Written by `set_segmentation_mode` (flag flip only) |
+| `…[str(map_id)]["image_segment_adjustments"]` | dict | `{segment_id: {offset_x, offset_y, edge_left/right/top/bottom, vertex_moves:[{index,delta_x,delta_y}]}}` manual CV-segment edits. Written by `adjust_map_segment` |
+| `…[str(map_id)]["image_variants"]` | dict | `{variant: {variant, path, browser_url, width, height}}` uploaded backdrops, variant ∈ default/dark/light/custom. Written by `upload_map_image`, pruned by `delete_map_image` |
+| `…[str(map_id)]["segment_room_links"]` | dict | `{segment_id: room_id}` 1:1 segment→room links. Written by `set_segment_room_link` |
+| `…[str(map_id)]["companion_anchors"]` | dict | `{room_id\|"dock": {pct_x, pct_y}}` sprite anchors (0-100 %); reserved `"dock"` key is a map-level mascot spot. Written by `set_companion_anchor` |
 
 ---
 

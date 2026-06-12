@@ -88,17 +88,216 @@ purpose. `analytics` is part of the storage default but is currently unused
 
 `data["maps"][vacuum_entity_id][map_id_str]`
 
+The per-map bucket is the union of map-management data (`metadata`, `rooms`,
+`summary`) and the image-analysis + map-UI-overlay state written by the mapping
+subsystem (`mapping/mapping_services.py`). Every key below is created lazily by
+its owning handler via `ensure_map_bucket`, so any reader must tolerate absence.
+
 ```
 {
-  "map_id":   str                                    # string form of the numeric map ID
-  "metadata": MapMetadata
-  "rooms":    dict[room_id_str, RoomRecord]          # {} until rooms are configured
-  "summary":  RoomSelectionSummary                   # rebuilt by build_room_selection_summary
+  "map_id":                    str                            # string form of the numeric map ID
+  "metadata":                  MapMetadata
+  "rooms":                     dict[room_id_str, RoomRecord]  # {} until rooms are configured
+  "summary":                   RoomSelectionSummary           # rebuilt by build_room_selection_summary
+  "segmentation_mode":         str                            # "cv" | "custom"; default "cv" (custom serves the ACTIVE layout)
+  "image_segments":            SegmentationResult             # CV auto-detected store (map-bucket level)
+  "custom_layouts":            dict[layout_id_str, CustomLayout]   # named custom segmentations; {} until first author/migration
+  "active_custom_layout_id":   str | None                     # which layout custom mode serves; None until set
+  "custom_segments":           SegmentationResult             # LEGACY single store — migrated lazily into a default layout, never deleted
+  "image_segment_adjustments": dict[segment_id_str, AdjustmentRecord]
+  "image_variants":            dict[variant_name, VariantRecord]
+  "segment_room_links":        dict[segment_id_str, room_id_str]   # 1:1; CV scope only (custom links live per-layout)
+  "companion_anchors":         dict[anchor_key, AnchorRecord]      # CV scope only (custom anchors live per-layout)
 }
 ```
 
 `room_id_str` keys inside `"rooms"` are always strings (e.g. `"3"`), even
 though `room_id` values on the room dict itself are integers.
+
+The image-analysis and overlay keys are documented in full below; the
+dual-store architecture and the read-time derivation (`get_map_segments`,
+`segmentation_mode`) are covered in §3a.
+
+#### Segment stores: CV base + named custom layouts
+
+A map carries one CV base plus a **collection** of named custom layouts; the two
+sides coexist and persist independently:
+
+- **`image_segments`** — the CV base, and the *only* CV store. A
+  `SegmentationResult` produced by the adapter's `MapSegmenter` engine
+  (`eufy_cv_v1`), cached on the first `analyze_map_image` and treated as
+  immutable from the UI (the card never rewrites it; only
+  `image_segment_adjustments` tweak it at read time). Re-running CV re-segments
+  and forces a relink (accepted). CV stays at the **map-bucket level** — including
+  its `segment_room_links` and `companion_anchors`.
+- **`custom_layouts`** — a `dict[layout_id, CustomLayout]`. A map can hold **many**
+  named custom segmentations (e.g. a "solar system" image and a "tree" image), not
+  one. Each layout owns its own backdrop, authored segments, room links and mascot
+  anchors. Layouts sit **alongside** CV (CV is *not* "layout 0").
+- **`custom_segments`** *(legacy)* — the old single user-authored store. It is
+  migrated **lazily and non-destructively** into a default `"Custom"` layout by
+  `_migrate_custom_layouts`: the migration runs the first time any read/write
+  handler touches the bucket, copies the store (plus the resolving subset of the
+  shared links / the `"dock"` + linked-room anchors) into a new layout, activates
+  it, and **keeps** the legacy key in place. It is idempotent — once
+  `custom_layouts` exists, migration returns immediately.
+
+`segmentation_mode` is a per-map pointer (`"cv"` | `"custom"`, default `"cv"`).
+In `custom` mode it serves the **active** layout (`active_custom_layout_id`); in
+`cv` mode it serves the map-bucket CV store. `set_segmentation_mode` **only flips
+this flag** (soft-selecting the first layout if custom is chosen with none active)
+— it never re-runs the segmenter in either direction, so a `cv → custom → cv`
+round-trip preserves every store untouched.
+
+#### The active-scope seam (`_resolve_active_scope`)
+
+`_resolve_active_scope(map_bucket)` (`mapping/mapping_services.py`) returns the
+**live** `{segments_store, links, anchors, backdrop_variant}` for the current
+mode. The segment-read (`get_map_segments`), room-link, companion-anchor, and
+custom-author (`set_custom_segments`) handlers all route through it; segment
+*adjustments* (`adjust_map_segment`) apply to the CV `image_segments` store only:
+
+- **CV branch** — the map-bucket keys: `image_segments`, the map-bucket
+  `segment_room_links` / `companion_anchors`, no backdrop variant override.
+- **custom branch** — the active layout's own keys:
+  `custom_segments` / `segment_room_links` / `companion_anchors` /
+  `backdrop_variant`.
+
+`get_map_segments` reads through it; `set_segment_room_link` and
+`set_companion_anchor` write the resolved (live, mutable) `links` / `anchors`
+dict, so their 1:1-enforcement and clamp logic is unchanged but now lands in the
+right scope. `set_custom_segments` targets the **active layout**, auto-creating a
+default one (`_ensure_default_layout`) when none exists.
+
+#### `CustomLayout` (inside `custom_layouts`)
+
+`data["maps"][v][m]["custom_layouts"][layout_id_str]`. `layout_id` is generated as
+`"cl_{YYYYMMDDTHHMMSS}"` (with a same-second collision guard). Each layout is a
+fully self-contained custom segmentation.
+
+```
+{
+  "id":                 str                  # == the dict key
+  "name":               str                  # user label; default "Custom"
+  "backdrop_variant":   str                  # this layout's image variant; "custom_<id>" for new layouts
+  "custom_segments":    SegmentationResult   # authored store (replace-all by set_custom_segments)
+  "segment_room_links": dict[segment_id_str, room_id_str]   # 1:1, PER-LAYOUT
+  "companion_anchors":  dict[anchor_key, AnchorRecord]       # PER-LAYOUT (incl. the reserved "dock" key)
+  "created_at":         str                  # ISO timestamp
+  "updated_at":         str                  # ISO timestamp; bumped on author/upload/rename
+}
+```
+
+Because the links and anchors are **per-layout**, two layouts can each hold a
+segment id `"living"` linked to **different** rooms — impossible in the old
+single-store model where the links lived once at the map-bucket level. The
+`"dock"` mascot-home anchor (see `AnchorRecord` below) is likewise owned by each
+custom layout in custom mode, while CV keeps the map-bucket dicts.
+
+#### SegmentationResult
+
+The shape held by `image_segments` and by each layout's `custom_segments`. The CV
+store is the engine's output verbatim; a layout's custom store is assembled by
+`_handle_set_custom_segments` against the active layout's backdrop.
+
+```
+{
+  "available":   bool
+  "engine":      str                # "custom" for the custom store
+  "analyzed_at": str                # ISO timestamp
+  "image":       dict               # {width, height, variant}
+  "segments":    list[Segment]
+  "summary":     dict               # {segment_count, ...}
+}
+```
+
+Each `Segment` carries `segment_id`, `source` (`"custom"` for authored
+segments), `polygon_pixel`, `bbox`, `area_pixels`, `area_percent`,
+`center_pixel`, `confidence`, and CV-quality metadata. `polygon_pct`, `room_id`,
+and applied adjustments are **derived at read time** (§3a), not stored on the
+segment.
+
+#### VariantRecord
+
+`data["maps"][v][m]["image_variants"][variant_name]`. Written by
+`upload_map_image`; one entry per uploaded backdrop. Variant names are the four
+fixed values `"default"`, `"dark"`, `"light"`, `"custom"`, **plus** one
+`"custom_<layout_id>"` key per named custom layout (the per-layout backdrop). The
+upload `variant` field is no longer a fixed enum but a validator accepting
+`default | dark | light | custom | custom_*` (§3b).
+
+```
+{
+  "variant":     str
+  "path":        str                # on-disk PNG path
+  "browser_url": str                # /eufy_vacuum/maps/{object_id}/map_{map_id}{suffix}.png
+  "width":       int | None         # measured on write; None when PIL is unavailable
+  "height":      int | None
+}
+```
+
+`"dark"`/`"default"`/`"light"` are segmenter inputs. `"custom"` is the
+manual-authoring backdrop for the no-CV path: the segmenter never reads it
+(`analyze_map_image` only probes dark/default), so a custom-only map is never
+auto-segmented, and its recorded `width`/`height` are the pixel space
+`set_custom_segments` rasterises against.
+
+#### AdjustmentRecord
+
+`data["maps"][v][m]["image_segment_adjustments"][segment_id_str]`. CV-segment
+edits only — written by `adjust_map_segment`, applied to `image_segments` at
+read time. Authored custom segments are edited by re-saving, not adjusted.
+
+```
+{
+  "offset_x":     int               # whole-shape translation, px
+  "offset_y":     int
+  "edge_left":    int               # per-edge nudge (applied to vertices in the edge band), px
+  "edge_right":   int
+  "edge_top":     int
+  "edge_bottom":  int
+  "vertex_moves": list[{ "index": int, "delta_x": int, "delta_y": int }]
+}
+```
+
+Deltas accumulate across calls; an entry is dropped when every component nets to
+zero.
+
+#### segment_room_links
+
+User-assigned segment→room mapping, written by `set_segment_room_link`. Enforced
+**1:1** — assigning a room already linked to another segment removes the older
+link. Both keys are strings; pass a `null`/empty `room_id` to clear.
+
+`set_segment_room_link` writes through `_resolve_active_scope`, so the dict it
+mutates depends on the mode: in `cv` mode it is the map-bucket
+`data["maps"][v][m]["segment_room_links"]`; in `custom` mode it is the **active
+layout's** `segment_room_links`. The 1:1 rule applies within the resolved scope —
+different layouts can therefore link the same segment id to different rooms.
+
+```
+dict[segment_id_str, room_id_str]
+```
+
+#### AnchorRecord
+
+Per-anchor position for the animated companion sprite, written by
+`set_companion_anchor` (or by the card's drag handler). `anchor_key` is a
+`room_id` string **or** the reserved literal `"dock"` — the dock anchor is **not**
+a room; the mascot homes there when idle/docked (falling back to the resolved
+segment centroid until the spot is placed).
+
+Like the links, the anchor dict is resolved through `_resolve_active_scope`: in
+`cv` mode it is the map-bucket `data["maps"][v][m]["companion_anchors"]`; in
+`custom` mode it is the **active layout's** `companion_anchors`, so each custom
+layout owns its own mascot positions including its own `"dock"` spot.
+
+```
+{
+  "pct_x": float                    # 0–100, % from the map image top-left; clamped + rounded 4dp
+  "pct_y": float                    # 0–100
+}
+```
 
 ### MapMetadata
 
@@ -279,6 +478,88 @@ MapConfig:
 ```
 
 `as_dict()` serializes rooms as `dict[str(room_id), RoomConfig.as_dict()]`.
+
+### 3a. Read-time segment view (`get_map_segments`)
+
+Returned by `_handle_get_map_segments` (`mapping/mapping_services.py`). This is
+the card-facing union of the **active scope** (resolved by `_resolve_active_scope`)
+plus the layout catalog — **derived, never stored**. Reading is pure: it serves
+whichever store `segmentation_mode` selects — in `custom` mode the **active
+layout's** segments / links / anchors / backdrop, else the map-bucket CV store —
+so the segmenter is never invoked and every store survives a mode or layout flip
+untouched. The lazy `_migrate_custom_layouts` runs first.
+
+```
+{
+  "vacuum_entity_id":        str
+  "map_id":                  str
+  "segmentation_mode":       str                 # the active store: "cv" | "custom"
+  "active_custom_layout_id": str | None          # which layout custom mode is serving
+  "custom_layouts":          list[CustomLayoutSummary]   # the whole catalog (summary; see below)
+  "segment_room_links":      dict[segment_id_str, room_id_str]   # the ACTIVE scope's links, verbatim
+  "available":               bool                 # from the served store
+  "analyzed_at":             str | None
+  "image":                   dict | None          # served store's {width, height, variant}
+  "image_variants":          dict[name, VariantRecord]   # all variants, verbatim
+  "summary":                 dict                 # store summary + {segment_count, adjusted_count}
+  "segments":                list[Segment]        # see below — enriched per read
+  "adjustments":             dict[segment_id_str, AdjustmentRecord]
+  "companion_anchors":       dict[anchor_key, AnchorRecord]   # the ACTIVE scope's anchors
+}
+```
+
+Each `CustomLayoutSummary` in `custom_layouts` is the layout shorn of its heavy
+stores — `{id, name, backdrop_variant, segment_count, created_at, updated_at}`
+(`segment_count` is `len(custom_segments.segments)`). The card renders one picker
+chip per entry.
+
+Each served `Segment` is the stored segment enriched at read time:
+
+- **`polygon_pct`** — `polygon_pixel` scaled to 0–100 % against the served
+  image's `width`/`height`. The served image is the active scope's
+  `backdrop_variant` (a layout's `"custom_<id>"` in custom mode) with a fallback
+  chain of `dark` → `default` → `light`.
+- **`room_id`** — injected as a string when the active scope's
+  `segment_room_links` holds a link for the segment (otherwise absent).
+- **adjustments applied** — for CV segments, `image_segment_adjustments` are
+  folded into `polygon_pixel`/`bbox`/`center_pixel` before scaling, and the
+  segment's `issues` gains `translated_manual` / `edge_adjusted_manual` /
+  `vertex_adjusted_manual` markers.
+
+Note: the per-segment `room_id` is the served representation of the links; the
+response **also** carries the active scope's full `segment_room_links` dict at the
+top level (so the card can refresh its in-memory link state without a second
+fetch).
+
+### 3b. Map image variants (`upload_map_image`)
+
+`upload_map_image` writes one backdrop PNG and records a `VariantRecord` (§1)
+under `image_variants[variant]`. The `variant` field is validated (not a fixed
+enum) by `_image_variant`, which accepts the four fixed values **plus** any
+`custom_*` per-layout key:
+
+| Variant | Role |
+|---|---|
+| `default` | Segmenter input (no filename suffix). |
+| `dark` | Segmenter **primary** — clearest room colours. |
+| `light` | Segmenter **assist** — wall detection. |
+| `custom` | Manual-authoring backdrop for the legacy/default no-CV path. |
+| `custom_<layout_id>` | Per-layout authoring backdrop (one per named custom layout). |
+
+**Per-layout upload:** `upload_map_image` takes an optional `layout_id`. When
+present, the server **forces** the variant to `custom_<layout_id>` (ignoring any
+`variant` field), validates the layout exists (returns
+`{"saved": False, "reason": "layout_not_found"}` otherwise), writes the PNG, and
+repoints that layout's `backdrop_variant` to the new variant (bumping its
+`updated_at`).
+
+The active custom backdrop is the **only** image used to rasterise authored
+primitives: its recorded `width`/`height` are the pixel space `set_custom_segments`
+writes against (resolved via the active layout's `backdrop_variant`, defaulting to
+`"custom"`), and a `no_custom_backdrop` failure is returned if it's absent. The
+segmenter never reads `custom` / `custom_*` variants (`analyze_map_image` only
+probes `dark`/`default`), so a map that only has a custom backdrop is never
+auto-segmented.
 
 ---
 
@@ -1615,6 +1896,15 @@ Parse with `parse_timestamp()` from the same module rather than
 derived state. They are always rebuilt from room configuration — never edited
 in place. `_refresh_room_derived_state()` rebuilds both before any
 `_notify_rooms_updated()` call.
+
+Likewise on the segment side (§3a): a served segment's `polygon_pct`, `room_id`,
+and applied `image_segment_adjustments` are derived at read time by
+`get_map_segments` — the stored `image_segments` cache and each layout's
+`custom_segments` store are never mutated in place. `segmentation_mode` (plus
+`active_custom_layout_id`) is a pointer, not a copy: the CV store and every named
+custom layout persist independently, and `set_segmentation_mode` only flips the
+pointer (never re-runs the segmenter), so toggling modes — and switching layouts —
+is lossless.
 
 ### `is_configured` gate
 

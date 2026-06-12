@@ -1,6 +1,6 @@
 ## Map Configuration
 
-The **Map Configuration** view lets you upload map image variants and manually adjust the segment polygons that the integration uses to render the interactive floor plan. You access it from the Rooms view, not from the navigation bar — it has no tab of its own.
+The **Map Configuration** view lets you upload map image variants and define the segment polygons that the integration uses to render the interactive floor plan. There are two ways to get those polygons: **Auto (CV)**, where the integration detects rooms from an uploaded map screenshot, and one or more named **custom layouts**, where you draw the rooms by hand from primitive shapes. A single map can hold **many** custom layouts — for example a "solar system" image and a "tree" image as two separate layouts on the same physical map — each with its own backdrop, hand-drawn rooms, room links, and mascot dock spot. A **Segmentation** picker selects between Auto (CV) and any of the named layouts; all of them persist independently, so switching never loses any of them. You access the view from the Rooms view, not from the navigation bar — it has no tab of its own.
 
 ---
 
@@ -20,23 +20,35 @@ The card switches to the `MAP_CONFIG` view. A back arrow labeled "Rooms" in the 
 
 The Map Configuration view has three areas:
 
-- **Map panel** (top) — the floor plan image with all segment polygons overlaid. In config mode the polygons are rendered at reduced opacity until selected. Click any polygon to select it.
-- **Side panel** (right) — segment adjustment controls, shown once a polygon is selected.
-- **Image Variants section** (bottom) — upload controls and an Analyse button.
+- **Map panel** (top) — the floor plan image with all segment polygons overlaid. In CV (config) mode the polygons are rendered at reduced opacity until selected; click any polygon to select it. In Custom mode this area becomes the composer canvas where your draft shapes are drawn.
+- **Side panel** (right) — segment adjustment controls in CV mode (shown once a polygon is selected), or the **Compose rooms** toolbar in Custom mode.
+- **Bottom panel** — a **Segmentation** picker (an **Auto (CV)** chip plus one chip per named custom layout, a **＋ New** button, and — when a layout is active — **Rename** / **Delete layout** controls) followed by either the **Image Variants** section (CV mode, with upload controls and an Analyse button) or the **Custom backdrop** section (custom mode).
+
+#### The map-view toolbar
+
+The **map view** in the Rooms tab (the thing you open the config view *from*) carries its own toolbar alongside the list/map and Configure buttons. From left to right it offers:
+
+- **Companion animal** select — pick which animal sprite renders on the map (cat, dog, raccoon, parrot, snake).
+- **Icon size** slider — scale the sprite from 0.5× to 3× (default 1×).
+- **Companion toggle** (paw icon) — show or hide the mascot. Independent of the animal selection, so toggling off then on keeps your chosen animal. Persisted per vacuum (`evcc_animal_on_<vacuum>`, default on).
+- **Floor-texture toggle** (hatch icon) — show or hide every floor-texture surface, both the map polygons and the room-card layers. Persisted per vacuum (`evcc_floor_tex_<vacuum>`, default on).
+
+The **Segmentation** picker (Auto (CV) plus the custom-layout chips) is not on this toolbar — it lives in the bottom panel of the Map Configuration view itself.
 
 ---
 
 ### Image variants
 
-The integration uses up to three map image variants. Each variant serves a distinct role in segment detection:
+The `upload_map_image` service accepts a `variant` field. The validator allows the four fixed values `default`, `dark`, `light`, and `custom`, plus any per-layout `custom_<layout_id>` key. The first three are segmenter inputs; the rest are manual-drawing backdrops. Each variant serves a distinct role:
 
 | Variant | Role | Purpose |
 |---|---|---|
 | **Dark** | Primary | Clearest room colour separation — preferred input for segment detection |
 | **Light** | Assist | Wall and boundary detection, used alongside the dark variant |
 | **Default** | Fallback | Used when no dark variant is available |
+| **Custom** / **custom_&lt;layout_id&gt;** | Backdrop | The tracing image for a custom layout. **Never** auto-segmented — the analyser only ever reads the dark/default/light variants. Each named layout owns its own backdrop, stored under its own `custom_<layout_id>` key; the legacy single `custom` variant is the backdrop of a migrated default layout. The active backdrop's recorded pixel dimensions become the canvas the custom-segment writer rasterises against. |
 
-The Image Variants section shows each variant's current upload status. Uploaded variants display their pixel dimensions (width × height). Missing variants show "not uploaded".
+The Image Variants section (CV mode) shows the dark, light, and default variants' current upload status. Uploaded variants display their pixel dimensions (width × height); missing variants show "not uploaded". Each layout's backdrop is uploaded and managed separately, from the **Custom backdrop** section shown in custom mode — and it always targets the **active** layout.
 
 ---
 
@@ -86,6 +98,16 @@ The backend converts non-PNG uploads to PNG before saving. It stores the file at
 
 After a successful upload and analysis cycle, the variant row updates to show the measured pixel dimensions of the saved file.
 
+The custom backdrop variants are the exception to the analyse step. Because they are never segmented, uploading one skips the re-analysis cycle entirely — the file is saved, its pixel dimensions recorded, and that is all. You upload it from the **Custom backdrop** section (see [Custom segmentation mode](#custom-segmentation-mode)) rather than the Image Variants list, and the upload always targets the **active layout**: the card passes the active `layout_id`, and the server forces the variant key to `custom_<layout_id>` and repoints that layout's `backdrop_variant`.
+
+#### How the custom backdrop renders
+
+The CV variants render with `object-fit: contain`, which letterboxes the image to preserve its aspect ratio. The custom backdrop instead renders with `object-fit: fill`, so it stretches to fill the square map frame exactly. This is deliberate: the composer draws on a `0–100` percentage grid (the SVG viewBox is `0 0 100 100` with `preserveAspectRatio="none"`), and `fill` makes that grid line up cell-for-cell with the backdrop picture. A shape you draw at 50 %, 50 % sits at the visual centre of the backdrop regardless of the image's native aspect ratio.
+
+The active layout's backdrop **recorded pixel dimensions are the rasterise canvas**. When you save custom segments, the server rasterises your percentage-space shapes against those exact width × height pixels, so the resulting polygons match the backdrop you traced. Switching to a different layout swaps the backdrop image (and therefore the canvas) along with everything else.
+
+Room-name labels render on a small semi-opaque **pill** so they stay legible over any backdrop — including a bright or busy photo where plain text would wash out. The pill's background and text colour are theme tokens (Theme editor → **Map** group), so you can dial the opacity to suit a particular image.
+
 #### Re-analysing without uploading
 
 If you want to re-run segment detection against the current images without uploading new files, click **Re-analyse** (or **Analyse map** if no segments exist yet). This calls `analyze_map_image` with `force_reanalyze: true` and fetches the updated segments.
@@ -96,7 +118,16 @@ The segment count and adjusted-segment count are shown to the right of the Analy
 
 ### Segments
 
-A segment is a detected region in the map image — a polygon derived from color clustering and morphological analysis of the uploaded image. Each segment has:
+A segment is a polygon that the card overlays on the map and links to a room. Every map keeps a CV store at the map-bucket level plus a **named collection** of custom layouts, and the `segmentation_mode` flag (`cv` or `custom`) — together with the active layout id — decides what `get_map_segments` serves:
+
+- **`image_segments`** — the CV store, special at the map-bucket level. Segments are detected regions in the map image, derived from colour clustering and morphological analysis of the uploaded dark/light variants. This is what Auto (CV) mode reads.
+- **`custom_layouts`** — a `{layout_id: layout}` dict of named custom layouts, with `active_custom_layout_id` naming the live one. Each layout owns its own `custom_segments` store (the polygons your hand-drawn shapes rasterise into), and custom mode reads whichever layout is active.
+
+`set_segmentation_mode` only flips the flag — it never runs the segmenter and never touches any store. The backend resolves the live store through a single `_resolve_active_scope` seam: in CV mode it points at the map-bucket keys, in custom mode at the active layout's keys. Toggling cv → custom → cv (or hopping between layout chips) is therefore lossless: every store survives the round-trip exactly as it was, and you can keep a CV segmentation alongside any number of hand-authored layouts for the same map and switch between them at will.
+
+> **Migration.** Maps authored before named layouts existed kept a single `custom_segments` key. That legacy store is folded **lazily and non-destructively** into a default layout named "Custom" the first time the map is touched — the legacy key is copied, never deleted, and the migration is idempotent.
+
+Whichever store is active, each segment has:
 
 - A `segment_id` string
 - A pixel-space polygon (`polygon_pixel`) and a percentage-space polygon (`polygon_pct`, 0–100 on both axes) used for SVG rendering
@@ -110,7 +141,9 @@ Segments are not rooms. A segment is a region the image analysis found in the fl
 
 ---
 
-### Selecting and adjusting a segment
+### Selecting and adjusting a segment (CV mode)
+
+> This section applies to **Auto (CV)** mode. In Custom mode the side panel shows the composer toolbar instead — see [Custom segmentation mode](#custom-segmentation-mode).
 
 Click any polygon in the map panel to select it. The polygon highlights (increased opacity, white stroke). The side panel shows four sub-sections for the selected segment.
 
@@ -132,7 +165,105 @@ Vertices that have been moved show with a distinct style in the chip list. Click
 
 A row of chips lists all rooms for the active map. Click a chip to link the selected segment to that room. Clicking again unlinks it. Each segment can be linked to at most one room, and each room can be linked to at most one segment. A chip that is already linked to a different segment is shown as disabled.
 
-Room assignments made here are persisted server-side. Linking or unlinking a segment calls the `set_segment_room_link` service, which writes the change to the per-map `segment_room_links` bucket in the integration's storage. Because the links live in the backend rather than the browser, they survive across browsers, devices, and HA restarts. (Earlier versions stored these assignments in the browser's localStorage; that local store was migrated to the backend bucket.) The backend may also supply room_id values on segments directly when segments were associated during analysis; those take precedence over the stored links.
+Room assignments made here apply to **CV segments**. Linking or unlinking a segment calls the `set_segment_room_link` service, which routes through `_resolve_active_scope` and writes the change to the active store's link map — in CV mode that is the map-bucket `segment_room_links` dict. Because the links live in the backend rather than the browser, they survive across browsers, devices, and HA restarts. (Earlier versions stored these assignments in the browser's localStorage; that local store was migrated to the backend bucket.) The backend may also supply room_id values on segments directly when segments were associated during analysis; those take precedence over the stored links.
+
+In **Custom** mode the equivalent control is the composer's per-room link chips. There the link is attached to a whole merged **group** (one room) rather than an individual CV segment, and `set_segment_room_link` writes to the **active layout's own** `segment_room_links` — they are reconciled at **save time** rather than on each click. Because links are per-layout, two different layouts can each have a segment id (say `living`) linked to a *different* room without conflict. See [Custom segment composer](#custom-segment-composer) below.
+
+---
+
+### Custom segmentation mode
+
+Custom mode replaces the CV segmenter with a hand-drawing workflow: you compose rooms from primitive shapes on top of any backdrop image, and the integration rasterises those shapes into the same kind of segment polygons that CV would have produced. It exists for maps where automatic detection struggles — stylised or low-contrast floor plans, themed backdrops (a space map, a blueprint), or layouts where you simply want exact control over where each room's polygon sits.
+
+A map is not limited to one custom layout. You can keep **several named layouts** on the same physical map — a "solar system" image and a "tree" image, say — and each is fully independent: its own backdrop, its own hand-drawn rooms, its own room links, and its own mascot dock spot. Switching layouts swaps all of that at once. Custom layouts sit **alongside** the CV store, not as a "layout 0"; Auto (CV) remains a special, always-present option.
+
+Switch into custom mode by clicking any layout chip in the **Segmentation** picker (bottom panel of the Map Configuration view), or with the `set_segmentation_mode` service with `mode: custom`. Creating your first layout (or pressing **＋ New**) auto-activates it and flips the map into custom mode for you.
+
+#### The Segmentation picker
+
+The **Segmentation** picker is a chip row, not a binary toggle:
+
+- An **Auto (CV)** chip — always present; selecting it sets `segmentation_mode: cv`. Switching to Auto (CV) is lossless; it leaves every custom layout untouched.
+- One chip **per named layout**, labelled with the layout name. Clicking it calls `set_active_custom_layout` (which activates that layout and flips the map to custom mode).
+- A **＋ New** button — opens an inline name field; **Create** calls `create_custom_layout(name)`, which mints + activates the layout and flips to custom mode.
+- When a layout is active, **Rename** and **Delete layout** controls appear. **Rename** opens the same inline name field (pre-filled) and calls `rename_custom_layout(layout_id, name)`; **Delete layout** calls `delete_custom_layout(layout_id)`.
+
+The card state behind the picker lives in `src/state/map.js` — `customLayouts()`, `activeCustomLayoutId()`, `activeCustomLayout()`, and the inline name-editor slice (`openNewLayoutEditor` / `openRenameLayoutEditor` / `closeLayoutEditor` / `layoutDraftName` …). The CRUD calls are the new actions `createCustomLayout` / `renameCustomLayout` / `deleteCustomLayout` / `setActiveCustomLayout` in `src/actions/map.js`.
+
+The layout services are all `supports_response`. Their behaviour:
+
+| Service | Effect |
+|---|---|
+| `create_custom_layout(name)` → `layout_id` | Mints an empty layout (its own `custom_<layout_id>` backdrop variant), activates it, and sets `segmentation_mode: custom`. |
+| `set_active_custom_layout(layout_id)` | Activates that layout and flips to custom mode. A `null`/unknown `layout_id` auto-creates and activates a default layout, so custom mode always resolves a live store. |
+| `rename_custom_layout(layout_id, name)` | Renames the layout in place. |
+| `delete_custom_layout(layout_id)` | Deletes the layout and best-effort removes its backdrop file. If it was the active layout, the next remaining layout (by name) is activated; if it was the **last**, the map flips back to `cv`. |
+
+`get_map_segments` now reports the collection alongside the segments: its response carries `custom_layouts` (a list of `{id, name, backdrop_variant, segment_count, created_at, updated_at}`), `active_custom_layout_id`, and the active store's `segment_room_links`.
+
+#### When to use custom layouts
+
+| | Auto (CV) | Custom layouts |
+|---|---|---|
+| **Room detection** | Automatic, from the map image | Manual, you draw every room |
+| **Backdrop image** | Dark/light/default screenshots, must show clean room colour regions | Any picture — never analysed; one per layout |
+| **Effort** | Upload + analyse, then nudge stragglers | Draw, merge, link, save each room yourself |
+| **Count** | One CV segmentation per map | Many named layouts per map |
+| **Best when** | The Eufy map screenshots segment cleanly | CV mis-detects, or you want exact polygons / themed backdrops / several alternative layouts |
+
+The modes are not exclusive: because CV and every custom layout persist independently, you can author one or more custom layouts and still flip back to CV at any time without losing any of them. (Re-running CV is the one operation that mutates a store — see the note under [Custom segment composer](#custom-segment-composer).)
+
+#### Uploading a custom backdrop image
+
+Each layout needs its own backdrop before you can draw on it. With a layout active, open the **Custom backdrop** section (bottom panel, custom mode), click **Upload** (or **Replace**), and pick a PNG, JPEG, WebP, or BMP. The card passes the active `layout_id` to `upload_map_image`; the server forces the variant key to `custom_<layout_id>`, saves the image, records its pixel dimensions, and repoints the layout's `backdrop_variant`. Unlike the CV variants, uploading a backdrop does **not** trigger analysis — it is a tracing image only.
+
+The backdrop renders with `object-fit: fill` so it stretches to fill the square draw grid (see [How the custom backdrop renders](#how-the-custom-backdrop-renders)), and its recorded width × height is the pixel canvas the active layout's shapes rasterise against. You cannot save custom segments until the active layout has a backdrop — without one the server has no pixel dimensions to rasterise into and the save is rejected (`reason: no_custom_backdrop`).
+
+#### Custom segment composer
+
+With a backdrop in place and Custom mode active, the map panel becomes a drawing canvas and the side panel shows the **Compose rooms** toolbar. Each shape you add is, by default, one room. The available tools:
+
+| Tool | What it does |
+|---|---|
+| **＋ Rectangle / ＋ Circle** | Add a new shape to the draft. It becomes the selected shape and its own room. |
+| **Select** | Tap a shape on the canvas to select it and reveal its editing controls. |
+| **Fine / Med / Coarse** | Nudge-step size for move and resize (1 %, 3 %, 7 % of the map; default Med). |
+| **Move pad** (↑ ↓ ← →) | Move the selected shape (or, for a merged room, the whole room — see scope below). |
+| **Tap-to-place** | Tap an empty spot on the canvas to drop the selected shape's centre there. |
+| **－ / ＋ Scale** | Shrink or grow the shape uniformly about its centre. |
+| **－ W / ＋ W / － H / ＋ H** | Resize a **rectangle** by width or height (rectangles only). |
+| **↺ / ↻ Rotate** | Rotate the shape by ±15°. Rectangles carry an `angle` and bake to a polygon on save; polygons rotate their points; circles ignore rotation. |
+| **⛓ Merge** | A two-tap flow: tap Merge, then tap another shape to fold it into this room. The two now rasterise into one segment. |
+| **Make cutout** | On a member of a merged room, mark it `op: subtract` so it carves a hole out of the room instead of adding to it. |
+| **Split out** | Pull a shape back out of its merged room so it is its own room again. |
+| **Move: Room / Piece** | For a merged room, choose whether the move pad and tap-to-place shift the whole room together (**Room**, the default) or just the selected piece (**Piece**). Scale, resize, and rotate are always per-piece. |
+| **Delete / Clear all** | Remove the selected shape, or empty the whole draft. |
+
+**Shape model.** Each draft shape is `{ id, type, ...geometry, group?, op?, room_id?, angle? }`. Geometry is in `0–100` map percentages. A shape's `group` defaults to its own `id` — that is what makes an un-merged shape its own room. Merging moves shapes into a shared `group`; an `op: "subtract"` member carves a hole out of that group. Rectangles also carry an `angle`.
+
+**Linking rooms.** When a shape (or merged group) is selected, the **Link to room** chips list every room on the active map. Tapping a chip links the room to that group; tapping the linked room again unlinks it. The relationship is 1:1 — a room already taken by another group shows as disabled. The link is set on the draft and only persisted when you save.
+
+**Saving.** Click **Save rooms**. The composer groups the draft by `group`, orders any `subtract` primitives last within each group, and calls `set_custom_segments` (a **replace-all** write of the **active layout's** custom store; the handler auto-creates a default layout if somehow none is active). It then reconciles the room links **per segment** — one `set_segment_room_link` call per group, using the group id as the segment id, writing to the active layout's own link map — and re-fetches the segments. A save shows an error in the toolbar if the active layout has no backdrop; an empty draft simply no-ops (the Save button makes no service call).
+
+#### How custom segments rasterise
+
+When you save, each group's shapes are sent to the server as a list of **primitives** and rasterised by `set_custom_segments` against the active layout's backdrop:
+
+- A primitive is `{ type: "rect" | "circle" | "polygon", ...coords, op? }`, with all coordinates in `0–100` map percentages. A rotated rectangle is converted to a `polygon` before it leaves the card.
+- The server draws each primitive in order onto a boolean mask at a fixed internal working resolution (a 512-px square) — `add` (fill) by default, or `subtract` (clear) when the primitive carries `op: "subtract"`.
+- The mask's outer boundary is then traced into a polygon with the **same** `mask_to_polygon` routine the CV segmenter uses, and scaled to the backdrop's pixel space. Each group becomes exactly **one** segment (one room).
+- Degenerate results are dropped: a group whose primitives draw nothing (or collapse to nothing) produces no segment and is reported in the save response's `skipped` count.
+
+A couple of consequences worth knowing:
+
+- **One segment = one room.** Multiple primitives in a group merge into a single room polygon.
+- **`op: subtract` carves the outline.** A subtract that cuts into the edge of a room turns it into a concave simple polygon — that works. A subtract that sits fully *inside* the room would need a true hole, and a single boundary polygon cannot represent an interior hole, so model interior obstacles as separate geometry rather than expecting a doughnut.
+
+#### Re-editing custom segments
+
+Saved custom segments reload as editable shapes. When custom mode loads a layout, the composer rebuilds its draft from that layout's saved segment polygons (as `polygon` shapes, since the backend stores polygons rather than the original primitives), **once per active layout** — so it won't clobber an in-progress draft or reload immediately after you save. The reload is keyed on `` `${map_id}:${active_custom_layout_id}` `` (`_composeLoadedFor`), and `setMapSegmentsData` resets the draft whenever **either** the map or the active layout changes, so each layout reloads its own shapes when you click its chip. Each reloaded shape keeps its segment id and its room link, so re-saving preserves that layout's `segment_room_links`. The mascot dock spot reloads per active layout too — the reserved `dock` companion anchor lives in the active layout's `companion_anchors`.
+
+Because `_resolve_active_scope` simply points at whichever store the mode + active layout select, switching between Auto (CV) and any custom layout is lossless: your CV analysis and every hand-authored layout coexist for the same map, and you lose none by switching. The one exception is CV itself: **re-running CV re-segments and forces a relink** of the CV store (the accepted cost of a fresh analysis). Custom layouts are never re-segmented — they only change when you explicitly save them.
 
 ---
 
@@ -144,5 +275,7 @@ You need this view when:
 - Segment detection produced polygons that do not align with the actual room boundaries — you need to nudge, expand, or contract them to match.
 - A segment's edge extends into an adjacent room, causing presence detection or job attribution errors.
 - You want to link or re-link specific segments to rooms after a re-analysis produced different segment IDs.
+- Automatic detection can't get a usable result (stylised, low-contrast, or themed map) and you want to **author rooms by hand** — draw shapes, merge them into rooms, carve cutouts, link each to a room, and save. See [Custom segmentation mode](#custom-segmentation-mode); creating a custom layout preserves your CV segmentation losslessly, so it's a safe thing to try.
+- You want to maintain **several alternative layouts** on one physical map (different themed backdrops, or different room groupings) and switch between them on demand — each is a named custom layout.
 
-All polygon adjustments are cumulative and additive — each nudge adds to the stored offset rather than replacing it. Adjustments are saved to the integration's data storage immediately after each button press and persist across restarts.
+In CV mode, all polygon adjustments are cumulative and additive — each nudge adds to the stored offset rather than replacing it, and adjustments save to the integration's data storage immediately after each button press and persist across restarts. In custom mode the draft lives in the card until you click **Save rooms**, which writes the active layout's whole custom segment set at once.

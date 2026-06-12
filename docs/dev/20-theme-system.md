@@ -33,7 +33,7 @@ The card renders using the _resolved_ result of merging active theme + working d
 
 Groups are editor-only metadata. They organize the token editor UI and have no effect on backend persistence, which remains a flat dictionary.
 
-The static groups below are the fixed editor order. Between **Modals & Overlays** and **Shared Foundations** the registry combiner (`src/theme-tokens/index.js:144-145`) splices in a dynamic **Animal Companion** section: an "Animal Companion" parent group plus one "Animal Companion — &lt;Name&gt;" sub-group per registered animal, sourced from the live AnimalSVG registry (`src/theme-tokens/animals.js`) rather than hand-listed — mirroring the Floor Textures parent/sub-group treatment. So the real editor list is the 18 static groups plus the per-animal section, not a fixed 18.
+The static groups below are the fixed editor order. Between **Modals & Overlays** and **Shared Foundations** the registry combiner (`src/theme-tokens/index.js:144-145`) splices in a dynamic **Animal Companion** section: an "Animal Companion" parent group plus one "Animal Companion — &lt;Name&gt;" sub-group per registered animal, sourced from the live AnimalSVG registry (`src/theme-tokens/animals.js`) rather than hand-listed — mirroring the Floor Textures parent/sub-group treatment. So the real editor list is the 19 static groups plus the per-animal section, not a fixed 19.
 
 | Group | Purpose |
 |---|---|
@@ -42,6 +42,7 @@ The static groups below are the fixed editor order. Between **Modals & Overlays*
 | **Borders & Shadows** | Border colors at three strengths (subtle / default / strong) and box shadows |
 | **Chips** | Background and text colors for the chip/badge controls |
 | **Room Cards** | Background, text, and accent colors specific to the room card components |
+| **Map** | Colors for the map overlays — the room-name label pill (background + text, incl. selected) and order badge, the segment tooltip (background / border / text / hint), and the custom-segment composer (selected outline, cutout fill, selected-vertex glow) |
 | **Floor Textures** | Global master enable (0/1) and global opacity for card and map texture rendering |
 | **Floor Textures — Tile** | Per-material color and per-layer opacity for the tile texture |
 | **Floor Textures — Wood** | Per-material color and per-layer opacity for the wood texture |

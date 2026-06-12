@@ -158,6 +158,201 @@ Supports response.
 
 ---
 
+## Map Services
+
+These services manage map image uploads, segmentation (CV or manually authored), named custom layouts, custom segment authoring, and the map UI overlay state — segment-to-room links and the animated companion's anchor positions. The card calls them from the Map Configuration panel and the custom-segment composer; you can also call them from developer tools or scripts.
+
+Unlike most map-scoped services in this document, every service in this section requires `map_id` explicitly — it is **not** auto-resolved from the active map. Pass the target map's ID on every call. All of these services support response.
+
+> **Calling these by hand:** `upload_map_image`, `delete_map_image`, `analyze_map_image`, and `get_map_segments` are registered in Python only (no `services.yaml` entry), so Developer Tools → Actions lists them but shows no field descriptions or autocomplete — call them in YAML mode. The parameter tables below come from the integration's schemas and are authoritative regardless.
+
+The `segmentation_mode` flag (`cv` or `custom`) selects which segmentation a map serves on read. Switching modes is a pointer flip — it never re-runs the segmenter.
+
+**CV** lives at the map-bucket level: a single `image_segments` store (the CV segmenter's output) plus its own `segment_room_links` and `companion_anchors`.
+
+**Custom** is now a *named collection*. A map can hold many `custom_layouts` side by side — each a fully self-contained authoring surface keyed by `layout_id`, with its own backdrop image (variant `custom_<layout_id>`), authored `custom_segments`, `segment_room_links`, and `companion_anchors` (including the reserved `dock` mascot spot). A per-map `active_custom_layout_id` names which layout custom mode currently serves. Because room links are per-layout, two layouts can each carry a segment `living` linked to *different* rooms — impossible under the old single-store model.
+
+Reads and writes in custom mode are scoped to the **active** custom layout; in CV mode they use the map-bucket stores. The integration resolves this once (`_resolve_active_scope`) so `get_map_segments`, `set_segment_room_link`, `set_companion_anchor`, and `set_custom_segments` all route to the right place and CV/custom never drift. The legacy single `custom_segments` key from before named layouts is folded **lazily and non-destructively** into a default `Custom` layout on first touch — the old key is kept, never deleted, and the migration is idempotent.
+
+### Image Management
+
+#### `upload_map_image`
+
+Uploads a map background image variant. The `default`, `dark`, and `light` variants feed the CV segmenter (`dark` is the primary input; `light` assists with wall detection). The `custom` variant is the legacy single-store backdrop for the manual segment composer and is **never** auto-segmented — its recorded pixel dimensions become the canvas the custom-segment writer rasterises against. Each named custom layout owns its own per-layout backdrop under variant `custom_<layout_id>` — pass `layout_id` to target it. Non-PNG uploads are converted to PNG before storage.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `image_base64` | Yes | Base64-encoded image. Converted to PNG if not already. |
+| `variant` | No | `default`, `dark`, `light`, `custom`, or a per-layout `custom_<layout_id>`. Default `default`. |
+| `layout_id` | No | Targets a named custom layout's backdrop. When supplied, the server **forces** `variant` to `custom_<layout_id>` (ignoring any `variant` you pass) and repoints that layout's `backdrop_variant`. The layout must already exist — returns `{"saved": false, "reason": "layout_not_found"}` otherwise. |
+| `image_width` | No | Declared pixel width. The stored variant records the image's actual measured dimensions; for a custom/per-layout backdrop these define the rasterise canvas. |
+| `image_height` | No | Declared pixel height. |
+
+Supports response. Returns the saved variant's `path`, `browser_url`, measured `actual_width`/`actual_height`, and `size_bytes`. Returns `{"saved": false, "reason": ...}` on `invalid_base64` or `unsupported_format`.
+
+#### `delete_map_image`
+
+Deletes one stored image variant — both the PNG file and its entry in the map's `image_variants`. Backs the per-variant trash button so a bad upload can be dropped without deleting the whole map. Safe to call repeatedly.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `variant` | No | `default`, `dark`, `light`, `custom`, or a per-layout `custom_<layout_id>`. Default `default`. |
+
+Supports response. Returns `{"deleted": true, "file_removed": bool, "remaining_variants": [...]}`, or `{"deleted": false, "reason": "not_found"}` when the variant is not recorded.
+
+### Segmentation
+
+#### `analyze_map_image`
+
+Runs the CV segmenter on the map image and caches the result as `image_segments`. Probes the `dark` variant first, then falls back to `default`; the `light` variant is used as an assist when present. The `custom` variant is never read, so a custom-only map is never auto-segmented. Re-analysis preserves the user's `segment_room_links` and `companion_anchors`.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `expected_room_count` | No | Target room count hint (`>= 1`). |
+| `max_segments` | No | Cap on the number of segments (`>= 1`). |
+| `min_area_pixels` | No | Minimum segment area in pixels (`>= 1`). Default `1200`. |
+| `simplify_epsilon` | No | Polygon simplification epsilon. |
+| `force_reanalyze` | No | Re-run even when a cached result exists. Default `false`. |
+
+Supports response. Returns the segments payload (the cached result enriched with `segment_room_links` and `companion_anchors`). With `force_reanalyze: false` and an existing cache, returns the cached payload without re-running. Returns `{"available": false, "reason": "image_not_found"}` when no `dark`/`default` image is stored.
+
+#### `get_map_segments`
+
+Returns the active segmentation for a map — whichever store `segmentation_mode` selects — plus room links, companion anchors, and image metadata. In CV mode this is the map-bucket `image_segments`; in custom mode it is the **active** custom layout's `custom_segments`, links, and anchors. Reading is pure and never invokes the segmenter. Per-segment `polygon_pct` (0–100 percentage coordinates), stored adjustments, and any `room_id` link are derived at read time.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+
+Supports response. Returns `segmentation_mode` (`cv` or `custom`), `available`, `analyzed_at`, `image`, `image_variants`, a `summary` (with `segment_count` and `adjusted_count`), `segments` (each carrying `polygon_pct` and, when linked, `room_id`), `adjustments`, and `companion_anchors` (all scoped to the active store). It also returns `active_custom_layout_id`, `segment_room_links` (the active scope's link dict), and `custom_layouts` — a list of layout summaries, each `{id, name, backdrop_variant, segment_count, created_at, updated_at}` — so the card can render the layout picker without a second fetch.
+
+#### `set_segmentation_mode`
+
+Toggles a map between CV (auto-detected) and Custom (manually authored) segmentation.
+
+> **Invariant:** this only flips the `segmentation_mode` flag. It never re-runs the segmenter in either direction, and both the `image_segments` and `custom_segments` stores are left untouched — so `cv → custom → cv` preserves each set with zero re-analysis.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `mode` | Yes | `cv` (auto-detected segments) or `custom` (authored polygons). |
+
+Supports response. Returns `{"saved": true, "mode": ..., "segment_count": N}` where the count reflects the now-active store.
+
+#### `set_custom_segments`
+
+Authors no-CV map segments from primitive shapes — **replace-all**. Rebuilds the **active** custom layout's `custom_segments` store from the supplied list (auto-creating and activating a default layout first if the map has none). Each segment's primitives are rasterised server-side (via `rasterize_primitives` → `mask_to_polygon`, the same polygon tracer the CV path uses) onto a `1`-bit mask, scaled to the active layout's backdrop pixel dimensions, and wrapped in the same segment shape the CV segmenter produces — so room-linking and dispatch treat custom and CV segments identically. Requires the active layout's backdrop to be uploaded (for the canvas dimensions). Never runs the segmenter.
+
+One segment is one room. Multiple primitives in a segment merge into a single room; a primitive with `op: subtract` carves material away (an edge cut yields a concave simple polygon; an interior hole cannot be represented by one polygon). Primitives are applied in list order. Degenerate segments (nothing drawn, or the result collapses) are dropped.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `segments` | Yes | List of `{id?, primitives: [...]}`. Extra keys are allowed and ignored. A stable `id` is preserved across re-saves (auto `custom_N` otherwise) so segment-room links survive. |
+
+Each primitive is `{type: rect|circle|polygon, op?: subtract, ...coords}` with coordinates as 0–100 percentages of the map:
+
+- `rect` — `x`, `y`, `w`, `h`
+- `circle` — `cx`, `cy`, `r`
+- `polygon` — `points: [[x, y], ...]`
+
+Primitives without `op` fill (union); `op: subtract` clears.
+
+Supports response. Returns `{"saved": true, "segment_count": N, "skipped": N, "segment_ids": [...]}`, or `{"saved": false, "reason": "no_custom_backdrop"}` when the active layout's backdrop has not been uploaded.
+
+### Custom Layouts
+
+A map's custom segmentation is a named collection of layouts. These four services create, rename, delete, and switch between them. The card surfaces them as the Auto (CV) / per-layout picker on the Map Configuration panel; you can also call them directly. All support response.
+
+#### `create_custom_layout`
+
+Creates a new named custom layout with empty segment, link, and anchor stores plus a fresh per-layout backdrop variant (`custom_<layout_id>`), activates it, and flips the map into custom mode so it goes live immediately.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `name` | No | Display name for the layout. Defaults to `Custom` when omitted or blank. |
+
+Supports response. Returns `{"saved": true, "layout_id": ..., "layout": {...}}` where `layout` is the new layout record (`id`, `name`, `backdrop_variant`, stores, `created_at`, `updated_at`). Upload its backdrop with `upload_map_image` passing the returned `layout_id`.
+
+#### `rename_custom_layout`
+
+Updates the display name of an existing custom layout. Does not touch its segments, links, anchors, or backdrop.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `layout_id` | Yes | The layout to rename. |
+| `name` | Yes | New display name. |
+
+Supports response. Returns `{"saved": true, "layout_id": ..., "layout": {...}}`, or `{"saved": false, "reason": "layout_not_found"}` when the ID is unknown (or `"missing_name"` when the name is blank).
+
+#### `delete_custom_layout`
+
+Deletes a custom layout along with its backdrop image (file and `image_variants` entry, best-effort). If the deleted layout was the active one, the active pointer is reassigned to the next remaining layout (ordered by name); if it was the last layout, `active_custom_layout_id` is cleared and the map flips back to `cv` mode so custom mode never has no store.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `layout_id` | Yes | The layout to delete. |
+
+Supports response. Returns `{"saved": true, "deleted": true, "layout_id": ..., "active_custom_layout_id": ..., "segmentation_mode": ...}` so the card sees the new active layout and mode, or `{"saved": false, "reason": "layout_not_found"}` when the ID is unknown.
+
+#### `set_active_custom_layout`
+
+Activates a custom layout and flips the map into custom mode, so subsequent custom-scoped reads and writes resolve against it. Passing `null` or omitting `layout_id` (or an unknown ID) auto-creates and activates a default layout, guaranteeing custom mode always has a live store.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `layout_id` | No | The layout to activate. Omit, pass `null`, or pass an unknown ID to auto-create and activate a default layout. |
+
+Supports response. Returns `{"saved": true, "active_custom_layout_id": ..., "mode": "custom"}`.
+
+### Map UI Overlay State
+
+#### `set_segment_room_link`
+
+Persists or clears the link between a map segment and a managed room. Replaces the card's previous browser-localStorage storage, so links survive across browsers and devices. The mapping is enforced 1:1 — linking a room that is already attached to another segment drops the older link. The link is written to the **active store**: the map-bucket links in CV mode, or the active custom layout's own links in custom mode — so the same segment ID can map to different rooms in different layouts.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `segment_id` | Yes | e.g. `segment_4`. |
+| `room_id` | No | Room to link. Pass `null` or omit to clear the link. |
+
+Supports response. Returns `{"saved": true, "segment_id", "action": "set"|"cleared", "segment_room_links": {...}}` so the card can refresh in-memory state without a second fetch.
+
+#### `set_companion_anchor`
+
+Persists or clears the map position of the animated companion sprite for one room. When the vacuum is docked/idle the companion homes to the reserved `dock` key rather than a room; otherwise the anchor is keyed by room ID. With no anchor stored, the companion falls back to the linked segment's centroid. `pct_x`/`pct_y` are 0–100 percentages from the map image's top-left and are clamped to that range server-side. Like room links, anchors are written to the **active store** — the map-bucket anchors in CV mode, or the active custom layout's own anchors (including its own `dock` spot) in custom mode.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `room_id` | Yes | Target room ID, or the reserved string `dock` for the docked/idle home spot. |
+| `pct_x` | No | X position (0–100%). Pass `null`/omit **both** `pct_x` and `pct_y` to clear the anchor. |
+| `pct_y` | No | Y position (0–100%). |
+
+Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "companion_anchors": {...}}`.
+
+---
+
 ## State Inspection
 
 Read-only services that return current integration state. All support response.
