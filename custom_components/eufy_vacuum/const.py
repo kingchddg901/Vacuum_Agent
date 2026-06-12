@@ -136,6 +136,9 @@ SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"
 # get_map_segments response.
 SERVICE_SET_SEGMENT_ROOM_LINK = "set_segment_room_link"
 SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
+# CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
+# bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
+SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"
 
 # ----------------------
 # Theme services

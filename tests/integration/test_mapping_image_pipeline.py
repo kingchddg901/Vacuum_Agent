@@ -39,9 +39,11 @@ from custom_components.eufy_vacuum.mapping.manager import MappingManager
 from custom_components.eufy_vacuum.mapping.mapping_services import (
     SERVICE_EXCLUDE_ROOM_JOB_BOUNDS,
     SERVICE_GET_IMAGE_SEGMENT_SUGGESTIONS,
+    SERVICE_GET_MAP_SEGMENTS,
     SERVICE_REBUILD_ROOM_BOUNDS,
     SERVICE_RESTORE_ROOM_JOB_BOUNDS,
     SERVICE_SAVE_MAP_IMAGE,
+    SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_TRANSLATE_IMAGE_SEGMENT,
     SERVICE_UPLOAD_MAP_IMAGE,
     _get_mapping_manager,
@@ -302,6 +304,102 @@ async def test_upload_and_delete_map_image_service(hass, mapping_services, pil):
                          {"vacuum_entity_id": _VAC, "map_id": _MAP,
                           "variant": "default"})
     assert isinstance(deleted, dict)
+
+
+async def test_upload_custom_backdrop_is_not_segmented(hass, mapping_services, pil):
+    """[IMG-11b] the custom-segment backdrop uploads + measures like any variant,
+    but the segmenter never reads it: with only a 'custom' image present, analyze
+    finds no segmenter input (it probes dark/default/light only) and returns
+    image_not_found — the no-CV acceptor for the custom-segment path."""
+    # Use a dedicated map_id so no other test's on-disk dark/default variant
+    # (the suite shares a config dir) can satisfy analyze's filesystem probe.
+    cmap = f"{_MAP}_cbk"
+    up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": cmap,
+        "image_base64": _tiny_png_b64(pil), "image_width": 8, "image_height": 8,
+        "variant": "custom"})
+    assert up["saved"] is True
+    assert up["variant"] == "custom"
+    assert up["actual_width"] == 8 and up["actual_height"] == 8
+    # only the custom backdrop is present → the segmenter has nothing to read
+    analyzed = await _svc(hass, SERVICE_ANALYZE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": cmap, "force_reanalyze": True})
+    assert analyzed["available"] is False
+    assert analyzed["reason"] == "image_not_found"
+    # the backdrop is deletable through the same delete service
+    deleted = await _svc(hass, SERVICE_DELETE_MAP_IMAGE, {
+        "vacuum_entity_id": _VAC, "map_id": cmap, "variant": "custom"})
+    assert isinstance(deleted, dict)
+
+
+async def test_segmentation_mode_toggle_never_reruns_segmenter(hass, mapping_services, pil):
+    """[SEG-TOGGLE-1] the CV-or-Custom toggle NEVER re-runs the segmenter in either
+    direction: cv -> custom -> cv leaves image_segments byte-identical, never calls
+    the engine, and serves the original CV segments again. The core invariant."""
+    import copy
+    manager = mapping_services
+    _save_image(hass, pil)
+    await _analyze(hass)
+    bucket = manager.data["maps"][_VAC][_MAP]
+    cv_before = copy.deepcopy(bucket["image_segments"])
+    assert any(s["segment_id"] == "fake_1" for s in cv_before["segments"])
+
+    # Spy on the engine from here: any re-segmentation would bump this counter.
+    engine = segmenter_engines._SEGMENTER_ENGINES[_FAKE_ENGINE]
+    real = engine.segment_map_image
+    calls = {"n": 0}
+
+    def _counting(**kwargs):
+        calls["n"] += 1
+        return real(**kwargs)
+
+    engine.segment_map_image = _counting
+
+    r1 = await _svc(hass, SERVICE_SET_SEGMENTATION_MODE,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "custom"})
+    assert r1["saved"] is True and r1["mode"] == "custom"
+    r2 = await _svc(hass, SERVICE_SET_SEGMENTATION_MODE,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "cv"})
+    assert r2["mode"] == "cv"
+
+    # invariant: no segmenter run, CV store untouched, CV segments served again
+    assert calls["n"] == 0
+    assert bucket["image_segments"] == cv_before
+    got = await _svc(hass, SERVICE_GET_MAP_SEGMENTS,
+                     {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["segmentation_mode"] == "cv"
+    assert any(s["segment_id"] == "fake_1" for s in got["segments"])
+
+
+async def test_segmentation_mode_switches_segment_store(hass, mapping_services, pil):
+    """[SEG-TOGGLE-2] get_map_segments serves image_segments in cv mode and the
+    separate custom_segments store in custom mode; the inactive store is preserved
+    across the flip."""
+    manager = mapping_services
+    _save_image(hass, pil)
+    await _analyze(hass)
+    bucket = manager.data["maps"][_VAC][_MAP]
+    # seed a custom store alongside the CV one (as the future writer will)
+    bucket["custom_segments"] = {
+        "available": True,
+        "segments": [{"segment_id": "custom_1",
+                      "polygon_pixel": [[1, 1], [5, 1], [5, 5], [1, 5]]}],
+    }
+
+    await _svc(hass, SERVICE_SET_SEGMENTATION_MODE,
+               {"vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "custom"})
+    custom = await _svc(hass, SERVICE_GET_MAP_SEGMENTS,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert custom["segmentation_mode"] == "custom"
+    assert {s["segment_id"] for s in custom["segments"]} == {"custom_1"}
+
+    await _svc(hass, SERVICE_SET_SEGMENTATION_MODE,
+               {"vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "cv"})
+    cv = await _svc(hass, SERVICE_GET_MAP_SEGMENTS,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert {s["segment_id"] for s in cv["segments"]} == {"fake_1"}
+    # both stores still present after the round-trip
+    assert bucket["custom_segments"]["segments"][0]["segment_id"] == "custom_1"
 
 
 async def test_upload_bad_base64_service(hass, mapping_services):

@@ -2052,6 +2052,36 @@ set_segment_room_link:
       selector:
         text: {}
 
+set_segmentation_mode:
+  name: Set segmentation mode
+  description: >
+    Toggle a map between CV (auto-detected) and Custom (manually authored)
+    segmentation. Only flips the active source — it never re-runs the segmenter
+    in either direction, so the CV and Custom segment sets each survive a
+    round-trip untouched.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    mode:
+      name: Mode
+      description: "cv = auto-detected segments; custom = manually authored polygons."
+      required: true
+      selector:
+        select:
+          options:
+            - cv
+            - custom
+
 set_companion_anchor:
   name: Set companion anchor
   description: >

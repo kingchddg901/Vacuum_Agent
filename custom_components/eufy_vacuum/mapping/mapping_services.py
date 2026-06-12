@@ -21,6 +21,7 @@ from ..const import (
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_SEGMENT_ROOM_LINK,
+    SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
 )
@@ -299,12 +300,20 @@ REVIEW_TRACE_RUN_SCHEMA = vol.Schema(
 
 
 # Image analysis service schemas
+#
+# Image variants: "default"/"dark"/"light" are segmenter inputs (dark = primary,
+# clearest room colours; light = assist, wall detection). "custom" is the
+# manual-authoring backdrop for the no-CV custom-segment path — it is stored and
+# served exactly like any other variant, but the segmenter never reads it
+# (_handle_analyze_map_image only probes dark/default/light), so a custom-only
+# map is never auto-segmented. Its recorded width/height are the pixel space the
+# custom segment writer rasterises against.
 UPLOAD_MAP_IMAGE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("image_base64"): cv.string,
-        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light"]),
+        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light", "custom"]),
         vol.Optional("image_width"): vol.Coerce(int),
         vol.Optional("image_height"): vol.Coerce(int),
     }
@@ -314,7 +323,7 @@ DELETE_MAP_IMAGE_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
-        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light"]),
+        vol.Optional("variant", default="default"): vol.In(["default", "dark", "light", "custom"]),
     }
 )
 
@@ -334,6 +343,16 @@ GET_MAP_SEGMENTS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
+    }
+)
+
+# CV-or-Custom segmentation toggle. The handler only flips the flag — see the
+# invariant in _handle_set_segmentation_mode (never re-runs the segmenter).
+SET_SEGMENTATION_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("mode"): vol.In(["cv", "custom"]),
     }
 )
 
@@ -880,7 +899,11 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         map_id=map_id,
     )
 
-    raw = map_bucket.get("image_segments") or {}
+    # CV-or-Custom: serve whichever segment store the toggle selects. Reading is
+    # pure — it never invokes the segmenter — so a custom <-> cv flip is a cheap
+    # pointer change and both stores survive a round-trip untouched.
+    mode: str = map_bucket.get("segmentation_mode") or "cv"
+    raw = map_bucket.get("custom_segments" if mode == "custom" else "image_segments") or {}
     adjustments: dict = map_bucket.get("image_segment_adjustments") or {}
     raw_segments: list = raw.get("segments") or []
 
@@ -888,7 +911,8 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
 
     img_variants = map_bucket.get("image_variants") or {}
     img_meta = (
-        img_variants.get("dark")
+        (img_variants.get("custom") if mode == "custom" else None)
+        or img_variants.get("dark")
         or img_variants.get("default")
         or img_variants.get("light")
         or {}
@@ -922,6 +946,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
+        "segmentation_mode": mode,
         "available": bool(raw.get("available", False)),
         "analyzed_at": raw.get("analyzed_at"),
         "image": raw.get("image"),
@@ -940,6 +965,34 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "adjustments": adjustments,
         "companion_anchors": dict(anchors) if isinstance(anchors, dict) else {},
     }
+
+
+async def _handle_set_segmentation_mode(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Flip a map between CV and Custom segmentation.
+
+    INVARIANT: this NEVER runs the segmenter, in either direction. It only writes
+    the ``segmentation_mode`` flag; ``_handle_get_map_segments`` then reads whichever
+    store the flag selects (``image_segments`` for cv, ``custom_segments`` for
+    custom). Both stores are left untouched, so toggling cv -> custom -> cv preserves
+    each segment set with zero re-analysis.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    mode: str = call.data["mode"]
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    map_bucket["segmentation_mode"] = mode
+    await manager.async_save()
+
+    source = "custom_segments" if mode == "custom" else "image_segments"
+    active = (map_bucket.get(source) or {}).get("segments") or []
+    _LOGGER.debug("set_segmentation_mode: %s/%s -> %s", vacuum_entity_id, map_id, mode)
+    return {"saved": True, "mode": mode, "segment_count": len(active)}
 
 
 async def _handle_adjust_map_segment(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -1497,6 +1550,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_companion_anchor(call: ServiceCall) -> dict:
         return await _handle_set_companion_anchor(hass, call)
 
+    async def set_segmentation_mode(call: ServiceCall) -> dict:
+        return await _handle_set_segmentation_mode(hass, call)
+
     async def delete_map_image(call: ServiceCall) -> dict:
         return await _handle_delete_map_image(hass, call)
 
@@ -1515,6 +1571,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_GET_MAP_SEGMENTS, get_map_segments,
         schema=GET_MAP_SEGMENTS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_SEGMENTATION_MODE, set_segmentation_mode,
+        schema=SET_SEGMENTATION_MODE_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_ADJUST_MAP_SEGMENT, adjust_map_segment,
