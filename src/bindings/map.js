@@ -282,7 +282,8 @@ export function applyMapBindings(proto) {
           if (!file) return;
 
           const rooms = this.card._state.getRoomsForActiveMap?.() ?? [];
-          const mapId = rooms[0]?.mapId ?? null;
+          const mapId = rooms[0]?.mapId
+            ?? this.card._state.mapSegmentsData()?.map_id ?? null;
           if (!mapId) {
             this.card._state.setMapActionStatus({
               type: "upload", variant, status: "error",
@@ -298,14 +299,16 @@ export function applyMapBindings(proto) {
           try {
             const base64 = await _fileToBase64(file);
             await this.card._actions.uploadMapImage(mapId, base64, { variant });
-            // Keep the variant in the status during analyze — the analyze
-            // step is the long one (Pillow/SciPy segmentation, 10-30s typical)
-            // and dropping the variant causes the per-variant button to
-            // revert to "Upload" even though work is still happening.
-            // Reads as a silent no-op to the user (reported indirectly on #2).
-            this.card._state.setMapActionStatus({ type: "analyze", variant, status: "busy" });
-            this.card._scheduleRender();
-            await this.card._actions.analyzeMapImage(mapId, { force_reanalyze: true });
+            // CV variants (dark/light/default) drive segmentation, so an upload
+            // kicks off analyze — the long Pillow/SciPy step (10-30s typical);
+            // keeping the variant in the status stops the button reverting to
+            // "Upload" while work continues. The "custom" backdrop is a no-CV
+            // tracing image and is NEVER segmented, so skip analyze for it.
+            if (variant !== "custom") {
+              this.card._state.setMapActionStatus({ type: "analyze", variant, status: "busy" });
+              this.card._scheduleRender();
+              await this.card._actions.analyzeMapImage(mapId, { force_reanalyze: true });
+            }
             await this.card._actions.getMapSegments(mapId);
             this.card._state.clearMapActionStatus();
             this.card._scheduleRender();
@@ -415,6 +418,24 @@ export function applyMapBindings(proto) {
             message: err?.message ?? "Analysis failed",
           });
           this.card._scheduleRender();
+        }
+      });
+    });
+
+    // CV/Custom segmentation toggle
+    root.querySelectorAll("[data-action='set-segmentation-mode']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mode  = btn.dataset.mode;
+        const mapId = this.card._state.mapSegmentsData()?.map_id
+          ?? this.card._state.activeMapId?.() ?? null;
+        if (!mode || !mapId) return;
+        if (this.card._state.segmentationMode?.() === mode) return; // already there
+        try {
+          await this.card._actions.setSegmentationMode(mapId, mode);
+          await this.card._actions.getMapSegments(mapId);
+          if (this.card._state.mapSegmentsData()) this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] segmentation mode toggle failed:", err);
         }
       });
     });

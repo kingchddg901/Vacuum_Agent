@@ -62,8 +62,17 @@ export function applyMapState(proto) {
     return this._mapSegmentsData?.segments ?? [];
   };
 
+  proto.segmentationMode = function () {
+    return this._mapSegmentsData?.segmentation_mode ?? "cv";
+  };
+
   proto.mapImageUrl = function () {
     const variants = this._mapSegmentsData?.image_variants ?? {};
+    // In custom mode the authored polygons sit on the custom backdrop; fall
+    // back to the segmenter variants so a partially-set-up map still shows.
+    if (this.segmentationMode() === "custom") {
+      return (variants.custom ?? variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
+    }
     return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
   };
 

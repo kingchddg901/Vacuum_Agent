@@ -12,6 +12,7 @@ import {
   SERVICE_ADJUST_MAP_SEGMENT,
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
+  SERVICE_SET_SEGMENTATION_MODE,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
@@ -223,6 +224,24 @@ export function applyMapActions(proto) {
       DOMAIN,
       SERVICE_SET_COMPANION_ANCHOR,
       payload,
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Flip a map between CV (auto-detected) and Custom (manually authored)
+   * segmentation. The backend only swaps the active segment store — it never
+   * re-runs the segmenter — so this is cheap and lossless in both directions.
+   * Returns the service response { mode, segment_count } or null.
+   */
+  proto.setSegmentationMode = async function (mapId, mode) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_SEGMENTATION_MODE,
+      { vacuum_entity_id: vacuum, map_id: mapId, mode },
       true,
     );
     return result?.response ?? result ?? null;

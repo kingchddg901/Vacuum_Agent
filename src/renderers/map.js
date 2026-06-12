@@ -428,7 +428,10 @@ export function applyMapRenderers(proto) {
         </div>
 
         <div class="evcc-map-config-panel">
-          ${this._renderVariantsSection(variants, summary, actionStatus, state)}
+          ${this._renderSegmentationToggle(state)}
+          ${(state.segmentationMode?.() ?? "cv") === "custom"
+            ? this._renderCustomBackdropSection(variants, actionStatus, state)
+            : this._renderVariantsSection(variants, summary, actionStatus, state)}
         </div>
 
       </div>
@@ -492,6 +495,74 @@ export function applyMapRenderers(proto) {
     if (diffD < 14)   return `${diffD}d ago`;
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }
+
+  /* =========================================================
+     SEGMENTATION MODE TOGGLE (CV vs Custom)
+     ========================================================= */
+
+  proto._renderSegmentationToggle = function (state) {
+    const mode = state.segmentationMode?.() ?? "cv";
+    const opt = (value, label, hint) => `
+      <button
+        class="evcc-map-mode-btn${mode === value ? " evcc-map-mode-btn--active" : ""}"
+        data-action="set-segmentation-mode"
+        data-mode="${value}"
+        ${mode === value ? 'aria-pressed="true"' : ""}
+        title="${this.escapeHtml(hint)}"
+      >${this.escapeHtml(label)}</button>`;
+
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Segmentation</div>
+        <div class="evcc-map-mode-toggle">
+          ${opt("cv", "Auto (CV)", "Detect rooms automatically from the map image")}
+          ${opt("custom", "Custom", "Draw rooms by hand from primitive shapes")}
+        </div>
+      </div>
+    `;
+  };
+
+  /* =========================================================
+     CUSTOM BACKDROP (custom mode only)
+     =========================================================
+     The backdrop is uploaded as the `custom` image variant via the
+     shared upload-map-variant binding, which skips analyze for this
+     variant (it is a tracing image, never segmented). mapImageUrl()
+     surfaces it in the config map area once it lands. */
+
+  proto._renderCustomBackdropSection = function (variants, actionStatus, state) {
+    const custom  = variants?.custom;
+    const isBusy  = actionStatus?.type === "upload" && actionStatus?.variant === "custom"
+                    && actionStatus?.status === "busy";
+    const isError = actionStatus?.type === "upload" && actionStatus?.variant === "custom"
+                    && actionStatus?.status === "error";
+    const statusText = custom ? `${custom.width} × ${custom.height}` : "no backdrop yet";
+    const statusCls  = custom
+      ? "evcc-map-variant-status--ok"
+      : "evcc-map-variant-status--missing";
+
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Custom backdrop</div>
+        <div class="evcc-map-variant-row">
+          <div class="evcc-map-variant-info">
+            <span class="evcc-map-variant-label">Backdrop image</span>
+            <span class="evcc-map-variant-hint">any map picture — drawn on, never auto-segmented</span>
+          </div>
+          <span class="evcc-map-variant-status ${statusCls}">${statusText}</span>
+          ${isError
+            ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Upload failed")}</span>`
+            : ""}
+          <button
+            class="evcc-map-config-btn${isBusy ? " evcc-map-config-btn--busy" : ""}"
+            data-action="upload-map-variant"
+            data-variant="custom"
+            ${isBusy ? "disabled" : ""}
+          >${isBusy ? "Uploading…" : custom ? "Replace" : "Upload"}</button>
+        </div>
+      </div>
+    `;
+  };
 
   proto._renderVariantsSection = function (variants, summary, actionStatus, state) {
     const armedDelete = state?.mapVariantDeleteArmed?.() ?? null;

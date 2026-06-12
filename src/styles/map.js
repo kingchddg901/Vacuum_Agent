@@ -547,6 +547,35 @@ export const mapStyles = `
     letter-spacing: normal;
   }
 
+  /* CV / Custom segmentation toggle (segmented control) */
+  .evcc-map-mode-toggle {
+    display: flex;
+    gap:     6px;
+  }
+
+  .evcc-map-mode-btn {
+    flex:          1;
+    padding:       7px 10px;
+    border-radius: 8px;
+    border:        1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    background:    var(--evcc-surface-raised, rgba(255, 255, 255, 0.04));
+    color:        var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:     0.82rem;
+    font-weight:   600;
+    cursor:        pointer;
+    transition:    background 0.15s, border-color 0.15s, color 0.15s;
+  }
+
+  .evcc-map-mode-btn:hover {
+    border-color: var(--evcc-accent, #00e5ff);
+  }
+
+  .evcc-map-mode-btn--active {
+    background:   var(--evcc-accent-soft, rgba(0, 229, 255, 0.14));
+    border-color: var(--evcc-accent, #00e5ff);
+    color:        var(--evcc-text-primary, #f0f2f5);
+  }
+
   /* =========================================================
      VARIANT ROWS
      ========================================================= */
