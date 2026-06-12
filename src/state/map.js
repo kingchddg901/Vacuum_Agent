@@ -44,6 +44,9 @@ export function applyMapState(proto) {
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
       this._mapAnchorMode = false;
+      this._composeDraft = null;       // new map → fresh draft, reload from its segments
+      this._composeSelectedId = null;
+      this._composeLoadedFor = null;
       this.resetMapTransform();
     } else {
       // Same map, fresh data — the backend's authoritative state has
@@ -74,6 +77,183 @@ export function applyMapState(proto) {
       return (variants.custom ?? variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
     }
     return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
+  };
+
+  // ---- Custom-segment composer draft (in-progress shapes, not yet saved) ----
+  // Each shape is one room/segment: { id, type:"rect"|"circle", ...geom (pct),
+  // room_id? }. Saved (replace-all) via set_custom_segments in a later pass.
+  proto._composeDraft = null; // lazily []
+  proto._composeSelectedId = null;
+  proto._composeNextId = 1;
+
+  proto.composeDraft = function () {
+    if (this._composeDraft === null) this._composeDraft = [];
+    return this._composeDraft;
+  };
+
+  proto.composeSelectedId = function () {
+    return this._composeSelectedId;
+  };
+
+  proto.selectComposeShape = function (id) {
+    this._composeSelectedId = id ?? null;
+  };
+
+  proto.addComposeShape = function (type) {
+    const id = `draft_${this._composeNextId++}`;
+    const off = (this.composeDraft().length % 6) * 5; // cascade so adds don't stack
+    const shape = type === "circle"
+      ? { id, type: "circle", cx: 28 + off, cy: 28 + off, r: 14 }
+      : { id, type: "rect", x: 22 + off, y: 22 + off, w: 28, h: 22 };
+    this.composeDraft().push(shape);
+    this._composeSelectedId = id;
+    return shape;
+  };
+
+  proto.updateComposeShape = function (id, patch) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (s) Object.assign(s, patch);
+  };
+
+  proto.deleteComposeShape = function (id) {
+    this._composeDraft = this.composeDraft().filter((x) => x.id !== id);
+    if (this._composeSelectedId === id) this._composeSelectedId = null;
+  };
+
+  proto.clearComposeDraft = function () {
+    this._composeDraft = [];
+    this._composeSelectedId = null;
+  };
+
+  // Move / scale / resize a shape — all button-driven (mobile-friendly, no drag).
+  // Geometry is pct (0-100); scale + resize keep the shape centred.
+  proto.moveComposeShape = function (id, dx, dy) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (s.type === "circle") {
+      s.cx = clamp(s.cx + dx, 0, 100);
+      s.cy = clamp(s.cy + dy, 0, 100);
+    } else if (s.type === "polygon") {
+      const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]);
+      const ddx = clamp(dx, -Math.min(...xs), 100 - Math.max(...xs));
+      const ddy = clamp(dy, -Math.min(...ys), 100 - Math.max(...ys));
+      s.points = s.points.map(([x, y]) => [x + ddx, y + ddy]);
+    } else {
+      s.x = clamp(s.x + dx, 0, 100 - s.w);
+      s.y = clamp(s.y + dy, 0, 100 - s.h);
+    }
+  };
+
+  proto.scaleComposeShape = function (id, factor) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (s.type === "circle") {
+      s.r = clamp(s.r * factor, 2, 50);
+    } else if (s.type === "polygon") {
+      const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      s.points = s.points.map(([x, y]) => [
+        clamp(cx + (x - cx) * factor, 0, 100),
+        clamp(cy + (y - cy) * factor, 0, 100),
+      ]);
+    } else {
+      const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+      s.w = clamp(s.w * factor, 3, 100);
+      s.h = clamp(s.h * factor, 3, 100);
+      s.x = clamp(cx - s.w / 2, 0, 100 - s.w);
+      s.y = clamp(cy - s.h / 2, 0, 100 - s.h);
+    }
+  };
+
+  proto.resizeComposeShape = function (id, dim, delta) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s || s.type !== "rect") return;   // W/H only applies to rectangles
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    const cx = s.x + s.w / 2, cy = s.y + s.h / 2;
+    if (dim === "w") {
+      s.w = clamp(s.w + delta, 3, 100);
+      s.x = clamp(cx - s.w / 2, 0, 100 - s.w);
+    } else {
+      s.h = clamp(s.h + delta, 3, 100);
+      s.y = clamp(cy - s.h / 2, 0, 100 - s.h);
+    }
+  };
+
+  // Nudge step size (pct). Fine=1 / Med=3 / Coarse=7; move + resize scale by it.
+  proto._composeStep = 3;
+  proto.composeStep = function () { return this._composeStep; };
+  proto.setComposeStep = function (n) { this._composeStep = Number(n) || 3; };
+
+  // Tap-to-place: jump the selected shape's centre to a pct point on the map.
+  proto.placeComposeShape = function (id, pctX, pctY) {
+    const s = this.composeDraft().find((x) => x.id === id);
+    if (!s) return;
+    const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+    if (s.type === "circle") {
+      s.cx = clamp(pctX, 0, 100);
+      s.cy = clamp(pctY, 0, 100);
+    } else if (s.type === "polygon") {
+      const xs = s.points.map((p) => p[0]), ys = s.points.map((p) => p[1]);
+      const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+      const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+      this.moveComposeShape(id, pctX - cx, pctY - cy);
+    } else {
+      s.x = clamp(pctX - s.w / 2, 0, 100 - s.w);
+      s.y = clamp(pctY - s.h / 2, 0, 100 - s.h);
+    }
+  };
+
+  // Map the draft to the set_custom_segments payload. Group-aware: shapes are
+  // bucketed by `group` (default = each shape's own id, i.e. one room each), so
+  // merge/cut (shared group + op:subtract) drops in later with no change here.
+  proto.composeToSegments = function () {
+    const groups = {};
+    for (const s of this.composeDraft()) {
+      const g = s.group ?? s.id;
+      (groups[g] = groups[g] || []).push(s);
+    }
+    return Object.keys(groups).map((gid) => ({
+      id: gid,
+      primitives: groups[gid].map((s) => {
+        const p = s.type === "circle"
+          ? { type: "circle", cx: s.cx, cy: s.cy, r: s.r }
+          : s.type === "polygon"
+            ? { type: "polygon", points: s.points }
+            : { type: "rect", x: s.x, y: s.y, w: s.w, h: s.h };
+        if (s.op === "subtract") p.op = "subtract";
+        return p;
+      }),
+    }));
+  };
+
+  // Re-editability: rebuild the draft from saved custom segments as polygon
+  // shapes (the backend stores polygons, not the original primitives). Runs
+  // once per map (maybeLoadComposeDraft), so it won't clobber an in-progress
+  // draft or reload right after a save.
+  proto.loadComposeDraftFromSegments = function (data) {
+    const draft = [];
+    for (const seg of (data?.segments ?? [])) {
+      const pts = seg?.polygon_pct;
+      if (!Array.isArray(pts) || pts.length < 3) continue;
+      draft.push({
+        id: String(seg.segment_id ?? `loaded_${draft.length + 1}`),
+        type: "polygon",
+        points: pts.map((p) => [Number(p[0]), Number(p[1])]),
+        room_id: seg.room_id != null ? String(seg.room_id) : undefined,
+      });
+    }
+    this._composeDraft = draft;
+    this._composeSelectedId = null;
+    this._composeLoadedFor = data?.map_id ?? null;
+  };
+
+  proto.maybeLoadComposeDraft = function (data) {
+    if (!data || (data.segmentation_mode ?? "cv") !== "custom") return;
+    if (this._composeLoadedFor === data.map_id) return;  // already loaded for this map
+    this.loadComposeDraftFromSegments(data);
   };
 
   proto._getSegmentIds = function () {

@@ -114,6 +114,7 @@ export const SERVICE_ANALYZE_MAP_IMAGE      = "analyze_map_image";
 export const SERVICE_GET_MAP_SEGMENTS       = "get_map_segments";
 export const SERVICE_ADJUST_MAP_SEGMENT     = "adjust_map_segment";
 export const SERVICE_SET_SEGMENTATION_MODE  = "set_segmentation_mode";
+export const SERVICE_SET_CUSTOM_SEGMENTS    = "set_custom_segments";
 
 // --- Map UI overlays (segment↔room links, companion anchors) ---
 // Backend-persisted equivalents of what used to live in browser

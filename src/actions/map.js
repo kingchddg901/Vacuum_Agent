@@ -13,6 +13,7 @@ import {
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_SEGMENTATION_MODE,
+  SERVICE_SET_CUSTOM_SEGMENTS,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
@@ -39,6 +40,9 @@ export function applyMapActions(proto) {
     const data = result?.response ?? result ?? null;
     if (data == null) return;
     this.state.setMapSegmentsData(data);
+    // Custom mode: rebuild the composer draft from the saved segments (once per
+    // map) so previously-authored rooms are editable again.
+    this.state.maybeLoadComposeDraft?.(data);
 
     // Legacy migration. Runs every fetch but bails fast if there's
     // nothing in localStorage. Push only entries the backend doesn't
@@ -242,6 +246,23 @@ export function applyMapActions(proto) {
       DOMAIN,
       SERVICE_SET_SEGMENTATION_MODE,
       { vacuum_entity_id: vacuum, map_id: mapId, mode },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Replace-all write of manually-authored custom segments. `segments` is a list
+   * of { id?, primitives:[...] }; the backend rasterises each into a CV-shaped
+   * segment (set_custom_segments). Returns the service response or null.
+   */
+  proto.setCustomSegments = async function (mapId, segments) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_CUSTOM_SEGMENTS,
+      { vacuum_entity_id: vacuum, map_id: mapId, segments },
       true,
     );
     return result?.response ?? result ?? null;

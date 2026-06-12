@@ -366,6 +366,7 @@ export function applyMapRenderers(proto) {
     const variants       = segmentsData?.image_variants ?? {};
     const summary        = { ...(segmentsData?.summary ?? {}), analyzed_at: segmentsData?.analyzed_at };
     const actionStatus   = state.mapActionStatus?.() ?? null;
+    const isCustom       = (state.segmentationMode?.() ?? "cv") === "custom";
 
     // Config mode shares the same zoom state as the rooms view — same
     // bindings drive it, same toolbar reflects it. The .evcc-map-layers
@@ -394,12 +395,14 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-container evcc-map-container--config">
             ${imageUrl
               ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
-                   <img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                   <img class="evcc-map-image${isCustom ? " evcc-map-image--fill" : ""}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                     ${segments.map((seg, i) => {
-                       const isThis = String(seg.segment_id) === String(selectedId ?? "");
-                       return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null);
-                     }).join("")}
+                     ${isCustom
+                       ? this._renderComposerShapes(state)
+                       : segments.map((seg, i) => {
+                           const isThis = String(seg.segment_id) === String(selectedId ?? "");
+                           return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null);
+                         }).join("")}
                    </svg>
                  </div>
                  <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
@@ -418,11 +421,13 @@ export function applyMapRenderers(proto) {
           </div>
 
           <div class="evcc-map-config-side-panel">
-            ${selectedSeg
-              ? this._renderSegmentAdjustSection(selectedSeg, state)
-              : `<div class="evcc-map-config-section evcc-map-config-section--hint">
-                   <p>Click a segment on the map to adjust it.</p>
-                 </div>`}
+            ${isCustom
+              ? this._renderComposerToolbar(state)
+              : (selectedSeg
+                ? this._renderSegmentAdjustSection(selectedSeg, state)
+                : `<div class="evcc-map-config-section evcc-map-config-section--hint">
+                     <p>Click a segment on the map to adjust it.</p>
+                   </div>`)}
           </div>
 
         </div>
@@ -559,6 +564,110 @@ export function applyMapRenderers(proto) {
             data-variant="custom"
             ${isBusy ? "disabled" : ""}
           >${isBusy ? "Uploading…" : custom ? "Replace" : "Upload"}</button>
+        </div>
+      </div>
+    `;
+  };
+
+  /* =========================================================
+     CUSTOM-SEGMENT COMPOSER (custom mode authoring canvas)
+     =========================================================
+     Draws the in-progress draft shapes onto the backdrop SVG, and a
+     toolbar in the side panel. Shapes are pct-space; the SVG viewBox is
+     0 0 100 100 (preserveAspectRatio none) so a "circle" renders as an
+     ellipse, matching how the backdrop fills the frame. Drag + Save
+     (-> set_custom_segments) land in later passes. */
+
+  proto._renderComposerShapes = function (state) {
+    const draft = state.composeDraft?.() ?? [];
+    const selId = state.composeSelectedId?.();
+    return draft.map((s) => this._renderComposerShape(s, s.id === selId)).join("");
+  };
+
+  proto._renderComposerShape = function (s, isSel) {
+    const cls = `evcc-compose-shape${isSel ? " evcc-compose-shape--selected" : ""}`;
+    const attrs = `class="${cls}" data-action="compose-select" data-shape-id="${this.escapeHtml(String(s.id))}"`;
+    if (s.type === "circle") {
+      return `<ellipse ${attrs} cx="${s.cx}" cy="${s.cy}" rx="${s.r}" ry="${s.r}"/>`;
+    }
+    if (s.type === "polygon") {
+      const pts = (s.points || []).map(([x, y]) => `${x},${y}`).join(" ");
+      return `<polygon ${attrs} points="${pts}"/>`;
+    }
+    return `<rect ${attrs} x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+  };
+
+  proto._renderComposerToolbar = function (state) {
+    const count    = state.composeDraft?.().length ?? 0;
+    const hasSel   = state.composeSelectedId?.() != null;
+    const status   = state.mapActionStatus?.() ?? null;
+    const saveBusy = status?.type === "compose-save" && status?.status === "busy";
+    const saveErr  = status?.type === "compose-save" && status?.status === "error";
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Compose rooms</div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="rect">＋ Rectangle</button>
+          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="circle">＋ Circle</button>
+        </div>
+        <div class="evcc-map-config-adj-meta">${count} shape${count === 1 ? "" : "s"}${hasSel ? "" : (count ? " · tap one to edit" : " · add a shape to start")}</div>
+      </div>
+      ${this._renderComposerSelectedControls(state)}
+      <div class="evcc-map-config-section">
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="compose-delete" ${hasSel ? "" : "disabled"}>Delete</button>
+          <button class="evcc-map-config-btn" data-action="compose-clear" ${count ? "" : "disabled"}>Clear all</button>
+        </div>
+        <button
+          class="evcc-map-config-btn evcc-map-config-btn--primary${saveBusy ? " evcc-map-config-btn--busy" : ""}"
+          data-action="compose-save"
+          ${(count && !saveBusy) ? "" : "disabled"}
+        >${saveBusy ? "Saving…" : "Save rooms"}</button>
+        ${saveErr
+          ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(status.message ?? "Save failed")}</span>`
+          : ""}
+      </div>
+    `;
+  };
+
+  proto._renderComposerSelectedControls = function (state) {
+    const id = state.composeSelectedId?.();
+    if (id == null) return "";
+    const s = (state.composeDraft?.() ?? []).find((x) => x.id === id);
+    if (!s) return "";
+    const isRect = s.type !== "circle";
+    const step = state.composeStep?.() ?? 3;
+    const mv = (dx, dy, glyph, label) => `
+      <button class="evcc-map-nudge-btn" data-action="compose-move"
+        data-dx="${dx}" data-dy="${dy}" title="${label}">${glyph}</button>`;
+    const stepBtn = (n, label) => `
+      <button class="evcc-map-config-btn${step === n ? " evcc-map-config-btn--primary" : ""}"
+        data-action="compose-step" data-step="${n}">${label}</button>`;
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Selected: <em>${isRect ? "rectangle" : "circle"}</em></div>
+        <div class="evcc-compose-tools">
+          ${stepBtn(1, "Fine")}${stepBtn(3, "Med")}${stepBtn(7, "Coarse")}
+        </div>
+        <div class="evcc-map-nudge-pad">
+          <div class="evcc-map-nudge-row">${mv(0, -1, "↑", "Up")}</div>
+          <div class="evcc-map-nudge-row">${mv(-1, 0, "←", "Left")}${mv(1, 0, "→", "Right")}</div>
+          <div class="evcc-map-nudge-row">${mv(0, 1, "↓", "Down")}</div>
+        </div>
+        <div class="evcc-map-config-adj-meta">…or tap the map to drop the shape there.</div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="0.85" title="Shrink">－ Scale</button>
+          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="1.18" title="Grow">＋ Scale</button>
+        </div>
+        ${isRect ? `
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="-1">－ W</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="1">＋ W</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="-1">－ H</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="1">＋ H</button>
+        </div>` : ""}
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="compose-deselect" title="Stop editing this shape">Done</button>
         </div>
       </div>
     `;

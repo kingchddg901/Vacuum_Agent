@@ -440,6 +440,138 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // Composer: add a shape
+    root.querySelectorAll("[data-action='compose-add']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.addComposeShape(btn.dataset.shapeType || "rect");
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: select a shape
+    root.querySelectorAll("[data-action='compose-select']").forEach((el) => {
+      this.card._on(el, "click", () => {
+        this.card._state.selectComposeShape(el.dataset.shapeId);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: deselect (stop editing the current shape)
+    root.querySelectorAll("[data-action='compose-deselect']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.selectComposeShape(null);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: save the draft as custom segments (replace-all)
+    root.querySelectorAll("[data-action='compose-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = this.card._state.mapSegmentsData()?.map_id
+          ?? this.card._state.activeMapId?.() ?? null;
+        if (!mapId) return;
+        const segments = this.card._state.composeToSegments();
+        if (!segments.length) return;
+        this.card._state.setMapActionStatus?.({ type: "compose-save", status: "busy" });
+        this.card._scheduleRender();
+        try {
+          await this.card._actions.setCustomSegments(mapId, segments);
+          await this.card._actions.getMapSegments(mapId);
+          this.card._state.clearMapActionStatus?.();
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] save custom segments failed:", err);
+          this.card._state.setMapActionStatus?.({
+            type: "compose-save", status: "error",
+            message: err?.message ?? "Save failed",
+          });
+          this.card._scheduleRender();
+        }
+      });
+    });
+
+    // Composer: delete the selected shape
+    root.querySelectorAll("[data-action='compose-delete']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.deleteComposeShape(id);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: clear the whole draft
+    root.querySelectorAll("[data-action='compose-clear']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.clearComposeDraft();
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: nudge step size (Fine/Med/Coarse)
+    root.querySelectorAll("[data-action='compose-step']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setComposeStep(Number(btn.dataset.step ?? 3));
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: move the selected shape by the current step
+    root.querySelectorAll("[data-action='compose-move']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        const step = this.card._state.composeStep?.() ?? 3;
+        this.card._state.moveComposeShape(
+          id, Number(btn.dataset.dx ?? 0) * step, Number(btn.dataset.dy ?? 0) * step,
+        );
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: scale the selected shape (uniform, about its centre)
+    root.querySelectorAll("[data-action='compose-scale']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        this.card._state.scaleComposeShape(id, Number(btn.dataset.factor ?? 1));
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: resize the selected rectangle (per side) by the current step
+    root.querySelectorAll("[data-action='compose-resize']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const id = this.card._state.composeSelectedId();
+        if (!id) return;
+        const step = this.card._state.composeStep?.() ?? 3;
+        this.card._state.resizeComposeShape(id, btn.dataset.dim, Number(btn.dataset.delta ?? 0) * step);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Composer: tap the map to drop the selected shape there (coarse placement).
+    // Hooks the config canvas's click; bails on shape-taps (those select) and on
+    // taps that were really a pan-drag (_mapDragOccurred).
+    const composeLayers = root.querySelector(".evcc-map-container--config .evcc-map-layers");
+    if (composeLayers) {
+      this.card._on(composeLayers, "click", (e) => {
+        if ((this.card._state.segmentationMode?.() ?? "cv") !== "custom") return;
+        const id = this.card._state.composeSelectedId?.();
+        if (!id) return;
+        if (e.target?.closest?.("[data-action='compose-select']")) return;
+        if (this.card._mapDragOccurred) { this.card._mapDragOccurred = false; return; }
+        const r = composeLayers.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        this.card._state.placeComposeShape(
+          id,
+          ((e.clientX - r.left) / r.width) * 100,
+          ((e.clientY - r.top) / r.height) * 100,
+        );
+        this.card._scheduleRender();
+      });
+    }
+
     // Nudge buttons
     root.querySelectorAll("[data-action='nudge-segment']").forEach((btn) => {
       this.card._on(btn, "click", async () => {

@@ -576,6 +576,32 @@ export const mapStyles = `
     color:        var(--evcc-text-primary, #f0f2f5);
   }
 
+  /* Custom-segment composer */
+  .evcc-compose-tools {
+    display: flex;
+    gap:     6px;
+  }
+
+  .evcc-compose-shape {
+    fill:           var(--evcc-accent-soft, rgba(0, 229, 255, 0.16));
+    stroke:         var(--evcc-accent, #00e5ff);
+    stroke-width:   0.5;
+    cursor:         pointer;
+    pointer-events: all;
+  }
+
+  .evcc-compose-shape--selected {
+    fill:         var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
+    stroke:       #ffffff;
+    stroke-width: 1;
+  }
+
+  /* Custom backdrop fills the square exactly like the 0-100 draw grid, so a
+     traced shape lines up with the picture (CV maps stay object-fit: contain). */
+  .evcc-map-image--fill {
+    object-fit: fill;
+  }
+
   /* =========================================================
      VARIANT ROWS
      ========================================================= */
