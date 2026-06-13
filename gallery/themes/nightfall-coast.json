@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_nightfall_coast",
+    "name": "Nightfall Coast",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(4,12,16,0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0e1c26",
+      "--evcc-surface-panel": "#244554",
+      "--evcc-surface-raised": "#1c3a48",
+      "--evcc-surface-input": "#16303e",
+      "--evcc-text-primary": "#eaf6f0",
+      "--evcc-text-secondary": "#a7c6c0",
+      "--evcc-text-muted": "#94b0ae",
+      "--evcc-border-subtle": "#82966e",
+      "--evcc-border-default": "#8ca076",
+      "--evcc-border-strong": "#a0b482",
+      "--evcc-accent": "#3ad88a",
+      "--evcc-text-on-accent": "#06231a",
+      "--evcc-sem-success": "#9ff0de",
+      "--evcc-sem-warning": "#e0a050",
+      "--evcc-sem-error": "#d85056",
+      "--evcc-sem-info": "#74b0da"
+    },
+    "alpha": {
+      "--evcc-border-subtle": 0.16,
+      "--evcc-border-default": 0.28,
+      "--evcc-border-strong": 0.42
+    }
+  }
+}

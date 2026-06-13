@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_voltage",
+    "name": "Voltage",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(8,5,20,0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#161029",
+      "--evcc-surface-panel": "#332863",
+      "--evcc-surface-raised": "#2a2150",
+      "--evcc-surface-input": "#221a3e",
+      "--evcc-text-primary": "#f2edfb",
+      "--evcc-text-secondary": "#c5bbe0",
+      "--evcc-text-muted": "#8e84b0",
+      "--evcc-border-subtle": "#c4b0e8",
+      "--evcc-border-default": "#c4b0e8",
+      "--evcc-border-strong": "#c4b0e8",
+      "--evcc-accent": "#b39adf",
+      "--evcc-text-on-accent": "#1a1330",
+      "--evcc-sem-success": "#62d79e",
+      "--evcc-sem-warning": "#e0a24a",
+      "--evcc-sem-error": "#e97d7d",
+      "--evcc-sem-info": "#46b8d6"
+    },
+    "alpha": {
+      "--evcc-border-subtle": 0.09,
+      "--evcc-border-default": 0.16,
+      "--evcc-border-strong": 0.28
+    }
+  }
+}

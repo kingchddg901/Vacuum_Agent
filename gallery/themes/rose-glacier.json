@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_rose_glacier",
+    "name": "Rose Glacier",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(12,10,20,0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#161a2a",
+      "--evcc-surface-panel": "#2d3349",
+      "--evcc-surface-raised": "#272d44",
+      "--evcc-surface-input": "#1f2438",
+      "--evcc-text-primary": "#f2eef4",
+      "--evcc-text-secondary": "#bfb3cc",
+      "--evcc-text-muted": "#978fa8",
+      "--evcc-border-subtle": "#2a3048",
+      "--evcc-border-default": "#3a4260",
+      "--evcc-border-strong": "#525d80",
+      "--evcc-accent": "#e8889a",
+      "--evcc-text-on-accent": "#2a1218",
+      "--evcc-sem-success": "#34c0b4",
+      "--evcc-sem-warning": "#eab53a",
+      "--evcc-sem-error": "#e0505e",
+      "--evcc-sem-info": "#6aa8e0"
+    },
+    "alpha": {}
+  }
+}
