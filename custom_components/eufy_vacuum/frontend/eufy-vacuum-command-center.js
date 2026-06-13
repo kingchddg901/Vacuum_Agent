@@ -6677,13 +6677,22 @@ ${r}`,t[0]?.name??""),i=String(a??"").trim();if(!i)return null;let c=t.find(o=>o
   }
 
   /* Bare text \u2014 order number (#N) + room name \u2014 gets a surface-colored halo so
-     light text survives a light texture (invisible over dark ones). */
+     the text survives a map texture behind the card. The halo is the card's own
+     surface colour, so it self-outlines correctly on both light and dark themes. */
   .evcc-room-card .evcc-order-chip,
   .evcc-room-card .evcc-room-name {
     text-shadow:
       0 0 2px var(--evcc-surface-card),
       0 1px 3px var(--evcc-surface-card),
       0 0 6px var(--evcc-surface-card);
+  }
+
+  /* The order number (#N) is a secondary label, not the room name. Bind it to a
+     theme text token \u2014 it previously inherited a fixed pale colour that vanished
+     on light themes (the room name sets --evcc-text-primary explicitly; #N did
+     not, so it fell through to a near-white cascade value). */
+  .evcc-room-card .evcc-order-chip {
+    color: var(--evcc-text-secondary);
   }
 
   /* Estimate notes (e.g. the warning-variant "intensity mismatch") are bare
