@@ -39,7 +39,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 96.3% statement coverage** (94% combined with `--cov-branch`, adapters
+**Total: 96.2% statement coverage** (94% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

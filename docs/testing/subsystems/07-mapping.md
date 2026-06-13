@@ -5,7 +5,11 @@ boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →
 `trace_segmentation` → `trace_review`), an image-segmentation stack
 (`segment_primitives`, `segmenter_engines`), a coordinate tracker
 (`tracker`), and two large orchestrators (`manager`, `mapping_services`).
-Covered by **337 tests across 15 files** — the trace/image primitives are
+A second authoring path lets a human draw rooms directly: `segment_primitives`
+rasterises composer shapes into polygons, and `mapping_services` holds many named
+**custom layouts** per map alongside the CV store, selected by a `segmentation_mode`
+pointer flip.
+Covered by **352 tests across 15 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -23,12 +27,12 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `trace_store.py` | 35 | 100% | `tests/unit/test_mapping_trace_store.py` | unit (`tmp_path`) |
 | `trace_capture.py` | 63 | 100% | `tests/unit/test_mapping_trace_capture.py` | unit (`tmp_path`) |
 | `trace_review.py` | 162 | 95% | `tests/unit/test_mapping_trace_review.py` | unit (pure) |
-| `segment_primitives.py` | 239 | 96% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
+| `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
 | `tracker.py` | 344 | 93% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 650 | 95% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 886 | 94% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 
@@ -49,9 +53,11 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 
 ### The image stack
 - **`segment_primitives`** (`SP`) — pure geometry (`rdp`, `polygon_area`,
-  `compactness`, `aspect_ratio`, …) plus the numpy/scipy mask primitives
+  `compactness`, `aspect_ratio`, …), the numpy/scipy mask primitives
   (`mask_to_polygon`, `mask_iou`, transforms, `mask_edge_band`,
-  `estimate_alignment`, `normalized_color_features`).
+  `estimate_alignment`, `normalized_color_features`), and
+  `rasterize_primitives` — the composer rasteriser that turns rect/circle/polygon
+  shapes into a mask (fill + ordered `subtract` ops) for custom segments.
 - **`segmenter_engines`** (`SE`) — the engine registry, tuning validation, and
   the no-image/noop unavailable paths. The CV pipeline body (`detect_room_segments`)
   is exercised only through its failure paths.
@@ -77,6 +83,24 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
   `async_register_mapping_services`: `get_map_segments`, `adjust_map_segment`,
   `set_segment_room_link` (set/clear/1:1), `set_companion_anchor`,
   `delete_map_image`.
+
+### Custom & multi-layout segmentation
+The human-authored alternative to CV, exercised end to end through the services.
+
+- **Authoring** (`test_mapping_image_pipeline.py`) — `set_custom_segments`
+  rasterises composer primitives into room polygons (replace-all; refuses with
+  `no_custom_backdrop` until a backdrop image exists), and a custom room link
+  survives a re-save. `set_segmentation_mode` is a pure pointer flip that **never
+  re-runs the segmenter** and losslessly switches the served store (cv ↔ custom).
+- **Named layouts** (`LAYOUT-*`, `test_mapping_services.py`) — the `custom_layouts`
+  collection lifecycle: a legacy single `custom_segments` store migrates into one
+  default layout (custom-resolved links/anchors move onto the layout, CV's stay on
+  the map bucket); create / rename / set-active / delete (create flips to custom and
+  activates, delete-active reassigns, delete-last flips back to CV); and set-active
+  with zero layouts auto-creates one.
+- **Per-layout isolation** — the same segment id may link to *different* rooms on
+  two layouts (`test_per_layout_segment_isolation`), and companion anchors including
+  the reserved `dock` spot are per-layout (`LAYOUT-6`) — neither bleeds across.
 
 ---
 

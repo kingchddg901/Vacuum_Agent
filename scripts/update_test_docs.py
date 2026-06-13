@@ -358,7 +358,7 @@ def update_overview(totals: dict, editor: Editor) -> None:
 
 
 def update_readme(totals: dict, files: dict, funcs: dict, cases: int | None,
-                  editor: Editor) -> None:
+                  n_modules: int, editor: Editor) -> None:
     f = DOCS / "README.md"
     tf = sum(funcs.values())
     nf = sum(files.values())
@@ -366,6 +366,10 @@ def update_readme(totals: dict, files: dict, funcs: dict, cases: int | None,
                rf"\g<1>{tf:,}\g<2>", label="funcs")
     editor.sub(f, r"(across \*\*)\d+( test files\*\*)",
                rf"\g<1>{nf}\g<2>", label="files")
+    # "the N source modules ... exercised to X% coverage" — N = the source files
+    # coverage measured (the whole package under --cov), not a separate find.
+    editor.sub(f, r"(\*\*)\d+( source modules\*\*)",
+               rf"\g<1>{n_modules}\g<2>", label="source modules")
     editor.sub(
         f, r"\(\d+ unit, \d+ integration, \d+ adapter\)",
         f"({files['unit']} unit, {files['integration']} integration, "
@@ -411,7 +415,7 @@ def main() -> None:
     claimed = update_per_module_tables(index, editor)
     update_subsystem_index(subsystem_totals(claimed, index), totals, editor)
     update_overview(totals, editor)
-    update_readme(totals, files, funcs, cases, editor)
+    update_readme(totals, files, funcs, cases, len(index), editor)
     print("\nper-subsystem test counts:")
     update_subsystem_headers(doc_testfiles, cases_map, fpf, editor)
     report_unclaimed(claimed, index)
