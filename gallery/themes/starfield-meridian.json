@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_starfield_meridian",
+    "name": "Starfield Meridian",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(6, 11, 20, 0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0a131f",
+      "--evcc-surface-panel": "#1a2c4a",
+      "--evcc-surface-raised": "#13203a",
+      "--evcc-surface-input": "#0e1726",
+      "--evcc-text-primary": "#d4e9f0",
+      "--evcc-text-secondary": "#9bb6c8",
+      "--evcc-text-muted": "#6d8499",
+      "--evcc-border-subtle": "#1d3050",
+      "--evcc-border-default": "#2a4368",
+      "--evcc-border-strong": "#3c5d88",
+      "--evcc-accent": "#6fc5d8",
+      "--evcc-text-on-accent": "#0a131f",
+      "--evcc-sem-success": "#46c08a",
+      "--evcc-sem-warning": "#e6b242",
+      "--evcc-sem-error": "#e06a36",
+      "--evcc-sem-info": "#4f8fd6"
+    },
+    "alpha": {}
+  }
+}
