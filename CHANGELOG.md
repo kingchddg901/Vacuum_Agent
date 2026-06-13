@@ -8,6 +8,40 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.10.0] - 2026-06-12
+
+A UI-heavy release: hand-drawn custom map layouts, a real documentation site, and
+a reworked profile filter — plus a batch of fixes.
+
+### Added
+- **Named custom map layouts.** Keep several hand-drawn layouts per vacuum
+  alongside Auto/CV detection. Each layout can have its own backdrop, rooms, room
+  links, and mascot dock spot. Build rooms from primitive shapes — rectangles and
+  circles — then move, scale, resize, rotate, merge, or subtract cutouts. Link
+  each custom room to a real vacuum room, then save and re-edit later. See
+  [Making your own maps](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/16-making-your-own-maps/).
+- **Documentation site.** The docs now render as a searchable
+  [MkDocs site on GitHub Pages](https://kingchddg901.github.io/Vacuum_Agent/docs/),
+  cross-linked with the theme gallery.
+- **Profile filters reworked.** The Metrics and Learning Review profile filters
+  now have a search box, a height-capped scroll area, and settings-disambiguated
+  chips. Duplicate-named profiles, such as several "Kitchen Vacuum Quick"
+  variants, show their settings so you can tell them apart on both the chips and
+  the result cards.
+- **Independent floor-texture toggles.** Map polygons and room cards can now
+  control floor textures separately.
+- **Custom-map polish.** Added mascot dock spots and composer shape rotation.
+
+### Fixed
+- Large map backdrops no longer exceed Home Assistant's 4 MiB websocket limit and
+  drop the connection. Uploads are resized/recompressed client-side while
+  preserving transparency.
+- Non-first custom layouts now render their room-control map correctly.
+- Dashboard snapshots no longer block the event loop on a `room_stats` read.
+
+### Internal
+- Large test-coverage and documentation-reconciliation pass.
+
 ## [0.9.17] - 2026-06-08
 
 > The external-run capture + review capability in this release was driven entirely by
