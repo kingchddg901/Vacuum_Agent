@@ -39,3 +39,11 @@ renders the import format.
 A workflow, not a feature. Nothing wires an AI to the card; you drive the loop. The pieces
 were built for other reasons — self-documenting the tokens, catching drift, visual
 regression — and happen to compose into a theme generator.
+
+## A worked example
+
+The gallery's **Painted Hills** theme was authored exactly this way: one landscape photo as
+the prompt, three passes through the harness (mostly sharpening small-text contrast), then
+submitted. The provenance — the source image and the pass notes — is recorded in its
+[merge commit](https://github.com/kingchddg901/Vacuum_Agent/commit/4026454b47664f70db955d38fec61d21442622c2),
+and the result is live in the [theme gallery](https://kingchddg901.github.io/Vacuum_Agent/).
