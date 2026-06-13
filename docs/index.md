@@ -41,3 +41,4 @@ Room-level control for **Eufy robot vacuums** in Home Assistant — a custom int
 - **Learning system** — per-room timing estimates that improve with use, with confidence indicators.
 - **Custom maps** — auto-detect rooms from a screenshot, or hand-draw named layouts on any backdrop. See [Making your own maps](user-guide/16-making-your-own-maps.md).
 - **Theming** — fully customizable from the card, including a colorblind-safe theme.
+- **AI-assisted theming** — the token system is documented as a machine-readable spec, so you can hand an AI a vibe (a photo, a few hex swatches), have it author a complete theme JSON, then render it through the harness and refine. See [Authoring themes with an AI](dev/reference/ai-theme-authoring.md).
