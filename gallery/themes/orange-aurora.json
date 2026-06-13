@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_orange_aurora",
+    "name": "Orange Aurora",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(7, 11, 20, 0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0c1322",
+      "--evcc-surface-panel": "#22344f",
+      "--evcc-surface-raised": "#1b2940",
+      "--evcc-surface-input": "#121c2e",
+      "--evcc-text-primary": "#dfeaf2",
+      "--evcc-text-secondary": "#9fb2c4",
+      "--evcc-text-muted": "#6f8298",
+      "--evcc-border-subtle": "#1d2c43",
+      "--evcc-border-default": "#2b3f5c",
+      "--evcc-border-strong": "#3d5577",
+      "--evcc-accent": "#e8843a",
+      "--evcc-text-on-accent": "#2a1709",
+      "--evcc-sem-success": "#3f9e86",
+      "--evcc-sem-warning": "#d8b748",
+      "--evcc-sem-error": "#d9685a",
+      "--evcc-sem-info": "#46b3c9"
+    },
+    "alpha": {}
+  }
+}
