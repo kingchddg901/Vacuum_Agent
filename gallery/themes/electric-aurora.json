@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_electric_aurora",
+    "name": "Electric Aurora",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(5,16,11,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0a1610",
+      "--evcc-surface-panel": "#1d3d2f",
+      "--evcc-surface-raised": "#163026",
+      "--evcc-surface-input": "#0f2017",
+      "--evcc-text-primary": "#e8fbe0",
+      "--evcc-text-secondary": "#9fd6a8",
+      "--evcc-text-muted": "#7aab86",
+      "--evcc-border-subtle": "#234a36",
+      "--evcc-border-default": "#2e5c44",
+      "--evcc-border-strong": "#3d7556",
+      "--evcc-accent": "#5cf05c",
+      "--evcc-text-on-accent": "#062808",
+      "--evcc-sem-success": "#2fb87e",
+      "--evcc-sem-warning": "#e2ab7a",
+      "--evcc-sem-error": "#e06b6f",
+      "--evcc-sem-info": "#5aa8cc"
+    },
+    "alpha": {}
+  }
+}

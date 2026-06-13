@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_hearthglow",
+    "name": "Hearthglow",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(12,18,16,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#1a2422",
+      "--evcc-surface-panel": "#384a45",
+      "--evcc-surface-raised": "#2e3e3a",
+      "--evcc-surface-input": "#243230",
+      "--evcc-text-primary": "#f4e4d2",
+      "--evcc-text-secondary": "#d8b9a4",
+      "--evcc-text-muted": "#a89488",
+      "--evcc-border-subtle": "#33433f",
+      "--evcc-border-default": "#4a5c56",
+      "--evcc-border-strong": "#647570",
+      "--evcc-accent": "#f0a060",
+      "--evcc-text-on-accent": "#3a2410",
+      "--evcc-sem-success": "#8fd6a4",
+      "--evcc-sem-warning": "#f0c850",
+      "--evcc-sem-error": "#d8604e",
+      "--evcc-sem-info": "#88aed4"
+    },
+    "alpha": {}
+  }
+}

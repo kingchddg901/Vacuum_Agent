@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_green_airglow",
+    "name": "Green Airglow",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(10,7,22,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#1c1730",
+      "--evcc-surface-panel": "#372c5e",
+      "--evcc-surface-raised": "#2c2450",
+      "--evcc-surface-input": "#241d3e",
+      "--evcc-text-primary": "#ece6f7",
+      "--evcc-text-secondary": "#b6a9d2",
+      "--evcc-text-muted": "#8a7eaa",
+      "--evcc-border-subtle": "#2a2348",
+      "--evcc-border-default": "#3a3160",
+      "--evcc-border-strong": "#52477e",
+      "--evcc-accent": "#4a9a82",
+      "--evcc-text-on-accent": "#0a1a14",
+      "--evcc-sem-success": "#5fcf86",
+      "--evcc-sem-warning": "#e6b84e",
+      "--evcc-sem-error": "#e56b66",
+      "--evcc-sem-info": "#5f8ae0"
+    },
+    "alpha": {}
+  }
+}

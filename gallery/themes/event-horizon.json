@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_event_horizon",
+    "name": "Event Horizon",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(6,4,14,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#080610",
+      "--evcc-surface-panel": "#221f3e",
+      "--evcc-surface-raised": "#1a1830",
+      "--evcc-surface-input": "#11101f",
+      "--evcc-text-primary": "#f6eaf0",
+      "--evcc-text-secondary": "#b9b2d6",
+      "--evcc-text-muted": "#8f88ad",
+      "--evcc-border-subtle": "#2a2748",
+      "--evcc-border-default": "#3b3760",
+      "--evcc-border-strong": "#544f80",
+      "--evcc-accent": "#f3c2d6",
+      "--evcc-text-on-accent": "#3a1226",
+      "--evcc-sem-success": "#4fd6a0",
+      "--evcc-sem-warning": "#e8a838",
+      "--evcc-sem-error": "#f06a7e",
+      "--evcc-sem-info": "#7088ee"
+    },
+    "alpha": {}
+  }
+}

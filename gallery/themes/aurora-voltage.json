@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_aurora_voltage",
+    "name": "Aurora Voltage",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(3,9,5,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#06120a",
+      "--evcc-surface-panel": "#1a4322",
+      "--evcc-surface-raised": "#123018",
+      "--evcc-surface-input": "#0c1f12",
+      "--evcc-text-primary": "#e8fbe0",
+      "--evcc-text-secondary": "#a8e0a0",
+      "--evcc-text-muted": "#7cb878",
+      "--evcc-border-subtle": "#1c3a24",
+      "--evcc-border-default": "#2c5a36",
+      "--evcc-border-strong": "#46844e",
+      "--evcc-accent": "#5ae84a",
+      "--evcc-text-on-accent": "#0a2208",
+      "--evcc-sem-success": "#7af0a0",
+      "--evcc-sem-warning": "#f0b870",
+      "--evcc-sem-error": "#f06a6a",
+      "--evcc-sem-info": "#5ab8e8"
+    },
+    "alpha": {}
+  }
+}

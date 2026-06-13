@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_magenta_veil",
+    "name": "Magenta Veil",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(10,14,32,0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#141e3a",
+      "--evcc-surface-panel": "#2c3d66",
+      "--evcc-surface-raised": "#243358",
+      "--evcc-surface-input": "#1d2a4e",
+      "--evcc-text-primary": "#f2f4fb",
+      "--evcc-text-secondary": "#bcc6e4",
+      "--evcc-text-muted": "#8a96bf",
+      "--evcc-border-subtle": "#27325a",
+      "--evcc-border-default": "#3a4877",
+      "--evcc-border-strong": "#566499",
+      "--evcc-accent": "#dd6ab0",
+      "--evcc-text-on-accent": "#2a0f22",
+      "--evcc-sem-success": "#5ae89a",
+      "--evcc-sem-warning": "#f0b94a",
+      "--evcc-sem-error": "#ef4f5e",
+      "--evcc-sem-info": "#5ac8e8"
+    },
+    "alpha": {}
+  }
+}

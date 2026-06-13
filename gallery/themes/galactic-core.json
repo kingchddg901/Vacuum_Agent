@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_galactic_core",
+    "name": "Galactic Core",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(12,8,28,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#181333",
+      "--evcc-surface-panel": "#332a5e",
+      "--evcc-surface-raised": "#27214c",
+      "--evcc-surface-input": "#1f193f",
+      "--evcc-text-primary": "#e9e3f6",
+      "--evcc-text-secondary": "#b9aede",
+      "--evcc-text-muted": "#8f86b0",
+      "--evcc-border-subtle": "#2c2654",
+      "--evcc-border-default": "#3c3568",
+      "--evcc-border-strong": "#564a86",
+      "--evcc-accent": "#b07cc0",
+      "--evcc-text-on-accent": "#160d20",
+      "--evcc-sem-success": "#5fcf86",
+      "--evcc-sem-warning": "#c2823c",
+      "--evcc-sem-error": "#e76b7a",
+      "--evcc-sem-info": "#5a90d6"
+    },
+    "alpha": {}
+  }
+}

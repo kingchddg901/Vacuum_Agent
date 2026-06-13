@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_aurora_duet",
+    "name": "Aurora Duet",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(7,11,22,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#131c33",
+      "--evcc-surface-panel": "#2c3a63",
+      "--evcc-surface-raised": "#243156",
+      "--evcc-surface-input": "#1b2647",
+      "--evcc-text-primary": "#f0f3fa",
+      "--evcc-text-secondary": "#aab8d8",
+      "--evcc-text-muted": "#8a99be",
+      "--evcc-border-subtle": "#33406b",
+      "--evcc-border-default": "#42528a",
+      "--evcc-border-strong": "#5a6cad",
+      "--evcc-accent": "#e87ac0",
+      "--evcc-text-on-accent": "#3a0e2a",
+      "--evcc-sem-success": "#5ae89a",
+      "--evcc-sem-warning": "#f0b450",
+      "--evcc-sem-error": "#f04050",
+      "--evcc-sem-info": "#5ac8e8"
+    },
+    "alpha": {}
+  }
+}

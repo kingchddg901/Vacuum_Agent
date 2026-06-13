@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_lavender_eve",
+    "name": "Lavender Eve",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(20,12,18,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#241a22",
+      "--evcc-surface-panel": "#473446",
+      "--evcc-surface-raised": "#3a2b3a",
+      "--evcc-surface-input": "#2f2230",
+      "--evcc-text-primary": "#f6e7e0",
+      "--evcc-text-secondary": "#d8b8c4",
+      "--evcc-text-muted": "#b094a4",
+      "--evcc-border-subtle": "#3a2c38",
+      "--evcc-border-default": "#4d3a4a",
+      "--evcc-border-strong": "#6a5160",
+      "--evcc-accent": "#ef8d72",
+      "--evcc-text-on-accent": "#2a1410",
+      "--evcc-sem-success": "#7ad6a0",
+      "--evcc-sem-warning": "#f5c96b",
+      "--evcc-sem-error": "#c83a55",
+      "--evcc-sem-info": "#6f9fe0"
+    },
+    "alpha": {}
+  }
+}

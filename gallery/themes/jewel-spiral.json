@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_jewel_spiral",
+    "name": "Jewel Spiral",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(8,8,20,0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0a0a16",
+      "--evcc-surface-panel": "#23234e",
+      "--evcc-surface-raised": "#191a38",
+      "--evcc-surface-input": "#12122a",
+      "--evcc-text-primary": "#f4e0e8",
+      "--evcc-text-secondary": "#c4a6c8",
+      "--evcc-text-muted": "#9a8aac",
+      "--evcc-border-subtle": "#1e1f44",
+      "--evcc-border-default": "#2d2f60",
+      "--evcc-border-strong": "#454a8a",
+      "--evcc-accent": "#e89ab0",
+      "--evcc-text-on-accent": "#2a0a18",
+      "--evcc-sem-success": "#4fc98a",
+      "--evcc-sem-warning": "#e8b24a",
+      "--evcc-sem-error": "#ec6b4f",
+      "--evcc-sem-info": "#7e93e8"
+    },
+    "alpha": {}
+  }
+}
