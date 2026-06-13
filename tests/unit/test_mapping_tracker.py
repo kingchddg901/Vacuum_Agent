@@ -22,6 +22,10 @@ Coverage targets
 [MT-14] _append_raw_samples: a second call appends another entry.
 [MT-15] update_raw_samples_exclusion: flips the flag; False on no-match/empty id.
 [MT-16] rebuild_room_bounds_from_archive: no archive → no_archive; else delegates.
+[MT-17] end_job multi-room: attributes each sample to its containing room, archives only rooms above the min-runs gate.
+[MT-18] _append_raw_samples rolloff: pins _meta header + baseline first entry, rolls off the middle, keeps most-recent MAX-1.
+[MT-19] _append_raw_samples rolloff: headerless archive truncates to last MAX lines, no baseline pin.
+[MT-20] end_job multi-room: a sample inside no room's bounds is dropped (orphan), never archived to any room.
 """
 
 from __future__ import annotations
@@ -317,7 +321,7 @@ def test_append_raw_samples_rolloff_headerless_fallback(tracker, monkeypatch):
 
 
 def test_end_job_multi_room_orphan_sample_dropped(tmp_path: Path):
-    """[MT-18] a multi-room sample inside NO room's bounds is dropped, not archived.
+    """[MT-20] a multi-room sample inside NO room's bounds is dropped, not archived.
 
     Covers the inner-loop exhaustion (tracker.py 559->558): when a sample matches
     no non-transition room's expanded bounds, the ``for rid`` loop falls through

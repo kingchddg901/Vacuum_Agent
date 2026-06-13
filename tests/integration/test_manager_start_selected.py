@@ -13,6 +13,11 @@ Coverage targets
 [SS-4]  reduced run requires confirmation; confirm_reduced_run bypasses it.
 [SS-5]  start_run_profile: unknown profile → not applied, no dispatch.
 [SS-6]  start_run_profile: apply saved profile then dispatch the start.
+[SS-7]  failed learning snapshot still starts → degraded learning_snapshot.
+[SS-8]  sequenced job advances + re-dispatches next phase; final → False.
+[SS-9]  atomic job (no phases) never advances → caller finalizes.
+[CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
+[CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
 
 from __future__ import annotations

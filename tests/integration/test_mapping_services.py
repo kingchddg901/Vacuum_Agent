@@ -14,6 +14,16 @@ Coverage targets
 [MSH-6]  set_segment_room_link: 1:1 enforcement drops the older segment's link.
 [MSH-7]  set_companion_anchor: set then clear.
 [MSH-8]  delete_map_image: returns a well-formed dict when no image exists.
+[MSH-9]  get_mapping_state / save+get package / append trace evidence.
+[MSH-10] set_dock_anchor + set_dock_room.
+[MSH-11] start → stop → cancel trace capture.
+[MSH-12] start a room boundary trace, then cancel it; close with no trace.
+[MSH-13] room bounds snapshot + clear + exclude/restore (no bounds → no-op).
+[MSH-14] review a non-existent run → error verdict (handler runs).
+[LAYOUT-1] legacy single custom_segments store migrates into ONE default layout; shared links/anchors split.
+[LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl. delete-active reassign + delete-last flips to CV.
+[LAYOUT-3] set_active with no layouts auto-creates + activates a default and flips to custom.
+[LAYOUT-6] companion_anchors (incl reserved 'dock' key) are per-layout — A's dock spot doesn't bleed onto B.
 """
 
 from __future__ import annotations

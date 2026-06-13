@@ -27,6 +27,9 @@ Coverage targets
         the real sibling room is still backfilled. (lines 322, 325)
 [CMI-3] legacy top-level-"rooms" discovery entry flattened to {active_map_id: ...}.
         (lines 346-348)
+[CMI-4] _migrate_setup_progress back-fills a rooms-bearing vacuum; skips non-dict
+        records, no-managed-rooms vacuums, already-done entries, and non-dict
+        map buckets/room values. (lines 392, 394, 402, 418, 421)
 """
 
 from __future__ import annotations

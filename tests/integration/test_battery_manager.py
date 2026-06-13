@@ -18,6 +18,14 @@ Coverage targets
 [BM-10] _process_sample: session closes "full" at 100%.
 [BM-11] _process_sample: a 50→90 charge anchors the baseline + sets health_pct.
 [BM-12] _process_sample: out-of-range battery level is ignored.
+[BM-13] _has_active_job: true while a job is open; false once ended_at is set.
+[BM-14] _is_charging: delegates to manager._is_charging; AttributeError → substring fallback.
+[BM-15] _update_mid_job_rate_stat: rolling mean of mid-job recharge rates.
+[BM-16] _lookup_vacuum_for_record: resolves the owning vacuum; unstored → "unknown".
+[BM-17] _attach_post_job_charge_if_pending: links a post-job charge; gates on pending + link window.
+[BM-18] start: wires listeners + samples; a state change routes a sample; stop unsubs.
+[BM-19] _classify_session_kind: pending recharge within the link window → post_job.
+[BM-20] _classify_session_kind: no/stale pending recharge → idle.
 """
 
 from __future__ import annotations

@@ -8,6 +8,7 @@ Coverage targets
 [THM-1] populates the library + sets a default theme id.
 [THM-2] idempotent — existing user themes + default are preserved.
 [THM-3] a non-dict library value is replaced with a fresh dict.
+[THM-4] Colorblind Safe theme ships the CVD-validated anchor hexes.
 """
 
 from __future__ import annotations

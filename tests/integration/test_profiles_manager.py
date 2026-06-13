@@ -18,6 +18,11 @@ Coverage targets
         (regression guard for the dropped-normalization bug).
 [PM-11] overwrite_room_profile_from_room: protected / not-found / success.
 [PM-12] overwrite_run_profile: not-found / no-rooms / success.
+[PM-13] overwrite_room_profile error returns: protected name + unknown profile.
+[PM-14] save_room_profile_from_room: missing-label / unknown-room / protected-target.
+[PM-15] rename_room_profile more rejections: target protected / exists / empty label.
+[PM-16] apply_room_profile: unknown profile name → profile_not_found, no rooms updated.
+[PM-17] _protected_room_config downgrades a carpet mop room to vacuum, water + edge off.
 """
 
 from __future__ import annotations

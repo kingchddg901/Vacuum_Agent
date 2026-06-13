@@ -6,6 +6,8 @@ Coverage targets
 [MR-1]  reset_maintenance raises ServiceValidationError for unknown component (no_source_entity).
 [MR-2]  reset_maintenance returns reset=False when source entity state is unavailable.
 [MR-3]  reset_maintenance returns reset=True when source entity has usage_hours attribute.
+[MR-4]  reset_maintenance wraps a manager failure as HomeAssistantError.
+[MR-5]  set_maintenance_interval wraps a failed async_save as HomeAssistantError.
 [DS-1]  get_dashboard_snapshot returns a dict with vacuum_entity_id.
 [DS-2]  get_dashboard_snapshot includes job_progress, lifecycle, start_status keys.
 """

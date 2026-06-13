@@ -13,6 +13,8 @@ Coverage targets
 [SD-8]  Success removes the map bucket from manager.data.
 [SD-9]  Success with no remaining maps → warning present and next_actions includes
         import_active_map.
+[SD-10] Delete sweeps leftover registry entities (platform=DOMAIN, unique_id
+        prefixed by vacuum+map) that platform teardown may have missed.
 """
 
 from __future__ import annotations

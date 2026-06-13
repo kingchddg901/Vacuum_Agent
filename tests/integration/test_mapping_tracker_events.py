@@ -13,6 +13,7 @@ Coverage targets
 [MTE-6]  end_job writes accumulated samples into room bounds via the manager.
 [MTE-7]  end_job archives raw samples for a single-room job.
 [MTE-8]  confidence threshold + room exit fires eufy_vacuum_room_completed.
+[MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
 """
 
 from __future__ import annotations

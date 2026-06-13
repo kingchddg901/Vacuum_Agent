@@ -12,6 +12,14 @@ Coverage targets
 [MS-6]  _build_segments_response: room links inject room_id onto segments.
 [MS-7]  _build_segments_response: companion_anchors always present; cache not mutated.
 [MS-8]  _safe_int / _bbox_from_polygon_pixel / _adjust_polygon_pixel smoke.
+[MS-9]  _get_mapping_manager: no mapping manager registered → HomeAssistantError.
+[MS-10] _get_room_name: no runtime core / core that raises → falls back to the room id.
+[MS-11] _bbox_from_polygon_pixel: empty polygon → None.
+[MS-12] _adjust_polygon_pixel: non-list / malformed-point / unparseable guards.
+[MS-13] _adjust_polygon_pixel: valid vertex move applies; bad/out-of-range moves ignored.
+[MS-14] _apply_segment_adjustments: edge nudges + vertex moves set their manual-adjustment flags.
+[MS-15] _apply_segment_adjustments: non-numeric center logged and left unchanged (no crash).
+[MS-16] _build_segments_response: non-dict segment_room_links / companion_anchors coerced to {}.
 """
 
 from __future__ import annotations

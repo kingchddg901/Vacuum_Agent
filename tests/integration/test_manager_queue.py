@@ -11,6 +11,8 @@ Coverage targets
 [MQ-7]  get_queue_state after clear returns empty queue_room_ids.
 [MQ-8]  clear_queue clears runtime.queue_room_ids.
 [MQ-9]  build_queue after partial disable excludes disabled rooms.
+[DISP-1]  _dispatch_clean_payload merges directly {entity_id, **payload} when no command declared.
+[DISP-2]  _dispatch_clean_payload wraps {entity_id, command, params} when a command is declared.
 """
 
 from __future__ import annotations

@@ -9,6 +9,11 @@ Coverage targets
 [SVS-1] setup_get_status returns a status dict.
 [SVS-2] setup_get_map_rooms returns the managed room list.
 [SVS-3] setup_save_rooms saves discovered rooms.
+[SVS-4] setup_add_vacuum records the vacuum + stamps the setup step.
+[SVS-5] setup_delete_map removes a map given a confirmation token.
+[SVS-6] setup_reject_rooms strips rooms + reports the result.
+[SVS-7] setup_force_remove_room bumps the missing-pass counter.
+[SVS-8] setup_import_active_map discovers + saves the active map.
 """
 
 from __future__ import annotations

@@ -13,6 +13,7 @@ Coverage targets
 [SRN-8b] overwrite_run_profile happy-path persists and returns the overwritten payload.
 [SRN-9]  delete_run_profile removes the profile from the library.
 [SRN-10] delete_run_profile raises ServiceValidationError for unknown profile_id.
+[SRN-11] a manager-layer failure surfaces to the caller as HomeAssistantError.
 """
 
 from __future__ import annotations

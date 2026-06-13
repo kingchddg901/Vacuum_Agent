@@ -57,6 +57,16 @@ Coverage targets
 [LS-51] _trust_level_from_score returns the right label per band (manager 61-69).
 [LS-52] _display_label returns None for empty/separator-only input (manager 75-80).
 [LS-53] finalize pushes battery metrics to the BatteryHealthManager (job_finalizer 755-762).
+[LS-54] _auto_record_accuracy returns None when no room yields a usable actual (manager 685, 711).
+[LS-55] finalize_learning_for_active_job derives battery_end from the live adapter battery entity when omitted (manager 3598-3599).
+[LS-58] accuracy normalization prefers EXPLICIT avg_abs_error_percent/confidence_weight over derived (manager 813, 822).
+[LS-60] get_learning_history_snapshot profile_key + used_for_learning filters prune room_profiles rows (manager 971, 978).
+[LS-64] profile_key filter swaps summary.selected_profile for the matching ENRICHED entry (manager 1321).
+[LS-67] restore_learning_job coerces malformed outcome/learning_blockers before restoring (manager 1664, 1668).
+[LS-68] enriched job far shorter than its PROFILE average → exclude_suggested='short_duration_vs_profile' (manager 1265-1267).
+[LS-69] cancel-likely job (per stored cancel_detection) → exclude_suggested with the detector's reason (manager 1262-1264).
+[LS-70] excluded_from_learning job carries a +1.0 outlier_score contribution (manager 1243).
+[LS-71] discard_external_run SERVICE handler resolves the manager + delegates verbatim (services.py 358-364).
 """
 
 from __future__ import annotations

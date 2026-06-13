@@ -14,8 +14,27 @@ Coverage targets
 [MR-10] update_room_fields changes clean_passes.
 [MR-11] set_rooms_enabled_subset enables only the specified rooms.
 [MR-12] set_rooms_enabled_subset disables all others.
+[MR-13] _load_room_history_cache_sync migrates an old-format jobs index (no
+        'status') via index-ingest; a new-format index uses completed jobs.
+[MR-14] get_known_map_ids folds in the runtime's selected/active map ids.
 [MR-15] set_rooms_enabled_subset tolerates a non-dict rooms bucket and reaches
         the non-dict-room-entry guard.
+[RRS-1] _update_room_rule_status_snapshot records 'blocked_and_modified' for a
+        selected+blocked+modified room and skips non-dict / room_id<=0 entries.
+[RRS-2] _update_room_rule_status_snapshot records 'not_selected' for a room not
+        in selected_room_ids.
+[RRS-3] get_room_rule_status coerces a non-dict stored entry to {} before the
+        defensive default response is built.
+[RHI-1] _ingest_completed_job_into_room_history short-circuits to False on each
+        malformed completed-job shape; a non-dict job sub-block falls back to {}.
+[RHI-2] _ingest_completed_job_into_room_history folds a valid completed job into
+        history, setting vacuum/mop mode timestamps and skipping bad rooms.
+[RHI-3] _ingest_jobs_index_entry_into_room_history copies a room's last_mopped_at
+        into the history entry.
+[RCH-1] get_room_cleaning_history echoes stored timestamps and derives hours-since
+        (positive float for parseable values, None for None timestamps).
+[RCH-2] get_room_cleaning_history coerces a corrupt (non-dict) entry to {}, so
+        every history field defaults to None.
 """
 
 from __future__ import annotations

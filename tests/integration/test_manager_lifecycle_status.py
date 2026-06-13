@@ -22,6 +22,24 @@ Coverage targets
         caller omits the explicit sets (the _vocab_frozenset raw-present branch).
 [LS-7]  get_lifecycle_state: after start clears the payload, the active job's
         rooms + payload are folded into the lifecycle metadata (the fallback copy).
+[EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
+        "external" capture slot.
+[EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending
+        grace finalize.
+[EXT-3] _external_grace_finalize: staying docked past the grace window fires the
+        finalize → slot clears.
+[EXT-4] _external_grace_finalize: a mid-run task_status defers the close → slot
+        stays + timer reschedules.
+[EXT-5] maybe_handle_external_run: an in-progress slot with the vacuum neither
+        cleaning nor docked/idle (e.g. paused) → no-op, no grace timer.
+[EXT-6] _external_status_is_mid_run: False when the adapter declares no
+        external_mid_run_statuses (the empty-list guard).
+[EXT-7] _external_status_is_mid_run: False when mid-run statuses exist but the
+        adapter wires no task_status entity.
+[EXT-8] _external_grace_finalize: early-out when the slot is no longer "external"
+        (already resumed/cleared) → no finalize, slot stays cleared.
+[EXT-9] _external_grace_finalize: early-out when the robot raced the cancel back
+        to "cleaning" → slot left "external" for the next dock.
 """
 
 from __future__ import annotations

@@ -9,6 +9,7 @@ Coverage targets
 [JCW-6]  cancel_active_job cancelled=True → fires EVENT_JOB_FINISHED.
 [JCW-7]  cancel_active_job cancelled=False → no event, still saves.
 [JCW-8]  clear_active_job manager raises → HomeAssistantError.
+[JCW-9]  cancel_active_job manager raises → HomeAssistantError.
 
 The device-I/O action handlers (start/pause/resume/cancel) are driven through
 the module-level _handle_* coroutines with a mock manager rather than the

@@ -22,6 +22,7 @@ Coverage targets
 [DK-14] async dispatch: gated → performed=False with the gate reason.
 [DK-15] _get_dock_action_entity resolves a present button by candidate id.
 [DK-16] async_dry_mop / async_empty_dust / async_stop_dry_mop delegate.
+[DK-17] _get_dock_action_entity: token_sets fallback resolves a drift-named button.
 """
 
 from __future__ import annotations

@@ -14,6 +14,8 @@ Coverage targets
 [DE-10] Dreame engine: positional parallel arrays, index-aligned, value-mapped.
 [DE-11] Dreame engine: undeclared/null fields are omitted (clean_mode global, etc.).
 [DE-12] Dreame engine: per-room repeats array (not a batch scalar), clamped.
+[DE-13] Job model: every registered engine is atomic_batch; build_phases == [build_payload] (one phase).
+[DE-14] Job model: a sequenced engine declares job_model + returns >1 phase, each a complete payload envelope.
 """
 
 from __future__ import annotations

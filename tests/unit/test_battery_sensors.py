@@ -13,6 +13,7 @@ Coverage targets
 [BS-9]  Empty record → native_value None across sensors.
 [BS-10] _bucket_means projects count+mean; non-dict → {}.
 [BS-11] unique_id / suggested_object_id derive from vacuum + suffix.
+[BS-12] _on_manager_update schedules a threadsafe state write on match; mismatch returns early.
 """
 
 from __future__ import annotations

@@ -12,6 +12,7 @@ Coverage targets
 [CAP-4]  detect_capabilities: robot position needs both x and y.
 [CAP-5]  _detect_maintenance_sources: suffix entity, None suffix, swivel proxy.
 [CAP-6]  _find_registry_entity_by_tokens: prefix + token match.
+[CAP-7]  get_vacuum_capabilities: newly-known model refreshes cached caps even with refresh=False.
 """
 
 from __future__ import annotations

@@ -18,6 +18,8 @@ Coverage targets
 [MNT-10] get_maintenance_remaining: no source → source_available False.
 [MNT-11] get_upkeep_snapshot returns a structured dict (no components).
 [MNT-12] get_upkeep_snapshot populates items from an adapter maintenance component.
+[MNT-13] _get_upkeep_item_guide enriches a library entry with source model info + maintenance/replacement sub-dicts; display picks by item_kind.
+[MNT-14] _get_replacement_reset_entity: token_sets registry fallback resolves a differently-named reset button when no entity_suffix matches.
 [MNT-14c] _get_replacement_reset_entity: entity_suffixes primary route — states-table hit + unconfigured component → None.
 [MNT-14d] _get_replacement_reset_entity: entity_suffixes primary route — registry-only hit (no live state).
 """

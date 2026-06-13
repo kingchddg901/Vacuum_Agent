@@ -16,6 +16,15 @@ Coverage targets
 [ECV-7]  detect_room_segments: Pillow/scipy stack unavailable -> pipeline_unavailable.
 [ECV-8]  detect_room_segments: dense adversarial map exercises the CV long tail.
 [ECV-9]  detect_room_segments: real fused-rooms map drives the localized-bins split.
+[ECV-10] detect_room_segments: expected_room_count drives the deferred-region recovery loop.
+[ECV-11] detect_room_segments: low bbox-fill component → possible_merge issue tag.
+[ECV-12] detect_room_segments: sub-1.5%-area room, no assist agreement → tiny_region tag.
+[ECV-13] detect_room_segments: small thin cross (low compactness + small area) → fragmented_candidate.
+[ECV-14] detect_room_segments: oversized near-full-frame room → suspicious/oversized drop path.
+[ECV-15] detect_room_segments: suspicious dumbbell component is split inside the pipeline.
+[ECV-16] detect_room_segments: flat dark image with no room pixels → no_room_pixels_detected miss.
+[ECV-17] detect_room_segments: expected_room_count recovery rescues a deferred region (deficit marker + confidence floor).
+[ECV-18] detect_room_segments: per-region scoring block populates every derived key (role/state/confidence/edit_readiness).
 [SEG-1]  _issue_quality: issue/confidence → quality label.
 [SEG-2]  _structural_role: geometry → role label.
 [SEG-3]  _segmentation_state: issues/fill/compactness → state label.
@@ -248,7 +257,7 @@ def _dumbbell_map_png(tmp_path) -> str:
 
 
 def test_detect_segments_oversized_region(tmp_path):
-    """[ECV-7] an oversized single room triggers the suspicious/oversized path.
+    """[ECV-14] an oversized single room triggers the suspicious/oversized path.
 
     A near-full-frame single room (area% ~0.81) is flagged as a suspicious
     split candidate; when the erosion splitter cannot break it, the parent
@@ -280,7 +289,7 @@ def test_detect_segments_oversized_region(tmp_path):
 
 
 def test_detect_segments_dumbbell_split(tmp_path):
-    """[ECV-8] a suspicious dumbbell component is split inside the pipeline."""
+    """[ECV-15] a suspicious dumbbell component is split inside the pipeline."""
     path = _dumbbell_map_png(str(tmp_path))
     result = detect_room_segments(image_path=path, min_area_pixels=200)
     assert result["available"] is True
@@ -289,7 +298,7 @@ def test_detect_segments_dumbbell_split(tmp_path):
 
 
 def test_detect_segments_no_room_pixels(tmp_path):
-    """[ECV-9] a flat dark image has no room-like pixels -> structured miss."""
+    """[ECV-16] a flat dark image has no room-like pixels -> structured miss."""
     from PIL import Image
 
     img = Image.new("RGB", (120, 120), (10, 10, 10))  # below value/sat floors
@@ -333,7 +342,7 @@ def _l_shaped_map_png(tmp_path) -> str:
 
 
 def test_detect_recovery_pass_rescues_deferred(tmp_path):
-    """[ECV-11] expected_room_count recovery rescues a deferred region.
+    """[ECV-17] expected_room_count recovery rescues a deferred region.
 
     Exercises the deficit loop, the issue/area filters, the recovery-mode
     ``_component_should_keep`` call, and the recovered-candidate mutation +
@@ -476,7 +485,7 @@ def test_detect_fragmented_candidate(tmp_path):
 
 
 def test_detect_segment_scoring_fields(tmp_path):
-    """[ECV-11] the per-region scoring block populates every derived key.
+    """[ECV-18] the per-region scoring block populates every derived key.
 
     Two saturated rectangular rooms run the full local issue-tagging +
     _component_should_keep + confidence-computation + candidate-assembly block

@@ -14,6 +14,7 @@ Coverage targets
 [DK-10] _check_dock_action: allowed-but-not-performed does NOT raise.
 [DK-11] set_dock_event_count updated → async_save; not-updated → no save.
 [DK-12] set_dock_event_count manager raises → HomeAssistantError.
+[DK-13] each registered dock service dispatches through its closure to the matching manager method (service-name→handler wiring).
 
 The gated actions (wash/dry/empty/stop) issue async device commands, so DK-7..
 DK-9 drive the module-level _handle_* coroutines directly with a mock manager
@@ -145,7 +146,7 @@ async def test_set_dock_event_count_zero_is_valid(hass, manager_with_services):
 
 
 # ---------------------------------------------------------------------------
-# [DK-7] — [DK-12] gated actions + save branch (direct-handler, mock manager)
+# [DK-7] — [DK-13] gated actions + save branch (direct-handler, mock manager)
 # ---------------------------------------------------------------------------
 
 class _Call:

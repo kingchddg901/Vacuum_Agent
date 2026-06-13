@@ -21,6 +21,12 @@ Coverage targets
 [TS-17] segment_trace_run: well-formed result keys on a valid run.
 [TS-18] _find_split_points: speed_drop + boundary_crossing fire a soft split.
 [TS-19] _find_split_points: density_drop + boundary_crossing fire a soft split.
+[TS-20] _merge_short_segments: a short FINAL segment merges into its left neighbor.
+[TS-21] _merge_short_segments: a short MIDDLE segment merges into the smaller (left) neighbor.
+[TS-22] _merge_short_segments: a short MIDDLE segment merges into the smaller (right) neighbor.
+[TS-23] _merge_short_segments: equal-size neighbors — the tie goes to the left neighbor.
+[TS-24] _merge_similar_segments: two adjacent zero-density segments are density-similar and merge.
+[TS-25] _merge_similar_segments: one zero-density + one non-zero neighbor are NOT similar (no merge, no ZeroDivisionError).
 """
 
 from __future__ import annotations
@@ -341,7 +347,7 @@ def test_merge_short_segments_middle_tie_prefers_left():
 
 
 def test_merge_similar_segments_both_zero_density():
-    """[TS-21] two adjacent zero-density segments are density-similar and merge
+    """[TS-24] two adjacent zero-density segments are density-similar and merge
     (the `density_a == 0 and density_b == 0` elif branch)."""
     segs = [_seg(0, 0, 19, speed=10.0, density=0.0),
             _seg(1, 20, 39, speed=10.0, density=0.0)]
@@ -353,7 +359,7 @@ def test_merge_similar_segments_both_zero_density():
 
 
 def test_merge_similar_segments_mismatched_density_no_merge():
-    """[TS-21] one zero-density and one non-zero-density neighbor are NOT
+    """[TS-25] one zero-density and one non-zero-density neighbor are NOT
     density-similar — they stay split and no ZeroDivisionError is raised."""
     segs = [_seg(0, 0, 19, speed=10.0, density=0.0),
             _seg(1, 20, 39, speed=10.0, density=5.0)]

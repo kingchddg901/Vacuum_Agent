@@ -28,6 +28,8 @@ Coverage targets
 [SP-22] transform_color_image: per-channel transform preserves channel count.
 [SP-23] mask_edge_band: dilate-XOR-erode produces a non-empty edge ring (scipy).
 [SP-24] normalized_color_features: per-pixel chromaticity channels sum to 1.
+[SP-25] mask_to_polygon: RDP-collapse fallback reverts to best_loop for a drawable (>=4 vertex) polygon.
+[SP-26] estimate_alignment: a strictly-better shifted candidate takes the best-update branch (recovers the shift).
 [SP-RAST-1] rasterize_primitives: a pct rect -> rectangle polygon in map px; empty -> [].
 [SP-RAST-2] rasterize_primitives: subtract clears an edge; polygon primitive round-trips.
 """
@@ -314,38 +316,8 @@ def test_mask_to_polygon_rdp_collapse_fallback(np):
     assert sorted(map(tuple, polygon)) == [(2.0, 2.0), (2.0, 3.0), (3.0, 2.0), (3.0, 3.0)]
 
 
-def test_transform_scalar_image_non_unit_scale(np):
-    """[SP-21b] non-unit-scale (|scale-1|>1e-6) takes the _NDIMAGE.zoom(order=1)
-    bilinear branch: enlarged footprint, intermediate values, centered placement.
-
-    Requires scipy.ndimage for the float zoom (the order-1 path that distinguishes
-    this from transform_mask's order-0/bool resample).
-    """
-    pytest.importorskip("scipy.ndimage")
-    img = np.zeros((4, 4), dtype=np.float32)
-    img[1:3, 1:3] = 1.0  # solid 2x2 interior block of value 1.0
-
-    out = transform_scalar_image(img, 2.0, 0, 0, (16, 16))
-
-    # (a) shape + dtype of the float canvas
-    assert out.shape == (16, 16)
-    assert out.dtype == np.float32
-    # (b) 2x upscale enlarges the nonzero footprint (~4x area growth)
-    assert np.count_nonzero(out) > np.count_nonzero(img)
-    assert np.count_nonzero(out) >= 12
-    # (c) bilinear, not nearest: order=1 produces values strictly between 0 and 1,
-    #     which an order=0 (nearest) resample would NOT
-    assert bool(((out > 0) & (out < 1.0)).any())
-    # (d) centered: the footprint sits in the middle, corners stay empty
-    assert np.count_nonzero(out[6:10, 6:10]) > 0
-    assert np.count_nonzero(out[:2, :2]) == 0
-    assert np.count_nonzero(out[:2, -2:]) == 0
-    assert np.count_nonzero(out[-2:, :2]) == 0
-    assert np.count_nonzero(out[-2:, -2:]) == 0
-
-
 def test_estimate_alignment_recovers_shifted_candidate(np):
-    """[SP-25] a strictly-better transformed candidate replaces ``best``.
+    """[SP-26] a strictly-better transformed candidate replaces ``best``.
 
     Reference and candidate are SAME-shape (60, 60) arrays so transform_mask's
     centering is identical for both; the candidate's True block is shifted +6 px

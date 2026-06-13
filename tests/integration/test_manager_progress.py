@@ -14,6 +14,12 @@ Coverage targets
 [PR-5]  finalize_learning_for_active_job: no learning manager → None.
 [PR-6]  finalize_learning_for_active_job: missing started_at → not finalized.
 [PR-7]  finalize_learning_for_active_job: full job → completed_job result.
+[PR-8]  jobs-index → room-history merge with newer-wins + bad-row skips.
+[PR-9]  single-room stall fires EVENT_STALL_DETECTED exactly once (no re-fire).
+[PR-10] single-room at ~1.7x threshold → running_long but NOT stall.
+[PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
+[PR-12] normal sequential run (completed prefix) → no skips.
+[PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
 """
 
 from __future__ import annotations

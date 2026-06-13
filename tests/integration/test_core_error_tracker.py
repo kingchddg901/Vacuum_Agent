@@ -20,6 +20,7 @@ Coverage targets
 [ET-11] start/_wire_vacuum wires listeners; stop tears them down.
 [ET-12] secondary-channel grace: schedule on vacuum=error, generic latch on expiry.
 [ET-13] _persist_and_notify schedules async_save + fires update listeners.
+[ET-14] task_status in 'error' counts as a secondary error channel.
 """
 
 from __future__ import annotations

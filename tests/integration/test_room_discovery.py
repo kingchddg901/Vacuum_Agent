@@ -9,6 +9,7 @@ Coverage targets
 [RD-3] discover_rooms_for_vacuum normalizes + dedups + skips bad rows.
 [RD-4] discover_rooms_for_vacuum: incomplete discovery config → [].
 [RD-5] discover_rooms_payload wraps the room list with counts.
+[RD-6] room_list_entity = concrete entity id sources from that entity, not the vacuum.
 """
 
 from __future__ import annotations

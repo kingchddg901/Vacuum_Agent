@@ -25,6 +25,21 @@ Coverage targets
 [MGR-16] set_dock_room persists the dock room id.
 [MGR-17] append_mapping_trace_evidence grows the package trace list.
 [MGR-18] get_mapping_state returns the room roster + package.
+[MGR-19] _normalize_room_definition: rich payload normalizes every field; unknown keys → extras.
+[MGR-20] _normalize_room_definition: no custom/room label → cascades to roster, then slug, then id.
+[MGR-21] _normalize_room_definition: non-dict payload + non-list adjacency degrade gracefully.
+[MGR-22] _apply_segment_adjustments: no segment_adjustments → segments returned as-is.
+[MGR-23] _apply_segment_adjustments: whole-shape translation shifts polygon, bbox, and center.
+[MGR-24] _apply_segment_adjustments: edge nudge + vertex move tag their respective issue flags.
+[MGR-25] _apply_segment_adjustments: all-zero adjustment + non-matching/non-dict segments pass through.
+[MGR-26] _adjust_polygon_pixel degrades on bad input + ignores bad moves.
+[MGR-27] translate_image_segment guard branches (missing_segment_id / segment_not_found).
+[MGR-28] rebuild_room_bounds_from_archive replays archived trace entries into the room's bounds history.
+[MGR-29] _load_map_data pops a legacy 'calibration' block + resaves without it; other keys preserved.
+[MGR-31] update_room_bounds multi-room: samples attributed to the room whose bounds contain them.
+[MGR-32] _normalize_mapping_package dedups a shared suggestion_segment_id to the lowest-sorted room.
+[MGR-33] update_room_bounds injects job_bounds into the newest learning job file (sorted[-1] pick).
+[MGR-34] _write_job_bounds setdefault preserves existing 'mapping' keys while adding room_bounds.
 """
 
 from __future__ import annotations

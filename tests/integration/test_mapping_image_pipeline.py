@@ -19,6 +19,26 @@ Coverage targets
 [IMG-6]  get_image_segment_suggestions: returns the fake engine's segments.
 [IMG-7]  translate_image_segment: missing segment_id → reason.
 [IMG-8]  translate_image_segment: persists offsets for a real (fake) segment.
+[IMG-9]  handle_save_map_image service wrapper saves the image.
+[IMG-10] handle_get_image_segment_suggestions + handle_translate_image_segment wrappers.
+[IMG-11] upload_map_image writes a variant + delete_map_image removes it.
+[IMG-12] upload_map_image with garbage base64 → invalid_base64.
+[IMG-13] upload measurement failure → returned dims fall back to declared values.
+[IMG-15] translate_image_segment accumulates per-vertex moves across calls.
+[IMG-16] get_image_segment_suggestions cross-links a matched segment (segment + roster).
+[IMG-17] handle_exclude_room_job_bounds: tells the tracker to exclude the job's raw samples.
+[IMG-18] handle_restore_room_job_bounds: tells the tracker to re-include the job's raw samples.
+[IMG-19] handle_rebuild_room_bounds: tracker_unavailable guard, then delegate.
+[IMG-20] upload_map_image transcodes a valid non-PNG image to PNG and saves it.
+[IMG-21] upload_map_image base64 that decodes but isn't an image → unsupported_format.
+[IMG-22] the translate service accumulates per-vertex moves across calls (handler-side merge).
+[IMG-23] delete_map_image with multiple variants retains the others.
+[IMG-24] get_image_segment_suggestions: no saved image on disk → missing_image payload (unavailable, empty summary, image block present).
+[CUST-1] set_custom_segments rasterises pct primitives into CV-shaped custom segments.
+[CUST-2] set_custom_segments without a custom backdrop → no_custom_backdrop.
+[CUST-3] set_custom_segments replace-all: a second call rebuilds from scratch.
+[CUST-4] custom segment keeps its room link across a stable-id re-save; new id orphans it inertly.
+[LAYOUT-4] two layouts each hold a same-id segment linked to a different room; switching swaps cleanly.
 """
 
 from __future__ import annotations
@@ -207,7 +227,7 @@ def test_get_image_segment_suggestions(hass, mapping_services, pil):
 
 
 def test_get_image_segment_suggestions_missing_image(hass, mapping_services):
-    """[IMG-9] no saved image on disk → the user-facing missing_image payload:
+    """[IMG-24] no saved image on disk → the user-facing missing_image payload:
     available False, reason missing_image, empty summary, image block present."""
     result = _get_mapping_manager(hass).get_image_segment_suggestions(
         vacuum_entity_id=_VAC, map_id="no_image")

@@ -18,6 +18,9 @@ Coverage targets
 [SE-13] NoopSegmenter.validate_tuning: non-dict → error; non-empty → warning; empty → [].
 [SE-14] NoopSegmenter.segment_map_image: unavailable with reason "noop", no runtime block.
 [SE-15] _engine_unavailable: canonical empty result shape.
+[SE-16] EufyCVSegmenter.segment_map_image: detect raises → engine_exception unavailable.
+[SE-17] EufyCVSegmenter._reshape: runtime block but no segmentation → only runtime hoisted.
+[SE-18] EufyCVSegmenter._reshape: neither segmentation nor runtime → empty engine_diagnostics.
 """
 
 from __future__ import annotations

@@ -15,6 +15,10 @@ Coverage targets
 [AJS-6]  _maybe_roll_current_room_by_timing: not-started / last-room → no-op.
 [AJS-7]  _is_low_battery_return_state delegates to the adapter impl.
 [AJS-8]  _is_charging returns a bool.
+[AJS-9]  _maybe_roll_current_room_by_timing: flat-area transit hop rolls room live (transit-aware) below the timing threshold.
+[AJS-10] _maybe_roll_current_room_by_timing: live_transition.enabled=False falls back to legacy → transit hop does not roll (kill-switch).
+[AJS-11] _maybe_roll_current_room_by_timing: wash plateau rolls live (baseline, unchanged from legacy).
+[AJS-12] _maybe_roll_current_room_by_timing: short flat-area pass-turn blip is not a boundary → no roll.
 """
 
 from __future__ import annotations

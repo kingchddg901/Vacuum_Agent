@@ -11,6 +11,12 @@ Coverage targets
         all appear in the subtitle, alongside intensity + fan.
 [SPL-2] default settings (water off, single pass, no edge) → those optional
         bits are omitted.
+[SPL-3] preset selected != resolved → subtitle shows 'Selected via Resolved'
+        bridge label (line 186).
+[SPL-4] custom/no-selected path → subtitle shows resolved label alone (line 188).
+[PNL-1] a replacement-keyed name maps to its curated label (replacements branch).
+[PNL-2] a non-keyed name falls through to _display_label(normalized) (line 144).
+[PNL-3] an empty value short-circuits to None (empty-text guard).
 """
 
 from __future__ import annotations

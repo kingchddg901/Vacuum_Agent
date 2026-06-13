@@ -12,6 +12,9 @@ Coverage targets
 [BE-8]  EufyVacuumSavedRunProfileButton.extra_state_attributes includes vacuum_entity_id and map_id.
 [BE-9]  EufyVacuumSavedRunProfileButton.async_press calls manager.start_run_profile + async_save.
 [BE-10] _slugify_profile_name lowercases, collapses non-alphanumeric to underscores.
+[BE-11] async_setup_entry wires the update callback; exposing a profile adds its run button.
+[BE-12] A profile exposed before setup is built into the initial entities.
+[BE-13] Un-exposing a profile reconciles away its stale button (async_remove + registry un-register).
 """
 
 from __future__ import annotations

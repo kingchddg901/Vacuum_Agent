@@ -19,6 +19,7 @@ Coverage targets
 [MSV-11] review_trace_run with a missing run → error.
 [MSV-12] clear_room_bounds on an unknown room → room_not_found.
 [MSV-13] exclude_room_job_bounds on an unknown room → room_not_found.
+[MSV-14] delete_map_image when the PNG is already gone → record still dropped.
 """
 
 from __future__ import annotations

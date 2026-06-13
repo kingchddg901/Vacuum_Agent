@@ -17,6 +17,29 @@ Coverage targets
 [AJI-11] recharge: low-battery return sets pending; not charging → returns.
 [AJI-12] recharge: pending + charging + not observed → starts recharge, pauses sampling.
 [AJI-13] recharge: in-progress recharge that ends accumulates seconds, resumes sampling.
+[AJI-14] pause_active_job: started → paused; non-started is a no-op.
+[AJI-15] resume_active_job: adds the paused wall-clock delta to the running total.
+[AJI-16] resume_active_job: a started (non-paused) job is returned unchanged.
+[AJI-17] record_completed_room: dedups, advances current room, caps the list.
+[AJI-18] record_completed_room: idle job → nothing recorded.
+[AJI-19] mark_active_job_finalized: finalize_result unpacked into a compact summary.
+[AJI-20] mark_active_job_finalized: None result still finalizes, no summary.
+[AJI-21] async_cancel_active_job: idle job → cancelled False, no_active_job.
+[AJI-22] async_cancel_active_job: terminal state reached → confirmed cancel + finalize.
+[AJI-23] async_cancel_active_job: no terminal state in window → finalize anyway, confirmed False.
+[AJI-24] mop-wash: unparseable last-wash timestamp falls through debounce and still counts.
+[AJI-25] async_pause_active_job: nothing started → paused False, no_started_job, no service call.
+[AJI-26] async_pause_active_job: started job → vacuum.pause dispatched + job paused.
+[AJI-27] async_resume_active_job: non-paused job → resumed False, no_paused_job, no service call.
+[AJI-28] async_resume_active_job: paused job → vacuum.start dispatched + job started.
+[AJI-29] get_paused_job_timeout_report: started (non-paused) job → None.
+[AJI-30] get_paused_job_timeout_report: paused with 0-minute timeout opts out → None.
+[AJI-31] get_paused_job_timeout_report: paused but under the limit → None.
+[AJI-32] get_paused_job_timeout_report: paused beyond the limit → populated escalation report.
+[AJI-33] get_paused_job_timeout_report: unparseable paused_at → None (no crash).
+[AJI-34] _timing_completion_threshold_minutes: lower confidence → larger overrun slack; sample-count + drift bonuses, capped.
+[AJI-35] _job_status_summary: status string covers each lifecycle/outcome branch.
+[AJI-36] _job_status_summary: a started job names the current room from resolved_rooms.
 """
 
 from __future__ import annotations

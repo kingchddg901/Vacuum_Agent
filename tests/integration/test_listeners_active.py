@@ -21,6 +21,7 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [PB-5]  path_blockers: cancel_and_event + cancel returns not-cancelled → action_taken=cancel_failed, no JOB_FINISHED.
 [LC-1]  lifecycle: completion signals met → finalize + JOB_FINISHED + save.
 [LC-2]  lifecycle: signals not met → observed recorded, no finalize/event.
+[LC-3]  lifecycle: finalized MOP job → post-job water amendment registered.
 """
 
 from __future__ import annotations

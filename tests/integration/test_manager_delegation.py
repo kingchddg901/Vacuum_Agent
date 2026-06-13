@@ -18,6 +18,9 @@ Coverage targets
 [MD-4]  run-plan delegations (incl. get_runtime_path_block_report).
 [MD-5]  room CRUD + maps delegations.
 [MD-6]  upkeep / maintenance delegations.
+[MD-7]  notify-callback fan-out resilience: one raising callback is skipped, the rest still fire.
+[MD-8]  remaining manager seams + async job-control delegations forward without AttributeError.
+[MD-9]  async dock-action delegations forward to DockManager.
 [CMR-1] _find_button_entity_by_tokens: prefix-skip + all-tokens match + None miss.
 """
 

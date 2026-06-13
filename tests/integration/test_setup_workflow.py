@@ -23,6 +23,7 @@ Coverage targets
 [SD-2]  reject_rooms strips managed rooms + reports affected maps.
 [SD-3]  force_remove_room bumps missing_passes to threshold.
 [SD-4]  compute_room_drift surfaces a removed room after threshold misses.
+[SD-5]  run_discovery_pass reads the adapter room list + updates drift.
 """
 
 from __future__ import annotations
@@ -199,7 +200,7 @@ async def test_delete_high_typed_mismatch(hass, manager):
 
 
 # ---------------------------------------------------------------------------
-# [SD-1] — [SD-4] drift bookkeeping (setup/drift.py)
+# [SD-1] — [SD-5] drift bookkeeping (setup/drift.py)
 # ---------------------------------------------------------------------------
 
 def test_record_step_completed(manager):

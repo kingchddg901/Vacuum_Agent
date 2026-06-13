@@ -17,6 +17,9 @@ Coverage targets
 [INIT-4] setup with the full companion-entity stack present → capability
          detection enables mop/dock/position/maintenance features so the
          switch/number/button/sensor platforms construct those entities.
+[INIT-5] boot with stored maps+rooms exercises the sensor orchestrator (room
+         history + rule-status sensors built); room-update + job-finished
+         callbacks fire the sync/refresh paths + auto-clear the recovered latch.
 [INIT-6] adding a room then firing the room-update callback adds NEW history +
          rule-status sensors to the registry (dynamic-entity sync).
 [INIT-7] the rule-status + theme refresh callbacks push observable state writes;

@@ -23,6 +23,9 @@ Coverage targets
 [AJ-18] _room_name_from_active_job: None/negative/no-match → None.
 [AJ-19] _timing_completion_threshold_minutes: high confidence → tight slack.
 [AJ-20] _timing_completion_threshold_minutes: low confidence + few samples → wider slack.
+[AJ-21] _live_transition_config: no adapter block → distinct copy of defaults.
+[AJ-22] _live_transition_config: adapter block overrides every key; rollover_kinds → stripped tuple.
+[AJ-23] _live_transition_config: all-empty rollover_kinds → default tuple; unset keys stay default.
 """
 
 from __future__ import annotations

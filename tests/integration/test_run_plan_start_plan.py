@@ -17,6 +17,10 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
 [SP-8]  modifier fan-out: a rule's fan_out_room_ids apply to a derived target.
 [SP-9]  get_runtime_path_block_report exists on the real manager and reports a
         mid-job blocker (regression guard for the method lost in the bundle-out).
+[SP-10] fan-out loop's per-target + matched-rule guards: only a valid, selected,
+        unblocked target gets the change; no-entity/no-match/empty-changes skip.
+[SP-11] runtime path-block: a remaining room with its OWN blocker is directly
+        blocked, while a reachable sibling propagates accessible and is not flagged.
 """
 
 from __future__ import annotations
