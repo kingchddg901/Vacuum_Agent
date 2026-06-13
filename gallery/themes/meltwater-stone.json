@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_meltwater_stone",
+    "name": "Meltwater Stone",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(5, 18, 24, 0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#0b2630",
+      "--evcc-surface-panel": "#1f4f60",
+      "--evcc-surface-raised": "#1a4252",
+      "--evcc-surface-input": "#103641",
+      "--evcc-text-primary": "#e8f6fb",
+      "--evcc-text-secondary": "#a3c7d4",
+      "--evcc-text-muted": "#7099a8",
+      "--evcc-border-subtle": "#1c4555",
+      "--evcc-border-default": "#2a5d6e",
+      "--evcc-border-strong": "#6e655a",
+      "--evcc-accent": "#5cc4dd",
+      "--evcc-text-on-accent": "#062029",
+      "--evcc-sem-success": "#52b890",
+      "--evcc-sem-warning": "#e0a94f",
+      "--evcc-sem-error": "#d3724b",
+      "--evcc-sem-info": "#5b8fd6"
+    },
+    "alpha": {}
+  }
+}

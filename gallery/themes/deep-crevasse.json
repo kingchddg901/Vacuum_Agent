@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_deep_crevasse",
+    "name": "Deep Crevasse",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(3, 14, 19, 0.62)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#08222b",
+      "--evcc-surface-panel": "#15505f",
+      "--evcc-surface-raised": "#11404c",
+      "--evcc-surface-input": "#0d3039",
+      "--evcc-text-primary": "#dcf2f8",
+      "--evcc-text-secondary": "#8fc3d4",
+      "--evcc-text-muted": "#5f93a4",
+      "--evcc-border-subtle": "#1c5163",
+      "--evcc-border-default": "#2a6b80",
+      "--evcc-border-strong": "#3f93ab",
+      "--evcc-accent": "#5fd2ee",
+      "--evcc-text-on-accent": "#04222b",
+      "--evcc-sem-success": "#57c9a6",
+      "--evcc-sem-warning": "#c89556",
+      "--evcc-sem-error": "#d3724b",
+      "--evcc-sem-info": "#5793c8"
+    },
+    "alpha": {}
+  }
+}
