@@ -8,6 +8,18 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.10.2] - 2026-06-13
+
+Light-theme readability fixes — the card now renders light themes cleanly,
+surfaced by adding the gallery's first light theme.
+
+### Fixed
+- **Room order numbers (#1–#5) are readable on light themes.** The room-card order
+  label inherited a fixed near-white colour and disappeared on light surfaces; it
+  now tracks the theme's secondary text colour (unchanged on dark themes).
+- **The room-rules "Disabled" tag keeps its pill on light themes.** Its background
+  and border were hard-coded white; they now use the surface/border tokens.
+
 ## [0.10.1] - 2026-06-13
 
 A small theming fix.
