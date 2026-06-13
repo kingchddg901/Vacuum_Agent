@@ -8,6 +8,19 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.10.1] - 2026-06-13
+
+A small theming fix.
+
+### Fixed
+- **Modals now follow the active theme.** A custom theme that set only the core
+  colors — surfaces, text, and accent, as hand- and AI-authored themes typically
+  do — left every modal (the room editor, the app-started-run review wizard, and
+  the rest) on the default dark palette, because the modal/overlay token family
+  didn't derive from those core colors. Modals now derive their surfaces, text,
+  and accent from the active theme, so any theme themes its modals too. A
+  light-mode default is preserved, and the built-in themes are unchanged.
+
 ## [0.10.0] - 2026-06-12
 
 A UI-heavy release: hand-drawn custom map layouts, a real documentation site, and
