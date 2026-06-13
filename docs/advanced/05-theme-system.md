@@ -79,6 +79,9 @@ Tokens are organized into the following groups, in this order:
 
 The Floor Texture sub-groups (Tile, Wood, Marble, etc.) are nested visually under the parent Floor Textures group. Their headers display the sub-group name without the parent prefix, so "Floor Textures — Tile" appears as just "Tile" when expanded. The Animal Companion sub-groups follow the same parent/sub-group nesting, and their list grows automatically as new mascot files are registered.
 
+The complete per-token catalog — every token in each group, with its editor label, type, and
+slider range — lives in the developer reference: **[Theme Token Map](../dev/reference/THEME_TOKEN_MAP.md)**.
+
 All groups are open by default on first visit. Clicking a group header collapses or expands it, and that state is remembered for the rest of the session.
 
 ---

@@ -57,6 +57,12 @@ The static groups below are the fixed editor order. Between **Modals & Overlays*
 | **Modals & Overlays** | Background, border, backdrop, and padding values for the modal layer |
 | **Shared Foundations** | Spacing, radius, typography, and motion primitives shared across all components |
 
+> The complete per-token catalog — every `--evcc-*` key with its editor label, type, and
+> range, grouped — is generated into **[Theme Token Map](reference/THEME_TOKEN_MAP.md)**, and
+> **[Theme Token CSS-Usage Trace](reference/THEME_TOKEN_USAGE.md)** traces where each token is
+> consumed in the card CSS (and flags any token that nothing reads). Both regenerate with
+> `node scripts/gen-theme-token-docs.mjs` — run it after adding, removing, or renaming a token.
+
 ### Token object shape
 
 Every token in the registry has these four required fields:
@@ -436,6 +442,15 @@ user-facing walkthrough is
    ```
 
 4. **Provide a default** in every built-in theme's token set (in `manager.py`, update `_build_release_theme_tokens()` or the `BASE_PRELOADED_THEME_SPEC`) so the token has a sensible value out of the box. For tokens that should fall back gracefully when absent, add a CSS fallback in the `var()` call: `var(--evcc-surface-new-thing, #1c2127)`.
+
+5. **Regenerate the reference docs** so the catalog + usage trace stay current:
+   ```
+   node scripts/gen-theme-token-docs.mjs
+   ```
+   This rewrites [reference/THEME_TOKEN_MAP.md](reference/THEME_TOKEN_MAP.md) and
+   [reference/THEME_TOKEN_USAGE.md](reference/THEME_TOKEN_USAGE.md) from the live registry + CSS.
+   The usage trace flags the new token if nothing consumes it yet (an un-wired knob), and surfaces
+   the inverse too — a `var(--evcc-…)` the CSS uses that isn't in the registry.
 
 No schema migration is needed — the flat storage format means new tokens simply appear as absent keys in existing saved themes, and `applyDynamicTheme()` skips absent tokens rather than injecting them.
 
