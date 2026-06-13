@@ -150,9 +150,37 @@ export function applyMetricsState(proto) {
     return [];
   };
 
+  // Profiles that share a display label (e.g. several "Kitchen Vacuum Quick"
+  // settings-signatures) get the settings subtitle appended so each is tellable
+  // apart; the value (profile_key) is untouched, so filtering still targets the
+  // exact variant. A label is REMEMBERED as ambiguous once seen with a namesake
+  // (accumulated, never cleared), so a selected/filtered-down chip or card keeps
+  // its full label instead of collapsing back to the bare name when the
+  // duplicates drop out of the current view. Shared by the Metrics + Learning
+  // Review profile filters and result cards.
+  proto._noteAmbiguousProfiles = function (labels) {
+    if (!this._ambiguousProfileLabels) this._ambiguousProfileLabels = new Set();
+    const counts = {};
+    for (const l of labels) counts[String(l)] = (counts[String(l)] || 0) + 1;
+    for (const l in counts) if (counts[l] > 1) this._ambiguousProfileLabels.add(l);
+  };
+  proto._isAmbiguousProfileLabel = function (label) {
+    return !!(this._ambiguousProfileLabels && this._ambiguousProfileLabels.has(String(label)));
+  };
+  proto._disambiguateProfileOptions = function (options) {
+    if (!Array.isArray(options) || !options.length) return Array.isArray(options) ? options : [];
+    const labelOf = (o) => String(o?.label ?? o?.value ?? o?.profile_key ?? "");
+    this._noteAmbiguousProfiles(options.map(labelOf));
+    return options.map((o) => {
+      const l = labelOf(o);
+      const sub = String(o?.subtitle ?? "").trim();
+      return this._isAmbiguousProfileLabel(l) && sub ? { ...o, label: `${l} · ${sub}` } : o;
+    });
+  };
+
   proto.metricsFilterProfileOptions = function () {
     const options = this.metricsSnapshot()?.filter_options?.profiles;
-    if (Array.isArray(options) && options.length) return options;
+    if (Array.isArray(options) && options.length) return this._disambiguateProfileOptions(options);
     return [];
   };
 

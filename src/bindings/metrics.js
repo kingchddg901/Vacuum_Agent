@@ -56,6 +56,19 @@ export function applyMetricsBindings(proto) {
       this.card._scheduleRender();
     });
 
+    // Live chip search — filter the chips in a searchable group by text without a
+    // re-render (keeps focus in the input). The "All" chip always stays visible.
+    this.card._onAll("[data-chip-search]", "input", (e) => {
+      const input = e.currentTarget;
+      const q = String(input?.value ?? "").toLowerCase().trim();
+      const group = input?.closest?.("[data-chip-filter-group]");
+      if (!group) return;
+      group.querySelectorAll(".evcc-chip").forEach((chip) => {
+        if (chip.dataset.allChip === "true") { chip.style.display = ""; return; }
+        chip.style.display = chip.textContent.toLowerCase().includes(q) ? "" : "none";
+      });
+    });
+
     this.card._onAll("[data-metrics-filter]", "change", async (e) => {
       const key = e.currentTarget?.dataset?.metricsFilter;
       const value = e.currentTarget?.value;

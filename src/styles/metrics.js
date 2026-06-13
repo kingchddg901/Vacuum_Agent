@@ -94,6 +94,19 @@ export const metricsStyles = `
     border-color: color-mix(in srgb, var(--evcc-sem-warning) 40%, transparent);
     background: color-mix(in srgb, var(--evcc-sem-warning) 14%, transparent);
     color: var(--evcc-sem-warning);
+    /* Long suggested-profile names must wrap inside the narrow card, not clip. */
+    white-space: normal;
+    height: auto;
+    min-height: 0;
+    line-height: 1.3;
+    text-align: center;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+
+  .evcc-metrics-card-title {
+    min-width: 0;
+    overflow-wrap: anywhere;
   }
 
   .evcc-metrics-card-detail,
@@ -117,6 +130,56 @@ export const metricsStyles = `
 
   .evcc-metrics-filter-chips {
     gap: 8px;
+  }
+
+  /* Searchable profile filter: label + search input on one row, then a
+     height-capped, scrollable chip area so a long profile list never walls the
+     panel. Shared by the Metrics and Learning Review filters. */
+  .evcc-chip-filter-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .evcc-chip-filter-head .evcc-field-label {
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .evcc-chip-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 28px;
+    padding: 0 10px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    color: var(--evcc-text-primary);
+    background: var(--evcc-surface-input);
+    border: 1px solid var(--evcc-border-default);
+    border-radius: var(--evcc-radius-inner, 8px);
+    outline: none;
+  }
+
+  .evcc-chip-search:focus {
+    border-color: var(--evcc-accent, var(--evcc-border-strong));
+  }
+
+  .evcc-chip-filter--searchable .evcc-metrics-filter-chips,
+  .evcc-chip-filter--searchable .evcc-review-filter-chips {
+    max-height: 132px;
+    overflow-y: auto;
+    padding-right: 2px;
+  }
+
+  /* Long disambiguated labels wrap inside the chip (like the card badges) so the
+     group only ever scrolls vertically, never overflows its column width. */
+  .evcc-chip-filter--searchable .evcc-chip {
+    white-space: normal;
+    height: auto;
+    line-height: 1.25;
+    text-align: center;
+    overflow-wrap: anywhere;
+    max-width: 100%;
   }
 
   .evcc-metrics-tab-panel,

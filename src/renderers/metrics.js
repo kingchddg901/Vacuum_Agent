@@ -181,7 +181,7 @@ export function applyMetricsRenderers(proto) {
 
         ${foundProfiles.length ? `
           <div class="evcc-metrics-card-grid">
-            ${foundProfiles.slice(0, 8).map((profile) => this._renderMetricsFoundProfileCard(profile)).join("")}
+            ${this._withDisambiguatedTitles(foundProfiles).slice(0, 8).map((profile) => this._renderMetricsFoundProfileCard(profile)).join("")}
           </div>
         ` : `
           <div class="evcc-metrics-empty">No found profiles were returned for the current filters.</div>
@@ -223,7 +223,7 @@ export function applyMetricsRenderers(proto) {
       <div class="evcc-metrics-section-stack">
         ${profiles.length ? `
           <div class="evcc-metrics-card-grid">
-            ${profiles.map((profile) => this._renderMetricsRoomProfileCard(profile)).join("")}
+            ${this._withDisambiguatedTitles(profiles).map((profile) => this._renderMetricsRoomProfileCard(profile)).join("")}
           </div>
         ` : `
           <div class="evcc-metrics-empty">No room-profile metrics matched the current filters.</div>
@@ -237,7 +237,7 @@ export function applyMetricsRenderers(proto) {
             </div>
           </div>
           <div class="evcc-metrics-card-grid">
-            ${foundProfiles.slice(0, 12).map((profile) => this._renderMetricsFoundProfileCard(profile)).join("")}
+            ${this._withDisambiguatedTitles(foundProfiles).slice(0, 12).map((profile) => this._renderMetricsFoundProfileCard(profile)).join("")}
           </div>
         ` : ""}
       </div>
@@ -383,16 +383,24 @@ export function applyMetricsRenderers(proto) {
 
     const finalOptions = [{ value: "", label: fallbackLabel }, ...normalized.filter((opt) => opt.value !== "")];
 
+    const searchable = key === "profile_key";
+    const head = searchable
+      ? `<div class="evcc-chip-filter-head">
+           <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+           <input type="text" class="evcc-chip-search" data-chip-search placeholder="Search…" aria-label="Search ${this.escapeHtml(label)}">
+         </div>`
+      : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
     return `
-      <div class="evcc-metrics-chip-filter">
-        <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+      <div class="evcc-metrics-chip-filter${searchable ? " evcc-chip-filter--searchable" : ""}" data-chip-filter-group>
+        ${head}
         <div class="evcc-chips evcc-metrics-filter-chips">
-          ${finalOptions.map((opt) => `
+          ${finalOptions.map((opt, i) => `
             <button
               type="button"
               class="evcc-chip ${String(opt.value) === String(selected ?? "") ? "active" : ""}"
               data-metrics-filter-chip="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(opt.value)}"
+              ${i === 0 ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(opt.title)}"
             >${this.escapeHtml(opt.label)}</button>
           `).join("")}
@@ -482,9 +490,29 @@ export function applyMetricsRenderers(proto) {
    * @param {object} profile - Room-profile metrics object.
    * @returns {string} HTML string.
    */
+  // Disambiguate result-card titles the same way — and STABLY — as the filter
+  // chips: fold the settings into the title for any profile whose label has a
+  // known namesake, and drop the now-duplicate subtitle. Reuses the card-state
+  // accumulator so a filtered-down card keeps its full title instead of
+  // collapsing. Unique cards are untouched.
+  proto._withDisambiguatedTitles = function (profiles) {
+    if (!Array.isArray(profiles) || !profiles.length) return Array.isArray(profiles) ? profiles : [];
+    const st = this.card?._state;
+    const titleOf = (p) =>
+      String(p?.profile_label || p?.selected_profile_label || p?.resolved_profile_label || p?.profile_key || "Profile");
+    st?._noteAmbiguousProfiles?.(profiles.map(titleOf));
+    return profiles.map((p) => {
+      const t = titleOf(p);
+      const settings = String(p?.profile_subtitle ?? "").trim();
+      return st?._isAmbiguousProfileLabel?.(t) && settings
+        ? { ...p, display_title: `${t} · ${settings}`, _settings_in_title: true }
+        : p;
+    });
+  };
+
   proto._renderMetricsRoomProfileCard = function (profile) {
-    const title = profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
-    const subtitle = profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "";
+    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
+    const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("profile", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;
     const canSave = profile?.save_candidate === true && profile?.save_supported === true && String(profile?.save_service ?? "").trim() !== "";
@@ -526,8 +554,8 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMetricsFoundProfileCard = function (profile) {
-    const title = profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
-    const subtitle = profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "";
+    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
+    const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
     const trustReason = profile?.trust_reason_text || profile?.trust_reason || "";
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("found", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;

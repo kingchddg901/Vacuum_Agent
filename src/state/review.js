@@ -143,15 +143,17 @@ export function applyReviewState(proto) {
   proto.learningHistoryProfiles = function () {
     const filterOptions = this.learningHistorySnapshot?.()?.filter_options?.profiles;
     if (Array.isArray(filterOptions) && filterOptions.length) {
-      return filterOptions
-        .filter((option) => String(option?.value ?? "").trim() !== "")
-        .map((option) => ({
-          profile_key: String(option?.value ?? ""),
-          label: String(option?.label ?? option?.value ?? ""),
-          subtitle: option?.subtitle == null ? null : String(option.subtitle),
-          room_slug: option?.room_slug == null ? null : String(option.room_slug),
-          room_label: option?.room_label == null ? null : String(option.room_label),
-        }));
+      return this._disambiguateProfileOptions(
+        filterOptions
+          .filter((option) => String(option?.value ?? "").trim() !== "")
+          .map((option) => ({
+            profile_key: String(option?.value ?? ""),
+            label: String(option?.label ?? option?.value ?? ""),
+            subtitle: option?.subtitle == null ? null : String(option.subtitle),
+            room_slug: option?.room_slug == null ? null : String(option.room_slug),
+            room_label: option?.room_label == null ? null : String(option.room_label),
+          }))
+      );
     }
 
     const snapshot = this.learningHistorySnapshot?.();
@@ -180,8 +182,10 @@ export function applyReviewState(proto) {
       }
     }
 
-    return Array.from(merged.values()).sort((a, b) =>
-      String(a.label ?? a.profile_key).localeCompare(String(b.label ?? b.profile_key))
+    return this._disambiguateProfileOptions(
+      Array.from(merged.values()).sort((a, b) =>
+        String(a.label ?? a.profile_key).localeCompare(String(b.label ?? b.profile_key))
+      )
     );
   };
 

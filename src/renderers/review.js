@@ -222,16 +222,24 @@ export function applyReviewRenderers(proto) {
       ? [{ value: String(emptyValue), label: fallbackLabel }, ...normalized.filter((opt) => opt.value !== String(emptyValue))]
       : normalized;
 
+    const searchable = key === "profile_key";
+    const head = searchable
+      ? `<div class="evcc-chip-filter-head">
+           <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+           <input type="text" class="evcc-chip-search" data-chip-search placeholder="Search…" aria-label="Search ${this.escapeHtml(label)}">
+         </div>`
+      : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
     return `
-      <div class="evcc-review-chip-filter">
-        <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+      <div class="evcc-review-chip-filter${searchable ? " evcc-chip-filter--searchable" : ""}" data-chip-filter-group>
+        ${head}
         <div class="evcc-chips evcc-review-filter-chips">
-          ${finalOptions.map((opt) => `
+          ${finalOptions.map((opt, i) => `
             <button
               type="button"
               class="evcc-chip ${String(opt.value) === String(selected ?? "") ? "active" : ""}"
               data-review-filter-chip="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(opt.value)}"
+              ${i === 0 && includeFallback ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(opt.title)}"
             >${this.escapeHtml(opt.label)}</button>
           `).join("")}
@@ -441,8 +449,14 @@ export function applyReviewRenderers(proto) {
       (Array.isArray(job?.learning_blockers) && job.learning_blockers.length ? job.learning_blockers.join(", ") : "") ||
       (Array.isArray(job?.sanity_flags) && job.sanity_flags.length ? job.sanity_flags.join(", ") : "");
 
-    const profileDisplay = job?.profile_label || job?.selected_profile_label || job?.resolved_profile_label || job?.profile_key || "Unknown";
-    const profileSubtitle = job?.profile_subtitle || null;
+    // Fold the settings into the profile value (and drop the duplicate subtitle)
+    // for profiles with a known namesake — same stable disambiguation as the
+    // Metrics cards and the filter chips.
+    const profileBase = job?.profile_label || job?.selected_profile_label || job?.resolved_profile_label || job?.profile_key || "Unknown";
+    const profileSettings = String(job?.profile_subtitle ?? "").trim();
+    const profileAmbiguous = !!(this.card?._state?._isAmbiguousProfileLabel?.(profileBase) && profileSettings);
+    const profileDisplay = profileAmbiguous ? `${profileBase} · ${profileSettings}` : profileBase;
+    const profileSubtitle = profileAmbiguous ? null : (job?.profile_subtitle || null);
     const roomDisplay = Array.isArray(job?.room_slugs) && job.room_slugs.length
         ? job.room_slugs.join(", ")
       : "Unknown";
