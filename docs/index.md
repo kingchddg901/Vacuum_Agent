@@ -28,6 +28,10 @@ Room-level control for **Eufy robot vacuums** in Home Assistant — a custom int
 
     Porting the adapter to a new brand, and authoring mascots.
 
+- **[Theme Gallery ↗](https://kingchddg901.github.io/Vacuum_Agent/)**
+
+    Browse the real card rendered under every community-submitted theme — the live render gallery.
+
 </div>
 
 ## Highlights

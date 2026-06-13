@@ -81,7 +81,7 @@ Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/
 
 ## Screenshots
 
-> **Live gallery:** [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/) renders the real card under every community-submitted theme — each tab, the External Jobs subtab, and the review wizard — rebuilt automatically by the [render harness](docs/dev/27-render-harness.md) on every push to `master`.
+> **Live gallery:** [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/) renders the real card under every community-submitted theme — each tab, the External Jobs subtab, and the review wizard — rebuilt automatically by the [render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) on every push to `master`.
 
 <details>
 <summary><strong>Click to expand the full panel tour</strong></summary>
@@ -152,7 +152,7 @@ Register the vacuum, import maps, and configure each room — exclude ghost room
 
 ### Interactive room map (optional)
 
-Tap a room on a live floor-plan view to queue it; double-tap to configure. **This view is not enabled by default** and requires a one-time configuration step — see [Map Configuration](docs/advanced/08-map-configuration.md) for setup.
+Tap a room on a live floor-plan view to queue it; double-tap to configure. **This view is not enabled by default** and requires a one-time configuration step — see [Map Configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) for setup.
 
 ![Interactive room map](docs/screenshots/rooms-map.png)
 
@@ -178,19 +178,19 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 
 ## Documentation
 
-- [User guide](docs/user-guide/01-overview.md) — walk-through of every panel tab
-- [Setup tab](docs/user-guide/11-setup.md) — initial setup wizard and ongoing drift review
-- [Battery health](docs/user-guide/13-battery-health.md) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
-- [Accessibility](docs/user-guide/14-accessibility.md) — the colorblind-safe theme and shape-coded badges
-- [Services reference](docs/advanced/03-services.md) — for use in automations
-- [Automation examples](docs/advanced/04-automation-examples.md)
-- [Map configuration](docs/advanced/08-map-configuration.md) — enable the interactive room map (optional)
-- [Battery health (advanced)](docs/advanced/09-battery-health.md) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](docs/dev/README.md) — reading-order index for all 28 dev docs
-- [Render harness](docs/dev/27-render-harness.md) — headless visual-regression, colorblind validation, and theme previews ([how to run](docs/testing/07-render-harness.md))
-- [Adapter config reference](docs/dev/22-adapter-config-reference.md) — the schema for per-vacuum brand config
-- [Porting guide](docs/contributing/porting-guide.md) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
-- [Mascot authoring guide](docs/contributing/mascot-authoring.md) — visual standards for adding or improving the map view's animal companions
+- [User guide](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/01-overview/) — walk-through of every panel tab
+- [Setup tab](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/11-setup/) — initial setup wizard and ongoing drift review
+- [Battery health](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/13-battery-health/) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
+- [Accessibility](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/14-accessibility/) — the colorblind-safe theme and shape-coded badges
+- [Services reference](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/03-services/) — for use in automations
+- [Automation examples](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/04-automation-examples/)
+- [Map configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) — enable the interactive room map (optional)
+- [Battery health (advanced)](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/09-battery-health/) — math, zone definitions, mid-job recharge significance, automation examples
+- [Developer docs](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/) — reading-order index for all 28 dev docs
+- [Render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) — headless visual-regression, colorblind validation, and theme previews ([how to run](https://kingchddg901.github.io/Vacuum_Agent/docs/testing/07-render-harness/))
+- [Adapter config reference](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/22-adapter-config-reference/) — the schema for per-vacuum brand config
+- [Porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
+- [Mascot authoring guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/mascot-authoring/) — visual standards for adding or improving the map view's animal companions
 - [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual used before tagging any release
 - [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — standalone, domain-agnostic guide to the runtime-configurable adapter pattern this integration is built on. Useful if you want to apply the same approach to a non-vacuum HA integration.
 
@@ -200,7 +200,7 @@ Under the hood the integration is **adapter-driven**: every brand-specific fact 
 
 The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for a different vacuum brand is a config-only change: write a parallel `adapters/<brand>/` folder, declare what your brand exposes, register the adapter at integration setup. The framework, the card, the learning system, and the dispatch path all consume whatever the adapter declares.
 
-See the [porting guide](docs/contributing/porting-guide.md) for the vacuum-specific workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs. For the general pattern as a reusable architecture — applicable to any multi-vendor HA integration — see [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
+See the [porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) for the vacuum-specific workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs. For the general pattern as a reusable architecture — applicable to any multi-vendor HA integration — see [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
 
 ## Acknowledgements
 

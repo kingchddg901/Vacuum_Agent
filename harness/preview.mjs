@@ -174,7 +174,7 @@ function writeIndex(entries) {
   <header>
     <h1>EVCC theme gallery</h1>
     <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a></p>
+    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="docs/">📖 Documentation</a></p>
   </header>
   <main>
 ${cards}
