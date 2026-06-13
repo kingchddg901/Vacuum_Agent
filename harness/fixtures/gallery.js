@@ -66,8 +66,8 @@ const ROOMS_ACTIVE = {
     "--evcc-sem-success", "--evcc-sem-warning", "--evcc-sem-error",
     "--evcc-learning-confidence-high-bg", "--evcc-learning-confidence-high-border", "--evcc-learning-confidence-high-text",
     "--evcc-learning-confidence-medium-bg", "--evcc-learning-confidence-medium-border", "--evcc-learning-confidence-medium-text",
-    "--evcc-learning-confidence-low-bg", "--evcc-learning-confidence-low-border", "--evcc-learning-confidence-low-text",
-    "--evcc-learning-confidence-neutral-bg", "--evcc-learning-confidence-neutral-border", "--evcc-learning-confidence-neutral-text",
+    "--evcc-learning-confidence-low-border", "--evcc-learning-confidence-low-text",
+    "--evcc-learning-confidence-neutral-border", "--evcc-learning-confidence-neutral-text",
     "--evcc-estimate-learned-bg", "--evcc-estimate-learned-border", "--evcc-estimate-learned-text",
     "--evcc-estimate-default-bg", "--evcc-estimate-default-border", "--evcc-estimate-default-text",
     "--evcc-confidence-high-bg", "--evcc-confidence-high-border", "--evcc-confidence-high-text",
@@ -300,8 +300,8 @@ const MAPPING_REVIEW = {
 
 const DOT_STATES = [
   { id: "cleaning", vs: "cleaning", vl: "Cleaning", tokens: ["--evcc-status-dot-cleaning", "--evcc-color-cleaning"] },
-  { id: "returning", vs: "returning", vl: "Returning", tokens: ["--evcc-status-dot-returning", "--evcc-color-returning"] },
-  { id: "paused", vs: "paused", vl: "Paused", tokens: ["--evcc-status-dot-paused", "--evcc-color-paused"] },
+  { id: "returning", vs: "returning", vl: "Returning", tokens: ["--evcc-status-dot-returning"] },
+  { id: "paused", vs: "paused", vl: "Paused", tokens: ["--evcc-status-dot-paused"] },
   { id: "error", vs: "error", vl: "Error", ds: "error", dl: "Error", tokens: ["--evcc-status-dot-error", "--evcc-color-error"] },
   { id: "docked", vs: "docked", vl: "Docked", ds: "idle", dl: "Idle", tokens: ["--evcc-status-dot-docked", "--evcc-color-docked"] },
   { id: "charging", vs: "docked", vl: "Docked", ds: "charging", dl: "Charging", tokens: ["--evcc-status-dot-charging"] },

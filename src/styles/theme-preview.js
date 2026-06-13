@@ -621,7 +621,7 @@ export const themePreviewStyles = `
     align-items: center;
     justify-content: center;
     padding: 4px;
-    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.03));
+    background: var(--evcc-surface-subtle, rgba(255, 255, 255, 0.03));
     border-radius: 8px;
     min-height: 60px;
   }
@@ -634,7 +634,7 @@ export const themePreviewStyles = `
   }
 
   .evcc-theme-preview-animal-note code {
-    background: var(--evcc-surface-elevated, rgba(255, 255, 255, 0.06));
+    background: var(--evcc-surface-subtle, rgba(255, 255, 255, 0.06));
     padding: 1px 4px;
     border-radius: 3px;
     font-size: 10.5px;

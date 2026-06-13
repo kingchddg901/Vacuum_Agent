@@ -110,19 +110,29 @@ export const foundationStyles = `
     --evcc-surface-raised: color-mix(in srgb, var(--evcc-surface-base) 92%, white 8%);
     --evcc-surface-input:  rgba(255,255,255,0.06);
     --evcc-surface-overlay: rgba(0,0,0,0.4);
+    --evcc-surface-subtle: rgba(255,255,255,0.04);
+    --evcc-surface-chip:   rgba(255,255,255,0.09);
+    --evcc-surface-action: rgba(255,255,255,0.10);
+    --evcc-surface-action-hover: rgba(255,255,255,0.18);
+    --evcc-surface-sunken: rgba(0,0,0,0.18);
+    --evcc-surface-warning: rgba(255,180,0,0.12);
 
     /* Text */
     --evcc-text-primary:   var(--primary-text-color, #f0f2f5);
     --evcc-text-secondary: var(--secondary-text-color, rgba(240,242,245,0.72));
     --evcc-text-muted:     rgba(240,242,245,0.48);
+    --evcc-text-strong:    var(--primary-text-color, #f0f2f5);
+    --evcc-text-on-accent: #ffffff;
 
     /* Borders */
     --evcc-border-subtle:  rgba(255,255,255,0.06);
     --evcc-border-default: rgba(255,255,255,0.10);
     --evcc-border-strong:  rgba(255,255,255,0.18);
+    --evcc-border-warning: rgba(255,180,0,0.35);
 
     /* Accent */
     --evcc-accent: var(--accent-color, #3b82f6);
+    --evcc-accent-soft: rgba(0,229,255,0.16);
 
     /* Generic semantics */
     --evcc-sem-success: var(--success-color, #4caf6e);
@@ -132,14 +142,6 @@ export const foundationStyles = `
        --info-color is theme-inconsistent (amber in some themes) and could
        collide with the warning hue. Used for reference/baseline states. */
     --evcc-sem-info:    #4a9fe0;
-
-    /* Boundary confidence tiers
-       Override these in theme editor to re-colour confidence indicators
-       across all views without touching component code. */
-    --evcc-conf-high:   var(--evcc-sem-success);
-    --evcc-conf-mid:    var(--evcc-sem-warning);
-    --evcc-conf-low:    var(--evcc-sem-error);
-    --evcc-conf-none:   var(--evcc-text-muted);
 
     /* Radius */
     --evcc-radius-card:  var(--ha-card-border-radius, 12px);
@@ -160,18 +162,12 @@ export const foundationStyles = `
 
     --evcc-card-bg:       var(--evcc-surface-card);
     --evcc-panel-bg:      var(--evcc-surface-panel);
-    --evcc-surface-raise: var(--evcc-surface-raised);
     --evcc-bg-input:      var(--evcc-surface-input);
-    --evcc-bg-panel:      var(--evcc-surface-panel);
-
-    --evcc-border:        var(--evcc-border-default);
 
     /* Old status colors → mapped to semantics */
     --evcc-color-cleaning:  var(--evcc-sem-success);
     --evcc-color-docked:    var(--evcc-accent);
-    --evcc-color-returning: var(--evcc-sem-warning);
     --evcc-color-error:     var(--evcc-sem-error);
-    --evcc-color-paused:    var(--evcc-accent);
     --evcc-color-idle:      var(--evcc-text-secondary);
 
     /* =======================================================

@@ -52,7 +52,7 @@ export const mappingReviewStyles = `
 
   .evcc-mrev-room-id {
     font-size: 0.75rem;
-    color: var(--evcc-text-tertiary, var(--evcc-text-secondary));
+    color: var(--evcc-text-secondary);
   }
 
   .evcc-mrev-badge {

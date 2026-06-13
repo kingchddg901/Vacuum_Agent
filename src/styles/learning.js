@@ -94,9 +94,6 @@ export const learningStyles = `
       );
 
     /* === CONFIDENCE: LOW === */
-    --evcc-learning-confidence-low-bg:
-      color-mix(in srgb, var(--evcc-sem-error) 18%, transparent);
-
     --evcc-learning-confidence-low-border:
       color-mix(in srgb, var(--evcc-sem-error) 42%, transparent);
 
@@ -111,9 +108,6 @@ export const learningStyles = `
       );
 
     /* === CONFIDENCE: NEUTRAL / FALLBACK === */
-    --evcc-learning-confidence-neutral-bg:
-      color-mix(in srgb, var(--evcc-text-muted) 16%, transparent);
-
     --evcc-learning-confidence-neutral-border:
       var(--evcc-border-default);
 
@@ -161,9 +155,6 @@ export const learningStyles = `
 
     --evcc-learning-reanchor-border:
       color-mix(in srgb, var(--evcc-accent) 34%, transparent);
-
-    --evcc-learning-current-glow:
-      color-mix(in srgb, var(--evcc-accent) 18%, transparent);
   }
 
   /* =========================================================

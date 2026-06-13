@@ -246,7 +246,7 @@ export const shellStyles = `
     padding:        8px 12px;
     border-radius:  10px;
     font-size:      0.85rem;
-    background:     var(--evcc-surface-elevated, rgba(30, 30, 30, 0.94));
+    background:     var(--evcc-surface-raised, rgba(30, 30, 30, 0.94));
     color:          var(--evcc-text-primary);
     box-shadow:     0 4px 14px rgba(0, 0, 0, 0.28);
     border:         1px solid var(--evcc-border-subtle, rgba(255,255,255,0.08));

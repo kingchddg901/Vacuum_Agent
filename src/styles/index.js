@@ -671,7 +671,7 @@ export const MODAL_HOST_STYLES = `
     border-radius:  999px;
     font-size:      0.72rem;
     font-weight:    700;
-    background:     var(--evcc-surface-elevated, rgba(255,255,255,0.08));
+    background:     var(--evcc-surface-subtle, rgba(255,255,255,0.08));
     color:          var(--evcc-text-muted);
   }
 
@@ -684,7 +684,7 @@ export const MODAL_HOST_STYLES = `
 
   .evcc-order-preview-chip--active .evcc-order-preview-chip-pos {
     background:     var(--evcc-accent, #60a5fa);
-    color:          var(--evcc-on-accent, #ffffff);
+    color:          var(--evcc-text-on-accent, #ffffff);
   }
 `;
 
@@ -736,7 +736,7 @@ export const TOAST_HOST_STYLES = `
     padding:        10px 14px;
     border-radius:  10px;
     font-size:      0.9rem;
-    background:     var(--evcc-surface-elevated, rgba(28, 28, 30, 0.96));
+    background:     var(--evcc-surface-raised, rgba(28, 28, 30, 0.96));
     color:          var(--evcc-text-primary, #f0f2f5);
     box-shadow:     0 6px 18px rgba(0, 0, 0, 0.4);
     border:         1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.1));

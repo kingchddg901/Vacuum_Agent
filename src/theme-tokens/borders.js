@@ -23,6 +23,7 @@ export const BORDER_TOKENS = [
   borderToken.color("--evcc-border-default", "Border Default"),
   borderToken.color("--evcc-border-strong", "Border Strong"),
   borderToken.color("--evcc-border-subtle", "Border Subtle"),
+  borderToken.color("--evcc-border-warning", "Border Warning"),
   borderToken.shadow("--evcc-shadow-card", "Shadow Card"),
   borderToken.shadow("--evcc-shadow-hover", "Shadow Hover"),
 ];

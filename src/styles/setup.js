@@ -307,7 +307,7 @@ export const setupStyles = `
     gap:            10px;
     padding:        12px;
     border-top:     1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.10));
-    background:     var(--evcc-surface-bg, rgba(0, 0, 0, 0.18));
+    background:     var(--evcc-surface-sunken, rgba(0, 0, 0, 0.18));
   }
 
   .evcc-setup-room-editor-hint {
@@ -544,8 +544,8 @@ export const setupStyles = `
 
   .evcc-setup-drift-section {
     border-radius: 8px;
-    border:        1px solid var(--evcc-surface-border, rgba(255, 255, 255, 0.08));
-    background:    var(--evcc-surface-elev1, rgba(255, 255, 255, 0.03));
+    border:        1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.08));
+    background:    var(--evcc-surface-subtle, rgba(255, 255, 255, 0.03));
     padding:       12px 14px;
     display:       flex;
     flex-direction: column;
@@ -592,7 +592,7 @@ export const setupStyles = `
     gap:             10px;
     padding:         6px 10px;
     border-radius:   6px;
-    background:      var(--evcc-surface-elev2, rgba(255, 255, 255, 0.04));
+    background:      var(--evcc-surface-subtle, rgba(255, 255, 255, 0.04));
   }
 
   .evcc-setup-drift-room-name {

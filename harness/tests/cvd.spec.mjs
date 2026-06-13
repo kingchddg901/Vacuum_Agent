@@ -44,8 +44,6 @@ test("cvd-safe theme separates every semantic group under protan/deutan/tritan",
     const cascade = {
       colorError: resolve("--evcc-color-error"),
       semError: resolve("--evcc-sem-error"),
-      confHigh: resolve("--evcc-conf-high"),
-      semSuccess: resolve("--evcc-sem-success"),
     };
     el.remove();
     return { groups, surface, cascade };
@@ -62,8 +60,6 @@ test("cvd-safe theme separates every semantic group under protan/deutan/tritan",
   // The 5-override cascade resolves on the rendered card.
   expect(probe.cascade.colorError, "--evcc-color-error should cascade from --evcc-sem-error")
     .toBe(probe.cascade.semError);
-  expect(probe.cascade.confHigh, "--evcc-conf-high should cascade from --evcc-sem-success")
-    .toBe(probe.cascade.semSuccess);
 
   // 30-pair separation matrix (printed for the CI artifact), then the gate.
   const pass = printReport("cvd-safe (live, as rendered)", rgb);

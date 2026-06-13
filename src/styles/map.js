@@ -117,8 +117,8 @@ export const mapStyles = `
     align-items:     center;
     gap:             4px;
     padding:         4px 6px;
-    background:      var(--evcc-color-surface-elev2, rgba(20, 30, 50, 0.85));
-    border:          1px solid var(--evcc-color-border, rgba(255, 255, 255, 0.15));
+    background:      var(--evcc-map-tooltip-bg, rgba(20, 30, 50, 0.85));
+    border:          1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
     border-radius:   6px;
     backdrop-filter: blur(4px);
     z-index:         10;
@@ -132,9 +132,9 @@ export const mapStyles = `
     line-height:     1;
     font-size:       16px;
     font-weight:     600;
-    color:           var(--evcc-color-text, #fff);
-    background:      var(--evcc-color-surface-elev3, rgba(255, 255, 255, 0.08));
-    border:          1px solid var(--evcc-color-border, rgba(255, 255, 255, 0.15));
+    color:           var(--evcc-map-tooltip-text, #fff);
+    background:      var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:          1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
     border-radius:   4px;
     cursor:          pointer;
     display:         flex;
@@ -143,7 +143,7 @@ export const mapStyles = `
     transition:      background-color 0.15s ease, transform 0.05s ease;
   }
   .evcc-map-zoom-btn:hover {
-    background:      var(--evcc-color-accent-faint, rgba(255, 255, 255, 0.18));
+    background:      var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
   }
   .evcc-map-zoom-btn:active {
     transform:       scale(0.93);
@@ -153,7 +153,7 @@ export const mapStyles = `
     min-width:       42px;
     text-align:      center;
     font-size:       12px;
-    color:           var(--evcc-color-text-muted, rgba(255, 255, 255, 0.7));
+    color:           var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
     padding:         0 2px;
     font-variant-numeric: tabular-nums;
   }
@@ -750,7 +750,7 @@ export const mapStyles = `
      primary action chip. Auto-clears after 5s (see bindings/map.js). */
   .evcc-map-config-btn--confirm {
     background:   var(--evcc-sem-error, #ef4444);
-    color:        var(--evcc-on-error, #fff);
+    color:        var(--evcc-text-on-accent, #fff);
     border-color: var(--evcc-sem-error, #ef4444);
     font-weight:  700;
     animation:    evcc-variant-delete-pulse 1.1s ease-in-out infinite;

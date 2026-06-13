@@ -248,13 +248,13 @@ export const metricsStyles = `
   }
 
   .evcc-metrics-codeblock {
-    background: var(--evcc-bg-elevated, rgba(0, 0, 0, 0.18));
+    background: var(--evcc-surface-sunken, rgba(0, 0, 0, 0.18));
     border: 1px solid var(--evcc-border-default);
     border-radius: var(--evcc-radius-inner, 8px);
     padding: 10px 12px;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: 0.78rem;
-    color: var(--evcc-text-default);
+    color: var(--evcc-text-primary);
     white-space: pre-wrap;
     word-break: break-all;
     margin: 0;

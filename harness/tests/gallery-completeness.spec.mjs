@@ -17,10 +17,6 @@ import { mountHarness } from "../lib/mount-page.mjs";
 // current tabs. Each MUST carry a reason. A new token is NOT
 // auto-exempt — it fails until claimed by a gallery or listed here.
 const ALLOWLIST = {
-  "--evcc-conf-high": "alias of --evcc-sem-success; confidence surfaces via --evcc-confidence-* / --evcc-learning-confidence-*",
-  "--evcc-conf-mid": "alias of --evcc-sem-warning (see --evcc-conf-high)",
-  "--evcc-conf-low": "alias of --evcc-sem-error (see --evcc-conf-high)",
-  "--evcc-conf-none": "alias of --evcc-text-muted (see --evcc-conf-high)",
   "--evcc-status-cleaning-bg": "status pill variant not surfaced by the gallery tabs",
   "--evcc-status-cleaning-border": "status pill variant not surfaced by the gallery tabs",
   "--evcc-status-cleaning-text": "status pill variant not surfaced by the gallery tabs",
