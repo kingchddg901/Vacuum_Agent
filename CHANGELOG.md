@@ -8,6 +8,19 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.10.3] - 2026-06-13
+
+Map-editor visibility fixes (custom-layout composer + CV vertex editing).
+
+### Fixed
+- **The composer's selection outline stays visible on light / photo map backdrops.**
+  A selected shape's bright outline could wash out over a light custom-photo backdrop;
+  it now carries a thin black halo on each side, so it reads on any backdrop.
+- **Map-editor lines and vertex handles no longer balloon when you zoom in.** The
+  CV-segment polygon stroke and the vertex grab dots were sized in map units, so they
+  grew as you zoomed to align a room and hid the floor plan underneath. They are now a
+  fixed thin size at any zoom level.
+
 ## [0.10.2] - 2026-06-13
 
 Light-theme readability fixes — the card now renders light themes cleanly,
