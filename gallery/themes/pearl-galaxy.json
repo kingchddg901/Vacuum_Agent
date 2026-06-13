@@ -1,0 +1,11 @@
+{
+  "ok": true, "version": 1, "exported_at": null,
+  "theme": { "id": "theme_pearl_galaxy", "name": "Pearl Galaxy",
+    "tokens": { "--evcc-surface-overlay": "rgba(26,20,38,0.46)" },
+    "colors": {
+      "--evcc-surface-base": "#faf8fc", "--evcc-surface-panel": "#e4dbee", "--evcc-surface-raised": "#ece5f2", "--evcc-surface-input": "#f3eef8",
+      "--evcc-text-primary": "#221c30", "--evcc-text-secondary": "#4a4258", "--evcc-text-muted": "#6b6478",
+      "--evcc-border-subtle": "#dfd6ec", "--evcc-border-default": "#ccc0de", "--evcc-border-strong": "#b3a6c8",
+      "--evcc-accent": "#157681", "--evcc-text-on-accent": "#ffffff",
+      "--evcc-sem-success": "#267544", "--evcc-sem-warning": "#95531f", "--evcc-sem-error": "#a32b21", "--evcc-sem-info": "#2c66a4"
+    }, "alpha": {} } }
