@@ -1,0 +1,56 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": "2026-06-13T07:45:34Z",
+  "theme": {
+    "id": "theme_20260613T002851443302",
+    "name": "Painted Hills",
+    "tokens": {
+      "--evcc-queue-completed-opacity": 0.92,
+      "--evcc-queue-pending-opacity": 1
+    },
+    "colors": {
+      "--evcc-accent": "#C04E2C",
+      "--evcc-accent-soft": "#C04E2C",
+      "--evcc-surface-base": "#1F170E",
+      "--evcc-surface-card": "#2F2518",
+      "--evcc-surface-panel": "#382D1F",
+      "--evcc-surface-raised": "#3F3324",
+      "--evcc-surface-input": "#F3EAD6",
+      "--evcc-text-primary": "#F4EBD8",
+      "--evcc-text-secondary": "#F4EBD8",
+      "--evcc-text-muted": "#F4EBD8",
+      "--evcc-border-subtle": "#F4EBD8",
+      "--evcc-border-default": "#F4EBD8",
+      "--evcc-border-strong": "#F4EBD8",
+      "--evcc-sem-success": "#909C54",
+      "--evcc-sem-warning": "#DCAE46",
+      "--evcc-sem-error": "#BE4A31",
+      "--evcc-sem-info": "#62788C",
+      "--evcc-room-chip-text": "#F4EBD8",
+      "--evcc-learning-confidence-high-text": "#C9D69A",
+      "--evcc-learning-confidence-medium-text": "#ECC87A",
+      "--evcc-learning-confidence-low-text": "#E89C86",
+      "--evcc-learning-confidence-neutral-text": "#F4EBD8",
+      "--evcc-queue-completed-text": "#F4EBD8",
+      "--evcc-queue-pending-text": "#F4EBD8",
+      "--evcc-queue-skipped-text": "#F4EBD8",
+      "--evcc-modal-accent-text": "#FBF3E2",
+      "--evcc-text-on-accent": "#FBF3E2"
+    },
+    "alpha": {
+      "--evcc-accent-soft": 0.18,
+      "--evcc-surface-input": 0.07,
+      "--evcc-text-secondary": 0.9,
+      "--evcc-text-muted": 0.64,
+      "--evcc-border-subtle": 0.1,
+      "--evcc-border-default": 0.16,
+      "--evcc-border-strong": 0.26,
+      "--evcc-room-chip-text": 0.92,
+      "--evcc-learning-confidence-neutral-text": 0.9,
+      "--evcc-queue-completed-text": 0.82,
+      "--evcc-queue-pending-text": 0.95,
+      "--evcc-queue-skipped-text": 0.7
+    }
+  }
+}
