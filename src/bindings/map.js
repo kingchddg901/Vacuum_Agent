@@ -980,10 +980,16 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
-    // Floor textures on/off
-    root.querySelectorAll("[data-action='floor-texture-toggle']").forEach((btn) => {
+    // Floor textures on/off — map polygons and room cards toggle independently.
+    root.querySelectorAll("[data-action='map-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {
-        this.card._state.toggleFloorTextureEnabled?.();
+        this.card._state.toggleMapFloorTextureEnabled?.();
+        this.card._scheduleRender();
+      });
+    });
+    root.querySelectorAll("[data-action='room-texture-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleRoomFloorTextureEnabled?.();
         this.card._scheduleRender();
       });
     });

@@ -18,7 +18,7 @@ The Map Configuration view has three areas:
 
 #### The map-view toolbar
 
-The Rooms-tab map view carries its own toolbar (companion-animal select, icon-size slider, mascot toggle, floor-texture toggle) — walkthrough in the user guide's [The mascot and floor textures](../user-guide/16-making-your-own-maps.md#the-mascot-and-floor-textures). For reference, the two toggles persist per vacuum in `localStorage`: **`evcc_animal_on_<vacuum>`** (mascot, default on) and **`evcc_floor_tex_<vacuum>`** (floor textures, default on). The **Segmentation** picker (Auto (CV) plus the custom-layout chips) is *not* on this toolbar — it lives in the bottom panel of the Map Configuration view itself.
+The Rooms-tab map view carries its own toolbar (companion-animal select, icon-size slider, mascot toggle, and **two independent floor-texture toggles** — one for the map polygons, one for the room cards) — walkthrough in the user guide's [The mascot and floor textures](../user-guide/16-making-your-own-maps.md#the-mascot-and-floor-textures). For reference, these persist per vacuum in `localStorage`: **`evcc_animal_on_<vacuum>`** (mascot), **`evcc_floor_tex_map_<vacuum>`** (map textures), and **`evcc_floor_tex_rooms_<vacuum>`** (room-card textures) — all default on, each seeded on first read from the legacy unified **`evcc_floor_tex_<vacuum>`** key. The **Segmentation** picker (Auto (CV) plus the custom-layout chips) is *not* on this toolbar — it lives in the bottom panel of the Map Configuration view itself.
 
 ---
 

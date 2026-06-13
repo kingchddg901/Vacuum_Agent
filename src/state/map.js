@@ -971,28 +971,51 @@ export function applyMapState(proto) {
   /* =========================================================
      FLOOR TEXTURES ON / OFF  (per vacuum, localStorage)
      =========================================================
-     Hides every floor-texture surface (map polygons + room cards). Default on. */
-  proto._floorTextureEnabled = null; // null = not yet read
-  proto._floorTextureKey = function () {
-    return `evcc_floor_tex_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+     Two INDEPENDENT toggles — the map polygons and the room-card layers are
+     controlled separately. Each first read seeds from the legacy unified key
+     (evcc_floor_tex_<vac>) so an existing on/off preference carries over to
+     both. Default on. */
+  proto._mapFloorTextureEnabled  = null; // null = not yet read
+  proto._roomFloorTextureEnabled = null;
+  proto._floorTexKey = function (which) {
+    return `evcc_floor_tex_${which}_${vacuumObjectId(this.config?.vacuum ?? "")}`;
   };
-  proto.floorTextureEnabled = function () {
-    if (this._floorTextureEnabled === null) {
-      try {
-        this._floorTextureEnabled = localStorage.getItem(this._floorTextureKey()) !== "0";
-      } catch (_) {
-        this._floorTextureEnabled = true;
-      }
-    }
-    return this._floorTextureEnabled;
-  };
-  proto.setFloorTextureEnabled = function (on) {
-    this._floorTextureEnabled = !!on;
+  proto._readFloorTex = function (which) {
     try {
-      localStorage.setItem(this._floorTextureKey(), on ? "1" : "0");
-    } catch (_) {}
+      const v = localStorage.getItem(this._floorTexKey(which));
+      if (v !== null) return v !== "0";
+      // Migrate from the legacy unified key (absent => default on).
+      const legacy = localStorage.getItem(`evcc_floor_tex_${vacuumObjectId(this.config?.vacuum ?? "")}`);
+      return legacy !== "0";
+    } catch (_) {
+      return true;
+    }
   };
-  proto.toggleFloorTextureEnabled = function () {
-    this.setFloorTextureEnabled(!this.floorTextureEnabled());
+  proto._writeFloorTex = function (which, on) {
+    try { localStorage.setItem(this._floorTexKey(which), on ? "1" : "0"); } catch (_) {}
+  };
+
+  proto.mapFloorTextureEnabled = function () {
+    if (this._mapFloorTextureEnabled === null) this._mapFloorTextureEnabled = this._readFloorTex("map");
+    return this._mapFloorTextureEnabled;
+  };
+  proto.setMapFloorTextureEnabled = function (on) {
+    this._mapFloorTextureEnabled = !!on;
+    this._writeFloorTex("map", !!on);
+  };
+  proto.toggleMapFloorTextureEnabled = function () {
+    this.setMapFloorTextureEnabled(!this.mapFloorTextureEnabled());
+  };
+
+  proto.roomFloorTextureEnabled = function () {
+    if (this._roomFloorTextureEnabled === null) this._roomFloorTextureEnabled = this._readFloorTex("rooms");
+    return this._roomFloorTextureEnabled;
+  };
+  proto.setRoomFloorTextureEnabled = function (on) {
+    this._roomFloorTextureEnabled = !!on;
+    this._writeFloorTex("rooms", !!on);
+  };
+  proto.toggleRoomFloorTextureEnabled = function () {
+    this.setRoomFloorTextureEnabled(!this.roomFloorTextureEnabled());
   };
 }

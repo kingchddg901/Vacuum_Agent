@@ -128,6 +128,18 @@ export function applyRoomsRenderers(proto) {
             <rect x="9" y="9" width="5" height="5" rx="1"/>
           </svg>
         </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.roomFloorTextureEnabled?.() ?? true) ? " active" : ""}"
+          data-action="room-texture-toggle"
+          title="${(state.roomFloorTextureEnabled?.() ?? true) ? "Hide room-card textures" : "Show room-card textures"}"
+          aria-label="${(state.roomFloorTextureEnabled?.() ?? true) ? "Hide room-card textures" : "Show room-card textures"}"
+          aria-pressed="${(state.roomFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
+            <rect x="2.5" y="3.5" width="11" height="9" rx="2"/>
+            <path d="M4.5 9.5 L7.5 6.5 M7 11 L11 7 M9.5 11 L12 8.5"/>
+          </svg>
+        </button>
         ${mapActive ? `
         <button
           class="evcc-rooms-view-toggle-btn evcc-rooms-view-toggle-btn--configure"
@@ -179,11 +191,11 @@ export function applyRoomsRenderers(proto) {
           </svg>
         </button>
         <button
-          class="evcc-rooms-view-toggle-btn${(state.floorTextureEnabled?.() ?? true) ? " active" : ""}"
-          data-action="floor-texture-toggle"
-          title="${(state.floorTextureEnabled?.() ?? true) ? "Hide floor textures" : "Show floor textures"}"
-          aria-label="${(state.floorTextureEnabled?.() ?? true) ? "Hide floor textures" : "Show floor textures"}"
-          aria-pressed="${(state.floorTextureEnabled?.() ?? true) ? "true" : "false"}"
+          class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
+          data-action="map-texture-toggle"
+          title="${(state.mapFloorTextureEnabled?.() ?? true) ? "Hide map textures" : "Show map textures"}"
+          aria-label="${(state.mapFloorTextureEnabled?.() ?? true) ? "Hide map textures" : "Show map textures"}"
+          aria-pressed="${(state.mapFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
             <rect x="2" y="2" width="12" height="12" rx="1.5"/>

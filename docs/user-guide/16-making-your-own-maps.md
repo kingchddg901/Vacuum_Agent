@@ -148,7 +148,8 @@ The map view's small toolbar also controls the cosmetic layers:
 
 - **Companion animal** — pick the sprite (cat, dog, raccoon, parrot, snake) and its size. It homes to the room your vacuum is in, and parks at a **dock spot** when docked — drag it once while docked to set where it parks (great for sitting it on the sun of a space map). The mascot and dock spot are remembered **per layout**.
 - **Mascot toggle** (paw) — hide or show the sprite.
-- **Floor-texture toggle** (hatch) — hide or show the per-room floor textures, on both the map and the room cards.
+- **Map textures toggle** (hatched square) — hide or show the floor textures on the map polygons.
+- **Room-card textures toggle** (hatched card) — hide or show the floor textures on the room cards, independently of the map. (This one stays in the toggle row even in list view, so you can flip the cards' textures while you're looking at them.)
 
 You can recolour the map's labels and overlays in the **Theme editor → Map** group.
 
