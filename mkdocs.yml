@@ -1,0 +1,73 @@
+# Docs site for the eufy_vacuum integration + card.
+# docs/ is the single source of truth; this only RENDERS it (MkDocs Material).
+# Build:  mkdocs build --strict   (CI publishes it to GitHub Pages under /docs/)
+site_name: eufy_vacuum
+site_description: Room-level control for Eufy robot vacuums in Home Assistant — integration + Lovelace card.
+site_url: https://kingchddg901.github.io/Vacuum_Agent/docs/
+repo_url: https://github.com/kingchddg901/Vacuum_Agent
+repo_name: kingchddg901/Vacuum_Agent
+edit_uri: edit/master/docs/
+copyright: Built from the docs/ tree — edit there, not here.
+
+docs_dir: docs
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+
+plugins:
+  - search
+  - awesome-pages
+
+markdown_extensions:
+  - tables
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.details
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  # GitHub-compatible heading slugs so the relative #anchor links authored for
+  # GitHub rendering resolve the same way on the built site.
+  - toc:
+      permalink: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
+
+validation:
+  nav:
+    omitted_files: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: ignore
+    unrecognized_links: warn

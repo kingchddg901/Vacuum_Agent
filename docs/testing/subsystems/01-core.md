@@ -23,7 +23,7 @@ Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.
 | `storage.py` | 17 | 100% | `test_core_storage.py` | integration |
 
 `manager.py` is the single largest module in the codebase; most of its public
-surface delegates to a subsystem (see [the delegation seam](#delegation-seams)),
+surface delegates to a subsystem (see [the delegation seam](#whats-tested)),
 so its own tests target the logic that genuinely lives in the orchestrator.
 
 ---

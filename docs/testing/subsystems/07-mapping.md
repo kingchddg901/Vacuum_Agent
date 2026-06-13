@@ -113,7 +113,7 @@ The framework's segment plumbing (`save_map_image`, `analyze_map_image`,
 CV pipeline without coupling to Eufy's. The real Eufy CV segmentor
 (`detect_room_segments`, HSV masks, `EufyCVSegmenter`) is tested **solo in
 `tests/adapters/eufy/test_segmentor.py`** (prefix `ECV`), where brand code
-belongs. See [feedback_brand_agnostic_tests](../../../) in memory for the rule.
+belongs. Framework-level tests stay engine-agnostic; brand CV tests live with the brand code.
 
 ### Non-segment service handlers (`MSV`, integration)
 The boundary-trace, dock, trace-capture, mapping-state/package, room-bounds,

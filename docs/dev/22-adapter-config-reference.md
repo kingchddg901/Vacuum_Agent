@@ -298,7 +298,7 @@ editors.
 
 **How to discover the right strings:** the reliable way is to record
 a real clean cycle and read the values directly off an HA recorder
-trace. See [porting-guide.md §4](../contributing/porting-guide.md#recommended-capture-a-real-clean-cycle-with-the-timeline-card)
+trace. See [porting-guide.md §9](../contributing/porting-guide.md#9-jobrun-segmentor-optional)
 for the recommended workflow using the `ha-state-timeline-card`.
 
 ---
@@ -611,7 +611,7 @@ framework makes when starting a room-clean job. For the actual wire
 shape and value vocabularies the framework produces from this
 config, see [07-queue-engine.md](07-queue-engine.md); for worked dispatch
 blocks for Eufy, Roborock, Dreame, and Narwal, see
-[porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
+[porting-guide.md §3](../contributing/porting-guide.md#3-the-config-blocks-you-fill-in).
 
 ### Schema
 
@@ -864,7 +864,7 @@ A Roborock dispatch block illustrates the full feature:
 
 The full Eufy reference adapter and brand catalog for Roborock,
 Dreame, and Narwal live in
-[porting-guide.md §3](../contributing/porting-guide.md#3-brand-catalog).
+[porting-guide.md §3](../contributing/porting-guide.md#3-the-config-blocks-you-fill-in).
 
 ### Job model (sequencing)
 
@@ -940,7 +940,7 @@ data vs. nothing at all) but produce the same canonical
 `SegmentationResult`, so the rest of the framework doesn't have to know
 which engine is selected.
 
-See [11-mapping-system.md §2.0](11-mapping-system.md#20-the-segmenter-engine-seam)
+See [26-eufy-segmentor.md §2](26-eufy-segmentor.md#2-the-segmenter-engine-contract-the-pattern)
 for the full protocol, the three engine variants, and the
 `SegmentationResult` shape.
 
@@ -974,7 +974,7 @@ Unknown values fall back to `noop_fallback` with a logged warning,
 and `_validate_adapter` flags the unknown name as a validation issue
 at registration time. Add new engines by writing a class that
 satisfies the `MapSegmenter` protocol and registering it under a
-new name (see [11-mapping-system.md §2.0b](11-mapping-system.md#20b-adding-a-new-engine)).
+new name (see [26-eufy-segmentor.md §10](26-eufy-segmentor.md#10-writing-a-segmenter-for-a-new-brand)).
 
 ### `segmenter_tuning` *(required when `mapping` is present, dict)*
 
@@ -985,7 +985,7 @@ values produce blocking errors. The framework's `_validate_adapter`
 delegates to the engine's validator at registration time.
 
 For `eufy_cv_v1`, the accepted keys mirror the kwargs of
-`detect_room_segments(...)` (see [11-mapping-system.md §2.1.1](11-mapping-system.md#211-input)):
+`detect_room_segments(...)` (see [11-mapping-system.md §2.1](11-mapping-system.md#21-input)):
 
 ```python
 "segmenter_tuning": {

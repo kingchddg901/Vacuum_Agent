@@ -2,7 +2,7 @@
 
 The battery health subsystem records every battery sample, classifies charge sessions, computes per-job drain rates, and surfaces twelve sensors plus a Metrics sub-tab. This document covers the math, the zone-definition rationale, the per-bucket aggregation rules, and how to use the data in automations.
 
-For the user-facing tour see [user-guide/13-battery-health.md](../user-guide/13-battery-health.md). For internal architecture see [dev/battery-system.md](../dev/battery-system.md).
+For the user-facing tour see [user-guide/13-battery-health.md](../user-guide/13-battery-health.md). For internal architecture see [dev/12-battery-system.md](../dev/12-battery-system.md).
 
 ---
 

@@ -92,7 +92,7 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
 
 Metadata keys are written by `save_map_discovery_snapshot()` (`last_discovery`, `discovered_rooms`) and `rebuild_map_bucket()` (`last_rebuild`). There is no `display_name` or `discovered_at` field.
 
-> The image/UI-state keys are documented in full in [16-mapping-system](16-mapping-system.md); their derived read-time fields (`polygon_pct`, injected `room_id`, applied `adjustments`) are computed by `mapping/mapping_services.py::_handle_get_map_segments`, not stored.
+> The image/UI-state keys are documented in full in [11-mapping-system](11-mapping-system.md); their derived read-time fields (`polygon_pct`, injected `room_id`, applied `adjustments`) are computed by `mapping/mapping_services.py::_handle_get_map_segments`, not stored.
 
 ---
 

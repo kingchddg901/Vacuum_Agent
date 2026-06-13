@@ -7,7 +7,7 @@ animals that self-register via a small JS API. The element re-renders on
 attribute change.
 
 Source lives at
-[`custom_components/eufy_vacuum/frontend/animal-svg/`](../../custom_components/eufy_vacuum/frontend/animal-svg/);
+[`custom_components/eufy_vacuum/frontend/animal-svg/`](https://github.com/kingchddg901/Vacuum_Agent/tree/master/custom_components/eufy_vacuum/frontend/animal-svg/);
 this document is the contract reference for two audiences:
 
 - **Integration authors** who use `<animal-svg>` to express device state.

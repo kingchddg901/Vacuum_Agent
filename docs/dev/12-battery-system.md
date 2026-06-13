@@ -411,7 +411,7 @@ Called from `learning/job_finalizer.py` after the completed_job dict is built an
 
 (Cancelled, failed, and test runs are skipped — their drains are not representative.)
 
-> **Thread context:** The finalizer body runs in HA's executor thread pool (`hass.async_add_executor_job`), so `record_job_metrics` and everything it calls — `_schedule_save`, `_notify`, sensor `async_write_ha_state` — are reached from a worker thread, not the event loop. The dispatch helpers in this module bridge across that boundary; see [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#7-concurrency--thread-safety) for the rule and pattern.
+> **Thread context:** The finalizer body runs in HA's executor thread pool (`hass.async_add_executor_job`), so `record_job_metrics` and everything it calls — `_schedule_save`, `_notify`, sensor `async_write_ha_state` — are reached from a worker thread, not the event loop. The dispatch helpers in this module bridge across that boundary; see [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#11-concurrency--thread-safety) for the rule and pattern.
 
 ### 9.1 What it does
 
@@ -612,7 +612,7 @@ class _BatteryBase(SensorEntity):
 
 The `call_soon_threadsafe` wrapping is required because `record_job_metrics`
 fires the manager's `_notify` chain from inside the JobFinalizer's executor
-thread. See [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#7-concurrency--thread-safety)
+thread. See [01-architecture-overview.md §7 Concurrency & Thread Safety](01-architecture-overview.md#11-concurrency--thread-safety)
 for the integration-wide rule and dispatch patterns; this is one specific
 instance of it.
 

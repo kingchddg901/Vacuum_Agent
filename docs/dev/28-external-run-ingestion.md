@@ -83,12 +83,12 @@ and only the confirm service graduates a run into learning.
 ## 3. Detection + capture
 
 **Detection** lives in the lifecycle listener
-([`listeners/lifecycle.py`](../../custom_components/eufy_vacuum/listeners/lifecycle.py),
+([`listeners/lifecycle.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/listeners/lifecycle.py),
 `_process`), which already fires on every watched-entity change. For each vacuum
 it calls `manager.maybe_handle_external_run(vacuum_entity_id)` *before* the
 per-map internal loop (which only handles `status in {started, paused}`).
 
-[`core/manager.py`](../../custom_components/eufy_vacuum/core/manager.py)
+[`core/manager.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/core/manager.py)
 `maybe_handle_external_run`:
 
 - Scan all maps: if any slot is `started`/`paused`, **internal owns the run** →
@@ -112,7 +112,7 @@ per-map internal loop (which only handles `status in {started, paused}`).
 
 **Capture** reuses the existing metrics chokepoint. The slot is in-flight
 (`started_at` set, no `ended_at`), so
-[`jobs/active_job.py`](../../custom_components/eufy_vacuum/jobs/active_job.py)
+[`jobs/active_job.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/jobs/active_job.py)
 `record_counter_sample` already buffers `counter_samples` for it. For external
 slots it **also** snapshots the per-room setting selects:
 
@@ -132,7 +132,7 @@ never read them back.
 ## 4. The pending record (schema v2)
 
 On finalize, `_finalize_external_run` runs the captured stream through
-[`learning/external_ingest.py`](../../custom_components/eufy_vacuum/learning/external_ingest.py)
+[`learning/external_ingest.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/external_ingest.py)
 `build_pending_record` (pure) and writes the result atomically to
 `learning/<slug>/external_jobs/job_<detection_ts>.json` (peer to `jobs/`).
 
@@ -194,12 +194,12 @@ to the legacy merge-only review, see §5a.)
 
 **Segmentation is now a three-stage pipeline** whose brand-specific stages live
 behind the **pluggable job-segmenter engine**
-([`learning/job_segmenter_engines.py`](../../custom_components/eufy_vacuum/learning/job_segmenter_engines.py))
+([`learning/job_segmenter_engines.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/job_segmenter_engines.py))
 — the **counter/run** segmenter, not the map segmenter
-([`mapping/segmenter_engines.py`](../../custom_components/eufy_vacuum/mapping/segmenter_engines.py),
+([`mapping/segmenter_engines.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/mapping/segmenter_engines.py),
 `eufy_cv_v1`, unchanged). The Eufy engine (`eufy_counter_v1`) delegates **verbatim**
 to the primitives in
-[`counter_segmentation.py`](../../custom_components/eufy_vacuum/counter_segmentation.py)
+[`counter_segmentation.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/counter_segmentation.py)
 ([10-learning-system](10-learning-system.md) §segmenter), so the same frozen
 samples can be re-cut at any granularity (this is what makes §5a exact):
 
@@ -364,7 +364,7 @@ The card calls `eufy_vacuum.confirm_external_run` (§8) with per-room
 uncertain cuts) to a room, plus `edge_mopping`, an `override` flag, and optional
 setting `overrides`.
 
-[`external_ingest.py`](../../custom_components/eufy_vacuum/learning/external_ingest.py)
+[`external_ingest.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/external_ingest.py)
 `build_graduated_job` turns confirmed assignments into a **normal completed-job
 record** — no new learning path. Per assignment:
 
@@ -390,7 +390,7 @@ It also sets `outcome.sanity_passed=True` + `outcome.sanity_flags=[]`
 **explicitly** — a run only graduates *after* passing the tier-1 identity gate
 (with a valid duration + room set), so it is sane by construction. Setting the key
 rather than leaving it absent is load-bearing: the history snapshot
-([`learning/manager.py`](../../custom_components/eufy_vacuum/learning/manager.py))
+([`learning/manager.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/manager.py))
 now reads `item.get('sanity_passed') is False` (was `not item.get('sanity_passed',
 True)`), so a missing/`None` value no longer mislabels the run. The jobs index had
 stored the key as `None`, which made the `.get(..., True)` default never fire and
@@ -464,7 +464,7 @@ by `EVENT_EXTERNAL_RUN_PENDING`.)*
 ## 8. Services + event
 
 Registered in
-[`learning/services.py`](../../custom_components/eufy_vacuum/learning/services.py)
+[`learning/services.py`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/learning/services.py)
 (all `supports_response`):
 
 | Service | Args | Returns |

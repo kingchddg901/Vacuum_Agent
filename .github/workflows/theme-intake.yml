@@ -1,16 +1,19 @@
 name: theme intake preview
 
-# Drop a theme export into gallery/themes/ (commit or PR) and CI renders the
-# real card recolored by it; or trigger by hand for a one-off export. Every
-# upload passes through the ingest gate (validate + clamp, skip malformed /
-# unknown-namespace, never eval) before it's rendered — so previewing a
-# stranger's theme is safe. Runs in the same pinned Playwright image as the
-# visual-regression gate.
+# Two things publish to the ONE GitHub Pages site this repo gets:
+#   1. The theme GALLERY — drop a theme export into gallery/themes/ (commit or
+#      PR) and CI renders the real card recolored by it (or trigger by hand).
+#      Every upload passes the ingest gate (validate + clamp, skip malformed /
+#      unknown-namespace, never eval) before render. Built in the pinned
+#      Playwright image, same as the visual-regression gate.
+#   2. The DOCS site — MkDocs Material rendered from docs/ (the single source of
+#      truth), built with --strict so a broken cross-link/anchor fails CI.
 #
-# On push to master the rendered gallery (harness/out/preview/, incl. a static
-# index.html) is published to GitHub Pages. PRs and manual dispatches only
-# upload a workflow artifact — they never deploy, so they can't clobber the
-# live gallery.
+# A single Pages site can only serve one artifact, so on push to master both are
+# assembled into one tree (gallery at /, docs at /docs/) and deployed together.
+# PRs and manual dispatches build + validate but NEVER deploy (no clobbering the
+# live site). A docs-only change still rebuilds the gallery (unchanged) and vice
+# versa, so the combined deploy is always internally consistent.
 #
 # ONE-TIME SETUP: enable Pages with the GitHub Actions source
 # (repo Settings -> Pages -> Build and deployment -> Source: GitHub Actions).
@@ -27,10 +30,14 @@ on:
     paths:
       - "gallery/themes/*.json"
       - "harness/**"
+      - "docs/**"
+      - "mkdocs.yml"
       - ".github/workflows/theme-intake.yml"
   pull_request:
     paths:
       - "gallery/themes/*.json"
+      - "docs/**"
+      - "mkdocs.yml"
 
 permissions:
   contents: read
@@ -43,7 +50,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  preview:
+  # 1. Render the theme gallery (unchanged from before — same Playwright image).
+  gallery:
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.60.0-noble
@@ -59,24 +67,65 @@ jobs:
       - name: Render theme preview(s)
         run: node harness/preview.mjs "${{ github.event.inputs.path }}"
 
-      - name: Upload previews (artifact)
+      - name: Upload gallery (artifact)
         uses: actions/upload-artifact@v4
         with:
-          name: theme-previews
+          name: gallery-site
           path: harness/out/preview/
           if-no-files-found: warn
           retention-days: 14
 
-      # Only the full gallery (push to master) becomes the published site.
+  # 2. Render the docs site from docs/ (strict = broken links/anchors fail CI).
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs Material
+        run: pip install mkdocs-material mkdocs-awesome-pages-plugin
+
+      - name: Build docs (strict)
+        run: mkdocs build --strict --site-dir docs-site
+
+      - name: Upload docs (artifact)
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-site
+          path: docs-site/
+          if-no-files-found: error
+          retention-days: 14
+
+  # 3. Assemble both into one tree (gallery at /, docs at /docs) + publish.
+  #    Push-to-master only; PRs/dispatch stop after the build+validate jobs.
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: [gallery, docs]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download gallery
+        uses: actions/download-artifact@v4
+        with:
+          name: gallery-site
+          path: public
+
+      - name: Download docs
+        uses: actions/download-artifact@v4
+        with:
+          name: docs-site
+          path: public/docs
+
       - name: Upload Pages artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: harness/out/preview
+          path: public
 
   deploy:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-    needs: preview
+    needs: publish
     runs-on: ubuntu-latest
     environment:
       name: github-pages

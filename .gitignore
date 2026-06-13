@@ -26,6 +26,10 @@ harness/out/
 test-results/
 playwright-report/
 
+# MkDocs docs-site build output (built in CI; never committed — docs/ is the source)
+/site/
+/site-docs/
+
 # HA user data (never commit)
 *.storage
 .storage/
