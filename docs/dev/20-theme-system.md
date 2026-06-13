@@ -422,6 +422,54 @@ human merge → Pages publish). That pipeline is documented in
 user-facing walkthrough is
 [user-guide/15-sharing-themes](../user-guide/15-sharing-themes.md).
 
+### Authoring a theme JSON by hand
+
+You don't *need* the editor — the import envelope is plain JSON, and the
+[Theme Token Map](reference/THEME_TOKEN_MAP.md) is its spec. For someone who knows
+exactly what they want, hand-writing a theme is mechanical: take keys from the catalog,
+give each a value of its declared **Type** (within its **Range**), and import.
+
+The envelope is the same `theme` object an export produces:
+
+```json
+{
+  "name": "My Hand-Built Theme",
+  "colors": {},
+  "alpha": {},
+  "tokens": {
+    "--evcc-accent":       "#6AA7FFFF",
+    "--evcc-surface-base": "#1B2129FF",
+    "--evcc-radius-card":  "14px",
+    "--evcc-floor-marble-vein-opacity": 0.5
+  }
+}
+```
+
+- **`tokens` is the only bucket you need.** A color token's value is any CSS color — an
+  8-char `#rrggbbaa` hex (the last two digits are alpha; `FF` = opaque) or an
+  `rgba(...)` / `color-mix(...)` expression. Non-color tokens take their literal value
+  per the catalog's **Type**: a `size` is a CSS length (`"14px"`), a `number` is a plain
+  number (a *bounded* scalar must stay inside its **Range** — e.g. an opacity in `0–1`),
+  a `duration` is `"180ms"`, and so on. This is exactly how the built-in themes are
+  stored — `colors`/`alpha` empty, the value (alpha included) sitting in `tokens`.
+- **`colors` + `alpha` are an editor convenience.** They hold the 6-char base hex and a
+  separate `0–1` alpha that `resolvedTheme()` recombines into the 8-char `tokens` value,
+  so the editor can offer a color picker + alpha slider. Populate them too only if you
+  want those keys to stay picker-editable after import; otherwise leave them `{}`.
+- **Partial is fine.** Include only the keys you want — anything you omit falls through
+  to the card's built-in defaults (the `foundation.js` `:host` seeds), since
+  `applyDynamicTheme()` only sets the keys present.
+- **Targeting:** the [Theme Token CSS-Usage Trace](reference/THEME_TOKEN_USAGE.md) lists
+  the exact CSS property each token paints, so you can retheme one surface without hunting.
+
+**The shortcut, if you'd rather not start blank:** export an existing theme (above) for a
+known-good, fully populated envelope, edit the values against the catalog, and re-import —
+the round-trip keeps `colors`/`alpha` intact so the result stays editable in the UI.
+
+**Importing:** paste the JSON (or upload a `.json` file) into the editor's **Import /
+Upload**. `import_theme()` validates it (non-empty `name`; dict `tokens`/`colors`/`alpha`)
+and adds it as a **new** library theme — a malformed payload is rejected whole.
+
 ---
 
 ## 8. Extending the Theme System
