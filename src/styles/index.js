@@ -123,6 +123,91 @@ export const MODAL_HOST_STYLES = `
     color: inherit;
   }
 
+  /* =========================================================
+     MODAL TOKEN DERIVATION  (canonical -> modal family)
+     =========================================================
+     The modal host is mounted on document.body (and, in the render
+     harness, as a shadow sibling) — DETACHED from the card's :host
+     cascade, so it does NOT inherit the canonical --evcc-* seeds from
+     foundation.js. Historically every --evcc-modal-* token therefore
+     fell back to a HARD-CODED dark literal, which meant a theme that
+     set only canonical tokens (surfaces / text / accent) left the
+     modal stuck on the default palette.
+
+     This block derives the whole modal colour family from the
+     canonical tokens — the same mapping _build_release_theme_colors()
+     bakes into every preloaded theme (themes/preloaded.py) — so ANY
+     theme, hand- or AI-authored, themes its modals for free.
+
+     Layering contract (why this is safe):
+       - A theme writes --evcc-modal-* INLINE on .evcc-modal-host
+         (apply-theme.js -> applyDynamicTheme(card._modalHost)). An
+         inline declaration outranks these stylesheet rules, so an
+         explicit modal override still wins.
+       - Otherwise we chain to the canonical token (a theme sets those
+         on the same host), so canonical-only themes flow through.
+       - The final literal is the floor for a themeless body host
+         (real-card default / Follow-HA, where no canonical reaches
+         document.body). Floors reproduce the historical themeless render,
+         except a few sub-perceptual cases that instead follow the coherent
+         preloaded mapping (warning / accent-border opacities) — these appear
+         in no visual baseline and differ only when NO theme is applied.
+         modal-bg deliberately keeps the raw surface-base (preloaded's inline
+         8% black darken still applies for the preloaded themes themselves),
+         to keep the themeless default visually stable. A light companion of
+         this block lives in the @media (prefers-color-scheme: light) rule
+         below and supplies light floors for a themeless light-OS host.
+     Size / shadow tokens are intentionally omitted — they are literal
+     spec values, not canonical-derived colours.
+     ========================================================= */
+  .evcc-modal-host {
+    /* Shell */
+    --evcc-modal-bg:             var(--evcc-surface-base, #1c2127);
+    --evcc-modal-backdrop-bg:    var(--evcc-surface-overlay, rgba(0, 0, 0, 0.72));
+    --evcc-modal-border:         var(--evcc-border-default, rgba(255, 255, 255, 0.18));
+    --evcc-modal-border-default: var(--evcc-border-default, rgba(255, 255, 255, 0.10));
+    --evcc-modal-border-strong:  var(--evcc-border-strong, rgba(255, 255, 255, 0.18));
+    --evcc-modal-border-subtle:  var(--evcc-border-subtle, rgba(255, 255, 255, 0.08));
+
+    /* Surfaces */
+    --evcc-modal-surface-panel:   var(--evcc-surface-panel, #1c2127);
+    --evcc-modal-surface-input:   var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    --evcc-modal-surface-section: var(--evcc-surface-raised, rgba(255, 255, 255, 0.04));
+    --evcc-modal-input-bg:        var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+
+    /* Header / footer fills — transparent by default, so the floor
+       collapses to transparent when no canonical surface is present. */
+    --evcc-modal-header-bg: color-mix(in srgb, var(--evcc-surface-panel, transparent) 86%, transparent);
+    --evcc-modal-footer-bg: color-mix(in srgb, var(--evcc-surface-panel, transparent) 80%, transparent);
+
+    /* Text */
+    --evcc-modal-text-primary:   var(--evcc-text-primary, #f0f2f5);
+    --evcc-modal-text-secondary: var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    --evcc-modal-text-muted:     var(--evcc-text-muted, rgba(240, 242, 245, 0.48));
+
+    /* Accent */
+    --evcc-modal-accent:        var(--evcc-accent, #3b82f6);
+    --evcc-modal-accent-text:   var(--evcc-accent, #3b82f6);
+    --evcc-modal-accent-bg:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 22%, transparent);
+    --evcc-modal-accent-border: color-mix(in srgb, var(--evcc-accent, #3b82f6) 42%, transparent);
+
+    /* Chips */
+    --evcc-modal-chip-bg:           var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    --evcc-modal-chip-border:       var(--evcc-border-default, rgba(255, 255, 255, 0.10));
+    --evcc-modal-chip-text:         var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    --evcc-modal-chip-hover-bg:     var(--evcc-surface-panel, #1c2127);
+    --evcc-modal-chip-hover-border: var(--evcc-border-strong, rgba(255, 255, 255, 0.18));
+    --evcc-modal-chip-hover-text:   var(--evcc-text-primary, #f0f2f5);
+    --evcc-modal-chip-active-bg:     var(--evcc-modal-accent-bg);
+    --evcc-modal-chip-active-border: var(--evcc-modal-accent-border);
+    --evcc-modal-chip-active-text:   var(--evcc-modal-accent-text);
+
+    /* Warning (room-editor carpet notice) */
+    --evcc-modal-warning-bg:     color-mix(in srgb, var(--evcc-sem-warning, #f59e0b) 16%, transparent);
+    --evcc-modal-warning-border: color-mix(in srgb, var(--evcc-sem-warning, #f59e0b) 34%, transparent);
+    --evcc-modal-warning-text:   color-mix(in srgb, var(--evcc-sem-warning, #f59e0b) 82%, white 18%);
+  }
+
   .evcc-modal-backdrop {
     position: fixed;
     inset: 0;
@@ -499,6 +584,43 @@ export const MODAL_HOST_STYLES = `
   }
 
   @media (prefers-color-scheme: light) {
+    /* Light companion to the .evcc-modal-host derivation block above. The body
+       modal host is detached from :host, so when themeless the canonical-derived
+       defaults resolve to their DARK floors — which would shadow this media
+       query's light fallbacks and leave a light-OS Follow-HA user with a dark
+       modal. Re-derive the surface/text/border family here with LIGHT floors.
+       A theme still wins (it sets --evcc-modal-* / canonical inline on the host,
+       and the canonical chain is honoured in either scheme); the light literals
+       only apply to a genuinely themeless light-OS host. Accent / warning /
+       chip-active tokens are scheme-neutral and inherit the block above. */
+    .evcc-modal-host {
+      --evcc-modal-bg:             var(--evcc-surface-base, #ffffff);
+      --evcc-modal-backdrop-bg:    var(--evcc-surface-overlay, rgba(15, 23, 42, 0.28));
+      --evcc-modal-border:         var(--evcc-border-default, rgba(15, 23, 42, 0.12));
+      --evcc-modal-border-default: var(--evcc-border-default, rgba(15, 23, 42, 0.10));
+      --evcc-modal-border-strong:  var(--evcc-border-strong, rgba(15, 23, 42, 0.16));
+      --evcc-modal-border-subtle:  var(--evcc-border-subtle, rgba(15, 23, 42, 0.06));
+
+      --evcc-modal-surface-panel:   var(--evcc-surface-panel, #ffffff);
+      --evcc-modal-surface-input:   var(--evcc-surface-input, rgba(15, 23, 42, 0.05));
+      --evcc-modal-surface-section: var(--evcc-surface-raised, rgba(15, 23, 42, 0.03));
+      --evcc-modal-input-bg:        var(--evcc-surface-input, rgba(15, 23, 42, 0.05));
+
+      --evcc-modal-header-bg: color-mix(in srgb, var(--evcc-surface-panel, transparent) 86%, transparent);
+      --evcc-modal-footer-bg: color-mix(in srgb, var(--evcc-surface-panel, transparent) 80%, transparent);
+
+      --evcc-modal-text-primary:   var(--evcc-text-primary, #0f172a);
+      --evcc-modal-text-secondary: var(--evcc-text-secondary, rgba(15, 23, 42, 0.74));
+      --evcc-modal-text-muted:     var(--evcc-text-muted, rgba(15, 23, 42, 0.50));
+
+      --evcc-modal-chip-bg:           var(--evcc-surface-input, rgba(15, 23, 42, 0.05));
+      --evcc-modal-chip-border:       var(--evcc-border-default, rgba(15, 23, 42, 0.10));
+      --evcc-modal-chip-text:         var(--evcc-text-secondary, rgba(15, 23, 42, 0.74));
+      --evcc-modal-chip-hover-bg:     var(--evcc-surface-panel, #ffffff);
+      --evcc-modal-chip-hover-border: var(--evcc-border-strong, rgba(15, 23, 42, 0.16));
+      --evcc-modal-chip-hover-text:   var(--evcc-text-primary, #0f172a);
+    }
+
     .evcc-modal {
       background:
         var(--evcc-modal-bg,

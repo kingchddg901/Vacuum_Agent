@@ -209,6 +209,20 @@ function render(view, opts = {}) {
       }
     }
 
+    // Mirror apply-theme.js step 2 (applyDynamicTheme(card._modalHost)):
+    // the body-level modal host gets the resolved layer on its OWN node
+    // too, so an explicit --evcc-modal-* override outranks the canonical-
+    // derived stylesheet defaults in MODAL_HOST_STYLES — exactly as it
+    // does on the live card.
+    const modalHostEl = modalHtml ? shadow.querySelector("[data-evcc-modal-host]") : null;
+    if (modalHostEl) {
+      for (const [key, value] of Object.entries(bundle)) {
+        if (value !== null && value !== undefined && value !== "") {
+          modalHostEl.style.setProperty(key, value);
+        }
+      }
+    }
+
     result.ok = true;
     result.headerLen = headerHtml.length;
     result.viewLen = viewHtml.length;
