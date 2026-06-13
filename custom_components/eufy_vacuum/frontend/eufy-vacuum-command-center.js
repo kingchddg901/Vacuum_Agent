@@ -3511,7 +3511,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
             ${i?`<div class="evcc-map-layers" style="transform:translate(${v}px,${f}px) scale(${p});transform-origin:0 0">
                    <img class="evcc-map-image${m?" evcc-map-image--fill":""}" src="${this.escapeHtml(i)}" alt="Floor plan" draggable="false">
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-                     ${m?this._renderComposerShapes(r):c.map((h,b)=>{let w=String(h.segment_id)===String(s??"");return this._renderConfigPolygon(h,s,b,w?r.configSelectedVertexIndex?.()??null:null)}).join("")}
+                     ${m?this._renderComposerShapes(r):c.map((h,b)=>{let w=String(h.segment_id)===String(s??"");return this._renderConfigPolygon(h,s,b,w?r.configSelectedVertexIndex?.()??null:null,p)}).join("")}
                    </svg>
                  </div>
                  <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
@@ -3542,20 +3542,20 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
         </div>
 
       </div>
-    `},n._renderConfigPolygon=function(t,r,a,i){let c=t.polygon_pct;if(!Array.isArray(c)||c.length<3)return"";let s=String(t.segment_id)===String(r??""),o=qe[a%qe.length],l=c.map(([p,v])=>`${p},${v}`).join(" "),d=this.escapeHtml(String(t.segment_id)),u=`<polygon
+    `},n._renderConfigPolygon=function(t,r,a,i,c=1){let s=t.polygon_pct;if(!Array.isArray(s)||s.length<3)return"";let o=String(t.segment_id)===String(r??""),l=qe[a%qe.length],d=s.map(([v,f])=>`${v},${f}`).join(" "),u=this.escapeHtml(String(t.segment_id)),m=`<polygon
       class="evcc-map-polygon evcc-map-polygon--config"
-      points="${l}"
-      style="fill:${o};fill-opacity:${s?"0.20":"0.06"};stroke:${s?"#ffffff":o};stroke-width:${s?"0.8":"0.4"};stroke-opacity:${s?"1":"0.7"}"
+      points="${d}"
+      style="fill:${l};fill-opacity:${o?"0.20":"0.06"};stroke:${o?"#ffffff":l};stroke-width:${o?"1.8":"1.1"};stroke-opacity:${o?"1":"0.7"};vector-effect:non-scaling-stroke"
       data-action="config-select-segment"
-      data-segment-id="${d}"
-    />`,m="";return s&&(m=c.map(([p,v],f)=>{let h=i===f;return`<circle
-          class="evcc-map-vertex-dot${h?" evcc-map-vertex-dot--selected":""}"
-          cx="${p}" cy="${v}" r="${h?"1.8":"0.9"}"
-          style="fill:${h?"#ffdd00":o};stroke:${h?"#000":"rgba(0,0,0,0.55)"};stroke-width:0.25;pointer-events:all;cursor:pointer"
+      data-segment-id="${u}"
+    />`,p="";return o&&(p=s.map(([v,f],h)=>{let b=i===h;return`<circle
+          class="evcc-map-vertex-dot${b?" evcc-map-vertex-dot--selected":""}"
+          cx="${v}" cy="${f}" r="${((b?1.1:.65)/c).toFixed(3)}"
+          style="fill:${b?"#ffdd00":l};stroke:${b?"#000":"rgba(0,0,0,0.55)"};stroke-width:0.9;pointer-events:all;cursor:pointer;vector-effect:non-scaling-stroke"
           data-action="select-vertex"
-          data-segment-id="${d}"
-          data-vertex-index="${f}"
-        />`}).join("")),`<g>${u}${m}</g>`};function e(t){if(!t)return null;let r=new Date(t);if(isNaN(r))return null;let a=Date.now()-r.getTime(),i=Math.floor(a/6e4);if(i<1)return"just now";if(i<60)return`${i}m ago`;let c=Math.floor(i/60);if(c<24)return`${c}h ago`;let s=Math.floor(c/24);return s<14?`${s}d ago`:r.toLocaleDateString(void 0,{month:"short",day:"numeric"})}n._renderSegmentationToggle=function(t){let r=t.segmentationMode?.()??"cv",a=t.customLayouts?.()??[],i=t.activeCustomLayoutId?.(),c=t.isLayoutEditorOpen?.(),s=t.layoutEditorMode?.()??"new",o=t.layoutDraftName?.()??"",l=p=>this.escapeHtml(String(p)),d=`
+          data-segment-id="${u}"
+          data-vertex-index="${h}"
+        />`}).join("")),`<g>${m}${p}</g>`};function e(t){if(!t)return null;let r=new Date(t);if(isNaN(r))return null;let a=Date.now()-r.getTime(),i=Math.floor(a/6e4);if(i<1)return"just now";if(i<60)return`${i}m ago`;let c=Math.floor(i/60);if(c<24)return`${c}h ago`;let s=Math.floor(c/24);return s<14?`${s}d ago`:r.toLocaleDateString(void 0,{month:"short",day:"numeric"})}n._renderSegmentationToggle=function(t){let r=t.segmentationMode?.()??"cv",a=t.customLayouts?.()??[],i=t.activeCustomLayoutId?.(),c=t.isLayoutEditorOpen?.(),s=t.layoutEditorMode?.()??"new",o=t.layoutDraftName?.()??"",l=p=>this.escapeHtml(String(p)),d=`
       <button class="evcc-map-mode-btn${r==="cv"?" evcc-map-mode-btn--active":""}"
         data-action="set-segmentation-mode" data-mode="cv"
         title="Detect rooms automatically from the map image">Auto (CV)</button>`,u=a.map(p=>`
@@ -3602,7 +3602,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           >${s?"Uploading\u2026":c?"Replace":"Upload"}</button>
         </div>
       </div>
-    `},n._renderComposerShapes=function(t){let r=t.composeDraft?.()??[],a=t.composeSelectedId?.(),i=d=>d.group??d.id,c={};for(let d of r)c[i(d)]=(c[i(d)]||0)+1;let s=["#5ac8fa","#ffd60a","#ff9f0a","#bf5af2","#30d158","#ff6482"],o={},l=0;for(let d of r){let u=i(d);c[u]>=2&&!(u in o)&&(o[u]=s[l++%s.length])}return r.map(d=>this._renderComposerShape(d,d.id===a,o[i(d)]??null)).join("")},n._renderComposerShape=function(t,r,a){let i="evcc-compose-shape";r&&(i+=" evcc-compose-shape--selected"),t.op==="subtract"&&(i+=" evcc-compose-shape--cut");let c=a?` style="--evcc-grp:${a}"`:"",s=`class="${i}"${c} data-action="compose-select" data-shape-id="${this.escapeHtml(String(t.id))}"`;if(t.type==="circle")return`<ellipse ${s} cx="${t.cx}" cy="${t.cy}" rx="${t.r}" ry="${t.r}"/>`;if(t.type==="polygon"){let l=(t.points||[]).map(([d,u])=>`${d},${u}`).join(" ");return`<polygon ${s} points="${l}"/>`}let o=t.angle?` transform="rotate(${t.angle} ${t.x+t.w/2} ${t.y+t.h/2})"`:"";return`<rect ${s}${o} x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"/>`},n._renderComposerToolbar=function(t){let r=t.composeDraft?.().length??0,a=t.composeSelectedId?.()!=null,i=t.mapActionStatus?.()??null,c=i?.type==="compose-save"&&i?.status==="busy",s=i?.type==="compose-save"&&i?.status==="error";return`
+    `},n._renderComposerShapes=function(t){let r=t.composeDraft?.()??[],a=t.composeSelectedId?.(),i=d=>d.group??d.id,c={};for(let d of r)c[i(d)]=(c[i(d)]||0)+1;let s=["#5ac8fa","#ffd60a","#ff9f0a","#bf5af2","#30d158","#ff6482"],o={},l=0;for(let d of r){let u=i(d);c[u]>=2&&!(u in o)&&(o[u]=s[l++%s.length])}return r.map(d=>this._renderComposerShape(d,d.id===a,o[i(d)]??null)).join("")},n._renderComposerShape=function(t,r,a){let i="evcc-compose-shape";r&&(i+=" evcc-compose-shape--selected"),t.op==="subtract"&&(i+=" evcc-compose-shape--cut");let c=a?` style="--evcc-grp:${a}"`:"",s,o,l="";t.type==="circle"?(s="ellipse",o=`cx="${t.cx}" cy="${t.cy}" rx="${t.r}" ry="${t.r}"`):t.type==="polygon"?(s="polygon",o=`points="${(t.points||[]).map(([m,p])=>`${m},${p}`).join(" ")}"`):(s="rect",o=`x="${t.x}" y="${t.y}" width="${t.w}" height="${t.h}"`,t.angle&&(l=` transform="rotate(${t.angle} ${t.x+t.w/2} ${t.y+t.h/2})"`));let d=r?`<${s} class="evcc-compose-shape-halo"${l} ${o}/>`:"",u=`<${s} class="${i}"${c}${l} data-action="compose-select" data-shape-id="${this.escapeHtml(String(t.id))}" ${o}/>`;return d+u},n._renderComposerToolbar=function(t){let r=t.composeDraft?.().length??0,a=t.composeSelectedId?.()!=null,i=t.mapActionStatus?.()??null,c=i?.type==="compose-save"&&i?.status==="busy",s=i?.type==="compose-save"&&i?.status==="error";return`
       <div class="evcc-map-config-section">
         <div class="evcc-map-config-section-title">Compose rooms</div>
         <div class="evcc-compose-tools">
@@ -11464,9 +11464,22 @@ ${r}`,t[0]?.name??""),i=String(a??"").trim();if(!i)return null;let c=t.find(o=>o
   }
 
   .evcc-compose-shape--selected {
-    fill:         var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
-    stroke:       var(--evcc-map-compose-selected-stroke, #ffffff);
-    stroke-width: 1;
+    fill:          var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
+    stroke:        var(--evcc-map-compose-selected-stroke, #ffffff);
+    stroke-width:  3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* Black halo drawn under .evcc-compose-shape--selected (emitted as a sibling in
+     map.js renderer). 5px non-scaling under the 3px selection stroke leaves 1px of
+     black on each side, so the bright outline survives a light custom-photo backdrop
+     (black reads on light) while the bright core still reads on a dark CV map. */
+  .evcc-compose-shape-halo {
+    fill:           none;
+    stroke:         #000;
+    stroke-width:   5;
+    vector-effect:  non-scaling-stroke;
+    pointer-events: none;
   }
 
   /* Cutout: this shape carves a hole out of its merged room. Dashed + a warning

@@ -608,9 +608,22 @@ export const mapStyles = `
   }
 
   .evcc-compose-shape--selected {
-    fill:         var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
-    stroke:       var(--evcc-map-compose-selected-stroke, #ffffff);
-    stroke-width: 1;
+    fill:          var(--evcc-accent-soft, rgba(0, 229, 255, 0.30));
+    stroke:        var(--evcc-map-compose-selected-stroke, #ffffff);
+    stroke-width:  3;
+    vector-effect: non-scaling-stroke;
+  }
+
+  /* Black halo drawn under .evcc-compose-shape--selected (emitted as a sibling in
+     map.js renderer). 5px non-scaling under the 3px selection stroke leaves 1px of
+     black on each side, so the bright outline survives a light custom-photo backdrop
+     (black reads on light) while the bright core still reads on a dark CV map. */
+  .evcc-compose-shape-halo {
+    fill:           none;
+    stroke:         #000;
+    stroke-width:   5;
+    vector-effect:  non-scaling-stroke;
+    pointer-events: none;
   }
 
   /* Cutout: this shape carves a hole out of its merged room. Dashed + a warning

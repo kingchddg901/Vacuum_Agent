@@ -409,7 +409,7 @@ export function applyMapRenderers(proto) {
                        ? this._renderComposerShapes(state)
                        : segments.map((seg, i) => {
                            const isThis = String(seg.segment_id) === String(selectedId ?? "");
-                           return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null);
+                           return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null, zoom);
                          }).join("")}
                    </svg>
                  </div>
@@ -455,7 +455,7 @@ export function applyMapRenderers(proto) {
      CONFIG POLYGON
      ========================================================= */
 
-  proto._renderConfigPolygon = function (seg, selectedId, segIndex, selectedVertexIdx) {
+  proto._renderConfigPolygon = function (seg, selectedId, segIndex, selectedVertexIdx, zoom = 1) {
     const polygon = seg.polygon_pct;
     if (!Array.isArray(polygon) || polygon.length < 3) return "";
 
@@ -467,7 +467,7 @@ export function applyMapRenderers(proto) {
     const polygonEl = `<polygon
       class="evcc-map-polygon evcc-map-polygon--config"
       points="${points}"
-      style="fill:${color};fill-opacity:${isSelected ? "0.20" : "0.06"};stroke:${isSelected ? "#ffffff" : color};stroke-width:${isSelected ? "0.8" : "0.4"};stroke-opacity:${isSelected ? "1" : "0.7"}"
+      style="fill:${color};fill-opacity:${isSelected ? "0.20" : "0.06"};stroke:${isSelected ? "#ffffff" : color};stroke-width:${isSelected ? "1.8" : "1.1"};stroke-opacity:${isSelected ? "1" : "0.7"};vector-effect:non-scaling-stroke"
       data-action="config-select-segment"
       data-segment-id="${segIdStr}"
     />`;
@@ -478,8 +478,8 @@ export function applyMapRenderers(proto) {
         const isSelV = selectedVertexIdx === i;
         return `<circle
           class="evcc-map-vertex-dot${isSelV ? " evcc-map-vertex-dot--selected" : ""}"
-          cx="${x}" cy="${y}" r="${isSelV ? "1.8" : "0.9"}"
-          style="fill:${isSelV ? "#ffdd00" : color};stroke:${isSelV ? "#000" : "rgba(0,0,0,0.55)"};stroke-width:0.25;pointer-events:all;cursor:pointer"
+          cx="${x}" cy="${y}" r="${((isSelV ? 1.1 : 0.65) / zoom).toFixed(3)}"
+          style="fill:${isSelV ? "#ffdd00" : color};stroke:${isSelV ? "#000" : "rgba(0,0,0,0.55)"};stroke-width:0.9;pointer-events:all;cursor:pointer;vector-effect:non-scaling-stroke"
           data-action="select-vertex"
           data-segment-id="${segIdStr}"
           data-vertex-index="${i}"
@@ -642,18 +642,32 @@ export function applyMapRenderers(proto) {
     if (isSel) cls += " evcc-compose-shape--selected";
     if (s.op === "subtract") cls += " evcc-compose-shape--cut";
     const style = color ? ` style="--evcc-grp:${color}"` : "";
-    const attrs = `class="${cls}"${style} data-action="compose-select" data-shape-id="${this.escapeHtml(String(s.id))}"`;
+
+    // Per-type geometry + (rect-only) rotation, shared by the shape and its halo.
+    let tag, geom, rot = "";
     if (s.type === "circle") {
-      return `<ellipse ${attrs} cx="${s.cx}" cy="${s.cy}" rx="${s.r}" ry="${s.r}"/>`;
+      tag = "ellipse";
+      geom = `cx="${s.cx}" cy="${s.cy}" rx="${s.r}" ry="${s.r}"`;
+    } else if (s.type === "polygon") {
+      tag = "polygon";
+      geom = `points="${(s.points || []).map(([x, y]) => `${x},${y}`).join(" ")}"`;
+    } else {
+      tag = "rect";
+      geom = `x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"`;
+      if (s.angle) rot = ` transform="rotate(${s.angle} ${s.x + s.w / 2} ${s.y + s.h / 2})"`;
     }
-    if (s.type === "polygon") {
-      const pts = (s.points || []).map(([x, y]) => `${x},${y}`).join(" ");
-      return `<polygon ${attrs} points="${pts}"/>`;
-    }
-    const rot = s.angle
-      ? ` transform="rotate(${s.angle} ${s.x + s.w / 2} ${s.y + s.h / 2})"`
+
+    // A selected shape gets a non-interactive black halo drawn UNDER its bright 3px
+    // outline, so the selection stays legible on any backdrop: 1px of black shows on
+    // each side of the stroke (the black reads on light photos, the bright core on
+    // dark CV maps).
+    const halo = isSel
+      ? `<${tag} class="evcc-compose-shape-halo"${rot} ${geom}/>`
       : "";
-    return `<rect ${attrs}${rot} x="${s.x}" y="${s.y}" width="${s.w}" height="${s.h}"/>`;
+    const shape =
+      `<${tag} class="${cls}"${style}${rot} data-action="compose-select" ` +
+      `data-shape-id="${this.escapeHtml(String(s.id))}" ${geom}/>`;
+    return halo + shape;
   };
 
   proto._renderComposerToolbar = function (state) {
