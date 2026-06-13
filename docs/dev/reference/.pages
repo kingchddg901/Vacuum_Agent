@@ -2,3 +2,4 @@ title: Theme Token Reference
 nav:
   - THEME_TOKEN_MAP.md
   - THEME_TOKEN_USAGE.md
+  - ai-theme-authoring.md

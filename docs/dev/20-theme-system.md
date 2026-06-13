@@ -470,6 +470,10 @@ the round-trip keeps `colors`/`alpha` intact so the result stays editable in the
 Upload**. `import_theme()` validates it (non-empty `name`; dict `tokens`/`colors`/`alpha`)
 and adds it as a **new** library theme — a malformed payload is rejected whole.
 
+> Prefer to hand this off to an AI? The catalog, the usage trace, and this envelope are
+> exactly the spec an assistant needs — see
+> **[Authoring themes with an AI](reference/ai-theme-authoring.md)**.
+
 ---
 
 ## 8. Extending the Theme System
