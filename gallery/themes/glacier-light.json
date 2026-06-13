@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_glacier_light",
+    "name": "Glacier Light",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(12, 15, 18, 0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#1b2024",
+      "--evcc-surface-panel": "#3a424b",
+      "--evcc-surface-raised": "#313840",
+      "--evcc-surface-input": "#272d32",
+      "--evcc-text-primary": "#edf1f3",
+      "--evcc-text-secondary": "#b6bfc5",
+      "--evcc-text-muted": "#8b949b",
+      "--evcc-border-subtle": "#2e353c",
+      "--evcc-border-default": "#404953",
+      "--evcc-border-strong": "#586470",
+      "--evcc-accent": "#efc94f",
+      "--evcc-text-on-accent": "#241e08",
+      "--evcc-sem-success": "#6fbf8e",
+      "--evcc-sem-warning": "#d9772e",
+      "--evcc-sem-error": "#e0635f",
+      "--evcc-sem-info": "#5fa2c9"
+    },
+    "alpha": {}
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "ok": true,
+  "version": 1,
+  "exported_at": null,
+  "theme": {
+    "id": "theme_alpenglow",
+    "name": "Alpenglow",
+    "tokens": {
+      "--evcc-surface-overlay": "rgba(14, 20, 28, 0.6)"
+    },
+    "colors": {
+      "--evcc-surface-base": "#202c3b",
+      "--evcc-surface-panel": "#46586c",
+      "--evcc-surface-raised": "#374b60",
+      "--evcc-surface-input": "#2b3a4c",
+      "--evcc-text-primary": "#f3f0e6",
+      "--evcc-text-secondary": "#c3cdd6",
+      "--evcc-text-muted": "#8e9aa6",
+      "--evcc-border-subtle": "#2f3e50",
+      "--evcc-border-default": "#415366",
+      "--evcc-border-strong": "#5a6e83",
+      "--evcc-accent": "#efc94f",
+      "--evcc-text-on-accent": "#241e08",
+      "--evcc-sem-success": "#5fc090",
+      "--evcc-sem-warning": "#d9772e",
+      "--evcc-sem-error": "#e26a55",
+      "--evcc-sem-info": "#5f9ec6"
+    },
+    "alpha": {}
+  }
+}
