@@ -209,9 +209,9 @@ export const roomRulesStyles = `
   border-radius: 999px;
   font-size:     0.68rem;
   font-weight:   600;
-  background:    rgba(255,255,255,0.06);
+  background:    var(--evcc-surface-input, rgba(255,255,255,0.06));
   color:         var(--evcc-text-muted, rgba(240,242,245,0.48));
-  border:        1px solid rgba(255,255,255,0.08);
+  border:        1px solid var(--evcc-border-subtle, rgba(255,255,255,0.08));
 }
 
 .evcc-chip--danger {
