@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { processSubmission, parseVibeTags, slugify } from "./process-submission.mjs";
+import { processSubmission, parseVibeTags, slugify, isAcceptableAuthorUrl } from "./process-submission.mjs";
 
 const repo = join(dirname(fileURLToPath(import.meta.url)), "..");
 const themeJson = (slug) => readFileSync(join(repo, "gallery", "themes", `${slug}.json`), "utf8");
@@ -78,11 +78,29 @@ test("colorblind-safe theme carries its best-for bucket tag (filterable)", () =>
   assert.ok(!["red-green", "blue-yellow"].some((t) => fail.tags.includes(t)));
 });
 
-test("dangerous author_url is dropped; http(s) is kept", () => {
-  const bad = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: "javascript:alert(1)" }), 1);
-  assert.equal(bad.envelope.theme.author_url, undefined); // not stored -> no XSS sink downstream
-  const good = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: "https://ok.example/me" }), 2);
-  assert.equal(good.envelope.theme.author_url, "https://ok.example/me");
+test("author_url policy: dangerous schemes + shorteners dropped (with warning); direct http(s) kept", () => {
+  const reject = [
+    "javascript:alert(1)", "data:text/html,x", "vbscript:msgbox(1)",
+    "file:///etc/passwd", "blob:https://x/y", "about:blank", "ftp://x.example",
+    "https://bit.ly/abc", "http://tinyurl.com/xyz", "https://t.co/abc", "not a url",
+  ];
+  for (const u of reject) {
+    const r = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: u }), 1);
+    assert.equal(r.envelope.theme.author_url, undefined, `should drop ${u}`);
+    assert.match(r.report, /Author URL must be a direct http\(s\)/, `should warn for ${u}`);
+  }
+  const good = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: "https://github.com/me" }), 2);
+  assert.equal(good.envelope.theme.author_url, "https://github.com/me");
+  assert.doesNotMatch(good.report, /Author URL must be/);
+});
+
+test("isAcceptableAuthorUrl", () => {
+  for (const ok of ["https://github.com/x", "http://example.org/y", "https://bit.ly.example.com/z"]) {
+    assert.ok(isAcceptableAuthorUrl(ok), `accept ${ok}`);
+  }
+  for (const no of ["javascript:1", "data:x", "file:///x", "blob:x", "about:blank", "https://bit.ly/x", "x", ""]) {
+    assert.ok(!isAcceptableAuthorUrl(no), `reject ${no}`);
+  }
 });
 
 test("invalid JSON rejected", () => {

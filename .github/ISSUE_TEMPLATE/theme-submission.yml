@@ -48,7 +48,9 @@ body:
     id: author-url
     attributes:
       label: Author URL
-      description: Optional. A link to credit you (GitHub profile, site, etc.).
+      description: >
+        Optional. A direct http(s) profile or project link (GitHub, site, etc.).
+        URL shorteners are not accepted for gallery author credits.
       placeholder: https://github.com/you
     validations:
       required: false

@@ -46,6 +46,32 @@ const MAX_TAGS = 16;
 const MAX_FIELD = 200;
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Author-URL policy: a direct http(s) profile/project link only. new URL() parses
+// the real scheme, so javascript:/data:/vbscript:/file:/blob:/about: are all
+// rejected; URL shorteners are blocked so credits point at a real destination.
+export const AUTHOR_URL_ERROR =
+  "Author URL must be a direct http(s) profile or project link. URL shorteners are not accepted for gallery author credits.";
+
+const URL_SHORTENERS = new Set([
+  "bit.ly", "tinyurl.com", "t.co", "goo.gl", "ow.ly", "is.gd", "buff.ly",
+  "rebrand.ly", "cutt.ly", "shorturl.at", "rb.gy", "t.ly", "lnkd.in", "tiny.cc",
+  "bl.ink", "soo.gd", "clck.ru", "v.gd", "shrtco.de", "snip.ly", "adf.ly",
+  "han.gl", "short.io", "tr.im", "x.co", "1url.com", "qr.ae", "shorte.st",
+]);
+
+/** True only for a direct http(s) link to a non-shortener host. */
+export function isAcceptableAuthorUrl(url) {
+  let u;
+  try {
+    u = new URL(String(url || "").trim());
+  } catch {
+    return false; // not a parseable URL (or a bare scheme like "javascript:foo")
+  }
+  if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase().replace(/^www\./, "");
+  return !URL_SHORTENERS.has(host);
+}
+
 /** Extract a "### Label\n\n<value>" section; "" for missing or "_No response_". */
 function getField(body, label) {
   const re = new RegExp(`###\\s*${escapeRe(label)}\\s*\\n([\\s\\S]*?)(?=\\n###\\s|$)`, "i");
@@ -78,8 +104,12 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 40) || "theme";
 
-function buildReport({ themeName, tags, colorblind, attr, cbClaim }) {
+function buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlRejected }) {
   const lines = [`### ✅ Validated — ${themeName}`, ""];
+
+  if (authorUrlRejected) {
+    lines.push(`> ⚠ ${AUTHOR_URL_ERROR} Your credit will show without a link — fix it and reopen if you want one.`, "");
+  }
 
   const tagList = orderTags(tags).map((t) => `\`${t}\``).join(" ");
   lines.push(`**Tags:** ${tagList || "_none_"}`);
@@ -150,10 +180,12 @@ export function processSubmission(issueBody, issueNumber) {
   // 2. Parse the submitter's metadata fields.
   const vibe = parseVibeTags(getField(body, FIELD.tags));
   const author = getField(body, FIELD.author).slice(0, MAX_FIELD);
-  // author_url is untrusted + ends up in a gallery <a href> — only http(s) is kept
-  // (a javascript:/data: URL would be a stored-XSS sink). Anything else is dropped.
+  // author_url is untrusted + ends up in a gallery <a href>. Accept only a direct
+  // http(s) non-shortener link (rejecting dangerous schemes is also XSS defense);
+  // anything else is dropped and the submitter is told why (non-blocking).
   const rawUrl = getField(body, FIELD.authorUrl).slice(0, MAX_FIELD).trim();
-  const authorUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
+  const authorUrl = isAcceptableAuthorUrl(rawUrl) ? rawUrl : "";
+  const authorUrlRejected = rawUrl !== "" && authorUrl === "";
   const submittedBy = getField(body, FIELD.submittedBy).slice(0, MAX_FIELD);
   const cbClaim = /\[x\]/i.test(getField(body, FIELD.colorblind));
 
@@ -173,7 +205,7 @@ export function processSubmission(issueBody, issueNumber) {
 
   const themeName = String(t.name || slugify(t.name)) || "Theme";
   const slug = `${slugify(t.name)}-${issueNumber}`;
-  const report = buildReport({ themeName, tags, colorblind, attr, cbClaim });
+  const report = buildReport({ themeName, tags, colorblind, attr, cbClaim, authorUrlRejected });
 
   return { ok: true, slug, themeName, envelope, report, tags, colorblind };
 }
