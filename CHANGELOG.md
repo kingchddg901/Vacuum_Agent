@@ -8,6 +8,59 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [0.11.0] - 2026-06-14
+
+**Theme System 2.0.** Themes were already fully customizable; this release makes
+them *discoverable, shareable, and per-device*. A tag system runs across the card
+and the public gallery, a submission bot turns a pasted export into a reviewed
+pull request, colorblind-safety is now verified rather than claimed, and each
+browser can pin its own theme.
+
+### Added
+- **Theme tags + search, in the card and the gallery.** Every theme is auto-tagged
+  from its palette — mode (dark/light), accent, temperature, surface, contrast,
+  accessibility, and source — with free-text "vibe" tags on top. Filter and search
+  the gallery *and* the card's own theme picker with the same vocabulary (OR within
+  a facet, AND across facets), and edit a theme's vibe tags inline in the picker.
+- **Theme submission pipeline.** Submit a theme to the gallery from a GitHub issue
+  form: a bot validates the export, auto-tags it, verifies colorblind-safety,
+  renders a real-card preview, and opens a pull request for a maintainer. Nothing
+  publishes automatically. See
+  [Sharing themes](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/15-sharing-themes/).
+- **Verified colorblind-safe badge + "Best for" filter.** colorblind-safe is now a
+  badge *any* theme can earn — verified by simulating the three dichromacy types,
+  not eyeballed — and a **Best for** filter surfaces themes tuned for red-green or
+  blue-yellow vision.
+- **Per-device theme selection.** Pin a theme to just this browser or kiosk
+  ("This device only"), or follow the shared active theme. Your library and edits
+  stay shared across devices; only the *selection* is local.
+- **Theme picking on mobile.** The Theme tab is now reachable on phones for
+  browsing, switching, importing, and exporting whole themes (the Palette and
+  Token editors stay desktop-only).
+- **One-click gallery download** and **theme source provenance** (core / community
+  / generated / manual), shown as a filter facet.
+- **New documentation.** A
+  [Theme system](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/17-theme-system/)
+  user guide and an
+  [Authoring a theme](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/theme-authoring/)
+  contributing guide, plus full docs for the tag system, submission flow,
+  per-device themes, and colorblind buckets.
+
+### Changed
+- **Theme Export/Import is now a modal.** Export opens a window showing the JSON
+  with a **Copy** button (and a **Send to HA** option that posts it to a persistent
+  notification); Import is a paste box — replacing the old console dump and browser
+  prompt. Copy works on plain-HTTP LANs via a fallback.
+- **Theme picker layout.** A collapsible filter band and a scrollable grid keep a
+  large library usable.
+
+### Security
+- **Pre-release hardening (adversarial review).** Closed a stored-XSS through a
+  submitted author URL, restricted author-URL credits to direct http(s) links (no
+  shorteners or dangerous schemes), fixed a per-device pin that could wipe itself
+  on load, and stopped theme metadata (tags/author) being dropped when a theme is
+  overwritten.
+
 ## [0.10.3] - 2026-06-13
 
 Map-editor visibility fixes (custom-layout composer + CV vertex editing).
