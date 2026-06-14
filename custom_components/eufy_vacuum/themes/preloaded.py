@@ -525,6 +525,13 @@ def ensure_preloaded_theme_library(theme_data: dict[str, Any]) -> None:
     for spec in PRELOADED_THEME_SPECS:
         theme_id = spec["id"]
         if theme_id in library:
+            # Migration: a bundled theme seeded by an older version (pre-`source`)
+            # gets its provenance backfilled so the Source facet sees it as core.
+            # Only OUR entries are touched — a user theme's provenance is unknown
+            # and is left alone (new ones are stamped at save/import time).
+            existing = library[theme_id]
+            if isinstance(existing, dict):
+                existing.setdefault("source", "core")
             continue
         library[theme_id] = _build_preloaded_theme_entry(
             theme_id,

@@ -47,6 +47,27 @@ def test_idempotent_preserves_user():
     assert "theme_follow_ha" in data["library"]                 # built-ins added
 
 
+def test_migrates_source_on_existing_bundled_entries():
+    """[THM-1] backfill `core` provenance on pre-`source` BUNDLED entries only.
+
+    A bundled theme seeded by an older version gains source='core'; a user theme
+    is left untouched (its provenance is unknown); an already-set source stays.
+    """
+    data = {
+        "library": {
+            "theme_core_slate": {"name": "Core Slate"},          # bundled, no source
+            "theme_user_made": {"name": "Mine"},                 # user theme, no source
+            "theme_colorblind_safe": {"name": "X", "source": "manual"},  # ours but mis-set -> kept (setdefault)
+        },
+        "default_theme_id": "theme_core_slate",
+    }
+    ensure_preloaded_theme_library(data)
+    lib = data["library"]
+    assert lib["theme_core_slate"]["source"] == "core"
+    assert "source" not in lib["theme_user_made"]                 # user theme untouched
+    assert lib["theme_colorblind_safe"]["source"] == "manual"     # setdefault doesn't clobber
+
+
 def test_non_dict_library_replaced():
     """[THM-3]"""
     data = {"library": "corrupt"}
