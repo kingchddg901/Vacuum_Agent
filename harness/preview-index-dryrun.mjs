@@ -13,7 +13,7 @@
  * in-memory author/community examples (to exercise the author credit + community
  * source rendering before real submissions exist); --demo never touches the files.
  */
-import { readFileSync, readdirSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { deflateSync } from "node:zlib";
@@ -125,10 +125,13 @@ for (const f of files) {
   const dir = join(OUT, name);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, "thumb.png"), swatch(th.colors || {}));
+  // Copy the real export (not the demo overlay) so the download link works.
+  const downloadFile = `${name}.json`;
+  copyFileSync(join(THEMES, f), join(dir, downloadFile));
 
   const report = { keyCount: Object.keys(th.colors || {}).length, clamped: 0, skippedKeys: [], ok: true };
-  writeThemePage(dir, th.name || name, [], report, [], { tags, attr });
-  processed.push({ name, themeName: th.name || name, scope: [], report, tags, attr, filterTokens });
+  writeThemePage(dir, th.name || name, [], report, [], { tags, attr, download: downloadFile });
+  processed.push({ name, themeName: th.name || name, scope: [], report, tags, attr, filterTokens, download: downloadFile });
 }
 
 writeIndex(processed, OUT);

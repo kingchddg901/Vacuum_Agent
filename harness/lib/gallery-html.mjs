@@ -101,6 +101,11 @@ ${list
   header h1 { margin:8px 0 4px; font-size:1.5rem; }
   .meta { color:#8b94a0; font-size:.84rem; margin:0 0 2px; }
   .meta a { color:#5aa9ff; }
+  .dl-row { margin:10px 0 8px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .download-btn { display:inline-block; padding:8px 15px; border:1px solid #2f6dd0; border-radius:8px; background:#173455; color:#cfe2ff; text-decoration:none; font-size:.88rem; font-weight:600; }
+  .download-btn:hover { background:#1d4474; }
+  .dl-hint { color:#8b94a0; font-size:.82rem; }
+  .dl-hint strong { color:#cbd2da; }
   main { padding:8px 24px 48px; }
   section h2 { font-size:1.02rem; margin:26px 0 12px; color:#cbd2da; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
@@ -115,6 +120,7 @@ ${TAG_CSS}
   <header>
     <a class="back" href="../index.html">← all themes</a>
     <h1>${esc(themeName)}</h1>
+    ${meta.download ? `<p class="dl-row"><a class="download-btn" href="${esc(meta.download)}" download="${esc(meta.download)}">⤓ Download theme (.json)</a> <span class="dl-hint">then import it via the card's <strong>Upload</strong> button</span></p>` : ""}
     <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped</p>
     <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
     ${attributionHtml(meta.attr)}
@@ -158,12 +164,16 @@ export function writeIndex(entries, outDir) {
       // (name + author + every tag, incl. free-text vibe tags).
       const dataTags = esc(e.filterTokens.join(" "));
       const dataText = esc([e.themeName, e.attr?.author || "", ...(e.tags || [])].join(" ").toLowerCase());
+      const dl = e.download
+        ? `<a class="card-dl" href="${dir}/${encodeURIComponent(e.download)}" download="${esc(e.download)}" title="Download this theme (.json) to import in the card">⤓ Download</a>`
+        : "";
       return `      <article class="card" data-tags="${dataTags}" data-text="${dataText}">
         <a class="thumb" href="${dir}/index.html"><img loading="lazy" src="${dir}/thumb.png" alt="${esc(e.themeName)} room card"></a>
         <h2><a href="${dir}/index.html">${esc(e.themeName)}</a></h2>
         <p class="meta">${meta}</p>
         ${attributionHtml(e.attr)}
         ${tagChipsHtml(e.tags)}
+        ${dl}
       </article>`;
     })
     .join("\n");
@@ -205,6 +215,8 @@ export function writeIndex(entries, outDir) {
   .card .thumb { display: block; }
   .meta { margin: 0; color: #8b94a0; font-size: 0.8rem; }
   .card img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid #232a32; background: #0b0d10; }
+  .card-dl { display: inline-block; margin: 10px 0 0; font-size: 0.82rem; font-weight: 600; color: #cfe2ff; text-decoration: none; padding: 5px 11px; border: 1px solid #2f6dd0; border-radius: 7px; background: #173455; }
+  .card-dl:hover { background: #1d4474; }
   .empty { grid-column: 1 / -1; color: #8b94a0; padding: 30px 4px; text-align: center; }
   .links { margin: 8px 0 0; font-size: 0.8rem; }
   .links a, header a { color: #5aa9ff; }
@@ -216,7 +228,7 @@ ${TAG_CSS}
 <body>
   <header>
     <h1>EVCC theme gallery</h1>
-    <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview.</p>
+    <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview, or <strong>⤓ Download</strong> any theme and import it via the card's Upload button.</p>
     <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="docs/">📖 Documentation</a></p>
   </header>
   <nav class="toolbar">

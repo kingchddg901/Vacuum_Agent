@@ -18,7 +18,7 @@
  * clamped, nothing is eval'd.
  */
 import { chromium } from "@playwright/test";
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync, copyFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import { mountHarness, renderTab, VIEW_ORDER } from "./lib/mount-page.mjs";
@@ -169,6 +169,11 @@ for (const file of files) {
   // shared theme-tags core — so the gallery and the in-card picker agree exactly.
   // (A failed `colorblind-safe` claim is already stripped from `tags`; the gallery
   // never shows why — that feedback belongs to the submission/ingest path.)
+  // Copy the source export alongside the renders so the gallery can offer a
+  // one-click download (the file is exactly what the card's Upload imports).
+  const downloadFile = `${name}.json`;
+  copyFileSync(file, join(outDir, downloadFile));
+
   const { tags: themeTags } = effectiveThemeTags(envelope.theme || {});
   const attr = themeAttribution(envelope.theme || {});
   // A theme's filter tokens = its effective tags PLUS its source (community/
@@ -176,9 +181,9 @@ for (const file of files) {
   // is already a derived tag).
   const filterTokens = [...new Set([...themeTags, ...(attr.source ? [attr.source] : [])])];
 
-  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr });
+  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, download: downloadFile });
 
-  processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens });
+  processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens, download: downloadFile });
   console.log(
     `✓ ${name}: ${report.keyCount} keys, scope=[${scope.join(",") || "full"}], ` +
       `${report.clamped} clamped, ${report.skippedKeys.length} skipped -> harness/out/preview/${name}/`,
