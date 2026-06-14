@@ -252,3 +252,59 @@ def test_import_theme_invalid_tokens_type_returns_not_ok(manager):
     )
     assert result["ok"] is False
     assert result["reason"] == "invalid_tokens"
+
+
+# ---------------------------------------------------------------------------
+# [TM-19] source provenance — the Source facet driver
+# ---------------------------------------------------------------------------
+
+def test_save_theme_as_new_marks_source_manual(manager):
+    """[TM-19] a user-saved theme carries source='manual'."""
+    theme_id = _save_new_theme(manager, name="Mine")
+    assert manager.get_theme_library()["library"][theme_id]["source"] == "manual"
+
+
+def test_export_theme_carries_source(manager):
+    """[TM-19] export_theme() includes the entry's source."""
+    theme_id = _save_new_theme(manager, name="Exportable")
+    result = manager.export_theme(theme_id=theme_id)
+    assert result["theme"]["source"] == "manual"
+
+
+def test_get_theme_library_summary_includes_source(manager):
+    """[TM-19] the themes summary carries source (preloaded entries are core)."""
+    summary = manager.get_theme_library()["themes"]
+    core = [t for t in summary if t.get("source") == "core"]
+    assert core, "expected at least one bundled (core) theme in the summary"
+
+
+def test_import_theme_preserves_valid_source(manager):
+    """[TM-19] an imported community theme keeps its provenance."""
+    payload = {"theme": {"name": "From Community", "source": "community", "colors": {}}}
+    result = manager.import_theme(payload=payload)
+    entry = manager.get_theme_library()["library"][result["theme_id"]]
+    assert entry["source"] == "community"
+
+
+def test_import_theme_defaults_missing_source_to_manual(manager):
+    """[TM-19] an import with no source is treated as user-added (manual)."""
+    result = manager.import_theme(payload={"theme": {"name": "No Source", "colors": {}}})
+    entry = manager.get_theme_library()["library"][result["theme_id"]]
+    assert entry["source"] == "manual"
+
+
+def test_import_theme_never_honors_core(manager):
+    """[TM-19] `core` is reserved for seeded bundled themes — an imported copy of
+    one is downgraded to manual, so the Source facet's `core` stays trustworthy."""
+    payload = {"theme": {"name": "Fake Core", "source": "core", "colors": {}}}
+    result = manager.import_theme(payload=payload)
+    entry = manager.get_theme_library()["library"][result["theme_id"]]
+    assert entry["source"] == "manual"
+
+
+def test_overwrite_theme_preserves_source(manager):
+    """[TM-19] overwriting rebuilds the entry but keeps the provenance (without
+    the fix it would drop `source` entirely)."""
+    theme_id = _save_new_theme(manager, name="Editable")  # source='manual', now active
+    manager.overwrite_theme(vacuum_entity_id=_VAC, theme_id=theme_id)
+    assert manager.get_theme_library()["library"][theme_id]["source"] == "manual"

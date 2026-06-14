@@ -109,13 +109,19 @@ class ThemeManager:
     def _normalize_theme_entry(self, payload: Any) -> dict[str, Any]:
         """Return one normalized stored theme entry."""
         source = dict(payload) if isinstance(payload, dict) else {}
-        return {
+        entry = {
             "id": str(source.get("id") or "").strip() or None,
             "name": str(source.get("name") or "").strip() or "Untitled",
             "tokens": dict(source.get("tokens", {})) if isinstance(source.get("tokens"), dict) else {},
             "colors": dict(source.get("colors", {})) if isinstance(source.get("colors"), dict) else {},
             "alpha": dict(source.get("alpha", {})) if isinstance(source.get("alpha"), dict) else {},
         }
+        # Provenance for the Source facet — carried through every read; only the
+        # four known values survive (unknown/garbage is dropped, not stored).
+        provenance = str(source.get("source", "")).strip().lower()
+        if provenance in {"core", "community", "generated", "manual"}:
+            entry["source"] = provenance
+        return entry
 
     def _normalize_theme_draft(self, payload: Any) -> dict[str, dict[str, Any]]:
         """Return one normalized working draft."""
@@ -198,7 +204,7 @@ class ThemeManager:
         return {
             "default_theme_id": theme["default_theme_id"],
             "themes": [
-                {"id": tid, "theme_id": tid, "name": t.get("name", "")}
+                {"id": tid, "theme_id": tid, "name": t.get("name", ""), "source": t.get("source")}
                 for tid, t in library.items()
             ],
             "library": library,
@@ -226,6 +232,8 @@ class ThemeManager:
         theme["library"][theme_id] = {
             "id": theme_id,
             "name": str(name).strip() or "Untitled",
+            # User-crafted from the working draft -> manual provenance.
+            "source": "manual",
             "tokens": dict(resolved.get("tokens", {})),
             "colors": dict(resolved.get("colors", {})),
             "alpha": dict(resolved.get("alpha", {})),
@@ -265,14 +273,19 @@ class ThemeManager:
             draft=vac.get("working_draft"),
         )
         existing_name = library[theme_id].get("name", "")
+        existing_source = library[theme_id].get("source")
 
-        theme["library"][theme_id] = {
+        entry = {
             "id": theme_id,
             "name": existing_name,
             "tokens": dict(resolved.get("tokens", {})),
             "colors": dict(resolved.get("colors", {})),
             "alpha": dict(resolved.get("alpha", {})),
         }
+        # Overwriting edits content in place — keep the entry's provenance.
+        if existing_source:
+            entry["source"] = existing_source
+        theme["library"][theme_id] = entry
 
         vac["active_theme_id"] = theme_id
         vac["working_draft"] = self._empty_theme_draft()
@@ -414,17 +427,22 @@ class ThemeManager:
             return {"ok": False, "reason": "theme_not_found", "theme_id": theme_id}
 
         entry = library[theme_id]
+        theme_out = {
+            "id": theme_id,
+            "name": entry.get("name", ""),
+            "tokens": dict(entry.get("tokens", {})),
+            "colors": dict(entry.get("colors", {})),
+            "alpha": dict(entry.get("alpha", {})),
+        }
+        # Carry provenance so a downloaded export keeps its `source` (the gallery
+        # and card Source facet read it); omitted when the entry has none.
+        if entry.get("source"):
+            theme_out["source"] = entry["source"]
         return {
             "ok": True,
             "version": 1,
             "exported_at": utc_now_iso(),
-            "theme": {
-                "id": theme_id,
-                "name": entry.get("name", ""),
-                "tokens": dict(entry.get("tokens", {})),
-                "colors": dict(entry.get("colors", {})),
-                "alpha": dict(entry.get("alpha", {})),
-            },
+            "theme": theme_out,
         }
 
     def import_theme(
@@ -475,11 +493,18 @@ class ThemeManager:
         if final_name in existing_names:
             final_name = f"{name} (imported)"
 
+        # Preserve the envelope's provenance, but never honor `core` on import:
+        # only the seeded preloaded themes are truly bundled, so an imported copy
+        # of one becomes a user theme.
+        imported_source = str(source_theme.get("source", "")).strip().lower()
+        entry_source = imported_source if imported_source in {"community", "generated", "manual"} else "manual"
+
         theme_id = self._generate_theme_id()
         theme = self._get_theme_data()
         theme["library"][theme_id] = {
             "id": theme_id,
             "name": final_name,
+            "source": entry_source,
             "tokens": dict(tokens) if isinstance(tokens, dict) else {},
             "colors": dict(colors) if isinstance(colors, dict) else {},
             "alpha": dict(alpha) if isinstance(alpha, dict) else {},

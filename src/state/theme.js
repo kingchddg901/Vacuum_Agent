@@ -442,8 +442,15 @@ export function applyThemeState(proto) {
     const out = {};
     const library = state.library || {};
     Object.keys(library).forEach((id) => {
-      const { tags } = effectiveThemeTags(library[id] || {});
-      out[id] = { tags, set: new Set(tags) };
+      const entry = library[id] || {};
+      const { tags } = effectiveThemeTags(entry);
+      // Add `source` as a filter token: community/generated/manual aren't derived
+      // tags (only `core` is, via the built-in flag), so without this the Source
+      // facet could only ever match core. The Set dedups the core overlap. Mirrors
+      // the gallery's filterTokens so both surfaces filter identically.
+      const source = entry.source ? String(entry.source).toLowerCase() : "";
+      const tokens = source ? [...new Set([...tags, source])] : tags;
+      out[id] = { tags: tokens, set: new Set(tokens) };
     });
     state._presetTags = out;
     return out;

@@ -32,6 +32,9 @@ def _build_preloaded_theme_entry(
     return {
         "id": theme_id,
         "name": name,
+        # Bundled themes carry the `core` provenance — the card/gallery Source
+        # facet reads this to tell shipped themes apart from user/community ones.
+        "source": "core",
         "tokens": token_values,
         "colors": color_values,
         "alpha": dict(alpha or {}),

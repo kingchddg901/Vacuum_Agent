@@ -30,6 +30,14 @@ def test_populates_library():
     assert "name" in entry
 
 
+def test_preloaded_entries_are_core_source():
+    """[THM-1] every bundled theme carries source='core' (the Source facet driver)."""
+    data: dict = {}
+    ensure_preloaded_theme_library(data)
+    for theme_id, entry in data["library"].items():
+        assert entry.get("source") == "core", f"{theme_id} missing core source"
+
+
 def test_idempotent_preserves_user():
     """[THM-2]"""
     data = {"library": {"theme_custom": {"name": "Mine"}}, "default_theme_id": "theme_custom"}
