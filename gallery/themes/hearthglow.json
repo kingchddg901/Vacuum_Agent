@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_hearthglow",
     "name": "Hearthglow",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(12,18,16,0.6)"
     },

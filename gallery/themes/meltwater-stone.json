@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_meltwater_stone",
     "name": "Meltwater Stone",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(5, 18, 24, 0.62)"
     },

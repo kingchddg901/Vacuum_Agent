@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_glacier_light",
     "name": "Glacier Light",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(12, 15, 18, 0.6)"
     },

@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_voltage",
     "name": "Voltage",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(8,5,20,0.62)"
     },

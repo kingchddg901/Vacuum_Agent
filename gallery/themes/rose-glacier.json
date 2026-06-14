@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_rose_glacier",
     "name": "Rose Glacier",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(12,10,20,0.62)"
     },

@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_alpenglow",
     "name": "Alpenglow",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(14, 20, 28, 0.6)"
     },

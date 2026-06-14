@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_20260613T002851443302",
     "name": "Painted Hills",
+    "source": "generated",
     "tokens": {
       "--evcc-queue-completed-opacity": 0.92,
       "--evcc-queue-pending-opacity": 1

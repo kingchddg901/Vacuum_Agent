@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_starfield_meridian",
     "name": "Starfield Meridian",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(6, 11, 20, 0.62)"
     },

@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_event_horizon",
     "name": "Event Horizon",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(6,4,14,0.6)"
     },

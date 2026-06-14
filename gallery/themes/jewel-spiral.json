@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_jewel_spiral",
     "name": "Jewel Spiral",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(8,8,20,0.6)"
     },

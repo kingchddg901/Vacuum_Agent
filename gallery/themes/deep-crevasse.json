@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_deep_crevasse",
     "name": "Deep Crevasse",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(3, 14, 19, 0.62)"
     },

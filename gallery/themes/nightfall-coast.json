@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_nightfall_coast",
     "name": "Nightfall Coast",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(4,12,16,0.62)"
     },

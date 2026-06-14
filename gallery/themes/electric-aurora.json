@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_electric_aurora",
     "name": "Electric Aurora",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(5,16,11,0.6)"
     },

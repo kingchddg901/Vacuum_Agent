@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_aurora_voltage",
     "name": "Aurora Voltage",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(3,9,5,0.6)"
     },

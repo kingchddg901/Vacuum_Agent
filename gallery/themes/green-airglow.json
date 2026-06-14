@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_green_airglow",
     "name": "Green Airglow",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(10,7,22,0.6)"
     },

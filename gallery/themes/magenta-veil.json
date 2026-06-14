@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_magenta_veil",
     "name": "Magenta Veil",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(10,14,32,0.62)"
     },

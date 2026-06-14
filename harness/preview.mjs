@@ -22,6 +22,8 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 
 import { fileURLToPath } from "node:url";
 import { dirname, join, basename } from "node:path";
 import { mountHarness, renderTab, VIEW_ORDER } from "./lib/mount-page.mjs";
+import { effectiveThemeTags, themeAttribution } from "../src/theme-tags/index.mjs";
+import { writeThemePage, writeIndex } from "./lib/gallery-html.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..");
@@ -57,134 +59,6 @@ function exportsToProcess() {
   const dir = join(repo, "gallery", "themes");
   if (!existsSync(dir)) return [];
   return readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => join(dir, f));
-}
-
-const esc = (s) =>
-  String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-
-/** Per-theme detail page: the renders grouped into sections (galleries vs
- *  tabs) plus the ingest report. Written as <name>/index.html so the top
- *  index links to it. */
-function writeThemePage(dir, themeName, scope, report, shots) {
-  const galleries = shots.filter((s) => !s.id.startsWith("tab-"));
-  const tabs = shots.filter((s) => s.id.startsWith("tab-"));
-  const section = (title, list) =>
-    !list.length
-      ? ""
-      : `    <section>
-      <h2>${esc(title)}</h2>
-      <div class="grid">
-${list
-  .map(
-    (s) => `        <figure>
-          <figcaption>${esc(s.id)}</figcaption>
-          <a href="${esc(s.id)}.png"><img loading="lazy" src="${esc(s.id)}.png" alt="${esc(s.id)}"></a>
-        </figure>`,
-  )
-  .join("\n")}
-      </div>
-    </section>`;
-  const skipped = report.skippedKeys.length ? esc(report.skippedKeys.join(", ")) : "none";
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(themeName)} — EVCC theme preview</title>
-<style>
-  :root { color-scheme: dark; }
-  body { margin:0; background:#0b0d10; color:#e6e9ee; font:15px/1.5 system-ui,-apple-system,sans-serif; }
-  header { padding:24px 24px 12px; border-bottom:1px solid #1c222a; }
-  header .back { color:#5aa9ff; text-decoration:none; font-size:.85rem; }
-  header h1 { margin:8px 0 4px; font-size:1.5rem; }
-  .meta { color:#8b94a0; font-size:.84rem; margin:0 0 2px; }
-  .meta a { color:#5aa9ff; }
-  main { padding:8px 24px 48px; }
-  section h2 { font-size:1.02rem; margin:26px 0 12px; color:#cbd2da; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; }
-  figure { margin:0; }
-  figcaption { font:12px/1.4 ui-monospace,SFMono-Regular,monospace; color:#8b94a0; padding:0 0 5px; }
-  img { display:block; width:100%; height:auto; border:1px solid #232a32; border-radius:8px; background:#0b0d10; }
-  footer { padding:0 24px 36px; color:#6b7480; font-size:.8rem; }
-</style>
-</head>
-<body>
-  <header>
-    <a class="back" href="../index.html">← all themes</a>
-    <h1>${esc(themeName)}</h1>
-    <p class="meta">scope: ${scope.length ? esc(scope.join(", ")) : "full"} · ${report.keyCount} tokens · ${report.clamped} clamped · ${report.skippedKeys.length} skipped</p>
-    <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
-  </header>
-  <main>
-${section("All-states galleries", galleries)}
-${section("Card tabs", tabs)}
-  </main>
-  <footer>The real card recolored by this export, rendered through the harness ingest gate.</footer>
-</body>
-</html>
-`;
-  writeFileSync(join(dir, "index.html"), html);
-}
-
-/** Write a self-contained static gallery index over the rendered themes. */
-function writeIndex(entries) {
-  const cards = entries
-    .map((e) => {
-      const dir = encodeURIComponent(e.name);
-      const meta = `${e.scope.length ? esc(e.scope.join(", ")) : "full"} · ${e.report.keyCount} tokens`;
-      return `      <article class="card">
-        <a class="thumb" href="${dir}/index.html"><img loading="lazy" src="${dir}/thumb.png" alt="${esc(e.themeName)} room card"></a>
-        <h2><a href="${dir}/index.html">${esc(e.themeName)}</a></h2>
-        <p class="meta">${meta}</p>
-      </article>`;
-    })
-    .join("\n");
-
-  const repoSlug = process.env.GITHUB_REPOSITORY || "kingchddg901/Vacuum_Agent";
-  const submitUrl = `https://github.com/${repoSlug}/issues/new?template=theme-submission.yml`;
-
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EVCC theme gallery</title>
-<style>
-  :root { color-scheme: dark; }
-  body { margin: 0; background: #0b0d10; color: #e6e9ee; font: 15px/1.5 system-ui, -apple-system, sans-serif; }
-  header { padding: 28px 24px 8px; }
-  header h1 { margin: 0 0 4px; font-size: 1.4rem; }
-  header p { margin: 0; color: #99a2ad; }
-  a.submit { display: inline-block; margin-top: 12px; padding: 8px 16px; border: 1px solid #2f6dd0; border-radius: 8px; background: #173455; color: #cfe2ff; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
-  a.submit:hover { background: #1d4474; }
-  main { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 18px; padding: 20px 24px 40px; }
-  .card { background: #14181d; border: 1px solid #232a32; border-radius: 12px; padding: 12px 12px 10px; }
-  .card h2 { margin: 10px 0 2px; font-size: 1.08rem; }
-  .card h2 a { color: inherit; text-decoration: none; }
-  .card .thumb { display: block; }
-  .meta { margin: 0; color: #8b94a0; font-size: 0.8rem; }
-  .card img { display: block; width: 100%; height: auto; border-radius: 8px; border: 1px solid #232a32; background: #0b0d10; }
-  .links { margin: 8px 0 0; font-size: 0.8rem; }
-  .links a, header a { color: #5aa9ff; }
-  footer { padding: 0 24px 36px; color: #6b7480; font-size: 0.8rem; }
-  footer code { color: #99a2ad; }
-</style>
-</head>
-<body>
-  <header>
-    <h1>EVCC theme gallery</h1>
-    <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="docs/">📖 Documentation</a></p>
-  </header>
-  <main>
-${cards}
-  </main>
-  <footer>Generated by <code>harness/preview.mjs</code>. Add a theme by committing its export to <code>gallery/themes/</code>.</footer>
-</body>
-</html>
-`;
-  mkdirSync(OUT, { recursive: true });
-  writeFileSync(join(OUT, "index.html"), html);
 }
 
 const files = exportsToProcess();
@@ -291,9 +165,20 @@ for (const file of files) {
   );
   writeFileSync(join(outDir, "_contact-sheet.png"), await page.screenshot({ fullPage: true }));
 
-  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots);
+  // Tags + attribution: computed from the SAME envelope the card sees, via the
+  // shared theme-tags core — so the gallery and the in-card picker agree exactly.
+  // (A failed `colorblind-safe` claim is already stripped from `tags`; the gallery
+  // never shows why — that feedback belongs to the submission/ingest path.)
+  const { tags: themeTags } = effectiveThemeTags(envelope.theme || {});
+  const attr = themeAttribution(envelope.theme || {});
+  // A theme's filter tokens = its effective tags PLUS its source (community/
+  // generated/manual aren't tags, but the Source facet filters on them; `core`
+  // is already a derived tag).
+  const filterTokens = [...new Set([...themeTags, ...(attr.source ? [attr.source] : [])])];
 
-  processed.push({ name, themeName: envelope.theme?.name || name, scope, report });
+  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr });
+
+  processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens });
   console.log(
     `✓ ${name}: ${report.keyCount} keys, scope=[${scope.join(",") || "full"}], ` +
       `${report.clamped} clamped, ${report.skippedKeys.length} skipped -> harness/out/preview/${name}/`,
@@ -301,7 +186,7 @@ for (const file of files) {
 }
 
 if (processed.length) {
-  writeIndex(processed);
+  writeIndex(processed, OUT);
   console.log(`index -> harness/out/preview/index.html (${processed.length} theme${processed.length === 1 ? "" : "s"})`);
 }
 

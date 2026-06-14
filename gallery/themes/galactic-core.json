@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_galactic_core",
     "name": "Galactic Core",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(12,8,28,0.6)"
     },

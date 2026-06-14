@@ -1,6 +1,6 @@
 {
   "ok": true, "version": 1, "exported_at": null,
-  "theme": { "id": "theme_pearl_galaxy", "name": "Pearl Galaxy",
+  "theme": { "id": "theme_pearl_galaxy", "name": "Pearl Galaxy", "source": "generated",
     "tokens": { "--evcc-surface-overlay": "rgba(26,20,38,0.46)" },
     "colors": {
       "--evcc-surface-base": "#faf8fc", "--evcc-surface-panel": "#e4dbee", "--evcc-surface-raised": "#ece5f2", "--evcc-surface-input": "#f3eef8",

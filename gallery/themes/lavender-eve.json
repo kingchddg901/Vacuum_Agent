@@ -5,6 +5,7 @@
   "theme": {
     "id": "theme_lavender_eve",
     "name": "Lavender Eve",
+    "source": "generated",
     "tokens": {
       "--evcc-surface-overlay": "rgba(20,12,18,0.6)"
     },
