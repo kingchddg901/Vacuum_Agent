@@ -93,7 +93,9 @@ settings. Full details are in
 
 ## Sharing a theme you built
 
-When you've made a theme you're happy with, submit it to the gallery:
+When you've made a theme you're happy with, submit it to the gallery. (New to
+building them? [Authoring a theme](../contributing/theme-authoring.md) covers the
+ways to make one and what makes a theme worth sharing.)
 
 1. In the **Theme** tab, click **Download** to save your theme's export file (or
    **Download Floor** to share just one floor type — for example "just my

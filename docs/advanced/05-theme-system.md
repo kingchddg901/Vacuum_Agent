@@ -2,6 +2,8 @@
 
 The theme system gives you per-card visual customization through CSS custom properties called design tokens. This is separate from Home Assistant's global theme system — your card theme has no effect on the rest of your dashboard, and HA global themes do not override the card's own token values.
 
+> **New to themes?** The [Theme system user guide](../user-guide/17-theme-system.md) is the friendly tour — picking, per-device, import/export, filters. This page is the token-by-token reference; to *build* a theme, see [Authoring a theme](../contributing/theme-authoring.md).
+
 ---
 
 ## How the theme system works
@@ -121,7 +123,7 @@ Each token row uses a control appropriate to its type:
 
 - **Color tokens** — a horizontal alpha rail that you drag to set opacity, combined with a hidden color picker. Drag the rail to adjust the opacity of the current color. Double-tap the rail to open the native color picker and change the hue. The hex value is also editable directly as text.
 - **Color-mix tokens** — tokens whose current value is a `color-mix(in srgb, ...)` expression get a dedicated ratio slider and two text inputs for the two color references. Dragging the slider adjusts the blend ratio live; a preview swatch shows the resolved result.
-- **Numeric tokens** (size, number, duration) — a range slider paired with a number input. The slider range comes from the token itself where defined — opacities run 0–1, a blur runs 0–8 px, a hue shift runs −180–180, a saturation multiplier 0–2 — falling back to a per-group default (e.g. radii/gaps at 0–32 or 0–64 px) for tokens without an explicit range. The same bounds gate what an import will accept, so the slider can never show a value its own importer would reject.
+- **Numeric tokens** (size, number, duration) — a range slider paired with a number input. The slider range comes from the token itself where defined — opacities run 0–1, a blur runs 0–8 px, a hue shift runs −180–180, a saturation multiplier 0–2 — falling back to a per-group default (e.g. radii/gaps at 0–32 or 0–64 px) for tokens without an explicit range. These bounds shape the editor's controls; note that a **full** theme import stores values as-is and is *not* range-clamped, so a hand- or AI-authored theme should keep each scalar inside its token's range (a floor-scoped import, by contrast, does clamp).
 - **Text tokens** — a plain text input for anything that does not fit the above types.
 
 Any token that has been changed in the current draft shows a **Reset** button next to its label. Clicking Reset removes the draft override for that token, reverting the preview to the active theme's value for it.
@@ -257,11 +259,11 @@ transport options (clipboard and file) for moving themes in and out:
 
 ### Export (clipboard)
 
-Calls `export_theme` for the currently active theme and copies the resulting JSON to your clipboard. If clipboard access is unavailable, the JSON is printed to the browser console instead. When there is no active theme, the button shows an alert and does nothing.
+Calls `export_theme` for the currently active theme and opens a modal showing the JSON in a read-only text box. From there you **Copy** it to your clipboard, **Send to HA** (posts the JSON to a Home Assistant persistent notification — useful when the browser blocks clipboard access on a plain-HTTP LAN), or **Close**. There is no automatic clipboard write and no console fallback. When there is no active theme, the button shows an alert and does nothing.
 
 ### Import (clipboard)
 
-Opens a browser prompt where you paste JSON. If the JSON parses successfully, the card calls `import_theme` with the parsed payload and then refreshes the theme library. If the JSON is invalid, you see an error alert.
+Opens a modal with a paste box (not a browser prompt). Paste a theme JSON and confirm; if it parses, the card calls `import_theme` with the payload and refreshes the theme library, otherwise you see an error alert.
 
 ### Download (file)
 

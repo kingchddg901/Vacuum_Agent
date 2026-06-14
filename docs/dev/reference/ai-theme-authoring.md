@@ -6,7 +6,7 @@ JSON [by hand](../20-theme-system.md#authoring-a-theme-json-by-hand) is the powe
 handing it to an AI is the accessible one.
 
 It works because every layer is **constrained**: the catalog bounds what's legal, the
-importer validates the values, and the usage trace turns a visual complaint into a precise
+importer checks the shape, and the usage trace turns a visual complaint into a precise
 edit. No glue code — the model's output *is* the import format, and the harness already
 renders the import format.
 
@@ -21,8 +21,9 @@ renders the import format.
 ## The loop
 
 1. **Prompt with the spec.** Hand the model a target — a description, a photo, a few hex
-   swatches — plus the Token Map. It can't name a token that doesn't exist, and the importer
-   clamps anything out of range, so whatever it returns always loads.
+   swatches — plus the Token Map. It can't name a token that doesn't exist, so whatever it
+   returns always loads — though a full import stores scalar values as-is (no range clamp),
+   so a final check against each token's **Range** is worth it.
 2. **It emits the envelope** — `{ name, colors, alpha, tokens }`, which *is* the import
    payload. No conversion step.
 3. **Render it.** Run the export through the [render harness](../27-render-harness.md) (that
