@@ -328,14 +328,33 @@ export function applyThemeBindings(proto) {
       btn.addEventListener("click", async () => {
         const area = host.querySelector("[data-theme-json-area]");
         if (!area) return;
+        // Select first so the legacy fallback (and a manual Ctrl+C) has the text.
+        area.focus();
+        area.select();
+
+        let copied = false;
+        // Modern API needs a SECURE context (HTTPS / localhost). HA over a plain
+        // http:// LAN address is not secure, so navigator.clipboard is undefined
+        // there — fall through to the legacy command below.
         try {
-          await navigator.clipboard.writeText(area.value);
-          btn.textContent = "Copied!";
-          setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(area.value);
+            copied = true;
+          }
         } catch {
-          area.focus();
-          area.select(); // clipboard blocked -> let the user Ctrl+C the selection
+          copied = false;
         }
+        // Legacy fallback: copies the current selection, works over plain HTTP.
+        if (!copied) {
+          try {
+            copied = document.execCommand("copy");
+          } catch {
+            copied = false;
+          }
+        }
+
+        btn.textContent = copied ? "Copied!" : "Select + Ctrl+C";
+        setTimeout(() => { btn.textContent = "Copy"; }, 1800);
       });
     });
 
