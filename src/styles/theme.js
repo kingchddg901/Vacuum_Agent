@@ -106,8 +106,21 @@ export const themeStyles = `
     display: flex;
     flex-direction: column;
     gap: 8px;
-    margin-bottom: 12px;
-    flex-shrink: 0;
+    margin-bottom: 10px;
+    flex: none; /* fixed band; the grid below scrolls */
+  }
+
+  /* The theme grid scrolls so every preset is reachable under the fixed filter
+     band (the view-content itself is overflow:hidden, like the token editor). */
+  .evcc-preset-scroll {
+    flex: 1 1 auto;
+    height: 0;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-gutter: stable;
+    padding-right: 4px;
   }
 
   .evcc-preset-filters-top {
@@ -115,6 +128,26 @@ export const themeStyles = `
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+  }
+
+  .evcc-preset-filters-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+    text-transform: none;
+  }
+
+  .evcc-preset-filters-toggle ha-icon {
+    --mdc-icon-size: 15px;
+  }
+
+  .evcc-preset-filters-caret {
+    transition: transform 150ms ease;
+  }
+
+  .evcc-preset-filters-toggle.active .evcc-preset-filters-caret {
+    transform: rotate(180deg);
   }
 
   .evcc-preset-search {

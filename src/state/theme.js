@@ -194,6 +194,9 @@ export function applyThemeState(proto) {
         presetFacets: {},
         presetSearchQuery: "",
         _presetTags: null,
+        // Facet rows collapse by default so the theme grid gets the space; the
+        // search box + a Filters toggle stay visible.
+        presetFiltersOpen: false,
         // Which theme's free-text vibe tags are being edited inline (or null).
         presetTagEditId: null,
       };
@@ -505,6 +508,21 @@ export function applyThemeState(proto) {
   proto.hasActivePresetFilters = function () {
     const state = this._ensureThemeState();
     return Object.keys(state.presetFacets).length > 0 || !!state.presetSearchQuery;
+  };
+
+  /** Total selected facet chips across all facets (for the Filters toggle badge). */
+  proto.activePresetFacetCount = function () {
+    const facets = this._ensureThemeState().presetFacets;
+    return Object.keys(facets).reduce((n, k) => n + (facets[k]?.length || 0), 0);
+  };
+
+  proto.getPresetFiltersOpen = function () {
+    return !!this._ensureThemeState().presetFiltersOpen;
+  };
+
+  proto.togglePresetFilters = function () {
+    const state = this._ensureThemeState();
+    state.presetFiltersOpen = !state.presetFiltersOpen;
   };
 
   /* --- Inline vibe-tag editor ---------------------------------------------

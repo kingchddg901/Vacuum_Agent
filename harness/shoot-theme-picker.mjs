@@ -42,13 +42,14 @@ await mountHarness(page);
 const draw = (opts = {}) =>
   page.evaluate(([t, o]) => window.__evcc.renderThemePresets(t, o), [
     themes,
-    { bundle, activeThemeId: "theme_core_slate", ...opts },
+    { bundle, activeThemeId: "theme_core_slate", height: 560, ...opts },
   ]);
 
 const shots = [
-  { name: "all", opts: {} },
-  { name: "dark-purple", opts: { facets: { accent: ["purple"], mode: ["dark"] } } },
-  { name: "colorblind-safe", opts: { facets: { a11y: ["colorblind-safe"] } } },
+  { name: "all", opts: {} }, // collapsed filters + scrollable grid (the default)
+  { name: "filters-open", opts: { filtersOpen: true } },
+  { name: "dark-purple", opts: { filtersOpen: true, facets: { accent: ["purple"], mode: ["dark"] } } },
+  { name: "colorblind-safe", opts: { filtersOpen: true, facets: { a11y: ["colorblind-safe"] } } },
   { name: "search-aurora", opts: { search: "aurora" } },
   { name: "tag-editor", opts: { editId: "theme_jewel_spiral" } },
 ];

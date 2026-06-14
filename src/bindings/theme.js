@@ -239,6 +239,11 @@ export function applyThemeBindings(proto) {
       this.card._state.clearPresetFilters();
       this.card._scheduleRender();
     });
+
+    this.card._onAll("[data-preset-filters-toggle]", "click", () => {
+      this.card._state.togglePresetFilters();
+      this.card._scheduleRender();
+    });
   };
 
   /* =========================================================

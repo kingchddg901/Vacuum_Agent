@@ -325,7 +325,7 @@ function ingestTheme(envelope) {
  * source?}); `bundle` themes the host; `activeThemeId` marks one Active.
  */
 function renderThemePresets(themes, opts = {}) {
-  const { bundle = {}, width = 760, activeThemeId = null, facets = null, search = "", editId = null } = opts;
+  const { bundle = {}, width = 760, height = null, activeThemeId = null, facets = null, search = "", editId = null, filtersOpen = false } = opts;
   const result = { ok: false };
   try {
     const list = Array.isArray(themes) ? themes : [];
@@ -356,6 +356,7 @@ function renderThemePresets(themes, opts = {}) {
     }
     if (search) state.setPresetSearchQuery(search);
     if (editId) state.setPresetTagEditId(editId);
+    if (filtersOpen) state.togglePresetFilters();
     result.shown = state.filteredPresetIds();
     card._state = state;
     const renderers = new VacuumCardRenderers(card);
@@ -369,6 +370,9 @@ function renderThemePresets(themes, opts = {}) {
     const host = document.createElement("div");
     host.id = "evcc-host";
     host.style.width = `${width}px`;
+    // A fixed height lets the grid's scroll container flex (mirrors the live
+    // card, where the view sits in a bounded shell); omit for natural height.
+    if (height) host.style.height = `${height}px`;
     root.appendChild(host);
     const shadow = host.attachShadow({ mode: "open" });
     shadow.innerHTML = frameHtml("theme", "", viewHtml, false, "");

@@ -204,7 +204,7 @@ export function applyThemeRenderers(proto) {
 
     return `
       <div class="evcc-view evcc-view--theme">
-        ${this._renderThemeHeader(state)}
+        ${activeTab === "presets" ? "" : this._renderThemeHeader(state)}
 
         <div class="evcc-chips evcc-theme-tabs" role="tablist">
           <button
@@ -308,6 +308,9 @@ export function applyThemeRenderers(proto) {
     }).filter(Boolean).join("");
 
     const hasFilters = this.card._state.hasActivePresetFilters();
+    const filtersOpen = this.card._state.getPresetFiltersOpen();
+    const facetCount = this.card._state.activePresetFacetCount();
+    const canFilter = !!facetRows;
 
     return `
       <div class="evcc-preset-filters">
@@ -321,6 +324,17 @@ export function applyThemeRenderers(proto) {
               data-preset-search
             />
           </div>
+          ${canFilter ? `
+            <button
+              class="evcc-chip evcc-preset-filters-toggle ${filtersOpen ? "active" : ""}"
+              data-preset-filters-toggle
+              aria-expanded="${filtersOpen ? "true" : "false"}"
+            >
+              <ha-icon icon="mdi:filter-variant"></ha-icon>
+              Filters${facetCount ? ` (${facetCount})` : ""}
+              <ha-icon class="evcc-preset-filters-caret" icon="mdi:chevron-down"></ha-icon>
+            </button>
+          ` : ""}
           ${hasFilters ? `
             <button class="evcc-chip evcc-preset-clear" data-preset-clear>Clear</button>
           ` : ""}
@@ -334,7 +348,7 @@ export function applyThemeRenderers(proto) {
             Browse gallery <ha-icon icon="mdi:open-in-new"></ha-icon>
           </a>
         </div>
-        ${facetRows ? `<div class="evcc-preset-facets">${facetRows}</div>` : ""}
+        ${canFilter && filtersOpen ? `<div class="evcc-preset-facets">${facetRows}</div>` : ""}
       </div>
       <datalist id="evcc-vibe-suggest">
         ${SUGGESTED_VIBE_TAGS.map((t) => `<option value="${this.escapeHtml(t)}"></option>`).join("")}
@@ -448,7 +462,8 @@ export function applyThemeRenderers(proto) {
           }).join("")}
         </div>`;
 
-    return `${this._renderPresetFilters(state)}${grid}`;
+    // Filter bar stays fixed; the grid scrolls so every theme is reachable.
+    return `${this._renderPresetFilters(state)}<div class="evcc-preset-scroll">${grid}</div>`;
   };
 
   proto._renderThemePalette = function (tokens, sources) {
