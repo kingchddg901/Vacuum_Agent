@@ -8,21 +8,69 @@ body:
       value: |
         Share a theme you built in the card.
 
-        In the **Theme** tab, click **Download** (whole theme) or **Download
-        Floor** (one floor type) to get the export JSON, then paste it below.
+        In the **Theme** tab, click **Export** (and **Copy**) or **Download**
+        to get the export JSON, then paste it below. The optional fields let you
+        add credit and free-text tags.
 
-        A bot validates it, renders a preview of the real card recolored by your
-        theme, and opens a pull request. A maintainer reviews the preview and
-        merges it — then your theme appears in the gallery. Nothing is published
+        A bot validates it, auto-tags it, verifies colorblindness, renders a
+        preview of the real card recolored by your theme, and opens a pull
+        request — commenting the full report back here. A maintainer reviews and
+        merges it; then your theme appears in the gallery. Nothing is published
         automatically.
   - type: textarea
     id: export
     attributes:
       label: Theme export JSON
-      description: Paste the full JSON from the Download / Download Floor button.
+      description: Paste the full JSON from the Export / Download button.
       render: json
     validations:
       required: true
+  - type: input
+    id: tags
+    attributes:
+      label: Vibe tags
+      description: >
+        Optional, comma-separated free-text "vibe" words (aurora, cosmic, cozy,
+        retro…). Facet tags like dark/blue and colorblind-safe are auto-derived —
+        no need to add them.
+      placeholder: aurora, cosmic, cozy
+    validations:
+      required: false
+  - type: input
+    id: author
+    attributes:
+      label: Author
+      description: Optional. Your display name, for credit in the gallery.
+      placeholder: Your name or handle
+    validations:
+      required: false
+  - type: input
+    id: author-url
+    attributes:
+      label: Author URL
+      description: Optional. A link to credit you (GitHub profile, site, etc.).
+      placeholder: https://github.com/you
+    validations:
+      required: false
+  - type: input
+    id: submitted-by
+    attributes:
+      label: Submitted by
+      description: Optional — only if you're submitting on behalf of someone else.
+    validations:
+      required: false
+  - type: checkboxes
+    id: colorblind
+    attributes:
+      label: Colorblind-safe claim
+      description: >
+        Optional. Check this only if you believe the four status colors
+        (success / warning / error / info) stay distinguishable under
+        colorblindness. The bot VERIFIES it — if it doesn't pass, your theme
+        still ships, just without the badge, and the bot tells you why.
+      options:
+        - label: I'm claiming this theme is colorblind-safe (the bot will verify).
+          required: false
   - type: checkboxes
     id: ack
     attributes:

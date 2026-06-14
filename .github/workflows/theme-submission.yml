@@ -1,28 +1,29 @@
 name: theme submission
 
-# A "theme-submission" issue (export JSON pasted into the form) is turned into a
-# reviewable pull request:
-#   parse + validate -> render a preview of the real card recolored by it ->
-#   open a PR (with the preview embedded inline) -> comment back on the issue.
+# A "theme-submission" issue (export JSON + optional metadata pasted into the
+# form) is processed by scripts/process-submission.mjs — the SAME theme-tags core
+# the card and gallery use — into a gallery-ready theme:
+#   parse + validate -> auto-tag + verify colorblind + stamp source:community ->
+#   render a preview -> open/UPDATE a pull request -> comment the full report on
+#   the issue.
 #
-# The preview is rendered HERE, not on the PR, because a PR opened with the
-# built-in GITHUB_TOKEN does not trigger the theme-intake preview workflow
-# (GitHub's anti-recursion rule). The rendered contact sheet is pushed to an
-# off-master "gallery-previews" branch and embedded in the PR body via a raw
-# URL, so reviewers see it inline without downloading the artifact. That branch
-# is never merged — it just holds preview images (resettable anytime).
+# Validation runs HERE (on the issue), not on a PR: a token-opened PR can't
+# trigger CI (GitHub anti-recursion). So a broken upload never becomes a PR — it
+# just gets a comment to fix and reopen. A colorblind claim that FAILS is
+# non-blocking: the badge is left off, the report says why, and it still ships.
 #
-# Nothing is auto-merged: the bot only opens the PR; a human approves what goes
-# live. Malformed input is rejected with a comment instead of a broken file.
+# Re-runs (reopen / edit) reuse the same branch + PR, so a submitter can fix and
+# iterate without piling up PRs. The preview is pushed to an off-master
+# "gallery-previews" branch and embedded via raw URL (never merged).
 #
-# ONE-TIME SETUP (both required, or the bot silently skips / can't open a PR):
+# ONE-TIME SETUP (or the bot can't open a PR):
 #   1. A "theme-submission" label must exist (the issue form applies it).
 #   2. Settings -> Actions -> General -> "Allow GitHub Actions to create and
 #      approve pull requests" must be enabled.
 
 on:
   issues:
-    types: [opened, reopened]
+    types: [opened, reopened, edited]
 
 permissions:
   contents: write
@@ -31,7 +32,6 @@ permissions:
 
 jobs:
   intake:
-    # Only issues created via the submission form (which auto-applies the label).
     if: contains(join(github.event.issue.labels.*.name, ','), 'theme-submission')
     runs-on: ubuntu-latest
     container:
@@ -39,50 +39,34 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Extract + validate the export
+      - name: Process the submission
         id: extract
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require("fs");
+            const path = require("path");
+            const { pathToFileURL } = require("url");
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
-            const comment = (body) =>
-              github.rest.issues.createComment({ owner, repo, issue_number, body });
 
-            const body = context.payload.issue.body || "";
-            const m = body.match(/```json\s*\n([\s\S]*?)\n```/);
-            if (!m) {
-              await comment("Couldn't find the export. Paste the full JSON into the **Theme export JSON** box, then close and reopen this issue to retry.");
+            // The processor reuses the card/gallery theme-tags core (no deps), so
+            // a submission is tagged + colorblind-verified identically.
+            const mod = await import(pathToFileURL(path.resolve("scripts/process-submission.mjs")).href);
+            const result = mod.processSubmission(context.payload.issue.body || "", issue_number);
+
+            if (!result.ok) {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: result.report });
               core.setOutput("ok", "false");
               return;
             }
-            let env;
-            try {
-              env = JSON.parse(m[1]);
-            } catch (e) {
-              await comment(`That export isn't valid JSON: \`${e.message}\`. Re-copy it from the card's **Download** button, then close and reopen this issue to retry.`);
-              core.setOutput("ok", "false");
-              return;
-            }
-            const t = env && env.theme;
-            if (!t || !(t.tokens || t.colors || t.alpha)) {
-              await comment("That doesn't look like a theme export (no `theme.tokens` / `colors` / `alpha`). Use the card's **Download** or **Download Floor** button.");
-              core.setOutput("ok", "false");
-              return;
-            }
-            const base =
-              String(t.name || "theme")
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, "-")
-                .replace(/^-+|-+$/g, "")
-                .slice(0, 40) || "theme";
-            const slug = `${base}-${issue_number}`;
+
             fs.mkdirSync("gallery/themes", { recursive: true });
-            fs.writeFileSync(`gallery/themes/${slug}.json`, JSON.stringify(env, null, 2) + "\n");
+            fs.writeFileSync(`gallery/themes/${result.slug}.json`, JSON.stringify(result.envelope, null, 2) + "\n");
+            fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "submission-report.md"), result.report);
             core.setOutput("ok", "true");
-            core.setOutput("slug", slug);
-            core.setOutput("themeName", String(t.name || slug));
+            core.setOutput("slug", result.slug);
+            core.setOutput("themeName", result.themeName);
 
       - name: Install dependencies
         if: steps.extract.outputs.ok == 'true'
@@ -101,68 +85,76 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Open pull request + comment
+      - name: Open/update PR + comment
         if: steps.extract.outputs.ok == 'true'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require("fs");
+            const path = require("path");
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const slug = "${{ steps.extract.outputs.slug }}";
             const themeName = ${{ toJSON(steps.extract.outputs.themeName) }};
+            const report = fs.readFileSync(path.join(process.env.RUNNER_TEMP, "submission-report.md"), "utf8");
             const branch = `theme-submission/${slug}`;
             const previewBranch = "gallery-previews";
             try {
               const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
               const sha = (await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
 
-              // Submission branch carrying the theme JSON (this is what gets merged).
-              await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
+              // Reuse the branch across reopen/edit re-runs (create once).
+              let branchExists = true;
+              try { await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` }); }
+              catch { branchExists = false; }
+              if (!branchExists) {
+                await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
+              }
+
+              // Create or update the theme file on the branch.
+              const themePath = `gallery/themes/${slug}.json`;
+              let themeSha;
+              try { themeSha = (await github.rest.repos.getContent({ owner, repo, path: themePath, ref: branch })).data.sha; } catch {}
               await github.rest.repos.createOrUpdateFileContents({
-                owner, repo, path: `gallery/themes/${slug}.json`, branch,
+                owner, repo, path: themePath, branch,
                 message: `gallery: add theme "${themeName}" (#${issue_number})`,
-                content: Buffer.from(fs.readFileSync(`gallery/themes/${slug}.json`, "utf8"), "utf8").toString("base64"),
+                content: Buffer.from(fs.readFileSync(themePath, "utf8"), "utf8").toString("base64"),
+                sha: themeSha,
               });
 
-              // Push the contact sheet to an off-master branch so it can be
-              // embedded inline in the PR body (raw.githubusercontent). This
-              // branch is never merged — it only holds preview images.
+              // Preview contact sheet -> off-master branch -> raw URL (inline).
               const sheet = `harness/out/preview/${slug}/_contact-sheet.png`;
               let previewMd = "";
               if (fs.existsSync(sheet)) {
-                try {
-                  await github.rest.git.getRef({ owner, repo, ref: `heads/${previewBranch}` });
-                } catch {
-                  await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${previewBranch}`, sha });
-                }
+                try { await github.rest.git.getRef({ owner, repo, ref: `heads/${previewBranch}` }); }
+                catch { await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${previewBranch}`, sha }); }
                 const remote = `${slug}/contact-sheet.png`;
                 let fileSha;
-                try {
-                  fileSha = (await github.rest.repos.getContent({ owner, repo, path: remote, ref: previewBranch })).data.sha;
-                } catch {}
+                try { fileSha = (await github.rest.repos.getContent({ owner, repo, path: remote, ref: previewBranch })).data.sha; } catch {}
                 await github.rest.repos.createOrUpdateFileContents({
                   owner, repo, path: remote, branch: previewBranch,
                   message: `preview: ${slug} (#${issue_number})`,
                   content: fs.readFileSync(sheet).toString("base64"),
                   sha: fileSha,
                 });
-                previewMd = `### Preview\n\n![${themeName}](https://raw.githubusercontent.com/${owner}/${repo}/${previewBranch}/${remote})\n\n`;
+                previewMd = `\n\n### Preview\n\n![${themeName}](https://raw.githubusercontent.com/${owner}/${repo}/${previewBranch}/${remote})\n`;
+              }
+
+              // Reuse an open PR for the branch (create once; re-runs update it).
+              const open = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}`, base, state: "open" });
+              let pr = open.data[0];
+              if (!pr) {
+                pr = (await github.rest.pulls.create({
+                  owner, repo, head: branch, base,
+                  title: `Add theme: ${themeName}`,
+                  body: `Theme submission from #${issue_number}.${previewMd}\n\nMerging publishes it to the gallery.\n\nCloses #${issue_number}`,
+                })).data;
               }
 
               const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
-              const pr = await github.rest.pulls.create({
-                owner, repo, head: branch, base,
-                title: `Add theme: ${themeName}`,
-                body:
-                  `Theme submission from #${issue_number}.\n\n` +
-                  previewMd +
-                  `Full per-tab preview: download the **theme-preview-${slug}** artifact from the [submission run](${runUrl}). ` +
-                  `Merging publishes it to the gallery.\n\nCloses #${issue_number}`,
-              });
               await github.rest.issues.createComment({
                 owner, repo, issue_number,
-                body: `Thanks! Validated and rendered — opened #${pr.data.number} with an inline preview. A maintainer will review and merge; then your theme joins the gallery.`,
+                body: `${report}${previewMd}\n\nOpened/updated #${pr.number}. Full per-tab preview: the **theme-preview-${slug}** artifact on [this run](${runUrl}). A maintainer will review and merge.`,
               });
             } catch (e) {
               await github.rest.issues.createComment({

@@ -33,3 +33,16 @@ jobs:
       # inspection-only; CV instrumentation under --cov is a separate artifact).
       - name: Run test suite (behavior gate)
         run: python -m pytest tests --no-cov -p no:cacheprovider --tb=short
+
+  node:
+    name: node scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      # Guards scripts/process-submission.mjs (the gallery-intake bot core) — it
+      # has no deps (just the theme-tags core), so no install step is needed.
+      - name: Run script tests
+        run: node --test scripts/process-submission.test.mjs
