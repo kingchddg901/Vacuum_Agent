@@ -52,17 +52,16 @@ const PRIMARY_MOBILE_TABS = [
 ];
 
 /**
- * Overflow tabs on mobile. Theme is intentionally excluded — its
- * editor needs too many panels visible simultaneously (palette,
- * tokens, previews, presets) to be useful at phone widths. Users
- * who need it can edit themes on desktop; the active theme still
- * applies on mobile, just the editor isn't reachable from the
- * mobile shell. Add it back here if/when the theme editor gets a
- * mobile-tailored layout.
+ * Overflow tabs on mobile. Theme is included for PICKING only — the
+ * Theme tab renders just its preset grid (filter / mode / tags) at phone
+ * widths; the Palette and Tokens EDITORS stay desktop-only (they need too
+ * many panels visible at once). So on mobile you can browse, activate, and
+ * device-pin themes, but fine token editing happens on desktop.
  */
 const OVERFLOW_MOBILE_TABS = [
   { id: VIEWS.LEARNING_REVIEW, label: "Learning Review" },
   { id: VIEWS.ROOM_RULES,      label: "Room Rules"      },
+  { id: VIEWS.THEME,           label: "Theme"           },
   { id: VIEWS.MAP_CONFIG,      label: "Map Config"      },
   { id: VIEWS.MAPPING_REVIEW,  label: "Map Bounds"      },
   { id: VIEWS.SETUP,           label: "Setup"           },

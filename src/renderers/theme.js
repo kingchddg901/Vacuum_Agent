@@ -200,12 +200,16 @@ export function applyThemeRenderers(proto) {
   proto.renderThemeView = function () {
     const state = this.card._state._ensureThemeState();
     const { tokens, sources } = this.card._state.resolvedTheme();
-    const activeTab = state.activeSubTab || "presets";
+    const isMobile = this.card._state.isMobileViewport();
+    // Mobile = theme PICKING only: force the Themes (presets) sub-tab and drop the
+    // Palette/Tokens editors — they need too many panels for a phone.
+    const activeTab = isMobile ? "presets" : (state.activeSubTab || "presets");
 
     return `
       <div class="evcc-view evcc-view--theme">
         ${activeTab === "presets" ? "" : this._renderThemeHeader(state)}
 
+        ${isMobile ? "" : `
         <div class="evcc-chips evcc-theme-tabs" role="tablist">
           <button
             class="evcc-chip ${activeTab === "presets" ? "active" : ""}"
@@ -227,12 +231,12 @@ export function applyThemeRenderers(proto) {
           >
             Tokens
           </button>
-        </div>
+        </div>`}
 
         <div class="evcc-view-content">
           ${activeTab === "presets" ? this._renderThemePresets(state) : ""}
-          ${activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
-          ${activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
+          ${!isMobile && activeTab === "palette" ? this._renderThemePalette(tokens, sources) : ""}
+          ${!isMobile && activeTab === "tokens" ? this._renderThemeTokenEditor(tokens, sources) : ""}
         </div>
 
         ${this._renderThemeFooter(state)}
@@ -1019,6 +1023,10 @@ export function applyThemeRenderers(proto) {
   proto._renderThemeFooter = function (state) {
     const hasDraft = !!state.draftDirty;
     const hasActiveTheme = !!state.activeThemeId;
+    // Mobile = picking only: keep theme-level Export/Import/Download/Upload; drop
+    // the floor-preset + draft (Save/Discard) controls, which belong to the
+    // desktop-only token editor.
+    const isMobile = this.card._state.isMobileViewport();
 
     return `
       <div class="evcc-view-footer">
@@ -1055,6 +1063,7 @@ export function applyThemeRenderers(proto) {
             Upload
           </button>
 
+          ${isMobile ? "" : `
           <select
             class="evcc-chip evcc-floor-scope-select"
             data-theme-floor-scope
@@ -1085,9 +1094,10 @@ export function applyThemeRenderers(proto) {
             title="Apply this built-in marble preset to the active theme"
           >
             Apply Preset
-          </button>
+          </button>`}
         </div>
 
+        ${isMobile ? "" : `
         <div class="footer-right">
           <button
             class="evcc-chip"
@@ -1104,7 +1114,7 @@ export function applyThemeRenderers(proto) {
           >
             ${hasActiveTheme ? "Save Changes" : "Save as New"}
           </button>
-        </div>
+        </div>`}
       </div>
     `;
   };
