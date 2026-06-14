@@ -153,6 +153,7 @@ export function applyThemeBindings(proto) {
   proto._bindThemeEditor = function () {
     this._bindThemeTabs();
     this._bindThemePresets();
+    this._bindPresetFilters();
     this._bindThemeGroupFilters();
     this._bindThemeGroupToggles();
     this._bindThemeGlobalSearch();
@@ -212,6 +213,30 @@ export function applyThemeBindings(proto) {
         fallbackActiveThemeId: activeThemeId,
         fallbackDraftDirty: false,
       });
+    });
+  };
+
+  /* =========================================================
+     PRESET FACET FILTER + SEARCH (Themes grid)
+     ========================================================= */
+
+  proto._bindPresetFilters = function () {
+    this.card._onAll("[data-preset-facet]", "click", (e) => {
+      const facet = e.currentTarget.dataset.presetFacet;
+      const value = e.currentTarget.dataset.presetFacetValue;
+      if (!facet || !value) return;
+      this.card._state.togglePresetFacet(facet, value);
+      this.card._scheduleRender();
+    });
+
+    this.card._on(this.card.$("[data-preset-search]"), "input", (e) => {
+      this.card._state.setPresetSearchQuery(e.target.value);
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-preset-clear]", "click", () => {
+      this.card._state.clearPresetFilters();
+      this.card._scheduleRender();
     });
   };
 

@@ -56,6 +56,7 @@
  */
 
 import { THEME_GROUPS } from "../theme-tokens/index.js";
+import { effectiveThemeTags } from "../theme-tags/index.mjs";
 
 /**
  * Bake an alpha multiplier (0–1) into a CSS hex color string.
@@ -186,6 +187,13 @@ export function applyThemeState(proto) {
         groupSearchQueryByName: {},
 
         modifiedOnly: false,
+
+        /* Preset (theme) facet filter + search — mirrors the Pages gallery,
+           driven by the shared src/theme-tags core. `_presetTags` is a lazy
+           cache (id -> derived tags) invalidated whenever the library changes. */
+        presetFacets: {},
+        presetSearchQuery: "",
+        _presetTags: null,
       };
     }
     return this._themeState;
@@ -217,6 +225,7 @@ export function applyThemeState(proto) {
     state.library = payload?.library ?? {};
     state.librarySummary = payload?.themes ?? [];
     state.defaultThemeId = payload?.default_theme_id ?? null;
+    state._presetTags = null; // library changed -> rebuild derived-tag cache lazily
   };
 
   /* =========================================================
@@ -413,6 +422,115 @@ export function applyThemeState(proto) {
 
   proto.getThemeGroupFilter = function () {
     return this._ensureThemeState().selectedGroupFilter || "all";
+  };
+
+  /* =========================================================
+     PRESET (THEME) TAG FILTERING
+     -----------------------------------------------------------
+     The Themes grid is filtered by the same facet vocabulary the
+     Pages gallery uses. Tags are DERIVED from each library theme's
+     palette via the shared theme-tags core (cached per library),
+     so the card and the gallery agree without the card duplicating
+     any logic.
+     ========================================================= */
+
+  /** Lazy cache of derived tags per library id: { [id]: { tags, set } }. */
+  proto._presetTagsForLibrary = function () {
+    const state = this._ensureThemeState();
+    if (state._presetTags) return state._presetTags;
+
+    const out = {};
+    const library = state.library || {};
+    Object.keys(library).forEach((id) => {
+      const { tags } = effectiveThemeTags(library[id] || {});
+      out[id] = { tags, set: new Set(tags) };
+    });
+    state._presetTags = out;
+    return out;
+  };
+
+  /** Derived tags for one library theme (ordered as stored). */
+  proto.presetTagsFor = function (id) {
+    return (this._presetTagsForLibrary()[id] || { tags: [] }).tags;
+  };
+
+  /** Every facet tag that occurs across the library — so the filter bar only
+   *  offers chips that actually match a theme. */
+  proto.presentPresetTags = function () {
+    const tagsById = this._presetTagsForLibrary();
+    const present = new Set();
+    Object.keys(tagsById).forEach((id) => {
+      tagsById[id].tags.forEach((t) => present.add(t));
+    });
+    return present;
+  };
+
+  proto.togglePresetFacet = function (facet, value) {
+    const state = this._ensureThemeState();
+    const current = Array.isArray(state.presetFacets[facet])
+      ? [...state.presetFacets[facet]]
+      : [];
+    const idx = current.indexOf(value);
+    if (idx === -1) current.push(value);
+    else current.splice(idx, 1);
+
+    if (current.length) state.presetFacets[facet] = current;
+    else delete state.presetFacets[facet];
+  };
+
+  proto.isPresetFacetActive = function (facet, value) {
+    const sel = this._ensureThemeState().presetFacets[facet];
+    return Array.isArray(sel) && sel.includes(value);
+  };
+
+  proto.setPresetSearchQuery = function (query) {
+    this._ensureThemeState().presetSearchQuery = String(query || "").toLowerCase();
+  };
+
+  proto.clearPresetFilters = function () {
+    const state = this._ensureThemeState();
+    state.presetFacets = {};
+    state.presetSearchQuery = "";
+  };
+
+  proto.hasActivePresetFilters = function () {
+    const state = this._ensureThemeState();
+    return Object.keys(state.presetFacets).length > 0 || !!state.presetSearchQuery;
+  };
+
+  /**
+   * Library ids after facet + search filtering, original order preserved.
+   * Facet semantics match the gallery: OR within a facet, AND across facets.
+   * Search matches the theme name and any derived tag.
+   */
+  proto.filteredPresetIds = function () {
+    const state = this._ensureThemeState();
+    const library = state.library || {};
+    const tagsById = this._presetTagsForLibrary();
+    const facets = state.presetFacets;
+    const facetKeys = Object.keys(facets);
+    const query = state.presetSearchQuery;
+
+    return Object.keys(library).filter((id) => {
+      const entry = tagsById[id] || { tags: [], set: new Set() };
+
+      for (const facet of facetKeys) {
+        const selected = facets[facet];
+        if (selected.length && !selected.some((t) => entry.set.has(t))) {
+          return false; // this facet has selections but none match -> drop
+        }
+      }
+
+      if (query) {
+        const haystack =
+          String(library[id]?.name || id).toLowerCase() +
+          " " +
+          entry.tags.join(" ");
+        if (!haystack.includes(query)) return false;
+      }
+
+      return true;
+    });
   };
 
   /* =========================================================

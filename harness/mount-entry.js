@@ -27,6 +27,7 @@
  */
 
 import { VacuumCardRenderers } from "../src/renderers/index.js";
+import { VacuumCardState } from "../src/state/index.js";
 import {
   buildRenderContext,
   renderHeader,
@@ -315,12 +316,80 @@ function ingestTheme(envelope) {
   return { bundle, scope, report };
 }
 
+/**
+ * Render the Themes (presets) grid with a REAL state seeded with a theme
+ * library. The stub null-object can't exercise the facet filter (every accessor
+ * returns a truthy null-object), so this gives the theme picker a faithful
+ * fixture: derived tags, facet bar, search, and Browse link rendered as they
+ * ship. `themes` is an array of library entries ({id,name,tokens,colors,alpha,
+ * source?}); `bundle` themes the host; `activeThemeId` marks one Active.
+ */
+function renderThemePresets(themes, opts = {}) {
+  const { bundle = {}, width = 760, activeThemeId = null, facets = null, search = "" } = opts;
+  const result = { ok: false };
+  try {
+    const list = Array.isArray(themes) ? themes : [];
+    const card = {
+      _config: {},
+      _renderers: null,
+      _view: "theme",
+      _mobileMoreOpen: false,
+      _hass: makeNullObject(new Set(), "_hass"),
+    };
+    const state = new VacuumCardState({}, {});
+    const library = {};
+    for (const t of list) library[t.id] = t;
+    state.setThemeLibrary({
+      library,
+      themes: list.map((t) => ({ id: t.id, name: t.name })),
+      default_theme_id: list[0]?.id || null,
+    });
+    state.setThemeSubTab("presets");
+    if (activeThemeId) state.applyThemeActivation(activeThemeId, { clearDraft: true });
+    // Pre-seed the filter exactly as the binding would (togglePresetFacet /
+    // setPresetSearchQuery), so a screenshot can show a filtered state and the
+    // returned `shown` exercises filteredPresetIds in-browser.
+    if (facets) {
+      for (const [facet, values] of Object.entries(facets)) {
+        for (const v of values) state.togglePresetFacet(facet, v);
+      }
+    }
+    if (search) state.setPresetSearchQuery(search);
+    result.shown = state.filteredPresetIds();
+    card._state = state;
+    const renderers = new VacuumCardRenderers(card);
+    card._renderers = renderers;
+
+    const presetsHtml = renderers._renderThemePresets(state._ensureThemeState());
+    const viewHtml = `<div class="evcc-view evcc-view--theme"><div class="evcc-view-content">${presetsHtml}</div></div>`;
+
+    const root = document.getElementById("root");
+    root.innerHTML = "";
+    const host = document.createElement("div");
+    host.id = "evcc-host";
+    host.style.width = `${width}px`;
+    root.appendChild(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    shadow.innerHTML = frameHtml("theme", "", viewHtml, false, "");
+    for (const [key, value] of Object.entries(bundle)) {
+      if (value !== null && value !== undefined && value !== "") host.style.setProperty(key, value);
+    }
+    result.ok = true;
+  } catch (err) {
+    result.ok = false;
+    result.error = String((err && err.message) || err);
+    result.stack = err && err.stack ? String(err.stack).split("\n").slice(0, 8).join("\n") : null;
+  }
+  return result;
+}
+
 window.__evcc = {
   version: 1,
   VIEWS,
   VIEW_ORDER,
   render,
   renderGallery,
+  renderThemePresets,
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   badgeMarks: BADGE_MARK_PATHS,
   markViewBox: MARK_VIEWBOX,

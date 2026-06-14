@@ -99,6 +99,88 @@ export const themeStyles = `
   }
 
   /* =========================================================
+     PRESET (THEME) FACET FILTER + SEARCH
+     ========================================================= */
+
+  .evcc-preset-filters {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+  }
+
+  .evcc-preset-filters-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .evcc-preset-search {
+    flex: 1;
+    min-width: 160px;
+    height: 34px;
+  }
+
+  .evcc-preset-clear {
+    flex-shrink: 0;
+  }
+
+  .evcc-preset-gallery-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: auto;
+    flex-shrink: 0;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--evcc-accent, #3b82f6);
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: var(--evcc-radius-inner, 10px);
+    border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+    transition: var(--evcc-transition-normal, 150ms ease);
+    white-space: nowrap;
+  }
+
+  .evcc-preset-gallery-link:hover {
+    border-color: var(--evcc-accent, #3b82f6);
+    background: color-mix(in srgb, var(--evcc-accent, #3b82f6) 12%, transparent);
+  }
+
+  .evcc-preset-gallery-link ha-icon {
+    --mdc-icon-size: 15px;
+  }
+
+  .evcc-preset-facets {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .evcc-preset-facet {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .evcc-preset-facet-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
+    width: 64px;
+    flex: none;
+  }
+
+  .evcc-preset-facet-chip {
+    text-transform: capitalize;
+    font-size: 0.74rem;
+  }
+
+  /* =========================================================
      PRESETS
      ========================================================= */
 
@@ -185,6 +267,38 @@ export const themeStyles = `
     justify-content: center;
     gap: 6px;
     flex-wrap: wrap;
+  }
+
+  .evcc-preset-tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+  }
+
+  .evcc-preset-tag {
+    font-size: 0.62rem;
+    line-height: 1;
+    padding: 3px 6px;
+    border-radius: 999px;
+    text-transform: capitalize;
+    color: var(--evcc-text-secondary, rgba(255, 255, 255, 0.7));
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+    white-space: nowrap;
+  }
+
+  /* colorblind-safe is system-verified — tint it with the success semantic. */
+  .evcc-preset-tag[data-facet="a11y"] {
+    color: var(--evcc-sem-success, #4caf6e);
+    border-color: color-mix(in srgb, var(--evcc-sem-success, #4caf6e) 45%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-success, #4caf6e) 12%, transparent);
+  }
+
+  .evcc-preset-tag[data-facet="source"] {
+    color: var(--evcc-accent, #3b82f6);
+    border-color: color-mix(in srgb, var(--evcc-accent, #3b82f6) 45%, transparent);
+    background: color-mix(in srgb, var(--evcc-accent, #3b82f6) 12%, transparent);
   }
 
   /* =========================================================

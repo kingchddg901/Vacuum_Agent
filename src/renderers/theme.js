@@ -16,6 +16,10 @@ import {
 } from "../theme-tokens/index.js";
 import { floorTypeNames } from "../theme-tokens/floor-scope.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
+import { FACETS, orderTags, facetOf } from "../theme-tags/index.mjs";
+
+// The public Pages "store" — the card links out to it (no auto-download).
+const THEME_GALLERY_URL = "https://kingchddg901.github.io/Vacuum_Agent/";
 
 /* =========================================================
    COLOR-MIX PARSER
@@ -283,57 +287,128 @@ export function applyThemeRenderers(proto) {
     `;
   };
 
+  proto._renderPresetFilters = function (state) {
+    const present = this.card._state.presentPresetTags();
+
+    // One labelled row per facet; only facets/tags that occur in the library.
+    const facetRows = FACETS.map((facet) => {
+      const tags = facet.tags.filter((t) => present.has(t));
+      if (!tags.length) return "";
+      return `
+        <div class="evcc-preset-facet">
+          <span class="evcc-preset-facet-label">${this.escapeHtml(facet.label)}</span>
+          ${tags.map((t) => `
+            <button
+              class="evcc-chip evcc-preset-facet-chip ${this.card._state.isPresetFacetActive(facet.key, t) ? "active" : ""}"
+              data-preset-facet="${this.escapeHtml(facet.key)}"
+              data-preset-facet-value="${this.escapeHtml(t)}"
+            >${this.escapeHtml(t)}</button>
+          `).join("")}
+        </div>`;
+    }).filter(Boolean).join("");
+
+    const hasFilters = this.card._state.hasActivePresetFilters();
+
+    return `
+      <div class="evcc-preset-filters">
+        <div class="evcc-preset-filters-top">
+          <div class="evcc-search-box evcc-preset-search">
+            <ha-icon icon="mdi:magnify"></ha-icon>
+            <input
+              type="text"
+              placeholder="Search themes..."
+              value="${this.escapeHtml(state.presetSearchQuery || "")}"
+              data-preset-search
+            />
+          </div>
+          ${hasFilters ? `
+            <button class="evcc-chip evcc-preset-clear" data-preset-clear>Clear</button>
+          ` : ""}
+          <a
+            class="evcc-preset-gallery-link"
+            href="${THEME_GALLERY_URL}"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Browse the theme gallery (opens in a new tab)"
+          >
+            Browse gallery <ha-icon icon="mdi:open-in-new"></ha-icon>
+          </a>
+        </div>
+        ${facetRows ? `<div class="evcc-preset-facets">${facetRows}</div>` : ""}
+      </div>
+    `;
+  };
+
   proto._renderThemePresets = function (state) {
     const library = state.library || {};
-    const ids = Object.keys(library);
+    const allIds = Object.keys(library);
 
-    if (ids.length === 0) {
+    if (allIds.length === 0) {
       return `<div class="evcc-empty">No themes available.</div>`;
     }
 
-    return `
-      <div class="evcc-preset-grid">
-        ${ids.map((id) => {
-          const theme = library[id];
-          const isActive = state.activeThemeId === id;
+    const ids = this.card._state.filteredPresetIds();
 
-          const previewStyle = [
-            ...Object.entries(theme.tokens || {}),
-            ...Object.entries(theme.colors || {}),
-            ...Object.entries(theme.alpha || {}),
-          ]
-            .map(([k, v]) => `${k}:${v}`)
-            .join(";");
+    const grid = ids.length === 0
+      ? `<div class="evcc-empty">No themes match these filters.</div>`
+      : `
+        <div class="evcc-preset-grid">
+          ${ids.map((id) => {
+            const theme = library[id];
+            const isActive = state.activeThemeId === id;
 
-          return `
-            <div
-              class="evcc-preset-card ${isActive ? "active" : ""}"
-              data-theme-preset="${this.escapeHtml(id)}"
-            >
-              ${id !== state.defaultThemeId ? `
-                <button
-                  class="evcc-preset-delete"
-                  data-action="delete-preset"
-                  data-preset-id="${this.escapeHtml(id)}"
-                >
-                  <ha-icon icon="mdi:close-circle"></ha-icon>
-                </button>
-              ` : ""}
+            const previewStyle = [
+              ...Object.entries(theme.tokens || {}),
+              ...Object.entries(theme.colors || {}),
+              ...Object.entries(theme.alpha || {}),
+            ]
+              .map(([k, v]) => `${k}:${v}`)
+              .join(";");
 
-              <div class="evcc-preset-preview" style="${previewStyle}">
-                <div class="preview-swatch accent"></div>
-                <div class="preview-swatch surface"></div>
+            const tags = this.card._state.presetTagsFor(id);
+            // On the small cards, show only the most identifying tags — mode,
+            // accent, and the two "status" tags (colorblind-safe / source). The
+            // filter bar covers temperature/surface/contrast.
+            const shownTags = orderTags(tags).filter((t) =>
+              ["mode", "accent", "a11y", "source"].includes(facetOf(t))
+            );
+            const tagChips = shownTags.length
+              ? `<div class="evcc-preset-tags">${shownTags
+                  .map((t) => `<span class="evcc-preset-tag" data-facet="${facetOf(t)}">${this.escapeHtml(t)}</span>`)
+                  .join("")}</div>`
+              : "";
+
+            return `
+              <div
+                class="evcc-preset-card ${isActive ? "active" : ""}"
+                data-theme-preset="${this.escapeHtml(id)}"
+              >
+                ${id !== state.defaultThemeId ? `
+                  <button
+                    class="evcc-preset-delete"
+                    data-action="delete-preset"
+                    data-preset-id="${this.escapeHtml(id)}"
+                  >
+                    <ha-icon icon="mdi:close-circle"></ha-icon>
+                  </button>
+                ` : ""}
+
+                <div class="evcc-preset-preview" style="${previewStyle}">
+                  <div class="preview-swatch accent"></div>
+                  <div class="preview-swatch surface"></div>
+                </div>
+
+                <div class="evcc-preset-label">
+                  ${this.escapeHtml(theme.name || id)}
+                  ${isActive ? `<span class="evcc-chip evcc-chip--active">Active</span>` : ""}
+                </div>
+                ${tagChips}
               </div>
+            `;
+          }).join("")}
+        </div>`;
 
-              <div class="evcc-preset-label">
-                ${this.escapeHtml(theme.name || id)}
-                ${isActive ? `<span class="evcc-chip evcc-chip--active">Active</span>` : ""}
-              </div>
-            </div>
-          `;
-        }).join("")}
-      </div>
-    `;
+    return `${this._renderPresetFilters(state)}${grid}`;
   };
 
   proto._renderThemePalette = function (tokens, sources) {
