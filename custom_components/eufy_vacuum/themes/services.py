@@ -29,6 +29,7 @@ from ..const import (
     SERVICE_REVERT_DRAFT,
     SERVICE_SAVE_THEME_AS_NEW,
     SERVICE_SET_ACTIVE_THEME,
+    SERVICE_SET_THEME_TAGS,
     SERVICE_UPDATE_WORKING_DRAFT,
 )
 
@@ -59,6 +60,15 @@ RENAME_THEME_SCHEMA = vol.Schema(
     {
         vol.Required("theme_id"): cv.string,
         vol.Required("name"): cv.string,
+    }
+)
+
+SET_THEME_TAGS_SCHEMA = vol.Schema(
+    {
+        vol.Required("theme_id"): cv.string,
+        # Free-text vibe tags; an empty list clears them. Facet tags and
+        # colorblind-safe are derived/verified by the card, never set here.
+        vol.Required("tags"): vol.All(cv.ensure_list, [cv.string]),
     }
 )
 
@@ -178,6 +188,17 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         await manager.async_save()
         return result
 
+    async def handle_set_theme_tags(call: ServiceCall) -> dict:
+        manager = _get_manager(hass)
+        result = manager.set_theme_tags(
+            theme_id=call.data["theme_id"],
+            tags=call.data["tags"],
+        )
+        _LOGGER.debug("set_theme_tags complete: %s", result)
+        _raise_if_failed(result, operation="set_theme_tags")
+        await manager.async_save()
+        return result
+
     async def handle_delete_theme(call: ServiceCall) -> dict:
         manager = _get_manager(hass)
         result = manager.delete_theme(theme_id=call.data["theme_id"])
@@ -257,6 +278,11 @@ async def async_register_theme_services(hass: HomeAssistant) -> None:
         supports_response=True,
     )
     hass.services.async_register(
+        DOMAIN, SERVICE_SET_THEME_TAGS, handle_set_theme_tags,
+        schema=SET_THEME_TAGS_SCHEMA,
+        supports_response=True,
+    )
+    hass.services.async_register(
         DOMAIN, SERVICE_DELETE_THEME, handle_delete_theme,
         schema=DELETE_THEME_SCHEMA,
         supports_response=True,
@@ -295,6 +321,7 @@ async def async_unregister_theme_services(hass: HomeAssistant) -> None:
         SERVICE_SAVE_THEME_AS_NEW,
         SERVICE_OVERWRITE_THEME,
         SERVICE_RENAME_THEME,
+        SERVICE_SET_THEME_TAGS,
         SERVICE_DELETE_THEME,
         SERVICE_SET_ACTIVE_THEME,
         SERVICE_UPDATE_WORKING_DRAFT,

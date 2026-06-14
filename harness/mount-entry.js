@@ -325,7 +325,7 @@ function ingestTheme(envelope) {
  * source?}); `bundle` themes the host; `activeThemeId` marks one Active.
  */
 function renderThemePresets(themes, opts = {}) {
-  const { bundle = {}, width = 760, activeThemeId = null, facets = null, search = "" } = opts;
+  const { bundle = {}, width = 760, activeThemeId = null, facets = null, search = "", editId = null } = opts;
   const result = { ok: false };
   try {
     const list = Array.isArray(themes) ? themes : [];
@@ -355,6 +355,7 @@ function renderThemePresets(themes, opts = {}) {
       }
     }
     if (search) state.setPresetSearchQuery(search);
+    if (editId) state.setPresetTagEditId(editId);
     result.shown = state.filteredPresetIds();
     card._state = state;
     const renderers = new VacuumCardRenderers(card);

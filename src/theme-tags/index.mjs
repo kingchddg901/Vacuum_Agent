@@ -23,7 +23,7 @@ import { verifyColorblindSafe } from "./colorblind.mjs";
 export { deriveThemeTags, themeMetrics } from "./derive.mjs";
 export { verifyColorblindSafe, CVD_DELTA_E } from "./colorblind.mjs";
 export { parseColor, rgbToHsl, luminance, contrastRatio, THRESHOLDS } from "./derive.mjs";
-export { FACETS, TAG_FACET, facetOf, orderTags } from "./facets.mjs";
+export { FACETS, TAG_FACET, facetOf, orderTags, SUGGESTED_VIBE_TAGS } from "./facets.mjs";
 
 // Every tag the SYSTEM owns (derived facets + verified + status). Authors may not
 // free-text these — they're computed, so a hand-typed one is stripped from `tags`.

@@ -6,6 +6,7 @@ import {
   SERVICE_SAVE_THEME_AS_NEW,
   SERVICE_OVERWRITE_THEME,
   SERVICE_RENAME_THEME,
+  SERVICE_SET_THEME_TAGS,
   SERVICE_DELETE_THEME,
   SERVICE_SET_ACTIVE_THEME,
   SERVICE_UPDATE_WORKING_DRAFT,
@@ -111,6 +112,14 @@ export function applyThemeActions(proto) {
   proto.deleteTheme = async function (themeId) {
     const result = await this._callThemeService(SERVICE_DELETE_THEME, {
       theme_id: themeId,
+    });
+    return result?.response ?? result;
+  };
+
+  proto.setThemeTags = async function (themeId, tags) {
+    const result = await this._callThemeService(SERVICE_SET_THEME_TAGS, {
+      theme_id: themeId,
+      tags: Array.isArray(tags) ? tags : [],
     });
     return result?.response ?? result;
   };

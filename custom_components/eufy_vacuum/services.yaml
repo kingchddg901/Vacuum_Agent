@@ -1712,6 +1712,25 @@ rename_theme:
       selector:
         text: {}
 
+set_theme_tags:
+  name: Set theme tags
+  description: >
+    Replace a theme's free-text "vibe" tags (aurora, cozy, retro…). An empty
+    list clears them. Facet tags (mode/accent/…) and colorblind-safe are derived
+    from the palette and verified by the card — they are never set here.
+  fields:
+    theme_id:
+      name: Theme ID
+      required: true
+      selector:
+        text: {}
+    tags:
+      name: Tags
+      description: Free-text tags. Send an empty list to clear.
+      required: true
+      selector:
+        object: {}
+
 delete_theme:
   name: Delete theme
   description: >

@@ -100,6 +100,7 @@ export const SERVICE_GET_THEME_LIBRARY      = "get_theme_library";
 export const SERVICE_SAVE_THEME_AS_NEW      = "save_theme_as_new";
 export const SERVICE_OVERWRITE_THEME        = "overwrite_theme";
 export const SERVICE_RENAME_THEME           = "rename_theme";
+export const SERVICE_SET_THEME_TAGS         = "set_theme_tags";
 export const SERVICE_DELETE_THEME           = "delete_theme";
 export const SERVICE_SET_ACTIVE_THEME       = "set_active_theme";
 export const SERVICE_UPDATE_WORKING_DRAFT   = "update_working_draft";

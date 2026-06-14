@@ -154,6 +154,7 @@ export function applyThemeBindings(proto) {
     this._bindThemeTabs();
     this._bindThemePresets();
     this._bindPresetFilters();
+    this._bindPresetTagEditor();
     this._bindThemeGroupFilters();
     this._bindThemeGroupToggles();
     this._bindThemeGlobalSearch();
@@ -238,6 +239,68 @@ export function applyThemeBindings(proto) {
       this.card._state.clearPresetFilters();
       this.card._scheduleRender();
     });
+  };
+
+  /* =========================================================
+     INLINE VIBE-TAG EDITOR (per preset card)
+     ========================================================= */
+
+  proto._bindPresetTagEditor = function () {
+    // Toggle the editor for a card. stopPropagation so the tag button doesn't
+    // also activate the theme (same guard the delete button uses).
+    this.card._onAll("[data-preset-tag-edit]", "click", (e) => {
+      e.stopPropagation();
+      const id = e.currentTarget.dataset.presetTagEdit;
+      const current = this.card._state.getPresetTagEditId();
+      this.card._state.setPresetTagEditId(current === id ? null : id);
+      this.card._scheduleRender();
+    });
+
+    // Any click inside the editor stays off the card-activate handler.
+    this.card._onAll("[data-preset-tag-editor]", "click", (e) => e.stopPropagation());
+
+    this.card._onAll("[data-preset-tag-done]", "click", (e) => {
+      e.stopPropagation();
+      this.card._state.setPresetTagEditId(null);
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-preset-tag-remove]", "click", async (e) => {
+      e.stopPropagation();
+      const id = e.currentTarget.dataset.presetTagRemove;
+      const tag = e.currentTarget.dataset.tag;
+      const next = this.card._state.presetVibeTags(id).filter((t) => t !== tag);
+      await this._persistThemeTags(id, next);
+    });
+
+    this.card._onAll("[data-preset-tag-add]", "keydown", async (e) => {
+      if (e.key !== "Enter") return;
+      e.stopPropagation();
+      e.preventDefault();
+      const id = e.currentTarget.dataset.presetTagAdd;
+      const raw = String(e.currentTarget.value || "").trim().toLowerCase();
+      if (!raw) return;
+      const current = this.card._state.presetVibeTags(id);
+      if (current.includes(raw)) {
+        e.currentTarget.value = "";
+        return;
+      }
+      await this._persistThemeTags(id, [...current, raw]);
+    });
+  };
+
+  /** Optimistically apply a new vibe-tag set, then persist; revert on failure. */
+  proto._persistThemeTags = async function (id, tags) {
+    const prior = this.card._state.presetVibeTags(id);
+    this.card._state.applyThemeTagsLocal(id, tags);
+    this.card._scheduleRender();
+
+    const result = await this.card._actions.setThemeTags(id, tags);
+    if (result?.ok === false) {
+      this.card._state.applyThemeTagsLocal(id, prior); // revert
+      this.card._scheduleRender();
+      alert(result.reason || "Unable to update tags.");
+    }
   };
 
   /* =========================================================

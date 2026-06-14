@@ -37,6 +37,15 @@ export const TAG_FACET = (() => {
 /** Which facet a tag belongs to; "vibe" for free-text tags outside the vocabulary. */
 export const facetOf = (tag) => TAG_FACET.get(tag) || "vibe";
 
+/** A short curated hint list for the free-text vibe-tag editor — suggestions
+ *  only, NOT a controlled vocabulary (the user can type anything). Avoids system
+ *  words, which are stripped anyway. Shared so the card and submission UI agree. */
+export const SUGGESTED_VIBE_TAGS = [
+  "aurora", "cosmic", "galaxy", "nebula", "ocean", "sunset", "forest", "nature",
+  "winter", "autumn", "spring", "summer", "neon", "retro", "vaporwave", "pastel",
+  "moody", "cozy", "minimal", "vibrant", "earthy", "candy", "dreamy", "bold",
+];
+
 /** Order tags by facet order then within-facet order; vibe tags last, alphabetical. */
 export function orderTags(tags) {
   const order = [];

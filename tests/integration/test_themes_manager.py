@@ -308,3 +308,52 @@ def test_overwrite_theme_preserves_source(manager):
     theme_id = _save_new_theme(manager, name="Editable")  # source='manual', now active
     manager.overwrite_theme(vacuum_entity_id=_VAC, theme_id=theme_id)
     assert manager.get_theme_library()["library"][theme_id]["source"] == "manual"
+
+
+# ---------------------------------------------------------------------------
+# [TM-20] free-text vibe tags + attribution
+# ---------------------------------------------------------------------------
+
+def test_set_theme_tags_stores_cleaned(manager):
+    """[TM-20] set_theme_tags cleans (trim/lower/dedupe) and stores vibe tags."""
+    theme_id = _save_new_theme(manager, name="Taggable")
+    result = manager.set_theme_tags(theme_id=theme_id, tags=["Aurora", " aurora ", "Cosmic", ""])
+    assert result["ok"] is True
+    assert manager.get_theme_library()["library"][theme_id]["tags"] == ["aurora", "cosmic"]
+
+
+def test_set_theme_tags_empty_clears(manager):
+    """[TM-20] an empty list clears the tags field."""
+    theme_id = _save_new_theme(manager, name="Clearable")
+    manager.set_theme_tags(theme_id=theme_id, tags=["aurora"])
+    manager.set_theme_tags(theme_id=theme_id, tags=[])
+    assert "tags" not in manager.get_theme_library()["library"][theme_id]
+
+
+def test_set_theme_tags_unknown_returns_not_ok(manager):
+    """[TM-20] set_theme_tags on an unknown theme returns ok=False."""
+    result = manager.set_theme_tags(theme_id="missing_id", tags=["x"])
+    assert result["ok"] is False
+    assert result["reason"] == "theme_not_found"
+
+
+def test_import_theme_preserves_tags_and_author(manager):
+    """[TM-20] an upload's own vibe tags + author survive import."""
+    payload = {"theme": {
+        "name": "Rich Import", "colors": {},
+        "tags": ["Aurora", "cosmic"], "author": "Ada L.", "author_url": "https://example.com",
+    }}
+    result = manager.import_theme(payload=payload)
+    entry = manager.get_theme_library()["library"][result["theme_id"]]
+    assert entry["tags"] == ["aurora", "cosmic"]
+    assert entry["author"] == "Ada L."
+    assert entry["author_url"] == "https://example.com"
+
+
+def test_export_theme_carries_tags_and_author(manager):
+    """[TM-20] export round-trips the vibe tags + author."""
+    payload = {"theme": {"name": "Round Trip", "colors": {}, "tags": ["retro"], "author": "K"}}
+    theme_id = manager.import_theme(payload=payload)["theme_id"]
+    exported = manager.export_theme(theme_id=theme_id)["theme"]
+    assert exported["tags"] == ["retro"]
+    assert exported["author"] == "K"

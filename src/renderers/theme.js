@@ -16,7 +16,7 @@ import {
 } from "../theme-tokens/index.js";
 import { floorTypeNames } from "../theme-tokens/floor-scope.js";
 import { MARBLE_PRESETS } from "../theme-tokens/floor-presets.js";
-import { FACETS, orderTags, facetOf } from "../theme-tags/index.mjs";
+import { FACETS, orderTags, facetOf, SUGGESTED_VIBE_TAGS } from "../theme-tags/index.mjs";
 
 // The public Pages "store" — the card links out to it (no auto-download).
 const THEME_GALLERY_URL = "https://kingchddg901.github.io/Vacuum_Agent/";
@@ -336,6 +336,9 @@ export function applyThemeRenderers(proto) {
         </div>
         ${facetRows ? `<div class="evcc-preset-facets">${facetRows}</div>` : ""}
       </div>
+      <datalist id="evcc-vibe-suggest">
+        ${SUGGESTED_VIBE_TAGS.map((t) => `<option value="${this.escapeHtml(t)}"></option>`).join("")}
+      </datalist>
     `;
   };
 
@@ -378,11 +381,47 @@ export function applyThemeRenderers(proto) {
                   .join("")}</div>`
               : "";
 
+            // Inline vibe-tag editor for this one card (only the user's free-text
+            // tags are editable; facet tags above stay read-only/derived).
+            const isEditing = this.card._state.getPresetTagEditId() === id;
+            const editor = isEditing
+              ? `<div class="evcc-preset-tag-editor" data-preset-tag-editor>
+                  <div class="evcc-preset-vibe-chips">
+                    ${this.card._state.presetVibeTags(id).map((t) => `
+                      <span class="evcc-preset-vibe-chip">${this.escapeHtml(t)}<button
+                        class="evcc-preset-vibe-remove"
+                        data-preset-tag-remove="${this.escapeHtml(id)}"
+                        data-tag="${this.escapeHtml(t)}"
+                        title="Remove tag">×</button></span>`).join("")}
+                  </div>
+                  <div class="evcc-preset-tag-add">
+                    <input
+                      class="evcc-preset-tag-input"
+                      type="text"
+                      list="evcc-vibe-suggest"
+                      placeholder="add a tag…"
+                      maxlength="32"
+                      data-preset-tag-add="${this.escapeHtml(id)}"
+                    >
+                    <button class="evcc-preset-tag-done" data-preset-tag-done title="Done editing tags">
+                      <ha-icon icon="mdi:check"></ha-icon>
+                    </button>
+                  </div>
+                </div>`
+              : "";
+
             return `
               <div
-                class="evcc-preset-card ${isActive ? "active" : ""}"
+                class="evcc-preset-card ${isActive ? "active" : ""} ${isEditing ? "editing" : ""}"
                 data-theme-preset="${this.escapeHtml(id)}"
               >
+                <button
+                  class="evcc-preset-tag-edit ${isEditing ? "active" : ""}"
+                  data-preset-tag-edit="${this.escapeHtml(id)}"
+                  title="Edit tags"
+                >
+                  <ha-icon icon="mdi:tag-multiple-outline"></ha-icon>
+                </button>
                 ${id !== state.defaultThemeId ? `
                   <button
                     class="evcc-preset-delete"
@@ -403,6 +442,7 @@ export function applyThemeRenderers(proto) {
                   ${isActive ? `<span class="evcc-chip evcc-chip--active">Active</span>` : ""}
                 </div>
                 ${tagChips}
+                ${editor}
               </div>
             `;
           }).join("")}

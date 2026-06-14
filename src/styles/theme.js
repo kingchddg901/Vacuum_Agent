@@ -301,6 +301,115 @@ export const themeStyles = `
     background: color-mix(in srgb, var(--evcc-accent, #3b82f6) 12%, transparent);
   }
 
+  /* --- Inline vibe-tag editor --- */
+  .evcc-preset-tag-edit {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    z-index: 2;
+    border: none;
+    background: none;
+    color: var(--evcc-text-muted, rgba(255, 255, 255, 0.6));
+    cursor: pointer;
+    padding: 2px;
+    opacity: 0.65;
+    --mdc-icon-size: 16px;
+  }
+
+  .evcc-preset-tag-edit:hover,
+  .evcc-preset-tag-edit.active {
+    color: var(--evcc-accent, #3b82f6);
+    opacity: 1;
+  }
+
+  .evcc-preset-card.editing {
+    border-color: var(--evcc-accent, #3b82f6);
+  }
+
+  .evcc-preset-tag-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 2px;
+    padding-top: 6px;
+    border-top: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+  }
+
+  .evcc-preset-vibe-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .evcc-preset-vibe-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.66rem;
+    line-height: 1;
+    padding: 3px 4px 3px 7px;
+    border-radius: 999px;
+    text-transform: capitalize;
+    color: var(--evcc-text-secondary, rgba(255, 255, 255, 0.7));
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
+    border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+  }
+
+  .evcc-preset-vibe-remove {
+    border: none;
+    background: none;
+    color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
+    cursor: pointer;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0 1px;
+  }
+
+  .evcc-preset-vibe-remove:hover {
+    color: var(--evcc-sem-error, #e05252);
+  }
+
+  .evcc-preset-tag-add {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .evcc-preset-tag-input {
+    flex: 1;
+    min-width: 0;
+    font: inherit;
+    font-size: 0.72rem;
+    padding: 4px 7px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-preset-tag-input:focus {
+    outline: none;
+    border-color: var(--evcc-accent, #3b82f6);
+  }
+
+  .evcc-preset-tag-done {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+    background: none;
+    color: var(--evcc-accent, #3b82f6);
+    border-radius: var(--evcc-radius-inner, 8px);
+    cursor: pointer;
+    padding: 3px;
+    --mdc-icon-size: 16px;
+  }
+
+  .evcc-preset-tag-done:hover {
+    background: color-mix(in srgb, var(--evcc-accent, #3b82f6) 12%, transparent);
+  }
+
   /* =========================================================
      TOKEN EDITOR GROUPS
      ========================================================= */

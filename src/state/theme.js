@@ -194,6 +194,8 @@ export function applyThemeState(proto) {
         presetFacets: {},
         presetSearchQuery: "",
         _presetTags: null,
+        // Which theme's free-text vibe tags are being edited inline (or null).
+        presetTagEditId: null,
       };
     }
     return this._themeState;
@@ -503,6 +505,48 @@ export function applyThemeState(proto) {
   proto.hasActivePresetFilters = function () {
     const state = this._ensureThemeState();
     return Object.keys(state.presetFacets).length > 0 || !!state.presetSearchQuery;
+  };
+
+  /* --- Inline vibe-tag editor ---------------------------------------------
+     Only the user's free-text tags (`entry.tags`) are editable; facet tags and
+     colorblind-safe are derived/verified and never stored, so they can't be set
+     here. Editing one theme at a time keeps the grid uncluttered. */
+
+  proto.getPresetTagEditId = function () {
+    return this._ensureThemeState().presetTagEditId || null;
+  };
+
+  proto.setPresetTagEditId = function (id) {
+    this._ensureThemeState().presetTagEditId = id || null;
+  };
+
+  /** The theme's own free-text vibe tags (the editable, removable ones). */
+  proto.presetVibeTags = function (id) {
+    const entry = this._ensureThemeState().library?.[id] || {};
+    return Array.isArray(entry.tags) ? entry.tags.slice() : [];
+  };
+
+  /**
+   * Apply a new vibe-tag set to the local library entry immediately (optimistic),
+   * so the chips update without waiting for the backend sensor round-trip. The
+   * derived-tag cache is invalidated so effective tags re-compute with the change.
+   */
+  proto.applyThemeTagsLocal = function (id, tags) {
+    const state = this._ensureThemeState();
+    const entry = state.library?.[id];
+    if (!entry) return;
+    const clean = [];
+    const seen = new Set();
+    (Array.isArray(tags) ? tags : []).forEach((t) => {
+      const v = String(t || "").trim().toLowerCase();
+      if (v && !seen.has(v)) {
+        seen.add(v);
+        clean.push(v);
+      }
+    });
+    if (clean.length) entry.tags = clean;
+    else delete entry.tags;
+    state._presetTags = null; // effective tags now include the new vibe set
   };
 
   /**

@@ -28,6 +28,10 @@ const themes = [
   "jewel-spiral", "nightfall-coast", "aurora-duet", "orange-aurora", "voltage", "green-airglow",
 ].map(load);
 
+// Seed one theme with free-text vibe tags so the editor shot has chips to show.
+const tagged = themes.find((t) => t.id === "theme_jewel_spiral");
+if (tagged) tagged.tags = ["aurora", "cosmic"];
+
 const slate = load("core-slate");
 const bundle = { ...(slate.colors || {}), ...(slate.tokens || {}) };
 
@@ -46,6 +50,7 @@ const shots = [
   { name: "dark-purple", opts: { facets: { accent: ["purple"], mode: ["dark"] } } },
   { name: "colorblind-safe", opts: { facets: { a11y: ["colorblind-safe"] } } },
   { name: "search-aurora", opts: { search: "aurora" } },
+  { name: "tag-editor", opts: { editId: "theme_jewel_spiral" } },
 ];
 
 for (const s of shots) {

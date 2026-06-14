@@ -22,6 +22,32 @@ from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
 
+# Free-text vibe-tag limits (defensive: keep stored entries small + clean).
+_MAX_THEME_TAGS = 16
+_MAX_THEME_TAG_LEN = 32
+
+
+def _clean_theme_tags(raw: Any) -> list[str]:
+    """Normalise a free-text tag list: trim, lowercase, dedupe, drop empties, cap.
+
+    Format-only — system-word stripping (dark/core/colorblind-safe…) is the card's
+    job at display time (the SYSTEM_VOCAB in src/theme-tags), so the vocabulary
+    stays single-sourced and a stored system word is simply ignored, not shown.
+    """
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw:
+        tag = str(item).strip().lower()
+        if not tag or tag in seen or len(tag) > _MAX_THEME_TAG_LEN:
+            continue
+        seen.add(tag)
+        out.append(tag)
+        if len(out) >= _MAX_THEME_TAGS:
+            break
+    return out
+
 
 class ThemeManager:
     """Manages the theme library and per-vacuum draft state."""
@@ -121,6 +147,14 @@ class ThemeManager:
         provenance = str(source.get("source", "")).strip().lower()
         if provenance in {"core", "community", "generated", "manual"}:
             entry["source"] = provenance
+        # Free-text vibe tags + attribution, preserved through reads (cleaned).
+        tags = _clean_theme_tags(source.get("tags"))
+        if tags:
+            entry["tags"] = tags
+        for key in ("author", "author_url", "submitted_by"):
+            value = source.get(key)
+            if isinstance(value, str) and value.strip():
+                entry[key] = value.strip()[:200]
         return entry
 
     def _normalize_theme_draft(self, payload: Any) -> dict[str, dict[str, Any]]:
@@ -317,6 +351,29 @@ class ThemeManager:
         self._notify_updated(vacuum_entity_id=None)
         return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
 
+    def set_theme_tags(self, *, theme_id: str, tags: list) -> dict[str, Any]:
+        """Replace a theme's free-text vibe tags.
+
+        Only the user-owned vibe tags are stored here — the facet tags
+        (mode/accent/…) and colorblind-safe are DERIVED from the palette and
+        verified by the card, never stored, so they can't be hand-set or spoofed.
+        An empty list clears the field.
+        """
+        theme = self._get_theme_data()
+        library = theme.get("library", {})
+        entry = library.get(theme_id)
+        if not isinstance(entry, dict):
+            return {"ok": False, "reason": "theme_not_found", "theme_id": theme_id}
+
+        cleaned = _clean_theme_tags(tags)
+        if cleaned:
+            entry["tags"] = cleaned
+        else:
+            entry.pop("tags", None)
+
+        self._notify_updated(vacuum_entity_id=None)
+        return self._minimal_theme_mutation_response(ok=True, theme_id=theme_id)
+
     def delete_theme(self, *, theme_id: str) -> dict[str, Any]:
         """Remove a theme from the library. Clears it from any vacuum that uses it."""
         theme = self._get_theme_data()
@@ -434,10 +491,12 @@ class ThemeManager:
             "colors": dict(entry.get("colors", {})),
             "alpha": dict(entry.get("alpha", {})),
         }
-        # Carry provenance so a downloaded export keeps its `source` (the gallery
-        # and card Source facet read it); omitted when the entry has none.
-        if entry.get("source"):
-            theme_out["source"] = entry["source"]
+        # Carry provenance + metadata so a downloaded export keeps its `source`,
+        # vibe tags, and author/credit (the gallery and card read them); each is
+        # omitted when the entry has none.
+        for key in ("source", "tags", "author", "author_url", "submitted_by"):
+            if entry.get(key):
+                theme_out[key] = entry[key]
         return {
             "ok": True,
             "version": 1,
@@ -499,12 +558,24 @@ class ThemeManager:
         imported_source = str(source_theme.get("source", "")).strip().lower()
         entry_source = imported_source if imported_source in {"community", "generated", "manual"} else "manual"
 
+        # Carry the upload's own metadata so it arrives with everything it shipped
+        # (vibe tags + author/credit), not just its derived facets.
+        metadata: dict[str, Any] = {}
+        cleaned_tags = _clean_theme_tags(source_theme.get("tags"))
+        if cleaned_tags:
+            metadata["tags"] = cleaned_tags
+        for key in ("author", "author_url", "submitted_by"):
+            value = source_theme.get(key)
+            if isinstance(value, str) and value.strip():
+                metadata[key] = value.strip()[:200]
+
         theme_id = self._generate_theme_id()
         theme = self._get_theme_data()
         theme["library"][theme_id] = {
             "id": theme_id,
             "name": final_name,
             "source": entry_source,
+            **metadata,
             "tokens": dict(tokens) if isinstance(tokens, dict) else {},
             "colors": dict(colors) if isinstance(colors, dict) else {},
             "alpha": dict(alpha) if isinstance(alpha, dict) else {},

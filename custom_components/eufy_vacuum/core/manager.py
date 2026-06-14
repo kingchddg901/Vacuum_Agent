@@ -3681,6 +3681,10 @@ class EufyVacuumManager:
         """Rename a theme - delegates to ThemeManager."""
         return self.themes.rename_theme(**kwargs)
 
+    def set_theme_tags(self, **kwargs):
+        """Set a theme's free-text tags - delegates to ThemeManager."""
+        return self.themes.set_theme_tags(**kwargs)
+
     def delete_theme(self, **kwargs):
         """Delete a theme - delegates to ThemeManager."""
         return self.themes.delete_theme(**kwargs)
