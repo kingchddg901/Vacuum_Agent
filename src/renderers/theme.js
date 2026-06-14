@@ -277,7 +277,8 @@ export function applyThemeRenderers(proto) {
           <div class="evcc-modal-footer">
             <button type="button" class="evcc-chip" data-action="close-theme-json">${isExport ? "Close" : "Cancel"}</button>
             ${isExport
-              ? `<button type="button" class="evcc-chip evcc-chip--save" data-action="copy-theme-json">Copy</button>`
+              ? `<button type="button" class="evcc-chip" data-action="notify-theme-json" title="Post this export to a Home Assistant persistent notification to grab later (useful for batch exports when clipboard/download are blocked)">Send to HA</button>
+                 <button type="button" class="evcc-chip evcc-chip--save" data-action="copy-theme-json">Copy</button>`
               : `<button type="button" class="evcc-chip evcc-chip--save" data-action="confirm-theme-import">Import</button>`}
           </div>
 

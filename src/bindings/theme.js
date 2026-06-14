@@ -358,6 +358,22 @@ export function applyThemeBindings(proto) {
       });
     });
 
+    host.querySelectorAll("[data-action='notify-theme-json']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const area = host.querySelector("[data-theme-json-area]");
+        const text = area ? area.value : this.card._state.themeJsonModalText();
+        const state = this.card._state._ensureThemeState();
+        const themeId = state.activeThemeId;
+        const name = state.library?.[themeId]?.name || themeId || "theme";
+
+        btn.disabled = true;
+        btn.textContent = "Sending…";
+        const ok = await this.card._actions.notifyThemeExport(themeId, name, text);
+        btn.textContent = ok ? "Sent to HA ✓" : "Failed — see logs";
+        setTimeout(() => { btn.textContent = "Send to HA"; btn.disabled = false; }, 1800);
+      });
+    });
+
     host.querySelectorAll("[data-action='confirm-theme-import']").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const area = host.querySelector("[data-theme-json-area]");

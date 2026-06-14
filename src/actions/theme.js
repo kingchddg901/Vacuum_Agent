@@ -124,6 +124,36 @@ export function applyThemeActions(proto) {
     return result?.response ?? result;
   };
 
+  /**
+   * Post a theme export to a Home Assistant persistent notification — a "deal
+   * with it later" escape hatch for when both clipboard (insecure context) and
+   * download are blocked. The JSON goes in a fenced code block so HA's markdown
+   * renders it as a copyable block. One notification per theme (id keyed on the
+   * theme), so re-exporting replaces rather than piling up duplicates.
+   * @returns {Promise<boolean>} true on success.
+   */
+  proto.notifyThemeExport = async function (themeId, themeName, jsonText) {
+    const safeName = String(themeName || themeId || "theme").trim() || "theme";
+    const message = [
+      "Import via the card's **Upload** / **Import**, or copy the JSON:",
+      "",
+      "```json",
+      String(jsonText || ""),
+      "```",
+    ].join("\n");
+    // callService returns null on failure, undefined on success (no response).
+    const result = await this.callService(
+      "persistent_notification",
+      "create",
+      {
+        title: `Theme export: ${safeName}`,
+        message,
+        notification_id: `eufy_theme_export_${themeId || "theme"}`,
+      },
+    );
+    return result !== null;
+  };
+
   /* =========================================================
      IMPORT / EXPORT
      ========================================================= */
