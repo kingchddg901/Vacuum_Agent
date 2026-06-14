@@ -40,7 +40,7 @@ jobs:
 
       - name: Upload diff report on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: visual-diff-report
           path: |

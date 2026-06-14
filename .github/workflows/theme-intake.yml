@@ -68,7 +68,7 @@ jobs:
         run: node harness/preview.mjs "${{ github.event.inputs.path }}"
 
       - name: Upload gallery (artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: gallery-site
           path: harness/out/preview/
@@ -92,7 +92,7 @@ jobs:
         run: mkdocs build --strict --site-dir docs-site
 
       - name: Upload docs (artifact)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: docs-site
           path: docs-site/
@@ -107,19 +107,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download gallery
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: gallery-site
           path: public
 
       - name: Download docs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: docs-site
           path: public/docs
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: public
 
@@ -133,4 +133,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
