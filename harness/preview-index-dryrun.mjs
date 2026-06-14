@@ -118,7 +118,7 @@ for (const f of files) {
   const name = f.replace(/\.json$/, "");
   if (USE_DEMO && DEMO[th.id]) Object.assign(th, DEMO[th.id]); // optional demo overlay (in-memory)
 
-  const { tags } = effectiveThemeTags(th);
+  const { tags, colorblind } = effectiveThemeTags(th);
   const attr = themeAttribution(th);
   const filterTokens = [...new Set([...tags, ...(attr.source ? [attr.source] : [])])];
 
@@ -130,7 +130,7 @@ for (const f of files) {
   copyFileSync(join(THEMES, f), join(dir, downloadFile));
 
   const report = { keyCount: Object.keys(th.colors || {}).length, clamped: 0, skippedKeys: [], ok: true };
-  writeThemePage(dir, th.name || name, [], report, [], { tags, attr, download: downloadFile });
+  writeThemePage(dir, th.name || name, [], report, [], { tags, attr, colorblind, download: downloadFile });
   processed.push({ name, themeName: th.name || name, scope: [], report, tags, attr, filterTokens, download: downloadFile });
 }
 

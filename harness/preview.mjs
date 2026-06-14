@@ -174,14 +174,14 @@ for (const file of files) {
   const downloadFile = `${name}.json`;
   copyFileSync(file, join(outDir, downloadFile));
 
-  const { tags: themeTags } = effectiveThemeTags(envelope.theme || {});
+  const { tags: themeTags, colorblind } = effectiveThemeTags(envelope.theme || {});
   const attr = themeAttribution(envelope.theme || {});
   // A theme's filter tokens = its effective tags PLUS its source (community/
   // generated/manual aren't tags, but the Source facet filters on them; `core`
   // is already a derived tag).
   const filterTokens = [...new Set([...themeTags, ...(attr.source ? [attr.source] : [])])];
 
-  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, download: downloadFile });
+  writeThemePage(outDir, envelope.theme?.name || name, scope, report, shots, { tags: themeTags, attr, colorblind, download: downloadFile });
 
   processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens, download: downloadFile });
   console.log(

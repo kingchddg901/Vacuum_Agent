@@ -24,6 +24,9 @@ export const FACETS = [
   { key: "surface", label: "Surface", tags: ["deep", "vivid", "muted"] },
   { key: "contrast", label: "Contrast", tags: ["soft", "high-contrast"] },
   { key: "a11y", label: "Access", tags: ["colorblind-safe"] },
+  // The vision type a colorblind-safe theme is most robust for (layman buckets) —
+  // filter to themes tuned for your own. Only colorblind-safe themes carry one.
+  { key: "cvd", label: "Best for", tags: ["red-green", "blue-yellow"] },
   { key: "source", label: "Source", tags: ["core", "community", "generated", "manual"] },
 ];
 

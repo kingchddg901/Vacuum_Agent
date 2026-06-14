@@ -32,7 +32,7 @@ export const SYSTEM_VOCAB = new Set([
   "red", "orange", "gold", "green", "teal", "cyan", "blue", "purple", "pink", "mono",
   "warm", "cool", "neutral",
   "deep", "vivid", "muted", "soft", "high-contrast",
-  "colorblind-safe", "core",
+  "colorblind-safe", "red-green", "blue-yellow", "core",
 ]);
 
 const norm = (s) => String(s).toLowerCase().trim();
@@ -54,11 +54,23 @@ export function effectiveThemeTags(theme = {}) {
   const cb = verifyColorblindSafe(tokens);
 
   const tags = new Set([...derived, ...vibe]);
-  if (cb.pass) tags.add("colorblind-safe"); // verified only
+  if (cb.pass) {
+    tags.add("colorblind-safe"); // verified only
+    if (cb.bestBucket) tags.add(cb.bestBucket); // red-green / blue-yellow it's strongest for
+  }
 
   return {
     tags: [...tags],
-    colorblind: { requested: requestedCb, verified: cb.pass, reasons: cb.reasons, minDeltaE: cb.minDeltaE },
+    colorblind: {
+      requested: requestedCb,
+      verified: cb.pass,
+      minDeltaE: cb.minDeltaE,
+      weakest: cb.weakest,
+      buckets: cb.buckets,
+      bestBucket: cb.bestBucket,
+      perCvd: cb.perCvd,
+      reasons: cb.reasons,
+    },
   };
 }
 

@@ -59,6 +59,25 @@ test("no claim but passes -> bonus note", () => {
   assert.match(r.report, /bonus/);
 });
 
+test("colorblind breakdown exposes minDeltaE + weakest (with bucket + medical type) + bestBucket", () => {
+  const r = processSubmission(makeBody({ json: themeJson("jewel-spiral") }), 1);
+  assert.equal(r.colorblind.minDeltaE, 19.6);
+  assert.deepEqual(r.colorblind.weakest.pair, ["warning", "error"]);
+  assert.equal(r.colorblind.weakest.cvd, "deuteranopia"); // precise medical type
+  assert.equal(r.colorblind.weakest.bucket, "red-green"); // layman bucket
+  assert.equal(r.colorblind.bestBucket, "blue-yellow"); // most robust for blue-yellow
+});
+
+test("colorblind-safe theme carries its best-for bucket tag (filterable)", () => {
+  const r = processSubmission(makeBody({ json: themeJson("jewel-spiral") }), 1);
+  assert.ok(r.tags.includes("colorblind-safe"));
+  assert.ok(r.tags.includes("blue-yellow")); // strongest for blue-yellow vision
+  // a non-safe theme gets neither
+  const fail = processSubmission(makeBody({ json: themeJson("green-airglow") }), 2);
+  assert.ok(!fail.tags.includes("colorblind-safe"));
+  assert.ok(!["red-green", "blue-yellow"].some((t) => fail.tags.includes(t)));
+});
+
 test("invalid JSON rejected", () => {
   const r = processSubmission(makeBody({ json: "{ not valid" }), 1);
   assert.equal(r.ok, false);

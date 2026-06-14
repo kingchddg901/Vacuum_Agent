@@ -33,7 +33,12 @@ export const TAG_CSS = `
   .evcc-source { text-transform:capitalize; padding:1px 7px; border-radius:5px; font-size:.72rem; background:#222a33; color:#cbd2da; }
   .evcc-source--core { background:#3a2f12; color:#f0d79a; }
   .evcc-source--community { background:#16263a; color:#9fc6ef; }
-  .evcc-source--generated { background:#241f33; color:#cdbcf0; }`;
+  .evcc-source--generated { background:#241f33; color:#cdbcf0; }
+  .evcc-cb-detail { display:inline-flex; flex-direction:column; gap:3px; margin:10px 0 0; padding:9px 13px; border-radius:8px; background:#152619; border:1px solid #2c513a; font-size:.82rem; }
+  .evcc-cb-detail-title { color:#8fe0a8; font-weight:600; font-size:.8rem; margin-bottom:1px; }
+  .evcc-cb-detail-row { color:#cbd2da; }
+  .evcc-cb-detail-row .k { color:#8b94a0; display:inline-block; min-width:64px; }
+  .evcc-cb-detail-row strong { color:#e6e9ee; }`;
 
 /** A theme's own tags as small facet-coloured chips. */
 export function tagChipsHtml(tags) {
@@ -63,6 +68,21 @@ export function attributionHtml(attr) {
 // doesn't carry the tag here — effectiveThemeTags strips it silently. The gallery
 // is the published store and never calls out a merged theme's failure; the "why
 // it failed" feedback lives in the submission/ingest path, surfaced to the author.
+
+/** For a colorblind-safe theme, the separation breakdown: Min ΔE, the weakest
+ *  pair (with the layman bucket + precise medical type), and the bucket it's most
+ *  robust for. Positive info on the per-theme page — only when it passes. */
+export function cbDetailHtml(cb) {
+  if (!cb || !cb.verified || !cb.weakest || !cb.bestBucket) return "";
+  const w = cb.weakest;
+  const bestMin = cb.buckets?.[cb.bestBucket]?.min;
+  return `<div class="evcc-cb-detail">
+      <span class="evcc-cb-detail-title">◆ Colorblind-Safe</span>
+      <span class="evcc-cb-detail-row"><span class="k">Min ΔE</span><strong>${cb.minDeltaE}</strong></span>
+      <span class="evcc-cb-detail-row"><span class="k">Weakest</span>${esc(w.pair.join("/"))} for ${esc(w.bucket)} (${esc(w.cvd)})</span>
+      <span class="evcc-cb-detail-row"><span class="k">Best for</span>${esc(cb.bestBucket)} vision${bestMin != null ? ` (ΔE ${bestMin})` : ""}</span>
+    </div>`;
+}
 
 /** Per-theme detail page: the renders grouped into sections (galleries vs
  *  tabs) plus the ingest report. Written as <name>/index.html so the top
@@ -125,6 +145,7 @@ ${TAG_CSS}
     <p class="meta">skipped keys: ${skipped} · <a href="ingest-report.json">ingest report</a> · <a href="_contact-sheet.png">contact sheet</a></p>
     ${attributionHtml(meta.attr)}
     ${tagChipsHtml(meta.tags)}
+    ${cbDetailHtml(meta.colorblind)}
   </header>
   <main>
 ${section("All-states galleries", galleries)}

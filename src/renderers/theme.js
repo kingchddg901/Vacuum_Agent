@@ -434,7 +434,7 @@ export function applyThemeRenderers(proto) {
             // accent, and the two "status" tags (colorblind-safe / source). The
             // filter bar covers temperature/surface/contrast.
             const shownTags = orderTags(tags).filter((t) =>
-              ["mode", "accent", "a11y", "source"].includes(facetOf(t))
+              ["mode", "accent", "a11y", "cvd", "source"].includes(facetOf(t))
             );
             const tagChips = shownTags.length
               ? `<div class="evcc-preset-tags">${shownTags

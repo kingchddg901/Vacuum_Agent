@@ -29,6 +29,16 @@ const SEM_DEFAULTS = {
 // for the set to count as distinguishable. ~19 ≈ "clearly different at a glance".
 export const CVD_DELTA_E = 19;
 
+// Layman buckets people recognise: red-green (deuteranopia + protanopia — ~8% of
+// men) vs blue-yellow (tritanopia — rare). The filter/tag use the bucket; the
+// breakdown keeps the precise medical term. A red-green viewer can't perceive
+// which subtype they are, so the bucket margin is the conservative min of the two.
+const CVD_BUCKET = {
+  deuteranopia: "red-green",
+  protanopia: "red-green",
+  tritanopia: "blue-yellow",
+};
+
 /* ---- Machado (2009) dichromacy matrices, severity 1.0, for LINEAR RGB ---- */
 const MACHADO = {
   deuteranopia: [[0.367322, 0.860646, -0.227968], [0.280085, 0.672501, 0.047413], [-0.011820, 0.042940, 0.968881]],
@@ -65,7 +75,15 @@ const deltaE76 = (p, q) => Math.hypot(p.L - q.L, p.a - q.a, p.b - q.b);
  * Verify a theme's four status semantics survive colour-vision deficiency.
  * @param {object} tokens  resolved `--evcc-*` map (reads the four --evcc-sem-* colours).
  * @param {object} [opts]  { threshold } override for CVD_DELTA_E.
- * @returns {{ pass: boolean, reasons: Array<{pair:[string,string], cvd:string, deltaE:number}>, minDeltaE:number }}
+ * @returns {{
+ *   pass: boolean,
+ *   minDeltaE: number,                                    // the global tightest separation
+ *   weakest: { cvd:string, bucket:string, pair:[string,string], deltaE:number },  // bottleneck
+ *   buckets: { [bucket:string]: { min:number, pair:[string,string], cvd:string } },  // red-green / blue-yellow
+ *   bestBucket: string,                                   // the layman bucket it handles best
+ *   perCvd:  { [cvd:string]: { min:number, pair:[string,string] } },
+ *   reasons: Array<{ pair:[string,string], cvd:string, deltaE:number }>,  // only failing pairs
+ * }}
  */
 export function verifyColorblindSafe(tokens, opts = {}) {
   const threshold = opts.threshold ?? CVD_DELTA_E;
@@ -74,17 +92,50 @@ export function verifyColorblindSafe(tokens, opts = {}) {
   for (const n of names) rgb[n] = parseColor(tokens?.[`--evcc-sem-${n}`]) || parseColor(SEM_DEFAULTS[n]);
 
   const reasons = [];
-  let minDeltaE = Infinity;
+  const perCvd = {}; // cvd -> { min, pair } : the closest pair under that simulation
   for (const cvd of Object.keys(MACHADO)) {
     const lab = {};
     for (const n of names) lab[n] = linearRgbToLab(simulateLinear(rgb[n], cvd));
+    let cvdMin = Infinity;
+    let cvdPair = null;
     for (let i = 0; i < names.length; i++) {
       for (let j = i + 1; j < names.length; j++) {
         const de = deltaE76(lab[names[i]], lab[names[j]]);
-        minDeltaE = Math.min(minDeltaE, de);
+        if (de < cvdMin) { cvdMin = de; cvdPair = [names[i], names[j]]; }
         if (de < threshold) reasons.push({ pair: [names[i], names[j]], cvd, deltaE: +de.toFixed(1) });
       }
     }
+    perCvd[cvd] = { min: +cvdMin.toFixed(1), pair: cvdPair };
   }
-  return { pass: reasons.length === 0, reasons, minDeltaE: +minDeltaE.toFixed(1) };
+
+  // Weakest = the tightest pair anywhere (the bottleneck == the global min).
+  let weakest = null;
+  for (const cvd of Object.keys(perCvd)) {
+    const entry = { cvd, bucket: CVD_BUCKET[cvd], pair: perCvd[cvd].pair, deltaE: perCvd[cvd].min };
+    if (!weakest || entry.deltaE < weakest.deltaE) weakest = entry;
+  }
+
+  // Collapse to layman buckets: each bucket's margin is the MIN over its sims (the
+  // conservative figure), and bestBucket is the bucket the theme handles best.
+  const buckets = {};
+  for (const cvd of Object.keys(perCvd)) {
+    const bucket = CVD_BUCKET[cvd];
+    if (!buckets[bucket] || perCvd[cvd].min < buckets[bucket].min) {
+      buckets[bucket] = { min: perCvd[cvd].min, pair: perCvd[cvd].pair, cvd };
+    }
+  }
+  let bestBucket = null;
+  for (const b of Object.keys(buckets)) {
+    if (bestBucket === null || buckets[b].min > buckets[bestBucket].min) bestBucket = b;
+  }
+
+  return {
+    pass: reasons.length === 0,
+    minDeltaE: weakest ? weakest.deltaE : Infinity,
+    weakest,
+    buckets,
+    bestBucket,
+    perCvd,
+    reasons,
+  };
 }
