@@ -417,9 +417,11 @@ export function applyThemeRenderers(proto) {
       ? `<div class="evcc-empty">No themes match these filters.</div>`
       : `
         <div class="evcc-preset-grid">
-          ${ids.map((id) => {
+          ${(() => {
+            const activeId = this.card._state.effectiveActiveThemeId();
+            return ids.map((id) => {
             const theme = library[id];
-            const isActive = state.activeThemeId === id;
+            const isActive = activeId === id;
 
             const previewStyle = [
               ...Object.entries(theme.tokens || {}),
@@ -506,11 +508,41 @@ export function applyThemeRenderers(proto) {
                 ${editor}
               </div>
             `;
-          }).join("")}
+          }).join("");
+          })()}
         </div>`;
 
-    // Filter bar stays fixed; the grid scrolls so every theme is reachable.
-    return `${this._renderPresetFilters(state)}<div class="evcc-preset-scroll">${grid}</div>`;
+    // Mode bar (system vs this-device) + fixed filter bar + scrolling grid.
+    return `${this._renderThemeModeBar(state)}${this._renderPresetFilters(state)}<div class="evcc-preset-scroll">${grid}</div>`;
+  };
+
+  proto._renderThemeModeBar = function (state) {
+    const isDevice = this.card._state.isDeviceThemeMode();
+    const activeId = this.card._state.effectiveActiveThemeId();
+    const activeName = state.library?.[activeId]?.name || "—";
+
+    return `
+      <div class="evcc-theme-mode">
+        <div class="evcc-theme-mode-row">
+          <span class="evcc-theme-mode-label">Theme mode</span>
+          <button class="evcc-chip ${isDevice ? "" : "active"}" data-theme-mode="system">Follow system</button>
+          <button class="evcc-chip ${isDevice ? "active" : ""}" data-theme-mode="device">This device only</button>
+        </div>
+        ${isDevice ? `
+          <div class="evcc-theme-mode-detail">
+            <div class="evcc-theme-mode-state">
+              <span><span class="k">Active theme</span> ${this.escapeHtml(activeName)}</span>
+              <span><span class="k">Mode</span> this device only</span>
+            </div>
+            <div class="evcc-theme-mode-actions">
+              <button class="evcc-chip" data-action="theme-use-everywhere">Use everywhere</button>
+              <button class="evcc-chip" data-action="theme-clear-device">Clear device override</button>
+            </div>
+            <p class="evcc-theme-mode-note">Theme edits are shared. Only the <em>selected</em> theme is local to this browser.</p>
+          </div>
+        ` : ""}
+      </div>
+    `;
   };
 
   proto._renderThemePalette = function (tokens, sources) {

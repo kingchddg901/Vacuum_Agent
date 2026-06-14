@@ -202,9 +202,110 @@ export function applyThemeState(proto) {
         // Transient Export/Import JSON modal — { open, mode: "export"|"import",
         // text }. The export text is one-shot: held only while the modal is open.
         themeJsonModal: { open: false, mode: null, text: "" },
+
+        /* -----------------------------------------------------
+           PER-DEVICE THEME SELECTION (browser-local)
+           -----------------------------------------------------
+           The library + edits + backend active theme are shared
+           (per-system). This is the ONE per-browser piece: which
+           theme THIS device wants to show. Loaded from localStorage
+           (scoped per vacuum) below. */
+        themeMode: "system", // "system" (follow backend) | "device" (local override)
+        deviceThemeId: null,
       };
+      this._loadDeviceTheme(); // hydrate the two fields above from localStorage
     }
     return this._themeState;
+  };
+
+  /* =========================================================
+     PER-DEVICE THEME SELECTION
+     -----------------------------------------------------------
+     Mirrors the per-browser last-view pattern (main.js): a scoped
+     localStorage key so one browser viewing several cards keeps each
+     card's choice independent. Only the SELECTION is local — never
+     the library or edits.
+     ========================================================= */
+
+  proto._deviceThemeKey = function () {
+    const id = this.config?.vacuum_entity_id ?? "default";
+    return `evcc_theme_device_${id}`;
+  };
+
+  proto._loadDeviceTheme = function () {
+    const state = this._themeState;
+    try {
+      const raw = localStorage.getItem(this._deviceThemeKey());
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed?.mode === "device" || parsed?.mode === "system") state.themeMode = parsed.mode;
+      if (typeof parsed?.themeId === "string") state.deviceThemeId = parsed.themeId;
+    } catch (_) {
+      /* corrupt / unavailable storage -> stay on system default */
+    }
+  };
+
+  proto._persistDeviceTheme = function () {
+    const state = this._ensureThemeState();
+    try {
+      localStorage.setItem(
+        this._deviceThemeKey(),
+        JSON.stringify({ mode: state.themeMode, themeId: state.deviceThemeId }),
+      );
+    } catch (_) {}
+  };
+
+  proto.getThemeMode = function () {
+    return this._ensureThemeState().themeMode;
+  };
+
+  proto.isDeviceThemeMode = function () {
+    return this._ensureThemeState().themeMode === "device";
+  };
+
+  proto.getDeviceThemeId = function () {
+    return this._ensureThemeState().deviceThemeId;
+  };
+
+  /**
+   * The theme id the card should actually display, resolved through the safe
+   * fallback chain:
+   *   1. device override (device mode + the theme still exists) -> use it
+   *   2. stale override (theme deleted) -> clear it, fall through
+   *   3. backend active theme
+   */
+  proto.effectiveActiveThemeId = function () {
+    const state = this._ensureThemeState();
+    if (state.themeMode === "device" && state.deviceThemeId) {
+      if (state.library?.[state.deviceThemeId]) return state.deviceThemeId;
+      state.deviceThemeId = null; // the pinned theme is gone -> drop the override
+      this._persistDeviceTheme();
+    }
+    return state.activeThemeId;
+  };
+
+  proto.setThemeMode = function (mode) {
+    const state = this._ensureThemeState();
+    state.themeMode = mode === "device" ? "device" : "system";
+    // Entering device mode with no pick yet: pin whatever is showing now, so the
+    // switch is visually a no-op until the user chooses a different theme.
+    if (state.themeMode === "device" && !state.deviceThemeId) {
+      state.deviceThemeId = state.activeThemeId;
+    }
+    this._persistDeviceTheme();
+  };
+
+  proto.setDeviceThemeId = function (themeId) {
+    const state = this._ensureThemeState();
+    state.deviceThemeId = themeId || null;
+    this._persistDeviceTheme();
+  };
+
+  proto.clearDeviceOverride = function () {
+    const state = this._ensureThemeState();
+    state.deviceThemeId = null;
+    state.themeMode = "system";
+    this._persistDeviceTheme();
   };
 
   /* =========================================================
@@ -260,7 +361,8 @@ export function applyThemeState(proto) {
     const colorMap = {};
     const alphaMap = {};
 
-    const activeTheme = state.library?.[state.activeThemeId] || null;
+    // Effective active = the device override (if pinned) else the backend active.
+    const activeTheme = state.library?.[this.effectiveActiveThemeId()] || null;
 
     /* -------------------------------------------------------
        1. BASE: ACTIVE THEME
@@ -425,7 +527,7 @@ export function applyThemeState(proto) {
 
   proto.getActiveTheme = function () {
     const state = this._ensureThemeState();
-    return state.library?.[state.activeThemeId] || null;
+    return state.library?.[this.effectiveActiveThemeId()] || null;
   };
 
   proto.getThemeGroupFilter = function () {

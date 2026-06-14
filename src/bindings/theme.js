@@ -153,6 +153,7 @@ export function applyThemeBindings(proto) {
   proto._bindThemeEditor = function () {
     this._bindThemeTabs();
     this._bindThemePresets();
+    this._bindThemeMode();
     this._bindPresetFilters();
     this._bindPresetTagEditor();
     this._bindThemeGroupFilters();
@@ -189,6 +190,15 @@ export function applyThemeBindings(proto) {
       const themeId = e.currentTarget.dataset.themePreset;
       if (!themeId) return;
 
+      // Per-device mode: the selection is browser-local. Store it + apply; the
+      // backend active theme (set_active_theme) is left as the system default.
+      if (this.card._state.isDeviceThemeMode()) {
+        this.card._state.setDeviceThemeId(themeId);
+        applyThemeToCard(this.card);
+        this.card._scheduleRender();
+        return;
+      }
+
       const result = await this.card._actions.setActiveTheme(
         this.card._config.vacuum_entity_id,
         themeId
@@ -214,6 +224,42 @@ export function applyThemeBindings(proto) {
         fallbackActiveThemeId: activeThemeId,
         fallbackDraftDirty: false,
       });
+    });
+  };
+
+  /* =========================================================
+     THEME MODE — follow system vs this device only
+     ========================================================= */
+
+  proto._bindThemeMode = function () {
+    this.card._onAll("[data-theme-mode]", "click", (e) => {
+      this.card._state.setThemeMode(e.currentTarget.dataset.themeMode);
+      applyThemeToCard(this.card);
+      this.card._scheduleRender();
+    });
+
+    // Promote the device's pinned theme to the system default (everyone), then
+    // drop the override so this device follows the backend it just set.
+    this.card._onAll("[data-action='theme-use-everywhere']", "click", async () => {
+      const themeId = this.card._state.getDeviceThemeId() || this.card._state.effectiveActiveThemeId();
+      if (!themeId) return;
+      const result = await this.card._actions.setActiveTheme(this.card._config.vacuum_entity_id, themeId);
+      if (result?.ok === false) {
+        alert(result.reason || "Unable to apply for everyone.");
+        return;
+      }
+      const activeThemeId = result?.active_theme_id ?? result?.theme_id ?? themeId;
+      this.card._state.applyThemeActivation(activeThemeId, { clearDraft: result?.draft_dirty === false });
+      this.card._state.clearDeviceOverride();
+      applyThemeToCard(this.card);
+      this.card._scheduleRender();
+      await this._refreshThemeFromBackend({ fallbackActiveThemeId: activeThemeId, fallbackDraftDirty: false });
+    });
+
+    this.card._onAll("[data-action='theme-clear-device']", "click", () => {
+      this.card._state.clearDeviceOverride();
+      applyThemeToCard(this.card);
+      this.card._scheduleRender();
     });
   };
 

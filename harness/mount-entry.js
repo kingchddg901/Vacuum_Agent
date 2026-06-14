@@ -325,7 +325,7 @@ function ingestTheme(envelope) {
  * source?}); `bundle` themes the host; `activeThemeId` marks one Active.
  */
 function renderThemePresets(themes, opts = {}) {
-  const { bundle = {}, width = 760, height = null, activeThemeId = null, facets = null, search = "", editId = null, filtersOpen = false } = opts;
+  const { bundle = {}, width = 760, height = null, activeThemeId = null, facets = null, search = "", editId = null, filtersOpen = false, themeMode = null, deviceThemeId = null } = opts;
   const result = { ok: false };
   try {
     const list = Array.isArray(themes) ? themes : [];
@@ -357,6 +357,10 @@ function renderThemePresets(themes, opts = {}) {
     if (search) state.setPresetSearchQuery(search);
     if (editId) state.setPresetTagEditId(editId);
     if (filtersOpen) state.togglePresetFilters();
+    if (themeMode === "device") {
+      state.setThemeMode("device");
+      if (deviceThemeId) state.setDeviceThemeId(deviceThemeId);
+    }
     result.shown = state.filteredPresetIds();
     card._state = state;
     const renderers = new VacuumCardRenderers(card);
@@ -395,6 +399,7 @@ window.__evcc = {
   render,
   renderGallery,
   renderThemePresets,
+  VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   badgeMarks: BADGE_MARK_PATHS,
   markViewBox: MARK_VIEWBOX,

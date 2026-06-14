@@ -99,6 +99,73 @@ export const themeStyles = `
   }
 
   /* =========================================================
+     THEME MODE (follow system vs this device only)
+     ========================================================= */
+
+  .evcc-theme-mode {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.1));
+    flex: none;
+  }
+
+  .evcc-theme-mode-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .evcc-theme-mode-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
+    margin-right: 2px;
+  }
+
+  .evcc-theme-mode-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--evcc-radius-inner, 10px);
+    background: color-mix(in srgb, var(--evcc-accent, #3b82f6) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-accent, #3b82f6) 30%, transparent);
+  }
+
+  .evcc-theme-mode-state {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+    font-size: 0.85rem;
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-theme-mode-state .k {
+    color: var(--evcc-text-muted, rgba(255, 255, 255, 0.5));
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 5px;
+  }
+
+  .evcc-theme-mode-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .evcc-theme-mode-note {
+    margin: 0;
+    font-size: 0.78rem;
+    color: var(--evcc-text-secondary, rgba(255, 255, 255, 0.7));
+  }
+
+  /* =========================================================
      PRESET (THEME) FACET FILTER + SEARCH
      ========================================================= */
 
