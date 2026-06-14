@@ -1260,6 +1260,32 @@ Updates the display name of a library theme.
 | `theme_id` | Yes |
 | `name` | Yes |
 
+### `set_theme_tags`
+
+Replaces a theme's free-text **vibe** tags (e.g. `aurora`, `cozy`, `retro`). Pass a `tags` list to set them; pass an empty list to clear them. Tags are normalised before storage — trimmed, lowercased, deduped, with empties dropped, capped at 16 tags of at most 32 characters each.
+
+Only the user-owned vibe tags live here. Facet tags (`mode`, `accent`, …) and the colorblind-safe flag are **derived from the palette and verified by the card** — they are never stored on the theme, so they cannot be set or spoofed through this service.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `theme_id` | Yes | The library theme to tag. |
+| `tags` | Yes | List of free-text vibe tags. Send an empty list to clear all vibe tags. |
+
+Supports response. Returns `{"ok": true, "theme_id": ...}`, and raises a `ServiceValidationError` when the theme ID is unknown (`theme_not_found`).
+
+### Theme `source` (provenance)
+
+Each library theme may carry a `source` field that drives the gallery and card's Source facet. Only four values are stored; any other or unknown value is dropped rather than persisted:
+
+| Source | Where it comes from |
+|---|---|
+| `core` | Bundled (preloaded) themes. Reserved for the shipped library — `import_theme` never honours `core` on an imported payload, so a downloaded copy of a bundled theme is demoted to a user theme. |
+| `community` | A submitted/imported theme whose payload declared `community`. |
+| `generated` | A theme whose payload declared `generated`. |
+| `manual` | A theme saved from a vacuum's working draft (`save_theme_as_new`), and the fallback provenance for any imported theme that did not declare a recognised source. |
+
+`source` is read-only here — there is no service to set it directly. `save_theme_as_new` stamps `manual`; `import_theme` preserves a declared `community`/`generated`/`manual` and otherwise falls back to `manual`. A bundled theme that was seeded by an older version (before the field existed) is backfilled to `core` at load time; user themes are left untouched.
+
 ### `delete_theme`
 
 Removes a theme from the library. Also clears `active_theme_id` on any vacuum that was using it, so those vacuums fall back to the global default.

@@ -49,6 +49,35 @@ The Tokens tab is the full token editor. All tokens except the four Palette toke
 
 ---
 
+## Filtering and tagging presets
+
+The Themes tab carries its own filter bar above the preset grid — distinct from the token search described later, and driven by the **same facet vocabulary the public gallery uses**. Both surfaces import the shared `FACETS` table (Mode, Accent, Temp, Surface, Contrast, Access, Best for, Source) from `src/theme-tags/`, so a filter you build here behaves identically to the one in the gallery.
+
+### Preset search and facet filters
+
+- **Search themes** — a search box matches a theme's name and any of its derived tags. Matching is case-insensitive substring.
+- **Filters** — a toggle button opens a collapsible panel (collapsed by default, so the grid gets the room) with one labelled row per facet. Each row only offers chips for tags that actually occur in your library, so you never see a facet value that matches nothing. The toggle shows a count of how many facet chips you have selected.
+- **Filter semantics** — **OR within a facet** (Accent: purple *or* cyan) and **AND across facets** (Accent: purple *and* Mode: dark), matching the gallery exactly.
+- **Clear** — appears once any facet chip or search text is active, and resets both at once.
+
+The facet tags themselves are **derived from each theme's palette**, not authored — the card computes them through the same `effectiveThemeTags` core as the gallery, caches the result per library, and rebuilds the cache whenever the library changes. `colorblind-safe` is only ever present when verification actually passes (see *Accessibility — Colorblind Safe*), and the theme's `source` (core / community / generated / manual) is added as a filterable token so the Source facet works.
+
+### Browse gallery
+
+A **Browse gallery ↗** link sits in the filter bar. It opens the public theme gallery in a new tab. It is a plain outbound link — nothing is downloaded or imported — so it pairs with the **Upload** / **Import** controls (and the submission flow described under *Share to the gallery*) when you want to bring a gallery theme back into your card.
+
+### Inline vibe-tag editor
+
+The facet tags above are derived and read-only, but each preset card also carries **free-text vibe tags** (cosmic, aurora, cozy, …) that you *can* edit in place. A tag button on the card toggles a small editor for that one theme (only one theme is editable at a time, to keep the grid uncluttered):
+
+- Existing vibe tags show as removable chips. Add new ones with the text input — press Enter to commit — and a datalist (populated from `SUGGESTED_VIBE_TAGS`) offers curated suggestions without restricting you to them; you can type anything, up to 32 characters.
+- New tags are normalised to lowercase and de-duplicated before they are stored. **System-owned words** (a derived facet value like `blue` or `dark`, plus `colorblind-safe` and `core`) are *not* treated as vibe tags: those facet/status tags are computed from the palette and verification, so a hand-typed copy is simply ignored when the card recomputes a theme's effective tags — it won't show up as its own chip or change what the facet filters match.
+- Edits apply **optimistically**: the chip set updates immediately, then the change is persisted via the `set_theme_tags` service. If the service call fails, the card **reverts** to the prior tag set and shows an alert, so the grid never drifts out of sync with the backend.
+
+Only your free-text vibe tags are stored on the theme this way; the facet and colorblind-safe tags remain derived/verified on every render.
+
+---
+
 ## Token groups
 
 Tokens are organized into the following groups, in this order:
@@ -160,12 +189,46 @@ Setting a new active theme clears the working draft if the service response indi
 
 ---
 
+## Per-device theme selection
+
+Everything covered so far — the theme library, your edits and drafts, imports, and which theme is marked **active** in the backend — is **shared**. It lives in the integration and is the same for every device and browser that views this vacuum's card. The one exception is *which theme this particular browser chooses to display*. That selection is **local**: it is the only per-browser piece of theme state.
+
+At the top of the **Themes** tab is a **Theme mode** row with two buttons:
+
+- **Follow system** — this browser shows whatever theme is active in the backend. Switch the active theme (from any device, or this one) and this browser follows it. This is the default.
+- **This device only** — this browser pins a theme of its own and ignores later changes to the backend active theme. Switching into this mode with no prior pick pins whatever is showing right now, so the toggle is visually a no-op until you choose a different preset.
+
+When **This device only** is selected, a detail block appears below the row showing:
+
+- **Active theme** — the name of the theme this device is currently displaying.
+- **Mode** — `this device only`.
+- **Use everywhere** — promotes this device's pinned theme to the shared backend active theme (so every *Follow system* device picks it up), then drops this device's local pin so it goes back to **Follow system** too. If the backend call fails the pin is left untouched.
+- **Clear device override** — drops the local pin and returns this browser to **Follow system**.
+
+The block ends with the reminder that this whole feature turns on: *theme edits are shared; only the selected theme is local to this browser.* Editing tokens, saving, deleting, or importing while pinned still mutates the shared library — only your *choice of which theme to look at* stays on this device.
+
+### Use case
+
+Because the selection is per-browser and scoped per vacuum, one wall-mounted kiosk can sit on a high-contrast theme, a phone on a compact light theme, and a desktop on something richer — all at once, all viewing the same vacuum, without any of them disturbing the shared library or each other.
+
+### Resolution and stale pins
+
+The theme the card actually renders is resolved through a safe fallback chain:
+
+1. If this device is in **This device only** mode and its pinned theme still exists in the library, that theme is used.
+2. If the pinned theme has been deleted from the library, the pin is treated as stale: it is cleared automatically (and the local storage entry updated), and the card falls through.
+3. Otherwise — and after a stale pin is cleared — the card uses the backend active theme.
+
+A pin is only ever cleared once the library has actually loaded, so the very first render (which runs before the library resolves) never wipes a valid pin. The selection persists in `localStorage` under a key scoped to this vacuum, so a browser viewing several cards keeps each card's choice independent.
+
+---
+
 ## Accessibility — Colorblind Safe
 
 One built-in preset, **Colorblind Safe**, is designed for color-vision
 deficiency. Its status palette — success, warning, error, info (reference), and
 muted — is validated to stay distinguishable under simulated protanopia,
-deuteranopia, and tritanopia (CIEDE2000 ≥ 15 on every pair), so the
+deuteranopia, and tritanopia (ΔE76 ≥ 19 on every pair), so the
 red/amber/green states that collapse in a typical palette stay readable. Select
 it like any other preset card.
 

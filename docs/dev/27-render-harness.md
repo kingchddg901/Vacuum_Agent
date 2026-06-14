@@ -261,28 +261,46 @@ theme to the gallery without touching the repo. It turns a pasted export into a
 reviewable pull request with a rendered preview, and never auto-merges.
 
 **Entry point.** The gallery lobby's **"+ Submit a theme"** button links to a
-GitHub **issue form** (`.github/ISSUE_TEMPLATE/theme-submission.yml`): one
-`render: json` textarea for the export plus an acknowledgement checkbox. The form
-auto-applies the `theme-submission` label — the only signal the bot keys on.
+GitHub **issue form** (`.github/ISSUE_TEMPLATE/theme-submission.yml`): a
+`render: json` textarea for the export, optional **vibe tags / author / author
+URL / submitted-by** credit fields, a **colorblind-safe claim** checkbox, and an
+acknowledgement. The form auto-applies the `theme-submission` label — the only
+signal the bot keys on.
 
 **The bot** (`.github/workflows/theme-submission.yml`, on
-`issues: [opened, reopened]`, gated `if` the `theme-submission` label is present):
+`issues: [opened, reopened, edited]`, gated `if` the `theme-submission` label is
+present). Its core is a **pure transform** — `scripts/process-submission.mjs`,
+issue-body → `{envelope, report}`, unit-tested by `process-submission.test.mjs`
+and sharing the **same theme-tags core** the card and gallery use, so a
+submission is tagged and verified identically to an in-card theme:
 
 1. **Extract + validate.** The form's `render: json` field wraps the export in a
    fenced JSON block; the bot regex-extracts it, `JSON.parse`s it, and
    sanity-checks it's a theme export (`theme.tokens` / `colors` / `alpha`). On
    any failure it comments on the issue with the fix and stops — malformed input
-   never becomes a file. On success it writes `gallery/themes/{slug}.json`
-   (`slug` = sanitized theme name + `-{issue#}`). The deeper safety is the
-   **ingest gate** (§7): the render step runs the export through the same
-   validate + clamp path as `import_theme`, so a hostile export is data, not
-   code.
-2. **Render** (`harness/build.mjs` + `harness/preview.mjs`) the preview for that
+   never becomes a file. The deeper safety is the **ingest gate** (§7): the
+   render step runs the export through the same validate + clamp path as
+   `import_theme`, so a hostile export is data, not code.
+2. **Tag + verify + stamp.** The accepted theme is stamped `source:"community"`,
+   keeps the submitter's vibe tags (system words stripped, so a submission can't
+   spoof a derived facet), and carries author / author_url / submitted_by. Facet
+   tags are **derived** from the palette and colorblind-safety is **verified** by
+   simulation — never author-asserted; a failed colorblind claim is
+   **non-blocking** (badge left off, report says which status pair collapsed).
+   The **author URL** is policy-checked (`isAcceptableAuthorUrl`): only a direct
+   `http(s)` link to a non-shortener host is kept — dangerous schemes
+   (`javascript:` / `data:` / …) and URL shorteners are dropped, non-blocking,
+   with the reason in the report (this is also the stored-XSS defense, since the
+   credit becomes a gallery `<a href>`). The bot then writes
+   `gallery/themes/{slug}.json` (`slug` = sanitized theme name + `-{issue#}`).
+3. **Render** (`harness/build.mjs` + `harness/preview.mjs`) the preview for that
    one theme — its detail page and a `_contact-sheet.png`.
-3. **Open a PR** carrying just `gallery/themes/{slug}.json` on a
-   `theme-submission/{slug}` branch, body `Closes #{issue}`. Merging it lands the
+4. **Open (or update) a PR** carrying just `gallery/themes/{slug}.json` on a
+   `theme-submission/{slug}` branch, body `Closes #{issue}`. A reopen/edit reuses
+   the same branch + PR rather than piling up new ones. Merging it lands the
    theme on master and triggers the §7 publish.
-4. **Comment** back on the issue with the PR link.
+5. **Comment** the full report (tags, credit, colorblind verdict) back on the
+   issue with the PR link.
 
 **Why the preview is rendered here, not on the PR.** A PR opened with the
 built-in `GITHUB_TOKEN` does **not** trigger other workflows (GitHub's
