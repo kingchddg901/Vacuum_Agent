@@ -434,6 +434,44 @@ export const MODAL_HOST_STYLES = `
     gap:            var(--evcc-modal-section-gap, 28px);
   }
 
+  /* Export / Import theme-JSON modal — wider, with a monospace text area.
+     Canonical tokens resolve to the modal-derived family inside .evcc-modal. */
+  .evcc-modal--theme-json { max-width: 600px; }
+
+  .evcc-modal--theme-json .evcc-modal-body { gap: 10px; }
+
+  .evcc-theme-json-hint {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--evcc-text-secondary, rgba(255, 255, 255, 0.7));
+  }
+
+  .evcc-theme-json-area {
+    width: 100%;
+    min-height: 240px;
+    max-height: 48vh;
+    resize: vertical;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--evcc-text-primary, #f0f2f5);
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    border: 1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.16));
+    border-radius: var(--evcc-radius-inner, 10px);
+    padding: 10px 12px;
+    white-space: pre;
+    overflow: auto;
+  }
+
+  .evcc-theme-json-area:focus {
+    outline: none;
+    border-color: var(--evcc-accent, #3b82f6);
+  }
+
+  .evcc-theme-json-error {
+    margin: 0;
+    font-size: 0.82rem;
+    color: var(--evcc-sem-error, #e05252);
+  }
+
   .evcc-editor-field-group {
     display:        flex;
     flex-direction: column;

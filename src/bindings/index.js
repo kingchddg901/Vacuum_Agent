@@ -192,6 +192,7 @@ export class VacuumCardBindings {
     this._bindRoomAccessHost?.(host);
     this._bindRoomEstimateHost?.(host);
     this._bindExternalWizardHost?.(host);
+    this._bindThemeJsonModalHost?.(host);
 
     // Close room editor actions.
     host.querySelectorAll("[data-action='close-room-editor']").forEach((el) => {

@@ -309,6 +309,68 @@ export function applyThemeBindings(proto) {
   };
 
   /* =========================================================
+     EXPORT / IMPORT JSON MODAL (body-level host)
+     -----------------------------------------------------------
+     Called from bindModalHostEvents() per render — the modal lives
+     in the document.body host, not the shadow root, so it binds via
+     host.querySelectorAll rather than the card's $/_on helpers.
+     ========================================================= */
+
+  proto._bindThemeJsonModalHost = function (host) {
+    host.querySelectorAll("[data-action='close-theme-json']").forEach((el) => {
+      el.addEventListener("click", () => {
+        this.card._state.closeThemeJsonModal();
+        this.card._scheduleRender();
+      });
+    });
+
+    host.querySelectorAll("[data-action='copy-theme-json']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const area = host.querySelector("[data-theme-json-area]");
+        if (!area) return;
+        try {
+          await navigator.clipboard.writeText(area.value);
+          btn.textContent = "Copied!";
+          setTimeout(() => { btn.textContent = "Copy"; }, 1500);
+        } catch {
+          area.focus();
+          area.select(); // clipboard blocked -> let the user Ctrl+C the selection
+        }
+      });
+    });
+
+    host.querySelectorAll("[data-action='confirm-theme-import']").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const area = host.querySelector("[data-theme-json-area]");
+        const errEl = host.querySelector("[data-theme-json-error]");
+        const showError = (msg) => {
+          if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        };
+        const raw = area ? area.value.trim() : "";
+        if (!raw) { showError("Paste a theme export first."); return; }
+
+        let payload;
+        try {
+          payload = JSON.parse(raw);
+        } catch {
+          showError("That isn't valid JSON — check the pasted text.");
+          return;
+        }
+
+        const result = await this.card._actions.importTheme(payload);
+        if (result?.ok === false) {
+          showError(`Import failed: ${result.reason || "unknown error"}.`);
+          return;
+        }
+
+        this.card._state.closeThemeJsonModal();
+        this.card._scheduleRender();
+        await this._refreshThemeFromBackend();
+      });
+    });
+  };
+
+  /* =========================================================
      GROUP FILTER CHIPS
      ========================================================= */
 
@@ -1066,31 +1128,15 @@ export function applyThemeBindings(proto) {
       }
 
       const result = await this.card._actions.exportTheme(themeId);
-      const themeStr = JSON.stringify(result, null, 2);
-
-      try {
-        await navigator.clipboard.writeText(themeStr);
-        alert("Theme copied to clipboard!");
-      } catch {
-        console.log(themeStr);
-        alert("Copied to console instead.");
-      }
+      // Show the JSON in a modal to select/copy — no console, no clipboard surprise.
+      this.card._state.openThemeExportModal(JSON.stringify(result, null, 2));
+      this.card._scheduleRender();
     });
 
-    this.card._on(this.card.$("[data-action='import-theme']"), "click", async () => {
-      const input = prompt("Paste theme JSON here:");
-      if (!input) return;
-
-      try {
-        const payload = JSON.parse(input);
-
-        await this.card._actions.importTheme(payload);
-        await this._refreshThemeFromBackend();
-
-        alert("Theme imported successfully.");
-      } catch {
-        alert("Invalid theme JSON.");
-      }
+    this.card._on(this.card.$("[data-action='import-theme']"), "click", () => {
+      // Open the paste modal (a textarea) instead of a one-line prompt.
+      this.card._state.openThemeImportModal();
+      this.card._scheduleRender();
     });
 
     /* =========================================================

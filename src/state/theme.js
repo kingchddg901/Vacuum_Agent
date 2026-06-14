@@ -199,6 +199,9 @@ export function applyThemeState(proto) {
         presetFiltersOpen: false,
         // Which theme's free-text vibe tags are being edited inline (or null).
         presetTagEditId: null,
+        // Transient Export/Import JSON modal — { open, mode: "export"|"import",
+        // text }. The export text is one-shot: held only while the modal is open.
+        themeJsonModal: { open: false, mode: null, text: "" },
       };
     }
     return this._themeState;
@@ -523,6 +526,33 @@ export function applyThemeState(proto) {
   proto.togglePresetFilters = function () {
     const state = this._ensureThemeState();
     state.presetFiltersOpen = !state.presetFiltersOpen;
+  };
+
+  /* --- Export / Import JSON modal ------------------------------------------ */
+
+  proto.openThemeExportModal = function (text) {
+    this._ensureThemeState().themeJsonModal = { open: true, mode: "export", text: String(text || "") };
+  };
+
+  proto.openThemeImportModal = function () {
+    this._ensureThemeState().themeJsonModal = { open: true, mode: "import", text: "" };
+  };
+
+  proto.closeThemeJsonModal = function () {
+    // Clear the text too — the export JSON is one-shot, gone when the modal closes.
+    this._ensureThemeState().themeJsonModal = { open: false, mode: null, text: "" };
+  };
+
+  proto.isThemeJsonModalOpen = function () {
+    return !!this._ensureThemeState().themeJsonModal.open;
+  };
+
+  proto.themeJsonModalMode = function () {
+    return this._ensureThemeState().themeJsonModal.mode;
+  };
+
+  proto.themeJsonModalText = function () {
+    return this._ensureThemeState().themeJsonModal.text || "";
   };
 
   /* --- Inline vibe-tag editor ---------------------------------------------

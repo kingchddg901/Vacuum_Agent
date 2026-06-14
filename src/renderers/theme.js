@@ -240,6 +240,52 @@ export function applyThemeRenderers(proto) {
     `;
   };
 
+  /**
+   * Export / Import theme JSON modal. Export shows the JSON in a read-only
+   * textarea (one-shot — gone when the modal closes); Import takes a paste.
+   * Renders into the body-level modal host via _updateModalHost.
+   */
+  proto.renderThemeJsonModal = function (ctx) {
+    const { state } = ctx;
+    if (!state.isThemeJsonModalOpen()) return "";
+
+    const isExport = state.themeJsonModalMode() === "export";
+    const text = state.themeJsonModalText();
+
+    return `
+      <div class="evcc-modal-backdrop" data-action="close-theme-json">
+        <div class="evcc-modal evcc-modal--theme-json" data-stop-propagation>
+
+          <div class="evcc-modal-header">
+            <div class="evcc-modal-title">${isExport ? "Export theme" : "Import theme"}</div>
+            <button type="button" class="evcc-chip evcc-chip--icon" data-action="close-theme-json" title="Close">✕</button>
+          </div>
+
+          <div class="evcc-modal-body">
+            <p class="evcc-theme-json-hint">${isExport
+              ? "Copy this JSON to share or back up the active theme. It's not saved anywhere — it's gone when you close this."
+              : "Paste a theme export below, then Import. (Or use Upload for a file.)"}</p>
+            <textarea
+              class="evcc-theme-json-area"
+              data-theme-json-area
+              spellcheck="false"
+              ${isExport ? "readonly" : `placeholder="Paste theme JSON here…"`}
+            >${this.escapeHtml(text)}</textarea>
+            ${isExport ? "" : `<p class="evcc-theme-json-error" data-theme-json-error hidden></p>`}
+          </div>
+
+          <div class="evcc-modal-footer">
+            <button type="button" class="evcc-chip" data-action="close-theme-json">${isExport ? "Close" : "Cancel"}</button>
+            ${isExport
+              ? `<button type="button" class="evcc-chip evcc-chip--save" data-action="copy-theme-json">Copy</button>`
+              : `<button type="button" class="evcc-chip evcc-chip--save" data-action="confirm-theme-import">Import</button>`}
+          </div>
+
+        </div>
+      </div>
+    `;
+  };
+
   proto._renderThemeHeader = function (state) {
     return `
       <div class="evcc-theme-header">
