@@ -306,19 +306,21 @@ class ThemeManager:
             active_entry=active_entry,
             draft=vac.get("working_draft"),
         )
-        existing_name = library[theme_id].get("name", "")
-        existing_source = library[theme_id].get("source")
+        existing = library[theme_id]
 
         entry = {
             "id": theme_id,
-            "name": existing_name,
+            "name": existing.get("name", ""),
             "tokens": dict(resolved.get("tokens", {})),
             "colors": dict(resolved.get("colors", {})),
             "alpha": dict(resolved.get("alpha", {})),
         }
-        # Overwriting edits content in place — keep the entry's provenance.
-        if existing_source:
-            entry["source"] = existing_source
+        # Overwriting edits CONTENT in place — preserve the entry's metadata
+        # (provenance + vibe tags + author credit), exactly as export/import carry
+        # it. Without this, editing an imported theme erases its tags and author.
+        for key in ("source", "tags", "author", "author_url", "submitted_by"):
+            if existing.get(key):
+                entry[key] = existing[key]
         theme["library"][theme_id] = entry
 
         vac["active_theme_id"] = theme_id

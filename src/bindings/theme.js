@@ -244,8 +244,10 @@ export function applyThemeBindings(proto) {
       const themeId = this.card._state.getDeviceThemeId() || this.card._state.effectiveActiveThemeId();
       if (!themeId) return;
       const result = await this.card._actions.setActiveTheme(this.card._config.vacuum_entity_id, themeId);
-      if (result?.ok === false) {
-        alert(result.reason || "Unable to apply for everyone.");
+      // null = failure (callService never returns {ok:false}). Bail BEFORE we
+      // clear the device pin, so a failed promote doesn't destroy the override.
+      if (!result?.ok) {
+        alert(result?.reason || "Unable to apply for everyone.");
         return;
       }
       const activeThemeId = result?.active_theme_id ?? result?.theme_id ?? themeId;
@@ -347,10 +349,11 @@ export function applyThemeBindings(proto) {
     this.card._scheduleRender();
 
     const result = await this.card._actions.setThemeTags(id, tags);
-    if (result?.ok === false) {
-      this.card._state.applyThemeTagsLocal(id, prior); // revert
+    // callService returns null on failure (never {ok:false}), so !ok catches both.
+    if (!result?.ok) {
+      this.card._state.applyThemeTagsLocal(id, prior); // revert the optimistic change
       this.card._scheduleRender();
-      alert(result.reason || "Unable to update tags.");
+      alert(result?.reason || "Unable to update tags.");
     }
   };
 
@@ -409,7 +412,7 @@ export function applyThemeBindings(proto) {
         const area = host.querySelector("[data-theme-json-area]");
         const text = area ? area.value : this.card._state.themeJsonModalText();
         const state = this.card._state._ensureThemeState();
-        const themeId = state.activeThemeId;
+        const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
         const name = state.library?.[themeId]?.name || themeId || "theme";
 
         btn.disabled = true;
@@ -1201,7 +1204,7 @@ export function applyThemeBindings(proto) {
 
     this.card._on(this.card.$("[data-action='export-theme']"), "click", async () => {
       const state = this.card._state._ensureThemeState();
-      const themeId = state.activeThemeId;
+      const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
 
       if (!themeId) {
         alert("No active theme to export.");
@@ -1234,7 +1237,7 @@ export function applyThemeBindings(proto) {
 
     this.card._on(this.card.$("[data-action='download-theme']"), "click", async () => {
       const state = this.card._state._ensureThemeState();
-      const themeId = state.activeThemeId;
+      const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
 
       if (!themeId) {
         alert("No active theme to download.");
@@ -1329,7 +1332,7 @@ export function applyThemeBindings(proto) {
     // tokens/colors/alpha and stamps scope:[type]. Mirrors download-theme.
     this.card._on(this.card.$("[data-action='download-floor-theme']"), "click", async () => {
       const state = this.card._state._ensureThemeState();
-      const themeId = state.activeThemeId;
+      const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
       if (!themeId) {
         alert("No active theme to export.");
         return;

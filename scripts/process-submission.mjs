@@ -150,7 +150,10 @@ export function processSubmission(issueBody, issueNumber) {
   // 2. Parse the submitter's metadata fields.
   const vibe = parseVibeTags(getField(body, FIELD.tags));
   const author = getField(body, FIELD.author).slice(0, MAX_FIELD);
-  const authorUrl = getField(body, FIELD.authorUrl).slice(0, MAX_FIELD);
+  // author_url is untrusted + ends up in a gallery <a href> — only http(s) is kept
+  // (a javascript:/data: URL would be a stored-XSS sink). Anything else is dropped.
+  const rawUrl = getField(body, FIELD.authorUrl).slice(0, MAX_FIELD).trim();
+  const authorUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
   const submittedBy = getField(body, FIELD.submittedBy).slice(0, MAX_FIELD);
   const cbClaim = /\[x\]/i.test(getField(body, FIELD.colorblind));
 

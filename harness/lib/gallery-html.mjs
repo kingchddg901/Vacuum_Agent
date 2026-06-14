@@ -48,14 +48,24 @@ export function tagChipsHtml(tags) {
     .join("")}</div>`;
 }
 
+// author_url is untrusted (it rides in from a public submission). esc() escapes
+// markup but NOT dangerous URL schemes, so a `javascript:`/`data:` href would be a
+// stored-XSS sink on the public Pages site. Only http(s) becomes a live link;
+// anything else is dropped (the author still renders as plain text).
+function safeHttpUrl(url) {
+  const u = String(url || "").trim();
+  return /^https?:\/\//i.test(u) ? u : "";
+}
+
 /** Author / source credit line; the author name links out when author_url is set. */
 export function attributionHtml(attr) {
   if (!attr) return "";
   const bits = [];
   if (attr.author) {
     // author_url can come from an untrusted submission — open isolated, no referrer, no rank pass.
-    const who = attr.authorUrl
-      ? `<a href="${esc(attr.authorUrl)}" target="_blank" rel="noopener noreferrer nofollow">${esc(attr.author)}</a>`
+    const href = safeHttpUrl(attr.authorUrl);
+    const who = href
+      ? `<a href="${esc(href)}" target="_blank" rel="noopener noreferrer nofollow">${esc(attr.author)}</a>`
       : esc(attr.author);
     bits.push(`by ${who}`);
   }

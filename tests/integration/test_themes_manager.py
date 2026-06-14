@@ -310,6 +310,21 @@ def test_overwrite_theme_preserves_source(manager):
     assert manager.get_theme_library()["library"][theme_id]["source"] == "manual"
 
 
+def test_overwrite_theme_preserves_tags_and_author(manager):
+    """[TM-20] overwriting an imported theme keeps its vibe tags + author credit
+    (not just source) — editing must not strip the metadata import/export carry."""
+    payload = {"theme": {"name": "Rich", "colors": {}, "tags": ["aurora", "cosmic"],
+                         "author": "Ada", "author_url": "https://example.com", "source": "community"}}
+    theme_id = manager.import_theme(payload=payload)["theme_id"]
+    manager.set_active_theme(vacuum_entity_id=_VAC, theme_id=theme_id)
+    manager.overwrite_theme(vacuum_entity_id=_VAC, theme_id=theme_id)
+    entry = manager.get_theme_library()["library"][theme_id]
+    assert entry["tags"] == ["aurora", "cosmic"]
+    assert entry["author"] == "Ada"
+    assert entry["author_url"] == "https://example.com"
+    assert entry["source"] == "community"
+
+
 # ---------------------------------------------------------------------------
 # [TM-20] free-text vibe tags + attribution
 # ---------------------------------------------------------------------------

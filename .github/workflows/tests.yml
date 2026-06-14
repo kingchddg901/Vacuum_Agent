@@ -45,4 +45,4 @@ jobs:
       # Guards scripts/process-submission.mjs (the gallery-intake bot core) — it
       # has no deps (just the theme-tags core), so no install step is needed.
       - name: Run script tests
-        run: node --test scripts/process-submission.test.mjs
+        run: node --test scripts/process-submission.test.mjs harness/lib/gallery-html.test.mjs

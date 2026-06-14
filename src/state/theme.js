@@ -278,8 +278,14 @@ export function applyThemeState(proto) {
     const state = this._ensureThemeState();
     if (state.themeMode === "device" && state.deviceThemeId) {
       if (state.library?.[state.deviceThemeId]) return state.deviceThemeId;
-      state.deviceThemeId = null; // the pinned theme is gone -> drop the override
-      this._persistDeviceTheme();
+      // The pin isn't in the library. Only treat it as STALE (and clear it) once
+      // the library has actually loaded — otherwise the first render (which runs
+      // before getThemeLibrary resolves, library still {}) would wipe a valid pin
+      // from state AND localStorage. Until then, fall through without clearing.
+      if (Object.keys(state.library || {}).length > 0) {
+        state.deviceThemeId = null; // the pinned theme is genuinely gone
+        this._persistDeviceTheme();
+      }
     }
     return state.activeThemeId;
   };

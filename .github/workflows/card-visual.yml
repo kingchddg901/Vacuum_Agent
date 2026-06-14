@@ -35,8 +35,8 @@ jobs:
       - name: Build harness bundle
         run: node harness/build.mjs
 
-      - name: Visual regression
-        run: npx playwright test -c harness/playwright.config.mjs visual
+      - name: Visual regression + per-device theme resolution
+        run: npx playwright test -c harness/playwright.config.mjs visual device-theme
 
       - name: Upload diff report on failure
         if: failure()

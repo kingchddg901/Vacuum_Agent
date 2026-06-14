@@ -78,6 +78,13 @@ test("colorblind-safe theme carries its best-for bucket tag (filterable)", () =>
   assert.ok(!["red-green", "blue-yellow"].some((t) => fail.tags.includes(t)));
 });
 
+test("dangerous author_url is dropped; http(s) is kept", () => {
+  const bad = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: "javascript:alert(1)" }), 1);
+  assert.equal(bad.envelope.theme.author_url, undefined); // not stored -> no XSS sink downstream
+  const good = processSubmission(makeBody({ json: themeJson("jewel-spiral"), author: "X", authorUrl: "https://ok.example/me" }), 2);
+  assert.equal(good.envelope.theme.author_url, "https://ok.example/me");
+});
+
 test("invalid JSON rejected", () => {
   const r = processSubmission(makeBody({ json: "{ not valid" }), 1);
   assert.equal(r.ok, false);
