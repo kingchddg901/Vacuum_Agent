@@ -1065,36 +1065,27 @@ class ActiveJobTracker:
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
 
-    def apply_per_room_live_settings(
+    def _per_room_live_setting_calls(
         self,
         vacuum_entity_id: str,
         resolved_rooms: list[dict[str, Any]],
         room_id: int | None,
-    ) -> None:
-        """Push this brand's per-room LIVE device settings for one room.
+    ) -> list[dict[str, Any]]:
+        """Build the per-room live-setting service calls for one room.
 
-        Some brands accept a setting mid-run and apply it to the room currently
-        being cleaned (Roborock: vacuum.set_fan_speed takes effect live), so the
-        framework sets each room's value AS the robot enters it (driven by the
-        native current_room rollover) — true per-room control without per-room
-        re-dispatch. Each ``dispatch.per_room_live_settings`` entry names a
-        canonical room field + a service; the value is that room's resolved
-        per-room value, optionally value_map'd. No-op for brands that declare none
-        (e.g. Eufy, whose per-room settings ride the dispatch payload instead).
-
-        Fire-and-forget: the rollover is sync, so the service calls are scheduled
-        and best-effort (a failed one is logged, never disrupts the run).
-
-        Entries may name an ``options_key`` into the adapter ``vocabulary``; the
-        value is only pushed when it's one the brand actually accepts. This skips
-        the framework's Eufy-shaped default ("Max") on a brand whose options are
-        lowercase (Roborock), leaving the device on its current setting until the
-        user picks a real per-room value — never sending an invalid one.
+        Returns a list of ``{"domain", "service", "data"}`` specs (or ``[]``).
+        Each ``dispatch.per_room_live_settings`` entry names a canonical room
+        field + a service; the value is that room's resolved per-room value,
+        optionally value_map'd. An entry may name an ``options_key`` into the
+        adapter ``vocabulary`` — the value is emitted only when it's one the brand
+        accepts, so the Eufy-shaped default ("Max") is never sent to a
+        lowercase-only Roborock ``set_fan_speed``. Empty for brands that declare
+        none (e.g. Eufy, whose per-room settings ride the dispatch payload).
         """
         config = _get_adapter_config(vacuum_entity_id) or {}
         entries = config.get("dispatch", {}).get("per_room_live_settings") or []
         if not entries or room_id is None:
-            return
+            return []
         vocabulary = config.get("vocabulary", {})
 
         target_id = _safe_int(room_id, -1)
@@ -1107,8 +1098,9 @@ class ActiveJobTracker:
             None,
         )
         if room is None:
-            return
+            return []
 
+        calls: list[dict[str, Any]] = []
         for entry in entries:
             field = entry.get("field")
             service = entry.get("service") or {}
@@ -1136,23 +1128,71 @@ class ActiveJobTracker:
                     continue
 
             target_entity = service.get("target_entity_id") or vacuum_entity_id
+            calls.append({
+                "domain": domain,
+                "service": service_name,
+                "data": {"entity_id": target_entity, value_key: wire_value},
+            })
+        return calls
 
-            async def _call(
-                _domain=domain, _service=service_name, _data={
-                    "entity_id": target_entity, value_key: wire_value,
-                }
-            ) -> None:
+    def apply_per_room_live_settings(
+        self,
+        vacuum_entity_id: str,
+        resolved_rooms: list[dict[str, Any]],
+        room_id: int | None,
+    ) -> None:
+        """Fire-and-forget push of one room's per-room LIVE device settings.
+
+        Used by the native current_room rollover (batch mode): the rollover is
+        sync, so the service calls are scheduled and best-effort (a failed one is
+        logged, never disrupts the run). For the sequenced (strict-order) path,
+        ``apply_per_room_live_settings_awaited`` sets them BEFORE the phase's
+        dispatch so each room starts at its own value with no poll lag.
+        """
+        for spec in self._per_room_live_setting_calls(
+            vacuum_entity_id, resolved_rooms, room_id
+        ):
+            async def _call(_spec=spec) -> None:
                 try:
                     await self._manager.hass.services.async_call(
-                        _domain, _service, _data, blocking=True
+                        _spec["domain"], _spec["service"], _spec["data"], blocking=True
                     )
                 except Exception:  # pragma: no cover - best-effort live setting
                     _LOGGER.debug(
                         "per-room live setting %s.%s failed for %s",
-                        _domain, _service, vacuum_entity_id, exc_info=True,
+                        _spec["domain"], _spec["service"], vacuum_entity_id, exc_info=True,
                     )
 
             self._manager.hass.async_create_task(_call())
+
+    async def apply_per_room_live_settings_awaited(
+        self,
+        vacuum_entity_id: str,
+        resolved_rooms: list[dict[str, Any]],
+        room_id: int | None,
+    ) -> None:
+        """Awaited push — set one room's per-room live settings and WAIT.
+
+        Used by the sequenced (strict-order) dispatch path so a phase's room
+        settings (e.g. Roborock fan) are applied to the idle device BEFORE its
+        segment is dispatched — each room starts at its own value immediately,
+        without the ~30s current_room poll lag the rollover incurs. Per-room
+        passes already ride the phase payload (``repeat``); this covers the
+        settings that can't (fan, which is a global device setting on Roborock).
+        Best-effort per call.
+        """
+        for spec in self._per_room_live_setting_calls(
+            vacuum_entity_id, resolved_rooms, room_id
+        ):
+            try:
+                await self._manager.hass.services.async_call(
+                    spec["domain"], spec["service"], spec["data"], blocking=True
+                )
+            except Exception:  # pragma: no cover - best-effort live setting
+                _LOGGER.debug(
+                    "per-room live setting %s.%s failed for %s",
+                    spec["domain"], spec["service"], vacuum_entity_id, exc_info=True,
+                )
 
     def _access_graph_path(
         self,

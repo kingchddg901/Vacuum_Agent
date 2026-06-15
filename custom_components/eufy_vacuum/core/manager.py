@@ -3997,6 +3997,18 @@ class EufyVacuumManager:
         self.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
 
+        # Apply this phase's per-room LIVE settings (e.g. Roborock fan) to the
+        # idle device BEFORE dispatching its segment — each room starts at its own
+        # value immediately, with no ~30s current_room poll lag. Sequenced mode is
+        # one room per phase, so this is genuine native per-room fan (per-room
+        # passes already ride the phase payload). No-op for brands without
+        # dispatch.per_room_live_settings.
+        await self.active_job.apply_per_room_live_settings_awaited(
+            vacuum_entity_id,
+            list(advanced.get("resolved_rooms", [])),
+            advanced.get("current_room_id"),
+        )
+
         # Resolve slug -> LIVE segment id for THIS phase too (not just phase 0 at
         # start) so a re-segment between phases can't make a later phase clean the
         # wrong room — the whole point of in-framework sequencing over a static
