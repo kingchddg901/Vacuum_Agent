@@ -69,13 +69,13 @@ export function applyRoomEditorRenderer(proto) {
 
           <div class="evcc-editor-field-groups">
 
-            ${this._renderProfileSelector(state, room, fields)}
+            ${state.supportsRoomProfiles() ? this._renderProfileSelector(state, room, fields) : ""}
             ${this._renderCleanModeField(state, fields)}
             ${this._renderMopStateIndicator(state)}
             ${this._renderSuctionField(state, fields)}
             ${state.showWaterLevel()  ? this._renderWaterLevelField(state, fields)  : ""}
             ${this._renderIntensityField(state, fields)}
-            ${this._renderPassesField(fields, state.maxCleanPasses())}
+            ${this._renderPassesField(fields, state.maxCleanPasses(), state.passesIsGlobal())}
             ${state.showEdgeMopping() ? this._renderEdgeMoppingField(fields) : ""}
             ${this._renderTransitionField(room)}
 
@@ -299,9 +299,11 @@ export function applyRoomEditorRenderer(proto) {
 
   /**
    * Clean passes — 1..maxPasses chips (adapter dispatch.passes_max; Eufy 2,
-   * Roborock 3). Defaults to 2 when the bound is missing.
+   * Roborock 3). Defaults to 2 when the bound is missing. When passes is global
+   * (Roborock: one whole-run repeat scalar), a note explains the strongest
+   * per-room setting applies to the entire run.
    */
-  proto._renderPassesField = function (fields, maxPasses) {
+  proto._renderPassesField = function (fields, maxPasses, passesIsGlobal) {
     const max = Math.max(1, Math.trunc(Number(maxPasses)) || 2);
     const chips = [];
     for (let n = 1; n <= max; n += 1) {
@@ -313,10 +315,16 @@ export function applyRoomEditorRenderer(proto) {
             data-value="${n}"
           >${n} ${n === 1 ? "Pass" : "Passes"}</button>`);
     }
+    const note = passesIsGlobal
+      ? `<div class="evcc-room-editor-field-note">
+           Applies to the whole run — the highest passes across the selected rooms is used.
+         </div>`
+      : "";
     return `
       <div class="evcc-editor-field-group">
         <div class="evcc-field-label">Cleaning Passes</div>
         <div class="evcc-chips">${chips.join("")}</div>
+        ${note}
       </div>
     `;
   };

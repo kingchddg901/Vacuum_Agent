@@ -30,7 +30,6 @@ from .entities import (
     SUFFIX_TASK_STATUS,
     SUFFIX_ACTIVE_CLEANING_TARGET,
     SUFFIX_ACTIVE_MAP,
-    SUFFIX_MOP_INTENSITY,
     SUFFIX_CLEANING_TIME,
     SUFFIX_CLEANING_AREA,
     SUFFIX_BATTERY,
@@ -48,7 +47,6 @@ from .vocabulary import (
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
     FAN_SPEED_OPTIONS,
-    WATER_LEVEL_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -173,14 +171,18 @@ def register_roborock_adapter_for_vacuum(
             # mode-specific. Without this, _detect_cancel_likely_run never fires
             # for Roborock and a cancelled run pollutes learning estimates.
             "cancel_detection_states": CANCEL_DETECTION_STATES,
-            # Card-facing dropdowns. fan_speed + water_level (mop_intensity 1:1).
-            # clean_mode_options / clean_intensity_options are intentionally OMITTED:
-            # Roborock has no clean_intensity axis, and clean_mode is DERIVED from
-            # mop_intensity (off => vacuum) rather than a single select — the canonical
-            # clean_mode taxonomy is a pending decision (revisited with room editing in
-            # Wave 2). The card hides a picker whose options list is absent.
+            # Card-facing dropdowns — ONLY fan_speed for the S6. water_level_options,
+            # clean_mode_options, clean_intensity_options are OMITTED so the card
+            # hides those pickers:
+            #  - water_level (mop intensity): EMPIRICALLY UNSETTABLE on the S6 —
+            #    SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE return
+            #    RoborockUnsupportedFeature ("method not recognized by the device"),
+            #    and a mid-run set does nothing. Mop is OBSERVE-ONLY (tank attached
+            #    => mopping, via entities.mop_active); intensity/mode are
+            #    app-controlled. So we surface mop STATE, not a control we can't honor.
+            #  - clean_mode: the S6 has no per-room mode (vacuum vs mop = tank presence).
+            #  - clean_intensity: no intensity axis on Roborock.
             "fan_speed_options": FAN_SPEED_OPTIONS,
-            "water_level_options": WATER_LEVEL_OPTIONS,
         },
 
         "completion": {
@@ -234,6 +236,10 @@ def register_roborock_adapter_for_vacuum(
             "rooms_field": "segments",
             "clean_passes_field": "repeat",
             "passes_max": 3,
+            # Passes is ONE batch scalar (repeat) for the whole run, not per-room:
+            # the engine collapses the selected rooms to the MAX requested passes.
+            # The editor keeps per-room passes chips but notes the strongest wins.
+            "passes_is_global": True,
             # app_segment_clean wants params LIST-wrapped on the wire:
             # params=[{segments:[...], repeat:n}] (confirmed on the device via a
             # working Dev-Tools call + the HA Roborock docs). Without this the bare
@@ -245,37 +251,27 @@ def register_roborock_adapter_for_vacuum(
             # wrong room after a map edit. Cleaning correctness is decoupled from
             # the identity-reconciliation review (which is about data attribution).
             "resolve_live_ids_by_slug": True,
-            # GLOBAL fan + mop pre-call: per-room fan/water can't ride
-            # app_segment_clean (passes only), AND the S6 app stores NO per-room
-            # settings on the map (user-confirmed 2026-06-15) — so global is the
-            # FINAL design for this model, not an interim compromise. Before
-            # dispatch the framework pushes ONE global fan + mop value, max-wins
-            # across the selected rooms (strongest request applies — mirrors the
-            # batch-passes max rule). Fan rank is ascending SUCTION (device list
-            # order puts gentle last, but it is the weakest), so it's spelled out
-            # explicitly. water_level maps 1:1 to the mop_intensity select (no
-            # value_map). mop_mode (standard/deep) has no per-room source -> left
-            # as the device has it.
-            "global_pre_calls": [
+            # PER-ROOM LIVE fan: fan_speed is settable MID-RUN on the S6 and applies
+            # to the room being cleaned, so the framework sets each room's suction AS
+            # the robot enters it (driven by the native current_room rollover) — true
+            # per-room fan without per-room re-dispatch, keeping the device's one
+            # path-optimized run. The dispatch-time call seeds the first (guessed)
+            # room's fan; the rollover corrects to the real first room (~30s poll
+            # lag). passes stays GLOBAL (the app_segment_clean repeat — NOT
+            # mid-run-settable). NO mop: SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE are
+            # RoborockUnsupportedFeature on the S6 (observe-only, app-controlled).
+            "per_room_live_settings": [
                 {
                     "field": "fan_speed",
-                    "rank": ["gentle", "quiet", "balanced", "turbo", "max"],
+                    # Only push values in the Roborock fan vocabulary; this skips
+                    # the framework's Eufy-shaped default ("Max") so an unedited
+                    # room leaves the device on its current fan rather than failing
+                    # set_fan_speed with an invalid (capitalized) speed.
+                    "options_key": "fan_speed_options",
                     "service": {
                         "domain": "vacuum",
                         "service": "set_fan_speed",
                         "value_key": "fan_speed",
-                    },
-                },
-                {
-                    "field": "water_level",
-                    "rank": ["off", "low", "medium", "high"],
-                    "service": {
-                        "domain": "select",
-                        "service": "select_option",
-                        "value_key": "option",
-                        "target_entity_id": build_entity_id(
-                            vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT
-                        ),
                     },
                 },
             ],
@@ -353,8 +349,12 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "capabilities": {
+            # Mops (tank-based) but the mop is NOT programmatically controllable:
+            # SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE are RoborockUnsupportedFeature
+            # on the S6, so water control is False (no settable intensity/mode — the
+            # editor hides the water-level picker; mop state is observed via the tank).
             "supports_mop_features": caps.get("supports_mop_features", profile["has_mop"]),
-            "supports_water_control": caps.get("supports_water_control", profile["has_mop"]),
+            "supports_water_control": False,
             # Per-room fan/water do not ride the app_segment_clean wire (global only).
             "supports_path_control": False,
             "supports_edge_mopping": False,
@@ -367,6 +367,11 @@ def register_roborock_adapter_for_vacuum(
             # Conservative defaults pending a live segment-clean run (Wave 2).
             "position_lock_reliable": False,
             "rooms_unique_per_job": True,
+            # Reusable room PROFILES bundle multiple per-room settings (mode,
+            # water, intensity, passes, edge). The S6 exposes only per-room fan
+            # (everything else is global/unsettable), so a "profile" would be a
+            # degenerate named fan speed — hide the profiles section entirely.
+            "supports_room_profiles": False,
         },
 
         "maintenance_components": {

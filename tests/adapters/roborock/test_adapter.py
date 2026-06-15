@@ -150,20 +150,21 @@ def test_dispatch(s6_config):
     assert d["rooms_field"] == "segments"
     assert d["clean_passes_field"] == "repeat"
     assert d["passes_max"] == 3
+    # passes is ONE whole-run scalar (repeat), not per-room -> editor notes it.
+    assert d["passes_is_global"] is True
     # Wave 2b: ids renumber on re-segment -> resolve slug->live id at send.
     assert d["resolve_live_ids_by_slug"] is True
 
 
-def test_global_pre_calls(s6_config):
-    # Wave 2b: fan + mop are GLOBAL on Roborock -> max-wins pre-call before dispatch.
-    pre = {p["field"]: p for p in s6_config["dispatch"]["global_pre_calls"]}
-    assert set(pre) == {"fan_speed", "water_level"}
-    # Fan rank is ascending SUCTION (gentle weakest, max strongest).
-    assert pre["fan_speed"]["rank"] == ["gentle", "quiet", "balanced", "turbo", "max"]
-    assert pre["fan_speed"]["service"]["service"] == "set_fan_speed"
-    # water -> the mop-intensity select.
-    assert pre["water_level"]["service"]["target_entity_id"] == "select.ivy_mop_intensity"
-    assert pre["water_level"]["service"]["service"] == "select_option"
+def test_per_room_live_fan(s6_config):
+    # fan_speed is settable MID-RUN on the S6 -> per-room LIVE (set as current_room
+    # advances), NOT a global pre-call. passes stays global; mop is unsettable.
+    live = {p["field"]: p for p in s6_config["dispatch"]["per_room_live_settings"]}
+    assert set(live) == {"fan_speed"}
+    assert live["fan_speed"]["service"]["domain"] == "vacuum"
+    assert live["fan_speed"]["service"]["service"] == "set_fan_speed"
+    # No global pre-call anymore (fan moved to per-room live; mop removed).
+    assert "global_pre_calls" not in s6_config["dispatch"]
 
 
 def test_native_rollover_enabled(s6_config):
@@ -204,6 +205,11 @@ def test_engines_are_noop(s6_config):
 def test_no_dock(s6_config):
     caps = s6_config["capabilities"]
     assert caps["supports_mop_features"] is True
+    # Only per-room field is fan -> reusable profiles would be degenerate; hide.
+    assert caps["supports_room_profiles"] is False
+    # Mops (tank) but the mop is NOT programmatically controllable on the S6
+    # (SET_WATER_BOX_CUSTOM_MODE unsupported) -> no settable water control.
+    assert caps["supports_water_control"] is False
     assert caps["supports_mop_wash"] is False
     assert caps["supports_mop_dry"] is False
     assert caps["supports_empty_dust"] is False
@@ -228,9 +234,14 @@ def test_maintenance_components(s6_config):
 
 def test_vocabulary(s6_config):
     vocab = s6_config["vocabulary"]
-    assert len(vocab["fan_speed_options"]) == 5
-    assert {o["value"] for o in vocab["water_level_options"]} == {"off", "low", "medium", "high"}
-    # No clean_intensity axis on Roborock -> picker hidden (option list absent).
+    # Fan chips in ascending suction order (gentle weakest -> max strongest).
+    assert [o["value"] for o in vocab["fan_speed_options"]] == [
+        "gentle", "quiet", "balanced", "turbo", "max"
+    ]
+    # water_level / clean_mode / clean_intensity options OMITTED -> pickers hidden.
+    # The S6 mop is unsettable (SET_WATER_BOX_CUSTOM_MODE unsupported); mode = tank.
+    assert "water_level_options" not in vocab
+    assert "clean_mode_options" not in vocab
     assert "clean_intensity_options" not in vocab
     assert "segment_cleaning" in vocab["active_run_task_states"]
 

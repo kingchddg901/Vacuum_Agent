@@ -387,6 +387,8 @@ proto.renderRoomsActionBar = function (
     ? startPreflight.warnings
     : [];
 
+  const mopCarpetWarning = cardState?.startMopCarpetWarning?.() ?? null;
+
   return `
     <div class="evcc-rooms-action-bar">
 
@@ -440,6 +442,12 @@ proto.renderRoomsActionBar = function (
         <div class="evcc-rooms-cancel-warning" role="alert">
           Tap "Confirm Cancel" again to send the vacuum back to the dock,
           or press <strong>Cancel</strong> to keep the job running.
+        </div>
+      ` : ""}
+
+      ${mopCarpetWarning ? `
+        <div class="evcc-rooms-carpet-warning" role="alert">
+          ⚠ ${this.escapeHtml(mopCarpetWarning)}
         </div>
       ` : ""}
 

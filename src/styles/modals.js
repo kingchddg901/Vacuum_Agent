@@ -302,6 +302,14 @@ export const modalStyles = `
     color:     var(--evcc-text-muted);
   }
 
+  /* Muted helper note under a field (e.g. whole-run passes on Roborock). */
+  .evcc-room-editor-field-note {
+    margin-top:  6px;
+    color:       var(--evcc-text-muted);
+    font-size:   0.74rem;
+    line-height: 1.4;
+  }
+
   .evcc-chip--custom {
     background:
       var(--evcc-modal-chip-bg,

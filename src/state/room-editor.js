@@ -449,12 +449,31 @@ export function applyRoomEditorState(proto) {
   };
 
   /**
+   * Whether the brand exposes the reusable room-profiles section. False for
+   * brands with a single editable per-room field (Roborock: fan only), where a
+   * profile would be degenerate. Default true keeps the Eufy editor unchanged.
+   */
+  proto.supportsRoomProfiles = function () {
+    const v = this.dashboardSnapshot?.()?.supports_room_profiles;
+    return v === undefined || v === null ? true : Boolean(v);
+  };
+
+  /**
    * Upper bound for the Cleaning Passes chips, from the adapter's dispatch
    * passes_max (surfaced via the snapshot). Default 2 (historical Eufy editor).
    */
   proto.maxCleanPasses = function () {
     const n = Number(this.dashboardSnapshot?.()?.max_clean_passes);
     return (Number.isFinite(n) && n >= 1) ? Math.min(Math.trunc(n), 9) : 2;
+  };
+
+  /**
+   * Whether passes is a single whole-run value (max-wins) rather than per-room
+   * (Roborock). The editor keeps per-room chips but notes the strongest applies
+   * to the whole run. Default false (per-room, Eufy).
+   */
+  proto.passesIsGlobal = function () {
+    return Boolean(this.dashboardSnapshot?.()?.passes_is_global);
   };
 
   proto.showEdgeMopping = function () {

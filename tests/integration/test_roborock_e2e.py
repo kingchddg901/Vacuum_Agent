@@ -8,10 +8,12 @@ which was wrong until this harness caught it.
 
 Flow:
   1. dispatch (start_selected_rooms) -> app_segment_clean params=[{segments,repeat}]
-     with live-resolved ids + global fan/mop pre-calls.
+     with live-resolved ids; the queue-first room's fan is pushed live (per-room
+     fan via vacuum.set_fan_speed — passes is global, mop is unsettable).
   2. run starts -> lifecycle marks has_observed_active_lifecycle.
   3. native rollover follows current_room through the device's optimized order,
-     completing the previous target on each move; transit rooms ignored.
+     completing the previous target on each move AND pushing that room's fan;
+     transit rooms ignored.
   4. completion (dock: cleaning binary off + charging) -> finalization fires via
      the require_job_active_clear gate.
 """
@@ -69,6 +71,9 @@ def _setup(hass, manager, monkeypatch):
     rooms = manager.data["maps"][_VAC][_MAP]["rooms"]
     rooms[str(_KITCHEN)]["order"] = 1   # queue order; device will path-optimize
     rooms[str(_OFFICE)]["order"] = 2
+    # Per-room fan (valid Roborock vocab values) -> pushed live on room entry.
+    rooms[str(_KITCHEN)]["fan_speed"] = "turbo"
+    rooms[str(_OFFICE)]["fan_speed"] = "quiet"
 
 
 def _stub_services(hass) -> dict[str, list]:
@@ -138,9 +143,10 @@ async def test_roborock_dispatch_rollover_completion(hass, manager, monkeypatch)
     assert send["command"] == "app_segment_clean"
     # THE wire-shape assertion: params LIST-wrapped, live-resolved segments, queue order.
     assert send["params"] == [{"segments": [_KITCHEN, _OFFICE], "repeat": 1}]
-    # Global fan + mop pre-calls fired max-wins (defaults Max / Off).
-    assert calls["fan"] and calls["fan"][-1]["fan_speed"] == "max"
-    assert calls["mop"] and calls["mop"][-1]["option"] == "off"
+    # Per-room fan: dispatch seeds the queue-first room's fan (Kitchen -> turbo).
+    # No mop pre-call (the S6 mop is unsettable).
+    assert [c["fan_speed"] for c in calls["fan"]] == ["turbo"]
+    assert calls["mop"] == []
 
     assert _job(manager)["status"] == "started"
 
@@ -155,14 +161,17 @@ async def test_roborock_dispatch_rollover_completion(hass, manager, monkeypatch)
     await _tick_rollover(manager, hass, "Office")
     assert _job(manager)["current_room_id"] == _OFFICE          # adopted, no phantom-complete
     assert _job(manager)["completed_room_ids"] == []
+    assert calls["fan"][-1]["fan_speed"] == "quiet"             # Office fan pushed live
 
     await _tick_rollover(manager, hass, "KITCHEN")
     assert _OFFICE in _job(manager)["completed_room_ids"]        # Office done on move
     assert _job(manager)["current_room_id"] == _KITCHEN
+    assert calls["fan"][-1]["fan_speed"] == "turbo"             # Kitchen fan pushed live
 
     # transit room (a non-target the robot crosses) is ignored
     await _tick_rollover(manager, hass, "LIVINGROOM")
     assert _job(manager)["current_room_id"] == _KITCHEN          # unchanged
+    assert calls["fan"][-1]["fan_speed"] == "turbo"             # no new fan call
     assert finalize_calls == []                                  # still running
 
     # --- 4. COMPLETION (dock: current_room reverts, cleaning off + charging) ---

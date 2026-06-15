@@ -931,6 +931,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Example: 'clean_times' for Eufy, 'repeat' for Roborock."
                 ),
             },
+            "passes_is_global": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "True when clean passes is ONE batch scalar for the whole run "
+                    "(the flat-list engines collapse the selected rooms to the MAX "
+                    "requested passes) rather than per-room on the wire. The card "
+                    "keeps per-room passes chips but notes the strongest setting "
+                    "applies to the entire run. Default: False (per-room passes, "
+                    "Eufy/Dreame)."
+                ),
+            },
             "rooms_field": {
                 "type": "str",
                 "required": False,
@@ -952,20 +964,41 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "falls back to the stored ids. Default: False (use stored ids)."
                 ),
             },
+            "per_room_live_settings": {
+                "type": "list[dict]",
+                "required": False,
+                "description": (
+                    "Per-room device settings pushed LIVE as the robot enters each "
+                    "room (driven by the native current_room rollover —  "
+                    "live_transition.native_transition_source), for brands where a "
+                    "setting takes effect mid-run on the room being cleaned (Roborock: "
+                    "vacuum.set_fan_speed). True per-room control without per-room "
+                    "re-dispatch — the device keeps one path-optimized run. Each entry: "
+                    "{'field' (canonical room field, e.g. 'fan_speed'), 'service' "
+                    "({'domain','service','value_key', optional 'target_entity_id'}), "
+                    "optional 'value_map', optional 'options_key' (a vocabulary list "
+                    "name — the value is pushed only when it's one of those options, "
+                    "skipping the framework's Eufy-shaped default on a brand whose "
+                    "vocabulary differs)}. The value is the entered room's resolved "
+                    "per-room value. Best-effort + fire-and-forget. Absent = no live "
+                    "per-room settings. Distinct from global_pre_calls (one value/run, "
+                    "pre-dispatch) — use this when the device honors mid-run per-room "
+                    "changes."
+                ),
+            },
             "global_pre_calls": {
                 "type": "list[dict]",
                 "required": False,
                 "description": (
                     "Global device settings pushed once before an atomic dispatch, "
-                    "for brands that expose fan/water only globally (Roborock: "
-                    "app_segment_clean carries passes only, fan/mop are device-wide). "
-                    "Each entry picks the run value from the selected rooms' canonical "
-                    "field by max-wins over 'rank' (strongest request applies — mirrors "
-                    "the batch-passes max rule), maps it via optional 'value_map', and "
-                    "calls 'service'. Rooms whose value isn't in 'rank' are ignored; if "
-                    "none rank, the setting is left untouched. Best-effort (a failed "
-                    "pre-call never aborts the run). Absent = no pre-call (Eufy carries "
-                    "fan/water per-room)."
+                    "for brands that expose a setting only globally. Each entry picks "
+                    "the run value from the selected rooms' canonical field by max-wins "
+                    "over 'rank' (strongest request applies — mirrors the batch-passes "
+                    "max rule), maps it via optional 'value_map', and calls 'service'. "
+                    "Rooms whose value isn't in 'rank' are ignored; if none rank, the "
+                    "setting is left untouched. Best-effort (a failed pre-call never "
+                    "aborts the run). Absent = no pre-call. Use per_room_live_settings "
+                    "instead when the device honors mid-run per-room changes."
                 ),
                 "entry_fields": {
                     "field": {

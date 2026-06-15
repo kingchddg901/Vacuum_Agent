@@ -161,3 +161,88 @@ def test_config_gate(manager):
     clear_registry()
     register_adapter_config(_VAC, {"adapter_id": "eufy", "source": "code", "entities": {}})
     assert tracker._live_transition_config(_VAC)["native_transition_source"] is False
+
+
+# ---------------------------------------------------------------------------
+# per-room live settings (Roborock: fan set mid-run as current_room advances)
+# ---------------------------------------------------------------------------
+
+def _live_fan_adapter():
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code", "entities": {},
+        "dispatch": {"per_room_live_settings": [
+            {"field": "fan_speed",
+             "service": {"domain": "vacuum", "service": "set_fan_speed",
+                         "value_key": "fan_speed"}},
+        ]},
+    })
+
+
+async def test_per_room_live_fan_applied(hass, manager):
+    """[NR-9] apply_per_room_live_settings sets the room's fan via set_fan_speed."""
+    clear_registry()
+    _live_fan_adapter()
+    calls: list[dict] = []
+
+    async def _set_fan(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "set_fan_speed", _set_fan)
+
+    tracker = ActiveJobTracker(manager)
+    tracker.apply_per_room_live_settings(
+        _VAC, [{"room_id": 16, "slug": "kitchen", "fan_speed": "turbo"}], 16
+    )
+    await hass.async_block_till_done()
+    assert calls == [{"entity_id": _VAC, "fan_speed": "turbo"}]
+
+
+async def test_per_room_live_noop_cases(hass, manager):
+    """[NR-9] no per_room_live_settings, unknown room, or missing field -> no call."""
+    clear_registry()
+    calls: list[dict] = []
+
+    async def _set_fan(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "set_fan_speed", _set_fan)
+    tracker = ActiveJobTracker(manager)
+
+    # No per_room_live_settings declared (Eufy).
+    register_adapter_config(_VAC, {"adapter_id": "eufy", "source": "code", "entities": {}})
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "max"}], 16)
+    # Declared, but the room isn't in resolved_rooms.
+    _live_fan_adapter()
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "max"}], 99)
+    # Declared + room found, but the field value is absent.
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16}], 16)
+    await hass.async_block_till_done()
+    assert calls == []
+
+
+async def test_per_room_live_skips_out_of_vocab(hass, manager):
+    """[NR-9] options_key skips a value the brand doesn't accept (the Eufy default
+    'Max') but pushes a valid in-vocabulary value ('max')."""
+    clear_registry()
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code", "entities": {},
+        "vocabulary": {"fan_speed_options": [{"value": "quiet"}, {"value": "max"}]},
+        "dispatch": {"per_room_live_settings": [
+            {"field": "fan_speed", "options_key": "fan_speed_options",
+             "service": {"domain": "vacuum", "service": "set_fan_speed",
+                         "value_key": "fan_speed"}},
+        ]},
+    })
+    calls: list[dict] = []
+
+    async def _set_fan(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "set_fan_speed", _set_fan)
+    tracker = ActiveJobTracker(manager)
+    # 'Max' (Eufy-shaped default) -> not in the Roborock vocabulary -> skipped.
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "Max"}], 16)
+    # 'max' (valid) -> pushed.
+    tracker.apply_per_room_live_settings(_VAC, [{"room_id": 16, "fan_speed": "max"}], 16)
+    await hass.async_block_till_done()
+    assert calls == [{"entity_id": _VAC, "fan_speed": "max"}]

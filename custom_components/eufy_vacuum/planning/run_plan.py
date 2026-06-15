@@ -654,6 +654,48 @@ class RunPlanManager:
         ).hexdigest()
         return digest[:12]
 
+    def _mop_carpet_warning(
+        self,
+        *,
+        vacuum_entity_id: str,
+        effective_rooms: dict[str, Any],
+        included_room_ids: list[int],
+    ) -> str | None:
+        """Return a caution string when a tank-driven mop will run over carpet.
+
+        Tank-based mops with no auto-lift (Roborock S6) wet-drag their pad over
+        every surface they cross, so an attached water tank + an included carpet
+        room means the run WILL mop that carpet whatever the room's vacuum-only
+        software setting says. Returns None for brands that declare no tank sensor
+        (``entities.mop_active``), when the tank isn't attached, or when no
+        included room is carpet.
+        """
+        mop_active_entity = (
+            (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {}) or {}
+        ).get("mop_active")
+        if not mop_active_entity:
+            return None
+        tank_state = self._manager.hass.states.get(mop_active_entity)
+        if tank_state is None or str(tank_state.state).strip().lower() != "on":
+            return None
+
+        carpet_names: list[str] = []
+        for room_id in included_room_ids:
+            room = effective_rooms.get(str(room_id))
+            if not isinstance(room, dict):
+                continue
+            if str(room.get("floor_type", "")).strip().lower().startswith("carpet"):
+                carpet_names.append(str(room.get("name") or f"Room {room_id}"))
+        if not carpet_names:
+            return None
+
+        rooms_label = ", ".join(carpet_names)
+        plural = "rooms" if len(carpet_names) > 1 else "room"
+        return (
+            f"The water tank is attached, so the mop will wet the carpet "
+            f"{plural}: {rooms_label}. Remove the tank to vacuum only."
+        )
+
     def _update_room_rule_status_snapshot(
         self,
         *,
@@ -1187,6 +1229,17 @@ class RunPlanManager:
                 "will be removed by blockers."
             )
 
+        # Carpet + water-tank caution: a tank-driven mop (Roborock S6) with no
+        # auto-lift wet-drags its pad across whatever it drives over. If the tank
+        # is physically attached AND an included room is carpet, the run will mop
+        # that carpet regardless of the room's vacuum-only software setting.
+        # Non-blocking advisory; only for brands that declare a tank sensor.
+        mop_carpet_warning = self._mop_carpet_warning(
+            vacuum_entity_id=vacuum_entity_id,
+            effective_rooms=effective_rooms,
+            included_room_ids=included_room_ids,
+        )
+
         preflight.update(
             {
                 "requires_confirmation": requires_confirmation,
@@ -1207,6 +1260,7 @@ class RunPlanManager:
                 "blocked_rooms": blocked_rooms,
                 "modified_rooms": modified_rooms,
                 "warnings": warnings,
+                "mop_carpet_warning": mop_carpet_warning,
             }
         )
         self._update_room_rule_status_snapshot(

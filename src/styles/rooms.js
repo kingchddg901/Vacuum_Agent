@@ -141,6 +141,19 @@ export const roomStyles = `
     line-height: 1.35;
   }
 
+  /* Non-blocking caution: a tank-driven mop will wet-drag carpet (Roborock S6
+     with the water tank attached + a carpet room in the run). */
+  .evcc-rooms-carpet-warning {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    background: color-mix(in srgb, var(--evcc-sem-warning, #f59e0b) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-sem-warning, #f59e0b) 40%, transparent);
+    color: var(--evcc-text-primary);
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
   .evcc-rooms-inline-actions {
     display: flex;
     align-items: center;

@@ -78,7 +78,8 @@ async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
     register_adapter_config(_VAC, {
         "adapter_id": "rb", "source": "code",
         "entities": {"mop_active": "binary_sensor.alfred_water_box_attached"},
-        "dispatch": {"passes_max": 3},
+        "dispatch": {"passes_max": 3, "passes_is_global": True},
+        "capabilities": {"supports_room_profiles": False},
     })
     try:
         hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
@@ -86,6 +87,9 @@ async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
         snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         assert snap["max_clean_passes"] == 3
         assert snap["mop_active"] is True
+        # S6-shaped: passes is one whole-run scalar; profiles section is hidden.
+        assert snap["passes_is_global"] is True
+        assert snap["supports_room_profiles"] is False
 
         hass.states.async_set("binary_sensor.alfred_water_box_attached", "off")
         await hass.async_block_till_done()
@@ -106,6 +110,9 @@ async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
         snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
         assert snap["mop_active"] is None
         assert snap["max_clean_passes"] == 2
+        # Eufy defaults: per-room passes + profiles section shown.
+        assert snap["passes_is_global"] is False
+        assert snap["supports_room_profiles"] is True
     finally:
         unregister_adapter_config(_VAC)
 

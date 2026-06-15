@@ -293,6 +293,16 @@ export function applyRoomsState(proto) {
     return null;
   };
 
+  /**
+   * Human-readable caution when a tank-driven mop (Roborock S6) will run over an
+   * included carpet room with the water tank attached. Null when not applicable
+   * (no tank sensor, tank detached, or no carpet in the run). Backend-computed.
+   */
+  proto.startMopCarpetWarning = function () {
+    const text = this.startPreflight()?.mop_carpet_warning;
+    return text ? String(text) : null;
+  };
+
   proto.setStartConfirmation = function (preflight = null, confirmToken = null) {
     this._startConfirmation = {
       preflight: preflight ?? this.startPreflight(),

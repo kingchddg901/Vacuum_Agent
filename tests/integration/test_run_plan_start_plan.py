@@ -21,6 +21,8 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
         unblocked target gets the change; no-entity/no-match/empty-changes skip.
 [SP-11] runtime path-block: a remaining room with its OWN blocker is directly
         blocked, while a reachable sibling propagates accessible and is not flagged.
+[SP-12] mop-carpet caution: an attached water tank + an included carpet room →
+        non-blocking warning; None when tank off / no carpet / no tank sensor.
 """
 
 from __future__ import annotations
@@ -329,3 +331,48 @@ def test_path_block_all_rooms_completed_returns_none(rp, hass, manager):
         vacuum_entity_id=_VAC, map_id="spm11c",
         trigger_entity_id="binary_sensor.win", trigger_entity_state="on")
     assert report is None
+
+
+def test_mop_carpet_warning(rp, hass):
+    """[SP-12] tank attached + an included carpet room -> a non-blocking caution
+    naming the room; None when the tank is off, no carpet room is included, or the
+    brand declares no tank sensor (Eufy)."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config,
+        unregister_adapter_config,
+    )
+
+    rp_, mgr = rp
+    rooms = _seed(mgr, "spm12", [
+        {"enabled": True, "floor_type": "carpet"},
+        {"enabled": True, "floor_type": "hardwood"},
+    ])
+    carpet_name = rooms["1"]["name"]
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"mop_active": "binary_sensor.tank"},
+    })
+    try:
+        # Tank attached -> the caution names the carpet room.
+        hass.states.async_set("binary_sensor.tank", "on")
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
+        assert pf["mop_carpet_warning"] is not None
+        assert carpet_name in pf["mop_carpet_warning"]
+
+        # Tank detached -> no caution.
+        hass.states.async_set("binary_sensor.tank", "off")
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
+        assert pf["mop_carpet_warning"] is None
+
+        # Tank attached but no carpet room in the run -> no caution.
+        set_room_field(mgr, 1, map_id="spm12", floor_type="hardwood")
+        hass.states.async_set("binary_sensor.tank", "on")
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
+        assert pf["mop_carpet_warning"] is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+    # No tank sensor declared (Eufy) -> never warns, even with a carpet room.
+    set_room_field(mgr, 1, map_id="spm12", floor_type="carpet")
+    pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
+    assert pf["mop_carpet_warning"] is None

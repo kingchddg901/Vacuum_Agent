@@ -3515,6 +3515,10 @@ class EufyVacuumManager:
         #   adapter declares no tank sensor (Eufy → card uses clean_mode instead).
         _dispatch_cfg = _adapter_cfg.get("dispatch", {}) or {}
         max_clean_passes = int(_dispatch_cfg.get("passes_max", 2) or 2)
+        # - passes_is_global: brands whose passes is one batch scalar for the whole
+        #   run (Roborock repeat) rather than per-room. The editor keeps per-room
+        #   passes chips but notes the strongest setting applies to the whole run.
+        passes_is_global = bool(_dispatch_cfg.get("passes_is_global", False))
         _mop_active_entity = (_adapter_cfg.get("entities", {}) or {}).get("mop_active")
         mop_active: bool | None = None
         if _mop_active_entity:
@@ -3523,6 +3527,14 @@ class EufyVacuumManager:
                 _mop_state is not None
                 and str(_mop_state.state).strip().lower() == "on"
             )
+
+        # - supports_room_profiles: reusable per-room profile presets bundle
+        #   several per-room fields. Brands that expose only one editable per-room
+        #   field (Roborock: fan; everything else global/unsettable) declare this
+        #   False so the editor hides the degenerate profiles section. Default True
+        #   keeps the Eufy editor unchanged.
+        _caps_cfg = _adapter_cfg.get("capabilities", {}) or {}
+        supports_room_profiles = bool(_caps_cfg.get("supports_room_profiles", True))
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3538,6 +3550,8 @@ class EufyVacuumManager:
             "adapter_vocabulary": adapter_vocabulary,
             "max_clean_passes": max_clean_passes,
             "mop_active": mop_active,
+            "supports_room_profiles": supports_room_profiles,
+            "passes_is_global": passes_is_global,
             "updated_at": _iso_now(),
         }
 
@@ -4115,6 +4129,16 @@ class EufyVacuumManager:
                     "completed_room_ids": active_job.get("completed_room_ids", []),
                 },
             )
+
+        # Set the first room's live per-room device settings (e.g. Roborock fan)
+        # at dispatch — a best-guess initial for the pre-signal window; the native
+        # current_room rollover corrects it to the device's actual first room once
+        # it reports. No-op for brands with no per_room_live_settings.
+        self.active_job.apply_per_room_live_settings(
+            vacuum_entity_id,
+            list(active_job.get("resolved_rooms", [])),
+            active_job.get("current_room_id"),
+        )
 
         runtime = self.ensure_runtime(vacuum_entity_id)
         runtime.selected_map_id = str(map_id)
