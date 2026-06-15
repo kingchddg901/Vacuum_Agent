@@ -123,3 +123,50 @@ async def test_unavailable_source_falls_back_to_stored(hass, manager):
         ],
     )
     assert out["segments"] == [16, 17]
+
+
+# --- params_as_list wire-shape contract -------------------------------------
+
+
+async def test_params_list_wrapped(hass, manager):
+    """[LID-5] params_as_list -> the payload is LIST-wrapped on the wire
+    (Roborock app_segment_clean wants params=[{segments,repeat}])."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "dispatch": {
+            "service_domain": "vacuum", "service_name": "send_command",
+            "command": "app_segment_clean", "params_as_list": True,
+        },
+    })
+    calls: list[dict] = []
+
+    async def _send(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "send_command", _send)
+    await manager._dispatch_clean_payload(
+        vacuum_entity_id=_VAC, payload={"segments": [16, 19], "repeat": 2}
+    )
+    assert calls[0]["command"] == "app_segment_clean"
+    assert calls[0]["params"] == [{"segments": [16, 19], "repeat": 2}]
+
+
+async def test_params_bare_dict_by_default(hass, manager):
+    """[LID-5] without params_as_list the payload is the bare dict (Eufy)."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": {
+            "service_domain": "vacuum", "service_name": "send_command",
+            "command": "room_clean",
+        },
+    })
+    calls: list[dict] = []
+
+    async def _send(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("vacuum", "send_command", _send)
+    await manager._dispatch_clean_payload(
+        vacuum_entity_id=_VAC, payload={"map_id": "1", "rooms": [{"id": 1}]}
+    )
+    assert calls[0]["params"] == {"map_id": "1", "rooms": [{"id": 1}]}

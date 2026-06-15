@@ -229,6 +229,11 @@ def register_roborock_adapter_for_vacuum(
             "rooms_field": "segments",
             "clean_passes_field": "repeat",
             "passes_max": 3,
+            # app_segment_clean wants params LIST-wrapped on the wire:
+            # params=[{segments:[...], repeat:n}] (confirmed on the device via a
+            # working Dev-Tools call + the HA Roborock docs). Without this the bare
+            # dict would reach the device and the clean would not start.
+            "params_as_list": True,
             # Segment ids RENUMBER on re-segment (identity = name slug), so the
             # framework re-resolves each target room's slug -> LIVE id from a fresh
             # get_maps right before send. A stored id could otherwise clean the

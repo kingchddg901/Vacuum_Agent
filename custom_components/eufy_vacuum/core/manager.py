@@ -3754,8 +3754,12 @@ class EufyVacuumManager:
         domain = cfg.get("service_domain", "vacuum")
         name = cfg.get("service_name", "send_command")
         command = cfg.get("command", "room_clean")
+        # Some brands wrap the params payload in a single-element list on the wire
+        # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others
+        # pass the bare dict (Eufy room_clean). Adapter-declared, default bare.
+        params = [payload] if cfg.get("params_as_list") else payload
         if command:
-            data = {"entity_id": vacuum_entity_id, "command": command, "params": payload}
+            data = {"entity_id": vacuum_entity_id, "command": command, "params": params}
         else:
             data = {"entity_id": vacuum_entity_id, **payload}
         await self.hass.services.async_call(domain, name, data, blocking=True)

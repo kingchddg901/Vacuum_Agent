@@ -887,6 +887,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Omit for templates that call the service directly."
                 ),
             },
+            "params_as_list": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "When True, the payload is wrapped in a single-element list on "
+                    "the wire: params=[payload] (Roborock app_segment_clean wants "
+                    "params=[{segments:[...],repeat:n}]). Default False = the bare "
+                    "payload dict (Eufy room_clean). Only applies to the "
+                    "command/params envelope (ignored for direct-merge templates)."
+                ),
+            },
             "map_id_field": {
                 "type": "str",
                 "required": False,

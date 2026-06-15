@@ -675,24 +675,29 @@ class ActiveJobTracker:
         """
         if active_job.get("status") != "started":
             return active_job
-        if current_room_id is None:
-            return active_job
 
         # Native current-room signal path (e.g. Roborock current_room): the device
         # reports the live room directly, so rollover FOLLOWS that signal (filtered
         # to job targets, matched by name slug, order-agnostic) instead of the
         # sequential timing/counter heuristic below. Gated by the adapter's
         # live_transition.native_transition_source (Eufy defaults False -> the
-        # whole block below is unchanged). Returns BEFORE the sequential
-        # unresolved-index guards, which do not apply to device-optimized order.
+        # block below is unchanged). Runs BEFORE the current_room_id None guard +
+        # the sequential unresolved-index guards (which don't apply to
+        # device-optimized order), and reads current_room_id STRAIGHT from
+        # active_job rather than the caller's value — the caller derives it from the
+        # learning timeline, which is empty before any learning data exists, but the
+        # native signal is independent of the timeline.
         if self._live_transition_config(vacuum_entity_id).get("native_transition_source"):
             return self._maybe_roll_current_room_by_native_signal(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=map_id,
                 active_job=active_job,
-                current_room_id=current_room_id,
+                current_room_id=active_job.get("current_room_id"),
                 current_room_elapsed_minutes=current_room_elapsed_minutes,
             )
+
+        if current_room_id is None:
+            return active_job
 
         unresolved_room_ids = [
             _safe_int(room.get("room_id", -1), -1)
