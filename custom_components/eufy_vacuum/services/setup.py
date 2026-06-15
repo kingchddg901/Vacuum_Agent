@@ -126,6 +126,19 @@ def register(hass: HomeAssistant) -> None:
                 manager, call.data["vacuum_entity_id"], "add_vacuum"
             )
             await manager.async_save()
+        # A genuinely NEW vacuum needs the per-vacuum wiring that only runs at
+        # async_setup_entry — brand adapter registration (auto-detects Roborock vs
+        # Eufy), companion entities, lifecycle listeners, and its sidebar panel.
+        # add_vacuum only records it + registers a panel; without a reload the new
+        # vacuum is half-wired (no adapter, no entities). Reload after the record
+        # is saved (same pattern as the options-flow update listener). Scheduled as
+        # a task so this service returns first.
+        if isinstance(result, dict) and result.get("status") == "success":
+            entries = hass.config_entries.async_entries(DOMAIN)
+            if entries:
+                hass.async_create_task(
+                    hass.config_entries.async_reload(entries[0].entry_id)
+                )
         return result
 
     async def setup_import_active_map(call: ServiceCall) -> dict:

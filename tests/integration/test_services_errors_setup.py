@@ -131,6 +131,59 @@ async def test_setup_add_vacuum(hass, manager_with_services, _no_panel):
     assert "add_vacuum" in steps
 
 
+def _capture_reloads(hass, monkeypatch) -> list[str]:
+    """Add a real DOMAIN config entry + mock only async_reload to record calls.
+
+    (Mocking async_entries itself breaks HA's internal cleanup, which calls it
+    with other signatures — so use a MockConfigEntry and leave async_entries real.)
+    """
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    MockConfigEntry(domain=DOMAIN, entry_id="entry1").add_to_hass(hass)
+
+    reload_calls: list[str] = []
+
+    async def _reload(entry_id):
+        reload_calls.append(entry_id)
+
+    monkeypatch.setattr(hass.config_entries, "async_reload", _reload)
+    return reload_calls
+
+
+async def test_setup_add_vacuum_reloads_to_wire_new(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-4b] A newly-added vacuum schedules a config-entry reload — the only
+    path that wires its adapter / entities / listeners / panel (async_setup_entry).
+    Without it the second vacuum is half-wired (recorded but not functional)."""
+    reload_calls = _capture_reloads(hass, monkeypatch)
+    hass.states.async_set(_VAC, "docked")
+
+    result = await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
+    await hass.async_block_till_done()  # run the scheduled reload task
+
+    assert result["status"] == "success"
+    assert reload_calls == ["entry1"]
+
+
+async def test_setup_add_vacuum_already_managed_no_reload(
+    hass, manager_with_services, _no_panel, monkeypatch
+):
+    """[SVS-4b] Re-adding an already-managed vacuum does NOT reload (no churn)."""
+    reload_calls = _capture_reloads(hass, monkeypatch)
+    hass.states.async_set(_VAC, "docked")
+
+    await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
+    await hass.async_block_till_done()
+    reload_calls.clear()
+
+    result = await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
+    await hass.async_block_till_done()
+
+    assert result["status"] == "already_done"
+    assert reload_calls == []
+
+
 async def test_setup_import_active_map(hass, manager_with_services, _no_panel):
     """[SVS-8] import_active_map service discovers + saves the active map."""
     register_adapter_config(_VAC, {
