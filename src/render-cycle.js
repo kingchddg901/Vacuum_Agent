@@ -31,6 +31,25 @@ export const VIEW_ORDER = [
   VIEWS.SETUP,
 ];
 
+/**
+ * Whether a view's nav TAB should be shown for the active adapter. Capability-
+ * gated via the dashboard snapshot (default true = show, so Eufy and older
+ * backends are unaffected). The view ROOT still exists in VIEW_ORDER — only the
+ * tab button is hidden — so the view stays routable internally (mirrors how
+ * MAP_CONFIG is rendered without a tab). The single source of truth shared by the
+ * desktop header, the mobile shell, and the active/persisted-view fallback so the
+ * three never drift.
+ *
+ * @param {string} view - a VIEWS.* value.
+ * @param {object|null|undefined} state - VacuumCardState (carries the snapshot).
+ * @returns {boolean}
+ */
+export function isViewAvailable(view, state) {
+  if (view === VIEWS.BASE_STATION) return state?.supportsBaseStation?.() !== false;
+  if (view === VIEWS.MAPPING_REVIEW) return state?.supportsMapBounds?.() !== false;
+  return true;
+}
+
 /* =========================================================
    CONTEXT
    ========================================================= */
@@ -122,7 +141,7 @@ function getDockStatusClass(dockStatus) {
  * @returns {string} HTML string
  */
 export function renderHeader(ctx) {
-  const { renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
+  const { state, renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
           dockStatus, dockStatusLabel, battery, view } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
@@ -175,10 +194,12 @@ export function renderHeader(ctx) {
         Maintenance
       </button>
 
+      ${isViewAvailable(VIEWS.BASE_STATION, state) ? `
       <button class="evcc-nav-tab ${view === VIEWS.BASE_STATION ? "active" : ""}"
               data-view="${VIEWS.BASE_STATION}">
         Base Station
       </button>
+      ` : ""}
 
       <button class="evcc-nav-tab ${view === VIEWS.METRICS ? "active" : ""}"
               data-view="${VIEWS.METRICS}">
@@ -200,10 +221,12 @@ export function renderHeader(ctx) {
         Theme
       </button>
 
+      ${isViewAvailable(VIEWS.MAPPING_REVIEW, state) ? `
       <button class="evcc-nav-tab ${view === VIEWS.MAPPING_REVIEW ? "active" : ""}"
               data-view="${VIEWS.MAPPING_REVIEW}">
         Map Bounds
       </button>
+      ` : ""}
 
       <button class="evcc-nav-tab ${view === VIEWS.SETUP ? "active" : ""}"
               data-view="${VIEWS.SETUP}">

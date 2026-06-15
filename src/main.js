@@ -6,7 +6,7 @@ import { VacuumCardRenderers }                from "./renderers/index.js";
 import { VacuumCardBindings }                 from "./bindings/index.js";
 import { VacuumCardActions }                  from "./actions/index.js";
 import { applyCardDomHelpers }                from "./bindings/core.js";
-import { buildRenderContext, renderHeader, renderView, VIEW_ORDER, VIEWS } from "./render-cycle.js";
+import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
 
@@ -426,12 +426,24 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (stored === this._view) return;
     if (!Object.values(VIEWS).includes(stored)) return;
     if (stored === VIEWS.MAPPING_ARCHIVE) return; // legacy, always rerouted to Rooms
+    // Don't restore a capability-gated tab the active adapter doesn't show
+    // (e.g. a stored Base Station / Map Bounds on a no-dock/no-CV vacuum). If the
+    // snapshot hasn't loaded yet, isViewAvailable defaults true and the render
+    // path's fallback re-corrects once capabilities arrive.
+    if (!isViewAvailable(stored, this._state)) return;
     this._view = stored;
     this._scheduleRender();
   }
 
   setView(view) {
     if (view === VIEWS.MAPPING_ARCHIVE) {
+      view = VIEWS.ROOMS;
+    }
+
+    // Never switch to a capability-gated tab the adapter doesn't show — closes
+    // the programmatic back-door (a hidden view would otherwise fire its
+    // capability-specific refresh schedulers against an adapter that lacks it).
+    if (!isViewAvailable(view, this._state)) {
       view = VIEWS.ROOMS;
     }
 
@@ -949,6 +961,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._state.setViewportFromWidth?.(this._measureCardWidth());
     }
 
+    // If the active view's tab is no longer available for this adapter (a
+    // capability-gated tab the user was on, or a persisted view that slipped
+    // through restore before the snapshot landed), fall back to Rooms so the
+    // user never sits on a view whose tab is hidden. Snapshot-driven, so this
+    // self-corrects on the next render once capabilities arrive.
+    if (!isViewAvailable(this._view ?? VIEWS.ROOMS, this._state)) {
+      this._view = VIEWS.ROOMS;
+    }
+
     const ctx = buildRenderContext(this);
     const focusSnapshot = this._captureShadowFocusState();
     const scrollSnapshot = this._captureShadowScrollState();
@@ -981,7 +1002,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // overlay. Empty strings on desktop so the regions exist but
     // render nothing.
     const bottomNavHtml = isMobile
-      ? this._renderers.renderMobileBottomNav?.(ctx.view) ?? ""
+      ? this._renderers.renderMobileBottomNav?.(ctx) ?? ""
       : "";
     const mobileOverlayHtml = isMobile
       ? this._renderers.renderMobileOverlay?.(ctx) ?? ""

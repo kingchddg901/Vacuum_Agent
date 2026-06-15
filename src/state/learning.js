@@ -193,6 +193,28 @@ export function applyLearningState(proto) {
     return this.dashboardSnapshot()?.upkeep ?? null;
   };
 
+  /* ---- tab-gating capabilities (default true = show, Eufy-safe) ---- */
+
+  /**
+   * Whether this vacuum has a dock / Base Station (gates the Base Station tab).
+   * Default true so a snapshot missing the key (Eufy or an older backend) keeps
+   * the tab; only an adapter that reports false (Roborock S6, no dock) hides it.
+   */
+  proto.supportsBaseStation = function () {
+    const v = this.dashboardSnapshot()?.supports_base_station;
+    return v === undefined || v === null ? true : Boolean(v);
+  };
+
+  /**
+   * Whether this brand uses the CV map-bounds review (gates the Map Bounds tab).
+   * Default true (Eufy / older backend); false for native-segment brands with no
+   * CV segmenter (Roborock S6).
+   */
+  proto.supportsMapBounds = function () {
+    const v = this.dashboardSnapshot()?.supports_map_bounds;
+    return v === undefined || v === null ? true : Boolean(v);
+  };
+
   /**
    * Adapter-declared vocabulary surface from the dashboard snapshot.
    * Contains the option lists the card's room editor and rule editor

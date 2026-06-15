@@ -3536,6 +3536,34 @@ class EufyVacuumManager:
         _caps_cfg = _adapter_cfg.get("capabilities", {}) or {}
         supports_room_profiles = bool(_caps_cfg.get("supports_room_profiles", True))
 
+        # Tab-gating capability hints (the card hides a whole nav tab when False):
+        # - supports_base_station: the vacuum has a dock/Base Station — True when
+        #   the adapter declares an enabled dock_events block OR any station/wash/
+        #   dry/empty capability. Eufy (X10 dock) True; Roborock S6 (no dock) False.
+        # - supports_map_bounds: the brand uses the CV map-bounds review (per-room
+        #   coordinate bounds). Gated on the STATIC segmenter engine declaration —
+        #   a real (non-noop) engine means this adapter does CV map segmentation
+        #   (Eufy "eufy_cv_v1"); "noop_fallback" means native segments / no CV
+        #   (Roborock). Deliberately NOT gated on the runtime-detected
+        #   supports_robot_position so a detection blip can never hide the tab for
+        #   Eufy — the engine name is hardcoded per adapter, so it's deterministic.
+        # Both default to SHOWN: a snapshot missing the key keeps the tab (Eufy +
+        # older-backend safe); only an adapter that resolves False hides the tab.
+        _dock_events_cfg = _adapter_cfg.get("dock_events", {}) or {}
+        supports_base_station = bool(_dock_events_cfg.get("enabled")) or any(
+            bool(_caps_cfg.get(_k))
+            for _k in (
+                "supports_mop_wash",
+                "supports_mop_dry",
+                "supports_empty_dust",
+                "supports_station_water",
+            )
+        )
+        _segmenter_engine = (_adapter_cfg.get("mapping", {}) or {}).get("segmenter_engine")
+        supports_map_bounds = bool(
+            _segmenter_engine and _segmenter_engine != "noop_fallback"
+        )
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -3552,6 +3580,8 @@ class EufyVacuumManager:
             "mop_active": mop_active,
             "supports_room_profiles": supports_room_profiles,
             "passes_is_global": passes_is_global,
+            "supports_base_station": supports_base_station,
+            "supports_map_bounds": supports_map_bounds,
             "updated_at": _iso_now(),
         }
 

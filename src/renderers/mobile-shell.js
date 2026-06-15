@@ -38,7 +38,7 @@
  * surfaces touched rarely.
  */
 
-import { VIEWS } from "../render-cycle.js";
+import { VIEWS, isViewAvailable } from "../render-cycle.js";
 
 /* =========================================================
    TAB CONFIGURATION
@@ -164,12 +164,17 @@ export function applyMobileShellRenderer(proto) {
    * overflow sheet. Tabs are equal-width via flex:1, with icons +
    * short labels stacked vertically for thumb-friendly targets.
    */
-  proto.renderMobileBottomNav = function (activeView) {
+  proto.renderMobileBottomNav = function (ctx) {
+    const activeView = ctx?.view;
+    const state = ctx?.state;
+    // Capability-gate the primary tabs (e.g. drop "Dock"/Base Station on a
+    // no-dock adapter) — same source of truth as the desktop header.
+    const primaryTabs = PRIMARY_MOBILE_TABS.filter((t) => isViewAvailable(t.id, state));
     const overflowActive = OVERFLOW_MOBILE_TABS.some((t) => t.id === activeView);
 
     return `
       <nav class="evcc-mobile-nav" aria-label="Primary">
-        ${PRIMARY_MOBILE_TABS.map((tab) => `
+        ${primaryTabs.map((tab) => `
           <button
             class="evcc-mobile-nav-tab${activeView === tab.id ? " active" : ""}"
             data-view="${tab.id}"
@@ -201,6 +206,9 @@ export function applyMobileShellRenderer(proto) {
   proto.renderMobileOverlay = function (ctx) {
     if (!ctx.card?._mobileMoreOpen) return "";
     const activeView = ctx.view;
+    // Capability-gate the overflow tabs (e.g. drop "Map Bounds" on a no-CV
+    // adapter) — same source of truth as the desktop header.
+    const overflowTabs = OVERFLOW_MOBILE_TABS.filter((t) => isViewAvailable(t.id, ctx.state));
 
     return `
       <div class="evcc-mobile-more-backdrop"
@@ -210,7 +218,7 @@ export function applyMobileShellRenderer(proto) {
            role="menu"
            aria-label="Additional views">
         <div class="evcc-mobile-more-handle"></div>
-        ${OVERFLOW_MOBILE_TABS.map((tab) => `
+        ${overflowTabs.map((tab) => `
           <button
             class="evcc-mobile-more-item${activeView === tab.id ? " active" : ""}"
             data-view="${tab.id}"

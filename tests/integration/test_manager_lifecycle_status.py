@@ -80,6 +80,8 @@ async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
         "entities": {"mop_active": "binary_sensor.alfred_water_box_attached"},
         "dispatch": {"passes_max": 3, "passes_is_global": True},
         "capabilities": {"supports_room_profiles": False},
+        # S6 shape: no dock_events + noop segmenter -> no Base Station / Map Bounds.
+        "mapping": {"segmenter_engine": "noop_fallback"},
     })
     try:
         hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
@@ -90,6 +92,9 @@ async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
         # S6-shaped: passes is one whole-run scalar; profiles section is hidden.
         assert snap["passes_is_global"] is True
         assert snap["supports_room_profiles"] is False
+        # No dock, no CV map -> both tabs hidden.
+        assert snap["supports_base_station"] is False
+        assert snap["supports_map_bounds"] is False
 
         hass.states.async_set("binary_sensor.alfred_water_box_attached", "off")
         await hass.async_block_till_done()
@@ -113,8 +118,48 @@ async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
         # Eufy defaults: per-room passes + profiles section shown.
         assert snap["passes_is_global"] is False
         assert snap["supports_room_profiles"] is True
+        # Default-REJECT: a bare adapter declares no dock_events + no segmenter,
+        # so both tab flags resolve False (NOT hardcoded on). The REAL Eufy
+        # adapter declares dock_events.enabled + segmenter_engine="eufy_cv_v1" ->
+        # both True (covered by test_dashboard_snapshot_tab_capabilities below).
+        assert snap["supports_base_station"] is False
+        assert snap["supports_map_bounds"] is False
     finally:
         unregister_adapter_config(_VAC)
+
+
+async def test_dashboard_snapshot_tab_capabilities(manager, hass):
+    """[LS-8] supports_base_station / supports_map_bounds drive whether the card
+    shows the Base Station + Map Bounds tabs. Cover every derivation branch."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    def _snap(cfg):
+        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        try:
+            return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        finally:
+            unregister_adapter_config(_VAC)
+
+    # Dock + CV (the Eufy shape) -> both tabs shown.
+    s = _snap({
+        "dock_events": {"enabled": True},
+        "mapping": {"segmenter_engine": "eufy_cv_v1"},
+    })
+    assert s["supports_base_station"] is True
+    assert s["supports_map_bounds"] is True
+
+    # No dock_events but a station/wash/dry/empty capability -> Base Station shown
+    # via the capability OR-branch.
+    assert _snap({"capabilities": {"supports_station_water": True}})["supports_base_station"] is True
+    assert _snap({"capabilities": {"supports_mop_wash": True}})["supports_base_station"] is True
+
+    # dock_events present but disabled + no dock caps -> hidden.
+    assert _snap({"dock_events": {"enabled": False}})["supports_base_station"] is False
+
+    # noop segmenter (native segments) -> Map Bounds hidden; a real engine -> shown.
+    assert _snap({"mapping": {"segmenter_engine": "noop_fallback"}})["supports_map_bounds"] is False
+    assert _snap({"mapping": {"segmenter_engine": "eufy_cv_v1"}})["supports_map_bounds"] is True
 
 
 class _FakeErrorTracker:
