@@ -3838,6 +3838,70 @@ class EufyVacuumManager:
             return payload
         return {**payload, rooms_field: new_segments}
 
+    async def _run_global_pre_calls(
+        self,
+        *,
+        vacuum_entity_id: str,
+        resolved_rooms: list[dict[str, Any]],
+    ) -> None:
+        """Push global device settings (fan/mop) before an atomic dispatch.
+
+        Some brands expose fan/water only as GLOBAL device settings, not per-room
+        payload fields (Roborock ``app_segment_clean`` carries passes only). For
+        each adapter-declared ``dispatch.global_pre_calls`` entry, pick the run
+        value from the selected rooms' canonical field by the entry's ``rank``
+        (max-wins: the strongest request applies to the whole run, mirroring the
+        batch-passes max rule), map it to the wire value, and call the entry's
+        service. Rooms whose value isn't in the rank are ignored; if NONE rank,
+        the setting is left as the device currently has it (the run still
+        proceeds). Best-effort — a failed pre-call is logged, never aborts the run.
+
+        Entry shape::
+
+            {"field": "fan_speed",
+             "rank": ["gentle","quiet","balanced","turbo","max"],  # ascending
+             "service": {"domain": "vacuum", "service": "set_fan_speed",
+                         "value_key": "fan_speed",
+                         "target_entity_id": <full id>},   # default: the vacuum
+             "value_map": {canonical: wire, ...}}           # optional, identity if absent
+        """
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        for entry in cfg.get("global_pre_calls") or []:
+            field = entry.get("field")
+            rank = [str(v).strip().lower() for v in (entry.get("rank") or [])]
+            service = entry.get("service") or {}
+            domain = service.get("domain")
+            service_name = service.get("service")
+            value_key = service.get("value_key")
+            if not (field and rank and domain and service_name and value_key):
+                continue
+
+            best_index = -1
+            for room in resolved_rooms:
+                value = str(room.get(field) or "").strip().lower()
+                if value in rank:
+                    best_index = max(best_index, rank.index(value))
+            if best_index < 0:
+                continue  # nothing rankable -> leave the global setting untouched
+
+            wire_value = rank[best_index]
+            value_map = entry.get("value_map") or {}
+            wire_value = value_map.get(wire_value, wire_value)
+
+            target_entity = service.get("target_entity_id") or vacuum_entity_id
+            try:
+                await self.hass.services.async_call(
+                    domain,
+                    service_name,
+                    {"entity_id": target_entity, value_key: wire_value},
+                    blocking=True,
+                )
+            except Exception:  # pragma: no cover - best-effort global pre-call
+                _LOGGER.exception(
+                    "global pre-call %s.%s failed for %s",
+                    domain, service_name, vacuum_entity_id,
+                )
+
     async def maybe_advance_phase(
         self,
         *,
@@ -3944,6 +4008,15 @@ class EufyVacuumManager:
         started_at = _iso_now()
         battery_start = self._get_battery_level(vacuum_entity_id)
         job_id = self._generate_job_id()
+
+        # Push global device settings (fan/mop) for brands that expose them only
+        # globally (Roborock: per-room fan/water can't ride app_segment_clean),
+        # derived max-wins from the selected rooms. No-op when no adapter declares
+        # dispatch.global_pre_calls (e.g. Eufy, which carries fan/water per-room).
+        await self._run_global_pre_calls(
+            vacuum_entity_id=vacuum_entity_id,
+            resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+        )
 
         # Resolve slug -> LIVE segment id for brands whose ids renumber on
         # re-segment (Roborock), so the right room is cleaned regardless of any

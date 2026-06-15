@@ -30,6 +30,7 @@ from .entities import (
     SUFFIX_TASK_STATUS,
     SUFFIX_ACTIVE_CLEANING_TARGET,
     SUFFIX_ACTIVE_MAP,
+    SUFFIX_MOP_INTENSITY,
     SUFFIX_CLEANING_TIME,
     SUFFIX_CLEANING_AREA,
     SUFFIX_BATTERY,
@@ -234,6 +235,40 @@ def register_roborock_adapter_for_vacuum(
             # wrong room after a map edit. Cleaning correctness is decoupled from
             # the identity-reconciliation review (which is about data attribution).
             "resolve_live_ids_by_slug": True,
+            # GLOBAL fan + mop pre-call: per-room fan/water can't ride
+            # app_segment_clean (passes only), AND the S6 app stores NO per-room
+            # settings on the map (user-confirmed 2026-06-15) — so global is the
+            # FINAL design for this model, not an interim compromise. Before
+            # dispatch the framework pushes ONE global fan + mop value, max-wins
+            # across the selected rooms (strongest request applies — mirrors the
+            # batch-passes max rule). Fan rank is ascending SUCTION (device list
+            # order puts gentle last, but it is the weakest), so it's spelled out
+            # explicitly. water_level maps 1:1 to the mop_intensity select (no
+            # value_map). mop_mode (standard/deep) has no per-room source -> left
+            # as the device has it.
+            "global_pre_calls": [
+                {
+                    "field": "fan_speed",
+                    "rank": ["gentle", "quiet", "balanced", "turbo", "max"],
+                    "service": {
+                        "domain": "vacuum",
+                        "service": "set_fan_speed",
+                        "value_key": "fan_speed",
+                    },
+                },
+                {
+                    "field": "water_level",
+                    "rank": ["off", "low", "medium", "high"],
+                    "service": {
+                        "domain": "select",
+                        "service": "select_option",
+                        "value_key": "option",
+                        "target_entity_id": build_entity_id(
+                            vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT
+                        ),
+                    },
+                },
+            ],
         },
 
         "discovery": {
@@ -319,9 +354,8 @@ def register_roborock_adapter_for_vacuum(
         # Wave 2a: "discovery" (get_maps service source + active_map) + identity
         # reconciliation. Wave 2b: dispatch.resolve_live_ids_by_slug (live name->id
         # at send) + completion.require_job_active_clear (finalize on the cleaning
-        # binary, not current_room). DEFERRED: fan/mop GLOBAL send-side pre-call
-        # (per-room fan/water can't ride app_segment_clean; global value-selection
-        # for a multi-room run pending app-storage inspection).
+        # binary, not current_room) + dispatch.global_pre_calls (max-wins GLOBAL
+        # fan + mop pre-call). DEFERRED to Wave 3: native current_room live rollover.
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
         #   settings_selects, room_profiles, anomaly, live_transition.

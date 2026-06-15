@@ -941,6 +941,63 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "falls back to the stored ids. Default: False (use stored ids)."
                 ),
             },
+            "global_pre_calls": {
+                "type": "list[dict]",
+                "required": False,
+                "description": (
+                    "Global device settings pushed once before an atomic dispatch, "
+                    "for brands that expose fan/water only globally (Roborock: "
+                    "app_segment_clean carries passes only, fan/mop are device-wide). "
+                    "Each entry picks the run value from the selected rooms' canonical "
+                    "field by max-wins over 'rank' (strongest request applies — mirrors "
+                    "the batch-passes max rule), maps it via optional 'value_map', and "
+                    "calls 'service'. Rooms whose value isn't in 'rank' are ignored; if "
+                    "none rank, the setting is left untouched. Best-effort (a failed "
+                    "pre-call never aborts the run). Absent = no pre-call (Eufy carries "
+                    "fan/water per-room)."
+                ),
+                "entry_fields": {
+                    "field": {
+                        "type": "str",
+                        "required": True,
+                        "description": (
+                            "Canonical per-room field to read (e.g. 'fan_speed', "
+                            "'water_level')."
+                        ),
+                    },
+                    "rank": {
+                        "type": "list[str]",
+                        "required": True,
+                        "description": (
+                            "Allowed values in ASCENDING order; max-wins picks the "
+                            "highest present across the selected rooms. Doubles as the "
+                            "valid-value set (unrecognized room values are ignored). "
+                            "Example fan: ['gentle','quiet','balanced','turbo','max']."
+                        ),
+                    },
+                    "service": {
+                        "type": "dict",
+                        "required": True,
+                        "description": (
+                            "{'domain', 'service', 'value_key', optional "
+                            "'target_entity_id'}. The service is called with "
+                            "{entity_id: target_entity_id or the vacuum, "
+                            "value_key: <wire value>}. Example: vacuum.set_fan_speed "
+                            "with value_key='fan_speed'; select.select_option targeting "
+                            "the mop-intensity select with value_key='option'."
+                        ),
+                    },
+                    "value_map": {
+                        "type": "dict[str, Any] | null",
+                        "required": False,
+                        "description": (
+                            "Optional canonical->wire value map. Identity passthrough "
+                            "when absent (Roborock fan/water values already match the "
+                            "wire)."
+                        ),
+                    },
+                },
+            },
             "room_fields": {
                 "type": "dict[str, dict]",
                 "required": False,

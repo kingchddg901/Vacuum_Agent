@@ -20,6 +20,7 @@ from __future__ import annotations
 SUFFIX_TASK_STATUS = "_status"                   # sensor — enum lifecycle string
 SUFFIX_ACTIVE_CLEANING_TARGET = "_current_room"  # sensor — native live-room (segment cleans only)
 SUFFIX_ACTIVE_MAP = "_selected_map"              # select — multi-map pointer / map identity
+SUFFIX_MOP_INTENSITY = "_mop_intensity"          # select — GLOBAL water level (off/low/medium/high)
 SUFFIX_CLEANING_TIME = "_cleaning_time"          # sensor — per-run minutes
 SUFFIX_CLEANING_AREA = "_cleaning_area"          # sensor — per-run m2
 SUFFIX_BATTERY = "_battery"                      # sensor (BATTERY feature bit unset -> this sensor is mandatory)

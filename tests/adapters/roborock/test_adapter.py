@@ -154,6 +154,18 @@ def test_dispatch(s6_config):
     assert d["resolve_live_ids_by_slug"] is True
 
 
+def test_global_pre_calls(s6_config):
+    # Wave 2b: fan + mop are GLOBAL on Roborock -> max-wins pre-call before dispatch.
+    pre = {p["field"]: p for p in s6_config["dispatch"]["global_pre_calls"]}
+    assert set(pre) == {"fan_speed", "water_level"}
+    # Fan rank is ascending SUCTION (gentle weakest, max strongest).
+    assert pre["fan_speed"]["rank"] == ["gentle", "quiet", "balanced", "turbo", "max"]
+    assert pre["fan_speed"]["service"]["service"] == "set_fan_speed"
+    # water -> the mop-intensity select.
+    assert pre["water_level"]["service"]["target_entity_id"] == "select.ivy_mop_intensity"
+    assert pre["water_level"]["service"]["service"] == "select_option"
+
+
 def test_completion_keys_on_job_active(s6_config):
     # Wave 2b: current_room reverts to the dock room (never a sentinel), so
     # completion keys on the cleaning binary clearing, not a current_room sentinel.
