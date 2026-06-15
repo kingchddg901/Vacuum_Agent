@@ -696,6 +696,34 @@ class RunPlanManager:
             f"{plural}: {rooms_label}. Remove the tank to vacuum only."
         )
 
+    def _order_advisory(
+        self,
+        *,
+        vacuum_entity_id: str,
+        included_room_ids: list[int],
+    ) -> str | None:
+        """Return a note when this brand doesn't honor the card's room order.
+
+        Some brands path-optimize and ignore the dispatched order (Roborock
+        ``app_segment_clean``) unless an order is saved in the vacuum's own app —
+        so the card's queue order is advisory. Surfaced at run start (non-blocking)
+        for those brands when 2+ rooms will run. Returns None for brands that
+        honor order (``capabilities.honors_clean_order`` defaults True — Eufy) or
+        a single-room run (order is moot).
+        """
+        honors = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("capabilities", {})
+            .get("honors_clean_order", True)
+        )
+        if honors or len(included_room_ids) < 2:
+            return None
+        return (
+            "Cleaning order shown here is advisory: this vacuum cleans rooms in "
+            "the order saved in its own app (set a cleaning Sequence there to "
+            "enforce it) or optimizes the path itself."
+        )
+
     def _update_room_rule_status_snapshot(
         self,
         *,
@@ -1240,6 +1268,15 @@ class RunPlanManager:
             included_room_ids=included_room_ids,
         )
 
+        # Clean-order advisory: some brands don't honor the queue order — the
+        # device path-optimizes (Roborock app_segment_clean) unless an order is
+        # set in the vacuum's own app. For those, the card's order is advisory, so
+        # surface that at run start. Non-blocking; only when 2+ rooms will run.
+        order_advisory = self._order_advisory(
+            vacuum_entity_id=vacuum_entity_id,
+            included_room_ids=included_room_ids,
+        )
+
         preflight.update(
             {
                 "requires_confirmation": requires_confirmation,
@@ -1261,6 +1298,7 @@ class RunPlanManager:
                 "modified_rooms": modified_rooms,
                 "warnings": warnings,
                 "mop_carpet_warning": mop_carpet_warning,
+                "order_advisory": order_advisory,
             }
         )
         self._update_room_rule_status_snapshot(

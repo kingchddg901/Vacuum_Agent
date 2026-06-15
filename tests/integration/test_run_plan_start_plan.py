@@ -23,6 +23,8 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
         blocked, while a reachable sibling propagates accessible and is not flagged.
 [SP-12] mop-carpet caution: an attached water tank + an included carpet room →
         non-blocking warning; None when tank off / no carpet / no tank sensor.
+[SP-13] order advisory: a path-optimizing brand (honors_clean_order False) with
+        2+ rooms → advisory; None when order is honored or one room runs.
 """
 
 from __future__ import annotations
@@ -376,3 +378,38 @@ def test_mop_carpet_warning(rp, hass):
     set_room_field(mgr, 1, map_id="spm12", floor_type="carpet")
     pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm12")["preflight"]
     assert pf["mop_carpet_warning"] is None
+
+
+def test_order_advisory(rp):
+    """[SP-13] order_advisory surfaces for a path-optimizing brand (honors_clean_order
+    False) with 2+ included rooms; None when order is honored (default) or one room
+    runs."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config,
+        unregister_adapter_config,
+    )
+
+    rp_, mgr = rp
+    try:
+        # Default (no capability declared) -> honored -> no advisory (default-REJECT).
+        register_adapter_config(_VAC, {
+            "adapter_id": "e", "source": "code", "capabilities": {}})
+        _seed(mgr, "spm13a", [{"enabled": True}, {"enabled": True}])
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13a")["preflight"]
+        assert pf["order_advisory"] is None
+
+        # Path-optimizing brand + 2 rooms -> advisory.
+        register_adapter_config(_VAC, {
+            "adapter_id": "rb", "source": "code",
+            "capabilities": {"honors_clean_order": False}})
+        _seed(mgr, "spm13b", [{"enabled": True}, {"enabled": True}])
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13b")["preflight"]
+        assert pf["order_advisory"] is not None
+        assert "advisory" in pf["order_advisory"].lower()
+
+        # Path-optimizing but only ONE included room -> order is moot -> None.
+        _seed(mgr, "spm13c", [{"enabled": True}, {"enabled": False}])
+        pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13c")["preflight"]
+        assert pf["order_advisory"] is None
+    finally:
+        unregister_adapter_config(_VAC)

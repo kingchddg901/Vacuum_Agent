@@ -154,6 +154,18 @@ export const roomStyles = `
     line-height: 1.35;
   }
 
+  /* Informational (not an alert): order is advisory on path-optimizing brands. */
+  .evcc-rooms-order-advisory {
+    margin-top: 6px;
+    padding: 7px 10px;
+    border-radius: var(--evcc-radius-inner, 8px);
+    background: color-mix(in srgb, var(--evcc-text-muted) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-text-muted) 20%, transparent);
+    color: var(--evcc-text-muted);
+    font-size: 0.78rem;
+    line-height: 1.4;
+  }
+
   .evcc-rooms-inline-actions {
     display: flex;
     align-items: center;

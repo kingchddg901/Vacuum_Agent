@@ -388,6 +388,7 @@ proto.renderRoomsActionBar = function (
     : [];
 
   const mopCarpetWarning = cardState?.startMopCarpetWarning?.() ?? null;
+  const orderAdvisory = cardState?.startOrderAdvisory?.() ?? null;
 
   return `
     <div class="evcc-rooms-action-bar">
@@ -448,6 +449,12 @@ proto.renderRoomsActionBar = function (
       ${mopCarpetWarning ? `
         <div class="evcc-rooms-carpet-warning" role="alert">
           ⚠ ${this.escapeHtml(mopCarpetWarning)}
+        </div>
+      ` : ""}
+
+      ${orderAdvisory ? `
+        <div class="evcc-rooms-order-advisory">
+          ${this.escapeHtml(orderAdvisory)}
         </div>
       ` : ""}
 

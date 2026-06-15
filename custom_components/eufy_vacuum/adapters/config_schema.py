@@ -1112,6 +1112,27 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
             "supports_station_water": {"type": "bool", "required": False},
             "position_lock_reliable": {"type": "bool", "required": False},
             "rooms_unique_per_job": {"type": "bool", "required": False},
+            "supports_room_profiles": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "Whether the card shows the reusable room-PROFILES section. "
+                    "Default True. Set False for brands with a single editable "
+                    "per-room field (Roborock: fan only), where a profile would be "
+                    "degenerate — the editor hides the section."
+                ),
+            },
+            "honors_clean_order": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "Whether the device cleans rooms in the dispatched queue order. "
+                    "Default True (Eufy send_command). Set False for brands that "
+                    "path-optimize and ignore the order (Roborock app_segment_clean, "
+                    "unless an order is set in the vacuum's app) — the card surfaces "
+                    "an 'order is advisory' note at run start."
+                ),
+            },
         },
     },
 

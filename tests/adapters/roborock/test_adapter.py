@@ -207,6 +207,8 @@ def test_no_dock(s6_config):
     assert caps["supports_mop_features"] is True
     # Only per-room field is fan -> reusable profiles would be degenerate; hide.
     assert caps["supports_room_profiles"] is False
+    # app_segment_clean path-optimizes -> order is advisory (run-start note).
+    assert caps["honors_clean_order"] is False
     # Mops (tank) but the mop is NOT programmatically controllable on the S6
     # (SET_WATER_BOX_CUSTOM_MODE unsupported) -> no settable water control.
     assert caps["supports_water_control"] is False

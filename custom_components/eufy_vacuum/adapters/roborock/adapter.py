@@ -372,6 +372,11 @@ def register_roborock_adapter_for_vacuum(
             # (everything else is global/unsettable), so a "profile" would be a
             # degenerate named fan speed — hide the profiles section entirely.
             "supports_room_profiles": False,
+            # app_segment_clean path-optimizes and IGNORES the dispatched order
+            # (confirmed on-device): order is honored only when set as a Sequence
+            # in the Roborock app. So the card's queue order is advisory — surfaced
+            # at run start. (Eufy honors order via send_command -> default True.)
+            "honors_clean_order": False,
         },
 
         "maintenance_components": {

@@ -303,6 +303,16 @@ export function applyRoomsState(proto) {
     return text ? String(text) : null;
   };
 
+  /**
+   * Informational note when this vacuum doesn't honor the card's room order
+   * (Roborock path-optimizes app_segment_clean unless an order is set in its
+   * app). Null when order is honored or a single room runs. Backend-computed.
+   */
+  proto.startOrderAdvisory = function () {
+    const text = this.startPreflight()?.order_advisory;
+    return text ? String(text) : null;
+  };
+
   proto.setStartConfirmation = function (preflight = null, confirmToken = null) {
     this._startConfirmation = {
       preflight: preflight ?? this.startPreflight(),
