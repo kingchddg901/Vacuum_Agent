@@ -188,6 +188,12 @@ async def import_active_map(
             next_actions=["configure_rooms"],
         )
 
+    # Service-response brands (Roborock: rooms live in the get_maps response, not
+    # an entity attribute) need the source cache refreshed before the sync
+    # discovery reads it. No-op for attribute brands (Eufy).
+    from ..rooms.source_refresh import async_refresh_room_source
+    await async_refresh_room_source(hass, vacuum_entity_id)
+
     rooms = discover_rooms_for_vacuum(
         hass,
         vacuum_entity_id=vacuum_entity_id,

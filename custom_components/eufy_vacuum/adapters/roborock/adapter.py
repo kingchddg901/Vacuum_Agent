@@ -276,6 +276,17 @@ def register_roborock_adapter_for_vacuum(
             ],
         },
 
+        "setup": {
+            # add_vacuum -> import_active_map -> save_rooms. Roborock has no
+            # Eufy-style one-at-a-time cloud-map "import", but the integration still
+            # needs a map bucket built from the get_maps rooms before Configure Rooms
+            # can show them. import_active_map is the brand-agnostic "discover +
+            # create bucket" op (it refreshes the get_maps source first), so declare
+            # it here to surface the rooms in setup. (Label is Eufy-flavored — a
+            # per-brand step label is a later UX polish.)
+            "steps": ["add_vacuum", "import_active_map", "save_rooms"],
+        },
+
         "discovery": {
             # SERVICE-RESPONSE source: Roborock's id<->name map lives ONLY in the
             # roborock.get_maps response ({segment_id_str: name} per map), never an

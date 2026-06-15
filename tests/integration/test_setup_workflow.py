@@ -165,6 +165,43 @@ async def test_import_active_map_success(hass, manager, _no_panel):
     assert manager.data["maps"][_VAC]["sw9map"]["rooms"]
 
 
+async def test_import_active_map_service_response(hass, manager, _no_panel):
+    """[SW-9b] A service-response brand (Roborock get_maps): import_active_map
+    refreshes the get_maps source first, discovers rooms, and creates the map
+    bucket — the path that makes Configure Rooms work for a brand whose room list
+    is a service response, not an entity attribute."""
+    from homeassistant.core import SupportsResponse
+
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_map": "select.alfred_selected_map"},
+        "discovery": {
+            "source": "service_response",
+            "maps_service": {"domain": "roborock", "service": "get_maps"},
+            "maps_rooms_key": "rooms", "map_name_key": "name",
+            "room_id_key": "segment_id", "room_name_key": "name",
+        },
+    })
+
+    async def _get_maps(call):
+        return {"maps": [{"flag": 0, "name": "Main floor",
+                          "rooms": {"16": "KITCHEN", "17": "Dining Room"}}]}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
+    )
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("select.alfred_selected_map", "Main floor")
+    await add_vacuum(hass, _VAC)
+
+    result = await import_active_map(hass, _VAC)
+
+    assert result["status"] == "success"
+    assert result["data"]["room_count"] == 2
+    rooms = manager.data["maps"][_VAC]["Main floor"]["rooms"]
+    assert {r["name"] for r in rooms.values()} == {"KITCHEN", "Dining Room"}
+
+
 # ---------------------------------------------------------------------------
 # [SW-10] — [SW-12] delete_map protection gating
 # ---------------------------------------------------------------------------
