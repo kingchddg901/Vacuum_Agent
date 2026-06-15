@@ -15,6 +15,8 @@ Coverage targets
 [SR-6]  async_refresh calls the service + caches for service_response sources.
 [SR-7]  async_refresh is a no-op for attribute sources / missing maps_service.
 [SR-8]  the cached source flows through discover_rooms_for_vacuum (int + slug).
+[SR-9]  an unavailable vacuum entity -> refresh skips the service cleanly (no
+        "did not match any entities" throw); cache untouched.
 """
 
 from __future__ import annotations
@@ -147,6 +149,28 @@ async def test_async_refresh_caches(hass):
     await async_refresh_room_source(hass, _VAC)
     cache = get_cached_room_source(hass, _VAC)
     assert {r["segment_id"] for r in cache["Main floor"]} == {"16", "17", "20"}
+
+
+async def test_async_refresh_skips_unavailable_entity(hass):
+    """[SR-9] an unavailable vacuum entity -> skip the service call cleanly (the
+    transient that throws 'did not match any entities' post-restart); no cache."""
+    clear_registry()
+    _service_response_adapter()
+
+    called: list = []
+
+    async def _get_maps(call):
+        called.append(call)
+        return {"maps": _MAPS}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+
+    hass.states.async_set(_VAC, "unavailable")
+    await async_refresh_room_source(hass, _VAC)
+    assert called == []  # service not called for an unavailable entity
+    assert get_cached_room_source(hass, _VAC) == {}
 
 
 async def test_async_refresh_noop_for_attribute_source(hass):

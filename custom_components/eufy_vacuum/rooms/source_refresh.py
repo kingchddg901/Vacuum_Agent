@@ -204,6 +204,20 @@ async def async_refresh_room_source(
         )
         return
 
+    # A response-returning entity service raises "did not match any entities" when
+    # the target entity is unavailable (e.g. right after a restart, before the
+    # brand integration finishes loading). Guard the known transient: skip cleanly
+    # and let discovery read the cached source rather than throw a traceback. A
+    # truly-absent state (None) still proceeds — the try/except below downgrades
+    # any "no entity" failure to a warning.
+    state = hass.states.get(vacuum_entity_id)
+    if state is not None and state.state in ("unavailable", "unknown"):
+        _LOGGER.debug(
+            "room_source: %s is %s; skipping %s.%s refresh (using cached source)",
+            vacuum_entity_id, state.state, service_domain, service_name,
+        )
+        return
+
     try:
         response = await hass.services.async_call(
             service_domain,
@@ -212,12 +226,13 @@ async def async_refresh_room_source(
             blocking=True,
             return_response=True,
         )
-    except Exception:  # pragma: no cover - upstream service errors are best-effort
-        _LOGGER.exception(
-            "room_source: %s.%s failed for %s",
-            service_domain,
-            service_name,
-            vacuum_entity_id,
+    except Exception as err:  # pragma: no cover - upstream service errors are best-effort
+        # Best-effort: discovery degrades to the cached/stale source. Log a concise
+        # warning (not a full traceback) — a transient unavailable entity or an
+        # upstream hiccup is expected, not a framework fault.
+        _LOGGER.warning(
+            "room_source: %s.%s failed for %s (%s); using cached source",
+            service_domain, service_name, vacuum_entity_id, err,
         )
         return
 

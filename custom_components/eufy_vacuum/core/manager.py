@@ -4023,10 +4023,15 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             payload=wire_payload,
         )
-        _LOGGER.debug(
-            "Advanced sequenced job for %s map %s to phase %s/%s",
+        # INFO so a strict-order run is diagnosable without enabling debug: shows
+        # the advance fired + the EXACT payload re-dispatched (an empty segment
+        # list here means the next room was skipped, e.g. a slug that didn't
+        # resolve to a live id).
+        _LOGGER.info(
+            "Strict-order advance: %s map %s -> phase %s/%s, re-dispatched %s",
             vacuum_entity_id, map_id,
             advanced.get("current_phase_index"), advanced.get("phase_count"),
+            wire_payload,
         )
         return True
 
