@@ -298,6 +298,20 @@ def register_roborock_adapter_for_vacuum(
             ],
         },
 
+        "live_transition": {
+            # NATIVE current-room rollover: the device reports the live room
+            # directly (sensor.{id}_current_room = entities.active_cleaning_target),
+            # so the framework follows that signal — filtered to the job's target
+            # rooms, matched by name slug, order-agnostic (the device path-optimizes,
+            # so clean order != queue order) — instead of Eufy's counter-plateau /
+            # timing heuristic. Tracks the last confirmed target + completes the
+            # previous one when the signal moves; transit rooms (not job targets) are
+            # ignored. Assumes rooms_unique_per_job (no revisits) — true here. Eufy
+            # leaves native_transition_source False (the default) and is untouched.
+            "enabled": True,
+            "native_transition_source": True,
+        },
+
         "mapping": {
             # No map-image entity (MAP feature bit unset) -> no image to segment.
             # noop stops polygon rendering; trace tracking still runs off position.
@@ -355,7 +369,8 @@ def register_roborock_adapter_for_vacuum(
         # reconciliation. Wave 2b: dispatch.resolve_live_ids_by_slug (live name->id
         # at send) + completion.require_job_active_clear (finalize on the cleaning
         # binary, not current_room) + dispatch.global_pre_calls (max-wins GLOBAL
-        # fan + mop pre-call). DEFERRED to Wave 3: native current_room live rollover.
+        # fan + mop pre-call). Wave 3: live_transition.native_transition_source
+        # (native current_room live rollover, filtered to job targets).
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
         #   settings_selects, room_profiles, anomaly, live_transition.

@@ -33,6 +33,7 @@ from ..const import DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
 # import); find_candidates / segment_legacy route through the pluggable job-segmenter
 # engine (resolved per-vacuum in _live_boundary_count).
 from ..counter_segmentation import select_active
+from ..rooms.utils import slugify_room_name
 from ..timestamp_utils import parse_timestamp, utc_now_iso
 
 if TYPE_CHECKING:
@@ -677,6 +678,22 @@ class ActiveJobTracker:
         if current_room_id is None:
             return active_job
 
+        # Native current-room signal path (e.g. Roborock current_room): the device
+        # reports the live room directly, so rollover FOLLOWS that signal (filtered
+        # to job targets, matched by name slug, order-agnostic) instead of the
+        # sequential timing/counter heuristic below. Gated by the adapter's
+        # live_transition.native_transition_source (Eufy defaults False -> the
+        # whole block below is unchanged). Returns BEFORE the sequential
+        # unresolved-index guards, which do not apply to device-optimized order.
+        if self._live_transition_config(vacuum_entity_id).get("native_transition_source"):
+            return self._maybe_roll_current_room_by_native_signal(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job=active_job,
+                current_room_id=current_room_id,
+                current_room_elapsed_minutes=current_room_elapsed_minutes,
+            )
+
         unresolved_room_ids = [
             _safe_int(room.get("room_id", -1), -1)
             for room in raw_timeline
@@ -835,6 +852,205 @@ class ActiveJobTracker:
 
         self._manager.hass.async_create_task(self._manager._async_save_logged())
         return updated_active_job
+
+    # -- native current-room signal rollover -----------------------------------
+
+    def _resolve_native_target_room_id(
+        self,
+        vacuum_entity_id: str,
+        active_job: dict[str, Any],
+    ) -> int | None:
+        """Resolve the brand's native current-room NAME signal to a job-target id.
+
+        Reads entities.active_cleaning_target (Roborock sensor.{id}_current_room, a
+        room NAME), slugifies it, and matches it against the job's TARGET rooms
+        (queue_room_ids) by slug. Returns the matched target's room_id, or None for
+        a transit room / the dock / a sentinel / any name not among the job
+        targets — the transit filter that keeps a cross-room hop from advancing.
+        """
+        cfg = _get_adapter_config(vacuum_entity_id) or {}
+        entity_id = cfg.get("entities", {}).get("active_cleaning_target")
+        if not entity_id:
+            return None
+        state = self._manager.hass.states.get(entity_id)
+        if state is None:
+            return None
+        name = str(state.state or "").strip()
+        if not name or name.lower() in {"unknown", "unavailable", "none", "null"}:
+            return None
+
+        signal_slug = slugify_room_name(name)
+        target_ids = {
+            _safe_int(rid, -1) for rid in active_job.get("queue_room_ids", [])
+        }
+        target_ids.discard(-1)
+
+        for source in (
+            active_job.get("resolved_rooms", []),
+            active_job.get("queue_rooms", []),
+        ):
+            for room in source:
+                room_id = _safe_int(room.get("room_id", room.get("id", -1)), -1)
+                if room_id < 0 or room_id not in target_ids:
+                    continue
+                room_slug = (
+                    str(room.get("slug") or "").strip().lower()
+                    or slugify_room_name(
+                        str(room.get("name") or room.get("room_name") or "")
+                    )
+                )
+                if room_slug and room_slug == signal_slug:
+                    return room_id
+        return None
+
+    def _maybe_roll_current_room_by_native_signal(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        current_room_id: int | None,
+        current_room_elapsed_minutes: float,
+    ) -> dict[str, Any]:
+        """Advance current_room from the brand's NATIVE live-room signal.
+
+        The device cleans targets in its own optimized order, so this tracks the
+        last natively-confirmed target on ``active_job["_native_current_room_id"]``
+        and is order-agnostic:
+
+          - first confirmed target -> ADOPT it (the initial current_room_id was a
+            queue-order GUESS, never actually cleaned; completing it would be a
+            phantom). No duplicate event when the guess was already right.
+          - a DIFFERENT target -> the previous confirmed target is DONE: complete
+            ONLY it and set current directly to the new target.
+          - the same target -> no-op (idempotent, so the 5s tick re-reading the
+            ~30s-polled signal never double-advances).
+
+        Transit rooms (names not among the job targets) resolve to None -> ignored.
+        Assumes rooms_unique_per_job (no revisits) — true for the brands that opt in.
+        """
+        signal_room_id = self._resolve_native_target_room_id(vacuum_entity_id, active_job)
+        if signal_room_id is None:
+            return active_job  # transit / dock / sentinel / unmatched -> ignore
+
+        confirmed = _safe_int(active_job.get("_native_current_room_id", -1), -1)
+        if signal_room_id == confirmed:
+            return active_job  # still on the same target
+
+        completed_ids = {
+            _safe_int(rid, -1) for rid in active_job.get("completed_room_ids", [])
+        }
+        if signal_room_id in completed_ids:
+            return active_job  # already finished (rooms_unique_per_job) -> ignore
+
+        if confirmed < 0:
+            if signal_room_id == _safe_int(current_room_id, -1):
+                # Device started with the guessed room — confirm without a
+                # duplicate EVENT_ROOM_STARTED (job-start already fired one).
+                active_job["_native_current_room_id"] = signal_room_id
+                self._persist_active_job(vacuum_entity_id, map_id, active_job)
+                return active_job
+            # Adopted a DIFFERENT first room — complete nothing (the guess was
+            # never cleaned), just move the live pointer to the real room.
+            return self._set_native_current_room(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                active_job=active_job,
+                new_room_id=signal_room_id,
+                complete_room_id=None,
+                elapsed_minutes=current_room_elapsed_minutes,
+            )
+
+        # Moved to a new target -> the previous confirmed target is done.
+        return self._set_native_current_room(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            active_job=active_job,
+            new_room_id=signal_room_id,
+            complete_room_id=confirmed,
+            elapsed_minutes=current_room_elapsed_minutes,
+        )
+
+    def _set_native_current_room(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+        new_room_id: int,
+        complete_room_id: int | None,
+        elapsed_minutes: float,
+    ) -> dict[str, Any]:
+        """Complete the previous target (if any) + set current DIRECTLY to the
+        device's actual next target; fire EVENT_ROOM_FINISHED / EVENT_ROOM_STARTED
+        with ``source="native_signal"``."""
+        completed_at = _iso_now()
+        job = active_job
+
+        if complete_room_id is not None and complete_room_id >= 0:
+            finished_name = self._room_name_from_active_job(job, complete_room_id)
+            # Reuse the completed-room bookkeeping (completed_room_ids + the
+            # completed_rooms upsert/cap). record_completed_room also sequentially
+            # derives a next current; we override it below with the device's real
+            # next target.
+            job = self.record_completed_room(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id,
+                room_id=complete_room_id,
+                room_name=finished_name,
+                actual_duration_minutes=elapsed_minutes,
+                completed_at=completed_at,
+                source="native_signal",
+            )
+            self._manager.hass.bus.async_fire(
+                EVENT_ROOM_FINISHED,
+                {
+                    "vacuum_entity_id": vacuum_entity_id,
+                    "map_id": str(map_id),
+                    "job_id": job.get("job_id"),
+                    "room_id": str(complete_room_id),
+                    "room_name": finished_name,
+                    "completed_at": completed_at,
+                    "source": "native_signal",
+                    "actual_duration_minutes": round(elapsed_minutes, 2),
+                    "completed_room_ids": job.get("completed_room_ids", []),
+                },
+            )
+
+        # Direct-set current to the signalled target (override any sequential
+        # derive). This is the device's ACTUAL next room, not the queue's next.
+        job["current_room_id"] = new_room_id
+        job["current_room_started_at"] = completed_at
+        job["current_room_paused_seconds"] = 0
+        job["_native_current_room_id"] = new_room_id
+        self._persist_active_job(vacuum_entity_id, map_id, job)
+
+        self._manager.hass.bus.async_fire(
+            EVENT_ROOM_STARTED,
+            {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "job_id": job.get("job_id"),
+                "room_id": str(new_room_id),
+                "room_name": self._room_name_from_active_job(job, new_room_id),
+                "started_at": completed_at,
+                "source": "native_signal",
+                "completed_room_ids": job.get("completed_room_ids", []),
+            },
+        )
+        self._manager.hass.async_create_task(self._manager._async_save_logged())
+        return job
+
+    def _persist_active_job(
+        self,
+        vacuum_entity_id: str,
+        map_id: str,
+        active_job: dict[str, Any],
+    ) -> None:
+        """Write one active-job dict back into runtime storage."""
+        self._manager.data.setdefault("active_jobs", {})
+        self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
+        self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
 
     def _access_graph_path(
         self,

@@ -166,6 +166,14 @@ def test_global_pre_calls(s6_config):
     assert pre["water_level"]["service"]["service"] == "select_option"
 
 
+def test_native_rollover_enabled(s6_config):
+    # Wave 3: rollover follows the native current_room signal (filtered to job
+    # targets), not Eufy's counter-plateau.
+    lt = s6_config["live_transition"]
+    assert lt["native_transition_source"] is True
+    assert lt["enabled"] is True
+
+
 def test_completion_keys_on_job_active(s6_config):
     # Wave 2b: current_room reverts to the dock room (never a sentinel), so
     # completion keys on the cleaning binary clearing, not a current_room sentinel.

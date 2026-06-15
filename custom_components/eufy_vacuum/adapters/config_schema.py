@@ -1071,6 +1071,50 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         },
     },
 
+    "live_transition": {
+        "type": "dict",
+        "required": False,
+        "description": (
+            "Live room-rollover orchestration. Controls how the framework advances "
+            "the current room during a running job. Absent = the Eufy-style "
+            "counter-plateau / timing heuristic over the job-segmenter engine."
+        ),
+        "fields": {
+            "enabled": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "Whether live rollover runs at all. Default: True. False "
+                    "disables in-run room advancement (the job still finalizes)."
+                ),
+            },
+            "rollover_kinds": {
+                "type": "list[str]",
+                "required": False,
+                "description": (
+                    "Which counter-boundary kinds advance the room for counter-"
+                    "driven brands (Eufy): subset of wash_plateau/transit/area_jump. "
+                    "Ignored when native_transition_source is set."
+                ),
+            },
+            "native_transition_source": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "When True, rollover FOLLOWS the brand's native live-room signal "
+                    "(entities.active_cleaning_target — a room NAME, e.g. Roborock "
+                    "current_room) instead of the counter/timing heuristic: the "
+                    "signal is matched to a job TARGET room by name slug (transit "
+                    "rooms not in the job are ignored), the previous confirmed target "
+                    "is completed when the signal moves, and current is set directly "
+                    "to the new target (order-agnostic — the device path-optimizes). "
+                    "Assumes rooms_unique_per_job. Default: False (Eufy counter/timing "
+                    "path, untouched)."
+                ),
+            },
+        },
+    },
+
     "external_mid_run_statuses": {
         "type": "list",
         "required": False,
