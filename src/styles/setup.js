@@ -605,4 +605,54 @@ export const setupStyles = `
     font-size: 0.75rem;
     margin-right: 8px;
   }
+
+  /* =========================================================
+     ADD ANOTHER VACUUM
+     ========================================================= */
+
+  .evcc-setup-add-other {
+    display:        flex;
+    flex-direction: column;
+    gap:            10px;
+    padding:        14px 16px;
+    border-radius:  10px;
+    background:     var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    border:         1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.10));
+  }
+
+  .evcc-setup-add-other-title {
+    font-size:   0.95rem;
+    font-weight: 700;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-setup-add-other-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            8px;
+  }
+
+  .evcc-setup-add-other-row {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             12px;
+    padding:         8px 10px;
+    border-radius:   8px;
+    background:      var(--evcc-surface-default, rgba(255, 255, 255, 0.04));
+    border:          1px solid var(--evcc-border-subtle, rgba(255, 255, 255, 0.06));
+  }
+
+  .evcc-setup-add-other-info {
+    display:        flex;
+    flex-direction: column;
+    gap:            2px;
+    min-width:      0;
+  }
+
+  .evcc-setup-add-other-name {
+    font-size:   0.88rem;
+    font-weight: 600;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
 `;

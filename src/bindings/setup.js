@@ -59,6 +59,36 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       ADD ANOTHER VACUUM — register a different, unmanaged vacuum
+       (data-vacuum-id from the row, not this panel's own vacuum).
+       The backend reloads the entry to wire the new vacuum + its
+       sidebar panel.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-add-other-vacuum']", "click", async (e) => {
+      const vacuumEntityId = e.currentTarget?.dataset?.vacuumId;
+      if (!vacuumEntityId) return;
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.addVacuum?.(vacuumEntityId);
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+      } catch (err) {
+        card._state.setSetupError?.(
+          `Failed to add vacuum: ${err?.message ?? String(err)}`
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
        IMPORT MAP
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-import-map']", "click", async () => {

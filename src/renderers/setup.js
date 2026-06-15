@@ -527,6 +527,49 @@ export function applySetupRenderers(proto) {
       : "";
 
     /* -------------------------------------------------------
+       Add another vacuum — any vacuum.* entity not yet managed.
+       This panel's setup steps only manage its own vacuum; this
+       section is the cross-vacuum affordance to register a NEW
+       one. Adding wires its adapter + panel (the backend reloads
+       the entry — see setup_add_vacuum).
+       ------------------------------------------------------- */
+    const managedIds   = new Set(vacuums.map((v) => v.vacuum_entity_id));
+    // Always exclude this panel's own vacuum, even before the status loads.
+    if (vacuumEntityId) managedIds.add(vacuumEntityId);
+    const allVacuumIds = card?._hass?.states
+      ? Object.keys(card._hass.states).filter((id) => id.startsWith("vacuum."))
+      : [];
+    const unmanagedIds = allVacuumIds.filter((id) => !managedIds.has(id)).sort();
+
+    const addOtherRowsHtml = unmanagedIds.map((id) => {
+      const friendly = card._hass.states[id]?.attributes?.friendly_name ?? id;
+      return `
+        <div class="evcc-setup-add-other-row">
+          <div class="evcc-setup-add-other-info">
+            <span class="evcc-setup-add-other-name">${this.escapeHtml(String(friendly))}</span>
+            <span class="evcc-setup-entity-id">${this.escapeHtml(id)}</span>
+          </div>
+          <button class="evcc-setup-btn small"
+                  data-action="setup-add-other-vacuum"
+                  data-vacuum-id="${this.escapeHtml(id)}"
+                  ${loading ? "disabled" : ""}>
+            Add
+          </button>
+        </div>
+      `;
+    }).join("");
+
+    const addOtherHtml = `
+      <div class="evcc-setup-add-other">
+        <div class="evcc-setup-add-other-title">Add another vacuum</div>
+        ${unmanagedIds.length === 0
+          ? `<div class="evcc-setup-step-body muted">All detected vacuums are already managed.</div>`
+          : `<div class="evcc-setup-step-body">These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).</div>
+             <div class="evcc-setup-add-other-list">${addOtherRowsHtml}</div>`}
+      </div>
+    `;
+
+    /* -------------------------------------------------------
        Refresh button
        ------------------------------------------------------- */
     const refreshHtml = `
@@ -555,6 +598,7 @@ export function applySetupRenderers(proto) {
         ${lastResultHtml}
         ${errorHtml}
         ${loadingHtml}
+        ${addOtherHtml}
         ${refreshHtml}
       </div>
     `;
