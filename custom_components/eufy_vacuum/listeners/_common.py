@@ -154,6 +154,36 @@ def completed_finalize_signals(
     }
 
 
+def completion_secondary_satisfied(
+    vacuum_entity_id: str,
+    completion_signals: dict[str, Any],
+    clear_sentinels: frozenset[str],
+) -> bool:
+    """Whether the completion gate's secondary requirement is met.
+
+    The gate is ``task_status == done`` AND this secondary AND
+    has_observed_active_lifecycle. Two modes:
+
+      - ``completion.require_job_active_clear`` (Roborock): the job-active
+        (cleaning) binary clearing IS the completion signal — enforced by the
+        separate ``is_job_active`` guard in the lifecycle handler — so the
+        current-room sentinel check is bypassed here (returns True). Needed
+        because Roborock's active_cleaning_target (``current_room``) reverts to
+        the DOCK room's name at the end of a run, never a sentinel, so the
+        default check below would never pass and the job would never finalize.
+
+      - default (Eufy): the active_cleaning_target must read a clear sentinel.
+    """
+    if bool(get_adapter_value(
+        vacuum_entity_id, "completion", "require_job_active_clear", fallback=False
+    )):
+        return True
+    return (
+        str(completion_signals.get("active_target", "")).strip().lower()
+        in clear_sentinels
+    )
+
+
 def job_finished_event_data(
     *,
     vacuum_entity_id: str,

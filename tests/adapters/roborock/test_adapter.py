@@ -150,6 +150,18 @@ def test_dispatch(s6_config):
     assert d["rooms_field"] == "segments"
     assert d["clean_passes_field"] == "repeat"
     assert d["passes_max"] == 3
+    # Wave 2b: ids renumber on re-segment -> resolve slug->live id at send.
+    assert d["resolve_live_ids_by_slug"] is True
+
+
+def test_completion_keys_on_job_active(s6_config):
+    # Wave 2b: current_room reverts to the dock room (never a sentinel), so
+    # completion keys on the cleaning binary clearing, not a current_room sentinel.
+    comp = s6_config["completion"]
+    assert comp["task_status_value"] == "charging"
+    assert comp["require_job_active_clear"] is True
+    # current_room is no longer the completion secondary signal.
+    assert "secondary_clear_entity" not in comp
 
 
 def test_completion_charging_error(s6_config):

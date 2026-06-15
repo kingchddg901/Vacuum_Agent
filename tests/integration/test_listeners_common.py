@@ -25,6 +25,7 @@ import pytest
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 from custom_components.eufy_vacuum.listeners._common import (
     completed_finalize_signals,
+    completion_secondary_satisfied,
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
@@ -204,6 +205,43 @@ async def test_is_job_active_declared_missing_state(hass, manager):
     """Declared but the entity has no state -> False."""
     register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
     assert is_job_active(hass, _VAC) is False
+
+
+# ---------------------------------------------------------------------------
+# completion_secondary_satisfied — completion-gate secondary requirement
+# ---------------------------------------------------------------------------
+
+_SENTINELS = frozenset({"", "unknown", "unavailable", "none", "null"})
+
+
+def test_completion_secondary_default_target_cleared(manager):
+    """Default (Eufy): active_target reading a clear sentinel satisfies it."""
+    register_adapter_config(_VAC, _MINIMAL_ADAPTER)
+    assert completion_secondary_satisfied(_VAC, {"active_target": ""}, _SENTINELS) is True
+
+
+def test_completion_secondary_default_target_not_cleared(manager):
+    """Default: a non-sentinel active_target does NOT satisfy it."""
+    register_adapter_config(_VAC, _MINIMAL_ADAPTER)
+    assert completion_secondary_satisfied(
+        _VAC, {"active_target": "Dining Room"}, _SENTINELS
+    ) is False
+
+
+def test_completion_secondary_require_job_active_clear_bypasses(manager):
+    """require_job_active_clear (Roborock): bypasses the sentinel check entirely
+    (the is_job_active guard supplies the real signal), so a current_room that
+    reverted to the dock-room name still satisfies the secondary."""
+    register_adapter_config(_VAC, {
+        **_MINIMAL_ADAPTER,
+        "completion": {
+            "task_status_value": "charging",
+            "require_job_active_clear": True,
+        },
+    })
+    assert completion_secondary_satisfied(
+        _VAC, {"active_target": "Dining Room"}, _SENTINELS
+    ) is True
 
 
 # ---------------------------------------------------------------------------

@@ -182,15 +182,15 @@ def register_roborock_adapter_for_vacuum(
             # vacuum=docked + status=charging within ~48s; no charging_complete lag),
             # guarded by has_observed_active_lifecycle so a pre-run charge can't finalize.
             "task_status_value": "charging",
-            "secondary_clear_entity": "active_cleaning_target",
-            "secondary_clear_sentinels": ["", "unknown", "unavailable", "none", "null"],
-            # KNOWN LIMITATION (recharge-resume): a mid-job recharge ALSO reaches
-            # `charging`, and on a run with no per-room target (e.g. mapping)
-            # active_cleaning_target is already cleared -> this gate could finalize
-            # early. The robust disambiguator is entities.job_active
-            # (binary_sensor.{id}_cleaning) staying ON through a recharge dock;
-            # wiring the framework to watch + gate on it needs the
-            # recharge->resume->finish continuation trace. Tracked for Wave 2.
+            # Completion keys on the job-active (cleaning) binary clearing, NOT a
+            # current-room sentinel: sensor.{id}_current_room reverts to the DOCK
+            # room's NAME at the end (never a sentinel), so the default secondary
+            # check would never pass. require_job_active_clear bypasses it and the
+            # is_job_active guard (entities.job_active = binary_sensor.{id}_cleaning)
+            # supplies the real signal — it stays ON through a mid-job recharge dock
+            # and clears only at the true finish (history(3).csv: ON through the 19%
+            # recharge + resume, OFF only at completion when total_count incremented).
+            "require_job_active_clear": True,
         },
 
         "charging": {
@@ -228,6 +228,12 @@ def register_roborock_adapter_for_vacuum(
             "rooms_field": "segments",
             "clean_passes_field": "repeat",
             "passes_max": 3,
+            # Segment ids RENUMBER on re-segment (identity = name slug), so the
+            # framework re-resolves each target room's slug -> LIVE id from a fresh
+            # get_maps right before send. A stored id could otherwise clean the
+            # wrong room after a map edit. Cleaning correctness is decoupled from
+            # the identity-reconciliation review (which is about data attribution).
+            "resolve_live_ids_by_slug": True,
         },
 
         "discovery": {
@@ -310,9 +316,12 @@ def register_roborock_adapter_for_vacuum(
             for component_id, component in MAINTENANCE_COMPONENTS.items()
         },
 
-        # Wave 2a shipped: "discovery" (get_maps service source + active_map) +
-        # identity reconciliation. DEFERRED to Wave 2b: live name->id dispatch
-        # resolution + completion re-key onto the cleaning binary.
+        # Wave 2a: "discovery" (get_maps service source + active_map) + identity
+        # reconciliation. Wave 2b: dispatch.resolve_live_ids_by_slug (live name->id
+        # at send) + completion.require_job_active_clear (finalize on the cleaning
+        # binary, not current_room). DEFERRED: fan/mop GLOBAL send-side pre-call
+        # (per-room fan/water can't ride app_segment_clean; global value-selection
+        # for a multi-room run pending app-storage inspection).
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
         #   settings_selects, room_profiles, anomaly, live_transition.

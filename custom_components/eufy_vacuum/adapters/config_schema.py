@@ -457,6 +457,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Default: ['', 'unknown', 'unavailable', 'none', 'null']."
                 ),
             },
+            "require_job_active_clear": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "When True, completion keys on the job-active (cleaning) binary "
+                    "clearing (entities.job_active, enforced by the recharge-resume "
+                    "guard) INSTEAD of the secondary_clear sentinel check. Needed for "
+                    "brands whose active_cleaning_target reverts to a non-sentinel at "
+                    "the end of a run (Roborock current_room -> the dock room's name), "
+                    "where the sentinel check would never pass. Pair with "
+                    "entities.job_active. Default: False (use secondary_clear)."
+                ),
+            },
         },
     },
 
@@ -913,6 +926,19 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "description": (
                     "Field name for the rooms list in the payload. "
                     "Example: 'rooms' for Eufy, 'segments' for Roborock."
+                ),
+            },
+            "resolve_live_ids_by_slug": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "When True, the framework re-resolves each target room's name "
+                    "slug to its CURRENT segment id from a fresh discovery refresh "
+                    "(get_maps) right before sending, rewriting the wire id list. "
+                    "For brands whose segment ids renumber on re-segment (Roborock) "
+                    "so a stored id never cleans the wrong room. A target whose slug "
+                    "is absent from the current map is skipped; an unavailable source "
+                    "falls back to the stored ids. Default: False (use stored ids)."
                 ),
             },
             "room_fields": {

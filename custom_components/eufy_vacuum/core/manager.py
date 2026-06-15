@@ -3760,6 +3760,84 @@ class EufyVacuumManager:
             data = {"entity_id": vacuum_entity_id, **payload}
         await self.hass.services.async_call(domain, name, data, blocking=True)
 
+    async def _resolve_live_dispatch_payload(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        payload: dict[str, Any],
+        resolved_rooms: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Re-resolve segment ids to LIVE ids by slug just before dispatch.
+
+        For brands whose segment ids renumber on re-segment
+        (``dispatch.resolve_live_ids_by_slug``), the stored id can be stale and
+        clean the WRONG room after a map edit. This re-fetches the room source (a
+        fresh get_maps), maps each target room's slug -> current id, and rewrites
+        the wire id list — so the correct room is always cleaned regardless of
+        whether the user has confirmed the identity-reconciliation review. NEVER
+        mutates stored data; the review owns attribution, this owns cleaning
+        correctness (the two are deliberately decoupled).
+
+        Falls back to the stored-id payload when the live source is unavailable
+        (refresh failed / empty) so an explicit user start still dispatches. A
+        target whose slug is absent from the current map is skipped (it can't be
+        targeted) rather than cleaned under a stale id.
+        """
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        if not cfg.get("resolve_live_ids_by_slug"):
+            return payload
+        rooms_field = cfg.get("rooms_field", "segments")
+        if rooms_field not in payload:
+            return payload
+
+        from ..rooms.source_refresh import async_refresh_room_source
+        from ..rooms.room_discovery import discover_rooms_for_vacuum
+
+        await async_refresh_room_source(self.hass, vacuum_entity_id)
+        live_rooms = discover_rooms_for_vacuum(
+            self.hass, vacuum_entity_id=vacuum_entity_id, map_id=str(map_id)
+        )
+        slug_to_live_id: dict[str, int] = {}
+        for room in live_rooms:
+            slug = str(room.get("slug") or "").strip().lower()
+            if not slug or slug in slug_to_live_id:
+                continue
+            try:
+                slug_to_live_id[slug] = int(room["room_id"])
+            except (TypeError, ValueError, KeyError):
+                continue
+
+        if not slug_to_live_id:
+            _LOGGER.warning(
+                "dispatch: no live segment source for %s; dispatching stored ids",
+                vacuum_entity_id,
+            )
+            return payload
+
+        new_segments: list[int] = []
+        dropped: list[str] = []
+        for room in resolved_rooms:
+            slug = str(room.get("slug") or "").strip().lower()
+            live_id = slug_to_live_id.get(slug)
+            if live_id is not None:
+                new_segments.append(live_id)
+            else:
+                dropped.append(slug or str(room.get("room_id")))
+
+        if dropped:
+            _LOGGER.warning(
+                "dispatch: %d target room(s) not on the current map for %s, skipped: %s",
+                len(dropped), vacuum_entity_id, dropped,
+            )
+        if not new_segments:
+            _LOGGER.warning(
+                "dispatch: no target rooms resolved live for %s; dispatching stored ids",
+                vacuum_entity_id,
+            )
+            return payload
+        return {**payload, rooms_field: new_segments}
+
     async def maybe_advance_phase(
         self,
         *,
@@ -3867,8 +3945,19 @@ class EufyVacuumManager:
         battery_start = self._get_battery_level(vacuum_entity_id)
         job_id = self._generate_job_id()
 
+        # Resolve slug -> LIVE segment id for brands whose ids renumber on
+        # re-segment (Roborock), so the right room is cleaned regardless of any
+        # un-confirmed identity review. Wire-only: the active_job below keeps the
+        # stored (slug-tagged) ids — rollover matches by name, completion by the
+        # job-active binary, neither needs the live id.
+        wire_payload = await self._resolve_live_dispatch_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            payload=payload,
+            resolved_rooms=list(payload_state.get("resolved_rooms", [])),
+        )
         await self._dispatch_clean_payload(
-            vacuum_entity_id=vacuum_entity_id, payload=payload
+            vacuum_entity_id=vacuum_entity_id, payload=wire_payload
         )
 
         # Attach the phase sequence only for a genuine sequenced job (>1 phase).

@@ -29,6 +29,7 @@ from ..core.water_amendment import (
 )
 from ._common import (
     completed_finalize_signals,
+    completion_secondary_satisfied,
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
@@ -224,17 +225,23 @@ def register(hass: HomeAssistant) -> None:
 
                     completion_signals = completed_finalize_signals(hass, vacuum_entity_id)
 
-                    # Successful completion: task_status==Completed + target cleared.
-                    # has_observed_active_lifecycle guards against stale pre-run dock
-                    # states (e.g. dock_drying) triggering finalization before the job
-                    # actually started moving. vacuum_docked is NOT required here —
-                    # the vacuum may still be returning when these two signals fire,
-                    # and requiring docked was stranding active_job records.
+                    # Successful completion: task_status==Completed + secondary
+                    # requirement met. The secondary is either the active_target
+                    # reading a clear sentinel (Eufy) OR — for brands whose
+                    # active_target reverts to the dock room and never sentinels
+                    # (Roborock current_room) — the job-active binary clearing,
+                    # enforced by the is_job_active guard just below
+                    # (completion.require_job_active_clear). has_observed_active_lifecycle
+                    # guards against stale pre-run dock states triggering finalization
+                    # before the job started moving. vacuum_docked is NOT required —
+                    # the vacuum may still be returning when these signals fire, and
+                    # requiring docked was stranding active_job records.
                     should_finalize_completed = bool(
                         str(completion_signals.get("task_status", "")).strip().lower()
                         == str(_completion_task_status).strip().lower()
-                        and str(completion_signals.get("active_target", "")).strip().lower()
-                        in _clear_sentinels
+                        and completion_secondary_satisfied(
+                            vacuum_entity_id, completion_signals, _clear_sentinels
+                        )
                         and active_job.get("has_observed_active_lifecycle", False)
                     )
 
