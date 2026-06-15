@@ -313,14 +313,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 ),
             },
             "cancel_detection_states": {
-                "type": "dict[str, str]",
+                "type": "dict[str, Any]",
                 "required": False,
                 "description": (
                     "Normalized task_status transition strings the cancel "
                     "detector matches against. Keys: 'active' (the cleaning "
-                    "state), 'returning' (the return-to-dock state), 'paused'. "
-                    "A cancel-like transition is active->returning or "
-                    "paused->returning on the task_status entity. "
+                    "state — a single string, OR a list of strings for brands "
+                    "whose active status is mode-specific, e.g. Roborock's "
+                    "cleaning / segment_cleaning / zoned_cleaning), 'returning' "
+                    "(the return-to-dock state, e.g. 'returning' for Eufy, "
+                    "'returning_home' for Roborock), 'paused'. A cancel-like "
+                    "transition is active->returning or paused->returning on the "
+                    "task_status entity. "
                     "Degradation: defaults to the HA-standard "
                     "cleaning/returning/paused strings."
                 ),

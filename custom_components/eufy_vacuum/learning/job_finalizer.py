@@ -1159,13 +1159,23 @@ class LearningJobFinalizer:
         # Normalized task_status transition strings — adapter-configurable, with
         # HA-standard defaults so an unconfigured adapter still detects cancels.
         _cancel_states = _adapter_cfg.get("vocabulary", {}).get("cancel_detection_states", {})
-        _active_state = str(_cancel_states.get("active", "cleaning")).strip().lower()
+        # `active` may be a single string (Eufy normalizes to one cleaning state)
+        # or a list — brands whose "actively cleaning" status is mode-specific
+        # (Roborock: cleaning vs segment_cleaning vs zoned/spot) declare all of
+        # them so a pre-return transition from ANY active state is matched.
+        _active_raw = _cancel_states.get("active", "cleaning")
+        if isinstance(_active_raw, (list, tuple, set)):
+            _active_states = frozenset(
+                str(s).strip().lower() for s in _active_raw if str(s).strip()
+            )
+        else:
+            _active_states = frozenset({str(_active_raw).strip().lower()})
         _returning_state = str(_cancel_states.get("returning", "returning")).strip().lower()
         _paused_state = str(_cancel_states.get("paused", "paused")).strip().lower()
 
         direct_returning = any(
             entity_id == _task_status_entity
-            and from_state == _active_state
+            and from_state in _active_states
             and to_state == _returning_state
             for entity_id, from_state, to_state in transition_pairs
         )

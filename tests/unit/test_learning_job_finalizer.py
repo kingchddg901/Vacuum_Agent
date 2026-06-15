@@ -303,6 +303,62 @@ def test_detect_cancel_short_run_is_likely(finalizer):
     assert out["reason"] == "early_return_likely_cancelled"
 
 
+def _run_cancel(finalizer, vocab, from_state, to_state):
+    """Run _detect_cancel_likely_run for one task_status transition under the
+    given adapter vocabulary. Returns the verdict dict."""
+    start = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+    ret = start + timedelta(minutes=2)
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"task_status": "sensor.alfred_task_status"},
+        "vocabulary": vocab,
+    })
+    state = {
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}],
+        "paused_duration_seconds": 0.0,
+        "state_transitions": [
+            {"entity_id": "sensor.alfred_task_status",
+             "from_state": from_state, "to_state": to_state,
+             "changed_at": ret.isoformat()},
+        ],
+    }
+    learning = MagicMock()
+    learning.estimate_from_manager.return_value = {"room_timeline": [{"minutes": 10.0}]}
+    manager = MagicMock()
+    manager._get_learning_manager.return_value = learning
+    return finalizer._detect_cancel_likely_run(
+        manager=manager, vacuum_entity_id=_VAC, map_id="6",
+        battery_start=90, started_at=start.isoformat(), ended_at=ret.isoformat(),
+        active_job_state=state)
+
+
+def test_detect_cancel_active_list_and_returning_home(finalizer):
+    """[JF-Roborock] `active` as a LIST + return state `returning_home`: a
+    segment_cleaning -> returning_home short run is flagged (the per-room cancel
+    case the single-string `active` would have missed)."""
+    out = _run_cancel(
+        finalizer,
+        {"cancel_detection_states": {
+            "active": ["cleaning", "segment_cleaning"],
+            "returning": "returning_home", "paused": "paused"}},
+        from_state="segment_cleaning", to_state="returning_home")
+    assert out["cancel_likely"] is True
+    assert out["reason"] == "early_return_likely_cancelled"
+
+
+def test_detect_cancel_defaults_miss_returning_home(finalizer):
+    """Regression guard: with the framework DEFAULTS (active='cleaning',
+    returning='returning'), a Roborock-style segment_cleaning -> returning_home
+    transition is NOT matched — which is exactly why the adapter must declare
+    cancel_detection_states. Without it, a cancelled Roborock run silently
+    pollutes learning estimates."""
+    out = _run_cancel(
+        finalizer, {},  # no cancel_detection_states -> framework defaults
+        from_state="segment_cleaning", to_state="returning_home")
+    assert out["cancel_likely"] is False
+    assert out["reason"] == "no_cancel_like_transition"
+
+
 def test_detect_cancel_estimate_error_then_long_enough(finalizer):
     """[JF-4] when the learning estimate raises, expected falls to 0 → a 1.0 min
     floor; a 2-min run clears it → duration_not_short (not a cancel)."""

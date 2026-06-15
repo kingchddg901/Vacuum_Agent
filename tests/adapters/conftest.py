@@ -44,10 +44,32 @@ def _build_eufy(hass) -> dict[str, Any]:
     return get_adapter_config(_VAC)
 
 
+def _build_roborock(hass) -> dict[str, Any]:
+    """Build + register the real Roborock adapter config for one vacuum.
+
+    No device-registry entry is set up here, so the model resolves to the
+    catalog DEFAULT_PROFILE (the conservative no-dock baseline) — enough to
+    exercise the real capability-detection + config-assembly path for the
+    brand-agnostic contract. Model-specific behaviour (the S6 profile,
+    is_roborock_vacuum brand detection) is covered in tests/adapters/roborock/.
+    """
+    from custom_components.eufy_vacuum.adapters.roborock.adapter import (
+        register_roborock_adapter_for_vacuum,
+    )
+
+    # supported_features 30524 matches the real vacuum.ivy (incl. CLEAN_AREA).
+    hass.states.async_set(
+        "vacuum.ivy", "cleaning", {"supported_features": 30524, "fan_speed": "max"}
+    )
+    register_roborock_adapter_for_vacuum(hass, "vacuum.ivy")
+    return get_adapter_config("vacuum.ivy")
+
+
 # Registry of every known adapter. KEY = brand name, VALUE = builder(hass)->config.
 # Adding a brand here wires it into every contract test in this suite.
 ADAPTER_BUILDERS: dict[str, Callable[[Any], dict[str, Any]]] = {
     "eufy": _build_eufy,
+    "roborock": _build_roborock,
 }
 
 
