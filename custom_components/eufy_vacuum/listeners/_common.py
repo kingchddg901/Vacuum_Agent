@@ -88,11 +88,38 @@ def get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
     config = get_adapter_config(vacuum_entity_id) or {}
     entities = config.get("entities", {})
     watch: list[str] = [vacuum_entity_id]
-    for key in ("task_status", "dock_status", "active_cleaning_target", "active_map"):
+    # job_active is the recharge-resume signal (a binary sensor that stays on
+    # through a mid-job recharge dock); watching it ensures its clear at the true
+    # finish re-triggers finalization. Absent for brands that don't declare it.
+    for key in (
+        "task_status",
+        "dock_status",
+        "active_cleaning_target",
+        "active_map",
+        "job_active",
+    ):
         entity_id = entities.get(key)
         if entity_id:
             watch.append(entity_id)
     return watch
+
+
+def is_job_active(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
+    """True if the adapter declares a job-active signal and it is currently on.
+
+    ``entities.job_active`` is a binary sensor that stays ON for the whole
+    logical job — INCLUDING a mid-job recharge dock where the device reports
+    ``task_status=charging`` and will resume. The completion gate uses this to
+    avoid finalizing during a recharge. Brands that don't declare
+    ``entities.job_active`` always return False, so the guard is a no-op for them
+    (e.g. Eufy).
+    """
+    config = get_adapter_config(vacuum_entity_id) or {}
+    entity_id = config.get("entities", {}).get("job_active")
+    if not entity_id:
+        return False
+    state = hass.states.get(entity_id)
+    return state is not None and str(state.state).strip().lower() == "on"
 
 
 def completed_finalize_signals(

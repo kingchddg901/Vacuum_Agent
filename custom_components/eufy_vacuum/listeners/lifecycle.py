@@ -32,6 +32,7 @@ from ._common import (
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
+    is_job_active,
     job_finished_event_data,
 )
 
@@ -236,6 +237,18 @@ def register(hass: HomeAssistant) -> None:
                         in _clear_sentinels
                         and active_job.get("has_observed_active_lifecycle", False)
                     )
+
+                    # Recharge-resume guard: a brand may dock + report
+                    # task_status=charging MID-job to recharge, then resume. When the
+                    # adapter declares a job-active signal (entities.job_active — a
+                    # binary sensor that stays ON through the recharge dock and clears
+                    # only at the true finish), suppress finalization while it is on so
+                    # the resumed half stays the same job. No-op for brands without
+                    # entities.job_active (e.g. Eufy). Confirmed on a Roborock S6 trace:
+                    # cleaning stayed ON through a 19% recharge dock + resume, off only
+                    # at completion (count incremented).
+                    if should_finalize_completed and is_job_active(hass, vacuum_entity_id):
+                        should_finalize_completed = False
 
                     if not should_finalize_completed:
                         continue

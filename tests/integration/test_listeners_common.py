@@ -28,6 +28,7 @@ from custom_components.eufy_vacuum.listeners._common import (
     get_adapter_value,
     get_adapter_vocab,
     get_lifecycle_watch_entities,
+    is_job_active,
     job_finished_event_data,
 )
 
@@ -149,6 +150,60 @@ def test_get_lifecycle_watch_entities_partial_adapter(manager):
     assert "sensor.alfred_task_status" in result
     # dock_status not declared — must not appear
     assert "sensor.alfred_dock_status" not in result
+
+
+def test_get_lifecycle_watch_entities_includes_job_active(manager):
+    """[LC-8] job_active (the recharge-resume signal) is watched when declared,
+    so its clear at the true finish re-triggers finalization."""
+    register_adapter_config(_VAC, {
+        **_MINIMAL_ADAPTER,
+        "entities": {
+            **_MINIMAL_ADAPTER["entities"],
+            "job_active": "binary_sensor.alfred_cleaning",
+        },
+    })
+    assert "binary_sensor.alfred_cleaning" in get_lifecycle_watch_entities(_VAC)
+
+
+# ---------------------------------------------------------------------------
+# is_job_active — recharge-resume finalize guard
+# ---------------------------------------------------------------------------
+
+_JOB_ACTIVE_ADAPTER = {
+    **_MINIMAL_ADAPTER,
+    "entities": {
+        **_MINIMAL_ADAPTER["entities"],
+        "job_active": "binary_sensor.alfred_cleaning",
+    },
+}
+
+
+async def test_is_job_active_not_declared(hass, manager):
+    """No-op (False) when the adapter declares no job_active (e.g. Eufy) — even
+    if some 'cleaning' binary sensor happens to be on."""
+    register_adapter_config(_VAC, _MINIMAL_ADAPTER)
+    hass.states.async_set("binary_sensor.alfred_cleaning", "on")
+    assert is_job_active(hass, _VAC) is False
+
+
+async def test_is_job_active_declared_and_on(hass, manager):
+    """Declared + on -> True (mid-job recharge dock; suppress finalize)."""
+    register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
+    hass.states.async_set("binary_sensor.alfred_cleaning", "on")
+    assert is_job_active(hass, _VAC) is True
+
+
+async def test_is_job_active_declared_and_off(hass, manager):
+    """Declared but off -> False (job truly done; allow finalize)."""
+    register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
+    hass.states.async_set("binary_sensor.alfred_cleaning", "off")
+    assert is_job_active(hass, _VAC) is False
+
+
+async def test_is_job_active_declared_missing_state(hass, manager):
+    """Declared but the entity has no state -> False."""
+    register_adapter_config(_VAC, _JOB_ACTIVE_ADAPTER)
+    assert is_job_active(hass, _VAC) is False
 
 
 # ---------------------------------------------------------------------------
