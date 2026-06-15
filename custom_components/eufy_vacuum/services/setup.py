@@ -31,6 +31,7 @@ from ..const import (
     SERVICE_SETUP_IMPORT_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
+    SERVICE_SETUP_SET_PANEL_TITLE,
 )
 from ._common import resolved_call_data
 
@@ -46,11 +47,19 @@ SERVICES = (
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
+    SERVICE_SETUP_SET_PANEL_TITLE,
 )
 
 
 _SETUP_ADD_VACUUM_SCHEMA = vol.Schema(
     {vol.Required("vacuum_entity_id"): cv.entity_id}
+)
+_SETUP_SET_PANEL_TITLE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # Blank/omitted title reverts the sidebar entry to the default name.
+        vol.Optional("title", default=""): vol.All(cv.string, vol.Length(max=48)),
+    }
 )
 _SETUP_IMPORT_MAP_SCHEMA = vol.Schema(
     {vol.Required("vacuum_entity_id"): cv.entity_id}
@@ -251,6 +260,45 @@ def register(hass: HomeAssistant) -> None:
         await manager.async_save()
         return {"status": "success", **result}
 
+    async def setup_set_panel_title(call: ServiceCall) -> dict:
+        """Set (or clear) a vacuum's sidebar panel title and re-register live.
+
+        Stores ``panel_title`` on the managed-vacuum record (a blank title reverts
+        to the default), persists it, then re-registers that vacuum's panel with
+        the new title so the sidebar updates without a restart. The user may need
+        to refresh the browser for the sidebar to repaint.
+        """
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "message": "Integration manager not available."}
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        record = manager.data.get("vacuums", {}).get(vacuum_entity_id)
+        if record is None:
+            return {
+                "status": "error",
+                "message": f"Vacuum '{vacuum_entity_id}' is not managed.",
+            }
+
+        raw_title = str(call.data.get("title") or "").strip()
+        if raw_title:
+            record["panel_title"] = raw_title
+        else:
+            record.pop("panel_title", None)  # blank -> revert to the default
+        await manager.async_save()
+
+        from ..panels import async_register_vacuum_panel, effective_panel_title
+
+        title = effective_panel_title(record)
+        await async_register_vacuum_panel(
+            hass, vacuum_entity_id, title=title, replace=True
+        )
+        return {
+            "status": "success",
+            "message": f"Panel renamed to '{title}'. Refresh the page to update the sidebar.",
+            "vacuum_entity_id": vacuum_entity_id,
+            "panel_title": title,
+        }
+
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_GET_STATUS, setup_get_status,
         schema=_SETUP_GET_STATUS_SCHEMA, supports_response=True,
@@ -282,4 +330,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_FORCE_REMOVE_ROOM, setup_force_remove_room,
         schema=_SETUP_FORCE_REMOVE_ROOM_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SETUP_SET_PANEL_TITLE, setup_set_panel_title,
+        schema=_SETUP_SET_PANEL_TITLE_SCHEMA, supports_response=True,
     )

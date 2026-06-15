@@ -24,7 +24,6 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .._frontend_url import panel_js_url
 from ..const import DATA_RUNTIME, DOMAIN
 from ..rooms.room_discovery import discover_rooms_for_vacuum, get_active_map_id
 
@@ -97,29 +96,18 @@ async def add_vacuum(
             next_actions=["import_active_map"],
         )
 
-    manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+    record = manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
     await manager.async_save()
 
-    # Register a per-vacuum sidebar panel so the user can reach the command center immediately.
-    from homeassistant.components import panel_custom
+    # Register a per-vacuum sidebar panel so the user can reach the command center
+    # immediately. Title = the vacuum's panel_title (or "Vacuum Agent" default).
+    from ..panels import async_register_vacuum_panel, effective_panel_title
 
-    object_id = vacuum_entity_id.split(".", 1)[-1]
-    panel_url = f"eufy-vacuum-{object_id}"
-    try:
-        await panel_custom.async_register_panel(
-            hass,
-            frontend_url_path=panel_url,
-            webcomponent_name="eufy-vacuum-command-center",
-            js_url=panel_js_url(),
-            sidebar_title="Vacuum Agent",
-            sidebar_icon="mdi:robot-vacuum",
-            config={"vacuum_entity_id": vacuum_entity_id},
-            require_admin=False,
-            embed_iframe=False,
-        )
-        _LOGGER.debug("eufy_vacuum: registered panel /%s for %s", panel_url, vacuum_entity_id)
-    except ValueError:
-        _LOGGER.debug("eufy_vacuum: panel /%s already registered", panel_url)
+    await async_register_vacuum_panel(
+        hass,
+        vacuum_entity_id,
+        title=effective_panel_title(record),
+    )
 
     _LOGGER.debug("eufy_vacuum: added vacuum %s", vacuum_entity_id)
     return _result(

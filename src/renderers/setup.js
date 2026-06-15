@@ -527,6 +527,39 @@ export function applySetupRenderers(proto) {
       : "";
 
     /* -------------------------------------------------------
+       Panel name — rename this vacuum's sidebar entry. Only
+       shown for a managed vacuum (the panel must exist). The
+       backend re-registers the panel live; the sidebar repaints
+       after a page refresh. Empty = revert to the default name.
+       ------------------------------------------------------- */
+    const panelTitle = vacuumEntry?.panel_title ?? "";
+    const renamePanelHtml = vacuumEntry ? `
+      <div class="evcc-setup-rename">
+        <div class="evcc-setup-rename-title">Panel name</div>
+        <div class="evcc-setup-step-body muted">
+          Rename this vacuum's entry in the Home Assistant sidebar. After saving,
+          refresh the page to see the new name. Leave blank to reset to the default.
+        </div>
+        <div class="evcc-setup-rename-row">
+          <input class="evcc-setup-rename-input"
+                 type="text"
+                 maxlength="48"
+                 data-action="setup-rename-panel-input"
+                 value="${this.escapeHtml(panelTitle)}"
+                 placeholder="Vacuum Agent"
+                 autocomplete="off"
+                 spellcheck="false"
+                 ${loading ? "disabled" : ""} />
+          <button class="evcc-setup-btn small"
+                  data-action="setup-rename-panel-save"
+                  ${loading ? "disabled" : ""}>
+            Rename
+          </button>
+        </div>
+      </div>
+    ` : "";
+
+    /* -------------------------------------------------------
        Add another vacuum — any vacuum.* entity not yet managed.
        This panel's setup steps only manage its own vacuum; this
        section is the cross-vacuum affordance to register a NEW
@@ -598,6 +631,7 @@ export function applySetupRenderers(proto) {
         ${lastResultHtml}
         ${errorHtml}
         ${loadingHtml}
+        ${renamePanelHtml}
         ${addOtherHtml}
         ${refreshHtml}
       </div>

@@ -10,6 +10,7 @@ import {
   SERVICE_SETUP_DELETE_MAP,
   SERVICE_SETUP_REJECT_ROOMS,
   SERVICE_SETUP_FORCE_REMOVE_ROOM,
+  SERVICE_SETUP_SET_PANEL_TITLE,
 } from "../constants.js";
 
 export function applySetupActions(proto) {
@@ -32,6 +33,21 @@ export function applySetupActions(proto) {
       DOMAIN,
       SERVICE_SETUP_ADD_VACUUM,
       { vacuum_entity_id: vacuumEntityId },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Set (or clear, with an empty title) the vacuum's sidebar panel title.
+   * The backend re-registers the panel live; the sidebar repaints on refresh.
+   * Returns an ActionResult dict or null.
+   */
+  proto.renamePanel = async function (vacuumEntityId, title) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SETUP_SET_PANEL_TITLE,
+      { vacuum_entity_id: vacuumEntityId, title: String(title ?? "") },
       true,
     );
     return result?.response ?? result ?? null;

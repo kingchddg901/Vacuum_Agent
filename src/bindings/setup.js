@@ -89,6 +89,42 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       RENAME PANEL — set this vacuum's sidebar title. Reads the
+       sibling input on click (uncontrolled, no per-keystroke
+       state). Empty value reverts to the default name. The
+       backend re-registers the panel; the sidebar repaints on
+       a page refresh.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-rename-panel-save']", "click", async (e) => {
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!vacuumEntityId) return;
+      const input = e.currentTarget
+        ?.closest(".evcc-setup-rename")
+        ?.querySelector(".evcc-setup-rename-input");
+      const title = input ? input.value : "";
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.renamePanel?.(vacuumEntityId, title);
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+        card.showToast?.("Panel renamed — refresh to update the sidebar", { kind: "success" });
+      } catch (err) {
+        card._state.setSetupError?.(
+          `Failed to rename panel: ${err?.message ?? String(err)}`
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
        IMPORT MAP
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-import-map']", "click", async () => {

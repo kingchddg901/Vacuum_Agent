@@ -607,6 +607,48 @@ export const setupStyles = `
   }
 
   /* =========================================================
+     PANEL RENAME
+     ========================================================= */
+
+  .evcc-setup-rename {
+    display:        flex;
+    flex-direction: column;
+    gap:            8px;
+    padding:        14px 16px;
+    border-radius:  10px;
+    background:     var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    border:         1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.10));
+  }
+
+  .evcc-setup-rename-title {
+    font-size:   0.95rem;
+    font-weight: 700;
+    color:       var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-setup-rename-row {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+  }
+
+  .evcc-setup-rename-input {
+    flex:          1 1 auto;
+    min-width:     0;
+    padding:       8px 10px;
+    border-radius: 8px;
+    background:    var(--evcc-surface-card, rgba(0, 0, 0, 0.20));
+    border:        1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    color:         var(--evcc-text-primary, #f0f2f5);
+    font-size:     0.9rem;
+  }
+
+  .evcc-setup-rename-input:focus {
+    outline:      none;
+    border-color: var(--evcc-accent, #3b9eff);
+  }
+
+  /* =========================================================
      ADD ANOTHER VACUUM
      ========================================================= */
 

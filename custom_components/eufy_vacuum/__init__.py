@@ -30,6 +30,7 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
 
 from ._frontend_url import panel_js_url
+from .panels import async_register_vacuum_panel, effective_panel_title
 from .const import (
     CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
@@ -345,27 +346,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register one sidebar panel per managed vacuum.
+    # Register one sidebar panel per managed vacuum. The sidebar title is the
+    # user-set per-vacuum panel_title (or "Vacuum Agent" default), read from the
+    # stored record so a rename survives restart/reload. See panels.py.
     registered_panels: list[str] = []
+    _vacuum_records = manager.data.get("vacuums", {}) or {}
     for vacuum_entity_id in manager.get_known_vacuum_ids():
-        object_id = vacuum_entity_id.split(".", 1)[-1]
-        panel_url = f"eufy-vacuum-{object_id}"
-        try:
-            await panel_custom.async_register_panel(
-                hass,
-                frontend_url_path=panel_url,
-                webcomponent_name="eufy-vacuum-command-center",
-                js_url=panel_js_url(),
-                sidebar_title="Vacuum Agent",
-                sidebar_icon="mdi:robot-vacuum",
-                config={"vacuum_entity_id": vacuum_entity_id},
-                require_admin=False,
-                embed_iframe=False,
-            )
+        panel_url = await async_register_vacuum_panel(
+            hass,
+            vacuum_entity_id,
+            title=effective_panel_title(_vacuum_records.get(vacuum_entity_id)),
+        )
+        if panel_url:
             registered_panels.append(panel_url)
-            _LOGGER.debug("eufy_vacuum: registered panel /%s for %s", panel_url, vacuum_entity_id)
-        except ValueError:
-            _LOGGER.debug("eufy_vacuum: panel /%s already registered", panel_url)
 
     # Fallback panel for fresh installs that haven't pointed at a vacuum
     # yet. Without this, users see no sidebar entry at all and have no

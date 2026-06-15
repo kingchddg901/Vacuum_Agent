@@ -53,6 +53,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from ..const import DATA_RUNTIME, DOMAIN
+from ..panels import effective_panel_title
 from .drift import (
     SETUP_STEP_LABELS,
     SETUP_STEP_SERVICES,
@@ -184,6 +185,11 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
         vacuums_out.append({
             "vacuum_entity_id": vacuum_entity_id,
             "display_name": object_id.replace("_", " ").title(),
+            # Current sidebar panel title (user-set, or the "Vacuum Agent" default)
+            # so the Setup tab's rename field can pre-fill the live value.
+            "panel_title": effective_panel_title(
+                manager.data.get("vacuums", {}).get(vacuum_entity_id, {})
+            ),
             "setup_steps": steps,
             "next_step": next_step,
             "room_drift": drift,

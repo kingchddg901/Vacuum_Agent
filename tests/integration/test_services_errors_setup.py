@@ -14,6 +14,8 @@ Coverage targets
 [SVS-6] setup_reject_rooms strips rooms + reports the result.
 [SVS-7] setup_force_remove_room bumps the missing-pass counter.
 [SVS-8] setup_import_active_map discovers + saves the active map.
+[SVS-9] setup_set_panel_title stores/clears the sidebar title + surfaces it; an
+        unmanaged vacuum errors.
 """
 
 from __future__ import annotations
@@ -35,6 +37,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_SETUP_GET_STATUS,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
+    SERVICE_SETUP_SET_PANEL_TITLE,
 )
 from .conftest import seed_discovery, make_rooms, setup_map
 
@@ -228,3 +231,34 @@ async def test_setup_force_remove_room(hass, manager_with_services):
                          {"vacuum_entity_id": _VAC, "room_id": 7})
     assert result["status"] == "success"
     assert result["room_id"] == 7
+
+
+async def test_setup_set_panel_title(hass, manager_with_services, _no_panel):
+    """[SVS-9] set_panel_title stores a (trimmed) custom title on the record,
+    surfaces it in setup status, and a blank title reverts to the default."""
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+
+    result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
+                         {"vacuum_entity_id": _VAC, "title": "  Ivy  "})
+    assert result["status"] == "success"
+    assert result["panel_title"] == "Ivy"  # trimmed
+    assert manager_with_services.data["vacuums"][_VAC]["panel_title"] == "Ivy"
+
+    status = await _call(hass, SERVICE_SETUP_GET_STATUS, {})
+    entry = next(v for v in status["vacuums"] if v["vacuum_entity_id"] == _VAC)
+    assert entry["panel_title"] == "Ivy"
+
+    # Blank -> revert to the default + drop the stored key.
+    result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
+                         {"vacuum_entity_id": _VAC, "title": "   "})
+    assert result["status"] == "success"
+    assert result["panel_title"] == "Vacuum Agent"
+    assert "panel_title" not in manager_with_services.data["vacuums"][_VAC]
+
+
+async def test_setup_set_panel_title_not_managed(hass, manager_with_services, _no_panel):
+    """[SVS-9] renaming an unmanaged vacuum errors and creates no record."""
+    result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
+                         {"vacuum_entity_id": "vacuum.ghost", "title": "X"})
+    assert result["status"] == "error"
+    assert "vacuum.ghost" not in manager_with_services.data.get("vacuums", {})

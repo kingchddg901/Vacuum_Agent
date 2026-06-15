@@ -118,6 +118,7 @@ SERVICE_SETUP_SAVE_ROOMS    = "setup_save_rooms"
 SERVICE_SETUP_DELETE_MAP    = "setup_delete_map"
 SERVICE_SETUP_REJECT_ROOMS  = "setup_reject_rooms"
 SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room"
+SERVICE_SETUP_SET_PANEL_TITLE = "setup_set_panel_title"
 
 # ----------------------
 # Mapping services
