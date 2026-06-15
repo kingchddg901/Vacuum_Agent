@@ -21,6 +21,7 @@ from ..const import (
     DOMAIN,
     SERVICE_DISCOVER_ROOMS,
     SERVICE_GET_VACUUM_MAPS,
+    SERVICE_RECONCILE_ROOM,
     SERVICE_SAVE_MANAGED_ROOMS,
     SERVICE_UPDATE_ROOM_FIELDS,
 )
@@ -34,6 +35,7 @@ SERVICES = (
     SERVICE_SAVE_MANAGED_ROOMS,
     SERVICE_GET_VACUUM_MAPS,
     SERVICE_UPDATE_ROOM_FIELDS,
+    SERVICE_RECONCILE_ROOM,
 )
 
 
@@ -41,6 +43,14 @@ _DISCOVER_ROOMS_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Optional("map_id"): cv.string,
+    }
+)
+
+_RECONCILE_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("action", default="migrate"): vol.In(["migrate", "ignore"]),
     }
 )
 
@@ -91,15 +101,24 @@ async def _handle_discover_rooms(hass: HomeAssistant, call: ServiceCall) -> None
     fresh in normal operation; this is the manual-trigger equivalent.
     """
     from ..setup.drift import run_discovery_pass
+    from ..rooms.source_refresh import async_refresh_room_source
 
     manager = get_manager(hass)
+    call_data = resolved_call_data(hass, call)
+    vacuum_entity_id = call_data.get("vacuum_entity_id")
+
+    # Service-response brands (Roborock: rooms live in the get_maps response,
+    # not an attribute) need the source cache refreshed BEFORE the sync
+    # discovery reads it. No-op for attribute brands (Eufy).
+    if vacuum_entity_id:
+        await async_refresh_room_source(hass, vacuum_entity_id)
+
     try:
-        payload = manager.discover_rooms(**resolved_call_data(hass, call))
+        payload = manager.discover_rooms(**call_data)
     except Exception as err:
         raise HomeAssistantError(f"Failed to discover rooms: {err}") from err
     _LOGGER.debug("discover_rooms complete: %s", payload)
 
-    vacuum_entity_id = call.data.get("vacuum_entity_id")
     if vacuum_entity_id:
         try:
             run_discovery_pass(hass, manager, vacuum_entity_id)
@@ -127,6 +146,28 @@ async def _handle_get_vacuum_maps(hass: HomeAssistant, call: ServiceCall) -> dic
     payload = get_manager(hass).get_vacuum_maps(**call.data)
     _LOGGER.debug("get_vacuum_maps complete: %s", payload)
     return payload
+
+
+async def _handle_reconcile_room(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Apply or dismiss the identity-shift reviews for one vacuum/map.
+
+    ``action=migrate`` rebuilds the saved rooms onto their new segment ids
+    (carrying durable settings + rewriting access-graph grants); ``ignore``
+    dismisses the reviews and leaves stored data untouched.
+    """
+    manager = get_manager(hass)
+    data = resolved_call_data(hass, call)
+    try:
+        result = manager.reconcile_room(
+            vacuum_entity_id=data["vacuum_entity_id"],
+            map_id=data["map_id"],
+            action=data.get("action", "migrate"),
+        )
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to reconcile room: {err}") from err
+    _LOGGER.debug("reconcile_room: %s", result)
+    await manager.async_save()
+    return result
 
 
 async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> dict:
@@ -173,6 +214,9 @@ def register(hass: HomeAssistant) -> None:
     async def update_room_fields(call: ServiceCall) -> dict:
         return await _handle_update_room_fields(hass, call)
 
+    async def reconcile_room(call: ServiceCall) -> dict:
+        return await _handle_reconcile_room(hass, call)
+
     hass.services.async_register(
         DOMAIN, SERVICE_DISCOVER_ROOMS, discover_rooms, schema=_DISCOVER_ROOMS_SCHEMA,
     )
@@ -187,4 +231,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_UPDATE_ROOM_FIELDS, update_room_fields,
         schema=_UPDATE_ROOM_FIELDS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RECONCILE_ROOM, reconcile_room,
+        schema=_RECONCILE_ROOM_SCHEMA, supports_response=True,
     )

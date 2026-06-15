@@ -129,13 +129,15 @@ def register_roborock_adapter_for_vacuum(
     )
 
     # --- entity ID map --------------------------------------------------------
-    # active_map (select.{id}_selected_map) is intentionally OMITTED in Wave 1 —
-    # its id-space vs get_maps must be confirmed before it can drive map-mismatch
-    # detection (Wave 2). job_active is a forward hook for the recharge-resume
-    # completion fix (see completion block); harmless if unconsumed.
+    # active_map (select.{id}_selected_map) reports the map NAME ("Main floor");
+    # Wave 2a confirmed its id-space and wires it as the discovery active-map +
+    # the multi-map alignment anchor (trivial at one map, load-bearing on a
+    # multi-map flip). job_active is the recharge-resume disambiguator (see
+    # completion block); harmless if unconsumed.
     entities = {
         "task_status": build_entity_id(vid, SUFFIX_TASK_STATUS),
         "active_cleaning_target": build_entity_id(vid, SUFFIX_ACTIVE_CLEANING_TARGET),
+        "active_map": build_entity_id(vid, SUFFIX_ACTIVE_MAP, DOMAIN_SELECT),
         "cleaning_time": build_entity_id(vid, SUFFIX_CLEANING_TIME),
         "cleaning_area": build_entity_id(vid, SUFFIX_CLEANING_AREA),
         "battery": build_entity_id(vid, SUFFIX_BATTERY),
@@ -228,6 +230,33 @@ def register_roborock_adapter_for_vacuum(
             "passes_max": 3,
         },
 
+        "discovery": {
+            # SERVICE-RESPONSE source: Roborock's id<->name map lives ONLY in the
+            # roborock.get_maps response ({segment_id_str: name} per map), never an
+            # entity attribute. The framework refreshes + flattens it
+            # (rooms/source_refresh.py) at the async discovery boundaries into the
+            # list-of-dicts the normalizer expects. (Live room NAMES are also on
+            # sensor.{id}_current_room.options, but the id<->name pairing — needed
+            # for app_segment_clean ints — is get_maps-only.)
+            "source": "service_response",
+            "maps_service": {"domain": "roborock", "service": "get_maps"},
+            "maps_rooms_key": "rooms",
+            # select.{id}_selected_map reports the map NAME; the flattened cache is
+            # keyed by name so the resolved active-map id lines up with a cache key.
+            "map_name_key": "name",
+            "room_id_key": "segment_id",
+            "room_name_key": "name",
+            # Roborock surfaces ONLY named rooms (unnamed/auto-split segments never
+            # appear in get_maps) — no phantom-room noise, unlike Eufy's CV
+            # segmentor — so a newly-named room is deliberate: surface immediately.
+            "new_room_confirmation_passes": 1,
+            "auto_refresh_on": [
+                "vacuum_docked",
+                "active_map_changed",
+                "config_entry_reload",
+            ],
+        },
+
         "mapping": {
             # No map-image entity (MAP feature bit unset) -> no image to segment.
             # noop stops polygon rendering; trace tracking still runs off position.
@@ -281,8 +310,9 @@ def register_roborock_adapter_for_vacuum(
             for component_id, component in MAINTENANCE_COMPONENTS.items()
         },
 
-        # DEFERRED to Wave 2 (need the live get_maps payload / a saved map):
-        #   "discovery" — rooms from vacuum.get_maps (+ active_map alignment).
+        # Wave 2a shipped: "discovery" (get_maps service source + active_map) +
+        # identity reconciliation. DEFERRED to Wave 2b: live name->id dispatch
+        # resolution + completion re-key onto the cleaning binary.
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
         #   settings_selects, room_profiles, anomaly, live_transition.

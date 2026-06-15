@@ -16,6 +16,7 @@ from ..maps.map_manager import (
     get_vacuum_maps_summary,
     rebuild_map_bucket,
 )
+from ..rooms.reconciliation import compute_reconciliation, plan_migration
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 
@@ -52,6 +53,22 @@ class RoomMapManager:
         )
 
         _disc_map_id = str(payload.get("active_map_id") or map_id or "")
+
+        # Identity-shift reconciliation: compare the fresh discovery against the
+        # SAVED rooms for this map by slug. A known slug whose segment id changed
+        # (re-segment) or a known id whose name changed (rename) surfaces as a
+        # review the user confirms — never an auto-migration ("no auto changes").
+        # New/removed rooms are owned by drift, not reported here.
+        existing_rooms = get_map_bucket(
+            data=self._manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=_disc_map_id,
+        ).get("rooms", {})
+        payload["reconciliation"] = compute_reconciliation(
+            discovered_rooms=payload.get("rooms", []),
+            existing_rooms=existing_rooms,
+        )
+
         self._manager.data.setdefault("discovery", {})
         self._manager.data["discovery"].setdefault(vacuum_entity_id, {})[_disc_map_id] = payload
 
@@ -59,6 +76,134 @@ class RoomMapManager:
         runtime.active_map_id = payload.get("active_map_id")
 
         return payload
+
+    def reconcile_room(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        action: str = "migrate",
+    ) -> dict[str, Any]:
+        """Apply or dismiss the identity-shift reviews for one vacuum/map.
+
+        A re-segment renumbers many rooms at once, so reconciliation is a single
+        per-map decision (mirroring "did you re-map? [Yes, migrate] / [No]")
+        rather than a per-room prompt:
+
+          - ``migrate`` — atomically rebuild the saved room map from the cached
+            discovery, carrying each saved room's durable settings to its new id
+            (slug-matched) and rewriting access-graph grants through the same
+            old->new id remap. Learning history is slug-tagged in the job files,
+            so it follows the room regardless. Saved rooms whose slug vanished
+            from discovery are dropped (the user confirmed the re-map) and
+            reported.
+          - ``ignore`` — leave stored data untouched and stamp a dismissal so the
+            same reviews stop surfacing until the next real change.
+
+        Requires a prior ``discover_rooms`` to have cached the discovery payload.
+        """
+        from ..learning.utils import _iso_now
+
+        action = str(action or "").strip().lower()
+        map_id_str = str(map_id)
+        self._manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+
+        if action == "ignore":
+            map_bucket = ensure_map_bucket(
+                data=self._manager.data,
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=map_id_str,
+            )
+            map_bucket.setdefault("metadata", {})["reconciliation_dismissed_at"] = _iso_now()
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id_str,
+                "action": "ignore",
+                "migrated_room_count": 0,
+                "id_remap": {},
+                "dropped": [],
+            }
+
+        if action != "migrate":
+            raise ValueError(f"reconcile_room: unknown action {action!r}")
+
+        discovery = (
+            self._manager.data.get("discovery", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+        )
+        discovered_rooms = [
+            room
+            for room in discovery.get("rooms", [])
+            if str(room.get("map_id")) == map_id_str
+        ]
+
+        # Never migrate against an empty discovery — a stale/offline discovery
+        # would otherwise rebuild the map to nothing and wipe saved rooms. The
+        # caller should re-run discover_rooms first.
+        if not discovered_rooms:
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": map_id_str,
+                "action": "migrate",
+                "migrated_room_count": 0,
+                "id_remap": {},
+                "dropped": [],
+                "skipped": "no_discovery",
+            }
+
+        existing_rooms = get_map_bucket(
+            data=self._manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id_str,
+        ).get("rooms", {})
+
+        plan = plan_migration(
+            discovered_rooms=discovered_rooms,
+            existing_rooms=existing_rooms,
+        )
+
+        new_rooms = plan["rooms"]
+        map_bucket = ensure_map_bucket(
+            data=self._manager.data,
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id_str,
+        )
+        map_bucket["rooms"] = new_rooms
+        map_bucket["summary"] = build_room_selection_summary(managed_rooms=new_rooms)
+        map_bucket.setdefault("metadata", {})["reconciled_at"] = _iso_now()
+
+        # Drop transient id-keyed rule-status snapshots for the migrated old ids;
+        # they rebuild on the next preflight under the new ids.
+        rule_status_map = (
+            self._manager.data.get("room_rule_status", {})
+            .get(vacuum_entity_id, {})
+            .get(map_id_str, {})
+        )
+        for old_id in plan["id_remap"]:
+            rule_status_map.pop(str(old_id), None)
+
+        # Room-history is a rebuildable cache derived from slug-tagged job files;
+        # invalidate so it re-ingests under the new ids.
+        self._manager._room_history_cache_ready.discard(vacuum_entity_id)
+
+        self._manager._refresh_room_derived_state(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id_str,
+        )
+        self._manager._notify_rooms_updated(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id_str,
+        )
+
+        return {
+            "vacuum_entity_id": vacuum_entity_id,
+            "map_id": map_id_str,
+            "action": "migrate",
+            "migrated_room_count": len(new_rooms),
+            "id_remap": {str(old): new for old, new in plan["id_remap"].items()},
+            "dropped": plan["dropped"],
+        }
 
     def save_managed_rooms(
         self,

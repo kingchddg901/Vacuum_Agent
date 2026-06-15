@@ -122,8 +122,22 @@ def test_entities(s6_config):
     assert e["charging"] == "binary_sensor.ivy_charging"
     # recharge-resume completion disambiguator (forward hook).
     assert e["job_active"] == "binary_sensor.ivy_cleaning"
-    # active_map deferred to Wave 2 (get_maps id-space unconfirmed).
-    assert "active_map" not in e
+    # Wave 2a: active_map = the selected-map SELECT (reports the map name).
+    assert e["active_map"] == "select.ivy_selected_map"
+
+
+def test_discovery_service_response(s6_config):
+    # Wave 2a: rooms come from the roborock.get_maps service RESPONSE (not an
+    # attribute), flattened + cached by the framework. map identity = name.
+    disc = s6_config["discovery"]
+    assert disc["source"] == "service_response"
+    assert disc["maps_service"] == {"domain": "roborock", "service": "get_maps"}
+    assert disc["maps_rooms_key"] == "rooms"
+    assert disc["map_name_key"] == "name"
+    assert disc["room_id_key"] == "segment_id"
+    assert disc["room_name_key"] == "name"
+    # Named rooms are deliberate (no phantom segments) -> surface immediately.
+    assert disc["new_room_confirmation_passes"] == 1
 
 
 def test_dispatch(s6_config):

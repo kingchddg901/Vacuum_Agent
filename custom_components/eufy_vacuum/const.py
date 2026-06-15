@@ -31,6 +31,7 @@ SERVICE_CLEAR_RUNTIME_STATE = "clear_runtime_state"
 SERVICE_DISCOVER_ROOMS = "discover_rooms"
 SERVICE_SAVE_MANAGED_ROOMS = "save_managed_rooms"
 SERVICE_GET_VACUUM_MAPS = "get_vacuum_maps"
+SERVICE_RECONCILE_ROOM = "reconcile_room"
 
 SERVICE_BUILD_QUEUE = "build_queue"
 SERVICE_BUILD_ROOM_PAYLOAD = "build_room_payload"

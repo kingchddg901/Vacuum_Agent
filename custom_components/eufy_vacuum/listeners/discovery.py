@@ -58,6 +58,7 @@ def register(hass: HomeAssistant) -> None:
     # than the listener itself needs; deferring the import until first
     # registration keeps startup lean.
     from ..setup.drift import get_discovery_cadence, run_discovery_pass
+    from ..rooms.source_refresh import async_refresh_room_source
 
     domain_data = hass.data.get(DOMAIN, {})
     manager: EufyVacuumManager | None = domain_data.get(DATA_RUNTIME)
@@ -79,6 +80,9 @@ def register(hass: HomeAssistant) -> None:
             def _run() -> None:
                 async def _do() -> None:
                     try:
+                        # Refresh service-response sources (Roborock get_maps)
+                        # before the sync pass reads the cache; no-op for Eufy.
+                        await async_refresh_room_source(hass, vid)
                         run_discovery_pass(hass, manager, vid)
                         await manager.async_save()
                     except Exception:  # pragma: no cover - best-effort background pass

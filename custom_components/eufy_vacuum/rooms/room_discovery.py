@@ -23,6 +23,10 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 
 from .utils import slugify_room_name
+from .source_refresh import (
+    SOURCE_SERVICE_RESPONSE,
+    get_cached_room_source,
+)
 from ..adapters.registry import get_adapter_config
 
 _LOGGER = logging.getLogger(__name__)
@@ -74,41 +78,71 @@ def discover_rooms_for_vacuum(
     config = get_adapter_config(vacuum_entity_id)
     discovery = (config or {}).get("discovery", {})
 
-    room_list_entity_key = discovery.get("room_list_entity")
-    room_list_attribute = discovery.get("room_list_attribute")
+    source_kind = discovery.get("source")
     room_id_key = discovery.get("room_id_key")
     room_name_key = discovery.get("room_name_key")
 
-    if not all((room_list_entity_key, room_list_attribute, room_id_key, room_name_key)):
+    # Both sources still need to know which keys carry the room id + name.
+    if not all((room_id_key, room_name_key)):
         _LOGGER.debug(
             "Discovery config incomplete for %s — skipping room discovery",
             vacuum_entity_id,
         )
         return []
 
-    # Resolve which entity holds the room list.
-    if room_list_entity_key == "vacuum_entity":
-        source_entity_id = vacuum_entity_id
-    else:
-        source_entity_id = room_list_entity_key
-
-    source_state = hass.states.get(source_entity_id)
-    if source_state is None:
-        _LOGGER.debug(  # pragma: no cover
-            "Room list entity %s missing for %s", source_entity_id, vacuum_entity_id
-        )
-        return []
-
     resolved_map_id = map_id or get_active_map_id(hass, vacuum_entity_id) or "unknown"
 
-    segments = source_state.attributes.get(room_list_attribute)
-    if not isinstance(segments, list):
-        _LOGGER.debug(
-            "Room list attribute '%s' missing or invalid for %s",
-            room_list_attribute,
-            vacuum_entity_id,
+    if source_kind == SOURCE_SERVICE_RESPONSE:
+        # The room list lives in a cached service response (refreshed at the
+        # async boundaries by async_refresh_room_source), keyed by map NAME —
+        # the same value entities.active_map reports for these brands.
+        per_map = get_cached_room_source(hass, vacuum_entity_id)
+        segments = per_map.get(str(resolved_map_id))
+        if segments is None and len(per_map) == 1:
+            # Single-map brand whose active_map value didn't line up with the
+            # cache key (e.g. active_map unknown at refresh time) — use the one
+            # map we have rather than discovering nothing.
+            segments = next(iter(per_map.values()))
+        if not isinstance(segments, list):
+            _LOGGER.debug(
+                "No cached room source for %s map %s",
+                vacuum_entity_id,
+                resolved_map_id,
+            )
+            return []
+    else:
+        # Attribute source (default, e.g. Eufy): the room list is a live
+        # attribute on an entity. room_list_entity / room_list_attribute are
+        # required here.
+        room_list_entity_key = discovery.get("room_list_entity")
+        room_list_attribute = discovery.get("room_list_attribute")
+        if not all((room_list_entity_key, room_list_attribute)):
+            _LOGGER.debug(
+                "Attribute discovery config incomplete for %s — skipping",
+                vacuum_entity_id,
+            )
+            return []
+
+        source_entity_id = (
+            vacuum_entity_id
+            if room_list_entity_key == "vacuum_entity"
+            else room_list_entity_key
         )
-        return []
+        source_state = hass.states.get(source_entity_id)
+        if source_state is None:
+            _LOGGER.debug(  # pragma: no cover
+                "Room list entity %s missing for %s", source_entity_id, vacuum_entity_id
+            )
+            return []
+
+        segments = source_state.attributes.get(room_list_attribute)
+        if not isinstance(segments, list):
+            _LOGGER.debug(
+                "Room list attribute '%s' missing or invalid for %s",
+                room_list_attribute,
+                vacuum_entity_id,
+            )
+            return []
 
     rooms: list[dict[str, Any]] = []
     seen_room_ids: set[int] = set()

@@ -1201,6 +1201,10 @@ class EufyVacuumManager:
         """Delegate to RoomMapManager."""
         return self.room_map.discover_rooms(**kwargs)
 
+    def reconcile_room(self, **kwargs) -> dict:
+        """Delegate to RoomMapManager."""
+        return self.room_map.reconcile_room(**kwargs)
+
     def save_managed_rooms(self, **kwargs) -> dict:
         """Delegate to RoomMapManager."""
         return self.room_map.save_managed_rooms(**kwargs)

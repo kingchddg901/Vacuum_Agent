@@ -82,6 +82,38 @@ save_managed_rooms:
       selector:
         object: {}
 
+reconcile_room:
+  name: Reconcile room identity
+  description: >
+    Apply or dismiss the identity-shift reviews surfaced by discover_rooms when
+    a brand renumbers segment ids on re-segment (e.g. Roborock). action=migrate
+    rebuilds the saved rooms onto their new segment ids, carrying durable
+    per-room settings (matched by name slug) and rewriting access-graph grants;
+    action=ignore leaves stored data untouched and dismisses the reviews. A
+    re-segment renumbers many rooms at once, so this is one per-map decision.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    action:
+      name: Action
+      description: migrate (apply the re-map) or ignore (dismiss the reviews).
+      required: false
+      default: migrate
+      selector:
+        select:
+          options:
+            - migrate
+            - ignore
+
 get_vacuum_maps:
   name: Get vacuum maps
   description: Return all known maps for a vacuum.

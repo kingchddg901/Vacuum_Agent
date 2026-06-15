@@ -660,21 +660,65 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
         "required": False,
         "description": "Room discovery configuration.",
         "fields": {
+            "source": {
+                "type": "str",
+                "required": False,
+                "values": ["entity_attribute", "service_response"],
+                "description": (
+                    "Where the room list comes from. 'entity_attribute' (default, "
+                    "Eufy): a live attribute on an HA entity, read synchronously. "
+                    "'service_response' (Roborock): the room list only exists in a "
+                    "service-call RESPONSE (get_maps). For service sources the "
+                    "framework calls the service at the async discovery boundaries, "
+                    "flattens it, and caches it for the sync discovery path — see "
+                    "rooms/source_refresh.py. Absent = 'entity_attribute'."
+                ),
+            },
+            "maps_service": {
+                "type": "dict",
+                "required": False,
+                "description": (
+                    "For source='service_response': the response-returning service "
+                    "that lists maps + rooms. {'domain': str, 'service': str}, called "
+                    "with the vacuum entity as target and return_response=True. "
+                    "Example: {'domain': 'roborock', 'service': 'get_maps'}."
+                ),
+            },
+            "maps_rooms_key": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "For source='service_response': key in each map entry of the "
+                    "service response that holds the rooms. The value may be a "
+                    "{segment_id_str: name} mapping (flattened to list-of-dicts by "
+                    "the shim) or already a list of dicts. Default: 'rooms'."
+                ),
+            },
+            "map_name_key": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "For source='service_response': key in each map entry that holds "
+                    "the map's identity. The flattened cache is keyed by this value, "
+                    "which must match what entities.active_map reports (Roborock's "
+                    "select.{id}_selected_map reports the map NAME). Default: 'name'."
+                ),
+            },
             "room_list_entity": {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Which entity exposes the room list. Use 'vacuum_entity' "
-                    "to read from the vacuum entity itself, or supply a full "
-                    "entity ID. Default: 'vacuum_entity'."
+                    "For source='entity_attribute': which entity exposes the room "
+                    "list. Use 'vacuum_entity' to read from the vacuum entity "
+                    "itself, or supply a full entity ID. Default: 'vacuum_entity'."
                 ),
             },
             "room_list_attribute": {
                 "type": "str",
                 "required": False,
                 "description": (
-                    "Attribute name on the entity that contains the room list. "
-                    "Expected to be a list of dicts."
+                    "For source='entity_attribute': attribute name on the entity "
+                    "that contains the room list. Expected to be a list of dicts."
                 ),
             },
             "room_id_key": {
