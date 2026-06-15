@@ -427,9 +427,34 @@ export function applyRoomEditorState(proto) {
 
   proto.showWaterLevel = function () {
     if (this.isEditorRoomCarpet()) return false;
+    if (this.waterLevelOptions().length === 0) return false;
+    // Tank-driven brands (Roborock: no per-room clean_mode) report mop_active
+    // from the water-box sensor — show water/mop intensity only when the tank is
+    // attached. Brands with a per-room clean_mode (Eufy) show it when mopping.
+    const mopActive = this.mopActive();
+    if (mopActive !== null) return mopActive;
     const fields = this.editorFields();
     if (!fields) return false;
     return this.isMopMode(fields.clean_mode);
+  };
+
+  /**
+   * Whether the brand reports a tank-driven mop state (snapshot.mop_active is a
+   * bool) and its current value; null when the adapter declares no tank sensor
+   * (Eufy → the editor uses clean_mode instead).
+   */
+  proto.mopActive = function () {
+    const v = this.dashboardSnapshot?.()?.mop_active;
+    return (v === null || v === undefined) ? null : Boolean(v);
+  };
+
+  /**
+   * Upper bound for the Cleaning Passes chips, from the adapter's dispatch
+   * passes_max (surfaced via the snapshot). Default 2 (historical Eufy editor).
+   */
+  proto.maxCleanPasses = function () {
+    const n = Number(this.dashboardSnapshot?.()?.max_clean_passes);
+    return (Number.isFinite(n) && n >= 1) ? Math.min(Math.trunc(n), 9) : 2;
   };
 
   proto.showEdgeMopping = function () {
@@ -464,6 +489,12 @@ export function applyRoomEditorState(proto) {
    */
   proto._buildOptionListForRole = function (roleKey, profileFieldName) {
     const adapterOptions = this.adapterOptionsFor?.(roleKey) ?? [];
+    // When the adapter declares NO options for a role, the brand doesn't expose
+    // that field at all — hide it (return []) rather than resurrecting it from
+    // profile-derived legacy values. This is the "omit the option list -> hide
+    // the picker" contract (e.g. Roborock has no per-room clean_mode / clean
+    // intensity, so those rows must not appear).
+    if (adapterOptions.length === 0) return [];
     const profileOptions = this._profileDerivedOptions(profileFieldName);
     const seen = new Set();
     const result = [];

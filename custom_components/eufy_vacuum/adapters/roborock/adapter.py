@@ -37,6 +37,7 @@ from .entities import (
     SUFFIX_ERROR_MESSAGE,
     SUFFIX_CHARGING,
     SUFFIX_JOB_ACTIVE,
+    SUFFIX_WATER_BOX,
     DOMAIN_BINARY_SENSOR,
     DOMAIN_SELECT,
 )
@@ -145,6 +146,10 @@ def register_roborock_adapter_for_vacuum(
         "error_message": build_entity_id(vid, SUFFIX_ERROR_MESSAGE),
         "charging": build_entity_id(vid, SUFFIX_CHARGING, DOMAIN_BINARY_SENSOR),
         "job_active": build_entity_id(vid, SUFFIX_JOB_ACTIVE, DOMAIN_BINARY_SENSOR),
+        # mop_active: the S6 has NO per-room clean_mode — mopping is driven by the
+        # physical water tank. The card reads this (via snapshot.mop_active) to
+        # surface mop state + the water-level field only when the tank is attached.
+        "mop_active": build_entity_id(vid, SUFFIX_WATER_BOX, DOMAIN_BINARY_SENSOR),
     }
 
     config = {

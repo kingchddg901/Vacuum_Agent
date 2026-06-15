@@ -3503,6 +3503,27 @@ class EufyVacuumManager:
         _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
         adapter_vocabulary = _adapter_cfg.get("vocabulary", {}) or {}
 
+        # Per-room editor capability hints surfaced to the card:
+        # - max_clean_passes: upper bound for the passes chips (the dispatch
+        #   clamp). Default 2 keeps the historical Eufy editor unchanged;
+        #   Roborock declares passes_max=3.
+        # - mop_active: brands whose mop is driven by a physical tank sensor
+        #   (Roborock binary_sensor.{id}_water_box_attached, declared as
+        #   entities.mop_active) report whether the tank is attached, so the
+        #   editor surfaces mop state + the water-level field from reality rather
+        #   than a per-room clean_mode the device doesn't expose. None when the
+        #   adapter declares no tank sensor (Eufy → card uses clean_mode instead).
+        _dispatch_cfg = _adapter_cfg.get("dispatch", {}) or {}
+        max_clean_passes = int(_dispatch_cfg.get("passes_max", 2) or 2)
+        _mop_active_entity = (_adapter_cfg.get("entities", {}) or {}).get("mop_active")
+        mop_active: bool | None = None
+        if _mop_active_entity:
+            _mop_state = self.hass.states.get(_mop_active_entity)
+            mop_active = bool(
+                _mop_state is not None
+                and str(_mop_state.state).strip().lower() == "on"
+            )
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -3515,6 +3536,8 @@ class EufyVacuumManager:
             "lifecycle": lifecycle,
             "upkeep": upkeep,
             "adapter_vocabulary": adapter_vocabulary,
+            "max_clean_passes": max_clean_passes,
+            "mop_active": mop_active,
             "updated_at": _iso_now(),
         }
 

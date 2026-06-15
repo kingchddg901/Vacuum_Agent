@@ -71,10 +71,11 @@ export function applyRoomEditorRenderer(proto) {
 
             ${this._renderProfileSelector(state, room, fields)}
             ${this._renderCleanModeField(state, fields)}
+            ${this._renderMopStateIndicator(state)}
             ${this._renderSuctionField(state, fields)}
             ${state.showWaterLevel()  ? this._renderWaterLevelField(state, fields)  : ""}
             ${this._renderIntensityField(state, fields)}
-            ${this._renderPassesField(fields)}
+            ${this._renderPassesField(fields, state.maxCleanPasses())}
             ${state.showEdgeMopping() ? this._renderEdgeMoppingField(fields) : ""}
             ${this._renderTransitionField(room)}
 
@@ -297,25 +298,44 @@ export function applyRoomEditorRenderer(proto) {
   };
 
   /**
-   * Clean passes — 1 or 2, simple chip pair.
+   * Clean passes — 1..maxPasses chips (adapter dispatch.passes_max; Eufy 2,
+   * Roborock 3). Defaults to 2 when the bound is missing.
    */
-  proto._renderPassesField = function (fields) {
+  proto._renderPassesField = function (fields, maxPasses) {
+    const max = Math.max(1, Math.trunc(Number(maxPasses)) || 2);
+    const chips = [];
+    for (let n = 1; n <= max; n += 1) {
+      chips.push(`
+          <button
+            type="button"
+            class="evcc-chip ${fields.clean_passes === n ? "active" : ""}"
+            data-field="clean_passes"
+            data-value="${n}"
+          >${n} ${n === 1 ? "Pass" : "Passes"}</button>`);
+    }
     return `
       <div class="evcc-editor-field-group">
         <div class="evcc-field-label">Cleaning Passes</div>
-        <div class="evcc-chips">
-          <button
-            type="button"
-            class="evcc-chip ${fields.clean_passes === 1 ? "active" : ""}"
-            data-field="clean_passes"
-            data-value="1"
-          >1 Pass</button>
-          <button
-            type="button"
-            class="evcc-chip ${fields.clean_passes === 2 ? "active" : ""}"
-            data-field="clean_passes"
-            data-value="2"
-          >2 Passes</button>
+        <div class="evcc-chips">${chips.join("")}</div>
+      </div>
+    `;
+  };
+
+  /**
+   * Read-only mop-state indicator for tank-driven brands (Roborock: no per-room
+   * clean_mode — mopping is whether the water tank is attached). Renders nothing
+   * for brands that expose a per-room clean_mode (Eufy: snapshot.mop_active null).
+   */
+  proto._renderMopStateIndicator = function (state) {
+    const mopActive = state.mopActive();
+    if (mopActive === null) return "";
+    return `
+      <div class="evcc-editor-field-group">
+        <div class="evcc-field-label">Cleaning Mode</div>
+        <div class="evcc-room-editor-mopstate ${mopActive ? "mopping" : "vacuum"}">
+          ${mopActive
+            ? "Mopping — water tank attached"
+            : "Vacuum only — no water tank"}
         </div>
       </div>
     `;

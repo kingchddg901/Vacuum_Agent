@@ -45,13 +45,16 @@ CANCEL_DETECTION_STATES: dict = {
 }
 
 # Card-facing dropdown option lists (the framework never reads these).
-# fan_speed from ``vacuum.ivy`` ``fan_speed_list``.
+# fan_speed from ``vacuum.ivy`` ``fan_speed_list``, ordered ASCENDING SUCTION
+# (Gentle weakest -> Max strongest) for the editor chip row — the device lists
+# them in a different order (gentle last), but the user reads them low->high.
+# This order also matches the dispatch global-pre-call rank.
 FAN_SPEED_OPTIONS: list[dict] = [
+    {"value": "gentle", "label": "Gentle"},
     {"value": "quiet", "label": "Quiet"},
     {"value": "balanced", "label": "Balanced"},
     {"value": "turbo", "label": "Turbo"},
     {"value": "max", "label": "Max"},
-    {"value": "gentle", "label": "Gentle"},
 ]
 
 # water_level from ``select.ivy_mop_intensity`` (off/low/medium/high) — maps 1:1

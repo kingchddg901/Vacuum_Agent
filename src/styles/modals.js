@@ -281,6 +281,27 @@ export const modalStyles = `
     margin-bottom: 6px;
   }
 
+  /* Read-only mop-state indicator (tank-driven brands, e.g. Roborock). */
+  .evcc-room-editor-mopstate {
+    padding:       8px 11px;
+    border-radius: 8px;
+    font-size:     0.82rem;
+    font-weight:   600;
+    line-height:   1.3;
+  }
+
+  .evcc-room-editor-mopstate.mopping {
+    background: color-mix(in srgb, var(--evcc-accent, #3b9eff) 16%, transparent);
+    border:    1px solid color-mix(in srgb, var(--evcc-accent, #3b9eff) 34%, transparent);
+    color:     var(--evcc-text-primary, #f0f2f5);
+  }
+
+  .evcc-room-editor-mopstate.vacuum {
+    background: color-mix(in srgb, var(--evcc-text-muted) 10%, transparent);
+    border:    1px solid color-mix(in srgb, var(--evcc-text-muted) 22%, transparent);
+    color:     var(--evcc-text-muted);
+  }
+
   .evcc-chip--custom {
     background:
       var(--evcc-modal-chip-bg,

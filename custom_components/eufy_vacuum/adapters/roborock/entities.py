@@ -29,6 +29,7 @@ SUFFIX_ERROR_MESSAGE = "_vacuum_error"           # sensor — enum error-code st
 # binary_sensor domain
 SUFFIX_CHARGING = "_charging"                    # binary_sensor — dedicated charging signal
 SUFFIX_JOB_ACTIVE = "_cleaning"                  # binary_sensor — device inCleaning (stays ON through a recharge dock)
+SUFFIX_WATER_BOX = "_water_box_attached"         # binary_sensor — water tank present => mopping (no per-room clean_mode)
 
 # === ENTITY DOMAINS ======================================================
 DOMAIN_SENSOR = "sensor"

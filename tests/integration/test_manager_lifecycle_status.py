@@ -69,6 +69,47 @@ _VAC = "vacuum.alfred"
 _MAP = "6"
 
 
+async def test_dashboard_snapshot_mop_active_and_passes(manager, hass):
+    """[LS-8] The dashboard snapshot surfaces max_clean_passes (from dispatch
+    passes_max) and a tank-driven mop_active (from entities.mop_active), so the
+    room editor can render S6-correct passes + mop state."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"mop_active": "binary_sensor.alfred_water_box_attached"},
+        "dispatch": {"passes_max": 3},
+    })
+    try:
+        hass.states.async_set("binary_sensor.alfred_water_box_attached", "on")
+        await hass.async_block_till_done()
+        snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert snap["max_clean_passes"] == 3
+        assert snap["mop_active"] is True
+
+        hass.states.async_set("binary_sensor.alfred_water_box_attached", "off")
+        await hass.async_block_till_done()
+        snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert snap["mop_active"] is False
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
+    """[LS-8] No mop_active entity -> mop_active None (Eufy uses clean_mode);
+    no passes_max -> default 2 (historical Eufy editor)."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+    register_adapter_config(_VAC, {"adapter_id": "eufy", "source": "code", "entities": {}})
+    try:
+        await hass.async_block_till_done()
+        snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert snap["mop_active"] is None
+        assert snap["max_clean_passes"] == 2
+    finally:
+        unregister_adapter_config(_VAC)
+
+
 class _FakeErrorTracker:
     """Returns a canned active-run latch — mirrors ErrorTracker's read API."""
 
