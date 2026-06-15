@@ -16,6 +16,8 @@ Coverage targets
 [DE-12] Dreame engine: per-room repeats array (not a batch scalar), clamped.
 [DE-13] Job model: every registered engine is atomic_batch; build_phases == [build_payload] (one phase).
 [DE-14] Job model: a sequenced engine declares job_model + returns >1 phase, each a complete payload envelope.
+[DE-15] strict_order: flat-id engines emit one single-segment phase per room (queue order, per-room passes);
+        atomic engines ignore the flag.
 """
 
 from __future__ import annotations
@@ -337,3 +339,53 @@ def test_sequenced_engine_emits_multiple_phases():
     assert phases[1]["payload"]["phase"] == "mop"
     # each phase is a complete, independently-finalizable payload envelope
     assert all("resolved_rooms" in p and "payload" in p for p in phases)
+
+
+# --- strict_order: per-room sequenced phases --------------------------------
+
+
+def test_strict_order_emits_one_phase_per_room():
+    """[DE-15] strict_order on a flat-id engine -> one single-segment phase per
+    room, in queue order, each carrying its OWN passes."""
+    rooms = {
+        "1": {"room_id": 1, "name": "Kitchen", "enabled": True, "clean_passes": 1, "order": 1},
+        "2": {"room_id": 2, "name": "Bath", "enabled": True, "clean_passes": 3, "order": 2},
+    }
+    phases = RoborockSegmentEngine().build_phases(
+        strict_order=True,
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=rooms,
+        queue_room_ids=[1, 2], capabilities={},
+        dispatch={"template": "roborock_segment_clean", "passes_max": 3},
+    )
+    assert len(phases) == 2
+    # one segment per phase, in queue order
+    assert phases[0]["payload"]["segments"] == [1]
+    assert phases[1]["payload"]["segments"] == [2]
+    # per-room passes survive (NOT collapsed to a batch max)
+    assert phases[0]["payload"]["repeat"] == 1
+    assert phases[1]["payload"]["repeat"] == 3
+    # each phase is a one-room atomic sub-job
+    assert all(p["room_count"] == 1 and len(p["resolved_rooms"]) == 1 for p in phases)
+    assert phases[0]["resolved_rooms"][0]["room_id"] == 1
+
+
+def test_strict_order_false_is_single_batch_phase():
+    """[DE-15] without strict_order the flat engine emits one batch phase."""
+    phases = RoborockSegmentEngine().build_phases(
+        strict_order=False,
+        **_flat_kwargs({"template": "roborock_segment_clean"}),
+    )
+    assert len(phases) == 1
+    assert phases[0]["payload"]["segments"] == [1, 2]
+
+
+def test_strict_order_ignored_by_atomic_engine():
+    """[DE-15] an atomic engine (Eufy) ignores strict_order -> still one phase."""
+    kwargs = dict(
+        vacuum_entity_id=_VAC, map_id=_MAP, managed_rooms=_managed(),
+        queue_room_ids=[1, 2], capabilities={}, dispatch={},
+    )
+    engine = get_dispatch_engine("eufy_room_clean")
+    phases = engine.build_phases(strict_order=True, **kwargs)
+    assert len(phases) == 1
+    assert phases[0] == engine.build_payload(**kwargs)

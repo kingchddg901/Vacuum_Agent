@@ -88,6 +88,13 @@ export function applyRoomsActions(proto) {
       startRequest.confirm_token = options.confirmToken;
     }
 
+    // Opt-in strict room order (per-run): clean one room at a time in the queue
+    // order on brands that otherwise path-optimize. No-op for order-honoring
+    // brands (the backend gates it on honors_clean_order). Off by default.
+    if (this.state.strictOrder?.()) {
+      startRequest.strict_order = true;
+    }
+
     const startResult = await this.callService(
       DOMAIN,
       SERVICE_START_SELECTED_ROOMS,

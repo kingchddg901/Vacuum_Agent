@@ -313,6 +313,23 @@ export function applyRoomsState(proto) {
     return text ? String(text) : null;
   };
 
+  /* ---- strict order (per-run opt-in) ---- */
+
+  /**
+   * Whether the user opted into strict room order for the next run (clean one
+   * room at a time in the queue order). Per-card session state; default off.
+   * Only meaningful when startOrderAdvisory() is set (a path-optimizing brand
+   * with 2+ rooms); the backend gates it regardless.
+   */
+  proto.strictOrder = function () {
+    return Boolean(this._strictOrder);
+  };
+
+  proto.toggleStrictOrder = function () {
+    this._strictOrder = !this._strictOrder;
+    return this._strictOrder;
+  };
+
   proto.setStartConfirmation = function (preflight = null, confirmToken = null) {
     this._startConfirmation = {
       preflight: preflight ?? this.startPreflight(),

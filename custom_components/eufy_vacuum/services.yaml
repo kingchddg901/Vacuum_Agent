@@ -640,6 +640,17 @@ start_selected_rooms:
       required: false
       selector:
         text: {}
+    strict_order:
+      name: Strict room order
+      description: >
+        Clean rooms strictly in the queue order by dispatching one room at a time
+        (the next starts only after the previous finishes). Only affects brands
+        that otherwise path-optimize and ignore the dispatched order (e.g.
+        Roborock); no-op for brands that already honor order. Slower (a dock trip
+        between rooms). Default off.
+      required: false
+      selector:
+        boolean: {}
     path_block_action:
       name: Path-block reaction
       description: >

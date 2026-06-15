@@ -389,6 +389,7 @@ proto.renderRoomsActionBar = function (
 
   const mopCarpetWarning = cardState?.startMopCarpetWarning?.() ?? null;
   const orderAdvisory = cardState?.startOrderAdvisory?.() ?? null;
+  const strictOrder = cardState?.strictOrder?.() ?? false;
 
   return `
     <div class="evcc-rooms-action-bar">
@@ -454,7 +455,17 @@ proto.renderRoomsActionBar = function (
 
       ${orderAdvisory ? `
         <div class="evcc-rooms-order-advisory">
-          ${this.escapeHtml(orderAdvisory)}
+          <div class="evcc-rooms-order-advisory-text">
+            ${strictOrder
+              ? "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms)."
+              : this.escapeHtml(orderAdvisory)}
+          </div>
+          <button
+            type="button"
+            class="evcc-chip ${strictOrder ? "active" : ""}"
+            data-action="toggle-strict-order"
+            aria-pressed="${strictOrder ? "true" : "false"}"
+          >${strictOrder ? "Strict order: ON" : "Force this exact order"}</button>
         </div>
       ` : ""}
 

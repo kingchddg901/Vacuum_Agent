@@ -78,6 +78,10 @@ _START_SELECTED_ROOMS_SCHEMA = vol.Schema(
         vol.Optional("pause_timeout_minutes_override"): vol.All(
             vol.Coerce(int), vol.Range(min=0)
         ),
+        # Opt-in strict room order (sequenced per-room dispatch) for brands that
+        # otherwise path-optimize and ignore the order. No-op for order-honoring
+        # brands.
+        vol.Optional("strict_order"): cv.boolean,
     }
 )
 

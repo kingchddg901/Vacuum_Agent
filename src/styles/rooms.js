@@ -154,7 +154,8 @@ export const roomStyles = `
     line-height: 1.35;
   }
 
-  /* Informational (not an alert): order is advisory on path-optimizing brands. */
+  /* Informational (not an alert): order is advisory on path-optimizing brands.
+     Holds the advisory text + the strict-order opt-in toggle. */
   .evcc-rooms-order-advisory {
     margin-top: 6px;
     padding: 7px 10px;
@@ -164,6 +165,15 @@ export const roomStyles = `
     color: var(--evcc-text-muted);
     font-size: 0.78rem;
     line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .evcc-rooms-order-advisory-text {
+    flex: 1 1 60%;
+    min-width: 0;
   }
 
   .evcc-rooms-inline-actions {

@@ -755,16 +755,30 @@ class RunPlanManager:
         map_id: str,
         managed_rooms: dict[str, Any],
         queue_room_ids: list[int],
+        strict_order: bool = False,
     ) -> list[dict[str, Any]]:
         """Resolve the brand's dispatch engine and return its phase list.
 
         For atomic engines (every adapter today) this is a single phase whose
         ``[0]`` element is byte-identical to ``build_room_clean_payload`` — so
         ``phases[0]`` is a drop-in for the old ``payload_state``.
+
+        ``strict_order`` (opt-in, only meaningful for path-optimizing brands that
+        ignore the dispatched order) asks the engine for one phase PER ROOM so the
+        sequenced job model cleans them strictly in queue order. Atomic engines
+        ignore it. Gated on ``capabilities.honors_clean_order`` being False so it
+        never alters an order-honoring brand (Eufy), even if requested.
         """
         dispatch_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        honors_order = (
+            (_get_adapter_config(vacuum_entity_id) or {})
+            .get("capabilities", {})
+            .get("honors_clean_order", True)
+        )
+        effective_strict = bool(strict_order) and not honors_order
         engine = get_dispatch_engine(dispatch_cfg.get("template"))
         return engine.build_phases(
+            strict_order=effective_strict,
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
             managed_rooms=managed_rooms,
@@ -782,6 +796,7 @@ class RunPlanManager:
         *,
         vacuum_entity_id: str,
         map_id: str,
+        strict_order: bool = False,
     ) -> dict[str, Any]:
         """Return the effective queue, payload, and preflight plan for a job start.
 
@@ -1194,6 +1209,7 @@ class RunPlanManager:
             map_id=str(map_id),
             managed_rooms=effective_rooms,
             queue_room_ids=queue_state.get("queue_room_ids", []),
+            strict_order=strict_order,
         )
         payload_state = phases[0]
 
@@ -1272,9 +1288,14 @@ class RunPlanManager:
         # device path-optimizes (Roborock app_segment_clean) unless an order is
         # set in the vacuum's own app. For those, the card's order is advisory, so
         # surface that at run start. Non-blocking; only when 2+ rooms will run.
-        order_advisory = self._order_advisory(
-            vacuum_entity_id=vacuum_entity_id,
-            included_room_ids=included_room_ids,
+        # Suppressed when strict_order is active — order is then ENFORCED (the
+        # sequenced per-room dispatch), so the advisory would contradict.
+        order_advisory = (
+            None if strict_order
+            else self._order_advisory(
+                vacuum_entity_id=vacuum_entity_id,
+                included_room_ids=included_room_ids,
+            )
         )
 
         preflight.update(

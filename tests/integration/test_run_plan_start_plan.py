@@ -25,6 +25,8 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
         non-blocking warning; None when tank off / no carpet / no tank sensor.
 [SP-13] order advisory: a path-optimizing brand (honors_clean_order False) with
         2+ rooms → advisory; None when order is honored or one room runs.
+[SP-14] strict_order: builds one phase per room for a path-optimizing flat-id
+        brand; gated off (one batch phase) when the brand honors order.
 """
 
 from __future__ import annotations
@@ -411,5 +413,48 @@ def test_order_advisory(rp):
         _seed(mgr, "spm13c", [{"enabled": True}, {"enabled": False}])
         pf = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="spm13c")["preflight"]
         assert pf["order_advisory"] is None
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_strict_order_phases(rp):
+    """[SP-14] strict_order builds one single-segment phase per room for a
+    path-optimizing flat-id brand; gated off (one batch phase) when the brand
+    honors order, even if strict_order is requested."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config,
+        unregister_adapter_config,
+    )
+
+    rp_, mgr = rp
+    rooms = _seed(mgr, "spm14", [
+        {"enabled": True, "order": 1}, {"enabled": True, "order": 2}])
+    try:
+        # Path-optimizing flat-id brand -> one phase per room, in order.
+        register_adapter_config(_VAC, {
+            "adapter_id": "rb", "source": "code",
+            "capabilities": {"honors_clean_order": False},
+            "dispatch": {"template": "roborock_segment_clean", "passes_max": 3},
+        })
+        phases = rp_._build_dispatch_phases(
+            vacuum_entity_id=_VAC, map_id="spm14",
+            managed_rooms=rooms, queue_room_ids=[1, 2], strict_order=True,
+        )
+        assert len(phases) == 2
+        assert phases[0]["payload"]["segments"] == [1]
+        assert phases[1]["payload"]["segments"] == [2]
+
+        # Order-honoring brand -> strict_order ignored (single batch phase).
+        register_adapter_config(_VAC, {
+            "adapter_id": "e", "source": "code",
+            "capabilities": {"honors_clean_order": True},
+            "dispatch": {"template": "roborock_segment_clean"},
+        })
+        phases = rp_._build_dispatch_phases(
+            vacuum_entity_id=_VAC, map_id="spm14",
+            managed_rooms=rooms, queue_room_ids=[1, 2], strict_order=True,
+        )
+        assert len(phases) == 1
+        assert phases[0]["payload"]["segments"] == [1, 2]
     finally:
         unregister_adapter_config(_VAC)

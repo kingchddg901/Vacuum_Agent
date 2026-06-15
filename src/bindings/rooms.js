@@ -160,6 +160,16 @@ export function applyRoomsBindings(proto) {
     }
   );
 
+  // Strict-order opt-in toggle (per-run) in the order-advisory block.
+  this.card._on(
+    this.card.$("[data-action='toggle-strict-order']"),
+    "click",
+    () => {
+      this.card._state.toggleStrictOrder?.();
+      this.card._scheduleRender();
+    }
+  );
+
   this.card._on(
     this.card.$("[data-action='pause-run']"),
     "click",

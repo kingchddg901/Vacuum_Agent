@@ -79,6 +79,7 @@ class DispatchEngine(Protocol):
     def build_phases(
         self,
         *,
+        strict_order: bool = False,
         vacuum_entity_id: str,
         map_id: str,
         managed_rooms: dict[str, dict[str, Any]],
@@ -87,7 +88,13 @@ class DispatchEngine(Protocol):
         capabilities: dict[str, Any] | None = None,
         dispatch: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Return the ordered list of per-phase payload envelopes."""
+        """Return the ordered list of per-phase payload envelopes.
+
+        ``strict_order`` requests one phase PER ROOM (in queue order) for brands
+        that otherwise path-optimize and ignore the dispatched order — turning
+        the run into a sequenced job that cleans rooms strictly in order. Engines
+        that can't honor it (atomic batch shapes) ignore the flag.
+        """
         ...
 
 
@@ -100,7 +107,10 @@ class _SinglePhaseMixin:
 
     job_model = "atomic_batch"
 
-    def build_phases(self, **kwargs: Any) -> list[dict[str, Any]]:
+    def build_phases(self, *, strict_order: bool = False, **kwargs: Any) -> list[dict[str, Any]]:
+        # Atomic engines ignore strict_order — a single batch phase. (Strict
+        # per-room sequencing only applies to flat-id-list brands whose wire
+        # command ignores order; see GenericRoomIdsEngine.)
         return [self.build_payload(**kwargs)]  # type: ignore[attr-defined]
 
 
@@ -205,6 +215,70 @@ class GenericRoomIdsEngine(_SinglePhaseMixin):
             "resolved_rooms": resolved,
             "room_count": len(segment_ids),
         }
+
+    def build_phases(
+        self,
+        *,
+        strict_order: bool = False,
+        **kwargs: Any,
+    ) -> list[dict[str, Any]]:
+        """One batch phase normally; one phase PER ROOM when ``strict_order``.
+
+        Brands on this engine (Roborock app_segment_clean, Ecovacs spot_area)
+        path-optimize and IGNORE the dispatched order for a multi-room batch.
+        ``strict_order`` instead emits one single-segment phase per resolved room
+        in queue order — the sequenced job model then cleans them strictly in
+        order (one room, wait for it to finish, next). A bonus: each phase carries
+        its OWN room's passes, so per-room passes is honored too (the batch path
+        collapses passes to one max-wins value).
+        """
+        if not strict_order:
+            return [self.build_payload(**kwargs)]
+        return self._build_per_room_phases(**kwargs)
+
+    def _build_per_room_phases(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        managed_rooms: dict[str, dict[str, Any]],
+        queue_room_ids: list[int] | None = None,
+        stored_profiles: dict[str, dict[str, Any]] | None = None,
+        capabilities: dict[str, Any] | None = None,
+        dispatch: dict[str, Any] | None = None,
+    ) -> list[dict[str, Any]]:
+        dispatch = dispatch or {}
+        base = build_room_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+            managed_rooms=managed_rooms,
+            queue_room_ids=queue_room_ids,
+            stored_profiles=stored_profiles,
+            capabilities=capabilities,
+            dispatch=dispatch,
+        )
+        resolved = base["resolved_rooms"]  # enabled-filtered + order-sorted
+
+        rooms_field = dispatch.get("rooms_field", "segments")
+        passes_field = dispatch.get("clean_passes_field", "repeat")
+        passes_max = int(dispatch.get("passes_max", 3))
+
+        phases: list[dict[str, Any]] = []
+        for room in resolved:
+            segment_id = int(room["room_id"])
+            room_passes = max(1, min(passes_max, int(room.get("clean_passes", 1) or 1)))
+            payload: dict[str, Any] = {rooms_field: [segment_id]}
+            if passes_field is not None:
+                payload[passes_field] = room_passes
+            phases.append({
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "payload": payload,
+                # Each phase is a one-room atomic sub-job.
+                "resolved_rooms": [room],
+                "room_count": 1,
+            })
+        return phases
 
 
 class RoborockSegmentEngine(GenericRoomIdsEngine):

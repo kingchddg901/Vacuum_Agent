@@ -1941,10 +1941,10 @@ class EufyVacuumManager:
             "last_job_mode": entry.get("last_job_mode"),
         }
 
-    def _build_effective_start_plan(self, *, vacuum_entity_id, map_id):
+    def _build_effective_start_plan(self, *, vacuum_entity_id, map_id, strict_order=False):
         """Delegate to RunPlanManager."""
         return self.run_plan._build_effective_start_plan(
-            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, strict_order=strict_order
         )
 
     # ------------------------------------------------------------------
@@ -3997,9 +3997,19 @@ class EufyVacuumManager:
         self.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
 
+        # Resolve slug -> LIVE segment id for THIS phase too (not just phase 0 at
+        # start) so a re-segment between phases can't make a later phase clean the
+        # wrong room — the whole point of in-framework sequencing over a static
+        # script. No-op for brands without dispatch.resolve_live_ids_by_slug.
+        wire_payload = await self._resolve_live_dispatch_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            payload=advanced.get("payload", {}),
+            resolved_rooms=list(advanced.get("resolved_rooms", [])),
+        )
         await self._dispatch_clean_payload(
             vacuum_entity_id=vacuum_entity_id,
-            payload=advanced.get("payload", {}),
+            payload=wire_payload,
         )
         _LOGGER.debug(
             "Advanced sequenced job for %s map %s to phase %s/%s",
@@ -4017,8 +4027,14 @@ class EufyVacuumManager:
         confirm_token: str | None = None,
         path_block_action: str | None = None,
         pause_timeout_minutes_override: int | None = None,
+        strict_order: bool = False,
     ) -> dict[str, Any]:
-        """Start selected rooms using the current queue/payload for one map."""
+        """Start selected rooms using the current queue/payload for one map.
+
+        ``strict_order`` (opt-in) makes a path-optimizing brand clean rooms in the
+        queue order by dispatching one room per phase (sequenced job model) instead
+        of one batch the device re-routes. No-op for order-honoring brands.
+        """
         start_status = self.get_start_status(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
@@ -4055,6 +4071,7 @@ class EufyVacuumManager:
         start_plan = self._build_effective_start_plan(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
+            strict_order=strict_order,
         )
         queue_state = start_plan.get("queue_state", {})
         payload_state = start_plan.get("payload_state", {})
