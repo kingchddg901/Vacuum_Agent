@@ -38,7 +38,8 @@ Coverage targets
 [AJI-32] get_paused_job_timeout_report: paused beyond the limit → populated escalation report.
 [AJI-33] get_paused_job_timeout_report: unparseable paused_at → None (no crash).
 [AJI-34] _timing_completion_threshold_minutes: lower confidence → larger overrun slack; sample-count + drift bonuses, capped.
-[AJI-35] _timing_completion_threshold_minutes: the 2-or-3-sample bracket adds 0.5 slack (between the <=1 +1.0 and well-sampled 0.0).
+[AJI-37] _timing_completion_threshold_minutes: the 2-or-3-sample bracket adds 0.5 slack (between the <=1 +1.0 and well-sampled 0.0).
+[AJI-38] async_cancel_active_job: a sequenced job gets _cancel_in_flight set before return_to_base (stops the watchdog re-dispatching during cancel).
 [AJI-35] _job_status_summary: status string covers each lifecycle/outcome branch.
 [AJI-36] _job_status_summary: a started job names the current room from resolved_rooms.
 """
@@ -449,6 +450,32 @@ async def test_cancel_timeout(tracker, manager, hass, monkeypatch):
     assert out["confirmed"] is False
 
 
+async def test_cancel_sets_cancel_in_flight_before_rtb(tracker, manager, hass, monkeypatch):
+    """[AJI-38] cancelling a SEQUENCED job sets _cancel_in_flight on the stored record
+    BEFORE return_to_base, so the per-phase watchdog (which guards on it) stops before it
+    can re-dispatch app_segment_clean during the cancel window. Atomic jobs never get it."""
+    monkeypatch.setattr(type(tracker), "_CANCEL_CONFIRM_TIMEOUT_S", 1)
+    monkeypatch.setattr(type(tracker), "_CANCEL_POLL_INTERVAL_S", 0.01)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [{"resolved_rooms": [{"room_id": 1}], "payload": {"segments": [1]}, "room_count": 1},
+                   {"resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]}, "room_count": 1}],
+        "current_phase_index": 0, "resolved_rooms": [{"room_id": 1}],
+        "current_room_id": 1, "_phase_dispatch_pending": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    flag_at_rtb = {}
+
+    async def _rtb(call):
+        flag_at_rtb["value"] = manager.data["active_jobs"][_VAC][_MAP].get("_cancel_in_flight")
+
+    hass.services.async_register("vacuum", "return_to_base", _rtb)
+    hass.states.async_set(_VAC, "docked")   # terminal on the first poll
+
+    await tracker.async_cancel_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert flag_at_rtb["value"] is True   # set BEFORE return_to_base fired
+
+
 # ---------------------------------------------------------------------------
 # async_pause_active_job / async_resume_active_job — service-driven wrappers
 # ---------------------------------------------------------------------------
@@ -580,7 +607,7 @@ def test_timing_threshold_confidence_tiers(tracker):
 
 
 def test_timing_threshold_sample_count_bracket(tracker):
-    """[AJI-35] the 2-or-3-sample bracket adds exactly 0.5 min of slack — between the
+    """[AJI-37] the 2-or-3-sample bracket adds exactly 0.5 min of slack — between the
     <=1-sample +1.0 and the well-sampled +0.0. This governs rollover timing for rooms
     still early in learning; a regression would prematurely roll a 2-3 sample room."""
     def thr(sample_count):

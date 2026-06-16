@@ -1666,6 +1666,11 @@ class ActiveJobTracker:
 
         active_job["status"] = "paused"
         active_job["paused_at"] = paused_at or _iso_now()
+        # Release the strict-order dispatch guard on pause: the watchdog exits when the
+        # job leaves "started", and leaving the guard set would suppress the completion
+        # gate forever after resume (the run would never advance). Cleared here so resume
+        # runs guard-free and completion advances normally. No-op for atomic jobs.
+        active_job["_phase_dispatch_pending"] = False
         self._manager.data.setdefault("active_jobs", {})
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
@@ -1905,6 +1910,9 @@ class ActiveJobTracker:
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
         )
+        # NB: the strict-order dispatch guard was already released on PAUSE
+        # (pause_active_job clears _phase_dispatch_pending), so resume runs guard-free
+        # and the completion gate advances normally — no watchdog re-arm needed here.
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -1944,6 +1952,18 @@ class ActiveJobTracker:
                 "reason": "no_active_job",
                 "active_job": active_job,
             }
+
+        # Stop the strict-order watchdog up front (it guards on _cancel_in_flight) so it
+        # can't re-dispatch app_segment_clean during the return-to-base + terminal-confirm
+        # window — otherwise a cancel could be undone by the watchdog re-sending a clean.
+        # Also release the dispatch guard. Written to the stored record the watchdog
+        # re-reads. No-op for atomic jobs.
+        if active_job.get("phases"):
+            active_job["_cancel_in_flight"] = True
+            active_job["_phase_dispatch_pending"] = False
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {}
+            )[str(map_id)] = active_job
 
         await self._manager.hass.services.async_call(
             "vacuum",

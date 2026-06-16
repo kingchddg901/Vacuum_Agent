@@ -318,6 +318,16 @@ class EufyVacuumManager:
         self.data.setdefault("room_history", {})
         self.data.setdefault("room_rule_status", {})
 
+        # A reload/restart leaves no live strict-order watchdog, so any persisted
+        # _phase_dispatch_pending guard on a loaded job would suppress the completion
+        # gate forever. Release stale guards on load; the run then advances via the
+        # normal completion path (or Cancel Run). No-op for atomic jobs (flag never set).
+        for _vac_jobs in self.data.get("active_jobs", {}).values():
+            if isinstance(_vac_jobs, dict):
+                for _job in _vac_jobs.values():
+                    if isinstance(_job, dict) and _job.get("_phase_dispatch_pending"):
+                        _job["_phase_dispatch_pending"] = False
+
         # Drop the deprecated "icons" storage block. The icon-selects platform
         # was removed (the card no longer surfaces those entities); leaving the
         # block intact just bloats the storage file on existing installs.
@@ -4180,16 +4190,20 @@ class EufyVacuumManager:
             await asyncio.sleep(settle)
         for attempt in range(1, pt["max_attempts"] + 1):
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            # The job advanced past this phase, finalized, or was cancelled — done.
+            # The job advanced past this phase, finalized, paused (status flips), or is
+            # being cancelled — async_cancel sets _cancel_in_flight up front, BEFORE the
+            # status flips, so the watchdog stops before it can re-dispatch during the
+            # return-to-base window. In every case the phase is no longer ours, so bail.
             if (
                 not job
                 or job.get("status") != "started"
                 or int(job.get("current_phase_index", -1)) != phase_index
+                or job.get("_cancel_in_flight")
             ):
                 _LOGGER.info(
                     "Strict-order: phase %s on %s not (re)dispatched — the job is no "
                     "longer on this phase (status=%s, phase=%s); it finalized, "
-                    "advanced, or was cancelled during the settle window.",
+                    "advanced, was cancelled, or the guard was released.",
                     phase_index, vacuum_entity_id,
                     (job or {}).get("status"), (job or {}).get("current_phase_index"),
                 )
@@ -4281,11 +4295,13 @@ class EufyVacuumManager:
         idle = 0.0                # consecutive seconds with NO cleaning of the target
         while True:
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            # Phase advanced / finalized / cancelled elsewhere — nothing to retry.
+            # Phase advanced / finalized / paused, or a cancel is in flight
+            # (_cancel_in_flight set up front) — nothing to retry.
             if (
                 not job
                 or job.get("status") != "started"
                 or int(job.get("current_phase_index", -1)) != phase_index
+                or job.get("_cancel_in_flight")
             ):
                 return True
             progressed = False
@@ -4315,7 +4331,16 @@ class EufyVacuumManager:
             # device has gone the whole budget without touching the target room.
             idle = 0.0 if progressed else idle + _poll
             if idle >= pt["verify_seconds"]:
-                return False
+                # No progress for the whole budget. If we DID observe genuine cleaning
+                # of the target at some point (cleaning_in_target only accrues while
+                # vacuum.state==cleaning AND the native current_room==target — a parked
+                # robot can't accrue it), the device started this room and has since
+                # finished/docked: a small room that completes in under confirm_seconds.
+                # Treat that as confirmed, NOT a no-show — re-dispatching an already-
+                # cleaned room is ignored by the device, which would leave the phase
+                # stalled forever (_phase_dispatch_pending never clears). Only a true
+                # no-show (never cleaned the target) returns False to retry.
+                return cleaning_in_target > 0
             await asyncio.sleep(_poll)
 
     async def _dispatch_active_phase(

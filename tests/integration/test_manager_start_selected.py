@@ -49,6 +49,12 @@ Coverage targets
         True (nothing to retry) instead of re-dispatching against a stopped job.
 [SS-28] _vacuum_started_cleaning: vacuum state not yet 'cleaning' but the adapter's
         job_active binary is on -> True (the device's inCleaning flag confirms dispatch).
+[SS-29] _await_phase_started: a small room cleaned in under confirm_seconds (cleaned-
+        then-docked) confirms via the idle-exit instead of stalling the phase forever.
+[SS-30] pause releases the strict-order dispatch guard (and the watchdog bails on
+        status!=started) so a pause/resume can't leave it stuck and stall the run.
+[SS-31] the watchdog bails (no re-dispatch) when _cancel_in_flight is set — a cancel
+        can't be undone by a re-dispatch during the return-to-base window.
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -940,6 +946,103 @@ def test_vacuum_started_cleaning_job_active_fallback(manager, hass):
         assert manager._vacuum_started_cleaning(_VAC) is False
     finally:
         unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_fast_room_confirms_on_idle_exit(manager, hass, monkeypatch):
+    """[SS-29] a small room the device cleans in under confirm_seconds (it starts THIS
+    room, cleans briefly, then docks) must be treated as CONFIRMED, not a no-show: the
+    idle-budget exit returns True when cleaning-of-target was observed (cleaning_in_target
+    > 0). Pre-fix it returned False -> the watchdog re-dispatched an already-cleaned room
+    (device ignores it) and the phase stalled forever with _phase_dispatch_pending set."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 20)    # 4 idle polls @ 5s
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 100)  # never reached (small room)
+    monkeypatch.setattr(_mgr, "_PHASE_POLL_SECONDS", 5)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.test_current_room", "Hallway")
+    # The device cleans the target for two polls, then docks (finished fast).
+    seq = iter([("cleaning", "Hallway"), ("docked", "Dining Room"),
+                ("docked", "Dining Room"), ("docked", "Dining Room"), ("docked", "Dining Room")])
+
+    async def _tick(*_a, **_k):
+        try:
+            st, room = next(seq)
+            hass.states.async_set(_VAC, st)
+            hass.states.async_set("sensor.test_current_room", room)
+        except StopIteration:
+            pass
+
+    monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock(side_effect=_tick))
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+            "phases": [{"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+                        "payload": {"segments": [2]}, "room_count": 1}],
+            "current_phase_index": 0,
+            "resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+            "queue_room_ids": [2], "current_room_id": 2,
+            "has_observed_active_lifecycle": True,
+            "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+        }
+        result = await manager._await_phase_started(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0)
+        assert result is True   # cleaned the target (briefly) then docked -> confirmed, not retried
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_pause_releases_strict_order_guard(manager):
+    """[SS-30] pausing a sequenced job releases _phase_dispatch_pending (and the watchdog
+    independently bails on status!=started). Pre-fix the guard stayed set, so after resume
+    the completion gate suppressed every advance forever — a permanent stall recoverable
+    only by Cancel Run. No-op for atomic jobs (flag never set)."""
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [{"resolved_rooms": [{"room_id": 1}], "payload": {"segments": [1]}, "room_count": 1},
+                   {"resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]}, "room_count": 1}],
+        "current_phase_index": 0, "resolved_rooms": [{"room_id": 1}],
+        "current_room_id": 1, "_phase_dispatch_pending": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    result = manager.active_job.pause_active_job(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result["status"] == "paused"
+    assert result.get("_phase_dispatch_pending") is False
+
+
+async def test_watchdog_bails_when_cancel_in_flight(manager, hass, monkeypatch):
+    """[SS-31] the per-phase watchdog bails (no re-dispatch) when _cancel_in_flight is set
+    — the signal async_cancel sets up front (before status flips) so a cancel can't be
+    undone by the watchdog re-sending app_segment_clean during the return-to-base window."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    _instant_phase_dispatch(monkeypatch)
+    monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock())
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")
+    calls = _register_dispatch(hass)
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [{"resolved_rooms": [{"room_id": 1}], "payload": {"segments": [1]}, "room_count": 1},
+                   {"resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]}, "room_count": 1}],
+        "current_phase_index": 1, "resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]},
+        "current_room_id": 2, "_phase_dispatch_pending": True,
+        "_cancel_in_flight": True,   # async_cancel set this up front
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    await manager._run_advanced_phase(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1, initial=False)
+    await hass.async_block_till_done()
+    assert calls == []   # cancel in flight -> watchdog bailed before dispatching
 
 
 async def test_start_run_profile_success(manager, hass):

@@ -30,6 +30,8 @@ Coverage targets
 [CMI-4] _migrate_setup_progress back-fills a rooms-bearing vacuum; skips non-dict
         records, no-managed-rooms vacuums, already-done entries, and non-dict
         map buckets/room values. (lines 392, 394, 402, 418, 421)
+[CMI-5] a persisted strict-order _phase_dispatch_pending guard is released on load
+        (a reload leaves no live watchdog, so it would otherwise stall the run forever).
 """
 
 from __future__ import annotations
@@ -109,6 +111,25 @@ async def test_init_carpet_default_pile(hass, hass_storage, mock_config_entry):
     room = m.data["maps"][_VAC]["6"]["rooms"]["1"]
     assert room["floor_type"] == "carpet_low_pile"
     assert "carpet_type" not in room
+
+
+async def test_init_releases_stale_phase_dispatch_guard(hass, hass_storage, mock_config_entry):
+    """[CMI-5] a reload/restart leaves no live strict-order watchdog, so a persisted
+    _phase_dispatch_pending guard would suppress the completion gate forever. The load
+    path releases it. No-op for atomic jobs (the flag is never set)."""
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "active_jobs": {_VAC: {"6": {
+            "vacuum_entity_id": _VAC, "map_id": "6", "status": "started",
+            "phases": [{"resolved_rooms": [{"room_id": 1}], "room_count": 1}],
+            "current_phase_index": 0,
+            "_phase_dispatch_pending": True,
+            "job_id": "j1",
+        }}},
+    }}
+
+    m = await _init_manager(hass, mock_config_entry)
+
+    assert m.data["active_jobs"][_VAC]["6"].get("_phase_dispatch_pending") is False
 
 
 async def test_init_skips_non_dict_bucket_and_room(

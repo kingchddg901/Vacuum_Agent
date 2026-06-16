@@ -236,7 +236,12 @@ def register_roborock_adapter_for_vacuum(
                 "settle_seconds": 10,
                 "dock_settle_seconds": 45,
                 "verify_seconds": 90,
-                "confirm_seconds": 45,
+                # Sustained cleaning-of-target needed to confirm a phase started. Kept
+                # comfortably below the shortest real S6 per-room clean (a sub-15s room
+                # is rare); the idle-exit weak-confirm in _await_phase_started backstops
+                # any room that finishes even faster, so this never stalls — it only sets
+                # how quickly a confirmed room releases the guard.
+                "confirm_seconds": 15,
                 "poll_seconds": 5,
                 "max_attempts": 3,
             },
