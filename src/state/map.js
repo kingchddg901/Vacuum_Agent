@@ -58,6 +58,55 @@ export function applyMapState(proto) {
     this._mapRotationOverlay = this._normRotation(deg);
   };
 
+  // ---- Dwell-debounced mascot room tracker (display only) ----
+  // Moves the mascot to the room the robot is PHYSICALLY in — including transit /
+  // passthrough rooms not on the job queue — but only after the SAME room is seen
+  // for N consecutive renders, so a flickery live current-room signal never makes
+  // it jitter (sustained dwell IS the debounce). Reads the RAW brand current-room
+  // NAME (lifecycle.active_cleaning_target) and resolves it to a managed room by
+  // slug/name. Fully separate from the backend job-completion rollover (which stays
+  // target-filtered + authoritative for the queue/timeline); this fires no events
+  // and advances nothing. Holds the last committed room while a new candidate
+  // accrues dwell; returns null before the first commit (the renderer then falls
+  // back to the backend-computed position_room_id / current_room_id).
+  proto._mascotDwellState = null;     // { observed: id|null, count, committed: id|null }
+  proto._mascotDwellThreshold = 3;    // consecutive renders before a hop commits
+  proto.mascotDwelledRoomId = function () {
+    const st = this._mascotDwellState
+      || (this._mascotDwellState = { observed: null, count: 0, committed: null });
+    const resolved = this._resolveRoomIdByName(
+      this.dashboardLifecycle?.()?.active_cleaning_target,
+    );
+    if (resolved == null) {
+      // No usable signal this tick: break any in-progress streak but HOLD the last
+      // committed room (don't snap the mascot away on a momentary blank/transit).
+      st.observed = null;
+      st.count = 0;
+      return st.committed;
+    }
+    if (resolved === st.observed) {
+      st.count += 1;
+    } else {
+      st.observed = resolved;
+      st.count = 1;
+    }
+    if (st.count >= this._mascotDwellThreshold) st.committed = resolved;
+    return st.committed;
+  };
+
+  // Resolve a raw current-room NAME to a managed room id (ANY room, incl. transit).
+  // Slug first, then case/space-insensitive name; null for blank/sentinels/no match.
+  proto._resolveRoomIdByName = function (rawName) {
+    const norm = (s) => String(s ?? "").trim().toLowerCase().replace(/[\s_]+/g, " ");
+    const n = norm(rawName);
+    if (!n || ["unknown", "unavailable", "none", "null"].includes(n)) return null;
+    for (const r of (this.getRoomsForActiveMap?.() ?? [])) {
+      if (r?.slug != null && norm(r.slug) === n) return r.id;
+      if (r?.name != null && norm(r.name) === n) return r.id;
+    }
+    return null;
+  };
+
   proto.mapSegmentsData = function () {
     return this._mapSegmentsData;
   };
@@ -77,6 +126,7 @@ export function applyMapState(proto) {
       this._composeSelectedId = null;
       this._composeMergeFrom = null;
       this._composeLoadedFor = null;
+      this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       if (data?.map_id !== oldMapId) this.resetMapTransform();
     } else {
       // Same map, fresh data — the backend's authoritative state has

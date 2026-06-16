@@ -272,9 +272,12 @@ export function applyMapRenderers(proto) {
 
     if (!targetSeg) {
       const progress = state.dashboardJobProgress?.();
-      // position_room_id reflects physical robot location (incl. transition rooms);
-      // falls back to current_room_id (next queued room) when no transition detected.
-      const currentRoomId = progress?.position_room_id ?? progress?.current_room_id;
+      // Prefer the dwell-debounced live room (the room the robot is physically in,
+      // incl. transit rooms, committed only after sustained dwell — display only,
+      // separate from the job rollover). Fall back to the backend-computed
+      // position_room_id, then current_room_id (next queued room).
+      const currentRoomId = state.mascotDwelledRoomId?.()
+        ?? progress?.position_room_id ?? progress?.current_room_id;
       targetSeg = _segForRoom(currentRoomId);
     }
 
