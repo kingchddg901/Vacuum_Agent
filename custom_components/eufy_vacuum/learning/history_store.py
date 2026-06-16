@@ -451,9 +451,10 @@ class LearningHistoryStore:
         vacuum_entity_id: str,
         payload: dict[str, Any],
     ) -> Path:
-        """Save learned job stats JSON."""
+        """Save learned job stats JSON (and refresh the shared read cache)."""
         path = self.get_job_stats_path(vacuum_entity_id=vacuum_entity_id)
         self.write_json(path, payload)
+        self._job_stats_cache()[str(path)] = payload if isinstance(payload, dict) else None
         return path
 
     def save_room_stats(
@@ -484,9 +485,16 @@ class LearningHistoryStore:
         *,
         vacuum_entity_id: str,
     ) -> dict[str, Any] | None:
-        """Load learned job stats JSON."""
-        payload = self.read_json(self.get_job_stats_path(vacuum_entity_id=vacuum_entity_id))
-        return payload if isinstance(payload, dict) else None
+        """Load learned job stats JSON (cached; see _job_stats_cache)."""
+        path = self.get_job_stats_path(vacuum_entity_id=vacuum_entity_id)
+        cache = self._job_stats_cache()
+        key = str(path)
+        if key in cache:
+            return cache[key]
+        payload = self.read_json(path)
+        data = payload if isinstance(payload, dict) else None
+        cache[key] = data
+        return data
 
     def _room_stats_cache(self) -> dict[str, "dict[str, Any] | None"]:
         """The shared room_stats read cache. Scoped to ``hass.data`` so it is shared
@@ -496,6 +504,24 @@ class LearningHistoryStore:
         and ``save_room_stats`` (the SOLE writer of the file) refreshes it, so reads
         never go stale."""
         return self.hass.data.setdefault("_eufy_vacuum_room_stats_cache", {})
+
+    def _accuracy_stats_cache(self) -> dict[str, "dict[str, Any] | None"]:
+        """The shared accuracy_stats read cache — mirrors :meth:`_room_stats_cache`
+        (the dashboard-snapshot estimate also reads accuracy_stats on the loop)."""
+        return self.hass.data.setdefault("_eufy_vacuum_accuracy_stats_cache", {})
+
+    def _job_stats_cache(self) -> dict[str, "dict[str, Any] | None"]:
+        """The shared job_stats read cache — mirrors :meth:`_room_stats_cache`
+        (the dashboard-snapshot estimate also reads job_stats on the loop)."""
+        return self.hass.data.setdefault("_eufy_vacuum_job_stats_cache", {})
+
+    def warm_estimate_caches(self, *, vacuum_entity_id: str) -> None:
+        """Populate the read caches the (loop-bound) dashboard-snapshot estimate
+        touches — room_stats, accuracy_stats, job_stats — so the first estimate
+        after a restart never blocks on a disk read. Call from an executor."""
+        self.load_room_stats(vacuum_entity_id=vacuum_entity_id)
+        self.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id)
+        self.load_job_stats(vacuum_entity_id=vacuum_entity_id)
 
     def load_room_stats(
         self,
@@ -687,9 +713,10 @@ class LearningHistoryStore:
         vacuum_entity_id: str,
         payload: dict[str, Any],
     ) -> Path:
-        """Save per-room estimate accuracy stats JSON."""
+        """Save per-room estimate accuracy stats JSON (and refresh the read cache)."""
         path = self.get_accuracy_stats_path(vacuum_entity_id=vacuum_entity_id)
         self.write_json(path, payload)
+        self._accuracy_stats_cache()[str(path)] = payload if isinstance(payload, dict) else None
         return path
 
     def load_accuracy_stats(
@@ -697,9 +724,16 @@ class LearningHistoryStore:
         *,
         vacuum_entity_id: str,
     ) -> dict[str, Any] | None:
-        """Load per-room estimate accuracy stats JSON."""
-        payload = self.read_json(self.get_accuracy_stats_path(vacuum_entity_id=vacuum_entity_id))
-        return payload if isinstance(payload, dict) else None
+        """Load per-room estimate accuracy stats JSON (cached; see _accuracy_stats_cache)."""
+        path = self.get_accuracy_stats_path(vacuum_entity_id=vacuum_entity_id)
+        cache = self._accuracy_stats_cache()
+        key = str(path)
+        if key in cache:
+            return cache[key]
+        payload = self.read_json(path)
+        data = payload if isinstance(payload, dict) else None
+        cache[key] = data
+        return data
 
     def jobs_csv_path(self, *, vacuum_entity_id: str) -> Path:
         """Return jobs export CSV path."""

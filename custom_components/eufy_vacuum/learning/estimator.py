@@ -69,6 +69,7 @@ payload includes stats_stale=True so the card can warn the user.
 
 from __future__ import annotations
 
+import copy
 import math
 from datetime import datetime, timedelta
 from typing import Any
@@ -581,7 +582,15 @@ class LearningEstimator:
         Updates the running accuracy stats file with the new observations.
         Returns a summary of what was recorded.
         """
-        existing = self.store.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id) or {}
+        # Deep-copy the loaded stats: load_accuracy_stats may hand back the shared
+        # cached object, and we mutate per-room records in place below. Working on a
+        # copy keeps the cache immutable until save_accuracy_stats refreshes it by
+        # replacement — so a write_json failure (it re-raises, e.g. on an SMB
+        # hiccup) can't leave the cache out of sync with disk, and the loop-bound
+        # estimate never reads a half-updated record.
+        existing = copy.deepcopy(
+            self.store.load_accuracy_stats(vacuum_entity_id=vacuum_entity_id) or {}
+        )
         rooms_data: dict[str, Any] = existing.get("rooms", {})
 
         recorded: list[dict[str, Any]] = []

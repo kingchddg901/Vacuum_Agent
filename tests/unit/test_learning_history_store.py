@@ -66,6 +66,48 @@ def test_room_stats_cached_per_hass(tmp_path):
     assert store.load_room_stats(vacuum_entity_id=vac) == {"room_stats": [{"v": 2}]}
 
 
+def test_accuracy_stats_cached_per_hass(tmp_path):
+    """[HS-cache] load_accuracy_stats serves from an hass-scoped cache so the hot
+    dashboard-snapshot estimate doesn't re-read accuracy_stats.json off the event
+    loop on every call; save_accuracy_stats (the sole writer) refreshes it. Guards
+    against reintroducing the on-loop blocking read HA flagged (history_store.py:165)."""
+    store = _make_store(tmp_path)
+    store.hass.data = {}  # real dict — the MagicMock default would no-op the cache
+    vac = "vacuum.alfred"
+
+    store.save_accuracy_stats(vacuum_entity_id=vac, payload={"rooms": {"a": {"v": 1}}})
+    assert store.load_accuracy_stats(vacuum_entity_id=vac) == {"rooms": {"a": {"v": 1}}}
+
+    # Out-of-band file change (NOT via save) — the cache keeps serving the cached
+    # value, proving the read does not re-hit disk.
+    path = store.get_accuracy_stats_path(vacuum_entity_id=vac)
+    path.write_text(json.dumps({"rooms": {"a": {"v": 999}}}), encoding="utf-8")
+    assert store.load_accuracy_stats(vacuum_entity_id=vac) == {"rooms": {"a": {"v": 1}}}
+
+    # save_accuracy_stats refreshes the cache to the new value.
+    store.save_accuracy_stats(vacuum_entity_id=vac, payload={"rooms": {"a": {"v": 2}}})
+    assert store.load_accuracy_stats(vacuum_entity_id=vac) == {"rooms": {"a": {"v": 2}}}
+
+
+def test_job_stats_cached_per_hass(tmp_path):
+    """[HS-cache] load_job_stats serves from an hass-scoped cache (mirrors
+    room_stats/accuracy_stats) so the hot dashboard-snapshot estimate doesn't
+    re-read job_stats.json off the event loop; save_job_stats refreshes it."""
+    store = _make_store(tmp_path)
+    store.hass.data = {}
+    vac = "vacuum.alfred"
+
+    store.save_job_stats(vacuum_entity_id=vac, payload={"job_stats": {"n": 1}})
+    assert store.load_job_stats(vacuum_entity_id=vac) == {"job_stats": {"n": 1}}
+
+    path = store.get_job_stats_path(vacuum_entity_id=vac)
+    path.write_text(json.dumps({"job_stats": {"n": 999}}), encoding="utf-8")
+    assert store.load_job_stats(vacuum_entity_id=vac) == {"job_stats": {"n": 1}}
+
+    store.save_job_stats(vacuum_entity_id=vac, payload={"job_stats": {"n": 2}})
+    assert store.load_job_stats(vacuum_entity_id=vac) == {"job_stats": {"n": 2}}
+
+
 def _minimal_completed_job(
     *,
     job_id: str = "job-001",

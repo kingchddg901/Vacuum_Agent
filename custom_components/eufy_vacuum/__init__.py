@@ -257,18 +257,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = manager  # Bronze: store runtime object in ConfigEntry.runtime_data
     hass.data[DOMAIN][DATA_LEARNING] = LearningManager(hass)
 
-    # Warm the learning room_stats read cache off-loop, so the (loop-bound)
-    # dashboard-snapshot estimate never blocks on disk reading room_stats.json —
-    # not even on the first snapshot after a restart. See LearningHistoryStore.
+    # Warm the learning read caches off-loop, so the (loop-bound) dashboard-snapshot
+    # estimate never blocks on disk reading room_stats.json / accuracy_stats.json /
+    # job_stats.json — not even on the first snapshot after a restart. See
+    # LearningHistoryStore.warm_estimate_caches.
     _learning_store = LearningHistoryStore(hass)
     for _vac in manager.get_known_vacuum_ids():
         try:
             await hass.async_add_executor_job(
-                functools.partial(_learning_store.load_room_stats, vacuum_entity_id=_vac)
+                functools.partial(_learning_store.warm_estimate_caches, vacuum_entity_id=_vac)
             )
         except Exception:  # pragma: no cover - never block setup on a cache warm
             _LOGGER.debug(
-                "eufy_vacuum: room_stats cache warm failed for %s", _vac, exc_info=True
+                "eufy_vacuum: learning cache warm failed for %s", _vac, exc_info=True
             )
 
     battery_manager = BatteryHealthManager(hass, runtime_manager=manager)
