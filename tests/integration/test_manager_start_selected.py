@@ -24,6 +24,18 @@ Coverage targets
         target → confirmed started, no retry.
 [SS-13] phase verify false-positive fix: device reports 'cleaning' but current_room
         is the dock (not the target) → not fooled, retries to the cap.
+[SS-15] dock-room-as-target: current_room == target but vacuum docked (not cleaning)
+        → verify requires actively-cleaning → no false-confirm, retries; pending stays.
+[SS-16] initial phase is verify-only: _run_advanced_phase(initial=True) skips the
+        settle + first dispatch, confirms room 0, clears the dispatch-pending guard.
+[SS-17] verify requires _PHASE_CONFIRM_SECONDS cumulative cleaning-the-target seconds
+        (sustained, not a single flicker sample) before releasing the guard.
+[SS-18] cumulative tally is not reset by a transient current-room dip (accumulate,
+        not strict continuity) — still confirms once enough real cleaning is seen.
+[SS-19] non-native fallback confirms immediately on one 'cleaning' sample — the
+        cumulative requirement is native-only (a non-native brand can't measure it).
+[SS-20] native: a device that never cleans the target (parked/ignored) hits the
+        no-progress budget -> verify returns False -> re-dispatch.
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -179,11 +191,14 @@ async def test_start_run_profile_not_found(manager, hass):
 
 
 def _instant_phase_dispatch(monkeypatch):
-    """Zero the settle/verify delays so the spawned re-dispatch task runs to
-    completion inside async_block_till_done (no real waiting in tests)."""
+    """Zero the settle/verify/confirm delays so the spawned re-dispatch task runs to
+    completion inside async_block_till_done (no real waiting in tests). With confirm
+    at 0 a single cleaning+on-target poll confirms; the sustained-accumulation
+    behaviour is exercised separately in test_phase_verify_requires_sustained_cleaning."""
     import custom_components.eufy_vacuum.core.manager as _mgr
     monkeypatch.setattr(_mgr, "_PHASE_SETTLE_SECONDS", 0)
     monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 0)
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)
 
 
 async def test_maybe_advance_phase_sequenced(manager, hass, monkeypatch):
@@ -390,6 +405,259 @@ async def test_phase_verify_native_wrong_room_retries(manager, hass, monkeypatch
         await hass.async_block_till_done()
         # never on the target room -> not fooled by "cleaning" -> retried to the cap
         assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_dock_room_as_target_not_confirmed(manager, hass, monkeypatch):
+    """[SS-15] dock-room-as-target: the device reports current_room == the dispatched
+    target (the dock physically sits in that room) but is DOCKED, not cleaning. Position
+    alone would false-confirm; requiring vacuum.state == cleaning isn't fooled, so the
+    watchdog retries to the cap and the dispatch-pending guard stays set (the run stalls
+    for Cancel Run rather than finalizing a room that never actually cleaned)."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")              # parked, not cleaning
+    hass.states.async_set("sensor.test_current_room", "Hallway")  # == phase 1 target
+    calls = _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        _native_phase_job(manager)
+        assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
+        await hass.async_block_till_done()
+        # on the target room but DOCKED -> not confirmed -> retried to the cap
+        assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
+        # never confirmed cleaning -> pending stays set so completion can't finalize it
+        assert manager.data["active_jobs"][_VAC][_MAP].get("_phase_dispatch_pending") is True
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_initial_phase_is_verify_only(manager, hass, monkeypatch):
+    """[SS-16] phase 0 was already dispatched by start_selected_rooms, so the watchdog
+    for it runs initial=True: it skips the settle + the first dispatch and just VERIFIES
+    the device actually started room 0, then clears the dispatch-pending guard. (A parked
+    robot whose dock is in a target room would otherwise let the completion gate finalize
+    room 0 the instant it started — Fix A.)"""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.test_current_room", "Kitchen")  # == phase 0 target
+    calls = _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+            "phases": [
+                {"resolved_rooms": [{"room_id": 1, "name": "Kitchen", "slug": "kitchen"}],
+                 "payload": {"segments": [1]}, "room_count": 1},
+                {"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+                 "payload": {"segments": [2]}, "room_count": 1},
+            ],
+            "current_phase_index": 0,
+            "resolved_rooms": [{"room_id": 1, "name": "Kitchen", "slug": "kitchen"}],
+            "queue_room_ids": [1],
+            "current_room_id": 1,
+            "_phase_dispatch_pending": True,
+            "has_observed_active_lifecycle": True,
+            "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+        }
+        await manager._run_advanced_phase(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=True
+        )
+        await hass.async_block_till_done()
+        # verify-only: the initial phase is NOT re-dispatched (start already sent it)
+        assert calls == []
+        # confirmed cleaning room 0 -> guard cleared so its real completion can finalize
+        assert manager.data["active_jobs"][_VAC][_MAP].get("_phase_dispatch_pending") is False
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_requires_sustained_cleaning(manager, hass, monkeypatch):
+    """[SS-17] the native verify requires _PHASE_CONFIRM_SECONDS CUMULATIVE seconds of
+    cleaning-the-target before releasing the guard — a single cleaning+on-target sample
+    (a flicker, or the dock-in-target room momentarily reading 'current') is not enough.
+    With the poll sleep stubbed out, confirmation takes several polls, not one."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    # Spin the poll loop with no real delay; require 15s == 3 polls @ 5s to confirm.
+    monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock())
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 90)
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 15)
+    monkeypatch.setattr(_mgr, "_PHASE_POLL_SECONDS", 5)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.test_current_room", "Hallway")
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+            "phases": [{"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+                        "payload": {"segments": [2]}, "room_count": 1}],
+            "current_phase_index": 0,
+            "resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+            "queue_room_ids": [2],
+            "current_room_id": 2,
+            "has_observed_active_lifecycle": True,
+            "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+        }
+        result = await manager._await_phase_started(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
+        )
+        assert result is True                       # sustained cleaning-on-target confirms
+        # required more than a single sample: it slept (polled) at least twice before
+        # the cumulative tally reached the confirm threshold.
+        assert _mgr.asyncio.sleep.await_count >= 2
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_tolerates_current_room_dips(manager, hass, monkeypatch):
+    """[SS-18] the cumulative tally is NOT reset by a transient current-room dip: a
+    poll where the live signal momentarily leaves the target just doesn't add, and
+    accumulation resumes — so a flickering signal still confirms once enough real
+    cleaning is observed (accumulate, not strict continuity). With a reset-on-dip bug
+    the same sequence would need an extra poll to confirm."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 90)
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 15)   # 3 matching polls @ 5s
+    monkeypatch.setattr(_mgr, "_PHASE_POLL_SECONDS", 5)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.test_current_room", "Hallway")  # poll 1 matches
+    # Each poll's sleep advances the live current-room: a DIP off-target on poll 2,
+    # then back on target. Matches at polls 1, 3, 4 -> 3 matches over 4 polls.
+    seq = iter(["Foyer", "Hallway", "Hallway", "Hallway"])
+
+    async def _tick(*_a, **_k):
+        try:
+            hass.states.async_set("sensor.test_current_room", next(seq))
+        except StopIteration:
+            pass
+
+    sleep_mock = AsyncMock(side_effect=_tick)
+    monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+            "phases": [{"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+                        "payload": {"segments": [2]}, "room_count": 1}],
+            "current_phase_index": 0,
+            "resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+            "queue_room_ids": [2],
+            "current_room_id": 2,
+            "has_observed_active_lifecycle": True,
+            "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+        }
+        result = await manager._await_phase_started(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
+        )
+        assert result is True
+        # 3 matching polls reached over 4 polls (1 dip) -> exactly 3 sleeps. A tally
+        # that reset on the dip would need a 5th poll (4 sleeps) to re-accumulate.
+        assert sleep_mock.await_count == 3
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_non_native_immediate(manager, hass, monkeypatch):
+    """[SS-19] a brand with NO native current-room signal uses the coarse cleaning
+    check, which confirms on a single 'cleaning' sample — the cumulative
+    _PHASE_CONFIRM_SECONDS requirement is native-only (otherwise a non-native brand
+    would never meet a tally it can't measure and would stall every phase)."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    # CONFIRM non-zero: if accumulation were (wrongly) applied to the fallback, this
+    # would force multiple polls instead of an immediate confirm.
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 90)
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 45)
+    monkeypatch.setattr(_mgr, "_PHASE_POLL_SECONDS", 5)
+    sleep_mock = AsyncMock()
+    monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    # No adapter config registered -> has_native False -> coarse fallback.
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [{"resolved_rooms": [{"room_id": 1}], "payload": {}, "room_count": 1}],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 1}], "queue_room_ids": [1], "current_room_id": 1,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    result = await manager._await_phase_started(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
+    )
+    assert result is True
+    assert sleep_mock.await_count == 0          # immediate, no accumulation polling
+
+
+async def test_phase_verify_idle_window_retries(manager, hass, monkeypatch):
+    """[SS-20] native path: a device that never cleans the target (parked on the dock /
+    ignored the dispatch) accrues the no-progress budget and the attempt gives up
+    (returns False -> re-dispatch) after _PHASE_VERIFY_SECONDS with no cleaning of the
+    target — even though its current_room reads as the target the whole time."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 20)   # 4 idle polls @ 5s
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 45)
+    monkeypatch.setattr(_mgr, "_PHASE_POLL_SECONDS", 5)
+    sleep_mock = AsyncMock()
+    monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")                    # never cleaning
+    hass.states.async_set("sensor.test_current_room", "Hallway")  # on target but docked
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+            "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+            "phases": [{"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+                        "payload": {"segments": [2]}, "room_count": 1}],
+            "current_phase_index": 0,
+            "resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+            "queue_room_ids": [2],
+            "current_room_id": 2,
+            "has_observed_active_lifecycle": True,
+            "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+        }
+        result = await manager._await_phase_started(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
+        )
+        assert result is False                  # no cleaning-of-target -> idle budget hit
     finally:
         unregister_adapter_config(_VAC)
 

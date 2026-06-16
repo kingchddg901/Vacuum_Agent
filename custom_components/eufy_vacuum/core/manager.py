@@ -69,14 +69,29 @@ EXTERNAL_GRACE_MAX_RECHECKS = 8
 # (Roborock S6) finishes one room, returns to the dock + starts charging, then
 # IGNORES an app_segment_clean sent at that instant — so the next room is
 # dispatched from a background task that settles, then verifies the robot actually
-# started and re-dispatches if not. The verify window must exceed the brand's
-# local-poll interval (~30s) so the started-cleaning signal has updated before we
-# decide to retry (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase
-# watchdog: after that many tries with no start, the run is left stalled (the user
-# can Cancel Run) rather than silently hung. Tunable from on-device validation.
+# started and re-dispatches if not. VERIFY is the NO-PROGRESS budget: an attempt
+# only gives up (and re-dispatches) after this many seconds with NO observed
+# cleaning of the target room — so a slow cross-room transit just delays the start
+# of confirmation instead of falsely failing the attempt, while a device that
+# never reaches the room still retries promptly. It must exceed the brand's
+# local-poll interval (~30s) so the signal has updated before we decide to retry
+# (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase watchdog: after
+# that many tries with no start, the run is left stalled (the user can Cancel Run)
+# rather than silently hung. Tunable from on-device validation.
 _PHASE_SETTLE_SECONDS = 10
-_PHASE_VERIFY_SECONDS = 45
+_PHASE_VERIFY_SECONDS = 90
 _PHASE_MAX_ATTEMPTS = 3
+# How long the device must be observed ACTUALLY cleaning the phase's target room
+# before we release the dispatch-pending guard. A single position+cleaning sample
+# can catch a flicker (the live current-room signal dips in and out, and a target
+# room that IS the dock reads as "current" whenever parked) — so we require this
+# many CUMULATIVE seconds of cleaning-the-target (tolerating brief dips: a dip just
+# doesn't add to the tally) before trusting the phase genuinely started. Must stay
+# comfortably below the shortest real per-room clean time — a room that finishes in
+# under this would never accumulate enough and would stall the phase. The verify
+# window above must exceed this plus cross-room transit so the tally can complete
+# before a retry fires. Tunable from on-device validation.
+_PHASE_CONFIRM_SECONDS = 45
 # How often, inside each verify window, to re-check whether the dispatched room
 # actually started — polling sees success as soon as the device reaches the room,
 # not only at the window's end (covers cross-room transit lag).
@@ -4034,17 +4049,28 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
         map_id: str,
         phase_index: int,
+        initial: bool = False,
     ) -> None:
-        """Dispatch a just-advanced sequenced phase: settle, send, verify, retry.
+        """Dispatch/confirm a sequenced phase: settle, send, verify, retry.
 
-        A path-optimizing device (Roborock S6) returns to the dock + starts
-        charging at the end of each single-room phase and ignores an
-        app_segment_clean sent at that instant. So we wait for it to settle, send
-        the room, then verify it actually started THIS room; if not, re-send. The
-        retry cap is the per-phase watchdog — after it, the run is left stalled
-        (recoverable via Cancel Run) rather than silently hung.
+        ADVANCED phase: a path-optimizing device (Roborock S6) returns to the dock
+        + starts charging at the end of each single-room phase and ignores an
+        app_segment_clean sent at that instant — so we settle, send the room,
+        verify it actually started THIS room, and re-send if not.
+
+        INITIAL phase (``initial=True``): phase 0 was already dispatched by
+        start_selected_rooms, so we skip the settle and the first dispatch and just
+        VERIFY, then clear the dispatch-pending guard. The device may sit parked on
+        the dock at start (its current_room == the dock room, which can itself be a
+        target), so until it is confirmed ACTUALLY cleaning room 0 the completion
+        gate must not finalize it. A retry re-dispatches only if it ignored the
+        initial send.
+
+        Either way the retry cap is the per-phase watchdog — after it the run is
+        left stalled (recoverable via Cancel Run) rather than silently hung.
         """
-        await asyncio.sleep(_PHASE_SETTLE_SECONDS)
+        if not initial:
+            await asyncio.sleep(_PHASE_SETTLE_SECONDS)
         for attempt in range(1, _PHASE_MAX_ATTEMPTS + 1):
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             # The job advanced past this phase, finalized, or was cancelled — done.
@@ -4061,9 +4087,12 @@ class EufyVacuumManager:
                     (job or {}).get("status"), (job or {}).get("current_phase_index"),
                 )
                 return
-            await self._dispatch_active_phase(
-                vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
-            )
+            # The initial phase's first send already happened at job start — just
+            # verify it; a re-dispatch only happens on a retry (device ignored it).
+            if not (initial and attempt == 1):
+                await self._dispatch_active_phase(
+                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
+                )
             if await self._await_phase_started(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
             ):
@@ -4110,24 +4139,37 @@ class EufyVacuumManager:
     async def _await_phase_started(
         self, *, vacuum_entity_id: str, map_id: str, phase_index: int
     ) -> bool:
-        """Poll a verify window for the device to actually start THIS phase's
-        TARGET room — True the moment it does (or if the phase advanced/finalized
-        meanwhile), False if the window expires with no start.
+        """Poll for the device to actually start — and stay on — THIS phase's TARGET
+        room. True once it has been observed cleaning the target for
+        _PHASE_CONFIRM_SECONDS cumulative (or if the phase advanced/finalized
+        meanwhile); False once it has gone _PHASE_VERIFY_SECONDS with NO observed
+        cleaning of the target — it ignored the dispatch / is still docked / is still
+        finishing the previous room — which triggers a re-dispatch.
 
-        The previous check ("is the vacuum cleaning at all" / the job-active
-        binary) false-passed: the device's inCleaning flag stays on across the
-        whole job, so a clean it IGNORED at the dock looked like success and the
-        watchdog never retried (only ~1 room in 4 actually fired). The strong
-        signal is the brand's NATIVE current-room matching the phase's target: a
-        still-docked device (current_room = dock, not a target) or one still
-        finishing the previous room never matches the freshly-reset target, so the
-        retry fires; once the device reaches the target the match confirms a real
-        start. Polls so success is detected mid-window (covers cross-room transit
-        lag). Brands with no native current-room signal fall back to the coarse
-        cleaning check."""
+        The previous check ("is the vacuum cleaning at all" / the job-active binary)
+        false-passed: the device's inCleaning flag stays on across the whole job, so
+        a clean it IGNORED at the dock looked like success and the watchdog never
+        retried (only ~1 room in 4 actually fired). The strong signal is the brand's
+        NATIVE current-room matching the phase's target while actually cleaning,
+        SUSTAINED:
+
+          - vacuum.state == cleaning rules out the docked-in-the-target-room case
+            (when the dock physically sits in a target room the device reports
+            current_room == that room whenever parked).
+          - We accumulate cleaning-of-the-target seconds rather than confirm on a
+            single sample, because the live current-room signal dips in and out — a
+            dip just doesn't add to the tally (we don't require strict continuity).
+          - We bound an attempt by NO-PROGRESS time (idle), not a fixed overall
+            window: a long cross-room transit merely delays when the tally starts,
+            so it can't falsely fail a device that is genuinely on its way, while a
+            device that never reaches the room accrues idle and retries promptly.
+
+        Brands with no native current-room signal fall back to the coarse cleaning
+        check (immediate, unchanged)."""
         cfg = _get_adapter_config(vacuum_entity_id) or {}
         has_native = bool(cfg.get("entities", {}).get("active_cleaning_target"))
-        elapsed = 0.0
+        cleaning_in_target = 0.0  # cumulative seconds observed cleaning the target
+        idle = 0.0                # consecutive seconds with NO cleaning of the target
         while True:
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             # Phase advanced / finalized / cancelled elsewhere — nothing to retry.
@@ -4137,23 +4179,35 @@ class EufyVacuumManager:
                 or int(job.get("current_phase_index", -1)) != phase_index
             ):
                 return True
+            progressed = False
             if has_native:
                 target = job.get("current_room_id")
                 signal = self.active_job.native_current_room_target_id(
                     vacuum_entity_id, job
                 )
-                if signal is not None and target is not None and signal == target:
-                    return True
+                st = self.hass.states.get(vacuum_entity_id)
+                is_cleaning = (
+                    st is not None and str(st.state).strip().lower() == "cleaning"
+                )
+                if (
+                    is_cleaning
+                    and signal is not None
+                    and target is not None
+                    and signal == target
+                ):
+                    cleaning_in_target += float(_PHASE_POLL_SECONDS)
+                    if cleaning_in_target >= _PHASE_CONFIRM_SECONDS:
+                        return True
+                    progressed = True
             elif self._vacuum_started_cleaning(vacuum_entity_id):
                 return True
-            remaining = _PHASE_VERIFY_SECONDS - elapsed
-            if remaining <= 0:
+            # Reset the no-progress budget whenever we saw cleaning-of-the-target;
+            # otherwise accrue it and give up the attempt (re-dispatch) once the
+            # device has gone the whole budget without touching the target room.
+            idle = 0.0 if progressed else idle + float(_PHASE_POLL_SECONDS)
+            if idle >= _PHASE_VERIFY_SECONDS:
                 return False
-            step = min(float(_PHASE_POLL_SECONDS), remaining)
-            if step <= 0:
-                step = remaining
-            await asyncio.sleep(step)
-            elapsed += step
+            await asyncio.sleep(float(_PHASE_POLL_SECONDS))
 
     async def _dispatch_active_phase(
         self,
@@ -4356,6 +4410,23 @@ class EufyVacuumManager:
         self.data.setdefault("active_jobs", {})
         self.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self.data["active_jobs"][vacuum_entity_id][str(map_id)] = active_job
+        # Sequenced (strict-order) job: guard + confirm the FIRST phase exactly like
+        # an advanced one. Until the watchdog confirms the device is ACTUALLY
+        # cleaning room 0, the completion gate must not finalize on the device's
+        # parked/charging state at start (it sits on the dock, whose room can itself
+        # be a target). initial=True -> verify-only (phase 0 was just dispatched
+        # above), no settle, re-dispatch only if the device ignored it. Atomic jobs
+        # have no phases -> no flag, no watchdog (Eufy unchanged).
+        if active_job.get("phases"):
+            active_job["_phase_dispatch_pending"] = True
+            self.hass.async_create_task(
+                self._run_advanced_phase(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    phase_index=0,
+                    initial=True,
+                )
+            )
         if active_job.get("current_room_id") not in (None, ""):
             self.hass.bus.async_fire(
                 EVENT_ROOM_STARTED,

@@ -1786,6 +1786,10 @@ class ActiveJobTracker:
         active_job["finalized"] = True
         active_job["paused_at"] = None
         active_job["has_observed_active_lifecycle"] = False
+        # Clear the strict-order dispatch guard on the finalized record (a Cancel Run
+        # mid-watchdog could otherwise leave it set). Harmless to the live gate, which
+        # only inspects started/paused jobs, but keeps the stored record clean.
+        active_job["_phase_dispatch_pending"] = False
         active_job["finalized_at"] = (
             finalize_result.get("completed_job", {}).get("finalized_at")
             if isinstance(finalize_result, dict)
