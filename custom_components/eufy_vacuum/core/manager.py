@@ -3618,6 +3618,15 @@ class EufyVacuumManager:
             _candidate = f"image.{_object_id}_{_slugify(str(map_id))}"
             if self.hass.states.get(_candidate) is not None:
                 live_map_image_entity = _candidate
+        # User's chosen live-map display rotation (0/90/180/270), stored per map so
+        # it follows them across devices. Surfaced even at 0 so the card has a value.
+        _live_map_bucket = (
+            self.data.get("maps", {}).get(vacuum_entity_id, {}).get(str(map_id), {}) or {}
+        )
+        try:
+            live_map_rotation = int(_live_map_bucket.get("live_map_rotation", 0) or 0) % 360
+        except (TypeError, ValueError):
+            live_map_rotation = 0
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3638,6 +3647,7 @@ class EufyVacuumManager:
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
             "live_map_image_entity": live_map_image_entity,
+            "live_map_rotation": live_map_rotation,
             "updated_at": _iso_now(),
         }
 

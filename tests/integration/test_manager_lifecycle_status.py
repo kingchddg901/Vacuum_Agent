@@ -174,6 +174,11 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     assert _snap({"mapping": {"live_map_image": True}})["live_map_image_entity"] is None
     assert _snap({})["live_map_image_entity"] is None
 
+    # live_map_rotation rides the snapshot from the per-map bucket (default 0).
+    assert _snap({})["live_map_rotation"] == 0
+    manager.data["maps"][_VAC][_MAP]["live_map_rotation"] = 180
+    assert _snap({})["live_map_rotation"] == 180
+
 
 class _FakeErrorTracker:
     """Returns a canned active-run latch — mirrors ErrorTracker's read API."""

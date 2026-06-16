@@ -138,6 +138,10 @@ SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"
 # get_map_segments response.
 SERVICE_SET_SEGMENT_ROOM_LINK = "set_segment_room_link"
 SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
+# Live-map display rotation (0/90/180/270), stored on the per-map bucket as
+# `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
+# affects dispatch. Backend-stored so the orientation follows the user across devices.
+SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"

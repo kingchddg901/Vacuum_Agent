@@ -21,6 +21,7 @@ from ..const import (
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -104,6 +105,7 @@ ALL_MAPPING_SERVICES = (
     # Map UI overlay state (segment→room links, companion anchors)
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_LIVE_MAP_ROTATION,
     # CV/Custom toggle + custom-segment authoring + named custom layouts
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -471,6 +473,15 @@ SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
         # Pass null / omit pct_x AND pct_y to clear the anchor.
         vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
         vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
+
+SET_LIVE_MAP_ROTATION_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("rotation"): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
     }
 )
 
@@ -1560,6 +1571,35 @@ async def _handle_set_companion_anchor(
     }
 
 
+async def _handle_set_live_map_rotation(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist the live-map DISPLAY rotation (0/90/180/270) on the map bucket.
+
+    Display only — the card rotates the live map image to match how the user
+    pictures their home; cleaning/dispatch is by room id and is never affected.
+    Stored per map so the orientation follows the user across devices; surfaced in
+    the dashboard snapshot as ``live_map_rotation``.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    rotation = int(call.data["rotation"]) % 360
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    map_bucket["live_map_rotation"] = rotation
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_live_map_rotation: %s deg on %s/%s",
+        rotation, vacuum_entity_id, map_id,
+    )
+    return {"saved": True, "live_map_rotation": rotation}
+
+
 # ---------------------------------------------------------------------------
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
@@ -2054,6 +2094,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_companion_anchor(call: ServiceCall) -> dict:
         return await _handle_set_companion_anchor(hass, call)
 
+    async def set_live_map_rotation(call: ServiceCall) -> dict:
+        return await _handle_set_live_map_rotation(hass, call)
+
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
 
@@ -2110,6 +2153,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_COMPANION_ANCHOR, set_companion_anchor,
         schema=SET_COMPANION_ANCHOR_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,
+        schema=SET_LIVE_MAP_ROTATION_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,

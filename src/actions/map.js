@@ -12,6 +12,7 @@ import {
   SERVICE_ADJUST_MAP_SEGMENT,
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
+  SERVICE_SET_LIVE_MAP_ROTATION,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
@@ -232,6 +233,25 @@ export function applyMapActions(proto) {
       DOMAIN,
       SERVICE_SET_COMPANION_ANCHOR,
       payload,
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Rotate the live map 90° CW (display only; backend-stored per map). Sets an
+   * optimistic overlay synchronously so the turn is instant, then persists via the
+   * service; the dashboard snapshot reconciles the overlay on its next push.
+   */
+  proto.rotateLiveMap = async function (mapId) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const next = (Number(this.state.mapRotation?.() ?? 0) + 90) % 360;
+    this.state.setMapRotationOptimistic?.(next);
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_LIVE_MAP_ROTATION,
+      { vacuum_entity_id: vacuum, map_id: mapId, rotation: next },
       true,
     );
     return result?.response ?? result ?? null;

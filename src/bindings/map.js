@@ -1138,12 +1138,15 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender?.();
       });
     });
-    // Rotate the live map 90° CW (display only; persisted per vacuum). Re-render
-    // so the image's rotate() inline style updates.
+    // Rotate the live map 90° CW (display only; backend-stored per map). The
+    // action sets an optimistic overlay synchronously, so re-rendering now shows
+    // the turn instantly while the service persists it.
     root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
-        this.card._state.rotateMapCW?.();
+        const mapId = this.card._state.mapSegmentsData?.()?.map_id
+          ?? this.card._state.activeMapId?.() ?? null;
+        this.card._actions.rotateLiveMap?.(mapId);
         this.card._scheduleRender?.();
       });
     });

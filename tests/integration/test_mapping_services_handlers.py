@@ -20,6 +20,7 @@ Coverage targets
 [MSV-12] clear_room_bounds on an unknown room → room_not_found.
 [MSV-13] exclude_room_job_bounds on an unknown room → room_not_found.
 [MSV-14] delete_map_image when the PNG is already gone → record still dropped.
+[MSV-15] set_live_map_rotation stores the display rotation on the map bucket.
 """
 
 from __future__ import annotations
@@ -123,6 +124,26 @@ async def test_set_dock_room(hass, mapping_services):
                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "2"})
     assert result["saved"] is True
     assert result["dock"]["room_id"] == "2"
+
+
+async def test_set_live_map_rotation(hass, mapping_services):
+    """[MSV-15] set_live_map_rotation persists the live-map DISPLAY rotation on the
+    map bucket (display only; schema validates 0/90/180/270)."""
+    manager = mapping_services
+    result = await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "rotation": 90})
+    assert result["saved"] is True
+    assert result["live_map_rotation"] == 90
+    assert manager.data["maps"][_VAC][_MAP]["live_map_rotation"] == 90
+    # overwrite with another valid value
+    await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "rotation": 270})
+    assert manager.data["maps"][_VAC][_MAP]["live_map_rotation"] == 270
+    # an out-of-set value is rejected by the schema (stored value unchanged)
+    with pytest.raises(Exception):
+        await _call(hass, ms.SERVICE_SET_LIVE_MAP_ROTATION,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "rotation": 45})
+    assert manager.data["maps"][_VAC][_MAP]["live_map_rotation"] == 270
 
 
 async def test_set_dock_anchor_docked(hass, mapping_services):

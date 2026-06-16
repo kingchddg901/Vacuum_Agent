@@ -31,34 +31,31 @@ export function applyMapState(proto) {
     this.setMapViewActive(!this.isMapViewActive());
   };
 
-  // ---- Live-map rotation (display only) ----
+  // ---- Live-map rotation (display only, BACKEND-stored per map) ----
   // The live map image (Roborock) can be oriented differently from how the user
   // pictures their home; let them rotate it in 90° steps to match. Display only —
-  // it never touches dispatch (cleaning is by room id). Persisted per vacuum in
-  // localStorage (per browser; matches the other map view prefs). Applied only to
-  // the live-image element (which fills a SQUARE container, so a 90° turn around
-  // its centre stays perfectly in frame) — NOT to CV/custom maps, whose polygon
-  // overlay would otherwise drift from the picture.
-  proto._mapRotation = null; // null = not yet read from localStorage
-  proto._mapRotationStorageKey = function () {
-    return `evcc_map_rotation_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  // never touches dispatch (cleaning is by room id). Stored on the map bucket +
+  // surfaced in the dashboard snapshot (write via the set_live_map_rotation
+  // action/service) so the orientation FOLLOWS THE USER across browsers/devices,
+  // like the dot anchors. An optimistic overlay covers the click → service-ack →
+  // snapshot-refresh window so the turn is instant. Applied only to the live-image
+  // element (which fills a SQUARE container, so a 90° turn about its centre stays
+  // perfectly in frame) — NOT to CV/custom maps, whose polygons would drift.
+  proto._mapRotationOverlay = null; // pending optimistic value (deg) or null
+  proto._normRotation = function (deg) {
+    return (((Math.round(Number(deg) / 90) * 90) % 360) + 360) % 360;
   };
   proto.mapRotation = function () {
-    if (this._mapRotation === null) {
-      const stored = parseInt(localStorage.getItem(this._mapRotationStorageKey()) ?? "0", 10);
-      this._mapRotation = [0, 90, 180, 270].includes(stored) ? stored : 0;
+    const snap = this._normRotation(this.dashboardSnapshot()?.live_map_rotation ?? 0);
+    if (this._mapRotationOverlay != null) {
+      // Drop the overlay once the backend snapshot has caught up to it.
+      if (this._mapRotationOverlay === snap) { this._mapRotationOverlay = null; return snap; }
+      return this._mapRotationOverlay;
     }
-    return this._mapRotation;
+    return snap;
   };
-  proto.setMapRotation = function (deg) {
-    const norm = (((Math.round(Number(deg) / 90) * 90) % 360) + 360) % 360;
-    this._mapRotation = norm;
-    try {
-      localStorage.setItem(this._mapRotationStorageKey(), String(norm));
-    } catch (_) {}
-  };
-  proto.rotateMapCW = function () {
-    this.setMapRotation(this.mapRotation() + 90);
+  proto.setMapRotationOptimistic = function (deg) {
+    this._mapRotationOverlay = this._normRotation(deg);
   };
 
   proto.mapSegmentsData = function () {

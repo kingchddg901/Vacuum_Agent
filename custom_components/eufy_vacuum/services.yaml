@@ -2219,6 +2219,37 @@ set_companion_anchor:
           step: 0.01
           mode: box
 
+set_live_map_rotation:
+  name: Set live map rotation
+  description: >
+    Set the display rotation (0/90/180/270°) of the live map image in the card's
+    Map view, so it matches how you picture your home. Display only — never affects
+    cleaning (dispatch is by room). Stored per map so it follows you across devices.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    rotation:
+      name: Rotation (degrees)
+      required: true
+      selector:
+        select:
+          options:
+            - "0"
+            - "90"
+            - "180"
+            - "270"
+
 create_custom_layout:
   name: Create custom layout
   description: >
