@@ -89,6 +89,10 @@ export const mapStyles = `
     object-fit:         contain;
     user-select:        none;
     -webkit-user-drag:  none;
+    /* Live-map rotation (display only) spins the image about its centre; the
+       square container keeps a 90° turn fully in frame. */
+    transform-origin:   center;
+    transition:         transform 0.2s ease;
   }
 
   .evcc-map-svg {

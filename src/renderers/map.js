@@ -116,6 +116,9 @@ export function applyMapRenderers(proto) {
     const zoom         = state.mapZoom?.() ?? 1;
     const tx           = state.mapTranslateX?.() ?? 0;
     const ty           = state.mapTranslateY?.() ?? 0;
+    // Live-map rotation is display only and applies ONLY to the live image (no
+    // segment overlay to keep aligned); CV/custom maps stay at 0.
+    const rot          = hasLiveImage ? (state.mapRotation?.() ?? 0) : 0;
     return `
       <div class="evcc-map-view">
         <div class="evcc-map-container">
@@ -126,6 +129,7 @@ export function applyMapRenderers(proto) {
               src="${this.escapeHtml(imageUrl)}"
               alt="Floor plan"
               draggable="false"
+              style="transform:rotate(${rot}deg)"
             >
             <svg
               class="evcc-map-svg"
@@ -179,6 +183,9 @@ export function applyMapRenderers(proto) {
                     title="Fit map to screen" aria-label="Fit to screen">⤢</button>
             <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
                     title="Zoom in" aria-label="Zoom in">+</button>
+            ${hasLiveImage ? `
+            <button class="evcc-map-zoom-btn" data-action="map-rotate"
+                    title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
             <span class="evcc-map-zoom-readout"
                   aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
           </div>

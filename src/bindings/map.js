@@ -1138,6 +1138,15 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender?.();
       });
     });
+    // Rotate the live map 90° CW (display only; persisted per vacuum). Re-render
+    // so the image's rotate() inline style updates.
+    root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.rotateMapCW?.();
+        this.card._scheduleRender?.();
+      });
+    });
 
     // ----------------------------------------------------------
     // Ctrl + wheel zoom — desktop equivalent of pinch. Plain wheel
