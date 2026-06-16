@@ -167,3 +167,5 @@ def test_advance_phase_swaps_and_resets():
     assert nxt["completed_room_ids"] == []        # per-phase progress reset
     assert nxt["completed_rooms"] == []
     assert nxt["queue_stable_keys"] == [f"{_VAC}:{_MAP}:5", f"{_VAC}:{_MAP}:6"]
+    assert nxt["has_observed_active_lifecycle"] is False   # fresh sub-job
+    assert nxt["_phase_dispatch_pending"] is True           # not yet confirmed cleaning

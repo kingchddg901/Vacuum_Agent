@@ -316,6 +316,9 @@ async def test_maybe_advance_phase_retries_until_max(manager, hass, monkeypatch)
     await hass.async_block_till_done()
     # one dispatch per attempt, capped at the watchdog limit (never saw cleaning)
     assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
+    # device never started -> dispatch-pending stays set, so the run stalls
+    # (recoverable via Cancel Run) instead of finalizing a room that never cleaned
+    assert manager.data["active_jobs"][_VAC][_MAP].get("_phase_dispatch_pending") is True
 
 
 def _native_phase_job(manager):
@@ -356,6 +359,9 @@ async def test_phase_verify_native_on_target_success(manager, hass, monkeypatch)
         assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
         await hass.async_block_till_done()
         assert len(calls) == 1  # on the target room -> verified, no retry
+        # watchdog confirmed the target room started -> dispatch-pending cleared,
+        # so this phase's real completion can finalize/advance normally
+        assert manager.data["active_jobs"][_VAC][_MAP].get("_phase_dispatch_pending") is False
     finally:
         unregister_adapter_config(_VAC)
 

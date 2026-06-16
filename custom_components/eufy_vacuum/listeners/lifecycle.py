@@ -257,6 +257,20 @@ def register(hass: HomeAssistant) -> None:
                     if should_finalize_completed and is_job_active(hass, vacuum_entity_id):
                         should_finalize_completed = False
 
+                    # Strict-order dispatch guard: a just-advanced sequenced phase
+                    # has NOT been confirmed cleaning yet — the watchdog
+                    # (_run_advanced_phase) is still in its settle/dispatch/verify
+                    # window. Until it confirms the device started THIS room (which
+                    # clears _phase_dispatch_pending), the lingering completion
+                    # signals from the room that JUST finished must not finalize the
+                    # new phase: a Roborock sits docked+charging between phases —
+                    # precisely its completion signal — so without this the prior
+                    # room's dock finalizes the next room before it ever starts.
+                    # No-op for non-sequenced jobs (the flag is only set on a phase
+                    # advance, queue_engine.advance_active_job_phase).
+                    if should_finalize_completed and active_job.get("_phase_dispatch_pending"):
+                        should_finalize_completed = False
+
                     if not should_finalize_completed:
                         continue
 

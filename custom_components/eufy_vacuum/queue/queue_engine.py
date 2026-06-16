@@ -453,4 +453,12 @@ def advance_active_job_phase(active_job: dict[str, Any]) -> dict[str, Any] | Non
     # active again before it can finalize, so the stale completion signal from
     # the phase that just ended can't immediately re-finalize it.
     advanced["has_observed_active_lifecycle"] = False
+    # Dispatch-pending guard: the watchdog (_run_advanced_phase) hasn't confirmed
+    # the device actually started THIS room yet. While pending, the completion
+    # listener must not finalize/advance on the PREVIOUS room's lingering signals
+    # (a Roborock sits docked+charging between phases, which IS its completion
+    # signal). _await_phase_started clears it on a confirmed start; a watchdog
+    # give-up leaves it set so the run stalls (recoverable via Cancel Run) instead
+    # of finalizing a room that never cleaned.
+    advanced["_phase_dispatch_pending"] = True
     return advanced

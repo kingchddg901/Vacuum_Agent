@@ -4053,6 +4053,13 @@ class EufyVacuumManager:
                 or job.get("status") != "started"
                 or int(job.get("current_phase_index", -1)) != phase_index
             ):
+                _LOGGER.info(
+                    "Strict-order: phase %s on %s not (re)dispatched — the job is no "
+                    "longer on this phase (status=%s, phase=%s); it finalized, "
+                    "advanced, or was cancelled during the settle window.",
+                    phase_index, vacuum_entity_id,
+                    (job or {}).get("status"), (job or {}).get("current_phase_index"),
+                )
                 return
             await self._dispatch_active_phase(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
@@ -4060,6 +4067,11 @@ class EufyVacuumManager:
             if await self._await_phase_started(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
             ):
+                # Confirmed the device started THIS room — clear the dispatch-pending
+                # guard so its real completion can finalize/advance normally.
+                self._clear_phase_dispatch_pending(
+                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+                )
                 return  # the target room actually started — phase under way
             if attempt < _PHASE_MAX_ATTEMPTS:
                 _LOGGER.warning(
@@ -4073,6 +4085,27 @@ class EufyVacuumManager:
             "stalled — Cancel Run to recover",
             phase_index, vacuum_entity_id, _PHASE_MAX_ATTEMPTS,
         )
+
+    def _clear_phase_dispatch_pending(
+        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
+    ) -> None:
+        """Clear the dispatch-pending guard once the watchdog has confirmed this
+        phase's room actually started, so its real completion can finalize/advance.
+        Only clears when the job is still on this exact phase — a later advance owns
+        its own pending flag. Writes straight to the stored record + best-effort save."""
+        job = (
+            self.data.get("active_jobs", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id))
+        )
+        if (
+            isinstance(job, dict)
+            and job.get("status") == "started"
+            and int(job.get("current_phase_index", -1)) == phase_index
+            and job.get("_phase_dispatch_pending")
+        ):
+            job["_phase_dispatch_pending"] = False
+            self.hass.async_create_task(self._async_save_logged())
 
     async def _await_phase_started(
         self, *, vacuum_entity_id: str, map_id: str, phase_index: int
