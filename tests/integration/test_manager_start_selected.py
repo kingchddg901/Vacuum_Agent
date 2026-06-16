@@ -36,6 +36,9 @@ Coverage targets
         cumulative requirement is native-only (a non-native brand can't measure it).
 [SS-20] native: a device that never cleans the target (parked/ignored) hits the
         no-progress budget -> verify returns False -> re-dispatch.
+[SS-21] _phase_target_is_dock_room reads the map's per-room is_dock_room flag.
+[SS-22] advanced phase targeting the dock room waits _PHASE_DOCK_SETTLE_SECONDS.
+[SS-23] advanced phase targeting a normal room waits _PHASE_SETTLE_SECONDS.
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -658,6 +661,113 @@ async def test_phase_verify_idle_window_retries(manager, hass, monkeypatch):
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
         )
         assert result is False                  # no cleaning-of-target -> idle budget hit
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_phase_target_is_dock_room(manager):
+    """[SS-21] _phase_target_is_dock_room reads the map's per-room is_dock_room flag
+    (int or str room id), and is safe (False) for an unknown room or None."""
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "rooms": {
+            "18": {"room_id": 18, "name": "Dining Room", "is_dock_room": True},
+            "27": {"room_id": 27, "name": "Kitchen", "is_dock_room": False},
+        }
+    }
+    assert manager._phase_target_is_dock_room(_VAC, _MAP, 18) is True
+    assert manager._phase_target_is_dock_room(_VAC, _MAP, "18") is True
+    assert manager._phase_target_is_dock_room(_VAC, _MAP, 27) is False
+    assert manager._phase_target_is_dock_room(_VAC, _MAP, 99) is False    # unknown room
+    assert manager._phase_target_is_dock_room(_VAC, _MAP, None) is False
+
+
+def _seed_dock_phase(manager, hass, *, room_id, room_name, is_dock):
+    """Seed a 1-phase advanced job targeting room_id + the map's is_dock_room flag,
+    with the device already cleaning that room so the verify confirms immediately."""
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.test_current_room", room_name)  # == target
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
+        "rooms": {str(room_id): {"room_id": room_id, "name": room_name,
+                                 "is_dock_room": is_dock}}
+    }
+    slug = room_name.strip().lower().replace(" ", "_")
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [{"resolved_rooms": [{"room_id": room_id, "name": room_name, "slug": slug}],
+                    "payload": {"segments": [room_id]}, "room_count": 1}],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": room_id, "name": room_name, "slug": slug}],
+        "queue_room_ids": [room_id],
+        "current_room_id": room_id,
+        "_phase_dispatch_pending": True,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+
+async def test_advanced_phase_extends_settle_for_dock_room(manager, hass, monkeypatch):
+    """[SS-22] an advanced (non-initial) phase whose target IS the dock room waits
+    _PHASE_DOCK_SETTLE_SECONDS before the first dispatch, so the dock's longer
+    ignore-transient passes (vs _PHASE_SETTLE_SECONDS for a normal room, SS-23)."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    sleeps: list[float] = []
+
+    async def _rec(d, *a, **k):
+        sleeps.append(d)
+
+    monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock(side_effect=_rec))
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)  # confirm on first sample
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        _seed_dock_phase(manager, hass, room_id=18, room_name="Dining Room", is_dock=True)
+        await manager._run_advanced_phase(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=False
+        )
+        await hass.async_block_till_done()
+        assert sleeps                                       # the settle ran
+        assert sleeps[0] == _mgr._PHASE_DOCK_SETTLE_SECONDS  # extended for the dock room
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_advanced_phase_normal_settle_for_non_dock_room(manager, hass, monkeypatch):
+    """[SS-23] an advanced phase whose target is NOT the dock room uses the normal
+    _PHASE_SETTLE_SECONDS — the extended settle is dock-room only."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    sleeps: list[float] = []
+
+    async def _rec(d, *a, **k):
+        sleeps.append(d)
+
+    monkeypatch.setattr(_mgr.asyncio, "sleep", AsyncMock(side_effect=_rec))
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        _seed_dock_phase(manager, hass, room_id=27, room_name="Kitchen", is_dock=False)
+        await manager._run_advanced_phase(
+            vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=False
+        )
+        await hass.async_block_till_done()
+        assert sleeps
+        assert sleeps[0] == _mgr._PHASE_SETTLE_SECONDS      # normal settle, not extended
     finally:
         unregister_adapter_config(_VAC)
 

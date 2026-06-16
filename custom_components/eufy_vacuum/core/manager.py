@@ -79,6 +79,14 @@ EXTERNAL_GRACE_MAX_RECHECKS = 8
 # that many tries with no start, the run is left stalled (the user can Cancel Run)
 # rather than silently hung. Tunable from on-device validation.
 _PHASE_SETTLE_SECONDS = 10
+# A target room that IS the room the dock sits in is the worst case: the robot is
+# physically parked + charging on it, and its post-dock "ignore app_segment_clean"
+# transient is the longest — the flat settle above lands inside it, so the first
+# dispatch is ignored and only a much-later retry catches it. Wait longer before
+# the first dispatch for a dock-room phase so the transient has passed and the
+# segment-clean takes on attempt 1 (the normal retry stays as the backstop if this
+# is still too short). Tunable from on-device validation.
+_PHASE_DOCK_SETTLE_SECONDS = 45
 _PHASE_VERIFY_SECONDS = 90
 _PHASE_MAX_ATTEMPTS = 3
 # How long the device must be observed ACTUALLY cleaning the phase's target room
@@ -4043,6 +4051,25 @@ class EufyVacuumManager:
         )
         return True
 
+    def _phase_target_is_dock_room(
+        self, vacuum_entity_id: str, map_id: str, room_id: int | str | None
+    ) -> bool:
+        """True when ``room_id`` is the room the charging dock physically sits in
+        (the map's per-room is_dock_room flag). Used to extend the post-dock settle
+        for a dock-room strict-order phase. Safe on missing data → False."""
+        if room_id in (None, ""):
+            return False
+        rooms = (
+            self.data.get("maps", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id), {})
+            .get("rooms", {})
+        )
+        room = rooms.get(str(room_id))
+        if room is None:
+            room = rooms.get(room_id)
+        return bool(isinstance(room, dict) and room.get("is_dock_room", False))
+
     async def _run_advanced_phase(
         self,
         *,
@@ -4056,7 +4083,10 @@ class EufyVacuumManager:
         ADVANCED phase: a path-optimizing device (Roborock S6) returns to the dock
         + starts charging at the end of each single-room phase and ignores an
         app_segment_clean sent at that instant — so we settle, send the room,
-        verify it actually started THIS room, and re-send if not.
+        verify it actually started THIS room, and re-send if not. When the target
+        IS the dock room (the robot is parked + charging right on it) the settle is
+        extended (_PHASE_DOCK_SETTLE_SECONDS) so the longer ignore-transient passes
+        before the first dispatch.
 
         INITIAL phase (``initial=True``): phase 0 was already dispatched by
         start_selected_rooms, so we skip the settle and the first dispatch and just
@@ -4070,7 +4100,19 @@ class EufyVacuumManager:
         left stalled (recoverable via Cancel Run) rather than silently hung.
         """
         if not initial:
-            await asyncio.sleep(_PHASE_SETTLE_SECONDS)
+            job0 = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            settle = _PHASE_SETTLE_SECONDS
+            if self._phase_target_is_dock_room(
+                vacuum_entity_id, map_id, (job0 or {}).get("current_room_id")
+            ):
+                settle = _PHASE_DOCK_SETTLE_SECONDS
+                _LOGGER.info(
+                    "Strict-order: phase %s on %s targets the dock room — extending "
+                    "the post-dock settle to %ss before dispatch so the device's "
+                    "ignore-transient passes.",
+                    phase_index, vacuum_entity_id, settle,
+                )
+            await asyncio.sleep(settle)
         for attempt in range(1, _PHASE_MAX_ATTEMPTS + 1):
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             # The job advanced past this phase, finalized, or was cancelled — done.
