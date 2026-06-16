@@ -77,12 +77,18 @@ export function applyMapRenderers(proto) {
 
     const segmentsData = state.mapSegmentsData();
     const imageUrl = state.mapImageUrl();
+    const hasLiveImage = Boolean(state.liveMapImageEntity?.());
 
-    if (!segmentsData?.available || !imageUrl) {
+    // A live-image brand (Roborock) has no CV/custom segments — render the picture
+    // alone as soon as we have its URL; the segment/label SVG below is a safe no-op
+    // on an empty segment list. Other modes still require an analyzed/authored map.
+    if (!imageUrl || (!segmentsData?.available && !hasLiveImage)) {
       const isCustom = (state.segmentationMode?.() ?? "cv") === "custom";
-      const hint = isCustom
-        ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
-        : "Upload and analyze a map image to enable map view.";
+      const hint = hasLiveImage
+        ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
+        : isCustom
+          ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
+          : "Upload and analyze a map image to enable map view.";
       return `
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">

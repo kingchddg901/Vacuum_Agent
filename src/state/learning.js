@@ -216,6 +216,16 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * The HA `image` entity that exposes this vacuum's LIVE map picture (Roborock
+   * core integration: image.{vacuum}_{map-slug}), or null. Used as a live backdrop
+   * for the Map view when there's no CV/custom map. Backend-derived + existence-
+   * checked into the snapshot; null for Eufy / older backends (no live backdrop).
+   */
+  proto.liveMapImageEntity = function () {
+    return this.dashboardSnapshot()?.live_map_image_entity ?? null;
+  };
+
+  /**
    * Adapter-declared vocabulary surface from the dashboard snapshot.
    * Contains the option lists the card's room editor and rule editor
    * use to populate dropdowns (clean_mode_options / fan_speed_options /

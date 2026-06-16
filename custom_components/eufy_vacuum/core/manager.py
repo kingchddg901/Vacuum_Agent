@@ -3599,10 +3599,25 @@ class EufyVacuumManager:
                 "supports_station_water",
             )
         )
-        _segmenter_engine = (_adapter_cfg.get("mapping", {}) or {}).get("segmenter_engine")
+        _mapping_cfg = _adapter_cfg.get("mapping", {}) or {}
+        _segmenter_engine = _mapping_cfg.get("segmenter_engine")
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
+
+        # Live map-image backdrop: brands whose core integration publishes a live
+        # map as an HA `image` entity (Roborock: image.{vacuum}_{map-slug}) declare
+        # mapping.live_map_image. Derive that entity id the same way HA names it
+        # (object_id + slugified map name) and only surface it when it actually
+        # exists, so the card shows the Map view's live backdrop without any CV /
+        # custom segments. None for Eufy / older backends -> no live backdrop.
+        live_map_image_entity = None
+        if _mapping_cfg.get("live_map_image"):
+            from homeassistant.util import slugify as _slugify
+            _object_id = vacuum_entity_id.split(".", 1)[-1]
+            _candidate = f"image.{_object_id}_{_slugify(str(map_id))}"
+            if self.hass.states.get(_candidate) is not None:
+                live_map_image_entity = _candidate
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3622,6 +3637,7 @@ class EufyVacuumManager:
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
+            "live_map_image_entity": live_map_image_entity,
             "updated_at": _iso_now(),
         }
 

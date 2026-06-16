@@ -336,6 +336,13 @@ def register_roborock_adapter_for_vacuum(
             # empty (NoopSegmenter.validate_tuning rejects keys).
             "segmenter_engine": "noop_fallback",
             "segmenter_tuning": {},
+            # The Roborock core integration publishes a LIVE map image as an HA
+            # `image` entity (image.{vacuum}_{map-slug}). The card uses it as a live
+            # backdrop for the Map view even though there are no CV/custom segments.
+            # The manager derives + existence-checks the entity id into the dashboard
+            # snapshot (live_map_image_entity). Eufy omits this -> no live backdrop,
+            # byte-identical.
+            "live_map_image": True,
         },
 
         "job_segmenter": {

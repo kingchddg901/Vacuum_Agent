@@ -118,7 +118,23 @@ export function applyMapState(proto) {
       if (v !== "custom") return null;
       return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
     }
-    return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
+    // No CV/custom backdrop (e.g. a Roborock with native segments and no uploaded
+    // map): fall back to the brand's LIVE map image entity if one is declared.
+    return (variants.dark ?? variants.default ?? variants.light)?.browser_url
+      ?? this._liveMapImageUrl();
+  };
+
+  /**
+   * The LIVE map backdrop URL: the brand's HA `image` entity's entity_picture
+   * (Roborock current map). That URL carries a token that rotates on each image
+   * update, so binding it to <img src> refreshes the picture live with no polling.
+   * Null when the adapter declares no live image entity (Eufy) or the entity has
+   * no picture yet.
+   */
+  proto._liveMapImageUrl = function () {
+    const eid = this.liveMapImageEntity?.();
+    if (!eid) return null;
+    return this.attrsOf(eid)?.entity_picture ?? null;
   };
 
   // ---- Custom-segment composer draft (in-progress shapes, not yet saved) ----

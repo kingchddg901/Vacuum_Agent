@@ -130,7 +130,8 @@ async def test_dashboard_snapshot_no_tank_sensor_defaults(manager, hass):
 
 async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     """[LS-8] supports_base_station / supports_map_bounds drive whether the card
-    shows the Base Station + Map Bounds tabs. Cover every derivation branch."""
+    shows the Base Station + Map Bounds tabs; live_map_image_entity drives the Map
+    view's live backdrop. Cover every derivation branch."""
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
     setup_map(manager, _VAC, _MAP, count=1)
 
@@ -160,6 +161,18 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     # noop segmenter (native segments) -> Map Bounds hidden; a real engine -> shown.
     assert _snap({"mapping": {"segmenter_engine": "noop_fallback"}})["supports_map_bounds"] is False
     assert _snap({"mapping": {"segmenter_engine": "eufy_cv_v1"}})["supports_map_bounds"] is True
+
+    # Live map image (Roborock): declared AND the derived image.{object_id}_{slug}
+    # entity exists -> the entity id is surfaced; declared but the entity is absent
+    # -> None; not declared (Eufy / older backend) -> None. _MAP="6" -> image.alfred_6.
+    hass.states.async_set(
+        "image.alfred_6", "2026-01-01T00:00:00+00:00",
+        {"entity_picture": "/api/image_proxy/image.alfred_6?token=abc"},
+    )
+    assert _snap({"mapping": {"live_map_image": True}})["live_map_image_entity"] == "image.alfred_6"
+    hass.states.async_remove("image.alfred_6")
+    assert _snap({"mapping": {"live_map_image": True}})["live_map_image_entity"] is None
+    assert _snap({})["live_map_image_entity"] is None
 
 
 class _FakeErrorTracker:
