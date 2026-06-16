@@ -58,6 +58,21 @@ export function applyMapState(proto) {
     this._mapRotationOverlay = this._normRotation(deg);
   };
 
+  // Map a pointer position given as a 0-100 pct of the (unrotated) .evcc-map-layers box
+  // into the CONTENT frame inside .evcc-map-content-rotator, which is rotated `rot`
+  // degrees. The container is square, so a 90/180/270 turn maps pct corners exactly.
+  // Used by the mascot drag so a dragged anchor lands — and is stored — at the right
+  // spot on a rotated live map (a 90/270 drag was previously off by the rotation).
+  // Identity at rot 0.
+  proto.unrotatePct = function (fx, fy, rot) {
+    switch (this._normRotation(rot)) {
+      case 90:  return [fy, 100 - fx];
+      case 180: return [100 - fx, 100 - fy];
+      case 270: return [100 - fy, fx];
+      default:  return [fx, fy];
+    }
+  };
+
   // ---- Dwell-debounced mascot room tracker (display only) ----
   // Moves the mascot to the room the robot is PHYSICALLY in — including transit /
   // passthrough rooms not on the job queue — but only after the SAME room is seen
@@ -127,7 +142,12 @@ export function applyMapState(proto) {
       this._composeMergeFrom = null;
       this._composeLoadedFor = null;
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
-      if (data?.map_id !== oldMapId) this.resetMapTransform();
+      if (data?.map_id !== oldMapId) {
+        this.resetMapTransform();
+        // Rotation is stored per-map; drop a pending optimistic overlay so a freshly
+        // switched map renders at ITS rotation, not the previous map's.
+        this._mapRotationOverlay = null;
+      }
     } else {
       // Same map, fresh data — the backend's authoritative state has
       // landed. Drop any optimistic overlay entries the user clicked

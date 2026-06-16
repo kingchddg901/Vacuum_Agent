@@ -1049,22 +1049,33 @@ export function applyMapBindings(proto) {
         // by the visual dimension gives the correct pct in natural space.
         const layerRect = layers.getBoundingClientRect();
 
-        // Compute offset from pointer to the animal's current centre so the
-        // icon doesn't snap its centre to the grab point.
+        // The mascot lives INSIDE .evcc-map-content-rotator (rotated by the live-map
+        // rotation), but the pointer is in the unrotated .evcc-map-layers frame. Convert
+        // pointer% -> CONTENT% via unrotatePct before placing/storing the anchor —
+        // otherwise a 90/270 drag tracks (and persists) at the wrong spot. Identity at 0.
+        const rot = this.card._state.mapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        // Grab offset in CONTENT% so the icon doesn't snap its centre to the grab point.
         const curPctX = parseFloat(el.style.left) || 0;
         const curPctY = parseFloat(el.style.top)  || 0;
-        const offsetX = (e.clientX - layerRect.left) - (curPctX / 100 * layerRect.width);
-        const offsetY = (e.clientY - layerRect.top)  - (curPctY / 100 * layerRect.height);
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        const grabOffX = grabX - curPctX;
+        const grabOffY = grabY - curPctY;
 
         // Track live position so pointercancel can save the last known good spot.
         let livePctX = curPctX;
         let livePctY = curPctY;
 
         const onMove = (ev) => {
-          livePctX = Math.max(0, Math.min(100,
-            (ev.clientX - layerRect.left - offsetX) / layerRect.width  * 100));
-          livePctY = Math.max(0, Math.min(100,
-            (ev.clientY - layerRect.top  - offsetY) / layerRect.height * 100));
+          const [cx, cy] = ptrContentPct(ev.clientX, ev.clientY);
+          livePctX = Math.max(0, Math.min(100, cx - grabOffX));
+          livePctY = Math.max(0, Math.min(100, cy - grabOffY));
           el.style.left = `${livePctX}%`;
           el.style.top  = `${livePctY}%`;
         };
