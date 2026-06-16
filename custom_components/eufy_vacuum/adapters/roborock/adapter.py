@@ -337,12 +337,15 @@ def register_roborock_adapter_for_vacuum(
             "segmenter_engine": "noop_fallback",
             "segmenter_tuning": {},
             # The Roborock core integration publishes a LIVE map image as an HA
-            # `image` entity (image.{vacuum}_{map-slug}). The card uses it as a live
-            # backdrop for the Map view even though there are no CV/custom segments.
-            # The manager derives + existence-checks the entity id into the dashboard
-            # snapshot (live_map_image_entity). Eufy omits this -> no live backdrop,
-            # byte-identical.
-            "live_map_image": True,
+            # `image` entity named image.{object_id}_{map-slug}. The entity-id
+            # PATTERN lives HERE (not in core) so the `image.` domain + naming
+            # convention stay brand-owned — core only substitutes the generic
+            # {object_id} (vacuum object_id) + {map_slug} (slugified map name),
+            # existence-checks the result, and surfaces it as
+            # snapshot.live_map_image_entity for the card's live Map backdrop. A
+            # camera-based brand could instead declare e.g. "camera.{object_id}_map".
+            # Eufy omits this -> no live backdrop, byte-identical.
+            "live_map_image_entity_pattern": "image.{object_id}_{map_slug}",
         },
 
         "job_segmenter": {

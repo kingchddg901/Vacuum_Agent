@@ -169,9 +169,10 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
         "image.alfred_6", "2026-01-01T00:00:00+00:00",
         {"entity_picture": "/api/image_proxy/image.alfred_6?token=abc"},
     )
-    assert _snap({"mapping": {"live_map_image": True}})["live_map_image_entity"] == "image.alfred_6"
+    _pat = {"mapping": {"live_map_image_entity_pattern": "image.{object_id}_{map_slug}"}}
+    assert _snap(_pat)["live_map_image_entity"] == "image.alfred_6"
     hass.states.async_remove("image.alfred_6")
-    assert _snap({"mapping": {"live_map_image": True}})["live_map_image_entity"] is None
+    assert _snap(_pat)["live_map_image_entity"] is None
     assert _snap({})["live_map_image_entity"] is None
 
     # live_map_rotation rides the snapshot from the per-map bucket (default 0).

@@ -3605,18 +3605,25 @@ class EufyVacuumManager:
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
 
-        # Live map-image backdrop: brands whose core integration publishes a live
-        # map as an HA `image` entity (Roborock: image.{vacuum}_{map-slug}) declare
-        # mapping.live_map_image. Derive that entity id the same way HA names it
-        # (object_id + slugified map name) and only surface it when it actually
-        # exists, so the card shows the Map view's live backdrop without any CV /
-        # custom segments. None for Eufy / older backends -> no live backdrop.
+        # Live map-image backdrop: the ADAPTER declares the brand's live-map entity-id
+        # PATTERN (mapping.live_map_image_entity_pattern, e.g. Roborock's
+        # "image.{object_id}_{map_slug}") — the domain + naming convention stay
+        # brand-owned. Core only fills the generic placeholders ({object_id} = the
+        # vacuum's object_id, {map_slug} = the slugified map name), existence-checks
+        # the result, and surfaces it so the card can show a live Map backdrop with
+        # no CV/custom segments. Absent (Eufy / older backends) -> no live backdrop.
         live_map_image_entity = None
-        if _mapping_cfg.get("live_map_image"):
+        _live_pattern = _mapping_cfg.get("live_map_image_entity_pattern")
+        if _live_pattern:
             from homeassistant.util import slugify as _slugify
-            _object_id = vacuum_entity_id.split(".", 1)[-1]
-            _candidate = f"image.{_object_id}_{_slugify(str(map_id))}"
-            if self.hass.states.get(_candidate) is not None:
+            try:
+                _candidate = str(_live_pattern).format(
+                    object_id=vacuum_entity_id.split(".", 1)[-1],
+                    map_slug=_slugify(str(map_id)),
+                )
+            except (KeyError, IndexError, ValueError):
+                _candidate = None
+            if _candidate and self.hass.states.get(_candidate) is not None:
                 live_map_image_entity = _candidate
         # User's chosen live-map display rotation (0/90/180/270), stored per map so
         # it follows them across devices. Surfaced even at 0 so the card has a value.
