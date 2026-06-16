@@ -10,7 +10,9 @@ Public surface:
 - get_adapter_vocab(vacuum_entity_id, section, key, fallback) -> frozenset[str]
 - get_adapter_value(vacuum_entity_id, *path, fallback) -> Any
 - get_lifecycle_watch_entities(vacuum_entity_id) -> list[str]
+- is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
 - completed_finalize_signals(hass, vacuum_entity_id) -> dict[str, str]
+- completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
 - job_finished_event_data(*, vacuum_entity_id, map_id, finalize_result) -> dict
 """
 
