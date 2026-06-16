@@ -183,6 +183,15 @@ class RoomMapManager:
         for old_id in plan["id_remap"]:
             rule_status_map.pop(str(old_id), None)
 
+        # Carry floor-type confirmations onto the new ids — otherwise every renumbered
+        # room reads as needing floor-type confirmation (its confirmation is keyed to the
+        # OLD id) and the start gate blocks cleaning with onboarding_required.
+        self._manager.onboarding.remap_confirmed_floor_types(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id_str,
+            id_remap=plan["id_remap"],
+        )
+
         # Room-history is a rebuildable cache derived from slug-tagged job files;
         # invalidate so it re-ingests under the new ids.
         self._manager._room_history_cache_ready.discard(vacuum_entity_id)

@@ -278,7 +278,9 @@ def register(hass: HomeAssistant) -> None:
                     # entities.job_active (e.g. Eufy). Confirmed on a Roborock S6 trace:
                     # cleaning stayed ON through a 19% recharge dock + resume, off only
                     # at completion (count incremented).
-                    if should_finalize_completed and is_job_active(hass, vacuum_entity_id):
+                    if should_finalize_completed and is_job_active(
+                        hass, vacuum_entity_id, unavailable_is_active=True
+                    ):
                         should_finalize_completed = False
 
                     # Strict-order dispatch guard: a just-advanced sequenced phase

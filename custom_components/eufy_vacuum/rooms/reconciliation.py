@@ -83,6 +83,17 @@ def compute_reconciliation(
         if slug:
             existing_by_slug.setdefault(slug, room)
 
+    # Slugs present in the fresh discovery. A 'renamed' review must NOT fire when the
+    # old slug is still discovered (the room was renumbered, not renamed — already
+    # surfaced as an id_changed review for a different discovered room). Firing both
+    # produces a contradictory pair, and confirming the spurious 'renamed' would
+    # misattribute the original room's settings to the new room on the freed id.
+    discovered_slugs = {
+        _room_slug(d)
+        for d in discovered_rooms
+        if isinstance(d, dict) and _room_slug(d)
+    }
+
     reviews: list[dict[str, Any]] = []
 
     for discovered in discovered_rooms:
@@ -114,7 +125,7 @@ def compute_reconciliation(
         id_match = existing_by_id.get(new_id)
         if id_match is not None:
             old_slug = _room_slug(id_match)
-            if old_slug and old_slug != slug:
+            if old_slug and old_slug != slug and old_slug not in discovered_slugs:
                 reviews.append(
                     {
                         "kind": "renamed",
@@ -167,6 +178,23 @@ def plan_migration(
         if slug:
             existing_by_slug.setdefault(slug, room)
 
+    # Old ids whose slug still exists in the fresh discovery: they'll be carried by the
+    # slug match below, so their freed numeric id must NOT be claimed by the id-fallback
+    # for a DIFFERENT (brand-new) room that happens to reuse it. Without this, a
+    # re-segment that both renumbers room A (16->20) and adds a new room B on A's freed
+    # id 16 would stamp A's durable settings + access-graph grants onto B.
+    discovered_slugs = {
+        _room_slug(d)
+        for d in discovered_rooms
+        if isinstance(d, dict) and _room_slug(d)
+    }
+    consumed_old_ids: set[int] = set()
+    for _slug, _room in existing_by_slug.items():
+        if _slug in discovered_slugs:
+            _oid = _coerce_int(_room.get("room_id"))
+            if _oid is not None:
+                consumed_old_ids.add(_oid)
+
     new_rooms: dict[str, dict[str, Any]] = {}
     id_remap: dict[int, int] = {}
     carried_slugs: set[str] = set()
@@ -180,7 +208,7 @@ def plan_migration(
             continue
 
         source = existing_by_slug.get(slug)
-        if source is None:
+        if source is None and new_id not in consumed_old_ids:
             source = existing_by_id.get(new_id)
         if source is None:
             # No durable data for this discovered room — it's new; not migrated.

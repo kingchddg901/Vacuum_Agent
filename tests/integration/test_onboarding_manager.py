@@ -7,6 +7,7 @@ Coverage targets
 [OB-3] check_for_new_rooms: grown segment count → True; no state → False.
 [OB-4] get_rooms_onboarding_summary aggregates per map.
 [OB-5] reset_onboarding clears the map state.
+[OB-6] remap_confirmed_floor_types carries confirmations onto re-segmented ids (old->new).
 """
 
 from __future__ import annotations
@@ -60,6 +61,20 @@ def test_mark_and_confirm(hass):
     assert map_ob["rooms_discovered"] is True
     assert map_ob["floor_types_confirmed"]["1"] is True
     assert map_ob["room_count_at_last_check"] == 1
+
+
+def test_remap_confirmed_floor_types(hass):
+    """[OB-6] remap_confirmed_floor_types carries a confirmation onto a re-segmented id
+    (old->new) and drops the old key — so a renumbered, already-confirmed room isn't
+    re-prompted (which would block cleaning with onboarding_required after a migrate)."""
+    data: dict = {}
+    _seed_rooms(data, {"27": {"enabled": True}})
+    ob = OnboardingManager(data, hass)
+    ob.confirm_floor_type(vacuum_entity_id=_VAC, map_id=_MAP, room_id="16")
+    ob.remap_confirmed_floor_types(vacuum_entity_id=_VAC, map_id=_MAP, id_remap={16: 27})
+    confirmed = data["onboarding"][_VAC][_MAP]["floor_types_confirmed"]
+    assert confirmed.get("27") is True   # carried to the new id
+    assert "16" not in confirmed         # old id dropped
 
 
 def test_check_for_new_rooms(hass):

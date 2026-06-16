@@ -160,6 +160,29 @@ class OnboardingManager:
         map_ob.setdefault("floor_types_confirmed", {})
         map_ob["floor_types_confirmed"][str(room_id)] = True
 
+    def remap_confirmed_floor_types(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        id_remap: dict[int, int],
+    ) -> None:
+        """Carry floor-type confirmations onto re-segmented room ids after a reconcile
+        migrate. Confirmations are keyed by room id; without re-keying through the
+        old->new id_remap, every renumbered-but-already-confirmed room reads as needing
+        confirmation and the start gate blocks cleaning with onboarding_required until
+        the user re-confirms each one. No-op when id_remap is empty (no renumbering)."""
+        if not id_remap:
+            return
+        map_ob = self._get_map_onboarding(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=map_id,
+        )
+        confirmed = map_ob.setdefault("floor_types_confirmed", {})
+        for old_id, new_id in id_remap.items():
+            if confirmed.pop(str(old_id), False):
+                confirmed[str(new_id)] = True
+
     def check_for_new_rooms(
         self,
         *,

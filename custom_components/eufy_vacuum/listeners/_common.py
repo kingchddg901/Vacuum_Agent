@@ -104,7 +104,12 @@ def get_lifecycle_watch_entities(vacuum_entity_id: str) -> list[str]:
     return watch
 
 
-def is_job_active(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
+def is_job_active(
+    hass: HomeAssistant,
+    vacuum_entity_id: str,
+    *,
+    unavailable_is_active: bool = False,
+) -> bool:
     """True if the adapter declares a job-active signal and it is currently on.
 
     ``entities.job_active`` is a binary sensor that stays ON for the whole
@@ -113,13 +118,26 @@ def is_job_active(hass: HomeAssistant, vacuum_entity_id: str) -> bool:
     avoid finalizing during a recharge. Brands that don't declare
     ``entities.job_active`` always return False, so the guard is a no-op for them
     (e.g. Eufy).
+
+    ``unavailable_is_active`` (the recharge-guard caller passes True): when the
+    binary EXISTS but momentarily reads ``unavailable``/``unknown`` — a transient
+    cloud/connection blip — treat it as still ACTIVE. Otherwise a blip during a
+    mid-recharge dock lets the completion gate finalize the job early and record a
+    truncated learning sample; the true finish still drives it cleanly to ``off``.
+    The has_observed arming gate leaves this False (strict ``on``) so an
+    indeterminate binary at start can't arm the flag.
     """
     config = get_adapter_config(vacuum_entity_id) or {}
     entity_id = config.get("entities", {}).get("job_active")
     if not entity_id:
         return False
     state = hass.states.get(entity_id)
-    return state is not None and str(state.state).strip().lower() == "on"
+    if state is None:
+        return False
+    raw = str(state.state).strip().lower()
+    if unavailable_is_active and raw in ("unavailable", "unknown"):
+        return True
+    return raw == "on"
 
 
 def completed_finalize_signals(

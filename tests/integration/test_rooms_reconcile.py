@@ -18,6 +18,12 @@ Coverage targets
 [RR-5] ignore stamps a dismissal and leaves stored data untouched.
 [RR-6] an unknown action raises.
 [RR-7] migrate with no cached discovery must NOT wipe the saved rooms.
+[RR-8] migrate id-reuse: a new room on a freed id does NOT inherit the renumbered
+       room's settings/grants (the id-fallback is consumed-id-gated).
+[RR-9] compute_reconciliation: a freed id reused by a new room emits only id_changed,
+       not a contradictory spurious 'renamed'.
+[RR-10] migrate remaps floor-type confirmations through the id_remap (so a renumbered
+        room isn't re-prompted / blocked by onboarding_required).
 """
 
 from __future__ import annotations
@@ -173,3 +179,56 @@ def test_reconcile_migrate_empty_discovery_preserves(rmm):
     assert result["migrated_room_count"] == 0
     # Saved rooms untouched.
     assert set(mgr.data["maps"][_VAC][_MAP]["rooms"]) == {"16"}
+
+
+def test_reconcile_migrate_id_reuse_no_settings_bleed(rmm):
+    """[RR-8] a re-segment that renumbers Kitchen (16->20) AND adds a new room on the
+    freed id 16 must NOT stamp Kitchen's durable settings onto the new room. The
+    consumed-id guard skips the id-fallback for the reused id; Kitchen carries to 20 and
+    the new Closet is left for drift to add fresh (no settings bleed)."""
+    rm, mgr = rmm
+    _seed_saved(mgr, {
+        "16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen",
+               "profile_name": "deep_clean", "grants_access_to": [], "enabled": True},
+    })
+    _seed_discovery(mgr, [
+        {"room_id": 20, "map_id": _MAP, "name": "KITCHEN", "slug": "kitchen"},
+        {"room_id": 16, "map_id": _MAP, "name": "Closet", "slug": "closet"},
+    ])
+    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    rooms = mgr.data["maps"][_VAC][_MAP]["rooms"]
+    assert rooms["20"]["profile_name"] == "deep_clean"   # Kitchen carried to its new id
+    # the new Closet on the freed id 16 did NOT inherit Kitchen's settings
+    assert "16" not in rooms
+
+
+def test_reconcile_no_spurious_renamed_on_id_reuse(rmm):
+    """[RR-9] when a freed id is reused by a new room, compute_reconciliation emits only
+    the id_changed review for the renumbered room — NOT a contradictory 'renamed'
+    (confirming which would misattribute the original room's settings)."""
+    from custom_components.eufy_vacuum.rooms.reconciliation import compute_reconciliation
+    result = compute_reconciliation(
+        discovered_rooms=[
+            {"room_id": 20, "name": "Kitchen", "slug": "kitchen"},
+            {"room_id": 16, "name": "Closet", "slug": "closet"},
+        ],
+        existing_rooms={"16": {"room_id": 16, "name": "Kitchen", "slug": "kitchen"}},
+    )
+    kinds = [r["kind"] for r in result["reviews"]]
+    assert "renamed" not in kinds                       # kitchen renumbered, not renamed
+    assert any(r["kind"] == "id_changed" and r["new_id"] == 20 for r in result["reviews"])
+
+
+def test_reconcile_migrate_remaps_floor_type_confirmations(rmm):
+    """[RR-10] migrate carries floor-type confirmations onto the new ids via
+    onboarding.remap_confirmed_floor_types(id_remap=...), so a renumbered room isn't
+    re-prompted and blocked by onboarding_required after the re-map."""
+    rm, mgr = rmm
+    _seed_saved(mgr, {
+        "16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen",
+               "grants_access_to": [], "enabled": True},
+    })
+    _seed_discovery(mgr, [{"room_id": 27, "map_id": _MAP, "name": "KITCHEN", "slug": "kitchen"}])
+    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+    mgr.onboarding.remap_confirmed_floor_types.assert_called_once_with(
+        vacuum_entity_id=_VAC, map_id=_MAP, id_remap={16: 27})

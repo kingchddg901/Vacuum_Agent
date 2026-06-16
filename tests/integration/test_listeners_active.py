@@ -35,6 +35,8 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
         the executor (tracker.end_job) so in-job position samples reach room bounds.
 [LC-8]  lifecycle: dock_status entering a mop-wash trigger state during an active job
         routes a mid-job mop-wash observation to the manager.
+[LC-9]  lifecycle: recharge guard treats an 'unavailable' job-active binary as still
+        active — a cloud blip mid-recharge does NOT finalize (avoids a truncated sample).
 """
 
 from __future__ import annotations
@@ -595,5 +597,34 @@ async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):
         await hass.async_block_till_done()
         m.update_active_job_mop_wash_observation.assert_called_once_with(
             vacuum_entity_id=_VAC, map_id=_MAP)
+    finally:
+        lifecycle.remove(hass)
+
+
+async def test_lifecycle_recharge_guard_suppresses_on_unavailable_binary(hass):
+    """[LC-9] the recharge guard treats an 'unavailable'/'unknown' job-active binary as
+    still active: a transient cloud blip during a mid-recharge dock must NOT finalize the
+    job (which would record a truncated learning sample and orphan the resumed half).
+    Mirrors LC-6 but the binary reads 'unavailable' rather than 'on'."""
+    register_adapter_config(_VAC, _LC_ROBOROCK_ADAPTER)
+    m = _mgr(hass)
+    m.get_active_job.return_value = {
+        "status": "started", "has_observed_active_lifecycle": True, "queue_room_ids": []}
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    m.finalize_learning_for_active_job = AsyncMock()
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "Dining Room")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set("binary_sensor.alfred_cleaning", "unavailable")  # cloud blip
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set("sensor.alfred_task", "charging")   # completion-shaped
+        await hass.async_block_till_done()
+        assert finished == []                                # blip mid-recharge -> NOT finalized
+        m.finalize_learning_for_active_job.assert_not_awaited()
     finally:
         lifecycle.remove(hass)
