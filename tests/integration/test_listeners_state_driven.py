@@ -15,6 +15,8 @@ Coverage targets
 [LS-11] discovery active_map_changed callback fires only on a real value change.
 [LS-12] lifecycle active job (tracker not yet tracking) kicks off the trace-capture job.
 [LS-13] lifecycle skips finalize when maybe_advance_phase advances a sequenced job.
+[LS-14] a just-advanced sequenced phase (_phase_dispatch_pending=True) suppresses
+        finalize until the watchdog confirms the device started THIS room.
 """
 
 from __future__ import annotations

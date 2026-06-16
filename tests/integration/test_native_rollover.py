@@ -16,6 +16,8 @@ Coverage targets
 [NR-6] same target again -> no-op (idempotent across the 5s tick).
 [NR-7] a target already completed -> ignored (no re-advance; rooms_unique_per_job).
 [NR-8] config gate: native_transition_source True for Roborock, default False otherwise.
+[NR-9] apply_per_room_live_settings pushes the room's per-room fan via set_fan_speed
+       (options_key vocab-guarded; no-op without settings / unknown room / missing field).
 [NR-10] sequenced (phased) job -> rollover is SUPPRESSED at the caller: a parked
         robot's dock room is not phantom-completed when it leaves to clean phase 0.
 [NR-11] regression: a grouped (no-phases) job STILL rolls through the caller — the

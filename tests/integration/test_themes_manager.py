@@ -20,6 +20,10 @@ Coverage targets
 [TM-16] export_theme() returns ok=False for unknown theme.
 [TM-17] import_theme() adds theme to library.
 [TM-18] import_theme() returns ok=False for invalid payload.
+[TM-19] source provenance: saved=manual, export/summary carry source, imported keeps
+        its provenance, `core` reserved for seeded themes (an imported copy → manual).
+[TM-20] vibe tags + author survive import/export/overwrite; set_theme_tags
+        trims/lowers/dedupes/stores (ok=False for an unknown theme).
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ The listeners subsystem wires HA state-change events to manager actions:
 lifecycle (auto-finalize), job-progress ticks, job-metrics watch maps,
 dock-events, path-blockers (mid-job rule re-evaluation), discovery passes, and
 pause-timeout escalation — plus the registration/teardown plumbing. Covered by
-**65 tests across 4 files**.
+**79 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/listeners/`
 Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
@@ -15,13 +15,13 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `lifecycle.py` | 116 | 93% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
+| `lifecycle.py` | 121 | 95% | `test_listeners_state_driven.py`, `test_listeners_active.py` | integration |
 | `path_blockers.py` | 103 | 88% | `test_listeners_state_driven.py` | integration |
 | `job_metrics.py` | 67 | 86% | `test_listeners_active.py` | integration |
 | `dock_events.py` | 64 | 90% | `test_listeners_active.py` | integration |
-| `discovery.py` | 69 | 99% | `test_listeners_timers.py` | integration |
+| `discovery.py` | 72 | 99% | `test_listeners_timers.py` | integration |
 | `pause_timeout.py` | 48 | 94% | `test_listeners_timers.py` | integration |
-| `_common.py` | 56 | 92% | `test_listeners_common.py` | integration |
+| `_common.py` | 67 | 93% | `test_listeners_common.py` | integration |
 | `job_progress.py` | 40 | 96% | `test_listeners_active.py` | integration |
 
 ---

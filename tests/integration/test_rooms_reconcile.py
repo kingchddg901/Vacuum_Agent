@@ -17,6 +17,7 @@ Coverage targets
 [RR-4] migrate drops stale id-keyed rule-status snapshots.
 [RR-5] ignore stamps a dismissal and leaves stored data untouched.
 [RR-6] an unknown action raises.
+[RR-7] migrate with no cached discovery must NOT wipe the saved rooms.
 """
 
 from __future__ import annotations

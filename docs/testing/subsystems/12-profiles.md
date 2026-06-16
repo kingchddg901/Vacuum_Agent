@@ -14,8 +14,8 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 315 | 94% | `test_profiles_manager.py` | integration |
-| `room_profiles.py` | 180 | 94% | `test_profiles_room_profiles.py` (unit) | unit |
+| `manager.py` | 315 | 95% | `test_profiles_manager.py` | integration |
+| `room_profiles.py` | 180 | 95% | `test_profiles_room_profiles.py` (unit) | unit |
 
 (The room-profile *services* are in [17 — services](17-services.md) via
 `test_services_room_profiles.py`.)

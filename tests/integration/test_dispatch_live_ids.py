@@ -11,6 +11,7 @@ Coverage targets
 [LID-2] flag on -> wire segment ids remapped slug->live; batch scalar untouched.
 [LID-3] a target slug absent from the live map is skipped.
 [LID-4] an unavailable live source falls back to the stored ids.
+[LID-5] params_as_list wraps the wire payload in a list (Roborock app_segment_clean); bare dict by default (Eufy).
 [LID-6] live source has rooms but NONE matches a target slug → fall back to the stored payload.
 """
 

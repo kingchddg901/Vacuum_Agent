@@ -22,6 +22,9 @@ Coverage targets
         caller omits the explicit sets (the _vocab_frozenset raw-present branch).
 [LS-7]  get_lifecycle_state: after start clears the payload, the active job's
         rooms + payload are folded into the lifecycle metadata (the fallback copy).
+[LS-8]  get_dashboard_snapshot surfaces max_clean_passes + tank-driven mop_active +
+        supports_base_station/map_bounds + live_map_image_entity (drives the card's
+        tab visibility + Map view).
 [EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
         "external" capture slot.
 [EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending
