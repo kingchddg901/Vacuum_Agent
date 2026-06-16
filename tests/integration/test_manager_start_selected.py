@@ -18,6 +18,8 @@ Coverage targets
 [SS-9]  atomic job (no phases) never advances → caller finalizes.
 [SS-10] sequenced advance sets the next room's per-room fan (awaited) BEFORE
         re-dispatch — native per-room fan in strict order, no poll lag.
+[SS-11] sequenced advance re-dispatches up to _PHASE_MAX_ATTEMPTS when the device
+        doesn't start (ignored the post-dock clean), then gives up (watchdog).
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -172,11 +174,20 @@ async def test_start_run_profile_not_found(manager, hass):
     assert calls == []
 
 
-async def test_maybe_advance_phase_sequenced(manager, hass):
+def _instant_phase_dispatch(monkeypatch):
+    """Zero the settle/verify delays so the spawned re-dispatch task runs to
+    completion inside async_block_till_done (no real waiting in tests)."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    monkeypatch.setattr(_mgr, "_PHASE_SETTLE_SECONDS", 0)
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 0)
+
+
+async def test_maybe_advance_phase_sequenced(manager, hass, monkeypatch):
     """[SS-8] a sequenced job advances + re-dispatches the next phase, then on the
     final phase returns False so the caller finalizes."""
+    _instant_phase_dispatch(monkeypatch)
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
-    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set(_VAC, "cleaning")  # verify sees it started -> no retry
     calls = _register_dispatch(hass)
 
     phase0 = {"resolved_rooms": [{"room_id": 1}], "payload": {"phase": 0}, "room_count": 1}
@@ -220,7 +231,7 @@ async def test_maybe_advance_phase_atomic_is_noop(manager, hass):
     assert calls == []
 
 
-async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass):
+async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass, monkeypatch):
     """[SS-10] strict-order advance applies the next room's per-room fan (awaited)
     BEFORE re-dispatching its segment — so the room starts at its own fan with no
     current_room poll lag (native per-room fan; passes already ride the payload)."""
@@ -229,8 +240,9 @@ async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass):
         unregister_adapter_config,
     )
 
+    _instant_phase_dispatch(monkeypatch)
     manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
-    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set(_VAC, "cleaning")  # verify sees it started -> no retry
 
     order: list[str] = []
 
@@ -272,6 +284,34 @@ async def test_maybe_advance_phase_sets_fan_before_dispatch(manager, hass):
         assert order == ["fan:turbo", "dispatch"]
     finally:
         unregister_adapter_config(_VAC)
+
+
+async def test_maybe_advance_phase_retries_until_max(manager, hass, monkeypatch):
+    """[SS-11] when the device never starts after a dispatch (it ignored the clean
+    sent the instant it docked), the phase re-dispatches up to _PHASE_MAX_ATTEMPTS,
+    then gives up — the per-phase watchdog."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")  # never goes active -> always retries
+    calls = _register_dispatch(hass)
+
+    phase0 = {"resolved_rooms": [{"room_id": 1}], "payload": {"segments": [1]}, "room_count": 1}
+    phase1 = {"resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]}, "room_count": 1}
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [phase0, phase1], "current_phase_index": 0,
+        "resolved_rooms": phase0["resolved_rooms"], "payload": phase0["payload"],
+        "completed_room_ids": [1], "current_room_id": 1,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+    assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
+    await hass.async_block_till_done()
+    # one dispatch per attempt, capped at the watchdog limit (never saw cleaning)
+    assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
 
 
 async def test_start_run_profile_success(manager, hass):

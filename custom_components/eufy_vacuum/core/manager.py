@@ -65,6 +65,19 @@ EXTERNAL_FINALIZE_GRACE_S = 300  # 5 minutes
 # min — well past any real station cycle — then we finalize regardless.
 EXTERNAL_GRACE_MAX_RECHECKS = 8
 
+# Sequenced (strict-order) phase re-dispatch tuning. A path-optimizing device
+# (Roborock S6) finishes one room, returns to the dock + starts charging, then
+# IGNORES an app_segment_clean sent at that instant — so the next room is
+# dispatched from a background task that settles, then verifies the robot actually
+# started and re-dispatches if not. The verify window must exceed the brand's
+# local-poll interval (~30s) so the started-cleaning signal has updated before we
+# decide to retry (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase
+# watchdog: after that many tries with no start, the run is left stalled (the user
+# can Cancel Run) rather than silently hung. Tunable from on-device validation.
+_PHASE_SETTLE_SECONDS = 10
+_PHASE_VERIFY_SECONDS = 45
+_PHASE_MAX_ATTEMPTS = 3
+
 # Standard HA vacuum platform states that indicate an active or faulted vacuum.
 # These are defined by the HA vacuum integration, not by any specific brand.
 # Brand-specific active states (e.g. task_status strings) come from the adapter.
@@ -3997,43 +4010,124 @@ class EufyVacuumManager:
         self.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
 
-        # Apply this phase's per-room LIVE settings (e.g. Roborock fan) to the
-        # idle device BEFORE dispatching its segment — each room starts at its own
-        # value immediately, with no ~30s current_room poll lag. Sequenced mode is
-        # one room per phase, so this is genuine native per-room fan (per-room
-        # passes already ride the phase payload). No-op for brands without
-        # dispatch.per_room_live_settings.
-        await self.active_job.apply_per_room_live_settings_awaited(
-            vacuum_entity_id,
-            list(advanced.get("resolved_rooms", [])),
-            advanced.get("current_room_id"),
+        # Re-dispatch the next room from a background task: the device just docked
+        # after the previous room and ignores a clean sent at that instant, so we
+        # settle, dispatch, verify it actually started, and retry if not (the retry
+        # loop is also the per-phase watchdog). Spawned (not awaited) so the
+        # completion listener returns promptly. See _run_advanced_phase.
+        self.hass.async_create_task(
+            self._run_advanced_phase(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                phase_index=int(advanced.get("current_phase_index", 0)),
+            )
+        )
+        return True
+
+    async def _run_advanced_phase(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phase_index: int,
+    ) -> None:
+        """Dispatch a just-advanced sequenced phase: settle, send, verify, retry.
+
+        A path-optimizing device (Roborock S6) returns to the dock + starts
+        charging at the end of each single-room phase and ignores an
+        app_segment_clean sent at that instant. So we wait for it to settle, send
+        the room, then verify it actually started cleaning; if not, re-send. The
+        retry cap is the per-phase watchdog — after it, the run is left stalled
+        (recoverable via Cancel Run) rather than silently hung.
+        """
+        await asyncio.sleep(_PHASE_SETTLE_SECONDS)
+        for attempt in range(1, _PHASE_MAX_ATTEMPTS + 1):
+            job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            # The job advanced past this phase, finalized, or was cancelled — done.
+            if (
+                not job
+                or job.get("status") != "started"
+                or int(job.get("current_phase_index", -1)) != phase_index
+            ):
+                return
+            await self._dispatch_active_phase(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
+            )
+            await asyncio.sleep(_PHASE_VERIFY_SECONDS)
+            if self._vacuum_started_cleaning(vacuum_entity_id):
+                return  # the room started — phase under way
+            if attempt < _PHASE_MAX_ATTEMPTS:
+                _LOGGER.warning(
+                    "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
+                    "retrying (%s/%s)",
+                    phase_index, vacuum_entity_id, _PHASE_VERIFY_SECONDS,
+                    attempt + 1, _PHASE_MAX_ATTEMPTS,
+                )
+        _LOGGER.warning(
+            "Strict-order: phase %s on %s failed to start after %s attempts; run "
+            "stalled — Cancel Run to recover",
+            phase_index, vacuum_entity_id, _PHASE_MAX_ATTEMPTS,
         )
 
-        # Resolve slug -> LIVE segment id for THIS phase too (not just phase 0 at
-        # start) so a re-segment between phases can't make a later phase clean the
-        # wrong room — the whole point of in-framework sequencing over a static
-        # script. No-op for brands without dispatch.resolve_live_ids_by_slug.
+    async def _dispatch_active_phase(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        job: dict[str, Any],
+        attempt: int = 1,
+    ) -> None:
+        """Apply this phase's per-room live settings (fan) then dispatch its segment.
+
+        Fan is set BEFORE the dispatch so the room starts at its own value with no
+        current_room poll lag. Segment ids are live-resolved by slug per phase so a
+        re-segment between rooms can't clean the wrong room (no-op without
+        dispatch.resolve_live_ids_by_slug). Per-room passes already ride the phase
+        payload.
+        """
+        await self.active_job.apply_per_room_live_settings_awaited(
+            vacuum_entity_id,
+            list(job.get("resolved_rooms", [])),
+            job.get("current_room_id"),
+        )
         wire_payload = await self._resolve_live_dispatch_payload(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
-            payload=advanced.get("payload", {}),
-            resolved_rooms=list(advanced.get("resolved_rooms", [])),
+            payload=job.get("payload", {}),
+            resolved_rooms=list(job.get("resolved_rooms", [])),
         )
         await self._dispatch_clean_payload(
-            vacuum_entity_id=vacuum_entity_id,
-            payload=wire_payload,
+            vacuum_entity_id=vacuum_entity_id, payload=wire_payload
         )
         # INFO so a strict-order run is diagnosable without enabling debug: shows
-        # the advance fired + the EXACT payload re-dispatched (an empty segment
-        # list here means the next room was skipped, e.g. a slug that didn't
-        # resolve to a live id).
+        # the exact payload re-dispatched (an empty segment list = the next room
+        # was skipped, e.g. a slug that didn't resolve to a live id) + the attempt.
         _LOGGER.info(
-            "Strict-order advance: %s map %s -> phase %s/%s, re-dispatched %s",
+            "Strict-order advance: %s map %s -> phase %s/%s, re-dispatched %s (attempt %s)",
             vacuum_entity_id, map_id,
-            advanced.get("current_phase_index"), advanced.get("phase_count"),
-            wire_payload,
+            job.get("current_phase_index"), job.get("phase_count"),
+            wire_payload, attempt,
         )
-        return True
+
+    def _vacuum_started_cleaning(self, vacuum_entity_id: str) -> bool:
+        """Whether the vacuum is in an active cleaning session (a dispatch took).
+
+        True when the vacuum entity reports ``cleaning`` OR the adapter's job-active
+        binary (entities.job_active — the device 'inCleaning' flag) is on. Used to
+        verify a re-dispatched phase actually started before retrying.
+        """
+        st = self.hass.states.get(vacuum_entity_id)
+        if st is not None and str(st.state).strip().lower() == "cleaning":
+            return True
+        job_active_entity = (
+            (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
+            .get("job_active")
+        )
+        if job_active_entity:
+            js = self.hass.states.get(job_active_entity)
+            if js is not None and str(js.state).strip().lower() == "on":
+                return True
+        return False
 
     async def start_selected_rooms(
         self,
