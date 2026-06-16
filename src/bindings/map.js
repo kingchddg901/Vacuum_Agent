@@ -594,13 +594,21 @@ export function applyMapBindings(proto) {
         try {
           // Backend payload is id + primitives only; room_id rides separately.
           const backendSegments = segments.map((seg) => ({ id: seg.id, primitives: seg.primitives }));
-          const res = await this.card._actions.setCustomSegments(mapId, backendSegments);
+          // Live-image-backed layout (no uploaded backdrop): hand the saver the
+          // rendered live image's NATURAL pixel size so it can rasterise the pct
+          // shapes (the live URL carries no dimensions). Harmless when an uploaded
+          // backdrop exists — the backend prefers the stored variant's dims.
+          const liveImg = root.querySelector(".evcc-map-image");
+          const backdropDims = (liveImg && liveImg.naturalWidth > 0)
+            ? { width: liveImg.naturalWidth, height: liveImg.naturalHeight }
+            : null;
+          const res = await this.card._actions.setCustomSegments(mapId, backendSegments, backdropDims);
           // The segmenter rasterises onto THIS layout's backdrop; with none uploaded
-          // it bails (saved:false). Surface that instead of silently saving room
-          // links onto segments that never persisted (a layout that won't render).
+          // AND no live image loaded it bails (saved:false). Surface that instead of
+          // silently saving room links onto segments that never persisted.
           if (!res?.saved) {
             const reason = res?.reason === "no_custom_backdrop"
-              ? "Upload a backdrop image for this layout first (Custom backdrop, below)."
+              ? "Map image still loading — wait for the live map to appear, then save again (or upload a backdrop)."
               : (res?.reason ? `Save failed: ${res.reason}` : "Save failed");
             this.card._state.setMapActionStatus?.({
               type: "compose-save", status: "error", message: reason,

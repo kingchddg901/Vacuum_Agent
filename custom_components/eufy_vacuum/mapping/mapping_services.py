@@ -396,6 +396,11 @@ SET_CUSTOM_SEGMENTS_SCHEMA = vol.Schema(
                 extra=vol.ALLOW_EXTRA,
             )
         ],
+        # A live-image-backed layout has no uploaded backdrop, so the card sends the
+        # rendered live image's natural pixel size for rasterisation (shapes +
+        # stored polygons are pct; these dims only set the raster resolution/aspect).
+        vol.Optional("backdrop_width"): vol.Coerce(int),
+        vol.Optional("backdrop_height"): vol.Coerce(int),
     }
 )
 
@@ -1336,6 +1341,16 @@ async def _handle_set_custom_segments(hass: HomeAssistant, call: ServiceCall) ->
     backdrop = (map_bucket.get("image_variants") or {}).get(variant) or {}
     map_w = backdrop.get("width")
     map_h = backdrop.get("height")
+    if not map_w or not map_h:
+        # Live-image-backed layout: no uploaded backdrop, so the card captured the
+        # rendered live image's natural pixel size. Shapes + the stored polygons are
+        # pct, so these dims only set the rasterisation resolution/aspect — using the
+        # live image's real dims keeps the polygon aspect true over the live picture.
+        cw = call.data.get("backdrop_width")
+        ch = call.data.get("backdrop_height")
+        if cw and ch:
+            map_w, map_h = int(cw), int(ch)
+            variant = "live"
     if not map_w or not map_h:
         return {"saved": False, "reason": "no_custom_backdrop"}
 

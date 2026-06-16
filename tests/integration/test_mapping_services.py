@@ -22,6 +22,7 @@ Coverage targets
 [MSH-14] review a non-existent run → error verdict (handler runs).
 [LAYOUT-1] legacy single custom_segments store migrates into ONE default layout; shared links/anchors split.
 [LAYOUT-2] create / rename / list / set-active / delete lifecycle, incl. delete-active reassign + delete-last flips to CV.
+[LIVE-SEG-1] set_custom_segments over a live-backed layout: card-supplied backdrop dims let it save (no upload); no dims + no backdrop → no_custom_backdrop.
 [LAYOUT-3] set_active with no layouts auto-creates + activates a default and flips to custom.
 [LAYOUT-6] companion_anchors (incl reserved 'dock' key) are per-layout — A's dock spot doesn't bleed onto B.
 """
@@ -41,6 +42,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_RENAME_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+    SERVICE_SET_CUSTOM_SEGMENTS,
 )
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
@@ -412,6 +414,29 @@ async def test_set_active_auto_creates(hass, mapping_services):
     got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
     assert len(got["custom_layouts"]) == 1
     assert got["active_custom_layout_id"] == res["active_custom_layout_id"]
+
+
+async def test_set_custom_segments_live_backdrop_dims(hass, mapping_services):
+    """[LIVE-SEG-1] A custom layout with NO uploaded backdrop (live-image-backed):
+    set_custom_segments fails 'no_custom_backdrop' without dims, but SAVES when the
+    card supplies the live image's pixel size — so rooms drawn over the live map
+    persist with no upload."""
+    # auto-create + activate a custom layout (no uploaded backdrop in image_variants)
+    await _call(hass, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    seg = {"id": "custom_1",
+           "primitives": [{"type": "rect", "x": 10, "y": 10, "w": 30, "h": 30}]}
+    # no uploaded backdrop + no card-supplied dims -> can't rasterise
+    no_dims = await _call(hass, SERVICE_SET_CUSTOM_SEGMENTS,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "segments": [seg]})
+    assert no_dims["saved"] is False
+    assert no_dims["reason"] == "no_custom_backdrop"
+    # the card supplies the live image's natural pixel size -> saves
+    saved = await _call(hass, SERVICE_SET_CUSTOM_SEGMENTS,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "segments": [seg],
+                         "backdrop_width": 1024, "backdrop_height": 768})
+    assert saved["saved"] is True
+    assert saved["segment_count"] == 1
 
 
 async def test_per_layout_anchors_and_dock(hass, mapping_services):

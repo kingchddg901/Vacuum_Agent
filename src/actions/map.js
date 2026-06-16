@@ -280,13 +280,20 @@ export function applyMapActions(proto) {
    * of { id?, primitives:[...] }; the backend rasterises each into a CV-shaped
    * segment (set_custom_segments). Returns the service response or null.
    */
-  proto.setCustomSegments = async function (mapId, segments) {
+  proto.setCustomSegments = async function (mapId, segments, backdropDims) {
     const vacuum = this.state.vacuumEntityId();
     if (!vacuum || !mapId) return null;
+    const payload = { vacuum_entity_id: vacuum, map_id: mapId, segments };
+    // For a live-image-backed layout (no uploaded backdrop) the caller passes the
+    // rendered live image's natural pixel size so the saver can rasterise.
+    if (backdropDims?.width && backdropDims?.height) {
+      payload.backdrop_width = Math.round(backdropDims.width);
+      payload.backdrop_height = Math.round(backdropDims.height);
+    }
     const result = await this.callService(
       DOMAIN,
       SERVICE_SET_CUSTOM_SEGMENTS,
-      { vacuum_entity_id: vacuum, map_id: mapId, segments },
+      payload,
       true,
     );
     return result?.response ?? result ?? null;

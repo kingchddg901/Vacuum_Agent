@@ -142,8 +142,12 @@ export function applyMapState(proto) {
       const v = this.activeCustomLayout()?.backdrop_variant || "custom";
       const own = variants[v];
       if (own) return own.browser_url ?? null;
-      if (v !== "custom") return null;
-      return (variants.dark ?? variants.default ?? variants.light)?.browser_url ?? null;
+      // A per-layout backdrop that hasn't been uploaded falls back to the brand's
+      // LIVE image (Roborock) so the user can compose room polygons straight over
+      // the live map — no static upload needed (the save captures its pixel size).
+      if (v !== "custom") return this._liveMapImageUrl();
+      return (variants.dark ?? variants.default ?? variants.light)?.browser_url
+        ?? this._liveMapImageUrl();
     }
     // No CV/custom backdrop (e.g. a Roborock with native segments and no uploaded
     // map): fall back to the brand's LIVE map image entity if one is declared.
@@ -162,6 +166,21 @@ export function applyMapState(proto) {
     const eid = this.liveMapImageEntity?.();
     if (!eid) return null;
     return this.attrsOf(eid)?.entity_picture ?? null;
+  };
+
+  /**
+   * True when the active custom layout is backed by the LIVE image (no uploaded
+   * backdrop). The composer must then render the backdrop with object-fit:contain
+   * (NOT the custom-mode --fill stretch) so a non-square live image letterboxes the
+   * SAME way in the composer and the room view — keeping drawn polygons aligned to
+   * the picture in both. Uploaded custom backdrops keep the fill behaviour.
+   */
+  proto.isLiveBackdropActive = function () {
+    if (this.segmentationMode() !== "custom") return false;
+    const variants = this._mapSegmentsData?.image_variants ?? {};
+    const v = this.activeCustomLayout()?.backdrop_variant || "custom";
+    if (variants[v]) return false; // an uploaded backdrop exists -> not live-backed
+    return Boolean(this._liveMapImageUrl());
   };
 
   // ---- Custom-segment composer draft (in-progress shapes, not yet saved) ----

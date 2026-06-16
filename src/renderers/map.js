@@ -416,7 +416,7 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-container evcc-map-container--config">
             ${imageUrl
               ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
-                   <img class="evcc-map-image${isCustom ? " evcc-map-image--fill" : ""}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                   <img class="evcc-map-image${isCustom && !state.isLiveBackdropActive?.() ? " evcc-map-image--fill" : ""}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                      ${isCustom
                        ? this._renderComposerShapes(state)
