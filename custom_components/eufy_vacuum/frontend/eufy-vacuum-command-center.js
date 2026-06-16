@@ -2156,7 +2156,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
             data-field="clean_passes"
             data-value="${s}"
           >${s} ${s===1?"Pass":"Passes"}</button>`);let n=r?`<div class="evcc-room-editor-field-note">
-           Applies to the whole run \u2014 the highest passes across the selected rooms is used.
+           Passes are controlled globally in the robot's own app \u2014 the per-room value here may be overridden.
          </div>`:"";return`
       <div class="evcc-editor-field-group">
         <div class="evcc-field-label">Cleaning Passes</div>

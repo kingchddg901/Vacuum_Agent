@@ -300,8 +300,10 @@ export function applyRoomEditorRenderer(proto) {
   /**
    * Clean passes — 1..maxPasses chips (adapter dispatch.passes_max; Eufy 2,
    * Roborock 3). Defaults to 2 when the bound is missing. When passes is global
-   * (Roborock: one whole-run repeat scalar), a note explains the strongest
-   * per-room setting applies to the entire run.
+   * (Roborock S6: the robot uses its OWN app-set whole-run pass count and ignores
+   * a per-segment repeat — confirmed live), a note warns that the per-room value
+   * here may be overridden by the robot. The chips stay interactive (harmless; the
+   * batch max-wins path still reads them).
    */
   proto._renderPassesField = function (fields, maxPasses, passesIsGlobal) {
     const max = Math.max(1, Math.trunc(Number(maxPasses)) || 2);
@@ -317,7 +319,7 @@ export function applyRoomEditorRenderer(proto) {
     }
     const note = passesIsGlobal
       ? `<div class="evcc-room-editor-field-note">
-           Applies to the whole run — the highest passes across the selected rooms is used.
+           Passes are controlled globally in the robot's own app — the per-room value here may be overridden.
          </div>`
       : "";
     return `
