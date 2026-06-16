@@ -20,6 +20,10 @@ Coverage targets
         re-dispatch — native per-room fan in strict order, no poll lag.
 [SS-11] sequenced advance re-dispatches up to _PHASE_MAX_ATTEMPTS when the device
         doesn't start (ignored the post-dock clean), then gives up (watchdog).
+[SS-12] phase verify with a native current-room signal: current_room == the phase
+        target → confirmed started, no retry.
+[SS-13] phase verify false-positive fix: device reports 'cleaning' but current_room
+        is the dock (not the target) → not fooled, retries to the cap.
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -312,6 +316,76 @@ async def test_maybe_advance_phase_retries_until_max(manager, hass, monkeypatch)
     await hass.async_block_till_done()
     # one dispatch per attempt, capped at the watchdog limit (never saw cleaning)
     assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
+
+
+def _native_phase_job(manager):
+    """Seed a 2-phase strict-order job whose rooms carry names/slugs so the native
+    current-room signal can be matched (phase 0 Kitchen done -> advance to Hallway)."""
+    phase0 = {"resolved_rooms": [{"room_id": 1, "name": "Kitchen", "slug": "kitchen"}],
+              "payload": {"segments": [1]}, "room_count": 1}
+    phase1 = {"resolved_rooms": [{"room_id": 2, "name": "Hallway", "slug": "hallway"}],
+              "payload": {"segments": [2]}, "room_count": 1}
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [phase0, phase1], "current_phase_index": 0,
+        "resolved_rooms": phase0["resolved_rooms"], "payload": phase0["payload"],
+        "completed_room_ids": [1], "current_room_id": 1,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+
+
+async def test_phase_verify_native_on_target_success(manager, hass, monkeypatch):
+    """[SS-12] with a native current-room signal, the watchdog confirms the
+    DISPATCHED room actually started (current_room == the phase target) and does
+    not retry — reuses the native-rollover slug match."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")  # the OLD check would pass here too
+    hass.states.async_set("sensor.test_current_room", "Hallway")  # == phase 1 target
+    calls = _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        _native_phase_job(manager)
+        assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
+        await hass.async_block_till_done()
+        assert len(calls) == 1  # on the target room -> verified, no retry
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_phase_verify_native_wrong_room_retries(manager, hass, monkeypatch):
+    """[SS-13] false-positive fix: the device reports 'cleaning' (the OLD job-active
+    check would pass) but current_room is the DOCK room, not the dispatched target.
+    The native verify isn't fooled — it retries to the watchdog cap, so a clean the
+    device ignored at the dock is actually re-sent."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")            # the trap: old check passes
+    hass.states.async_set("sensor.test_current_room", "Dining Room")  # dock, not a target
+    calls = _register_dispatch(hass)
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"active_cleaning_target": "sensor.test_current_room"},
+    })
+    try:
+        _native_phase_job(manager)
+        assert await manager.maybe_advance_phase(vacuum_entity_id=_VAC, map_id=_MAP) is True
+        await hass.async_block_till_done()
+        # never on the target room -> not fooled by "cleaning" -> retried to the cap
+        assert len(calls) == _mgr._PHASE_MAX_ATTEMPTS
+    finally:
+        unregister_adapter_config(_VAC)
 
 
 async def test_start_run_profile_success(manager, hass):

@@ -860,6 +860,15 @@ class ActiveJobTracker:
 
     # -- native current-room signal rollover -----------------------------------
 
+    def native_current_room_target_id(
+        self, vacuum_entity_id: str, active_job: dict[str, Any]
+    ) -> int | None:
+        """The job-target room id the brand's native current-room signal currently
+        reports, or None (transit / dock / unmatched). Public accessor for the
+        strict-order phase watchdog's start-verification (manager
+        ._await_phase_started)."""
+        return self._resolve_native_target_room_id(vacuum_entity_id, active_job)
+
     def _resolve_native_target_room_id(
         self,
         vacuum_entity_id: str,

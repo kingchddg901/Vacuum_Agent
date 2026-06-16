@@ -77,6 +77,10 @@ EXTERNAL_GRACE_MAX_RECHECKS = 8
 _PHASE_SETTLE_SECONDS = 10
 _PHASE_VERIFY_SECONDS = 45
 _PHASE_MAX_ATTEMPTS = 3
+# How often, inside each verify window, to re-check whether the dispatched room
+# actually started — polling sees success as soon as the device reaches the room,
+# not only at the window's end (covers cross-room transit lag).
+_PHASE_POLL_SECONDS = 5
 
 # Standard HA vacuum platform states that indicate an active or faulted vacuum.
 # These are defined by the HA vacuum integration, not by any specific brand.
@@ -4036,7 +4040,7 @@ class EufyVacuumManager:
         A path-optimizing device (Roborock S6) returns to the dock + starts
         charging at the end of each single-room phase and ignores an
         app_segment_clean sent at that instant. So we wait for it to settle, send
-        the room, then verify it actually started cleaning; if not, re-send. The
+        the room, then verify it actually started THIS room; if not, re-send. The
         retry cap is the per-phase watchdog — after it, the run is left stalled
         (recoverable via Cancel Run) rather than silently hung.
         """
@@ -4053,9 +4057,10 @@ class EufyVacuumManager:
             await self._dispatch_active_phase(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
             )
-            await asyncio.sleep(_PHASE_VERIFY_SECONDS)
-            if self._vacuum_started_cleaning(vacuum_entity_id):
-                return  # the room started — phase under way
+            if await self._await_phase_started(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
+            ):
+                return  # the target room actually started — phase under way
             if attempt < _PHASE_MAX_ATTEMPTS:
                 _LOGGER.warning(
                     "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
@@ -4068,6 +4073,54 @@ class EufyVacuumManager:
             "stalled — Cancel Run to recover",
             phase_index, vacuum_entity_id, _PHASE_MAX_ATTEMPTS,
         )
+
+    async def _await_phase_started(
+        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
+    ) -> bool:
+        """Poll a verify window for the device to actually start THIS phase's
+        TARGET room — True the moment it does (or if the phase advanced/finalized
+        meanwhile), False if the window expires with no start.
+
+        The previous check ("is the vacuum cleaning at all" / the job-active
+        binary) false-passed: the device's inCleaning flag stays on across the
+        whole job, so a clean it IGNORED at the dock looked like success and the
+        watchdog never retried (only ~1 room in 4 actually fired). The strong
+        signal is the brand's NATIVE current-room matching the phase's target: a
+        still-docked device (current_room = dock, not a target) or one still
+        finishing the previous room never matches the freshly-reset target, so the
+        retry fires; once the device reaches the target the match confirms a real
+        start. Polls so success is detected mid-window (covers cross-room transit
+        lag). Brands with no native current-room signal fall back to the coarse
+        cleaning check."""
+        cfg = _get_adapter_config(vacuum_entity_id) or {}
+        has_native = bool(cfg.get("entities", {}).get("active_cleaning_target"))
+        elapsed = 0.0
+        while True:
+            job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            # Phase advanced / finalized / cancelled elsewhere — nothing to retry.
+            if (
+                not job
+                or job.get("status") != "started"
+                or int(job.get("current_phase_index", -1)) != phase_index
+            ):
+                return True
+            if has_native:
+                target = job.get("current_room_id")
+                signal = self.active_job.native_current_room_target_id(
+                    vacuum_entity_id, job
+                )
+                if signal is not None and target is not None and signal == target:
+                    return True
+            elif self._vacuum_started_cleaning(vacuum_entity_id):
+                return True
+            remaining = _PHASE_VERIFY_SECONDS - elapsed
+            if remaining <= 0:
+                return False
+            step = min(float(_PHASE_POLL_SECONDS), remaining)
+            if step <= 0:
+                step = remaining
+            await asyncio.sleep(step)
+            elapsed += step
 
     async def _dispatch_active_phase(
         self,
