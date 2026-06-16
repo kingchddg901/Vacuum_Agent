@@ -22,6 +22,12 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
 [LC-1]  lifecycle: completion signals met → finalize + JOB_FINISHED + save.
 [LC-2]  lifecycle: signals not met → observed recorded, no finalize/event.
 [LC-3]  lifecycle: finalized MOP job → post-job water amendment registered.
+[LC-4]  lifecycle: batch instant-complete fix — a require_job_active_clear brand
+        (Roborock) does NOT arm has_observed (so can't finalize) while the
+        job-active binary is OFF at the dock, even with active_job_running + stale
+        completion signals.
+[LC-5]  lifecycle: the same brand DOES arm has_observed once the job-active binary
+        is ON (the dispatch took) — a genuine batch run stays finalize-eligible.
 """
 
 from __future__ import annotations
@@ -410,3 +416,86 @@ async def test_lifecycle_registers_water_amendment_for_mop_job(hass, tmp_path):
     # teardown noise) — same pattern as [WA-2].
     hass.states.async_set("sensor.alfred_dock", "drying")
     await hass.async_block_till_done()
+
+
+# Roborock-shaped: active_cleaning_target (current_room) reverts to the dock room
+# name, never a clear sentinel, so finalize is gated on the job-active binary
+# clearing (completion.require_job_active_clear). That same flag is what arms the
+# batch instant-complete guard at the has_observed set-point.
+_LC_ROBOROCK_ADAPTER = {
+    "adapter_id": "rb", "source": "t",
+    "entities": {
+        "task_status": "sensor.alfred_task",
+        "dock_status": "sensor.alfred_dock",
+        "active_cleaning_target": "sensor.alfred_target",
+        "active_map": "sensor.alfred_map",
+        "job_active": "binary_sensor.alfred_cleaning",
+    },
+    "completion": {
+        "task_status_value": "charging",
+        "require_job_active_clear": True,
+    },
+}
+
+
+async def test_lifecycle_batch_no_instant_finalize_at_dock(hass):
+    """[LC-4] batch instant-complete-at-start fix. A Roborock-shaped brand whose
+    active_cleaning_target reads the DOCK room at start makes evaluate_job_lifecycle
+    return 'active_job_running' the instant the job exists. Pre-fix that armed
+    has_observed_active_lifecycle, and the device's STALE charging + cleared
+    job-active (from the previous run) finalized the brand-new job in ~1s. Now the
+    flag is NOT armed while the job-active binary is OFF, so no finalize fires."""
+    register_adapter_config(_VAC, _LC_ROBOROCK_ADAPTER)
+    m = _mgr(hass)
+    job = {"status": "started", "has_observed_active_lifecycle": False,
+           "queue_room_ids": []}
+    m.get_active_job.return_value = job
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    m.finalize_learning_for_active_job = AsyncMock()
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    # parked from the previous run: job-active binary OFF, current_room = dock room
+    # (non-empty, never a sentinel), task about to settle to its stale 'charging'.
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_task", "idle")
+    hass.states.async_set("sensor.alfred_target", "Dining Room")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set("binary_sensor.alfred_cleaning", "off")
+    lifecycle.register(hass)
+    # the device's task settling to its stale completion value triggers a pass
+    hass.states.async_set("sensor.alfred_task", "charging")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert finished == []                                    # no instant finalize
+    m.finalize_learning_for_active_job.assert_not_awaited()
+    m.record_active_lifecycle_observed.assert_not_called()   # flag NOT armed (binary off)
+    assert job["has_observed_active_lifecycle"] is False
+
+
+async def test_lifecycle_batch_arms_when_job_active_on(hass):
+    """[LC-5] the same brand DOES arm has_observed once the job-active binary is ON
+    (the dispatch took / device genuinely cleaning), so a real batch run stays
+    finalize-eligible. No finalize here because task_status is the active 'cleaning',
+    not the completion 'charging'."""
+    register_adapter_config(_VAC, _LC_ROBOROCK_ADAPTER)
+    m = _mgr(hass)
+    m.get_active_job.return_value = {"status": "started",
+                                     "has_observed_active_lifecycle": False,
+                                     "queue_room_ids": []}
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    m.finalize_learning_for_active_job = AsyncMock()
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "idle")
+    hass.states.async_set("sensor.alfred_target", "Kitchen")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set("binary_sensor.alfred_cleaning", "on")   # dispatch took
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "cleaning")         # genuinely cleaning
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert finished == []                                # task not 'charging' -> no finalize
+    m.record_active_lifecycle_observed.assert_called()   # flag armed (binary on)

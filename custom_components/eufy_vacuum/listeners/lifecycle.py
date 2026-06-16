@@ -175,7 +175,31 @@ def register(hass: HomeAssistant) -> None:
 
                     lifecycle_state = str(lifecycle.get("lifecycle_state", "")).strip().lower()
 
-                    if lifecycle_state in _ACTIVE_LIFECYCLE_STATES:
+                    # Arm the "job genuinely started moving" flag — but for a brand
+                    # whose active_cleaning_target is NOT a reliable idle sentinel
+                    # (Roborock current_room reverts to the DOCK ROOM name when
+                    # parked, so evaluate_job_lifecycle reads "active_job_running" the
+                    # instant the job exists), additionally require the job-active
+                    # binary to be ON before trusting it. Without this a BATCH job
+                    # created while the device still shows the previous run's stale
+                    # charging + cleared job-active would arm the flag at t=0 and the
+                    # completion gate below would finalize it in ~1s (a 0-duration
+                    # run). Brands that declare completion.require_job_active_clear are
+                    # exactly the ones with the unreliable target; Eufy declares
+                    # neither so this is a no-op there. Strict-order has its own
+                    # _phase_dispatch_pending guard — this closes the batch gap.
+                    # Invariant: a brand that sets require_job_active_clear must also
+                    # declare entities.job_active (true for Roborock) — otherwise
+                    # is_job_active is always False and the flag would never arm.
+                    # A genuine run arms it mid-clean (binary ON) and it persists
+                    # True through completion (binary OFF), so finalize still fires.
+                    _needs_active_proof = bool(get_adapter_value(
+                        vacuum_entity_id, "completion", "require_job_active_clear",
+                        fallback=False,
+                    ))
+                    if lifecycle_state in _ACTIVE_LIFECYCLE_STATES and (
+                        not _needs_active_proof or is_job_active(hass, vacuum_entity_id)
+                    ):
                         # Delegate the flag + write-back to the manager so it owns the mutation.
                         # Also update the local copy so the completion check below sees it.
                         manager_local.record_active_lifecycle_observed(
