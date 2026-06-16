@@ -1571,12 +1571,12 @@ async def _handle_set_companion_anchor(
         anchors.pop(room_id, None)
         action = "cleared"
     else:
-        # Clamp 0-100 defensively. The card sends fractional pixel%.
-        try:
-            x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
-            y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
-        except (TypeError, ValueError):
-            return {"saved": False, "reason": "invalid_coordinates"}
+        # Clamp 0-100 defensively. The card sends fractional pixel%; the service
+        # schema (SET_COMPANION_ANCHOR_SCHEMA) already coerced pct_x/pct_y to
+        # float-or-None, so float() here cannot raise — there is no reachable
+        # error path, hence no error arm.
+        x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
+        y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
         anchors[room_id] = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
         action = "set"
 

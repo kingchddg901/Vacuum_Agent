@@ -378,3 +378,66 @@ def test_detect_cancel_estimate_error_then_long_enough(finalizer):
         active_job_state=state)
     assert out["cancel_likely"] is False
     assert out["reason"] == "duration_not_short"
+
+
+# ---------------------------------------------------------------------------
+# _collect_finalization_inputs — outcome_status classification
+# A mislabeled outcome silently poisons the learned ETA priors (a cancelled or
+# interrupted run graduating into the baselines as a real, complete clean).
+# ---------------------------------------------------------------------------
+
+def _inputs_manager():
+    """Minimal manager mock: the queue/payload/active-job reads return empty, so
+    only the outcome classification path of _collect_finalization_inputs runs."""
+    m = MagicMock()
+    m.get_queue_state.return_value = {}
+    m.get_payload_state.return_value = {}
+    m.get_active_job.return_value = {}
+    return m
+
+
+def test_collect_inputs_interrupted_outcome(finalizer):
+    """A forced 'interrupted' lifecycle classifies the run as outcome_status
+    'interrupted' (the `elif was_interrupted` arm), not the default 'completed' —
+    and skips the cancel-likely probe. Misclassifying it as completed would feed a
+    truncated runtime into the timing learner."""
+    inputs = finalizer._collect_finalization_inputs(
+        manager=_inputs_manager(),
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=80,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:20:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state="interrupted",
+        forced_lifecycle_message="stopped mid-run",
+    )
+    assert inputs["outcome_status"] == "interrupted"
+    assert inputs["was_interrupted"] is True
+    assert inputs["was_cancelled"] is False
+
+
+def test_collect_inputs_cancel_likely_marks_cancelled(finalizer, monkeypatch):
+    """When the lifecycle says nothing special (would default to 'completed') but the
+    cancel-likely detector fires, the run is reclassified 'cancelled' + lifecycle_name
+    'cancel_likely' (the consumption arm). The detector itself is tested separately
+    (the _detect_cancel_likely_run tests above); here it is stubbed so the test locks
+    that its verdict actually FLIPS the outcome — otherwise a manually-cancelled early
+    return would graduate into the learned baselines as a real, complete clean."""
+    monkeypatch.setattr(
+        finalizer, "_detect_cancel_likely_run",
+        lambda **kw: {"cancel_likely": True, "message": "early return looks manual"},
+    )
+    inputs = finalizer._collect_finalization_inputs(
+        manager=_inputs_manager(),
+        vacuum_entity_id="vacuum.fin_test", map_id="1",
+        battery_start=80,
+        started_at="2026-01-01T00:00:00+00:00",
+        ended_at="2026-01-01T00:02:00+00:00",
+        forced_outcome_status=None,
+        forced_lifecycle_state=None,
+        forced_lifecycle_message=None,
+    )
+    assert inputs["outcome_status"] == "cancelled"
+    assert inputs["was_cancelled"] is True
+    assert inputs["lifecycle_name"] == "cancel_likely"
+    assert inputs["cancel_detection"]["cancel_likely"] is True

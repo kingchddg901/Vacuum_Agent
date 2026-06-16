@@ -9,6 +9,7 @@ Coverage targets
 [SR-5]  discover_rooms handler: success → discover + drift pass + save.
 [SR-6]  handler exception wrapping: discover / save / update_room_fields.
 [SR-7]  update_room_fields handler: not-updated → no save.
+[SR-8]  reconcile_room handler: success delegates + saves; exception wrapped as HomeAssistantError.
 
 The discover_rooms handler + the error-wrapping branches run through the
 module-level _handle_* coroutines with a mock manager (the real service path
@@ -26,6 +27,7 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.services.rooms import (
     _handle_discover_rooms,
+    _handle_reconcile_room,
     _handle_save_managed_rooms,
     _handle_update_room_fields,
 )
@@ -243,3 +245,22 @@ async def test_update_handler_raises_and_noop(rmock):
     mgr.update_room_fields.side_effect = ValueError("bad")
     with pytest.raises(HomeAssistantError, match="Failed to update room fields"):
         await _handle_update_room_fields(hass, _c(room_id=1))
+
+
+async def test_reconcile_handler_success(rmock):
+    """[SR-8] reconcile_room delegates to the manager, returns its result, and saves."""
+    hass, mgr = rmock
+    mgr.reconcile_room.return_value = {"migrated": True, "id_remap": {1: 2}}
+    result = await _handle_reconcile_room(hass, _c(action="migrate"))
+    assert result == {"migrated": True, "id_remap": {1: 2}}
+    mgr.reconcile_room.assert_called_once()
+    mgr.async_save.assert_awaited_once()
+
+
+async def test_reconcile_handler_raises(rmock):
+    """[SR-8] a manager failure mid-reconcile is wrapped as HomeAssistantError — the
+    service-layer error contract the HA UI surfaces."""
+    hass, mgr = rmock
+    mgr.reconcile_room.side_effect = ValueError("nope")
+    with pytest.raises(HomeAssistantError, match="Failed to reconcile room"):
+        await _handle_reconcile_room(hass, _c(action="migrate"))

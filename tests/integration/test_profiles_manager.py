@@ -16,10 +16,10 @@ Coverage targets
 [PM-9]  _normalize_profile_match_value coerces bool/number/off/true/false/text.
 [PM-10] _match_profile_from_fields matches a preset; mismatched room → None
         (regression guard for the dropped-normalization bug).
-[PM-11] overwrite_room_profile_from_room: protected / not-found / success.
+[PM-11] overwrite_room_profile_from_room: protected / not-found / success / missing-label.
 [PM-12] overwrite_run_profile: not-found / no-rooms / success.
 [PM-13] overwrite_room_profile error returns: protected name + unknown profile.
-[PM-14] save_room_profile_from_room: missing-label / unknown-room / protected-target.
+[PM-14] save_room_profile_from_room: missing-label / unknown-room / protected-target / details-unavailable.
 [PM-15] rename_room_profile more rejections: target protected / exists / empty label.
 [PM-16] apply_room_profile: unknown profile name → profile_not_found, no rooms updated.
 [PM-17] _protected_room_config downgrades a carpet mop room to vacuum, water + edge off.
@@ -112,6 +112,20 @@ def test_save_room_profile_from_room_rejections(pm):
     assert pm.save_room_profile_from_room(
         vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, label="X",
         profile_name="vacuum_quick")["reason"] == "protected_profile"
+
+
+def test_save_room_profile_from_room_details_unavailable(pm, monkeypatch):
+    """[PM-14] save_room_profile_from_room → room_details_unavailable when the room
+    exists with a label but the effective details can't be resolved (the 403 arm —
+    e.g. the room was deleted between the existence check and the resolve)."""
+    pm._data["maps"] = {_VAC: {_MAP: {"rooms": {"1": {
+        "room_id": 1, "name": "Kitchen", "clean_mode": "vacuum", "fan_speed": "Max"}}}}}
+    monkeypatch.setattr(pm, "get_effective_room_details", lambda **kw: None)
+    result = pm.save_room_profile_from_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, label="My Room",
+        profile_name="user_custom")
+    assert result["saved"] is False
+    assert result["reason"] == "room_details_unavailable"
 
 
 def test_rename_room_profile_more_rejections(pm):
@@ -270,6 +284,20 @@ def test_overwrite_room_profile_from_room(pm):
     assert pm.overwrite_room_profile_from_room(
         vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
         profile_name="ghost")["reason"] == "profile_not_found"
+
+
+def test_overwrite_room_profile_from_room_missing_label(pm, monkeypatch):
+    """[PM-11] overwrite_room_profile_from_room → missing_label when neither the call
+    nor the existing profile supplies a label (the 474 arm). Stub the lookup to an
+    editable profile with a blank label so the guard is what's exercised."""
+    monkeypatch.setattr(
+        pm, "_get_editable_room_profile",
+        lambda name: ("user_brushes", {"label": ""}))
+    result = pm.overwrite_room_profile_from_room(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1,
+        profile_name="user_brushes", label="")
+    assert result["overwritten"] is False
+    assert result["reason"] == "missing_label"
 
 
 def test_overwrite_run_profile(pm):
