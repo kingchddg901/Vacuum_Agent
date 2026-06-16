@@ -59,6 +59,7 @@ def register(hass: HomeAssistant) -> None:
     # registration keeps startup lean.
     from ..setup.drift import get_discovery_cadence, run_discovery_pass
     from ..rooms.source_refresh import async_refresh_room_source
+    from homeassistant.helpers.start import async_at_started
 
     domain_data = hass.data.get(DOMAIN, {})
     manager: EufyVacuumManager | None = domain_data.get(DATA_RUNTIME)
@@ -94,9 +95,23 @@ def register(hass: HomeAssistant) -> None:
 
         run_pass = _make_run_pass(vacuum_entity_id)
 
-        # --- config_entry_reload: one-shot pass right now ---
+        # --- config_entry_reload: one-shot pass, deferred to HA-started ---
+        # Run it once HA has fully started, not at raw setup time: a service-
+        # response source (Roborock get_maps) may not be registered yet then
+        # ("Action ... not found"), so an at-setup pass logs a spurious warning and
+        # falls back to the cached source. async_at_started fires immediately when
+        # HA is already running (a live config-entry reload), so the reload trigger
+        # still refreshes promptly mid-session. _run binds this vacuum's run_pass
+        # (the deferred callback would otherwise close over the loop's last one).
         if "config_entry_reload" in triggers:
-            run_pass()
+            # @callback so async_at_started runs it ON the event loop (a plain
+            # callable would be handed to the executor, and run_pass schedules a
+            # task — hass.async_create_task is loop-only).
+            unsubs.append(
+                async_at_started(
+                    hass, callback(lambda _hass, _run=run_pass: _run())
+                )
+            )
 
         # --- vacuum_docked: state transitions to "docked" ---
         if "vacuum_docked" in triggers:
