@@ -16,6 +16,16 @@ The adapter system is the **brand abstraction layer**. Every piece of brand-spec
 | `adapters/config_schema.py` | `ADAPTER_CONFIG_SCHEMA` — the authoritative definition of every valid adapter field |
 | `adapters/config_loader.py` | Loads stored adapter configs from integration storage at startup |
 | `adapters/eufy/adapter.py` | Assembles and registers the Eufy X10 Pro Omni adapter — the reference implementation |
+| `adapters/roborock/adapter.py` | Assembles and registers the Roborock adapter (S6 first profile) — the second shipping brand |
+
+**Two brands ship today.** Eufy is the full-feature reference; Roborock is the
+second concrete adapter, **auto-detected** per vacuum in `__init__.py` by
+manufacturer/model (manufacturer `Roborock` / model prefix `roborock.`) so a
+mixed household wires each correctly with no user input. Roborock fills the same
+schema out completely differently (native `get_maps` discovery, renumbering
+segment ids, path-optimized order, a live map image, a native current-room
+signal) — it's the [Eufy worked example](25-eufy-adapter.md)'s foil, documented
+in [29-roborock-adapter](29-roborock-adapter.md).
 
 ---
 

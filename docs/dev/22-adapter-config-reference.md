@@ -1193,7 +1193,7 @@ wash/area_jump-only path).
 |-------|------|---------|---------|
 | `enabled` | `bool` | `True` | Master switch. `False` reverts the live path to the legacy one-shot `engine.segment_legacy` (wash/area_jump-only) composition. |
 | `rollover_kinds` | `list[str]` | `["wash_plateau", "transit", "area_jump"]` | Which candidate kinds count as a live rollover boundary. Eufy includes `transit`; the legacy set was `{wash_plateau, area_jump}`. |
-| `native_transition_source` | `bool` | `False` | **Reserved.** A brand that exposes real per-room telemetry sets `True` to declare it has a native current-room signal (the counter-plateau inference is then a fallback). Parsed, but no framework consumer reads it yet. |
+| `native_transition_source` | `bool` | `False` | A brand that exposes a real per-room signal sets `True` to follow the device's native current-room directly (Eufy's counter-plateau inference is the fallback). **Consumed** by `jobs/active_job.py::_maybe_roll_current_room_by_native_signal` — **Roborock sets `True`** (its `_current_room` sensor); suppressed for sequenced/strict-order jobs so a parked dock room isn't phantom-completed. |
 
 > **The five threshold keys are gone.** `gap_delayed_s`, `gap_transit_s`,
 > `gap_plateau_s`, `area_jump_m2`, and `cadence_s` were **removed** from
@@ -1226,8 +1226,8 @@ wash/area_jump-only path).
 **UI builder notes:** Advanced section — collapse by default and pre-fill
 the Eufy defaults. Render `rollover_kinds` as a multi-select over the
 closed candidate-kind enum (`wash_plateau`, `transit`, `area_jump`,
-`weak`). `native_transition_source` is a single toggle with a "reserved"
-note. The detection *thresholds* are edited in the
+`weak`). `native_transition_source` is a single toggle (Roborock `True`, Eufy
+`False`). The detection *thresholds* are edited in the
 [§13a.1 `job_segmenter`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning)
 form, not here.
 
@@ -1381,7 +1381,8 @@ All optional booleans:
 supports_mop_features      supports_water_control     supports_path_control
 supports_edge_mopping      supports_mop_wash          supports_mop_dry
 supports_empty_dust        supports_robot_position    supports_station_water
-position_lock_reliable     rooms_unique_per_job
+position_lock_reliable     rooms_unique_per_job       honors_clean_order
+supports_base_station      supports_map_bounds        supports_room_profiles
 ```
 
 ### Example
@@ -1407,6 +1408,25 @@ position_lock_reliable     rooms_unique_per_job
     "rooms_unique_per_job": True,
 },
 ```
+
+> **Roborock-introduced behavioral flags (Eufy omits → the defaults, so Eufy is
+> unchanged).** All four describe firmware behavior an entity probe can't see:
+>
+> - `honors_clean_order` (default `True`) — `False` for a path-optimizing brand
+>   (the S6). Gates the opt-in **strict-order** sequenced-clean mode and the
+>   run-start "order is advisory" note. Read in `planning/run_plan.py`.
+> - `supports_base_station` / `supports_map_bounds` (default `True` = shown) —
+>   capability-gate the card's Base Station / Map Bounds tabs (S6 = both `False`).
+>   Surfaced via `core/manager.py::get_dashboard_snapshot`.
+> - `supports_room_profiles` (default `True`) — `False` drops per-room profile
+>   templates (the S6: mop unsettable, passes global).
+>
+> The remaining Roborock-introduced keys live in their own blocks and are
+> documented in context in [29-roborock-adapter](29-roborock-adapter.md):
+> `completion.require_job_active_clear`; `dispatch.{resolve_live_ids_by_slug,
+> params_as_list, per_room_live_settings, passes_is_global, phase_timing}`; and
+> `mapping.live_map_image_entity_pattern`. Threading each into its block table
+> here is a deferred polish follow-up.
 
 **UI builder notes:** Render as a grid of toggle switches. Pre-fill
 from entity-presence detection (the form already knows which entities

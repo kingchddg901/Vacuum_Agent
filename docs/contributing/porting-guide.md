@@ -28,6 +28,12 @@ The reference adapter lives at `custom_components/eufy_vacuum/adapters/eufy/`.
 A new brand is a sibling package, `adapters/<brand>/`, that produces the same
 config shape.
 
+For a **second** worked example — a brand whose discovery, dispatch, and
+clean-order behave nothing like Eufy's — see
+[dev/29-roborock-adapter](../dev/29-roborock-adapter.md). Reading the two side by
+side is the fastest way to see which config values are brand facts versus
+framework contract.
+
 ---
 
 ## 2. The adapter, end to end

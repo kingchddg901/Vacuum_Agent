@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-28 numbered files covering the integration's architecture, subsystems, and porting contract.
+29 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -71,6 +71,7 @@ The Lovelace panel card and everything the card reads from integration state.
 | 22 | [adapter-config-reference](22-adapter-config-reference.md) | Complete schema reference for per-vacuum adapter config dicts |
 | 25 | [eufy-adapter](25-eufy-adapter.md) | The Eufy adapter as a worked example + pattern guide for a full-feature adapter |
 | 26 | [eufy-segmentor](26-eufy-segmentor.md) | The Eufy CV room segmentor and the segmenter-engine pattern for a new brand |
+| 29 | [roborock-adapter](29-roborock-adapter.md) | The **second-brand** worked example — Roborock (native `get_maps`, path-optimized order, live map image, strict-order); the foil to the Eufy adapter |
 
 ---
 
