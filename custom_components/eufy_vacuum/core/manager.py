@@ -77,7 +77,12 @@ EXTERNAL_GRACE_MAX_RECHECKS = 8
 # local-poll interval (~30s) so the signal has updated before we decide to retry
 # (else we'd double-dispatch). MAX_ATTEMPTS is also the per-phase watchdog: after
 # that many tries with no start, the run is left stalled (the user can Cancel Run)
-# rather than silently hung. Tunable from on-device validation.
+# rather than silently hung. Tunable from on-device validation. These are in-core
+# DEFAULTS only — a strict-order brand whose post-dock ignore-transient or per-room
+# timing differs overrides any subset via its adapter's `dispatch.phase_timing`
+# block (read by manager._phase_timing), so the timing stays BRAND-OWNED, not
+# assumed by core. Read live (per call) so a brand that omits the block — and the
+# tests — still pick up these module values.
 _PHASE_SETTLE_SECONDS = 10
 # A target room that IS the room the dock sits in is the worst case: the robot is
 # physically parked + charging on it, and its post-dock "ignore app_segment_clean"
@@ -4103,6 +4108,32 @@ class EufyVacuumManager:
             room = rooms.get(room_id)
         return bool(isinstance(room, dict) and room.get("is_dock_room", False))
 
+    def _phase_timing(self, vacuum_entity_id: str) -> dict[str, int]:
+        """Resolve the strict-order phase watchdog timing for this vacuum: the
+        adapter's ``dispatch.phase_timing`` overrides merged over the in-core
+        defaults (the _PHASE_* module constants). Keeps brand-tuned timing in the
+        adapter — a brand whose post-dock transient differs declares its own,
+        anything it omits falls back to the defaults (byte-identical). Defaults are
+        read live so the tests' module-constant monkeypatching still applies."""
+        pt = {
+            "settle_seconds": _PHASE_SETTLE_SECONDS,
+            "dock_settle_seconds": _PHASE_DOCK_SETTLE_SECONDS,
+            "verify_seconds": _PHASE_VERIFY_SECONDS,
+            "confirm_seconds": _PHASE_CONFIRM_SECONDS,
+            "poll_seconds": _PHASE_POLL_SECONDS,
+            "max_attempts": _PHASE_MAX_ATTEMPTS,
+        }
+        declared = (
+            (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}) or {}
+        ).get("phase_timing", {}) or {}
+        for key in pt:
+            if key in declared:
+                try:
+                    pt[key] = type(pt[key])(declared[key])
+                except (TypeError, ValueError):
+                    pass
+        return pt
+
     async def _run_advanced_phase(
         self,
         *,
@@ -4132,13 +4163,14 @@ class EufyVacuumManager:
         Either way the retry cap is the per-phase watchdog — after it the run is
         left stalled (recoverable via Cancel Run) rather than silently hung.
         """
+        pt = self._phase_timing(vacuum_entity_id)
         if not initial:
             job0 = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            settle = _PHASE_SETTLE_SECONDS
+            settle = pt["settle_seconds"]
             if self._phase_target_is_dock_room(
                 vacuum_entity_id, map_id, (job0 or {}).get("current_room_id")
             ):
-                settle = _PHASE_DOCK_SETTLE_SECONDS
+                settle = pt["dock_settle_seconds"]
                 _LOGGER.info(
                     "Strict-order: phase %s on %s targets the dock room — extending "
                     "the post-dock settle to %ss before dispatch so the device's "
@@ -4146,7 +4178,7 @@ class EufyVacuumManager:
                     phase_index, vacuum_entity_id, settle,
                 )
             await asyncio.sleep(settle)
-        for attempt in range(1, _PHASE_MAX_ATTEMPTS + 1):
+        for attempt in range(1, pt["max_attempts"] + 1):
             job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
             # The job advanced past this phase, finalized, or was cancelled — done.
             if (
@@ -4177,17 +4209,17 @@ class EufyVacuumManager:
                     vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
                 )
                 return  # the target room actually started — phase under way
-            if attempt < _PHASE_MAX_ATTEMPTS:
+            if attempt < pt["max_attempts"]:
                 _LOGGER.warning(
                     "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
                     "retrying (%s/%s)",
-                    phase_index, vacuum_entity_id, _PHASE_VERIFY_SECONDS,
-                    attempt + 1, _PHASE_MAX_ATTEMPTS,
+                    phase_index, vacuum_entity_id, pt["verify_seconds"],
+                    attempt + 1, pt["max_attempts"],
                 )
         _LOGGER.warning(
             "Strict-order: phase %s on %s failed to start after %s attempts; run "
             "stalled — Cancel Run to recover",
-            phase_index, vacuum_entity_id, _PHASE_MAX_ATTEMPTS,
+            phase_index, vacuum_entity_id, pt["max_attempts"],
         )
 
     def _clear_phase_dispatch_pending(
@@ -4243,6 +4275,8 @@ class EufyVacuumManager:
         check (immediate, unchanged)."""
         cfg = _get_adapter_config(vacuum_entity_id) or {}
         has_native = bool(cfg.get("entities", {}).get("active_cleaning_target"))
+        pt = self._phase_timing(vacuum_entity_id)
+        _poll = float(pt["poll_seconds"])
         cleaning_in_target = 0.0  # cumulative seconds observed cleaning the target
         idle = 0.0                # consecutive seconds with NO cleaning of the target
         while True:
@@ -4270,8 +4304,8 @@ class EufyVacuumManager:
                     and target is not None
                     and signal == target
                 ):
-                    cleaning_in_target += float(_PHASE_POLL_SECONDS)
-                    if cleaning_in_target >= _PHASE_CONFIRM_SECONDS:
+                    cleaning_in_target += _poll
+                    if cleaning_in_target >= pt["confirm_seconds"]:
                         return True
                     progressed = True
             elif self._vacuum_started_cleaning(vacuum_entity_id):
@@ -4279,10 +4313,10 @@ class EufyVacuumManager:
             # Reset the no-progress budget whenever we saw cleaning-of-the-target;
             # otherwise accrue it and give up the attempt (re-dispatch) once the
             # device has gone the whole budget without touching the target room.
-            idle = 0.0 if progressed else idle + float(_PHASE_POLL_SECONDS)
-            if idle >= _PHASE_VERIFY_SECONDS:
+            idle = 0.0 if progressed else idle + _poll
+            if idle >= pt["verify_seconds"]:
                 return False
-            await asyncio.sleep(float(_PHASE_POLL_SECONDS))
+            await asyncio.sleep(_poll)
 
     async def _dispatch_active_phase(
         self,

@@ -39,6 +39,8 @@ Coverage targets
 [SS-21] _phase_target_is_dock_room reads the map's per-room is_dock_room flag.
 [SS-22] advanced phase targeting the dock room waits _PHASE_DOCK_SETTLE_SECONDS.
 [SS-23] advanced phase targeting a normal room waits _PHASE_SETTLE_SECONDS.
+[SS-24] _phase_timing: adapter dispatch.phase_timing overrides the in-core defaults
+        per key; omitted keys + no adapter -> defaults (brand timing in the adapter).
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -768,6 +770,37 @@ async def test_advanced_phase_normal_settle_for_non_dock_room(manager, hass, mon
         await hass.async_block_till_done()
         assert sleeps
         assert sleeps[0] == _mgr._PHASE_SETTLE_SECONDS      # normal settle, not extended
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_phase_timing_merges_adapter_over_defaults(manager):
+    """[SS-24] _phase_timing keeps strict-order watchdog timing BRAND-OWNED: an
+    adapter's dispatch.phase_timing overrides any subset of the in-core _PHASE_*
+    defaults; omitted keys (and no adapter at all) fall back to the defaults."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    # No adapter config -> every value is the in-core default.
+    pt = manager._phase_timing(_VAC)
+    assert pt["settle_seconds"] == _mgr._PHASE_SETTLE_SECONDS
+    assert pt["dock_settle_seconds"] == _mgr._PHASE_DOCK_SETTLE_SECONDS
+    assert pt["verify_seconds"] == _mgr._PHASE_VERIFY_SECONDS
+    assert pt["confirm_seconds"] == _mgr._PHASE_CONFIRM_SECONDS
+    assert pt["poll_seconds"] == _mgr._PHASE_POLL_SECONDS
+    assert pt["max_attempts"] == _mgr._PHASE_MAX_ATTEMPTS
+    # Adapter overrides a SUBSET -> those win, the rest stay default (brand-owned).
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "dispatch": {"phase_timing": {"dock_settle_seconds": 20, "max_attempts": 5}},
+    })
+    try:
+        pt = manager._phase_timing(_VAC)
+        assert pt["dock_settle_seconds"] == 20                      # overridden
+        assert pt["max_attempts"] == 5                              # overridden
+        assert pt["settle_seconds"] == _mgr._PHASE_SETTLE_SECONDS   # default kept
+        assert pt["verify_seconds"] == _mgr._PHASE_VERIFY_SECONDS   # default kept
     finally:
         unregister_adapter_config(_VAC)
 

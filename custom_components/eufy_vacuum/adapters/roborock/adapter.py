@@ -224,6 +224,22 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "dispatch": {
+            # Strict-order phase watchdog timing (seconds), tuned for the S6: it
+            # finishes a room, re-docks + charges, and IGNORES an app_segment_clean
+            # sent at that instant — so the watchdog settles, dispatches, verifies the
+            # target room actually started (sustained), and re-dispatches if not.
+            # dock_settle is longer because a target room that IS the dock has the
+            # longest ignore-transient. These live HERE (not core) so a different
+            # path-optimizing brand declares its own profile; core falls back to its
+            # matching defaults for any key omitted. See manager._phase_timing.
+            "phase_timing": {
+                "settle_seconds": 10,
+                "dock_settle_seconds": 45,
+                "verify_seconds": 90,
+                "confirm_seconds": 45,
+                "poll_seconds": 5,
+                "max_attempts": 3,
+            },
             # Rich primary path: vacuum.send_command app_segment_clean
             # {segments:[ints], repeat:1-3}. `command` MUST be explicit — an absent
             # key defaults to Eufy's `room_clean`. Per-room is PASSES only (repeat);
