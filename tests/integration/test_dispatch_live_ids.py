@@ -11,6 +11,7 @@ Coverage targets
 [LID-2] flag on -> wire segment ids remapped slug->live; batch scalar untouched.
 [LID-3] a target slug absent from the live map is skipped.
 [LID-4] an unavailable live source falls back to the stored ids.
+[LID-6] live source has rooms but NONE matches a target slug → fall back to the stored payload.
 """
 
 from __future__ import annotations
@@ -170,3 +171,21 @@ async def test_params_bare_dict_by_default(hass, manager):
         vacuum_entity_id=_VAC, payload={"map_id": "1", "rooms": [{"id": 1}]}
     )
     assert calls[0]["params"] == {"map_id": "1", "rooms": [{"id": 1}]}
+
+
+async def test_all_targets_absent_falls_back_to_stored(hass, manager):
+    """[LID-6] the live source HAS rooms but NONE matches a target slug → no segment
+    resolves, so the original stored payload is dispatched unchanged (vs LID-3 where one
+    target still resolved and only the missing one was dropped). Guards against a
+    zero-room dispatch when every target slug has drifted off the current map."""
+    _register(hass)
+    _register_get_maps(hass, {"27": "KITCHEN"})   # only kitchen is live; targets are elsewhere
+    out = await manager._resolve_live_dispatch_payload(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        payload={"segments": [19, 20], "repeat": 1},
+        resolved_rooms=[
+            {"room_id": 19, "slug": "office"},
+            {"room_id": 20, "slug": "lounge"},
+        ],
+    )
+    assert out == {"segments": [19, 20], "repeat": 1}   # stored ids dispatched unchanged

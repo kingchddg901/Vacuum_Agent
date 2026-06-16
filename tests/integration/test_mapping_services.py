@@ -25,6 +25,10 @@ Coverage targets
 [LIVE-SEG-1] set_custom_segments over a live-backed layout: card-supplied backdrop dims let it save (no upload); no dims + no backdrop → no_custom_backdrop.
 [LAYOUT-3] set_active with no layouts auto-creates + activates a default and flips to custom.
 [LAYOUT-6] companion_anchors (incl reserved 'dock' key) are per-layout — A's dock spot doesn't bleed onto B.
+[LAYOUT-7] _image_variant validator: accepts fixed variants + custom_<id>, rejects unknown (vol.Invalid).
+[LAYOUT-8] rename_custom_layout error contracts: empty name → missing_name; unknown id → layout_not_found.
+[LAYOUT-9] delete_custom_layout: unknown id → layout_not_found; deleting a NON-active layout leaves the active pointer.
+[LAYOUT-10] set_segmentation_mode → custom with layouts present but no active pointer auto-selects the first id.
 """
 
 from __future__ import annotations
@@ -43,6 +47,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
     SERVICE_SET_CUSTOM_SEGMENTS,
+    SERVICE_SET_SEGMENTATION_MODE,
 )
 from custom_components.eufy_vacuum.maps.map_manager import ensure_map_bucket
 from custom_components.eufy_vacuum.mapping.mapping_services import (
@@ -402,6 +407,71 @@ async def test_custom_layout_crud(hass, mapping_services):
                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_b})
     assert d2["active_custom_layout_id"] is None
     assert d2["segmentation_mode"] == "cv"               # last delete flips to CV
+
+
+def test_image_variant_validator_rejects_unknown():
+    """[LAYOUT-7] the _image_variant schema validator accepts the fixed variants and any
+    'custom_<id>' but rejects anything else (vol.Invalid) — stops an unknown key reaching
+    image_variants where downstream readers (suggest/delete/segmentor) would mis-serve."""
+    import voluptuous as vol
+    from custom_components.eufy_vacuum.mapping.mapping_services import _image_variant
+    assert _image_variant("default") == "default"
+    assert _image_variant("custom_ab12") == "custom_ab12"
+    with pytest.raises(vol.Invalid):
+        _image_variant("bogus")
+
+
+async def test_rename_custom_layout_error_contracts(hass, mapping_services):
+    """[LAYOUT-8] rename_custom_layout's frontend error contracts: an empty/whitespace
+    name returns reason 'missing_name'; an unknown layout_id returns 'layout_not_found'.
+    The card branches on these exact reason strings to surface a validation error."""
+    a = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Tree"})
+    lid = a["layout_id"]
+    blank = await _call(hass, SERVICE_RENAME_CUSTOM_LAYOUT,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid, "name": "   "})
+    assert blank["saved"] is False and blank["reason"] == "missing_name"
+    missing = await _call(hass, SERVICE_RENAME_CUSTOM_LAYOUT,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "ghost", "name": "X"})
+    assert missing["saved"] is False and missing["reason"] == "layout_not_found"
+
+
+async def test_delete_custom_layout_error_and_non_active(hass, mapping_services):
+    """[LAYOUT-9] delete_custom_layout: an unknown layout_id returns 'layout_not_found';
+    deleting a NON-active layout removes it and LEAVES the active pointer unchanged (the
+    active-reassignment block only runs when the deleted layout WAS the active one)."""
+    missing = await _call(hass, SERVICE_DELETE_CUSTOM_LAYOUT,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": "ghost"})
+    assert missing["saved"] is False and missing["reason"] == "layout_not_found"
+    a = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Tree"})
+    lid_a = a["layout_id"]
+    b = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Solar"})
+    lid_b = b["layout_id"]                               # the 2nd create is active
+    d = await _call(hass, SERVICE_DELETE_CUSTOM_LAYOUT,   # delete the NON-active one (A)
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_a})
+    assert d["deleted"] and d["active_custom_layout_id"] == lid_b   # active untouched
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert {lay["id"] for lay in got["custom_layouts"]} == {lid_b}
+
+
+async def test_set_segmentation_mode_auto_selects_first_layout(hass, mapping_services):
+    """[LAYOUT-10] flipping to custom mode with layouts present but NO active pointer
+    auto-selects the alphabetically-first layout id, so custom mode never resolves to an
+    empty store (which would serve no segments to the card). Soft-select guard."""
+    a = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Tree"})
+    b = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Solar"})
+    # force the orphaned state: layouts exist, but no active pointer and mode back to cv
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["active_custom_layout_id"] = None
+    bucket["segmentation_mode"] = "cv"
+    await _call(hass, SERVICE_SET_SEGMENTATION_MODE,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "mode": "custom"})
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert got["active_custom_layout_id"] == sorted([a["layout_id"], b["layout_id"]])[0]
 
 
 async def test_set_active_auto_creates(hass, mapping_services):

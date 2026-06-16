@@ -41,6 +41,14 @@ Coverage targets
 [SS-23] advanced phase targeting a normal room waits _PHASE_SETTLE_SECONDS.
 [SS-24] _phase_timing: adapter dispatch.phase_timing overrides the in-core defaults
         per key; omitted keys + no adapter -> defaults (brand timing in the adapter).
+[SS-25] start_selected_rooms(strict_order=True) on a path-optimizing brand builds a
+        one-phase-per-room sequenced job + arms the guard/watchdog (the ENTRY path).
+[SS-26] _run_advanced_phase: job cancelled during the settle window -> guard aborts
+        with NO re-dispatch (a Cancel Run mid-settle can't spuriously re-clean).
+[SS-27] _await_phase_started: job moved on (cancelled/advanced) mid-poll -> returns
+        True (nothing to retry) instead of re-dispatching against a stopped job.
+[SS-28] _vacuum_started_cleaning: vacuum state not yet 'cleaning' but the adapter's
+        job_active binary is on -> True (the device's inCleaning flag confirms dispatch).
 [CSS-1] _clear_room_selections_after_start: enabled room flips off, summary rebuilt.
 [CSS-2] _clear_room_selections_after_start: skip non-dict/off rooms, early-return, empty map.
 """
@@ -801,6 +809,135 @@ def test_phase_timing_merges_adapter_over_defaults(manager):
         assert pt["max_attempts"] == 5                              # overridden
         assert pt["settle_seconds"] == _mgr._PHASE_SETTLE_SECONDS   # default kept
         assert pt["verify_seconds"] == _mgr._PHASE_VERIFY_SECONDS   # default kept
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_start_selected_rooms_strict_order_arms_watchdog(manager, hass, monkeypatch):
+    """[SS-25] start_selected_rooms(strict_order=True) on a path-optimizing brand
+    (capabilities.honors_clean_order False) builds a SEQUENCED job — one phase per
+    enabled room — and arms the strict-order machinery: sets _phase_dispatch_pending
+    and spawns the initial phase-0 watchdog (the entry block in start_selected_rooms).
+    This is the only end-to-end exercise of that path; the watchdog tests above all
+    seed the job by hand. The device stays docked so the watchdog can't confirm room 0,
+    so the guard stays pending — proving BOTH the flag was set and the watchdog ran."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    _instant_phase_dispatch(monkeypatch)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    _seed_enabled(manager, count=2)
+    hass.states.async_set(_VAC, "docked")          # never goes cleaning -> never confirms
+    _register_dispatch(hass)
+    # honors_clean_order False -> strict_order is honored and the roborock_segment_clean
+    # engine emits one single-segment phase per room (effective_strict path).
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "capabilities": {"honors_clean_order": False},
+        "dispatch": {"template": "roborock_segment_clean", "passes_max": 3},
+    })
+    try:
+        result = await manager.start_selected_rooms(
+            vacuum_entity_id=_VAC, map_id=_MAP, strict_order=True)
+        await hass.async_block_till_done()
+        assert result["started"] is True
+        job = manager.data["active_jobs"][_VAC][_MAP]
+        # sequenced job: one phase per enabled room (>1 -> phases attached)
+        assert len(job.get("phases") or []) == 2
+        # the watchdog was spawned + the guard set; a docked device never confirmed
+        # room 0, so it stays pending instead of finalizing on the parked dock state
+        assert job.get("_phase_dispatch_pending") is True
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+async def test_advanced_phase_aborts_when_cancelled_during_settle(manager, hass, monkeypatch):
+    """[SS-26] _run_advanced_phase: if the job is cancelled (or advances/finalizes)
+    DURING the post-dock settle window, the retry-loop guard aborts WITHOUT
+    re-dispatching — so a user Cancel Run mid-settle can't trigger a spurious clean
+    against an already-stopped job. The settle sleep is exactly where that race lands."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr(_mgr, "_PHASE_VERIFY_SECONDS", 0)
+    monkeypatch.setattr(_mgr, "_PHASE_CONFIRM_SECONDS", 0)
+    monkeypatch.setattr(_mgr, "_PHASE_SETTLE_SECONDS", 30)   # non-zero settle window
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "cleaning")
+    calls = _register_dispatch(hass)
+
+    # The settle sleep is where a Cancel Run lands: flip the job out of 'started'
+    # during it, so the post-settle guard sees a job no longer on this phase.
+    async def _cancel_during_settle(*_a, **_k):
+        manager.data["active_jobs"][_VAC][_MAP]["status"] = "cancelled"
+
+    sleep_mock = AsyncMock(side_effect=_cancel_during_settle)
+    monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+
+    phase0 = {"resolved_rooms": [{"room_id": 1}], "payload": {"segments": [1]}, "room_count": 1}
+    phase1 = {"resolved_rooms": [{"room_id": 2}], "payload": {"segments": [2]}, "room_count": 1}
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [phase0, phase1], "current_phase_index": 1,
+        "resolved_rooms": phase1["resolved_rooms"], "payload": phase1["payload"],
+        "completed_room_ids": [1], "current_room_id": 2,
+        "_phase_dispatch_pending": True,
+        "has_observed_active_lifecycle": True,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    # Directly awaited (nothing spawned) -> no async_block_till_done, which would add
+    # an incidental asyncio.sleep(0) to the globally-patched mock and skew the count.
+    await manager._run_advanced_phase(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1, initial=False)
+    # the settle ran (one sleep), then the guard aborted before any dispatch
+    assert sleep_mock.await_count == 1
+    assert calls == []
+
+
+async def test_await_phase_started_returns_true_when_job_moved_on(manager, hass, monkeypatch):
+    """[SS-27] _await_phase_started: if the job is cancelled / finalized / advanced to
+    another phase while the verify poll is running, it returns True ('job moved on,
+    nothing to retry') rather than forcing a re-dispatch against a stopped job. This is
+    the concurrency seam — a Cancel Run or completion listener can fire between polls."""
+    import custom_components.eufy_vacuum.core.manager as _mgr
+    from unittest.mock import AsyncMock
+    sleep_mock = AsyncMock()
+    monkeypatch.setattr(_mgr.asyncio, "sleep", sleep_mock)
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")
+    # job is no longer 'started' (cancelled mid-run) -> the poll-entry guard fires
+    manager.data.setdefault("active_jobs", {}).setdefault(_VAC, {})[_MAP] = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "cancelled",
+        "phases": [{"resolved_rooms": [{"room_id": 1}], "payload": {}, "room_count": 1}],
+        "current_phase_index": 0,
+        "resolved_rooms": [{"room_id": 1}], "current_room_id": 1,
+        "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
+    }
+    result = await manager._await_phase_started(
+        vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0)
+    assert result is True               # job moved on -> treated as confirmed
+    assert sleep_mock.await_count == 0  # returned before polling, no retry pressure
+
+
+def test_vacuum_started_cleaning_job_active_fallback(manager, hass):
+    """[SS-28] _vacuum_started_cleaning: when the HA vacuum state hasn't flipped to
+    'cleaning' yet, the adapter's job_active binary (the device's inCleaning flag)
+    being 'on' still confirms a dispatch took — the fallback that stops the watchdog
+    re-dispatching a clean the device DID accept (Roborock, whose vacuum entity lags
+    the firmware flag). Off -> not started (a re-dispatch would be warranted)."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked")          # HA state lags -> not 'cleaning'
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "entities": {"job_active": "binary_sensor.ivy_cleaning"},
+    })
+    try:
+        hass.states.async_set("binary_sensor.ivy_cleaning", "on")
+        assert manager._vacuum_started_cleaning(_VAC) is True
+        hass.states.async_set("binary_sensor.ivy_cleaning", "off")
+        assert manager._vacuum_started_cleaning(_VAC) is False
     finally:
         unregister_adapter_config(_VAC)
 

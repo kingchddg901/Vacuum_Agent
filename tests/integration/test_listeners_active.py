@@ -28,6 +28,13 @@ Coverage targets (high-priority: state-machine branches, user-visible behavior)
         completion signals.
 [LC-5]  lifecycle: the same brand DOES arm has_observed once the job-active binary
         is ON (the dispatch took) — a genuine batch run stays finalize-eligible.
+[LC-6]  lifecycle: mid-job recharge guard — a require_job_active_clear brand reporting
+        the completion task_status while the job-active binary is still ON (recharge
+        dock) is NOT finalized; once the binary clears (true finish) it finalizes.
+[LC-7]  lifecycle: on finalize, the finally block commits the mapping tracker's job on
+        the executor (tracker.end_job) so in-job position samples reach room bounds.
+[LC-8]  lifecycle: dock_status entering a mop-wash trigger state during an active job
+        routes a mid-job mop-wash observation to the manager.
 """
 
 from __future__ import annotations
@@ -499,3 +506,94 @@ async def test_lifecycle_batch_arms_when_job_active_on(hass):
     lifecycle.remove(hass)
     assert finished == []                                # task not 'charging' -> no finalize
     m.record_active_lifecycle_observed.assert_called()   # flag armed (binary on)
+
+
+async def test_lifecycle_recharge_suppresses_finalize_until_binary_clears(hass):
+    """[LC-6] mid-job recharge guard. A require_job_active_clear brand can dock and
+    report the completion task_status (charging) MID-job to recharge, then resume. The
+    completion gate is otherwise fully satisfied (task==charging, secondary bypassed for
+    this brand, has_observed armed) — only the is_job_active guard suppresses finalize
+    while the job-active binary is still ON. Once the binary clears at the true finish,
+    the same signals finalize. Without the guard a recharge dock would end the job."""
+    register_adapter_config(_VAC, _LC_ROBOROCK_ADAPTER)
+    m = _mgr(hass)
+    m.get_active_job.return_value = {
+        "status": "started", "has_observed_active_lifecycle": True, "queue_room_ids": []}
+    m.get_lifecycle_state.return_value = {"lifecycle_state": "active_job_running"}
+    m.get_managed_rooms.return_value = {"rooms": {}}
+    m.finalize_learning_for_active_job = AsyncMock(return_value={
+        "job_id": "j1", "job_path": None,
+        "completed_job": {"resolved_rooms": [{"clean_mode": "vacuum"}]}})
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    # mid-job recharge dock: completion-shaped task, but job-active binary still ON
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "Dining Room")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set("binary_sensor.alfred_cleaning", "on")   # still active -> recharge
+    lifecycle.register(hass)
+    try:
+        # task settles to the completion value while recharging -> gate satisfied but suppressed
+        hass.states.async_set("sensor.alfred_task", "charging")
+        await hass.async_block_till_done()
+        assert finished == []                                # recharge -> NOT finalized
+        m.finalize_learning_for_active_job.assert_not_awaited()
+        # device resumes then truly finishes: binary clears, task transitions back to
+        # the completion value -> the SAME signals now finalize (guard no longer fires)
+        hass.states.async_set("binary_sensor.alfred_cleaning", "off")
+        hass.states.async_set("sensor.alfred_task", "cleaning")
+        await hass.async_block_till_done()
+        hass.states.async_set("sensor.alfred_task", "charging")
+        await hass.async_block_till_done()
+        assert len(finished) == 1
+        m.finalize_learning_for_active_job.assert_awaited()
+    finally:
+        lifecycle.remove(hass)
+
+
+async def test_lifecycle_finalize_commits_mapping_tracker_job(hass):
+    """[LC-7] on finalize, the finally block runs the mapping tracker's end_job on the
+    executor so position samples gathered during the job are flushed to room bounds.
+    Mirrors [LC-1] but seeds a mapping_tracker into hass.data so the otherwise-skipped
+    end_job arm runs; a regression here would silently break spatial learning."""
+    m = _wire_lifecycle(hass)
+    m.finalize_learning_for_active_job = AsyncMock(return_value={
+        "job_id": "j1", "job_path": None,
+        "completed_job": {"resolved_rooms": [{"clean_mode": "vacuum"}]}})
+    tracker = MagicMock()
+    hass.data[DOMAIN]["mapping_tracker"] = tracker
+    finished = _collect(hass, EVENT_JOB_FINISHED)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    hass.states.async_set("sensor.alfred_task", "completed")
+    await hass.async_block_till_done()
+    lifecycle.remove(hass)
+    assert len(finished) == 1
+    # the finally block committed the tracker's job on the executor
+    tracker.end_job.assert_called_once_with(vacuum_entity_id=_VAC)
+
+
+async def test_lifecycle_records_mop_wash_on_dock_wash_state(hass):
+    """[LC-8] when the dock_status sensor transitions to a mop-wash trigger state (default
+    'washing' / 'washing mop') during an active job, the listener routes a mid-job
+    mop-wash observation to the manager — the hook that feeds post-job water amendment.
+    A regression in the entity guard or trigger set would silently stop counting washes."""
+    m = _wire_lifecycle(hass)
+    hass.states.async_set(_VAC, "cleaning")
+    hass.states.async_set("sensor.alfred_task", "cleaning")
+    hass.states.async_set("sensor.alfred_target", "kitchen")
+    hass.states.async_set("sensor.alfred_dock", "idle")
+    hass.states.async_set("sensor.alfred_map", "6")
+    lifecycle.register(hass)
+    try:
+        hass.states.async_set("sensor.alfred_dock", "washing")   # dock enters a wash state
+        await hass.async_block_till_done()
+        m.update_active_job_mop_wash_observation.assert_called_once_with(
+            vacuum_entity_id=_VAC, map_id=_MAP)
+    finally:
+        lifecycle.remove(hass)

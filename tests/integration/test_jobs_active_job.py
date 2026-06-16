@@ -38,6 +38,7 @@ Coverage targets
 [AJI-32] get_paused_job_timeout_report: paused beyond the limit → populated escalation report.
 [AJI-33] get_paused_job_timeout_report: unparseable paused_at → None (no crash).
 [AJI-34] _timing_completion_threshold_minutes: lower confidence → larger overrun slack; sample-count + drift bonuses, capped.
+[AJI-35] _timing_completion_threshold_minutes: the 2-or-3-sample bracket adds 0.5 slack (between the <=1 +1.0 and well-sampled 0.0).
 [AJI-35] _job_status_summary: status string covers each lifecycle/outcome branch.
 [AJI-36] _job_status_summary: a started job names the current room from resolved_rooms.
 """
@@ -576,6 +577,19 @@ def test_timing_threshold_confidence_tiers(tracker):
     assert thr(confidence_score=0.9, accuracy_drift_ratio=0.8) > high
     # the total slack is capped (never exceeds est + max(4, est*0.35))
     assert thr(confidence_score=0.0, sample_count=0, accuracy_drift_ratio=5.0) <= 10 + 4.0
+
+
+def test_timing_threshold_sample_count_bracket(tracker):
+    """[AJI-35] the 2-or-3-sample bracket adds exactly 0.5 min of slack — between the
+    <=1-sample +1.0 and the well-sampled +0.0. This governs rollover timing for rooms
+    still early in learning; a regression would prematurely roll a 2-3 sample room."""
+    def thr(sample_count):
+        return tracker._timing_completion_threshold_minutes(
+            {"minutes": 10, "confidence_score": 0.9, "sample_count": sample_count})
+    base = thr(10)                  # well-sampled: no sample-count slack
+    assert thr(2) == base + 0.5     # the elif sample_count <= 3 bracket
+    assert thr(3) == base + 0.5
+    assert thr(1) == base + 1.0     # the <=1 bracket adds more (ordering sanity)
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,10 @@ Coverage targets
 [AJS-10] _maybe_roll_current_room_by_timing: live_transition.enabled=False falls back to legacy → transit hop does not roll (kill-switch).
 [AJS-11] _maybe_roll_current_room_by_timing: wash plateau rolls live (baseline, unchanged from legacy).
 [AJS-12] _maybe_roll_current_room_by_timing: short flat-area pass-turn blip is not a boundary → no roll.
+[AJS-13] _maybe_roll_current_room_by_timing: fast-path pending signal for a DIFFERENT room (stale) → no roll, signal kept.
+[AJS-14] _maybe_roll_current_room_by_timing: fast-path matching signal below the elapsed floor (90s) → no roll, signal kept.
+[AJS-15] _maybe_roll_current_room_by_timing: slow-path position-lock-reliable + robot inside bounds → veto (future-adapter guard).
+[AJS-16] _access_graph_path: BFS visited-guard skips an already-seen neighbor (diamond/cycle protection).
 """
 
 from __future__ import annotations
@@ -310,6 +314,94 @@ async def test_counter_multipass_does_not_overroll(hass, tracker, manager):
         raw_timeline=_TIMELINE, current_room_id=1,
         current_room_elapsed_minutes=2.0, completed_room_ids=[])
     assert result.get("completed_room_ids", []) == []
+
+
+# ---------------------------------------------------------------------------
+# _maybe_roll_current_room_by_timing — guard arms (no-roll)
+# ---------------------------------------------------------------------------
+
+async def test_maybe_roll_fast_path_stale_signal(hass, tracker, manager):
+    """[AJS-13] fast-room path: a pending fast-rollover signal for a DIFFERENT room than
+    the current one (the queue already moved past it) is ignored — no roll, and the
+    signal is left for the next confident exit to overwrite. Guards against a stale
+    signal rolling the wrong room's live current-room."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job(_pending_fast_rollover={"room_id": 2}))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,        # signal is for room 2 -> stale
+        current_room_elapsed_minutes=2.0, completed_room_ids=[])
+    await hass.async_block_till_done()
+    assert result.get("completed_room_ids", []) == []
+    assert "_pending_fast_rollover" in result             # not consumed (stale, left alone)
+    assert events == []
+
+
+async def test_maybe_roll_fast_path_below_floor(hass, tracker, manager):
+    """[AJS-14] fast-room path: a MATCHING fast-rollover signal still won't roll until the
+    absolute elapsed floor (_MIN_ELAPSED_MIN_FOR_BOUNDS_ROLLOVER, 90 s) is met — a brief
+    doorway transit can't prematurely roll the room. Below the floor the signal is kept."""
+    events: list = []
+    hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+    job = _seed_job(manager, _active_job(_pending_fast_rollover={"room_id": 1}))
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=_TIMELINE, current_room_id=1,        # matches, but...
+        current_room_elapsed_minutes=1.0, completed_room_ids=[])   # ...below the 1.5 floor
+    await hass.async_block_till_done()
+    assert result.get("completed_room_ids", []) == []
+    assert "_pending_fast_rollover" in result             # not consumed (floor not met)
+    assert events == []
+
+
+async def test_maybe_roll_slow_path_position_lock_veto(hass, tracker, manager, monkeypatch):
+    """[AJS-15] slow-room path: when the adapter declares its localization lock reliable
+    (capabilities.position_lock_reliable) AND the robot is still INSIDE the room's learned
+    bounds, the timing rollover is vetoed — the robot hasn't actually left. Both shipping
+    adapters declare the lock UNreliable (so AJS-4 covers the default pass-through); this
+    locks the bounds-veto for a future stable-frame adapter."""
+    from custom_components.eufy_vacuum.adapters.registry import (
+        register_adapter_config, unregister_adapter_config,
+    )
+    mm = MappingManager(hass)
+    mm.update_room_bounds(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        samples=[(0.0, 0.0), (20.0, 20.0)], rooms={"1": {"is_transition": False}})
+    hass.data[DOMAIN]["mapping_manager"] = mm
+    monkeypatch.setattr(tracker, "_get_robot_position", lambda v: (10.0, 10.0))   # inside
+    register_adapter_config(_VAC, {
+        "adapter_id": "rb", "source": "code",
+        "capabilities": {"position_lock_reliable": True},
+    })
+    try:
+        events: list = []
+        hass.bus.async_listen(_EVENT_ROOM_FINISHED, lambda e: events.append(e.data))
+        job = _seed_job(manager, _active_job())
+        result = tracker._maybe_roll_current_room_by_timing(
+            vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+            raw_timeline=_TIMELINE, current_room_id=1,
+            current_room_elapsed_minutes=100.0, completed_room_ids=[])   # slow path
+        await hass.async_block_till_done()
+        assert result.get("completed_room_ids", []) == []   # vetoed: robot still inside
+        assert events == []
+    finally:
+        unregister_adapter_config(_VAC)
+
+
+def test_access_graph_path_skips_visited_neighbor(tracker):
+    """[AJS-16] _access_graph_path BFS visited-guard: in a diamond (1->2,3 ; 2->4 ; 3->4)
+    node 4 is reached via 2 first, so when the 1->3 branch re-encounters 4 the guard skips
+    it (no re-enqueue) — diamond/cycle protection against an unbounded BFS. Returns the
+    first shortest intermediate path."""
+    diamond = {"rooms": {
+        "1": {"room_id": 1, "grants_access_to": [2, 3]},
+        "2": {"room_id": 2, "grants_access_to": [4]},
+        "3": {"room_id": 3, "grants_access_to": [4]},
+        "4": {"room_id": 4, "grants_access_to": []},
+    }}
+    # 1->4 resolves via [1,2,4]; the [1,3] branch hits 4-already-visited and is skipped.
+    assert tracker._access_graph_path(diamond, 1, 4) == [2]
 
 
 # ---------------------------------------------------------------------------
