@@ -676,6 +676,17 @@ class ActiveJobTracker:
         if active_job.get("status") != "started":
             return active_job
 
+        # Sequenced (strict-order) jobs advance one room per PHASE via the dispatch
+        # watchdog (manager._await_phase_started) + the completion gate, never by
+        # live-room or timing rollover across the queue. Running rollover here
+        # misreads the device's dock-PARKING as cleaning — when the dock sits in a
+        # target room it gets falsely "completed" at job start (current_room reads as
+        # that room while charging, then changes as the robot leaves to clean phase
+        # 0, so the rollover concludes the dock room finished). No-op for sequenced
+        # jobs; grouped/atomic jobs (no phases) are unaffected.
+        if active_job.get("phases"):
+            return active_job
+
         # Native current-room signal path (e.g. Roborock current_room): the device
         # reports the live room directly, so rollover FOLLOWS that signal (filtered
         # to job targets, matched by name slug, order-agnostic) instead of the

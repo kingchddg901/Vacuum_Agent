@@ -16,6 +16,10 @@ Coverage targets
 [NR-6] same target again -> no-op (idempotent across the 5s tick).
 [NR-7] a target already completed -> ignored (no re-advance; rooms_unique_per_job).
 [NR-8] config gate: native_transition_source True for Roborock, default False otherwise.
+[NR-10] sequenced (phased) job -> rollover is SUPPRESSED at the caller: a parked
+        robot's dock room is not phantom-completed when it leaves to clean phase 0.
+[NR-11] regression: a grouped (no-phases) job STILL rolls through the caller — the
+        sequenced guard didn't break the grouped path.
 """
 
 from __future__ import annotations
@@ -148,6 +152,55 @@ async def test_already_completed_target_ignored(tracker, manager):
     result = await _roll(tracker, manager, job, "KITCHEN")  # 16, already done
     assert result["current_room_id"] == 17
     assert result["completed_room_ids"] == [16]
+
+
+async def test_sequenced_job_suppresses_native_rollover(tracker, manager):
+    """[NR-10] strict-order (phased) jobs do NOT roll via the native signal — the
+    dispatch watchdog + completion gate drive per-phase progression. Reproduces the
+    dock-room-as-target false-completion: a robot parked on its dock reads
+    current_room == the dock room, then the signal changes as it leaves to clean
+    phase 0; without this guard the caller's native rollover would 'complete' the
+    dock room (0.55-min phantom). With phases present the caller is a no-op."""
+    _register()
+    job = _seed(manager, current=16, native_confirmed=17)  # 'in' the dock room 17
+    job["phases"] = [
+        {"resolved_rooms": [{"room_id": 16, "name": "KITCHEN", "slug": "kitchen"}]},
+        {"resolved_rooms": [{"room_id": 17, "name": "Dining Room", "slug": "dining_room"}]},
+    ]
+    job["current_phase_index"] = 0
+    manager.hass.states.async_set(_SIGNAL, "KITCHEN")  # robot left the dock for Kitchen
+    await manager.hass.async_block_till_done()
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=[], current_room_id=job.get("current_room_id"),
+        current_room_elapsed_minutes=5.0,
+        completed_room_ids=job.get("completed_room_ids", []),
+    )
+    await manager.hass.async_block_till_done()
+    assert result["completed_room_ids"] == []          # dock room 17 NOT phantom-completed
+    assert result["current_room_id"] == 16             # unchanged
+    assert result["_native_current_room_id"] == 17     # unchanged (no roll happened)
+
+
+async def test_grouped_job_still_rolls_through_caller(tracker, manager):
+    """[NR-11] regression: a grouped job (no phases) still completes the previous
+    confirmed target via the native signal when called through
+    _maybe_roll_current_room_by_timing — the sequenced guard only suppresses phased
+    jobs, leaving the grouped/native-order path (the rollover's real use) intact."""
+    _register()
+    job = _seed(manager, current=16, native_confirmed=16)  # NO phases key -> grouped
+    manager.hass.states.async_set(_SIGNAL, "Heidi & Chris")  # jump to 20
+    await manager.hass.async_block_till_done()
+    result = tracker._maybe_roll_current_room_by_timing(
+        vacuum_entity_id=_VAC, map_id=_MAP, active_job=job,
+        raw_timeline=[], current_room_id=job.get("current_room_id"),
+        current_room_elapsed_minutes=5.0,
+        completed_room_ids=job.get("completed_room_ids", []),
+    )
+    await manager.hass.async_block_till_done()
+    assert result["completed_room_ids"] == [16]        # previous target completed
+    assert result["current_room_id"] == 20
+    assert result["_native_current_room_id"] == 20
 
 
 def test_config_gate(manager):
