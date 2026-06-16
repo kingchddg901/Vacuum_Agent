@@ -430,9 +430,11 @@ def register_roborock_adapter_for_vacuum(
         # Wave 2a: "discovery" (get_maps service source + active_map) + identity
         # reconciliation. Wave 2b: dispatch.resolve_live_ids_by_slug (live name->id
         # at send) + completion.require_job_active_clear (finalize on the cleaning
-        # binary, not current_room) + dispatch.global_pre_calls (max-wins GLOBAL
-        # fan + mop pre-call). Wave 3: live_transition.native_transition_source
-        # (native current_room live rollover, filtered to job targets).
+        # binary, not current_room). Per-room LIVE fan rides
+        # dispatch.per_room_live_settings (set_fan_speed) — there is NO
+        # dispatch.global_pre_calls here (passes are global; mop is unsettable on the
+        # S6). Wave 3: live_transition.native_transition_source (native current_room
+        # live rollover, filtered to job targets).
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,
         #   settings_selects, room_profiles, anomaly, live_transition.

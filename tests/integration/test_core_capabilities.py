@@ -13,6 +13,8 @@ Coverage targets
 [CAP-5]  _detect_maintenance_sources: suffix entity, None suffix, swivel proxy.
 [CAP-6]  _find_registry_entity_by_tokens: prefix + token match.
 [CAP-7]  get_vacuum_capabilities: newly-known model refreshes cached caps even with refresh=False.
+[CAP-8]  detect_capabilities: an explicit supports_water_control hint wins over the
+         mop-derived default (the Roborock S6 declares it False — water is unsettable).
 """
 
 from __future__ import annotations
@@ -80,6 +82,42 @@ def test_detect_hint_or_presence(hass):
     assert caps["supports_empty_dust"] is True
     # no path-control hint and no entity → False
     assert caps["supports_path_control"] is False
+
+
+def test_detect_water_control_hint_wins(hass):
+    """[CAP-8] an explicit supports_water_control=False hint overrides the mop default.
+
+    Mop features are present (water_level entity → supports_mop_features True), which
+    would otherwise derive supports_water_control True. The Roborock S6 declares
+    supports_water_control False because SET_WATER_BOX/MOP_MODE are unsupported, and
+    that explicit hint must win.
+    """
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_water", "80")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"water_level": ["sensor.alfred_water"]},
+        capability_hints={"supports_water_control": False},
+    )
+    # mop support is still derived from the water_level entity ...
+    assert caps["supports_mop_features"] is True
+    # ... but the explicit hint overrides the mop-derived water-control default.
+    assert caps["supports_water_control"] is False
+
+
+def test_detect_water_control_defaults_to_mop_without_hint(hass):
+    """[CAP-8] with no hint, supports_water_control still derives from mop support
+    (the unchanged Eufy path)."""
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("sensor.alfred_water", "80")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        entity_candidates={"water_level": ["sensor.alfred_water"]},
+    )
+    assert caps["supports_mop_features"] is True
+    assert caps["supports_water_control"] is True
 
 
 def test_detect_robot_position_needs_both(hass):

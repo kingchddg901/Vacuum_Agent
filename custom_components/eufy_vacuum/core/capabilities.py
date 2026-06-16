@@ -260,7 +260,16 @@ def detect_capabilities(
     supports_empty_dust   = bool(_hints.get("supports_empty_dust")) or _empty_dust_entity_present
     supports_path_control = bool(_hints.get("supports_path_control")) or _cleaning_intensity_present
 
-    supports_water_control     = supports_mop_features
+    # An explicit adapter hint wins (the Roborock S6 declares supports_water_control
+    # False because its mop/water is unsettable — SET_WATER_BOX/MOP_MODE are
+    # RoborockUnsupportedFeature); otherwise derive it from mop support as before. Eufy
+    # is unchanged (it passes no such hint, or passes True, so it falls through to
+    # supports_mop_features=True either way).
+    supports_water_control = (
+        bool(_hints["supports_water_control"])
+        if "supports_water_control" in _hints
+        else supports_mop_features
+    )
     supports_edge_mopping      = True
     supports_passes            = True
     supports_custom_room_config = True

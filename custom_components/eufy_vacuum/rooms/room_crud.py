@@ -173,15 +173,18 @@ class RoomMapManager:
         map_bucket["summary"] = build_room_selection_summary(managed_rooms=new_rooms)
         map_bucket.setdefault("metadata", {})["reconciled_at"] = _iso_now()
 
-        # Drop transient id-keyed rule-status snapshots for the migrated old ids;
-        # they rebuild on the next preflight under the new ids.
+        # Drop transient id-keyed rule-status snapshots for BOTH the migrated old ids
+        # AND the new/target ids: a re-segment that frees an id (room dropped) and moves
+        # another room ONTO it would otherwise leave the dropped room's stale snapshot
+        # showing on the migrated room's sensor. They rebuild on the next preflight.
         rule_status_map = (
             self._manager.data.get("room_rule_status", {})
             .get(vacuum_entity_id, {})
             .get(map_id_str, {})
         )
-        for old_id in plan["id_remap"]:
+        for old_id, new_id in plan["id_remap"].items():
             rule_status_map.pop(str(old_id), None)
+            rule_status_map.pop(str(new_id), None)
 
         # Carry floor-type confirmations onto the new ids — otherwise every renumbered
         # room reads as needing floor-type confirmation (its confirmation is keyed to the

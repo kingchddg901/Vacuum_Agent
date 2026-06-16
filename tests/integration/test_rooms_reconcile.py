@@ -24,6 +24,9 @@ Coverage targets
        not a contradictory spurious 'renamed'.
 [RR-10] migrate remaps floor-type confirmations through the id_remap (so a renumbered
         room isn't re-prompted / blocked by onboarding_required).
+[RR-11] migrate purges the rule-status snapshot of the TARGET id too: a re-segment that
+        moves a room onto an id a now-dropped room used to hold must not leave the
+        dropped room's stale snapshot showing on the migrated room's sensor.
 """
 
 from __future__ import annotations
@@ -217,6 +220,28 @@ def test_reconcile_no_spurious_renamed_on_id_reuse(rmm):
     kinds = [r["kind"] for r in result["reviews"]]
     assert "renamed" not in kinds                       # kitchen renumbered, not renamed
     assert any(r["kind"] == "id_changed" and r["new_id"] == 20 for r in result["reviews"])
+
+
+def test_reconcile_migrate_drops_stale_rule_status_on_target_id(rmm):
+    """[RR-11] KITCHEN renumbers 16->20 while the room that used to hold id 20 is
+    dropped. The dropped room's stale rule-status snapshot is keyed at "20" — the same
+    id KITCHEN now lands on. Purging only the source ("16") would leave that stale "20"
+    snapshot showing on KITCHEN's sensor, so the target id is purged too."""
+    rm, mgr = rmm
+    _seed_saved(mgr, {
+        "16": {"room_id": 16, "name": "KITCHEN", "slug": "kitchen", "grants_access_to": []},
+    })
+    _seed_discovery(mgr, [{"room_id": 20, "map_id": _MAP, "name": "KITCHEN", "slug": "kitchen"}])
+    mgr.data.setdefault("room_rule_status", {}).setdefault(_VAC, {})[_MAP] = {
+        "16": {"last_result": "allowed"},          # KITCHEN's own stale snapshot (source)
+        "20": {"last_result": "blocked"},          # the dropped room's stale snapshot (target)
+    }
+
+    rm.reconcile_room(vacuum_entity_id=_VAC, map_id=_MAP, action="migrate")
+
+    status = mgr.data["room_rule_status"][_VAC][_MAP]
+    assert "16" not in status        # source purged (RR-4)
+    assert "20" not in status        # target purged — no stale snapshot bleeds onto KITCHEN
 
 
 def test_reconcile_migrate_remaps_floor_type_confirmations(rmm):
