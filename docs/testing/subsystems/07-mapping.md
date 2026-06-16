@@ -32,7 +32,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
 | `tracker.py` | 344 | 93% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 907 | 95% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 904 | 95% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 
 ---
 

@@ -3,7 +3,7 @@
 The profiles subsystem owns reusable per-room cleaning profiles (fan speed, water
 level, mop mode, etc.): the user library, the protected built-in profiles,
 applying a profile to a room, and saving/overwriting a profile from a room's
-current settings. Covered by **46 tests across 2 files**.
+current settings. Covered by **48 tests across 2 files**.
 
 Source: `custom_components/eufy_vacuum/profiles/`
 Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-manager.md)
