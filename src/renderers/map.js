@@ -124,12 +124,16 @@ export function applyMapRenderers(proto) {
         <div class="evcc-map-container">
 
           <div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
+            <!-- Rotation turns this whole content layer (image + polygons + labels
+                 + mascot) together so overlays stay aligned at any 90° step; zoom/pan
+                 stays on .evcc-map-layers above. --evcc-map-rotation lets labels +
+                 mascot counter-rotate upright (see styles/map.js). -->
+            <div class="evcc-map-content-rotator" style="transform:rotate(${rot}deg);--evcc-map-rotation:${rot}deg">
             <img
               class="evcc-map-image"
               src="${this.escapeHtml(imageUrl)}"
               alt="Floor plan"
               draggable="false"
-              style="transform:rotate(${rot}deg)"
             >
             <svg
               class="evcc-map-svg"
@@ -170,6 +174,8 @@ export function applyMapRenderers(proto) {
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;
             }).join("")}
+            </div>
+
           </div>
 
           <div class="evcc-map-tooltip" aria-hidden="true"></div>

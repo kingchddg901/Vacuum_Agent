@@ -3582,12 +3582,16 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
         <div class="evcc-map-container">
 
           <div class="evcc-map-layers" style="transform:translate(${v}px,${f}px) scale(${p});transform-origin:0 0">
+            <!-- Rotation turns this whole content layer (image + polygons + labels
+                 + mascot) together so overlays stay aligned at any 90\xB0 step; zoom/pan
+                 stays on .evcc-map-layers above. --evcc-map-rotation lets labels +
+                 mascot counter-rotate upright (see styles/map.js). -->
+            <div class="evcc-map-content-rotator" style="transform:rotate(${h}deg);--evcc-map-rotation:${h}deg">
             <img
               class="evcc-map-image"
               src="${this.escapeHtml(c)}"
               alt="Floor plan"
               draggable="false"
-              style="transform:rotate(${h}deg)"
             >
             <svg
               class="evcc-map-svg"
@@ -3603,6 +3607,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
                 ${de?`<span class="evcc-map-label-order">${j+1}</span>`:""}
                 <span class="evcc-map-label-name">${this.escapeHtml(W)}</span>
               </div>`}).join("")}
+            </div>
+
           </div>
 
           <div class="evcc-map-tooltip" aria-hidden="true"></div>
@@ -11542,10 +11548,20 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
     object-fit:         contain;
     user-select:        none;
     -webkit-user-drag:  none;
-    /* Live-map rotation (display only) spins the image about its centre; the
-       square container keeps a 90\xB0 turn fully in frame. */
-    transform-origin:   center;
-    transition:         transform 0.2s ease;
+  }
+
+  /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
+     segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
+     90\xB0 step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with
+     its own centre origin, so rotation and pan/zoom never fight; the square map
+     container keeps a 90\xB0 turn fully in frame. --evcc-map-rotation (set inline by
+     the renderer) lets labels + mascot counter-rotate upright. */
+  .evcc-map-content-rotator {
+    position:         absolute;
+    inset:            0;
+    transform-origin: 50% 50%;
+    will-change:      transform;
+    transition:       transform 0.2s ease;
   }
 
   .evcc-map-svg {
@@ -11626,7 +11642,9 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
   .evcc-map-animal {
     position:       absolute;
     /* width + height set inline by renderer (respects user scale) */
-    transform:      translate(-50%, -50%);
+    /* Counter-rotate by the map rotation so the sprite stays upright while its
+       anchor still rides the rotated map (var inherited from the content rotator). */
+    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
     cursor:         grab;
     z-index:        10;
     pointer-events: all;
@@ -11681,7 +11699,9 @@ ${r}`,t[0]?.name??""),n=String(a??"").trim();if(!n)return null;let c=t.find(o=>o
 
   .evcc-map-label {
     position:       absolute;
-    transform:      translate(-50%, -50%);
+    /* Counter-rotate so label text stays upright while its centroid rides the
+       rotated map (var inherited from the content rotator). */
+    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
     display:        flex;
     flex-direction: column;
     align-items:    center;

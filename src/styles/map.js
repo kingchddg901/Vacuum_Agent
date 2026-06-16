@@ -89,10 +89,20 @@ export const mapStyles = `
     object-fit:         contain;
     user-select:        none;
     -webkit-user-drag:  none;
-    /* Live-map rotation (display only) spins the image about its centre; the
-       square container keeps a 90° turn fully in frame. */
-    transform-origin:   center;
-    transition:         transform 0.2s ease;
+  }
+
+  /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
+     segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
+     90° step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with
+     its own centre origin, so rotation and pan/zoom never fight; the square map
+     container keeps a 90° turn fully in frame. --evcc-map-rotation (set inline by
+     the renderer) lets labels + mascot counter-rotate upright. */
+  .evcc-map-content-rotator {
+    position:         absolute;
+    inset:            0;
+    transform-origin: 50% 50%;
+    will-change:      transform;
+    transition:       transform 0.2s ease;
   }
 
   .evcc-map-svg {
@@ -173,7 +183,9 @@ export const mapStyles = `
   .evcc-map-animal {
     position:       absolute;
     /* width + height set inline by renderer (respects user scale) */
-    transform:      translate(-50%, -50%);
+    /* Counter-rotate by the map rotation so the sprite stays upright while its
+       anchor still rides the rotated map (var inherited from the content rotator). */
+    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
     cursor:         grab;
     z-index:        10;
     pointer-events: all;
@@ -228,7 +240,9 @@ export const mapStyles = `
 
   .evcc-map-label {
     position:       absolute;
-    transform:      translate(-50%, -50%);
+    /* Counter-rotate so label text stays upright while its centroid rides the
+       rotated map (var inherited from the content rotator). */
+    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
     display:        flex;
     flex-direction: column;
     align-items:    center;
