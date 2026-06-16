@@ -8,6 +8,61 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [1.0.0] - 2026-06-16
+
+**Second brand: Roborock.** Vacuum Agent began as an Eufy integration; 1.0 makes
+it a *multi-brand* one. Everything brand-specific now lives in a declarative
+adapter, and the **Roborock S6** ships as the second supported brand — per-room
+cleaning, native live room tracking, live maps, and strict ordering, all
+Eufy-safe (the Eufy path is byte-identical where it should be). 1.0 marks the
+architecture settling: the adapter seam, the dispatch-engine job model, and the
+live-map pipeline are now the stable foundation other brands plug into. The
+**Eufy X10 Pro Omni** and the **Roborock S6** are each brand's tested reference
+model.
+
+### Added
+- **Roborock adapter (Roborock S6).** A capability-detecting adapter brings a
+  second brand online with no core forks: room discovery from the `roborock.get_maps`
+  service response (with name-slug identity reconciliation), live name→segment-id
+  resolution at dispatch, completion keyed on the cleaning binary, per-room **live**
+  fan speed, and native `current_room` live room rollover. The S6's real
+  constraints are modeled honestly — mop/water is observe-only, passes are global,
+  and room profiles are dropped — rather than faked.
+- **Live maps in the card.** On live-map brands the Map view uses the vacuum's
+  **live map image** as the backdrop (no screenshot upload): draw and save room
+  segments straight over it, rotate it in 90° steps (stored server-side, so it
+  follows you across devices) with the whole layer — image, polygons, labels,
+  mascot — turning together, and watch a dwell-debounced mascot follow the robot's
+  current room (draggable even when rotated).
+- **Strict cleaning order.** A per-run opt-in for path-optimizing brands (e.g. the
+  S6, which treats queue order as advisory): the integration sequences the run one
+  room at a time in your exact order, with a per-phase watchdog that settles,
+  dispatches, verifies the device actually started the room, and retries — fixing
+  the "second room never fired" failure where a robot ignores a clean sent the
+  instant it docks.
+- **Per-vacuum panel rename.** Each vacuum's sidebar entry can be renamed live from
+  the Setup tab (default "Vacuum Agent") — useful once you run more than one.
+- **Room-identity reconciliation.** When a re-segment renumbers rooms, an
+  apply/dismiss review carries each room's durable settings, access-graph grants,
+  and floor-type confirmations onto the new IDs by name.
+- **Add-another-vacuum** control in the Setup tab, and capability-gated navigation
+  (Base Station and Map Bounds tabs appear only on models that have them).
+
+### Changed
+- **Adapter discipline.** Brand specifics are declarative config, not core code:
+  the dispatch payload **shape** and **job model**, the live-map image entity-id
+  pattern, and the strict-order phase-timing all moved out of core into the adapter.
+- **Docs reconciled to multi-brand.** The README and the entire `docs/` tree
+  (62 audited doc↔code findings across 32 files) now cover Eufy and Roborock with
+  brand-aware inline callouts; a new Roborock adapter developer reference was added.
+
+### Fixed
+- Recharge-resume finalize guard (a mid-job dock-to-recharge no longer ends the job).
+- Honor an explicit `supports_water_control` capability hint (S6 water is unsettable).
+- Reconciliation no longer leaks stale rule-status onto a re-used room ID.
+- Live-backed custom segments rendered off-screen; mascot drag drifted on a rotated map.
+- Learning snapshot reads moved off the hot path.
+
 ## [0.11.0] - 2026-06-14
 
 **Theme System 2.0.** Themes were already fully customizable; this release makes

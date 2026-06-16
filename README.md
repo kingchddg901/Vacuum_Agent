@@ -26,10 +26,12 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 
 | Brand | Model | Status |
 |---|---|---|
-| Eufy | X10 Pro Omni | Tested |
+| Eufy | X10 Pro Omni | Tested — Eufy adapter reference |
 | Eufy | Other models | Untested — may work, not supported |
-| Roborock | S6 | Tested (second-brand adapter) |
+| Roborock | S6 | Tested — Roborock adapter reference |
 | Roborock | Other models | Untested — may work, not supported |
+
+Each brand's adapter was built and validated against one **reference model** — the **Eufy X10 Pro Omni** and the **Roborock S6**. Those are the devices the adapter's behavior is tested against; other models of the same brand reuse that adapter and frequently work, but aren't individually verified.
 
 If you run this on another model, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with the model name and what worked or didn't — the table grows from there.
 
