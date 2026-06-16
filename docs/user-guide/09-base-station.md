@@ -2,7 +2,11 @@
 
 The Base Station tab shows you the current state of the dock and lets you trigger dock-side actions such as washing the mop, drying the mop, and emptying the dust bin. It also lets you set the default pause timeout used when a cleaning run is paused.
 
-The panels and action buttons on this tab are **capability-gated** — only the panels and buttons that apply to your vacuum's hardware are shown. A fully-equipped dock (mop wash + mop dry + auto-empty) shows everything below. A vacuum-only model with no docked accessories shows just Station Status and Pause Timeout. A model with auto-empty but no mop dock shows Station Status, Pause Timeout, the Recent Dock Activity panel with just the Dust Empty card, and an Empty Dust button. If a section described below is missing from your card, your vacuum doesn't have that hardware.
+!!! note "Roborock (S6): no Base Station tab"
+
+    On a dockless vacuum (for example, the Roborock S6) the entire Base Station tab is hidden — there is no dock for it to describe. Everything below applies only to models that ship with a base station.
+
+The panels and action buttons on this tab are **capability-gated** — on a docked model, only the panels and buttons that apply to your vacuum's hardware are shown. A fully-equipped dock (mop wash + mop dry + auto-empty) shows everything below. A model with auto-empty but no mop dock shows Station Status, Pause Timeout, the Recent Dock Activity panel with just the Dust Empty card, and an Empty Dust button. If a section described below is missing from your card, your vacuum doesn't have that hardware.
 
 ### Station Status
 

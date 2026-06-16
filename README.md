@@ -1,6 +1,6 @@
 # Vacuum Agent
 
-A custom Home Assistant integration that adds room-level control, queue management, a learning/ETA system, automation events, and a built-in Lovelace panel card to your Eufy vacuum. These capabilities are not available in the standard Eufy integration.
+A custom Home Assistant integration that adds room-level control, queue management, a learning/ETA system, automation events, and a built-in Lovelace panel card to your robot vacuum. It uses an adapter pattern to support multiple brands — **Eufy** and **Roborock** today, extensible to others — and adds capabilities the stock vacuum integrations don't expose.
 
 ![Vacuum Agent — per-room cards with learned ETA, profile, and floor texture](docs/screenshots/rooms-cards.png)
 
@@ -8,7 +8,7 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 
 ## What it does
 
-[eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) exposes basic start/stop/pause and a few entity states. This integration goes further:
+A stock vacuum integration exposes basic start/stop/pause and a few entity states — for Eufy that's [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean); for Roborock, Home Assistant's built-in Roborock integration. Vacuum Agent goes further:
 
 - **Room-level control** — select individual rooms by name and send targeted clean jobs, rather than cleaning the whole floor.
 - **Queue management** — build, inspect, and reorder a cleaning queue before the job starts.
@@ -24,17 +24,19 @@ A custom Home Assistant integration that adds room-level control, queue manageme
 
 ## Tested hardware
 
-| Model | Status |
-|---|---|
-| Eufy X10 Pro Omni | Tested |
-| Other Eufy models | Untested — may work, not supported |
+| Brand | Model | Status |
+|---|---|---|
+| Eufy | X10 Pro Omni | Tested |
+| Eufy | Other models | Untested — may work, not supported |
+| Roborock | S6 | Tested (second-brand adapter) |
+| Roborock | Other models | Untested — may work, not supported |
 
 If you run this on another model, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with the model name and what worked or didn't — the table grows from there.
 
 ## Prerequisites
 
 - Home Assistant 2025.6.0 or later
-- Your Eufy vacuum must already be set up and working in Home Assistant via [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) (the integration that provides the `vacuum.*` entity). This integration does not replace it — it builds on top of it.
+- A working `vacuum.*` entity for your robot, provided by your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, or Home Assistant's built-in **Roborock** integration for Roborock. Vacuum Agent does not replace that integration — it builds on top of it.
 
 ## Installation via HACS
 
@@ -44,7 +46,7 @@ If you run this on another model, please [open an issue](https://github.com/king
 4. Search for **Vacuum Agent** in HACS and install it.
 5. Restart Home Assistant.
 6. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
-7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by [eufy-clean](https://github.com/jeppesens/eufy-clean) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
+7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
 8. A **Eufy Vacuum** item appears in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
 
 If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Vacuum Agent → Configure** to add it.
@@ -55,7 +57,7 @@ If you submitted setup without picking a vacuum, the sidebar entry still appears
 
 | Field | Required | Description |
 |---|---|---|
-| **Vacuum** | Optional | The `vacuum.*` entity from [eufy-clean](https://github.com/jeppesens/eufy-clean). Leave blank to skip for now and set it later via **Configure**. |
+| **Vacuum** | Optional | The `vacuum.*` entity from your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy; the built-in Roborock integration for Roborock). Leave blank to skip for now and set it later via **Configure**. |
 | **Tested model** | Required | The model you are setting up. Used to select the correct adapter config and capability declarations. Defaults to the currently tested model. |
 | **Notes** | Optional | Free-form text for your own reference. Shown in the integration entry in **Settings → Devices & Services**. |
 

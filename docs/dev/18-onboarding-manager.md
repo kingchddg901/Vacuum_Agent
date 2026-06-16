@@ -192,6 +192,23 @@ Aggregates `get_onboarding_state()` across every known map for one vacuum:
 
 (There are no `set_discovery_notified` / `set_rebuild_notified` methods. The `discovery_notified` / `rebuild_notified` flags exist in storage but are only written by `reset_onboarding` / defaults.)
 
+### 4.6 `remap_confirmed_floor_types`
+
+```python
+manager.remap_confirmed_floor_types(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    id_remap: dict[int, int],
+) -> None
+```
+
+Keyword-only. Carries existing floor-type confirmations onto re-segmented room IDs after a reconcile migrate. Confirmations are keyed by room ID, so when a reconcile renumbers rooms it re-keys each entry through the old→new `id_remap`: for every `old_id → new_id` pair, a confirmed `old_id` is popped and re-stored under `new_id`. **No-op when `id_remap` is empty** (no renumbering).
+
+Without this re-keying, every renumbered-but-already-confirmed room reads as needing confirmation (its confirmation is still keyed to the old ID), so `floor_types_complete` flips False and the core start gate blocks cleaning with `onboarding_required` until the user re-confirms each one.
+
+Called by `RoomCrudManager.reconcile_room()` (`rooms/room_crud.py`) as part of the reconcile migrate, right after the `id_remap` is applied to the room records. See §6.
+
 ---
 
 ## 5. Floor Type Semantics
@@ -215,3 +232,4 @@ A room with `confirmed == False` or missing from the dict counts as unconfirmed.
 | `EufyVacuumManager` delegation only (no live caller) | `check_for_new_rooms()` | Predicate; the live drift path uses `setup/drift.py` instead |
 | Panel setup tab | `get_onboarding_state()` | On render |
 | Panel room editor | `confirm_floor_type()` | User saves floor type |
+| `RoomCrudManager.reconcile_room()` (`rooms/room_crud.py`) | `remap_confirmed_floor_types()` | After a reconcile migrate applies the `id_remap` — re-keys confirmations so renumbered rooms don't re-block start |

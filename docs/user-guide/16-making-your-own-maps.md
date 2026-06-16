@@ -2,10 +2,11 @@
 
 The card can show your floor plan as an interactive map: each room is a coloured shape you can tap to queue, and your vacuum's mascot wanders across it. This guide walks you through getting that map set up — from a first screenshot to hand-drawn themed layouts.
 
-You have **two ways** to put rooms on the map, and you can use either (or both) on the same vacuum:
+You have a few ways to put rooms on the map, and you can use more than one on the same vacuum:
 
 - **Auto (CV)** — upload a screenshot of your Eufy app's map and let the integration **detect the rooms for you**. Best when your app map has clean, solid room colours.
 - **Custom layouts** — **draw the rooms yourself** from rectangles and circles on top of any background picture. Best when auto-detection struggles, or when you want a themed map (a blueprint, a solar system, a tree) with rooms exactly where you put them.
+- **Live map** *(Roborock and other live-map brands)* — **skip the upload entirely** and draw rooms straight over the map image your vacuum streams. See [Roborock and other live-map brands](#roborock-and-other-live-map-brands) below.
 
 > **Not sure which?** Start with Auto (CV) — it's the least work. If the detected rooms come out wrong and won't nudge into shape, switch to a custom layout. Trying a custom layout never destroys your Auto (CV) result; they live side by side.
 
@@ -106,7 +107,7 @@ A custom layout lets you trace rooms onto **any** background image. You can keep
 1. In **Map Configuration**, open the **Segmentation** picker (bottom panel). Click **＋ New**, type a name (e.g. "Tree" or "Blueprint"), and click **Create**. This makes the layout active and switches the map into custom mode.
 2. In the **Custom backdrop** section, click **Upload** and pick your background picture. Every layout has *its own* backdrop — uploading here always applies to the layout you're on.
 
-> Each layout needs its **own** backdrop. Until you upload one, the map shows "No map image" and you can't save rooms — so do this first.
+> Each layout needs its **own** backdrop. With no live map to fall back on (Eufy, or any layout with no live image), the map shows "No map image" until you upload one, and you can't save rooms — so do this first. On a live-map brand you can skip this step and draw over the live map instead — see [Roborock and other live-map brands](#roborock-and-other-live-map-brands).
 
 ### 2. Draw your rooms
 
@@ -134,11 +135,28 @@ A room can be more than one shape:
 1. With a shape (or merged room) selected, use **Link to room** to pick which room it is — same 1:1 rule as Auto (CV).
 2. Click **Save rooms**. Your shapes are saved as this layout's rooms and re-appear (editable) next time you open it.
 
-If you click Save before uploading a backdrop, the card tells you so and saves nothing — upload the backdrop, then save again.
+If you click Save with no backdrop *and* no live map, the card tells you so and saves nothing — upload the backdrop, then save again. On a live-map brand, rooms save straight over the live map once it has loaded; the guard only fires while the live image is still loading, or when there's genuinely no backdrop and no live image. The on-screen message offers to **wait for the live map to appear, then save again (or upload a backdrop)**.
 
 ### 5. Keep several layouts
 
 Each chip in the **Segmentation** picker is one layout; **Auto (CV)** is always there too. Click a chip to switch — the backdrop, rooms, and mascot spot all swap together. Use **Rename** / **Delete layout** for the active one. Switching never loses any layout.
+
+---
+
+## Roborock and other live-map brands
+
+If your vacuum streams a live map (Roborock S6, for example), there's **nothing to upload** — the vacuum's live map image *is* your backdrop. You draw rooms straight over it.
+
+1. In **Map Configuration**, open the **Segmentation** picker, click **＋ New**, name the layout, and **Create** it (as in Option B). This switches the map into custom mode.
+2. **Skip the Custom backdrop upload.** Leave it empty — the live map shows through underneath instead of a "No map image" placeholder.
+3. **Draw your rooms** over the live map with the **Compose rooms** tools (same rectangles, circles, merge, and cutout controls as Option B).
+4. **Link each room** and click **Save rooms**. The save captures the live image's pixel size at that moment, so your shapes line up with the live map exactly as it looked when you saved.
+
+> **Tip:** Let the live map finish loading before you save — the save reads its current pixel dimensions. If you save while it's still blank, the card waits and asks you to try again (see [Link each room and save](#4-link-each-room-and-save)).
+
+### Rotating the live map
+
+If the live map comes in sideways relative to how you picture your home, use the **Rotate** control on the map-view toolbar to turn it in 90° steps until it matches. The rotation is stored in the backend, so it **follows you across devices** — set it once and every dashboard and phone sees the same orientation. The whole layer turns together: the image, your room polygons, the labels, and the mascot all rotate as one, so your drawn rooms stay aligned no matter which way you face the map.
 
 ---
 
@@ -150,6 +168,7 @@ The map view's small toolbar also controls the cosmetic layers:
 - **Mascot toggle** (paw) — hide or show the sprite.
 - **Map textures toggle** (hatched square) — hide or show the floor textures on the map polygons.
 - **Room-card textures toggle** (hatched card) — hide or show the floor textures on the room cards, independently of the map. (This one stays in the toggle row even in list view, so you can flip the cards' textures while you're looking at them.)
+- **Rotate** (live-map brands only) — *not* a cosmetic toggle: this turns the **live map** in 90° steps to match your home. The rotation is stored in the backend, so it follows you across devices, and the whole layer — image, room polygons, labels, and mascot — turns together. See [Rotating the live map](#rotating-the-live-map).
 
 You can recolour the map's labels and overlays in the **Theme editor → Map** group.
 

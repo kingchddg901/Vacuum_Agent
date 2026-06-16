@@ -9,6 +9,10 @@ There are two independent profile systems in eufy_vacuum: **room profiles** and 
 
 ## Room Profiles
 
+!!! note "Roborock (S6): Cleaning Profile section hidden"
+
+    Everything in this Room Profiles section assumes your vacuum supports room profiles. Some brands report that they do not — the Roborock S6, for example, exposes only a per-room fan speed, so a room profile would be degenerate. On those vacuums the **Cleaning Profile** row is hidden from the room editor entirely, and none of the apply / Save as New / Save Over / Rename / Delete controls described below appear. The **Run Profiles** section further down is brand-agnostic and remains available on those vacuums.
+
 ### What a room profile saves
 
 A room profile stores these fields:

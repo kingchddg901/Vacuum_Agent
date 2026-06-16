@@ -24,6 +24,7 @@ Sends the resolved cleaning payload to the vacuum and starts the job. Honors roo
 | `confirm_token` | No | Retry token returned by a prior `confirmation_required` response. Alternative to `confirm_reduced_run`. |
 | `path_block_action` | No | What to do if blocker rules change mid-run and remaining rooms become unreachable. Values: `event_only`, `pause_and_event`, `cancel_and_event`. |
 | `pause_timeout_minutes_override` | No | Override the default pause timeout for this job only. Set to `0` to disable auto-cancel for this run. |
+| `strict_order` | No | Boolean. Clean rooms strictly in queue order via sequenced one-room-at-a-time dispatch — the next room starts only after the previous one finishes. Only affects brands that otherwise path-optimize and ignore the dispatched order (Roborock); a no-op for order-honoring brands (Eufy). Slower, since it adds a dock trip between rooms. |
 
 If blockers or access rules would reduce the room list, the service returns `confirmation_required: true` with a `confirm_token` unless you pass `confirm_reduced_run: true` or a valid token.
 
@@ -153,6 +154,18 @@ Returns all imported maps for a vacuum with room counts and display names.
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
+
+Supports response.
+
+### `reconcile_room`
+
+The apply/dismiss control for room-identity reconciliation reviews — id-reuse, renamed-room, and floor-type mismatches surfaced by `discover_rooms`. `migrate` carries the room's durable per-room settings onto the new IDs by name slug and rewrites the access-graph grants; `ignore` dismisses the review without changing anything.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `action` | No | One of `migrate` or `ignore`. Default `migrate`. |
 
 Supports response.
 
@@ -350,6 +363,18 @@ Persists or clears the map position of the animated companion sprite for one roo
 | `pct_y` | No | Y position (0–100%). |
 
 Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "companion_anchors": {...}}`.
+
+#### `set_live_map_rotation`
+
+Persists a display-only rotation for the live map — surfaced as `live_map_rotation` in the dashboard snapshot. The setting is backend-stored per map (so it follows the user across browsers and devices) and rotates the whole live-map layer together: the map image, room polygons, labels, and the animated companion. It does not affect segmentation or dispatch.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `rotation` | Yes | One of `0`, `90`, `180`, or `270` (degrees clockwise). |
+
+Supports response.
 
 ---
 
@@ -1351,5 +1376,8 @@ These events are fired by the integration. Use them as automation triggers.
 | `eufy_vacuum_room_started` | The vacuum begins cleaning a room (job lifecycle timing rollover). |
 | `eufy_vacuum_room_finished` | The vacuum finishes cleaning a room (job lifecycle timing rollover). |
 | `eufy_vacuum_room_completed` | Position-based room exit detected by the mapping tracker. Fired when the robot's coordinates leave a room's boundary. |
+| `eufy_vacuum_room_skipped` | The live job queue advanced past a queued room that was never cleaned (a non-sequential advance). Conservative and live/mid-run — fires at most once per room per job; almost never seen on Eufy. See [Events Reference](02-events.md) §eufy_vacuum_room_skipped. |
 | `eufy_vacuum_path_blocked` | Blocker rules changed mid-run and remaining rooms became inaccessible. |
 | `eufy_vacuum_stall_detected` | The robot has been in a room for 2× its learned timing threshold. Payload includes `elapsed_minutes`, `expected_minutes`, and `stall_ratio`. Fires at most once per room per job. |
+| `eufy_vacuum_job_progress_tick` | Fixed 5-second heartbeat while an active job is `started` or `paused`. Carries no job state — use it as a trigger to pull `get_job_progress_snapshot` or `get_dashboard_snapshot`. See [Events Reference](02-events.md) §eufy_vacuum_job_progress_tick. |
+| `eufy_vacuum_external_run_pending` | An app-started (external) clean finished and was captured as a pending review record. Payload includes `record_path`, `segment_count`, and `detection_ts`. Use with `get_external_pending_runs`. See [Events Reference](02-events.md) §eufy_vacuum_external_run_pending. |

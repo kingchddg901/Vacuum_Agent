@@ -53,9 +53,19 @@ Returns the full list of entities the lifecycle listener watches for one vacuum:
 - `entities.active_map`
 
 ```python
+is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
+```
+The job-active binary probe. Returns `True` when the adapter declares `entities.job_active` and that binary sensor currently reads `"on"`; returns `False` for brands that don't declare it (e.g. Eufy), making every caller a no-op for them. When `unavailable_is_active=True`, an existing-but-`unavailable`/`unknown` entity counts as active (used by the recharge-resume guard so a transient cloud blip during a mid-job recharge dock doesn't finalize early). Used for the recharge-resume completion guard and strict-order completion gating (§3.4).
+
+```python
 completed_finalize_signals(hass, vacuum_entity_id) -> dict
 ```
 Reads current state for all lifecycle-watch entities and returns a snapshot dict used in completion checks.
+
+```python
+completion_secondary_satisfied(vacuum_entity_id, completion_signals, clear_sentinels) -> bool
+```
+The adapter-driven secondary-clear check used in the completion gate (§3.4). When the brand declares `completion.require_job_active_clear` (Roborock), the sentinel check is bypassed (returns `True`) — the job-active binary clearing is the completion signal instead, enforced separately by `is_job_active`. Otherwise (default, Eufy) it requires the snapshot's `active_target` to read one of `clear_sentinels`.
 
 ### 2.3 Event payload builder
 
@@ -96,7 +106,7 @@ On each state change, the `_process()` coroutine runs:
 1. `record_active_job_transition(vacuum_entity_id, new_state)` — records state machine transitions.
 2. `update_active_job_recharge_observation(vacuum_entity_id)` — tracks mid-job recharge events.
 3. If dock entity changed: check for mop-wash trigger, call `update_active_job_mop_wash_observation()` if applicable.
-4. `record_active_lifecycle_observed(vacuum_entity_id)` — sets `has_observed_active_lifecycle = True` when task_status enters an active lifecycle state.
+4. `record_active_lifecycle_observed(vacuum_entity_id)` — sets `has_observed_active_lifecycle = True` when task_status enters an active lifecycle state. For brands declaring `completion.require_job_active_clear`, arming additionally requires `is_job_active(hass, vacuum_entity_id)` (strict `"on"`, so an indeterminate binary at start can't arm the flag).
 5. Completion check.
 
 ### 3.4 Completion check
@@ -108,6 +118,13 @@ task_status   == completion_task_status_value  (from adapter "completion.task_st
 active_target in clear_sentinels               (from adapter "completion.secondary_clear_sentinels")
 has_observed_active_lifecycle == True          (set when task_status entered an active lifecycle state)
 ```
+
+Even when all three hold, finalization is then suppressed by two guards:
+
+- **Recharge-resume guard.** If `is_job_active(hass, vacuum_entity_id, unavailable_is_active=True)` is `True`, finalization is skipped. A brand may dock and report `task_status=charging` mid-job to recharge, then resume; while the job-active binary stays on (or transiently `unavailable`/`unknown`), the resumed half stays the same job. No-op for brands without `entities.job_active` (e.g. Eufy).
+- **Strict-order dispatch guard.** If the active job has `_phase_dispatch_pending` set (a just-advanced sequenced phase whose watchdog hasn't yet confirmed the device started the new room), finalization is skipped so the prior room's lingering completion signals don't finalize the next phase before it starts. No-op for non-sequenced jobs.
+
+A sequenced (multi-phase) job that passes both guards does **not** finalize: `manager.maybe_advance_phase()` advances to the next phase (re-dispatch) and returns `True`, skipping finalization. Atomic jobs — every adapter today — return `False` and fall through to the finalization steps below; each phase finalizes only when it is the last.
 
 On completion:
 1. `finalize_learning_for_active_job(vacuum_entity_id)` — awaited directly (async).

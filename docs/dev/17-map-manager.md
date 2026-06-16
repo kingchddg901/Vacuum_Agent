@@ -19,7 +19,7 @@ All mutations are in-place on the `data` dict. The caller is responsible for cal
 The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum_entity_id][str(map_id)]`. The bucket is a **union of two concerns** that happen to share the same per-map key:
 
 - **Map management** (owned by `maps/map_manager.py`) — `map_id`, `metadata`, `rooms`, `summary`.
-- **Image analysis + map UI state** (written by external handlers, primarily `mapping/mapping_services.py`) — `image_segments`, `custom_segments`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`.
+- **Image analysis + map UI state** (written by external handlers, primarily `mapping/mapping_services.py`) — `image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`.
 
 `map_manager.py` only ever touches the first group; it never reads or initialises the image/UI-state keys. They are listed here because they live in the same bucket and any code that walks `data["maps"]` (delete protection, debug dumps) will encounter them.
 
@@ -40,12 +40,20 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
                                     #   base/"cv" segment store). Written by
                                     #   analyze_map_image; {available, analyzed_at,
                                     #   image, segments, summary, ...}.
-    "custom_segments": dict,        # user-authored no-CV segment store (replace-all,
-                                    #   written by set_custom_segments). Same shape as
-                                    #   image_segments: {available, engine:"custom",
-                                    #   analyzed_at, image:{width,height,variant:"custom"},
-                                    #   segments, summary}. Coexists with image_segments —
-                                    #   both persist independently.
+    "custom_segments": dict,        # LEGACY single user-authored no-CV segment store
+                                    #   (replace-all). Same shape as image_segments:
+                                    #   {available, engine:"custom", analyzed_at,
+                                    #   image:{width,height,variant:"custom"}, segments,
+                                    #   summary}. Migrated lazily + non-destructively into a
+                                    #   "Custom" entry under custom_layouts (kept, never
+                                    #   deleted) — see §10 of 11-mapping-system.
+    "custom_layouts": dict,         # {layout_id: layout}; the named multi-custom-layout
+                                    #   collection. Each layout owns everything per-layout:
+                                    #   {id, name, backdrop_variant, custom_segments,
+                                    #   segment_room_links, companion_anchors, created_at,
+                                    #   updated_at}. CRUD + lazy legacy migration
+                                    #   (_migrate_custom_layouts) live in mapping_services.py.
+    "active_custom_layout_id": str, # id of the layout served in "custom" mode, or None.
     "segmentation_mode": str,       # "cv" | "custom"; pointer that selects which of the
                                     #   two segment stores get_map_segments serves.
                                     #   Defaults to "cv" when absent. set_segmentation_mode
@@ -123,7 +131,7 @@ Creates the map bucket at `data["maps"][vacuum_entity_id][str(map_id)]` if it do
 
 Idempotent — safe to call even if the bucket already exists.
 
-> **Image/UI-state keys are not pre-initialised.** `ensure_map_bucket()` writes only `map_id`, `metadata`, `rooms`, and `summary`. The image-analysis / map-UI-state keys (`image_segments`, `custom_segments`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors` — see §2) are written **on demand** by the external handlers in `mapping/mapping_services.py`, each of which calls `ensure_map_bucket()` and then `setdefault()`s the key it owns. Consumers must therefore read these via `bucket.get(key) or {}` rather than assuming presence.
+> **Image/UI-state keys are not pre-initialised.** `ensure_map_bucket()` writes only `map_id`, `metadata`, `rooms`, and `summary`. The image-analysis / map-UI-state keys (`image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors` — see §2) are written **on demand** by the external handlers in `mapping/mapping_services.py`, each of which calls `ensure_map_bucket()` and then `setdefault()`s the key it owns. (`custom_layouts` / `active_custom_layout_id` are seeded by `_migrate_custom_layouts()`, which the layout-CRUD handlers run before mutating; legacy `custom_segments` is migrated lazily into a layout — see [Mapping system](11-mapping-system.md) §10.) Consumers must therefore read these via `bucket.get(key) or {}` rather than assuming presence.
 
 ### 3.2 `get_map_bucket`
 
@@ -248,7 +256,9 @@ The following keys live in the same bucket but are written by `mapping/mapping_s
 | Path | Type | Description |
 |---|---|---|
 | `…[str(map_id)]["image_segments"]` | dict | CV segmentation cache (base "cv" store). Written by `analyze_map_image` |
-| `…[str(map_id)]["custom_segments"]` | dict | User-authored no-CV segment store (replace-all). Written by `set_custom_segments`; coexists with `image_segments` |
+| `…[str(map_id)]["custom_segments"]` | dict | **Legacy** single user-authored no-CV segment store (replace-all). Migrated lazily + non-destructively into a `"Custom"` entry under `custom_layouts` — see [Mapping system](11-mapping-system.md) §10 |
+| `…[str(map_id)]["custom_layouts"]` | dict | `{layout_id: {id, name, backdrop_variant, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}}` named multi-custom-layout collection (each layout owns its own backdrop/segments/links/anchors). Seeded by `_migrate_custom_layouts`, CRUD by the layout handlers |
+| `…[str(map_id)]["active_custom_layout_id"]` | str \| None | Id of the layout served in `"custom"` mode, or `None`. Seeded by `_migrate_custom_layouts` |
 | `…[str(map_id)]["segmentation_mode"]` | str | `"cv"` \| `"custom"`; selects which segment store `get_map_segments` serves. Default `"cv"`. Written by `set_segmentation_mode` (flag flip only) |
 | `…[str(map_id)]["image_segment_adjustments"]` | dict | `{segment_id: {offset_x, offset_y, edge_left/right/top/bottom, vertex_moves:[{index,delta_x,delta_y}]}}` manual CV-segment edits. Written by `adjust_map_segment` |
 | `…[str(map_id)]["image_variants"]` | dict | `{variant: {variant, path, browser_url, width, height}}` uploaded backdrops, variant ∈ default/dark/light/custom. Written by `upload_map_image`, pruned by `delete_map_image` |

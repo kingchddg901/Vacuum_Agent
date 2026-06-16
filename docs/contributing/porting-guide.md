@@ -38,7 +38,14 @@ framework contract.
 
 ## 2. The adapter, end to end
 
-An adapter is a small package mirroring `adapters/eufy/`:
+An adapter is a small package mirroring `adapters/eufy/`. The table below is the
+**Eufy reference — the maximal surface**, not a required checklist: most files
+are optional. A divergent brand ships only what it needs — Roborock, for example,
+is just `adapter.py` / `const.py` / `entities.py` / `vocabulary.py` /
+`model_catalog.py` / `maintenance_components.py` (no `buttons` / `discovery` /
+`lifecycle` / `water_config` / `upkeep` / `segmentor`). See the
+[Roborock adapter](../dev/29-roborock-adapter.md) §2 for that minimal-surface
+example.
 
 | File (eufy) | Purpose |
 |---|---|
@@ -182,6 +189,17 @@ Declare feature flags in the `capabilities` block:
 `supports_empty_dust`, `supports_robot_position`, `supports_station_water`.
 They gate payload fields, dock actions, and card UI.
 
+There are also **behavioral flags** an entity probe can't see —
+`honors_clean_order`, `supports_room_profiles`, `rooms_unique_per_job`,
+`position_lock_reliable` — plus `supports_base_station` / `supports_map_bounds`,
+which are capability-gated DEFAULTS (the framework shows the matching card tabs
+unless the brand sets them False; they are not always set as adapter literals).
+All default to True / unchanged, so Eufy omits them. A path-optimizing brand (the
+Roborock S6) sets `honors_clean_order=False` (which gates the strict-order opt-in
+and the run-start "order is advisory" note) and `supports_room_profiles=False`.
+The full 15-flag table is in
+[Adapter config reference](../dev/22-adapter-config-reference.md) §14.
+
 The Eufy adapter auto-populates these by calling
 `core/capabilities.py::detect_capabilities()` (Eufy-specific: entity-presence
 probes + product-code/name model families). For a new brand, the simplest path
@@ -191,19 +209,72 @@ way the flags' *meaning* is brand-agnostic — only detection is brand-specific.
 
 ---
 
+## 6a. Config seams a divergent brand may need
+
+The Roborock adapter exercised several config seams Eufy never touches. A
+divergent brand can opt into the same behavior by declaring these — each is a
+config knob, not core code. One line each here; the field schemas live in
+[Adapter config reference](../dev/22-adapter-config-reference.md) and the worked
+context in [Roborock adapter](../dev/29-roborock-adapter.md).
+
+- `dispatch.phase_timing` — settle/verify/retry timing for the **strict-order**
+  per-room watchdog (a path-optimizing device may ignore a clean dispatched the
+  instant it docks; the watchdog re-dispatches).
+- `dispatch.per_room_live_settings` — mid-run per-room fan via a side service
+  call (Roborock `set_fan_speed` as the robot enters each room).
+- `dispatch.passes_is_global` — collapse per-room passes to one batch scalar for
+  the whole run (e.g. `app_segment_clean`'s `repeat`).
+- `dispatch.resolve_live_ids_by_slug` — re-resolve each target room's name slug
+  to its LIVE id from a fresh discovery right before send (segment ids that
+  renumber on a re-map).
+- `dispatch.params_as_list` — list-wrap the `params` payload on the wire.
+- `completion.require_job_active_clear` — key completion on a job-active binary
+  clearing instead of a current-room sentinel.
+- `mapping.live_map_image_entity_pattern` — an HA `image`/`camera` entity-id
+  pattern for a **live-map backdrop** in the card.
+
+A divergent brand can thus opt into: the **strict-order** per-run sequenced
+clean, the **live-map backdrop**, name-slug **room-identity reconciliation**, and
+a per-vacuum **panel rename** — without forking core.
+
+---
+
 ## 7. Discovery
 
-The `discovery` block tells the framework how the room list is exposed:
+The `discovery` block tells the framework how the room list is exposed. There
+are two sources, selected by `discovery.source` (`"entity_attribute"` default,
+or `"service_response"`); both flatten into the same list-of-dicts the
+normalizer expects, so everything downstream (slug, dedupe, int-coerce) is
+unchanged. See `rooms/source_refresh.py`.
+
+**`entity_attribute` (default — Eufy).** The room list is a live attribute on an
+HA entity; the sync discovery path reads it directly.
 
 - `room_list_entity` — `"vacuum_entity"` to read an attribute off the vacuum
   entity (Eufy `segments`, Ecovacs `rooms`), or a full entity ID.
 - `room_list_attribute`, `room_id_key`, `room_name_key` — where the id/name live
   in each room dict.
 
-Brands that expose rooms via a service (Roborock `vacuum.get_maps`) or via HA
-Areas (the 2026.3 `vacuum.clean_area` integrations) read those instead — no CV
-segmentation needed. The Eufy CV segmentor exists because Eufy exposes no
-structured room geometry.
+**`service_response` (Roborock).** The id↔name map exists only in the *response*
+of a service call (`roborock.get_maps`), never as an entity attribute. An async
+refresher calls the service at the async discovery boundaries, flattens the
+`{segment_id_str: name}` mapping per map, and caches it for the sync path:
+
+```python
+"discovery": {
+    "source": "service_response",
+    "maps_service": {"domain": "roborock", "service": "get_maps"},
+    "maps_rooms_key": "rooms",
+    "map_name_key": "name",           # cache keyed by the active-map NAME
+    "room_id_key": "segment_id",
+    "room_name_key": "name",
+},
+```
+
+See the [Roborock adapter](../dev/29-roborock-adapter.md) §4 for the worked
+example. Brands that expose rooms via HA Areas (the 2026.3 `vacuum.clean_area`
+integrations) read those instead. None of these need CV segmentation — the Eufy
+CV segmentor exists only because Eufy exposes no structured room geometry.
 
 ---
 
@@ -304,9 +375,20 @@ block; `live_transition` carries only the live-rollover orchestration knobs:
     # Orchestration only — NOT thresholds (those moved to job_segmenter.tuning).
     "enabled": True,                                       # kill-switch
     "rollover_kinds": ["wash_plateau", "transit", "area_jump"],
-    "native_transition_source": False,                    # reserved; no readers yet
+    # A brand with a native per-room signal sets True to follow the device's
+    # current-room sensor directly (filtered to the job's target rooms,
+    # suppressed for sequenced/strict-order jobs). Eufy leaves it False and
+    # uses counter-plateau inference.
+    "native_transition_source": False,
 },
 ```
+
+A brand whose device reports its live room directly (e.g. Roborock's
+`_current_room` sensor) sets `native_transition_source: True`; the framework then
+follows that signal — name-slug matched, order-agnostic, transit rooms ignored —
+instead of the counter/timing heuristic. See the
+[Roborock adapter](../dev/29-roborock-adapter.md) and
+[Adapter config reference](../dev/22-adapter-config-reference.md) §13b.
 
 > **Threshold home moved.** The five gap/area/cadence thresholds
 > (`gap_delayed_s`, `gap_transit_s`, `gap_plateau_s`, `area_jump_m2`,

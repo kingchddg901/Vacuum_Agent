@@ -63,8 +63,14 @@ The Profile Matcher lets you simulate a room configuration without editing any l
 | **Suction Level** | Matches the available suction level options. |
 | **Water Level** | Only shown when the selected Cleaning Mode involves mopping. |
 | **Cleaning Path** | Matches the available cleaning intensity/path options. |
-| **Cleaning Passes** | 1 Pass or 2 Passes. |
+| **Cleaning Passes** | The pass counts your vacuum offers — commonly 1 Pass or 2 Passes, though some vacuums expose more. |
 | **Edge Mopping** | On or Off. Only shown when the selected Cleaning Mode involves mopping. |
+
+The pass and mode choices follow your vacuum's own vocabulary, so the exact options vary by model.
+
+!!! note "Roborock (S6): no per-room cleaning mode"
+
+    The S6 doesn't expose a per-room cleaning mode, so the **Cleaning Mode** field (and the mopping-only **Water Level** and **Edge Mopping** fields) may not appear for it.
 
 ### How to use it
 
@@ -179,8 +185,8 @@ Step 2 shows one panel per room (in cleaning order) so you can identify it and c
 | Field | What it does |
 |-------|--------------|
 | **Which room?** | Pick the room this segment belongs to. The integration's top suggestions appear as chips (with their learned area, when known). If the right room isn't shown, use the **… pick another room** dropdown to choose from every room on that map. |
-| **Mode** | Vacuum, Vac & Mop, or Mop. |
-| **Passes** | 1× or 2×. |
+| **Mode** | Vacuum, Vac & Mop, or Mop — when your vacuum exposes a per-room mode. Some vacuums (e.g. Roborock S6) don't, so this field may be absent. |
+| **Passes** | The pass counts your vacuum offers — typically 1× or 2×, though some vacuums offer more. |
 | **Suction** | Suction level, using your vacuum's available options. |
 | **Cleaning Path** | Cleaning path / intensity, using your vacuum's available options. |
 | **Water** | Water level. Only shown when the mode involves mopping. |

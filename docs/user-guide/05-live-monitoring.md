@@ -10,6 +10,10 @@ As soon as a job starts, a live banner appears at the top of the card. It update
 
 The card follows the vacuum's actual room-to-room transitions rather than guessing purely from the clock: when the robot makes a real trip from one room to the next (a short travel gap between rooms), the banner advances to the new room. This makes the "currently cleaning" room more accurate, especially in homes where some rooms take much longer or shorter than their estimate.
 
+!!! note "Strict-order runs: how the banner advances"
+
+    The "follows actual transitions" behavior applies to normal, path-optimized runs (where the vacuum chooses its own route through the queue). During a Strict-order run — where rooms are sequenced and cleaned one at a time — the banner instead advances as each room is dispatched and completed in turn, since the order is driven by the framework rather than inferred from the robot's movement.
+
 ### What the banner shows
 
 The banner always displays one of three states:
@@ -34,6 +38,18 @@ Below the banner, a **Live Progress** list shows every room in the current job:
 | ⌀ | Room appears to have been **skipped** — the job moved on to a later room without cleaning this one. Shown with a dashed outline and the name struck through. See [Skipped-room marker](#skipped-room-marker) below. |
 
 The list animates as rooms transition between states — you do not need to refresh the page.
+
+---
+
+## Live map
+
+On brands that expose a live map (Roborock), the Map view shows the vacuum's live map image as the backdrop, so you can watch progress against the actual floor plan rather than a list alone.
+
+A **Rotate** control in the map toolbar turns the map in 90° steps. The rotation is saved in the backend, so it follows you across every device that opens the card. The whole layer rotates together — the map image, the room polygons, the labels, and the mascot — but the labels and the mascot stay upright so they remain readable at any angle.
+
+You can also draw and save room segments directly over the live map; see [Making your own maps](16-making-your-own-maps.md) for the full workflow.
+
+The mascot follows the robot's current room (dwell-debounced so it does not jump on brief passes), and it stays draggable even when the map is rotated.
 
 ---
 

@@ -247,6 +247,18 @@ Because `_resolve_active_scope` simply points at whichever store the mode + acti
 
 ---
 
+### Live map (Roborock and other live-image brands)
+
+Everything above assumes you supply the backdrop yourself — a CV screenshot pair or a custom tracing image. Brands whose core integration already publishes a **live map image** (Roborock, and any future brand that exposes one) skip that upload entirely. The adapter declares the brand's live-map image entity-id pattern in `mapping.live_map_image_entity_pattern` — Roborock's is `image.{object_id}_{map_slug}`; core fills the generic `{object_id}` (the vacuum's object_id) and `{map_slug}` (the slugified map name) placeholders, existence-checks the result, and surfaces it on the dashboard snapshot as `live_map_image_entity`. When that entity resolves, the Map view shows the **brand's live map as the backdrop with no CV variants and no custom upload** — the image updates itself as the robot reports it. Adapters that omit the pattern (Eufy and older backends) get no live backdrop, and the CV/custom workflow above is unchanged.
+
+**Display rotation.** A live map arrives in whatever orientation the brand renders it, which may not match how you picture your home. You can set a backend-stored display rotation — **0 / 90 / 180 / 270** — with the `set_live_map_rotation` service. It is stored on the map bucket (surfaced on the snapshot as `live_map_rotation`, present even at 0 so the card always has a value) so the orientation **follows you across devices**, and it rotates the **whole layer** — backdrop, segments, and mascot together. Rotation is **display only**: cleaning and dispatch are by room id and are never affected by it.
+
+**Rooms over the live map.** You still draw and save rooms as segments — but they are drawn directly **over the live map** and saved without uploading any backdrop image, since the live image is the backdrop. The mascot follows the robot's **live room** (dwell-debounced so it doesn't flicker between adjacent rooms) and stays **draggable on a rotated map**, so you can place it where it reads naturally regardless of the chosen rotation.
+
+For the hands-on walkthrough of setting rooms up over a live map, see **[Making your own maps](../user-guide/16-making-your-own-maps.md)** in the user guide.
+
+---
+
 ### When to use map configuration
 
 You need this view when:

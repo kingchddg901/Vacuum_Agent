@@ -2,13 +2,13 @@
 
 ## What is this?
 
-eufy_vacuum is a Home Assistant custom integration paired with a Lovelace card called **eufy-vacuum-command-center**. Together they give you room-level control over your Eufy robot vacuum directly from your HA dashboard.
+eufy_vacuum is a Home Assistant custom integration paired with a Lovelace card called **eufy-vacuum-command-center**. Together they give you room-level control over your robot vacuum directly from your HA dashboard. It's a multi-brand integration — it supports **Eufy** and **Roborock** vacuums today through an adapter system, and is built to extend to other brands.
 
-The integration has been tested on the **Eufy X10 Pro Omni**. It may work on other Eufy models, but only the X10 Pro Omni is officially supported.
+The integration has been tested on the **Eufy X10 Pro Omni** and the **Roborock S6**. Other models of either brand may work but aren't officially supported. Because capabilities differ by brand and model, some tabs and controls described in this guide appear, are hidden, or read differently depending on your vacuum — those differences are called out inline as you go.
 
 ## What does it add beyond the stock Eufy integration?
 
-The standard Eufy integration in Home Assistant lets you start and stop your vacuum as a single unit. eufy_vacuum goes further:
+A stock vacuum integration in Home Assistant lets you start and stop your vacuum as a single unit. eufy_vacuum goes further:
 
 - **Room-level control.** You choose exactly which rooms to clean before each run, and in what order.
 - **Per-room cleaning settings.** Each room can have its own cleaning mode (vacuum, mop, or both), suction level, water level, cleaning path, number of passes, and edge mopping toggle.
@@ -56,6 +56,9 @@ Below the header is a navigation bar with tabs that switch between panels:
 | **Theme** | Customize the card's visual appearance — colors, token values, and saved theme presets. |
 | **Map Bounds** | Review and adjust the boundary boxes the integration uses to track which room the vacuum is in. |
 | **Setup** | Add vacuums and import maps into the integration. |
+
+!!! info "Tabs adapt to your vacuum"
+    The navigation only shows tabs your vacuum supports. **Base Station** and **Map Bounds** appear on models with the matching hardware/feature (both present on Eufy) and are hidden on models without them — for example the dockless, natively-tracked **Roborock S6** shows neither tab.
 
 Uploading a map image and linking the vacuum's map segments to your rooms happen on a separate **Map Config** screen rather than a top-nav tab. You reach it from the **Configure** button in the Rooms map view. See [Making your own maps](16-making-your-own-maps.md) for the step-by-step walkthrough, or [Map configuration](../advanced/08-map-configuration.md) for the technical reference.
 

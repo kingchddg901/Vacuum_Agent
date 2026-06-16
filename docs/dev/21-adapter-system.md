@@ -88,7 +88,7 @@ Three brand-specific subsystems are pluggable behind the **same seam shape**: a 
 | Seam | Module | Protocol | Registry / resolver | Adapter block | Fallback | `select`-style framework function |
 |---|---|---|---|---|---|---|
 | **Map segmenter** | `mapping/segmenter_engines.py` | `MapSegmenter` | `_SEGMENTER_ENGINES` / `get_segmenter_engine()` | `mapping` (`segmenter_engine` + `segmenter_tuning`) | `noop_fallback` (empty result) | — |
-| **Dispatch engine** | `queue/dispatch_engines.py` | `DispatchEngine` | `_DISPATCH_ENGINES` / `get_dispatch_engine()` | `dispatch` (`template` + field map) | `eufy_room_clean` | — |
+| **Dispatch engine** | `queue/dispatch_engines.py` | `DispatchEngine` | `_DISPATCH_ENGINES` / `get_dispatch_engine()` | `dispatch` (`template` + field map; see "Dispatch-engine specifics" below) | `eufy_room_clean` | — |
 | **Job/run segmenter** | `learning/job_segmenter_engines.py` | `JobSegmenter` | `_JOB_SEGMENTER_ENGINES` / `get_job_segmenter_engine()` | `job_segmenter` (`engine` + `tuning`) | `eufy_counter_v1` | `counter_segmentation.select_active` |
 
 **Two segmenters, different jobs — do not conflate them.** The **map** segmenter (`eufy_cv_v1`, the Eufy CV pipeline in `adapters/eufy/segmentor.py`) turns a *map image* into polygonal room overlays. The **job/run** segmenter (`eufy_counter_v1`) turns a *counter-sample stream* (`cleaning_time` / `cleaning_area`) into ordered per-room boundaries within a single run — no geometry. They are independent seams with independent registries.
@@ -99,6 +99,14 @@ Three brand-specific subsystems are pluggable behind the **same seam shape**: a 
 - **`select_active` stays a framework function, not on the engine.** The job pipeline is three stages — `find_candidates → select_active → build_segments`. The engine owns the two *brand-specific* stages (`find_candidates`, `build_segments`) plus the legacy one-shot composition `segment_legacy`. `select_active` is pure ranking/filtering over the candidate *shape* (`kind`/`confident`/`strength`/`id`), so it is brand-agnostic and stays a direct framework import (`counter_segmentation.select_active`) — the external-review wizard's count/toggle re-selection logic is then uniform across brands.
 - **Cross-engine contract.** The `JobBoundaryCandidate` and `JobSegment` `TypedDict`s are the canonical shape every engine emits (the exact field union the counter primitives already produce). `EufyCounterSegmenter` delegates verbatim to the `counter_segmentation` primitives, and its `DEFAULT_TUNING` (`gap_delayed_s` 35, `gap_transit_s` 60, `gap_plateau_s` 90, `area_jump_m2` 2.0, `cadence_s` 30) is defined *by reference* to that module's constants, so the Eufy path can't drift.
 - **The Eufy `kind` vocabulary** (`"wash_plateau"` / `"transit"` / `"area_jump"` / `"weak"`) is produced by `find_candidates` and referenced at the Eufy-specific call sites (live `rollover_kinds`, the legacy `{"wash_plateau","area_jump"}` filter). A future brand supplies its own engine *and* its own kind literals at those sites — the documented extension point; no kind indirection is built into the seam.
+
+**Dispatch-engine specifics** (`queue/dispatch_engines.py`):
+
+- **Beyond `template` + field map, a dispatch engine also declares its job model.** `DispatchEngine.job_model` is `"atomic_batch"` (one dispatch of a fixed room set — the default, mixed in by `_SinglePhaseMixin`) or `"sequenced"` (a logical job is an ordered list of phases, each its own dispatch that finalizes like a one-room atomic sub-job). `build_phases()` returns the ordered per-phase payload envelopes; the default is a single phase == `build_payload()` output, so an atomic engine is exactly a one-phase sequenced engine and the framework treats both uniformly.
+- **`build_phases(strict_order=True)` turns a flat-id engine into a per-room sequenced job.** A flat-id batch shape (`generic_room_ids` / its `roborock_segment_clean` naming subclass) path-optimizes and *ignores* the dispatched order for a multi-room batch. With `strict_order` set, `GenericRoomIdsEngine.build_phases()` instead emits one single-segment phase per resolved room in queue order — the sequenced job model then cleans them strictly in order, and each phase carries its own room's passes (the batch path otherwise collapses passes to one max-wins value). This is the shipping Roborock opt-in (`dispatch_engines.py:79-98, 219-281, 284`).
+- **Per-phase watchdog timing is adapter-declarable.** The framework re-dispatches each strict-order phase from a background task (the device just docked after the previous room and ignores a clean sent at that instant) and verifies it actually started, retrying if not — the retry loop doubling as the per-phase watchdog. The timing knobs live under `dispatch.phase_timing`: `settle_seconds` / `dock_settle_seconds` / `verify_seconds` / `confirm_seconds` / `poll_seconds` + `max_attempts`. `core/manager.py::_phase_timing` merges the adapter's declared overrides over the in-core `_PHASE_*` defaults *per key*, so a brand whose post-dock transient differs declares only what it needs and anything omitted stays byte-identical to the defaults. The whole mode is gated on `capabilities.honors_clean_order` being `False` (a path-optimizing brand); an order-honoring brand like Eufy never enters it. The phase advance/finalize decision is made at the completion hook by `maybe_advance_phase` (`manager.py:4064, 4121-4145, 4509-4518`).
+
+For the per-field documentation of `dispatch` (including `phase_timing` and the strict-order keys) see [Adapter config reference](22-adapter-config-reference.md) §13.
 
 ---
 
@@ -248,6 +256,16 @@ Boolean flags set by `detect_capabilities()` at adapter registration time:
 | `supports_empty_dust` | Dock can auto-empty the dustbin |
 | `supports_robot_position` | Position X/Y sensors are present |
 | `supports_station_water` | Station water level sensor is present |
+
+> **Note — entity-detected flags are not the whole block.** The nine flags above
+> are what `detect_capabilities()` can probe from the HA entity registry and state
+> machine. The same `capabilities` block also carries **adapter-literal behavioral
+> flags** that no entity probe can see — they describe firmware behavior and are set
+> directly in the adapter config (e.g. the Roborock S6 adapter at
+> `adapters/roborock/adapter.py`): `honors_clean_order`, `supports_base_station`,
+> `supports_map_bounds`, `supports_room_profiles`, `position_lock_reliable`, and
+> `rooms_unique_per_job`. See [Adapter config reference](22-adapter-config-reference.md)
+> §14 for the full set and each flag's default and effect.
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
 

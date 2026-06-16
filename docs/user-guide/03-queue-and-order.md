@@ -4,6 +4,9 @@
 
 The queue is the ordered list of rooms the vacuum will clean when you press **Start Cleaning**. A room is in the queue when it is enabled (toggled on). The queue only contains enabled rooms — disabled rooms are excluded automatically and do not affect ordering.
 
+!!! note "Roborock (S6): clean order is advisory"
+    Path-optimizing vacuums like the Roborock S6 pick their own cleaning path and treat your queue order as a *suggestion* — they may not visit rooms in the order you set. To force the exact order, turn on **Strict order** (the "Force this exact order" toggle in the action bar) before you start. The integration then cleans one room at a time, in your order, returning to the dock between rooms — slower, but exact. (You can also set a **Sequence** in the Roborock app.) On order-honoring brands like Eufy the toggle doesn't appear and the queue order is always followed.
+
 The queue is shown in two places at once:
 
 - **Queue chips** — a row of small buttons displayed in the action bar above the room grid. Each chip represents one enabled room in the order it will be cleaned.

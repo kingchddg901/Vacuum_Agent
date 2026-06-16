@@ -346,17 +346,38 @@ pluggable engine in `queue/dispatch_engines.py`, selected by
 The full author-facing reference (per-template shapes, `room_fields`,
 value maps) is [22-adapter-config-reference §13](22-adapter-config-reference.md#13-dispatch--how-to-send-a-clean-job).
 
-**Sequencing.** Engines declare a `job_model`. For `atomic_batch` (every
-engine today) a job is one dispatch of a fixed room set —
-`build_active_job_state` freezes it and the lifecycle hook finalizes when
-it completes. For `sequenced`, the engine's `build_phases()` returns an
-ordered phase list; `build_active_job_state` stores `phases` /
-`current_phase_index`, and `advance_active_job_phase(active_job)` swaps to
-the next phase (resetting per-phase progress) or returns `None` on the
-final/atomic case. The completion hook calls `manager.maybe_advance_phase`
-to advance + re-dispatch instead of finalizing; each phase finalizes as
-its own job record. See
-[06-job-lifecycle](06-job-lifecycle.md) for the completion path.
+**Sequencing.** Engines declare a `job_model` at the class level, and today
+every engine declares `atomic_batch` — a job is one dispatch of a fixed room
+set, which `build_active_job_state` freezes and the lifecycle hook finalizes
+when it completes. The generic `sequenced` machinery still exists: an engine's
+`build_phases()` returns an ordered phase list; `build_active_job_state` stores
+`phases` / `current_phase_index`, and `advance_active_job_phase(active_job)`
+swaps to the next phase (resetting per-phase progress) or returns `None` on the
+final/atomic case. The completion hook calls `manager.maybe_advance_phase` to
+advance + re-dispatch instead of finalizing; each phase finalizes as its own
+job record. See [06-job-lifecycle](06-job-lifecycle.md) for the completion path.
+
+**Strict order (per-run opt-in sequencing).** Sequencing does not require a
+declared `sequenced` engine. `GenericRoomIdsEngine.build_phases(strict_order=True)`
+emits **one single-segment phase per resolved room**, in queue order, each phase
+carrying its own room's passes — turning a path-optimizing brand's single batch
+into a sequenced job that cleans strictly in queue order (one room, wait for it
+to finish, then the next). This is for brands whose wire command ignores the
+dispatched order (Roborock `app_segment_clean`, Ecovacs `spot_area`): a batch is
+re-routed by the device, but one room per phase is unambiguous. A bonus is that
+each phase honors its own room's passes, where the batch path collapses passes to
+one max-wins value.
+
+`strict_order` is a per-run service flag on `start_selected_rooms`
+(`core/manager.py`), threaded into `_build_effective_start_plan` →
+`_build_dispatch_phases` (`planning/run_plan.py`). It is gated on
+`capabilities.honors_clean_order` being `False` — `_build_dispatch_phases`
+computes `effective_strict = strict_order and not honors_clean_order`, so it can
+never alter an order-honoring brand (Eufy) even if requested. It is also a no-op
+for atomic / order-honoring engines: `_SinglePhaseMixin.build_phases` ignores the
+flag and returns the single batch phase. The class-level `job_model` stays
+`atomic_batch` throughout — sequencing here is an opt-in property of the *run*,
+not a declared engine model.
 
 ---
 

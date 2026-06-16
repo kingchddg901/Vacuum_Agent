@@ -879,6 +879,23 @@ atomic (single-phase) jobs.
   "phase_count":         int    # len(phases)
 ```
 
+Two further keys are written to the active job to drive the strict-order
+watchdog. They are **internal/transient** runtime control flags — not part of the
+persisted job contract — so a reader should never depend on their presence:
+
+- `_phase_dispatch_pending` (`bool`) — completion suppression. Set `True` when a
+  phase is dispatched (sequenced start, `manager.py:4555`, and on each phase
+  advance) and cleared `False` once the per-phase watchdog confirms the device
+  actually started the dispatched phase (`manager.py:4257`). While set, the
+  completion gate refuses to finalize (`listeners/lifecycle.py:297-298`), so the
+  just-finished room's docked/charging completion signal cannot finalize the next
+  phase before it begins.
+- `_cancel_in_flight` (`bool`) — set `True` before a cancel
+  (`jobs/active_job.py:1962`) to halt the watchdog and block re-dispatch during
+  the return-to-base window. The watchdog reads it and bails
+  (`manager.py:4201`, `manager.py:4304`) so a cancel cannot be undone by a
+  re-sent clean.
+
 ### Fields written during the run (by listener / sensor callbacks)
 
 ```

@@ -15,6 +15,10 @@ At the top of the tab, two summary panels give you a quick read on overall healt
 
 If your vacuum model is known to the integration, the model name and the time the snapshot was last updated appear beneath the panel title.
 
+!!! note "Roborock (S6): Water stat"
+
+    The **Water** stat is only meaningful on vacuums that have a base-station water reservoir. On no-station models (such as the Roborock S6) there is nothing to report, so it reads Unknown or Empty.
+
 **Replacement Overview** shows:
 
 - **Items** — the total number of replacement items reported by the device
@@ -59,6 +63,10 @@ At the end of the Maintenance Items list, the **Station Water** card shows the c
 | 0% or empty | Empty |
 
 If the integration has calculated an available clean tank volume, the card also shows that figure in millilitres.
+
+!!! note "Roborock (S6): Station Water card"
+
+    This card only reflects a real level on vacuums with a base-station water reservoir. On no-station models (such as the Roborock S6) there is no reservoir to read, so the card stays at Unknown or Empty.
 
 ### Item detail modal
 

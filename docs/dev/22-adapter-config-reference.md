@@ -881,10 +881,22 @@ Each engine also declares a **`job_model`**:
   finalizing; the last phase finalizes normally.
 
 `job_model` is a property of the engine, not an adapter-config field —
-an adapter selects it implicitly by choosing a `template`. No registered
-engine is `sequenced` yet; a Dreame sweep-then-mop or always-away
-phased-clean adapter would subclass its engine with
-`job_model = "sequenced"` + a `build_phases` override.
+an adapter selects it implicitly by choosing a `template`. No engine sets
+`job_model = "sequenced"` as its *static* default today. But the flat-id
+engines (`generic_room_ids` / `roborock_segment_clean`) produce a
+**runtime** sequenced job via `build_phases(strict_order=True)`: instead
+of one batch phase they emit one single-segment phase per resolved room
+in queue order. This is the shipping Roborock **opt-in strict-order**
+mode (see the `honors_clean_order` note in §14). Core doesn't read a
+static flag to decide sequencing — it treats any phase list of length > 1
+as sequenced: `core/manager.py` attaches the phase sequence to the active
+job only when `len(_phases) > 1`, and at the completion hook
+`maybe_advance_phase` advances to the next phase and re-dispatches instead
+of finalizing (the final phase finalizes normally). A future
+static-`job_model` adapter — a Dreame sweep-then-mop or always-away
+phased-clean — would instead subclass its engine with
+`job_model = "sequenced"` + a `build_phases` override, making the sequence
+intrinsic to every run rather than a per-run opt-in.
 
 ### Implementation status
 

@@ -129,6 +129,18 @@ click **Save Room Configuration**. On success the editor closes, the
 
 ---
 
+## Rename this vacuum's sidebar entry
+
+The Setup tab has a **Panel name** field that renames this vacuum's
+sidebar entry live — type a new name and it updates the sidebar
+immediately, no restart required. The default name is **Vacuum Agent**.
+
+This matters most when you run more than one vacuum: each gets its own
+sidebar entry, and giving them distinct names (for example "Upstairs"
+and "Downstairs") makes it obvious which panel you're opening.
+
+---
+
 ## Room drift — the Setup tab after initial setup
 
 The Setup tab does not become useless once every step has its ✓.
@@ -138,6 +150,12 @@ changes, and once every six hours as a safety net). If discovery
 detects a difference between what the vacuum currently reports and
 what you've configured, a **room drift** panel appears inside the
 Configure Rooms step.
+
+The phantom-room and multi-pass confirmation behavior described below
+is specific to Eufy's CV-based mapping. Brands that report only the
+rooms you deliberately named in their app (Roborock) surface a newly
+named room immediately and have no phantom-room problem, so the
+confirmation window is an Eufy-only consideration.
 
 The panel can show up to three categories of difference:
 
@@ -236,7 +254,9 @@ Go to **Settings → Devices & Services**, find **Vacuum Agent**,
 and delete it. No extra steps are required — all integration data is
 stored inside Home Assistant and is removed with the entry.
 
-Note: this integration sits on top of
-[eufy-clean](https://github.com/jeppesens/eufy-clean), which provides
-the underlying `vacuum.*` entity. Removing Vacuum Agent does not
-remove eufy-clean; remove that separately if you no longer need it.
+Note: this integration sits on top of whichever upstream integration
+provides the underlying `vacuum.*` entity — for Eufy that's
+[eufy-clean](https://github.com/jeppesens/eufy-clean); for Roborock
+it's Home Assistant's built-in Roborock integration. Removing Vacuum
+Agent does not remove that underlying integration; remove it separately
+if you no longer need it.

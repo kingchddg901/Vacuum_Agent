@@ -1,8 +1,8 @@
 # eufy_vacuum
 
-Room-level control for **Eufy robot vacuums** in Home Assistant — a custom integration paired with the **eufy-vacuum-command-center** Lovelace card. Choose exactly which rooms to clean and in what order, give each room its own settings, save reusable profiles, and watch a learning system get more accurate over every run.
+Room-level control for **robot vacuums** (Eufy and Roborock today) in Home Assistant — a custom integration paired with the **eufy-vacuum-command-center** Lovelace card. Choose exactly which rooms to clean and in what order, give each room its own settings, save reusable profiles, and watch a learning system get more accurate over every run.
 
-> Tested on the **Eufy X10 Pro Omni**. These docs are generated from the `docs/` tree in the repository — edit there, not on the rendered site.
+> Tested on the **Eufy X10 Pro Omni** and the **Roborock S6** (a second-brand adapter). Capabilities differ by brand and model — brand differences are called out inline throughout the guide. These docs are generated from the `docs/` tree in the repository — edit there, not on the rendered site.
 
 ## Where to start
 
@@ -39,6 +39,6 @@ Room-level control for **Eufy robot vacuums** in Home Assistant — a custom int
 - **Room-level control** — pick rooms and order per run, with per-room mode, suction, water, path, passes, and edge-mop.
 - **Profiles & run profiles** — save room settings or a whole room selection and reapply in one tap.
 - **Learning system** — per-room timing estimates that improve with use, with confidence indicators.
-- **Custom maps** — auto-detect rooms from a screenshot, or hand-draw named layouts on any backdrop. See [Making your own maps](user-guide/16-making-your-own-maps.md).
+- **Custom maps** — auto-detect rooms from a screenshot, hand-draw named layouts on any backdrop, or (on live-map brands like Roborock) draw rooms straight over the live map with no upload. See [Making your own maps](user-guide/16-making-your-own-maps.md).
 - **Theming** — fully customizable from the card, including a colorblind-safe theme. See [Theme system](user-guide/17-theme-system.md) to use it, or [Authoring a theme](contributing/theme-authoring.md) to build one.
 - **AI-assisted theming** — the token system is documented as a machine-readable spec, so you can hand an AI a vibe (a photo, a few hex swatches), have it author a complete theme JSON, then render it through the harness and refine. See [Authoring themes with an AI](dev/reference/ai-theme-authoring.md).

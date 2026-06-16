@@ -2,6 +2,8 @@
 
 The **Map Bounds** tab gives you a live view of what the integration has learned about each room's spatial extent. You can audit individual job runs, remove outliers, and rebuild bounds from archived data — all without touching any configuration files.
 
+> **Brand availability:** Map Bounds is a CV-bounds feature and only appears for brands whose adapter declares a real CV segmenter engine (Eufy). The tab is hidden for brands that use native segments and have no CV map-bounds review (for example the Roborock S6, whose adapter sets `segmenter_engine: "noop_fallback"`). Those backends track the current room natively rather than learning coordinate bounds, so nothing in this view applies to them.
+
 ---
 
 ### What bounds are

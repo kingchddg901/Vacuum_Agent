@@ -60,7 +60,9 @@ async def add_vacuum(hass, vacuum_entity_id) -> ActionResult
 **On success (in order):**
 1. Calls `manager.ensure_vacuum_record(vacuum_entity_id=vacuum_entity_id)`.
 2. Calls `manager.async_save()`.
-3. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panel_custom.async_register_panel()`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}`. A `ValueError` (panel already registered) is caught and logged.
+3. Registers a per-vacuum sidebar panel at `/eufy-vacuum-{object_id}` via `panels.async_register_vacuum_panel(hass, vacuum_entity_id, title=effective_panel_title(record))`. The panel is registered with `config={"vacuum_entity_id": vacuum_entity_id}` and a per-vacuum sidebar title — `effective_panel_title(record)` returns the vacuum record's `panel_title` field when set, else the `"Vacuum Agent"` default — so two vacuums no longer show two identical sidebar entries once renamed. A `ValueError` (panel already registered) is caught and logged.
+
+The sidebar title is live-renamable via the `eufy_vacuum.setup_set_panel_title` service: it stores `panel_title` on the vacuum record (a blank title reverts to the default), persists it, then re-registers the panel with `replace=True` (which removes the existing panel first, since `panel_custom.async_register_panel` raises on a duplicate url) so the sidebar entry renames without a restart.
 
 Returns `"success"` with `next_actions=["import_active_map"]`.
 
@@ -77,10 +79,11 @@ async def import_active_map(hass, vacuum_entity_id) -> ActionResult
 4. Map is not already imported with rooms — returns `"already_done"` if `data["maps"][vacuum][map_id]["rooms"]` is non-empty.
 
 **On success:**
-1. Calls `discover_rooms_for_vacuum()` — returns `"blocked"` if no rooms found.
-2. Caches raw discovery in `data["discovery"][vacuum][str(map_id)]`.
-3. Calls `manager.save_managed_rooms(vacuum_entity_id, map_id, enabled_room_ids=None, floor_types={})` — all rooms enabled by default, floor types assigned hardwood defaults.
-4. Calls `manager.async_save()`.
+1. Calls `await async_refresh_room_source(hass, vacuum_entity_id)` **before** discovery. This is a no-op for attribute brands (Eufy, where rooms live in an entity attribute the sync discovery already reads), but for service-response brands (Roborock, where rooms come from the `get_maps` cloud response) it populates the `get_maps` cache that the sync discovery reads — without this step the Roborock import returns no rooms.
+2. Calls `discover_rooms_for_vacuum()` — returns `"blocked"` if no rooms found.
+3. Caches raw discovery in `data["discovery"][vacuum][str(map_id)]`.
+4. Calls `manager.save_managed_rooms(vacuum_entity_id, map_id, enabled_room_ids=None, floor_types={})` — all rooms enabled by default, floor types assigned hardwood defaults.
+5. Calls `manager.async_save()`.
 
 Returns `"success"` with room list in `data` and `next_actions=["configure_rooms"]`.
 

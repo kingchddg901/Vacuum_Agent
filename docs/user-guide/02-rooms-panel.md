@@ -22,6 +22,8 @@ You can also:
 
 Both Select All and Clear Queue are in the action bar at the top.
 
+On path-optimizing brands (Roborock) the action bar also shows a **Strict order / Force this exact order** toggle for the run — see [Queue and order](03-queue-and-order.md) for what it does.
+
 The action bar shows how many rooms are currently included (for example, "3 rooms included") and, once the system has learned timing data, an estimated total run time for the current selection.
 
 ## The queue strip
@@ -91,6 +93,9 @@ Click the ⚙ button on a room card — or click a queue chip once — to open t
 
 The editor shows:
 
+!!! note "Roborock (S6): what the room editor exposes"
+    What's settable per room depends on your vacuum. On the Roborock S6: **cleaning mode / water is observe-only** — instead of a Vacuum / Mop / Vacuum + Mop selector the editor shows whether the water tank is attached ("Mopping — water tank attached" or "Vacuum only — no water tank"), because the S6's mop can't be switched from Home Assistant; **passes are global** — set once in the Roborock app, and the strongest per-room value wins for the run; **fan speed is per-room and applied live**; and the **Cleaning Profile** section is hidden, because with a single editable field a profile would be redundant. Controls your vacuum doesn't support simply don't appear.
+
 ### Cleaning Profile
 
 A row of chip buttons lets you pick a named profile that applies a preset combination of settings to the room. The available profiles are read from your vacuum entity. You can also:
@@ -100,7 +105,7 @@ A row of chip buttons lets you pick a named profile that applies a preset combin
 - **Rename** — renames the currently selected custom profile.
 - **Delete** — deletes the currently selected custom profile (built-in profiles cannot be deleted).
 
-When the room's settings do not match any saved profile, the **Custom** chip is shown as active. The profile selector disappears if no profiles are available.
+When the room's settings do not match any saved profile, the **Custom** chip is shown as active. The profile selector disappears if no profiles are available, and is also hidden on brands that expose only a single editable field per room (for example the Roborock S6), where a profile would have nothing meaningful to bundle.
 
 ### Cleaning Mode
 
@@ -134,6 +139,8 @@ If you later change the Cleaning Path and the room already has a learned time es
 - **2 Passes** — the vacuum cleans the room twice consecutively.
 
 Two passes are useful for heavily soiled rooms but roughly double the time spent in the room.
+
+The number of pass chips offered follows your vacuum (Eufy exposes 2, Roborock up to 3). On some vacuums passes are not per-room at all but a single whole-run value you set in the robot's own app — in that case the per-room control is omitted and the app's setting applies to the entire run.
 
 ### Edge Mopping
 

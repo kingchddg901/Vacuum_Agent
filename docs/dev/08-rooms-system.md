@@ -1,6 +1,6 @@
 # Rooms System — Developer Reference
 
-> **Scope:** Complete implementation reference for the rooms subsystem: `rooms/room_crud.py` (RoomMapManager), `rooms/room_manager.py` (pure functions), `rooms/room_discovery.py` (adapter-driven discovery), and `rooms/utils.py`. Every method, adapter dependency, storage path, and inter-module relationship is derived directly from the source.
+> **Scope:** Complete implementation reference for the rooms subsystem: `rooms/room_crud.py` (RoomMapManager), `rooms/room_manager.py` (pure functions), `rooms/room_discovery.py` (adapter-driven discovery), `rooms/reconciliation.py` (slug-based identity-shift detection + migration planning), `rooms/source_refresh.py` (the `service_response` room-source refresh/flatten cache), and `rooms/utils.py`. Every method, adapter dependency, storage path, and inter-module relationship is derived directly from the source.
 
 ---
 
@@ -15,6 +15,9 @@ The rooms system is responsible for the full lifecycle of room data within the i
 | `rooms/room_crud.py` | Orchestration class (`RoomMapManager`). Coordinates discover → save → remove → rebuild. Holds a back-reference to `EufyVacuumManager`. |
 | `rooms/room_manager.py` | Pure functions for building managed room dicts from raw discovery data. No class, no side effects. |
 | `rooms/room_discovery.py` | All brand-specific room discovery logic. Reads entity IDs, attribute names, and key mappings from the adapter registry. |
+| `rooms/reconciliation.py` | Pure slug-based identity-shift detection (`compute_reconciliation`: `id_changed`/`renamed` reviews) and migration planning (`plan_migration`). No hass, no manager — the manager applies a confirmed plan. |
+| `rooms/source_refresh.py` | `service_response` room-source refresh + flatten cache — the entire Roborock room-discovery mechanism. `async_refresh_room_source` calls the adapter's maps service at the async boundaries, `flatten_maps_response` normalizes it into the attribute-source list shape, and `get_cached_room_source` serves the sync discovery path. |
+| `rooms/access_graph.py` | Room access-graph helpers (`grants_access_to` resolution / validation). See [09-room-rules-system.md](09-room-rules-system.md). |
 | `rooms/utils.py` | `slugify_room_name()` helper. |
 
 ---
@@ -27,12 +30,16 @@ All brand knowledge lives in the adapter config's `discovery` block:
 
 | Adapter key | Description |
 |---|---|
-| `discovery.room_list_entity` | Which entity holds the room list. `"vacuum_entity"` means the vacuum entity itself. |
-| `discovery.room_list_attribute` | State attribute name on the room_list_entity that contains the room array |
-| `discovery.room_id_key` | Key for room ID within each room dict (e.g. `"id"`) |
-| `discovery.room_name_key` | Key for room name within each room dict (e.g. `"name"`) |
+| `discovery.source` | Which discovery source to use: `"entity_attribute"` (the default, omitted → entity-attribute) reads a live attribute off an entity; `"service_response"` reads a cached flattened service-call response (see §2.3 and `rooms/source_refresh.py`). |
+| `discovery.room_id_key` | Key for room ID within each room dict (e.g. `"id"`). Required by **both** sources. |
+| `discovery.room_name_key` | Key for room name within each room dict (e.g. `"name"`). Required by **both** sources. |
+| `discovery.room_list_entity` | (`entity_attribute` source) Which entity holds the room list. `"vacuum_entity"` means the vacuum entity itself. |
+| `discovery.room_list_attribute` | (`entity_attribute` source) State attribute name on the room_list_entity that contains the room array |
+| `discovery.maps_service` | (`service_response` source) `{domain, service}` of the maps service called with `return_response=True` (e.g. `roborock.get_maps`). |
+| `discovery.maps_rooms_key` | (`service_response` source) Key on each map entry holding the `{segment_id: name}` room mapping. Defaults to `"rooms"`. |
+| `discovery.map_name_key` | (`service_response` source) Key on each map entry holding the map name (the cache key, matching `entities.active_map`). Defaults to `"name"`. |
 
-For Eufy: `room_list_entity = "vacuum_entity"`, `room_list_attribute = "segments"`, `room_id_key = "id"`, `room_name_key = "name"`.
+For Eufy (`entity_attribute` source): `room_list_entity = "vacuum_entity"`, `room_list_attribute = "segments"`, `room_id_key = "id"`, `room_name_key = "name"`.
 
 ### 2.2 `get_active_map_id`
 
@@ -53,7 +60,12 @@ discover_rooms_for_vacuum(
 ) -> list[dict]
 ```
 
-Reads the room list from the upstream entity (via `room_list_entity` and `room_list_attribute`). For each raw room entry:
+Reads the room list according to `discovery.source`, then normalizes it identically for both:
+
+- **`entity_attribute`** (default, Eufy) — reads the live attribute named by `room_list_attribute` off the entity named by `room_list_entity`.
+- **`service_response`** (Roborock) — reads `get_cached_room_source(hass, vacuum_entity_id)` (the per-map flattened cache, refreshed at the async boundaries by `async_refresh_room_source` — see `rooms/source_refresh.py`) and selects the entry for the resolved active map name. There is no entity attribute to read; the service call is async and the sync discovery path cannot make one, so it consumes the cache instead.
+
+For each raw room entry:
 
 1. Extracts `room_id` (from `room_id_key`) and `name` (from `room_name_key`).
 2. Generates `slug = slugify_room_name(name)`.
@@ -73,7 +85,7 @@ Returns a list of room dicts:
 ]
 ```
 
-Returns `[]` if the entity is unavailable or the attribute is missing.
+Returns `[]` if the source yields nothing — the entity is unavailable / the attribute is missing (`entity_attribute`), or the cache holds no list for the resolved map (`service_response`).
 
 ### 2.4 `discover_rooms_payload`
 
@@ -177,9 +189,10 @@ manager.room_map.discover_rooms(
 ```
 
 1. Calls `get_active_map_id()` if `map_id` is not supplied.
-2. Calls `discover_rooms_for_vacuum()`.
-3. Caches the raw discovery result in `data["discovery"][vacuum][str(map_id)]`.
-4. Updates `runtime.active_map_id` for the vacuum.
+2. Calls `discover_rooms_for_vacuum()` (via `discover_rooms_payload()`).
+3. Attaches a `"reconciliation"` block onto the payload — `compute_reconciliation()` (from `rooms/reconciliation.py`) compares the fresh discovery against the **saved** rooms for this map by slug, surfacing `id_changed` / `renamed` reviews. New/removed rooms are owned by drift, not reported here.
+4. Caches the raw discovery result (with the reconciliation block) in `data["discovery"][vacuum][str(map_id)]`.
+5. Updates `runtime.active_map_id` for the vacuum.
 
 Returns the discovery payload dict.
 
@@ -246,6 +259,35 @@ Rebuilds the managed room set from the discovery cache, preserving existing room
 
 Does **not** reset onboarding — use `onboarding.reset_onboarding()` explicitly before `rebuild_map()` if the intent is a full reset.
 
+### 5.5 `reconcile_room`
+
+```python
+manager.room_map.reconcile_room(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    action: str = "migrate",   # "migrate" | "ignore"
+) -> dict
+```
+
+Applies or dismisses the identity-shift reviews (`id_changed` / `renamed`) surfaced on the cached discovery payload by `discover_rooms` (§5.1). Because a re-segment renumbers many rooms at once, reconciliation is a single per-map decision rather than a per-room prompt. Requires a prior `discover_rooms` to have cached the discovery.
+
+**`action="migrate"`** atomically rebuilds the saved room map from the cached discovery:
+
+1. Reads the cached discovery and the saved rooms, then calls `plan_migration()` (from `rooms/reconciliation.py`) to build the new id-keyed room map, carrying each saved room's durable settings to its new (slug-matched) id.
+2. Writes `plan["rooms"]` to the map bucket and rebuilds its `summary`; stamps `metadata["reconciled_at"]`.
+3. Rewrites access-graph `grants_access_to` targets through the same `old->new` id remap (done inside `plan_migration`).
+4. Drops the id-keyed rule-status snapshots for **both** the old and new ids (they rebuild on the next preflight) so a freed-then-reused id can't show a stale snapshot.
+5. Calls `onboarding.remap_confirmed_floor_types()` so renumbered rooms keep their floor-type confirmation and the start gate does not block with `onboarding_required`.
+6. Invalidates the room-history cache (`_room_history_cache_ready.discard(vacuum)`) — it re-ingests under the new ids from the slug-tagged job files.
+7. Calls `_refresh_room_derived_state()` then `_notify_rooms_updated()`.
+
+Guards an empty discovery: if the cached discovery has no rooms for this map, it returns early with `skipped="no_discovery"` (no rebuild) rather than wiping the saved rooms — re-run `discover_rooms` first.
+
+**`action="ignore"`** leaves stored data untouched and stamps `metadata["reconciliation_dismissed_at"]` so the same reviews stop surfacing until the next real change.
+
+Returns `{vacuum_entity_id, map_id, action, migrated_room_count, id_remap, dropped[, skipped]}`. Registered as the `reconcile_room` service (`supports_response=True`).
+
 ---
 
 ## 6. Room Data Model
@@ -259,6 +301,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `slug` | str | Slugified name for stable references |
 | `enabled` | bool | Whether this room is selected for the next job |
 | `is_configured` | bool | True after save_rooms step ran (used by drift tracker) |
+| `configured_at` | str | ISO-8601 timestamp stamped when the room was first configured (preserved across re-saves) |
 | `floor_type` | str | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. (The old `"carpet"` + `carpet_type` shape was migrated away.) |
 | `profile_name` | str | Matched room profile name, or `"custom"` |
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"` |
@@ -269,6 +312,8 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `edge_mopping` | bool | Whether edge mopping is enabled |
 | `path_type` | str | From matched profile |
 | `order` | int | Dispatch order (defaults to the room's 1-based position in discovery order) |
+| `is_dock_room` | bool | Whether this room contains the dock (defaults `False`) |
+| `is_transition` | bool | Whether this room is a transition/passage room (defaults `False`) |
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
 

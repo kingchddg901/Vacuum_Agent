@@ -103,7 +103,12 @@ site is `get_runtime_path_block_report` for mid-job path changes). Steps:
 
 `async EufyVacuumManager.start_selected_rooms(vacuum_entity_id, map_id,
 confirm_reduced_run, confirm_token, path_block_action,
-pause_timeout_minutes_override)`
+pause_timeout_minutes_override, strict_order)`
+
+`strict_order` (opt-in, exposed on the start service as the
+`strict_order` boolean field — `services/job_control.py:84`) makes a
+path-optimizing brand clean rooms in queue order by producing one phase per
+room (sequenced job model, see §4); it is a no-op for order-honoring brands.
 
 **Step-by-step flow:**
 
@@ -118,12 +123,21 @@ pause_timeout_minutes_override)`
    changed since `get_start_status`) and writes the final queue/payload.
 4. **Vacuum entity check** — if the HA state object is missing, returns
    `{"started": False, "reason": "vacuum_missing"}`.
-5. **Command dispatch** — calls `vacuum.send_command` with
-   `command="room_clean"` and the payload as `params` (blocking).
-6. **Active job initialisation** — calls `build_active_job_state` then enriches.
+5. **Global pre-calls** — calls `_run_global_pre_calls` to push global device
+   settings (fan/mop) for brands that expose them only globally (Roborock:
+   per-room fan/water can't ride `app_segment_clean`), derived max-wins from
+   the selected rooms. No-op when no adapter declares
+   `dispatch.global_pre_calls` (e.g. Eufy, which carries fan/water per-room).
+6. **Live-id resolution** — calls `_resolve_live_dispatch_payload` to map
+   stored (slug-tagged) room ids to the current **live** segment ids before
+   dispatch, for brands whose ids renumber on re-segment (Roborock). Wire-only:
+   the active job below keeps the stored ids.
+7. **Command dispatch** — calls `_dispatch_clean_payload` with the resolved
+   wire payload (`vacuum.send_command`, `command="room_clean"`, blocking).
+8. **Active job initialisation** — calls `build_active_job_state` then enriches.
    Note that `started_at`, `battery_start`, and `job_id` are captured *before*
-   dispatch (`manager.py:3858-3860`, i.e. ahead of step 5) and only attached onto
-   the active job here during this enrichment:
+   dispatch (i.e. ahead of step 7) and only attached onto the active job here
+   during this enrichment:
    - `job_metadata` from `build_job_metadata_from_payload`
    - `job_id` (generated as `"job_{YYYY-MM-DDTHH-MM-SS}"`)
    - `started_at` (UTC ISO timestamp)
@@ -132,12 +146,23 @@ pause_timeout_minutes_override)`
    - `path_block_action` (normalised; default `"event_only"`)
    - `pause_timeout_minutes` (from config or override)
    - `water_estimate` from `get_planned_job_estimate`
-7. **Storage write** — saves to `self.data["active_jobs"][vacuum_entity_id][map_id]`.
-8. **Room-started event** — if `current_room_id` is set, fires
-   `eufy_vacuum_room_started` (see §9 event table).
-9. **Runtime update** — `runtime.active_job_room_ids` is set; room selections
-   are cleared via `_clear_room_selections_after_start`.
-10. **Learning snapshot** — `save_learning_snapshot_for_active_job` is called.
+
+   The start plan's phase sequence is attached to the active job (`phases=`)
+   **only when it holds more than one phase** — i.e. a genuine sequenced
+   strict-order run. An atomic job leaves the phase keys absent, keeping the
+   active-job snapshot byte-identical to pre-sequencing.
+9. **Storage write** — saves to `self.data["active_jobs"][vacuum_entity_id][map_id]`.
+10. **Phase-watchdog spawn (sequenced runs only)** — if the active job has
+    `phases`, sets `_phase_dispatch_pending = True` and spawns
+    `_run_advanced_phase(..., phase_index=0, initial=True)` (see §4a). Phase 0
+    was already dispatched in step 7, so this initial pass is verify-only — it
+    confirms the device actually started room 0 (and releases the guard) before
+    the completion gate may finalize. No watchdog for atomic jobs.
+11. **Room-started event** — if `current_room_id` is set, fires
+    `eufy_vacuum_room_started` (see §9 event table).
+12. **Runtime update** — `runtime.active_job_room_ids` is set; room selections
+    are cleared via `_clear_room_selections_after_start`.
+13. **Learning snapshot** — `save_learning_snapshot_for_active_job` is called.
     The snapshot freezes the queue/payload/active_job state to disk
     non-blockingly (via executor). Failures are caught and logged; they do not
     abort the job.
@@ -266,19 +291,78 @@ Within a single dispatch there is no HA-entity-state-driven *room* transition
 mechanism — room rollover is driven by the live counter signal and timing.
 
 **Job model / phase transitions.** The above describes an `atomic_batch`
-job — one dispatch over a fixed room set, the model every shipped adapter
-uses. The dispatch engine (`queue/dispatch_engines.py`) may instead
-declare `job_model = "sequenced"`, where one logical job is an ordered
-list of phases (e.g. sweep-all → mop-all), each its own dispatch.
+job — one dispatch over a fixed room set, the model a job uses by default.
+The dispatch engine (`queue/dispatch_engines.py`) may instead declare
+`job_model = "sequenced"`, where one logical job is an ordered list of
+phases (e.g. sweep-all → mop-all), each its own dispatch.
 `engine.build_phases()` produces the sequence; at the completion hook
 `manager.maybe_advance_phase` swaps to the next phase
 (`advance_active_job_phase`) and re-dispatches instead of finalizing —
-each phase finalizes as its own job record. No shipped engine declares
-`sequenced` yet, so every live job runs as a single phase — but the
-advance/finalize machinery is already wired into the start and completion
-paths (`maybe_advance_phase` runs in the completion hook, see §6a). See
-[07-queue-engine.md](07-queue-engine.md) and
+each phase finalizes as its own job record.
+
+No engine declares `job_model = "sequenced"` at the *class* level, but
+sequenced runs are nonetheless produced **per-run** by the strict-order
+opt-in. `GenericRoomIdsEngine.build_phases(strict_order=True)` (and its
+`RoborockSegmentEngine` subclass) emits **one single-segment phase per
+resolved room** in queue order instead of one batch the device would
+re-route (`dispatch_engines.py:219-281`). This is gated on
+`capabilities.honors_clean_order = False` — i.e. only path-optimizing
+brands that ignore the dispatched order (Roborock, Ecovacs) take this
+path; order-honoring brands (Eufy) never sequence. When the resulting plan
+holds more than one phase, the framework attaches the sequence to the
+active job and runs it as a sequenced job: `maybe_advance_phase` advances +
+re-dispatches at each completion (`manager.py:4554-4563`,
+`run_plan.py:773-781`, `lifecycle.py:307-312`), and each phase finalizes
+as its own job record. The advance/finalize machinery is wired into both
+the start and completion paths (`maybe_advance_phase` runs in the
+completion hook, see §6a; the start-side spawn and per-phase watchdog are
+in §2a and §4a). See [07-queue-engine.md](07-queue-engine.md) and
 [22-adapter-config-reference.md](22-adapter-config-reference.md) §13.
+
+### 4a. Strict-order phase watchdog (`_run_advanced_phase`)
+
+A sequenced strict-order run can't simply re-dispatch the next room at the
+completion hook: a path-optimizing device (Roborock S6) returns to the dock
+and starts charging at the end of each single-room phase, and **ignores an
+`app_segment_clean` sent at that instant**. The per-phase watchdog
+(`manager._run_advanced_phase`, `manager.py:4147-4237`) wraps each phase in
+a settle → dispatch → verify → retry loop.
+
+- **Initial phase (`initial=True`).** Phase 0 was already dispatched by
+  `start_selected_rooms`, so the watchdog skips the settle and the first
+  send and only **verifies** that the device actually started — a retry
+  re-dispatches only if the initial send was ignored.
+- **Advanced phases.** The watchdog **settles** before dispatching. The
+  settle is extended when the phase's target room *is* the dock room
+  (`_phase_target_is_dock_room` → `dock_settle_seconds`), because a robot
+  parked + charging on its target has the longest post-dock ignore-transient.
+  It then **dispatches**, **verifies** via `_await_phase_started`
+  (`manager.py:4260-4344`) that the device actually started *and sustained*
+  this room — polling `confirm_seconds` of cumulative cleaning-the-target
+  (a brief dip just doesn't add to the tally; a small room that finishes
+  under `confirm_seconds` is weak-confirmed on idle-exit rather than
+  re-dispatched), and **retries** up to `max_attempts`. After the cap the
+  run is left stalled (recoverable via Cancel Run) rather than silently
+  re-dispatched forever.
+
+**Dispatch-pending guard.** While the watchdog is in its settle/dispatch/
+verify window, `active_job["_phase_dispatch_pending"]` is `True`; it clears
+(`_clear_phase_dispatch_pending`) only once the device is confirmed cleaning
+the phase's room. This blocks the completion gate from finalizing a
+just-advanced phase on the lingering dock/charging signal of the room that
+just finished (see §6a).
+
+**Timing (adapter-declarable).** The watchdog timing is resolved by
+`_phase_timing` (`manager.py:4121-4145`): the adapter's
+`dispatch.phase_timing` block merged over the `_PHASE_*` module defaults
+(`manager.py:86-111`) — settle 10 s, dock-settle 45 s, verify 90 s, confirm
+45 s, poll 5 s, max-attempts 3. Any key a brand omits falls back to the
+default. The Roborock adapter overrides **`confirm_seconds` to 15 s**
+(`adapters/roborock/adapter.py`); all other keys match the defaults.
+
+**Cancel.** `async_cancel_active_job` sets `active_job["_cancel_in_flight"]`
+up front — *before* the status flips — so the watchdog bails before it can
+re-dispatch during the return-to-base window.
 
 ### Timing rollover (`_maybe_roll_current_room_by_timing`)
 
@@ -467,11 +551,36 @@ instead of issuing a live HA state read at job-end, avoiding the DPS timing race
 
 **Code path:** the state-change handler → `_process()` in
 `listeners/lifecycle.py` (registered via `lifecycle.register(hass)` from
-`__init__.py`). When completion signals are met, it first calls
-`manager.maybe_advance_phase` — for a **sequenced** job this advances to
-the next phase + re-dispatches instead of finalizing (see §4). Otherwise:
-`finalize_learning_for_active_job` → `mark_active_job_finalized` →
-`EVENT_JOB_FINISHED`.
+`__init__.py`).
+
+The base completion condition (`lifecycle.py:263-298`) is **adapter-driven,
+not a hardcoded sentinel set**: it requires `task_status` to equal the
+adapter's `completion.task_status_value`, the secondary signals to be
+satisfied via `completion_secondary_satisfied` (which consults
+`completion.secondary_clear_sentinels` and `completion.require_job_active_clear`),
+and `has_observed_active_lifecycle == True`. Two further guards then run *on
+top of* that base condition before finalization can proceed:
+
+- **Recharge-resume guard.** A brand may dock and report
+  `task_status=charging` *mid*-job to recharge, then resume. When the adapter
+  declares a job-active signal (`entities.job_active` — a binary sensor that
+  stays on through the recharge dock and clears only at the true finish),
+  `is_job_active(..., unavailable_is_active=True)` suppresses finalization
+  while it is on, so the resumed half stays the same job. No-op for brands
+  without `entities.job_active` (e.g. Eufy).
+- **Strict-order dispatch guard.** A just-advanced sequenced phase has not
+  been confirmed cleaning yet — the watchdog (`_run_advanced_phase`, §4a) is
+  still in its settle/dispatch/verify window. While
+  `active_job["_phase_dispatch_pending"]` is set, the lingering completion
+  signals from the room that *just* finished (a Roborock sits docked +
+  charging between phases — precisely its completion signal) must not finalize
+  the new phase. No-op for non-sequenced jobs (the flag is only set on a phase
+  advance / the initial sequenced spawn).
+
+When all three pass, it first calls `manager.maybe_advance_phase` — for a
+**sequenced** job this advances to the next phase + re-dispatches instead of
+finalizing (see §4). Otherwise: `finalize_learning_for_active_job` →
+`mark_active_job_finalized` → `EVENT_JOB_FINISHED`.
 
 ### 6b. Manual cancel (service call)
 

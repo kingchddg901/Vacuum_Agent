@@ -2,7 +2,7 @@
 # docs/ is the single source of truth; this only RENDERS it (MkDocs Material).
 # Build:  mkdocs build --strict   (CI publishes it to GitHub Pages under /docs/)
 site_name: eufy_vacuum
-site_description: Room-level control for Eufy robot vacuums in Home Assistant — integration + Lovelace card.
+site_description: Room-level control for robot vacuums (Eufy + Roborock) in Home Assistant — integration + Lovelace card.
 site_url: https://kingchddg901.github.io/Vacuum_Agent/docs/
 repo_url: https://github.com/kingchddg901/Vacuum_Agent
 repo_name: kingchddg901/Vacuum_Agent

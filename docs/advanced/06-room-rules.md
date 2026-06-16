@@ -49,6 +49,8 @@ You must configure at least one setting override for a modifier to be valid. The
 
 For each setting, the `-` option means "keep the room's saved setting." You only need to set the ones you want to override.
 
+Which override fields appear depends on the vacuum's adapter capabilities. On brands without per-room water, passes, or edge control — for example the Roborock S6, where water level is app-controlled, clean passes are global (one batch value for the whole run), and edge mopping is not exposed — those controls are hidden, and you can only override the settings the device exposes per-room (on the S6, fan speed).
+
 Use a modifier when the room should still be cleaned but with different behavior. Examples:
 
 - Switch to Mop-only mode in the bathroom when `input_boolean.mop_day` is `on`.

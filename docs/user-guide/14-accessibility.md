@@ -36,6 +36,14 @@ These marks are **always on**, in every theme — the Colorblind Safe theme just
 adds the matching color tuning on top. They're chosen to stay distinguishable
 even in pure grayscale, so they also cover full color blindness (monochromacy).
 
+!!! info "Only on models with CV map bounds"
+
+    The **Map Bounds** tab — and the shaped status badges above — is a learned-bounds
+    feature that appears on Eufy. Brands that track the current room natively
+    (Roborock S6) don't build CV map bounds, so the tab is hidden there and these
+    badges won't appear. All the color and Colorblind Safe guidance on this page
+    is brand-agnostic and applies everywhere.
+
 ## The badge is earned, not claimed
 
 Any theme can carry the **Colorblind Safe** badge — it is not reserved for the

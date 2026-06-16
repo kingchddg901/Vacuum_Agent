@@ -50,6 +50,14 @@ Once a job starts, the action bar updates to reflect the live state:
 
 ---
 
+## Strict Order (path-optimizing vacuums)
+
+By default the robot decides its own cleaning path and may visit the rooms in whatever order is most efficient for it, regardless of the order shown in your queue. When you turn on **Strict order** for a run, the integration instead cleans the rooms one at a time, in the order you set, returning to the dock between rooms before dispatching the next one. This is slower, but it guarantees the exact order. Each room dispatch is verified and retried if the vacuum doesn't pick it up, and the live progress banner advances as each room is dispatched and then completed.
+
+Strict order is a per-run opt-in, and the toggle only appears on brands that don't already honour your queue order — the path-optimizing Roborock S6, for example. On Eufy the queue order is always followed, so the toggle has no effect and isn't shown. See [The Queue and Room Order](03-queue-and-order.md) for where to find the toggle.
+
+---
+
 ## Pausing a Job
 
 Press the **Pause** button while a job is running. The button is only visible when a job is active and pausing is allowed — its visibility keys off the vacuum entity state being `cleaning`, not the tracked job status. After you press **Pause**:
