@@ -437,6 +437,13 @@ async def test_set_custom_segments_live_backdrop_dims(hass, mapping_services):
                          "backdrop_width": 1024, "backdrop_height": 768})
     assert saved["saved"] is True
     assert saved["segment_count"] == 1
+    # Read back: polygon_pct must be in 0-100, scaled by the STORE's live dims. A
+    # live-backed layout has no image_variant, so deriving the scale from
+    # image_variants (empty -> width 1) would leave polygon_pct = pixel*100, far
+    # off-screen (the "segments don't appear / aren't saving" bug).
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    pct = got["segments"][0]["polygon_pct"]
+    assert pct and all(0 <= x <= 100 and 0 <= y <= 100 for x, y in pct), pct
 
 
 async def test_per_layout_anchors_and_dock(hass, mapping_services):

@@ -1029,8 +1029,15 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         or img_variants.get("light")
         or {}
     )
-    img_w = img_meta.get("width") or 1
-    img_h = img_meta.get("height") or 1
+    # The pixel->pct scale MUST be the pixel dims the polygons were rasterised
+    # against, which the segment store records under "image". Prefer those over the
+    # backdrop variant's dims: a LIVE-image-backed custom layout has NO uploaded
+    # image_variant, so relying on img_variants would leave img_w/h at 1 and inflate
+    # polygon_pct by a factor of the real width (polygons land far off-screen). For
+    # CV + uploaded-custom the store dims equal the variant dims, so this is a no-op.
+    store_img = raw.get("image") if isinstance(raw.get("image"), dict) else {}
+    img_w = store_img.get("width") or img_meta.get("width") or 1
+    img_h = store_img.get("height") or img_meta.get("height") or 1
     for seg in adjusted_segments:
         px = seg.get("polygon_pixel")
         if px and isinstance(px, list):
