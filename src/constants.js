@@ -139,6 +139,7 @@ export const SERVICE_SETUP_DELETE_MAP       = "setup_delete_map";
 export const SERVICE_SETUP_REJECT_ROOMS     = "setup_reject_rooms";
 export const SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room";
 export const SERVICE_SETUP_SET_PANEL_TITLE  = "setup_set_panel_title";
+export const SERVICE_SETUP_SET_MAP_CAMERA   = "setup_set_map_camera";
 
 // --- Learning ---
 export const SERVICE_FINALIZE_LEARNING_JOB  = "finalize_learning_job";

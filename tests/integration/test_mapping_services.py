@@ -29,6 +29,8 @@ Coverage targets
 [LAYOUT-8] rename_custom_layout error contracts: empty name → missing_name; unknown id → layout_not_found.
 [LAYOUT-9] delete_custom_layout: unknown id → layout_not_found; deleting a NON-active layout leaves the active pointer.
 [LAYOUT-10] set_segmentation_mode → custom with layouts present but no active pointer auto-selects the first id.
+[LAYOUT-11] create_custom_layout with backdrop_source="live" pins the layout (surfaced in
+        the get_map_segments summary); a normal create leaves backdrop_source None.
 """
 
 from __future__ import annotations
@@ -407,6 +409,23 @@ async def test_custom_layout_crud(hass, mapping_services):
                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "layout_id": lid_b})
     assert d2["active_custom_layout_id"] is None
     assert d2["segmentation_mode"] == "cv"               # last delete flips to CV
+
+
+async def test_create_custom_layout_live_backdrop_source(hass, mapping_services):
+    """[LAYOUT-11] create_custom_layout with backdrop_source='live' pins the layout to
+    the live map (surfaced in the get_map_segments summary so the card's "Live map" chip
+    can find + reselect it); a normal create leaves backdrop_source None."""
+    live = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                       {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                        "name": "Live map", "backdrop_source": "live"})
+    assert live["saved"]
+    plain = await _call(hass, SERVICE_CREATE_CUSTOM_LAYOUT,
+                        {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "Blueprint"})
+
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    by_id = {lay["id"]: lay for lay in got["custom_layouts"]}
+    assert by_id[live["layout_id"]]["backdrop_source"] == "live"
+    assert by_id[plain["layout_id"]]["backdrop_source"] is None
 
 
 def test_image_variant_validator_rejects_unknown():

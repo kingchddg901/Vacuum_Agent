@@ -315,14 +315,15 @@ export function applyMapActions(proto) {
     return result?.response ?? result ?? null;
   };
 
-  /** Create + activate a new named custom layout. */
-  proto.createCustomLayout = async function (mapId, name) {
+  /** Create + activate a new named custom layout. opts.backdropSource="live" pins it
+   *  to the brand's live-map image (the "Live map" source). */
+  proto.createCustomLayout = async function (mapId, name, opts = {}) {
     const vacuum = this.state.vacuumEntityId();
     if (!vacuum || !mapId) return null;
+    const data = { vacuum_entity_id: vacuum, map_id: mapId, name: name ?? "" };
+    if (opts.backdropSource) data.backdrop_source = String(opts.backdropSource);
     const result = await this.callService(
-      DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT,
-      { vacuum_entity_id: vacuum, map_id: mapId, name: name ?? "" },
-      true,
+      DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, data, true,
     );
     return result?.response ?? result ?? null;
   };

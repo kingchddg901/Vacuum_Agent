@@ -31,6 +31,7 @@ from ..const import (
     SERVICE_SETUP_IMPORT_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
+    SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
 )
 from ._common import resolved_call_data
@@ -47,6 +48,7 @@ SERVICES = (
     SERVICE_SETUP_DELETE_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
+    SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
 )
 
@@ -59,6 +61,16 @@ _SETUP_SET_PANEL_TITLE_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         # Blank/omitted title reverts the sidebar entry to the default name.
         vol.Optional("title", default=""): vol.All(cv.string, vol.Length(max=48)),
+    }
+)
+_SETUP_SET_MAP_CAMERA_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # The live-map image/camera entity_id to use as the backdrop. Blank/omitted
+        # clears the override (falls back to the adapter pattern). Kept a plain string
+        # (not cv.entity_id) so "" is accepted as the clear sentinel; the resolver
+        # existence-checks whatever is stored.
+        vol.Optional("entity_id", default=""): cv.string,
     }
 )
 _SETUP_IMPORT_MAP_SCHEMA = vol.Schema(
@@ -299,6 +311,42 @@ def register(hass: HomeAssistant) -> None:
             "panel_title": title,
         }
 
+    async def setup_set_map_camera(call: ServiceCall) -> dict:
+        """Set (or clear) a vacuum's live-map image/camera entity override.
+
+        Stores ``live_map_image_entity`` on the managed-vacuum record (a blank value
+        clears it, falling back to the adapter's ``live_map_image_entity_pattern``).
+        The dashboard snapshot's live-backdrop resolution prefers this override over
+        the pattern. No reload needed — the next snapshot fetch picks it up.
+        """
+        manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+        if manager is None:
+            return {"status": "error", "message": "Integration manager not available."}
+        vacuum_entity_id = call.data["vacuum_entity_id"]
+        record = manager.data.get("vacuums", {}).get(vacuum_entity_id)
+        if record is None:
+            return {
+                "status": "error",
+                "message": f"Vacuum '{vacuum_entity_id}' is not managed.",
+            }
+
+        raw_entity = str(call.data.get("entity_id") or "").strip()
+        if raw_entity:
+            record["live_map_image_entity"] = raw_entity
+        else:
+            record.pop("live_map_image_entity", None)  # blank -> fall back to pattern
+        await manager.async_save()
+        return {
+            "status": "success",
+            "message": (
+                f"Live-map camera set to '{raw_entity}'."
+                if raw_entity
+                else "Live-map camera override cleared."
+            ),
+            "vacuum_entity_id": vacuum_entity_id,
+            "live_map_image_entity": raw_entity or None,
+        }
+
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_GET_STATUS, setup_get_status,
         schema=_SETUP_GET_STATUS_SCHEMA, supports_response=True,
@@ -334,4 +382,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SETUP_SET_PANEL_TITLE, setup_set_panel_title,
         schema=_SETUP_SET_PANEL_TITLE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SETUP_SET_MAP_CAMERA, setup_set_map_camera,
+        schema=_SETUP_SET_MAP_CAMERA_SCHEMA, supports_response=True,
     )

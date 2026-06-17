@@ -49,10 +49,18 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
                                     #   deleted) — see §10 of 11-mapping-system.
     "custom_layouts": dict,         # {layout_id: layout}; the named multi-custom-layout
                                     #   collection. Each layout owns everything per-layout:
-                                    #   {id, name, backdrop_variant, custom_segments,
-                                    #   segment_room_links, companion_anchors, created_at,
-                                    #   updated_at}. CRUD + lazy legacy migration
-                                    #   (_migrate_custom_layouts) live in mapping_services.py.
+                                    #   {id, name, backdrop_variant, backdrop_source?,
+                                    #   custom_segments, segment_room_links,
+                                    #   companion_anchors, created_at, updated_at}.
+                                    #   Optional backdrop_source:"live" pins the layout to
+                                    #   the brand's live-map image entity as its backdrop
+                                    #   (the card's "Live map" source) instead of an
+                                    #   uploaded custom_<id> variant; absent for normal
+                                    #   layouts. Set by create_custom_layout's
+                                    #   backdrop_source param (_create_layout) and surfaced
+                                    #   in the get_map_segments layout summary. CRUD + lazy
+                                    #   legacy migration (_migrate_custom_layouts) live in
+                                    #   mapping_services.py.
     "active_custom_layout_id": str, # id of the layout served in "custom" mode, or None.
     "segmentation_mode": str,       # "cv" | "custom"; pointer that selects which of the
                                     #   two segment stores get_map_segments serves.
@@ -257,7 +265,7 @@ The following keys live in the same bucket but are written by `mapping/mapping_s
 |---|---|---|
 | `…[str(map_id)]["image_segments"]` | dict | CV segmentation cache (base "cv" store). Written by `analyze_map_image` |
 | `…[str(map_id)]["custom_segments"]` | dict | **Legacy** single user-authored no-CV segment store (replace-all). Migrated lazily + non-destructively into a `"Custom"` entry under `custom_layouts` — see [Mapping system](11-mapping-system.md) §10 |
-| `…[str(map_id)]["custom_layouts"]` | dict | `{layout_id: {id, name, backdrop_variant, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}}` named multi-custom-layout collection (each layout owns its own backdrop/segments/links/anchors). Seeded by `_migrate_custom_layouts`, CRUD by the layout handlers |
+| `…[str(map_id)]["custom_layouts"]` | dict | `{layout_id: {id, name, backdrop_variant, backdrop_source?, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}}` named multi-custom-layout collection (each layout owns its own backdrop/segments/links/anchors). Optional `backdrop_source:"live"` pins the layout to the brand's live-map image entity (the card's "Live map" source) instead of an uploaded `custom_<id>` variant — absent for normal layouts; set by `create_custom_layout`'s `backdrop_source` param, surfaced in the `get_map_segments` layout summary. Seeded by `_migrate_custom_layouts`, CRUD by the layout handlers |
 | `…[str(map_id)]["active_custom_layout_id"]` | str \| None | Id of the layout served in `"custom"` mode, or `None`. Seeded by `_migrate_custom_layouts` |
 | `…[str(map_id)]["segmentation_mode"]` | str | `"cv"` \| `"custom"`; selects which segment store `get_map_segments` serves. Default `"cv"`. Written by `set_segmentation_mode` (flag flip only) |
 | `…[str(map_id)]["image_segment_adjustments"]` | dict | `{segment_id: {offset_x, offset_y, edge_left/right/top/bottom, vertex_moves:[{index,delta_x,delta_y}]}}` manual CV-segment edits. Written by `adjust_map_segment` |

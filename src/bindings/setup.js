@@ -125,6 +125,41 @@ export function applySetupBindings(proto) {
     });
 
     /* -------------------------------------------------------
+       LIVE MAP CAMERA — pick the camera/image entity used as
+       this vacuum's map backdrop. Saves on change; blank clears
+       the override (falls back to the adapter pattern). The next
+       dashboard snapshot picks it up — no reload.
+       ------------------------------------------------------- */
+    card._onAll("[data-action='setup-map-camera-select']", "change", async (e) => {
+      const vacuumEntityId = card._config?.vacuum_entity_id;
+      if (!vacuumEntityId) return;
+      const entityId = e.currentTarget?.value ?? "";
+
+      card._state.setSetupLoading?.(true);
+      card._state.setSetupError?.(null);
+      card._state.setSetupLastResult?.(null);
+      card._scheduleRender();
+
+      try {
+        const result = await card._actions.setMapCamera?.(vacuumEntityId, entityId);
+        card._state.setSetupLastResult?.(result);
+        const statusResult = await card._actions.getSetupStatus?.();
+        card._state.setSetupStatus?.(statusResult);
+        card.showToast?.(
+          entityId ? "Live map camera set" : "Live map camera cleared",
+          { kind: "success" },
+        );
+      } catch (err) {
+        card._state.setSetupError?.(
+          `Failed to set live map camera: ${err?.message ?? String(err)}`
+        );
+      } finally {
+        card._state.setSetupLoading?.(false);
+        card._scheduleRender();
+      }
+    });
+
+    /* -------------------------------------------------------
        IMPORT MAP
        ------------------------------------------------------- */
     card._onAll("[data-action='setup-import-map']", "click", async () => {

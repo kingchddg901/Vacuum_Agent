@@ -6,7 +6,7 @@ You have a few ways to put rooms on the map, and you can use more than one on th
 
 - **Auto (CV)** — upload a screenshot of your Eufy app's map and let the integration **detect the rooms for you**. Best when your app map has clean, solid room colours.
 - **Custom layouts** — **draw the rooms yourself** from rectangles and circles on top of any background picture. Best when auto-detection struggles, or when you want a themed map (a blueprint, a solar system, a tree) with rooms exactly where you put them.
-- **Live map** *(Roborock and other live-map brands)* — **skip the upload entirely** and draw rooms straight over the map image your vacuum streams. See [Roborock and other live-map brands](#roborock-and-other-live-map-brands) below.
+- **Live map** *(Roborock and other live-map brands — and Eufy via a community fork)* — **skip the upload entirely** and draw rooms straight over the map image your vacuum streams. See [Roborock and other live-map brands](#roborock-and-other-live-map-brands) below, and [Eufy live map (community fork)](#eufy-live-map-community-fork) for the Eufy route.
 
 > **Not sure which?** Start with Auto (CV) — it's the least work. If the detected rooms come out wrong and won't nudge into shape, switch to a custom layout. Trying a custom layout never destroys your Auto (CV) result; they live side by side.
 
@@ -107,7 +107,7 @@ A custom layout lets you trace rooms onto **any** background image. You can keep
 1. In **Map Configuration**, open the **Segmentation** picker (bottom panel). Click **＋ New**, type a name (e.g. "Tree" or "Blueprint"), and click **Create**. This makes the layout active and switches the map into custom mode.
 2. In the **Custom backdrop** section, click **Upload** and pick your background picture. Every layout has *its own* backdrop — uploading here always applies to the layout you're on.
 
-> Each layout needs its **own** backdrop. With no live map to fall back on (Eufy, or any layout with no live image), the map shows "No map image" until you upload one, and you can't save rooms — so do this first. On a live-map brand you can skip this step and draw over the live map instead — see [Roborock and other live-map brands](#roborock-and-other-live-map-brands).
+> Each layout needs its **own** backdrop. With no live map to fall back on (plain Eufy, or any layout with no live image), the map shows "No map image" until you upload one, and you can't save rooms — so do this first. On a live-map brand — or Eufy with the [community fork](#eufy-live-map-community-fork) — you can skip this step and draw over the live map instead; see [Roborock and other live-map brands](#roborock-and-other-live-map-brands).
 
 ### 2. Draw your rooms
 
@@ -160,6 +160,30 @@ If the live map comes in sideways relative to how you picture your home, use the
 
 ---
 
+## Eufy live map (community fork)
+
+Stock Eufy doesn't stream a live map, so the steps above use Auto (CV) or a custom layout. But Eufy can join the live-map club too: the community **eufy-clean fork by smcneece** renders the robot's live map and exposes it as a **`camera.<device>_map`** entity that refreshes about every two seconds. It's an **optional community fork** (not part of upstream `jeppesens/eufy-clean`), so this only applies if you've installed it; a plain Eufy setup is unaffected and keeps using Auto (CV) or custom layouts. The camera's map fills in after the **first cleaning run** (or after you edit the map in the Eufy app).
+
+Once the fork's camera exists, Vacuum Agent uses its live image as the map backdrop and lets you draw rooms over it — exactly like the Roborock flow above.
+
+### Point Vacuum Agent at the camera
+
+On the **Setup** tab there's a **Live map camera** dropdown listing your camera/image entities (it only appears once at least one such entity exists). Pick the fork's live-map entity to use it as this vacuum's backdrop. Leaving it blank means **Auto (adapter default)** — and for a default-named install the adapter already guesses the fork's `camera.<device>_map` on its own, so you usually don't need to pick anything. Use the picker when the vacuum entity was renamed and the auto-guess can't find the camera. See [Setup](11-setup.md) for the rest of that tab.
+
+### Compose rooms over the live map
+
+1. In **Map Configuration**, open the **Segmentation** picker. When a live map is available, a **Live map** chip appears alongside your layouts. Click it.
+2. This creates (or selects) a layout pinned to the live backdrop — **no upload**. The live image shows through underneath instead of a "No map image" placeholder, and a live-pinned layout always shows the live image even if a backdrop was uploaded.
+3. **Draw your rooms** over the live map with the **Compose rooms** tools (the same rectangles, circles, merge, and cutout controls as Option B), then **Link each room** and click **Save rooms**. Your rooms become tap-selectable, just like any custom layout.
+
+### Hide Vacuum Agent's own room labels
+
+The fork's live map already bakes its **own** room names into the image, so Vacuum Agent's labels would stack on top into a muddle. Use the **room-label toggle** on the map toolbar to hide Vacuum Agent's labels — it's per-vacuum (remembered in your browser) and defaults to on, so just flip it **off** on the live map. Leave it on for plain CV or custom maps, which carry no labels of their own.
+
+> **Align against a stable map.** Drawn rooms are stored as percentages of the image, so compose them against a **fully-mapped** map. If the map's footprint is still growing — as it can during a first mapping run, changing the image's aspect ratio — rooms drawn earlier can drift out of place. Let the map settle, then draw.
+
+---
+
 ## The mascot and floor textures
 
 The map view's small toolbar also controls the cosmetic layers:
@@ -168,6 +192,7 @@ The map view's small toolbar also controls the cosmetic layers:
 - **Mascot toggle** (paw) — hide or show the sprite.
 - **Map textures toggle** (hatched square) — hide or show the floor textures on the map polygons.
 - **Room-card textures toggle** (hatched card) — hide or show the floor textures on the room cards, independently of the map. (This one stays in the toggle row even in list view, so you can flip the cards' textures while you're looking at them.)
+- **Room-label toggle** — hide or show Vacuum Agent's own room-name labels. Defaults to on; it's per-vacuum (remembered in your browser). Flip it **off** on an [Eufy live map](#eufy-live-map-community-fork), where the fork's image already carries its own labels and yours would stack on top.
 - **Rotate** (live-map brands only) — *not* a cosmetic toggle: this turns the **live map** in 90° steps to match your home. The rotation is stored in the backend, so it follows you across devices, and the whole layer — image, room polygons, labels, and mascot — turns together. See [Rotating the live map](#rotating-the-live-map).
 
 You can recolour the map's labels and overlays in the **Theme editor → Map** group.

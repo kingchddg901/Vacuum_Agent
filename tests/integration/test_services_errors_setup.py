@@ -16,6 +16,8 @@ Coverage targets
 [SVS-8] setup_import_active_map discovers + saves the active map.
 [SVS-9] setup_set_panel_title stores/clears the sidebar title + surfaces it; an
         unmanaged vacuum errors.
+[SVS-10] setup_set_map_camera stores/clears the per-vacuum live-map image/camera
+        entity override + surfaces it in setup status; an unmanaged vacuum errors.
 """
 
 from __future__ import annotations
@@ -37,6 +39,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_SETUP_GET_STATUS,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
+    SERVICE_SETUP_SET_MAP_CAMERA,
     SERVICE_SETUP_SET_PANEL_TITLE,
 )
 from .conftest import seed_discovery, make_rooms, setup_map
@@ -260,5 +263,39 @@ async def test_setup_set_panel_title_not_managed(hass, manager_with_services, _n
     """[SVS-9] renaming an unmanaged vacuum errors and creates no record."""
     result = await _call(hass, SERVICE_SETUP_SET_PANEL_TITLE,
                          {"vacuum_entity_id": "vacuum.ghost", "title": "X"})
+    assert result["status"] == "error"
+    assert "vacuum.ghost" not in manager_with_services.data.get("vacuums", {})
+
+
+async def test_setup_set_map_camera(hass, manager_with_services, _no_panel):
+    """[SVS-10] set_map_camera stores the (trimmed) live-map image/camera entity
+    override on the record, surfaces it in setup status, and a blank value clears it."""
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+
+    result = await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA,
+                         {"vacuum_entity_id": _VAC, "entity_id": "  camera.alfred_map  "})
+    assert result["status"] == "success"
+    assert result["live_map_image_entity"] == "camera.alfred_map"  # trimmed
+    assert (
+        manager_with_services.data["vacuums"][_VAC]["live_map_image_entity"]
+        == "camera.alfred_map"
+    )
+
+    status = await _call(hass, SERVICE_SETUP_GET_STATUS, {})
+    entry = next(v for v in status["vacuums"] if v["vacuum_entity_id"] == _VAC)
+    assert entry["live_map_image_entity"] == "camera.alfred_map"
+
+    # Blank -> clear the override + drop the stored key (falls back to the pattern).
+    result = await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA,
+                         {"vacuum_entity_id": _VAC, "entity_id": "   "})
+    assert result["status"] == "success"
+    assert result["live_map_image_entity"] is None
+    assert "live_map_image_entity" not in manager_with_services.data["vacuums"][_VAC]
+
+
+async def test_setup_set_map_camera_not_managed(hass, manager_with_services, _no_panel):
+    """[SVS-10] setting the camera on an unmanaged vacuum errors and creates no record."""
+    result = await _call(hass, SERVICE_SETUP_SET_MAP_CAMERA,
+                         {"vacuum_entity_id": "vacuum.ghost", "entity_id": "camera.x"})
     assert result["status"] == "error"
     assert "vacuum.ghost" not in manager_with_services.data.get("vacuums", {})

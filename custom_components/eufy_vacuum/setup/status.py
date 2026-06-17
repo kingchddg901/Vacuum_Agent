@@ -190,6 +190,11 @@ def get_setup_status(hass: HomeAssistant) -> dict[str, Any]:
             "panel_title": effective_panel_title(
                 manager.data.get("vacuums", {}).get(vacuum_entity_id, {})
             ),
+            # The user's explicit live-map image/camera entity override (or None to use
+            # the adapter pattern) so the Setup-tab camera picker can pre-select it.
+            "live_map_image_entity": manager.data.get("vacuums", {})
+            .get(vacuum_entity_id, {})
+            .get("live_map_image_entity"),
             "setup_steps": steps,
             "next_step": next_step,
             "room_drift": drift,

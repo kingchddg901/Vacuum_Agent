@@ -209,6 +209,12 @@ export function applyMapState(proto) {
     // silently borrow a sibling layout's image. Only the shared/legacy "custom"
     // variant keeps the CV-image fallback, for trace-over on the pre-layout flow.
     if (this.segmentationMode() === "custom") {
+      // A layout explicitly pinned to the live map ("Live map" source) always shows
+      // the brand's live image as its backdrop — never an uploaded variant — so you
+      // compose rooms straight over the live camera/image.
+      if (this.activeCustomLayout()?.backdrop_source === "live") {
+        return this._liveMapImageUrl();
+      }
       const v = this.activeCustomLayout()?.backdrop_variant || "custom";
       const own = variants[v];
       if (own) return own.browser_url ?? null;
@@ -226,16 +232,25 @@ export function applyMapState(proto) {
   };
 
   /**
-   * The LIVE map backdrop URL: the brand's HA `image` entity's entity_picture
-   * (Roborock current map). That URL carries a token that rotates on each image
-   * update, so binding it to <img src> refreshes the picture live with no polling.
-   * Null when the adapter declares no live image entity (Eufy) or the entity has
-   * no picture yet.
+   * The LIVE map backdrop URL: the live-map entity's entity_picture.
+   * - An `image.` entity (Roborock current map) rotates its token on each frame, so
+   *   the URL self-busts and <img src> refreshes live with no polling.
+   * - A `camera.` entity (e.g. the eufy-clean fork's camera.<device>_map) has a
+   *   STABLE access token, so <img src> would keep the cached first frame forever.
+   *   We append the entity's last_updated as a cache-buster — each pushed frame
+   *   (~2s) then forces a refetch. Keyed on last_updated (a real entity update), not
+   *   a render counter, so unrelated card re-renders don't thrash the <img>.
+   * Null when the adapter declares no live entity (plain Eufy) or there's no picture yet.
    */
   proto._liveMapImageUrl = function () {
     const eid = this.liveMapImageEntity?.();
     if (!eid) return null;
-    return this.attrsOf(eid)?.entity_picture ?? null;
+    const ent = this.entity?.(eid);
+    const url = ent?.attributes?.entity_picture ?? null;
+    if (!url) return null;
+    const stamp = ent?.last_updated ? Date.parse(ent.last_updated) : 0;
+    if (!stamp) return url;
+    return url + (url.includes("?") ? "&" : "?") + "_=" + stamp;
   };
 
   /**
@@ -247,6 +262,10 @@ export function applyMapState(proto) {
    */
   proto.isLiveBackdropActive = function () {
     if (this.segmentationMode() !== "custom") return false;
+    // A layout pinned to the live map is always live-backed (ignores any upload).
+    if (this.activeCustomLayout()?.backdrop_source === "live") {
+      return Boolean(this._liveMapImageUrl());
+    }
     const variants = this._mapSegmentsData?.image_variants ?? {};
     const v = this.activeCustomLayout()?.backdrop_variant || "custom";
     if (variants[v]) return false; // an uploaded backdrop exists -> not live-backed
@@ -1098,6 +1117,36 @@ export function applyMapState(proto) {
   };
   proto.toggleMapAnimalEnabled = function () {
     this.setMapAnimalEnabled(!this.mapAnimalEnabled());
+  };
+
+  /* =========================================================
+     ROOM LABELS ON / OFF  (per vacuum, localStorage)
+     =========================================================
+     VA draws its own room-name labels over the map. A live backdrop (e.g. the
+     eufy-clean fork's camera map) already bakes in its OWN room labels, so VA's
+     would stack on top into noise — this toggle hides VA's labels. Default on. */
+  proto._mapRoomLabelsEnabled = null; // null = not yet read
+  proto._roomLabelsEnabledKey = function () {
+    return `evcc_map_labels_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.mapRoomLabelsEnabled = function () {
+    if (this._mapRoomLabelsEnabled === null) {
+      try {
+        this._mapRoomLabelsEnabled = localStorage.getItem(this._roomLabelsEnabledKey()) !== "0";
+      } catch (_) {
+        this._mapRoomLabelsEnabled = true;
+      }
+    }
+    return this._mapRoomLabelsEnabled;
+  };
+  proto.setMapRoomLabelsEnabled = function (on) {
+    this._mapRoomLabelsEnabled = !!on;
+    try {
+      localStorage.setItem(this._roomLabelsEnabledKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleMapRoomLabelsEnabled = function () {
+    this.setMapRoomLabelsEnabled(!this.mapRoomLabelsEnabled());
   };
 
   /* =========================================================

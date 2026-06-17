@@ -513,6 +513,14 @@ def register_eufy_adapter_for_vacuum(
                 # int to bias the candidate-scoring pass toward that count.
                 "expected_room_count": None,
             },
+            # Best-effort live-map backdrop for installs running the eufy-clean fork
+            # (smcneece) that exposes a camera.<device>_map live-map entity. Core fills
+            # {object_id} from the vacuum entity's object_id (the Eufy vacuum and that
+            # camera usually share the device slug) and EXISTENCE-CHECKS the result, so
+            # plain eufy-clean / non-fork installs resolve to None and are unaffected.
+            # If the vacuum entity was renamed and this guess misses, the per-vacuum
+            # override set from the Setup tab wins (see manager.get_dashboard_snapshot).
+            "live_map_image_entity_pattern": "camera.{object_id}_map",
         },
 
         "job_segmenter": {

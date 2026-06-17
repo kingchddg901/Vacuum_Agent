@@ -295,8 +295,9 @@ Creates a new named custom layout with empty segment, link, and anchor stores pl
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
 | `name` | No | Display name for the layout. Defaults to `Custom` when omitted or blank. |
+| `backdrop_source` | No | Set to `"live"` to pin the layout to the brand's live-map image (stored as `backdrop_source: "live"` on the layout). A live-pinned layout always renders the live camera/image and ignores any uploaded backdrop, so you draw and link rooms straight over the live map. Omit for a normal layout backed by an uploaded backdrop. |
 
-Supports response. Returns `{"saved": true, "layout_id": ..., "layout": {...}}` where `layout` is the new layout record (`id`, `name`, `backdrop_variant`, stores, `created_at`, `updated_at`). Upload its backdrop with `upload_map_image` passing the returned `layout_id`.
+Supports response. Returns `{"saved": true, "layout_id": ..., "layout": {...}}` where `layout` is the new layout record (`id`, `name`, `backdrop_variant`, stores, `created_at`, `updated_at`). Upload its backdrop with `upload_map_image` passing the returned `layout_id` — except for a live-pinned layout, which needs no backdrop upload.
 
 #### `rename_custom_layout`
 
@@ -1179,6 +1180,17 @@ Use this for the "I know this room is gone" manual action when you do not want t
 | `room_id` | Yes |
 
 **Returns:** `{"status": "success", "room_id": int, "missing_passes": int, "threshold": int}`.
+
+### `setup_set_map_camera`
+
+Sets which camera or image entity supplies this vacuum's live-map backdrop, stored per-vacuum on the vacuum record as `live_map_image_entity`. The Setup tab's "Live map camera" picker calls this; the dashboard snapshot resolves the chosen entity **override-first** over the adapter's `live_map_image_entity_pattern`, so a default-named install auto-resolves the live map without picking and this service is only needed when the vacuum entity was renamed.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `entity_id` | No | The `camera.` or `image.` entity to use as the live-map backdrop. Pass blank to clear the override and fall back to the adapter pattern. |
+
+**Returns:** `{"status": "success", "message": ..., "vacuum_entity_id": ..., "live_map_image_entity": <the chosen entity, or null when cleared>}`.
 
 ---
 

@@ -3620,26 +3620,38 @@ class EufyVacuumManager:
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
 
-        # Live map-image backdrop: the ADAPTER declares the brand's live-map entity-id
-        # PATTERN (mapping.live_map_image_entity_pattern, e.g. Roborock's
-        # "image.{object_id}_{map_slug}") — the domain + naming convention stay
-        # brand-owned. Core only fills the generic placeholders ({object_id} = the
-        # vacuum's object_id, {map_slug} = the slugified map name), existence-checks
-        # the result, and surfaces it so the card can show a live Map backdrop with
-        # no CV/custom segments. Absent (Eufy / older backends) -> no live backdrop.
+        # Live map-image backdrop. Two sources, OVERRIDE-FIRST:
+        #   1) An explicit user-chosen entity-id stored per VACUUM
+        #      (data["vacuums"][vid]["live_map_image_entity"]), set from the Setup tab.
+        #      Needed because some brands' live-map entity is DEVICE-named and won't
+        #      match the adapter's {object_id} pattern (e.g. the eufy-clean fork's
+        #      camera.<device>_map when the vacuum entity was renamed). Stored per
+        #      vacuum, not per map, because the device exposes one live camera
+        #      regardless of the active map.
+        #   2) Else the ADAPTER's live_map_image_entity_pattern (brand-owned domain +
+        #      naming, e.g. Roborock's "image.{object_id}_{map_slug}"). Core only fills
+        #      the generic placeholders ({object_id} = the vacuum's object_id,
+        #      {map_slug} = the slugified map id).
+        # Either source is existence-checked; absent -> no live backdrop (byte-identical
+        # to before for brands that declare no pattern and have no override).
         live_map_image_entity = None
-        _live_pattern = _mapping_cfg.get("live_map_image_entity_pattern")
-        if _live_pattern:
-            from homeassistant.util import slugify as _slugify
-            try:
-                _candidate = str(_live_pattern).format(
-                    object_id=vacuum_entity_id.split(".", 1)[-1],
-                    map_slug=_slugify(str(map_id)),
-                )
-            except (KeyError, IndexError, ValueError):
-                _candidate = None
-            if _candidate and self.hass.states.get(_candidate) is not None:
-                live_map_image_entity = _candidate
+        _vac_record = self.data.get("vacuums", {}).get(vacuum_entity_id, {}) or {}
+        _override = _vac_record.get("live_map_image_entity")
+        if _override and self.hass.states.get(_override) is not None:
+            live_map_image_entity = _override
+        if live_map_image_entity is None:
+            _live_pattern = _mapping_cfg.get("live_map_image_entity_pattern")
+            if _live_pattern:
+                from homeassistant.util import slugify as _slugify
+                try:
+                    _candidate = str(_live_pattern).format(
+                        object_id=vacuum_entity_id.split(".", 1)[-1],
+                        map_slug=_slugify(str(map_id)),
+                    )
+                except (KeyError, IndexError, ValueError):
+                    _candidate = None
+                if _candidate and self.hass.states.get(_candidate) is not None:
+                    live_map_image_entity = _candidate
         # User's chosen live-map display rotation (0/90/180/270), stored per map so
         # it follows them across devices. Surfaced even at 0 so the card has a value.
         _live_map_bucket = (

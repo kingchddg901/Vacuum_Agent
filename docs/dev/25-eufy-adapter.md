@@ -187,6 +187,18 @@ tracking keeps working off coordinates. **This is the *map* segmenter** (room
 polygons from the map image) — not to be confused with `job_segmenter` below,
 which is a separate subsystem.
 
+The block also declares a best-effort live-map pattern,
+`"live_map_image_entity_pattern": "camera.{object_id}_map"`, targeting the
+community eufy-clean fork's `camera.<device>_map` live-map entity. Core fills
+`{object_id}` from the vacuum entity's object_id and **existence-checks** the
+result, so a default-named fork install auto-resolves without picking, while
+plain (non-fork) Eufy installs resolve to `None` and are unaffected. When the
+vacuum entity was renamed and the guess misses, the per-vacuum override (Setup
+tab "Live map camera", set via `setup_set_map_camera`) wins.
+**Pattern:** the live-map pattern is a brand-default guess, existence-gated, with
+the per-vacuum override as the escape hatch — never hard-code a camera name in
+core.
+
 ### `job_segmenter`
 `engine: "eufy_counter_v1"` + `tuning`. This is the **run/counter** segmenter — a
 *different* subsystem from the `mapping` map segmenter above. It detects per-room

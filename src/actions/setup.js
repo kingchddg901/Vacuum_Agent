@@ -11,6 +11,7 @@ import {
   SERVICE_SETUP_REJECT_ROOMS,
   SERVICE_SETUP_FORCE_REMOVE_ROOM,
   SERVICE_SETUP_SET_PANEL_TITLE,
+  SERVICE_SETUP_SET_MAP_CAMERA,
 } from "../constants.js";
 
 export function applySetupActions(proto) {
@@ -48,6 +49,21 @@ export function applySetupActions(proto) {
       DOMAIN,
       SERVICE_SETUP_SET_PANEL_TITLE,
       { vacuum_entity_id: vacuumEntityId, title: String(title ?? "") },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Set (or clear, with an empty entity_id) this vacuum's live-map image/camera
+   * entity override — the entity used as the Map view's live backdrop. Blank clears
+   * the override (falls back to the adapter pattern). Returns an ActionResult or null.
+   */
+  proto.setMapCamera = async function (vacuumEntityId, entityId) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SETUP_SET_MAP_CAMERA,
+      { vacuum_entity_id: vacuumEntityId, entity_id: String(entityId ?? "") },
       true,
     );
     return result?.response ?? result ?? null;

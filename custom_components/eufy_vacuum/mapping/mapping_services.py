@@ -410,6 +410,8 @@ CREATE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Optional("name"): cv.string,
+        # "live" pins the layout to the brand's live-map image as its backdrop.
+        vol.Optional("backdrop_source"): cv.string,
     }
 )
 
@@ -1068,6 +1070,7 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
             "id": lay.get("id"),
             "name": lay.get("name"),
             "backdrop_variant": lay.get("backdrop_variant"),
+            "backdrop_source": lay.get("backdrop_source"),
             "segment_count": len((lay.get("custom_segments") or {}).get("segments") or []),
             "created_at": lay.get("created_at"),
             "updated_at": lay.get("updated_at"),
@@ -1248,10 +1251,13 @@ def _resolve_active_scope(map_bucket: dict) -> dict:
 
 
 def _create_layout(
-    map_bucket: dict, name: str, *, backdrop_variant: str | None = None, activate: bool = True
+    map_bucket: dict, name: str, *, backdrop_variant: str | None = None,
+    backdrop_source: str | None = None, activate: bool = True
 ) -> dict:
     """Mint + (optionally) activate a new custom layout with empty stores. New
-    layouts get a per-layout ``custom_<id>`` backdrop variant unless one is given."""
+    layouts get a per-layout ``custom_<id>`` backdrop variant unless one is given.
+    ``backdrop_source="live"`` pins the layout to the brand's live-map image (the
+    card composes rooms straight over the live camera/image, never an upload)."""
     layouts = map_bucket.setdefault("custom_layouts", {})
     layout_id = _generate_custom_layout_id(set(layouts))
     now = utc_now_iso()
@@ -1265,6 +1271,8 @@ def _create_layout(
         "created_at": now,
         "updated_at": now,
     }
+    if backdrop_source:
+        layout["backdrop_source"] = backdrop_source
     layouts[layout_id] = layout
     if activate:
         map_bucket["active_custom_layout_id"] = layout_id
@@ -1633,13 +1641,14 @@ async def _handle_create_custom_layout(hass: HomeAssistant, call: ServiceCall) -
     vacuum_entity_id: str = call.data["vacuum_entity_id"]
     map_id: str = call.data["map_id"]
     name: str = str(call.data.get("name") or "").strip() or "Custom"
+    backdrop_source: str | None = str(call.data.get("backdrop_source") or "").strip() or None
 
     manager = hass.data[DOMAIN][DATA_RUNTIME]
     map_bucket = ensure_map_bucket(
         data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
     )
     _migrate_custom_layouts(map_bucket)
-    layout = _create_layout(map_bucket, name)
+    layout = _create_layout(map_bucket, name, backdrop_source=backdrop_source)
     map_bucket["segmentation_mode"] = "custom"
     await manager.async_save()
     _LOGGER.debug("create_custom_layout: %s/%s -> %s", vacuum_entity_id, map_id, layout["id"])

@@ -25,6 +25,10 @@ Coverage targets
 [LS-8]  get_dashboard_snapshot surfaces max_clean_passes + tank-driven mop_active +
         supports_base_station/map_bounds + live_map_image_entity (drives the card's
         tab visibility + Map view).
+[LS-9]  get_dashboard_snapshot live-map backdrop is OVERRIDE-FIRST: a per-vacuum
+        live_map_image_entity override (existence-checked) beats the adapter pattern
+        and works with NO pattern (Eufy + the eufy-clean camera); clearing it falls
+        back to the pattern.
 [EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
         "external" capture slot.
 [EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending
@@ -182,6 +186,51 @@ async def test_dashboard_snapshot_tab_capabilities(manager, hass):
     assert _snap({})["live_map_rotation"] == 0
     manager.data["maps"][_VAC][_MAP]["live_map_rotation"] = 180
     assert _snap({})["live_map_rotation"] == 180
+
+
+async def test_dashboard_snapshot_live_map_override(manager, hass):
+    """[LS-9] Live-map backdrop resolution is override-first: a per-vacuum
+    live_map_image_entity (existence-checked) beats the adapter pattern and works with
+    no pattern at all (the Eufy + eufy-clean-camera case); clearing it falls back."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    def _snap(cfg):
+        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        try:
+            return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        finally:
+            unregister_adapter_config(_VAC)
+
+    # A device-named camera the {object_id} pattern would NOT produce.
+    hass.states.async_set(
+        "camera.eufy_omni_c28_map", "2026-01-01T00:00:00+00:00",
+        {"entity_picture": "/api/camera_proxy/camera.eufy_omni_c28_map?token=abc"},
+    )
+
+    # No override + no pattern -> None (Eufy default; byte-identical to before).
+    assert _snap({})["live_map_image_entity"] is None
+
+    # Override set + entity exists -> wins even with NO adapter pattern declared.
+    manager.data["vacuums"][_VAC]["live_map_image_entity"] = "camera.eufy_omni_c28_map"
+    assert _snap({})["live_map_image_entity"] == "camera.eufy_omni_c28_map"
+
+    # Override is existence-checked: a stored-but-missing entity -> falls back (None here).
+    manager.data["vacuums"][_VAC]["live_map_image_entity"] = "camera.gone"
+    assert _snap({})["live_map_image_entity"] is None
+
+    # Override beats a declared pattern that WOULD otherwise resolve.
+    hass.states.async_set(
+        "image.alfred_6", "2026-01-01T00:00:00+00:00",
+        {"entity_picture": "/api/image_proxy/image.alfred_6?token=z"},
+    )
+    _pat = {"mapping": {"live_map_image_entity_pattern": "image.{object_id}_{map_slug}"}}
+    manager.data["vacuums"][_VAC]["live_map_image_entity"] = "camera.eufy_omni_c28_map"
+    assert _snap(_pat)["live_map_image_entity"] == "camera.eufy_omni_c28_map"
+
+    # Clearing the override -> the declared pattern resolves again.
+    manager.data["vacuums"][_VAC].pop("live_map_image_entity", None)
+    assert _snap(_pat)["live_map_image_entity"] == "image.alfred_6"
 
 
 class _FakeErrorTracker:

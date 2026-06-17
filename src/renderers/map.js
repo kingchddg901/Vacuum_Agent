@@ -157,7 +157,7 @@ export function applyMapRenderers(proto) {
                 : ""}
             </svg>
             ${this._renderMapAnimal(state, vacuumStatus)}
-            ${segments.map((seg) => {
+            ${(state.mapRoomLabelsEnabled?.() ?? true) ? segments.map((seg) => {
               const polygon = seg.polygon_pct;
               if (!Array.isArray(polygon) || polygon.length < 3) return "";
               const [cx, cy] = _polygonCentroid(polygon);
@@ -173,7 +173,7 @@ export function applyMapRenderers(proto) {
                 ${isSel ? `<span class="evcc-map-label-order">${selOrder + 1}</span>` : ""}
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;
-            }).join("")}
+            }).join("") : ""}
             </div>
 
           </div>
@@ -551,10 +551,23 @@ export function applyMapRenderers(proto) {
       <button class="evcc-map-mode-btn${mode === "cv" ? " evcc-map-mode-btn--active" : ""}"
         data-action="set-segmentation-mode" data-mode="cv"
         title="Detect rooms automatically from the map image">Auto (CV)</button>`;
-    const layoutChips = layouts.map((l) => `
+    // The live-pinned layout is represented by the dedicated "Live map" chip below,
+    // not as a regular named layout chip — filter it out here to avoid a duplicate.
+    const layoutChips = layouts
+      .filter((l) => l.backdrop_source !== "live")
+      .map((l) => `
       <button class="evcc-map-mode-btn${mode === "custom" && String(l.id) === String(activeId) ? " evcc-map-mode-btn--active" : ""}"
         data-action="set-active-custom-layout" data-layout-id="${esc(l.id)}"
         title="Custom layout: ${esc(l.name)}">${esc(l.name)}</button>`).join("");
+    // "Live map" chip — only when a live-map entity is available. Selects (or creates)
+    // the layout pinned to the live backdrop, so the composer draws rooms straight over
+    // the live camera/image. Active when that layout is current.
+    const hasLive = Boolean(state.liveMapImageEntity?.());
+    const liveActive = mode === "custom" && state.activeCustomLayout?.()?.backdrop_source === "live";
+    const liveChip = hasLive ? `
+      <button class="evcc-map-mode-btn${liveActive ? " evcc-map-mode-btn--active" : ""}"
+        data-action="select-or-create-live-layout"
+        title="Draw rooms over your vacuum's live map">Live map</button>` : "";
     const newChip = `
       <button class="evcc-map-mode-btn" data-action="open-new-layout"
         title="Add a custom layout (its own backdrop + rooms)">＋ New</button>`;
@@ -563,7 +576,7 @@ export function applyMapRenderers(proto) {
       <div class="evcc-map-config-section">
         <div class="evcc-map-config-section-title">Segmentation</div>
         <div class="evcc-map-mode-toggle">
-          ${cvChip}${layoutChips}${newChip}
+          ${liveChip}${cvChip}${layoutChips}${newChip}
         </div>
         ${editing ? `
         <div class="evcc-compose-tools">

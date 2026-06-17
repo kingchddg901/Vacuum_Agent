@@ -648,6 +648,12 @@ export const setupStyles = `
     border-color: var(--evcc-accent, #3b9eff);
   }
 
+  /* Live-map camera picker reuses the rename-input look; it's a <select>,
+     so just add a pointer cursor (the native dropdown arrow stays). */
+  .evcc-setup-map-camera-select {
+    cursor: pointer;
+  }
+
   /* =========================================================
      ADD ANOTHER VACUUM
      ========================================================= */

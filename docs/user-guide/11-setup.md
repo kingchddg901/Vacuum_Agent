@@ -141,6 +141,29 @@ and "Downstairs") makes it obvious which panel you're opening.
 
 ---
 
+## Live map camera
+
+The Setup tab has a **Live map camera** dropdown that lets you pick a
+camera (or image) entity to use as this vacuum's live map backdrop —
+for example the `camera.<device>_map` entity exposed by the
+[eufy-clean fork](https://github.com/smcneece/eufy-clean), which renders
+the robot's live map and refreshes it every couple of seconds. The
+field only appears when at least one camera or image entity exists in
+Home Assistant, and your choice saves immediately on change — no button
+to press.
+
+Leave it on **Auto (adapter default)** to let the integration resolve a
+sensibly-named live-map entity on its own; pick an entity explicitly
+only when your vacuum entity was renamed and the automatic match no
+longer lines up.
+
+Selecting a live map here is the first step; for how to draw and link
+tap-selectable rooms on top of it, see
+[Making your own maps](16-making-your-own-maps.md), which covers the
+"Live map" source and the room-label toggle.
+
+---
+
 ## Room drift — the Setup tab after initial setup
 
 The Setup tab does not become useless once every step has its ✓.

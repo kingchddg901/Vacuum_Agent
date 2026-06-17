@@ -119,6 +119,11 @@ SERVICE_SETUP_DELETE_MAP    = "setup_delete_map"
 SERVICE_SETUP_REJECT_ROOMS  = "setup_reject_rooms"
 SERVICE_SETUP_FORCE_REMOVE_ROOM = "setup_force_remove_room"
 SERVICE_SETUP_SET_PANEL_TITLE = "setup_set_panel_title"
+# Per-vacuum live-map image/camera entity override. Stored on the vacuum record as
+# `live_map_image_entity`; the dashboard snapshot's live-backdrop resolution prefers it
+# over the adapter pattern (see manager.get_dashboard_snapshot). For installs whose
+# live-map entity is device-named and doesn't match the adapter's {object_id} pattern.
+SERVICE_SETUP_SET_MAP_CAMERA = "setup_set_map_camera"
 
 # ----------------------
 # Mapping services

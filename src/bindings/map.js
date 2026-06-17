@@ -476,6 +476,28 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // "Live map" source — select the live-pinned layout, or create one. Lets the
+    // composer draw rooms straight over the live camera/image backdrop.
+    root.querySelectorAll("[data-action='select-or-create-live-layout']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        try {
+          const existing = (this.card._state.customLayouts?.() ?? [])
+            .find((l) => l.backdrop_source === "live");
+          if (existing) {
+            await this.card._actions.setActiveCustomLayout(mapId, existing.id);
+          } else {
+            await this.card._actions.createCustomLayout(mapId, "Live map", { backdropSource: "live" });
+          }
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] live-map layout failed:", err);
+        }
+      });
+    });
+
     // Custom-layout editor: open (new / rename), cancel, name input
     root.querySelectorAll("[data-action='open-new-layout']").forEach((btn) => {
       this.card._on(btn, "click", () => { this.card._state.openNewLayoutEditor(); this.card._scheduleRender(); });
@@ -998,6 +1020,14 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='room-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {
         this.card._state.toggleRoomFloorTextureEnabled?.();
+        this.card._scheduleRender();
+      });
+    });
+    // Room labels on/off — VA's own map labels. Hide them to avoid stacking on a
+    // live backdrop (e.g. the eufy-clean camera) that already bakes in its labels.
+    root.querySelectorAll("[data-action='map-labels-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMapRoomLabelsEnabled?.();
         this.card._scheduleRender();
       });
     });

@@ -560,6 +560,46 @@ export function applySetupRenderers(proto) {
     ` : "";
 
     /* -------------------------------------------------------
+       Live map camera — pick a camera/image entity to use as
+       this vacuum's live map backdrop (e.g. the eufy-clean
+       fork's camera.<device>_map). Only shown when at least one
+       camera/image entity exists (so non-fork installs see no
+       clutter). Blank = adapter default. Saves on change.
+       ------------------------------------------------------- */
+    const liveMapCurrent = vacuumEntry?.live_map_image_entity ?? "";
+    const mapCandidateIds = card?._hass?.states
+      ? Object.keys(card._hass.states)
+          .filter((id) => id.startsWith("camera.") || id.startsWith("image."))
+          .sort()
+      : [];
+    // Keep a stored override selectable even if its entity isn't currently present.
+    if (liveMapCurrent && !mapCandidateIds.includes(liveMapCurrent)) {
+      mapCandidateIds.unshift(liveMapCurrent);
+    }
+    const mapCameraHtml = (vacuumEntry && mapCandidateIds.length) ? `
+      <div class="evcc-setup-rename">
+        <div class="evcc-setup-rename-title">Live map camera</div>
+        <div class="evcc-setup-step-body muted">
+          Use a live map image/camera entity as this vacuum's map backdrop — for
+          example the <code>camera.&lt;device&gt;_map</code> entity from the eufy-clean
+          fork. Choose "Auto" to use the adapter default.
+        </div>
+        <div class="evcc-setup-rename-row">
+          <select class="evcc-setup-rename-input evcc-setup-map-camera-select"
+                  data-action="setup-map-camera-select"
+                  ${loading ? "disabled" : ""}>
+            <option value=""${liveMapCurrent ? "" : " selected"}>Auto (adapter default)</option>
+            ${mapCandidateIds.map((id) => {
+              const friendly = card._hass.states[id]?.attributes?.friendly_name ?? id;
+              const sel = id === liveMapCurrent ? " selected" : "";
+              return `<option value="${this.escapeHtml(id)}"${sel}>${this.escapeHtml(String(friendly))} (${this.escapeHtml(id)})</option>`;
+            }).join("")}
+          </select>
+        </div>
+      </div>
+    ` : "";
+
+    /* -------------------------------------------------------
        Add another vacuum — any vacuum.* entity not yet managed.
        This panel's setup steps only manage its own vacuum; this
        section is the cross-vacuum affordance to register a NEW
@@ -632,6 +672,7 @@ export function applySetupRenderers(proto) {
         ${errorHtml}
         ${loadingHtml}
         ${renamePanelHtml}
+        ${mapCameraHtml}
         ${addOtherHtml}
         ${refreshHtml}
       </div>

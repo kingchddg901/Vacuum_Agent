@@ -201,6 +201,18 @@ export function applyRoomsRenderers(proto) {
             <rect x="2" y="2" width="12" height="12" rx="1.5"/>
             <path d="M2 6 L6 2 M2 10 L10 2 M2 14 L14 2 M6 14 L14 6 M10 14 L14 10"/>
           </svg>
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.mapRoomLabelsEnabled?.() ?? true) ? " active" : ""}"
+          data-action="map-labels-toggle"
+          title="${(state.mapRoomLabelsEnabled?.() ?? true) ? "Hide room labels" : "Show room labels"}"
+          aria-label="${(state.mapRoomLabelsEnabled?.() ?? true) ? "Hide room labels" : "Show room labels"}"
+          aria-pressed="${(state.mapRoomLabelsEnabled?.() ?? true) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 4 L8.5 4 L13 8 L8.5 12 L2.5 12 Z"/>
+            <circle cx="5" cy="8" r="0.9" fill="currentColor" stroke="none"/>
+          </svg>
         </button>` : ""}
       </div>
     `;
