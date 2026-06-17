@@ -210,6 +210,8 @@ See the [porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contrib
 
 This integration would not exist without [eufy-clean](https://github.com/jeppesens/eufy-clean) by jeppesens and its contributors. Their work reverse-engineering the Eufy protocol and maintaining the HA integration that bridges the vacuum to Home Assistant is the foundation everything here is built on. If you find this useful, go give their repo a star too.
 
+Vacuum Agent's Roborock support builds on Home Assistant's built-in [Roborock integration](https://www.home-assistant.io/integrations/roborock/) and its maintainers — their work bringing Roborock's maps, rooms, and cleaning controls into Home Assistant core is what the Roborock adapter stands on.
+
 ## Licence
 
 MIT — you are free to fork and adapt this work without attribution to this repository.

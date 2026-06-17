@@ -8,6 +8,31 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [1.0.1] - 2026-06-16
+
+**Eufy live maps (via the eufy-clean fork).** Eufy vacuums can now use a live map as
+the Map-view backdrop and compose tap-selectable rooms over it — the same flow the
+Roborock S6 has — for installs running the community
+[eufy-clean fork by smcneece](https://github.com/smcneece/eufy-clean) that renders the
+robot's map and exposes it as a `camera.<device>_map` entity. Plain (non-fork) Eufy
+installs are unaffected.
+
+### Added
+- **Eufy live-map backdrop + selectable "Live map" source.** A Setup-tab "Live map
+  camera" picker points the Map view at a live `camera.`/`image.` entity
+  (override-first over an auto-resolved `camera.{object_id}_map` pattern, existence-
+  gated). A "Live map" segmentation source lets you draw and link tap-selectable rooms
+  straight over the live map, reusing the custom-layout composer — richer than the
+  Roborock integration, which draws no polygons. A per-vacuum room-label toggle hides
+  the card's own labels so they don't stack on a map that already carries them, and a
+  `camera.` backdrop refreshes at frame cadence via a cache-bust on its stable token.
+
+### Changed
+- Acknowledged Home Assistant's built-in Roborock integration and its maintainers in
+  the README.
+- Doc reconciliation for the live-map feature (user guide, services reference, dev
+  references).
+
 ## [1.0.0] - 2026-06-16
 
 **Second brand: Roborock.** Vacuum Agent began as an Eufy integration; 1.0 makes
