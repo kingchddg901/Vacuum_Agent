@@ -8,6 +8,26 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [1.1.1] - 2026-06-16
+
+**Optional CV stack, handled cleanly.** The CV libraries (numpy, Pillow, scipy) that
+power Auto (CV) map segmentation are optional — the integration loads and works fully
+without them. This release makes that explicit instead of a silent dead-end.
+
+### Changed
+- **Auto (CV) is gated on runtime library availability.** The dashboard snapshot now
+  surfaces `cv_available` / `cv_missing`; when numpy/Pillow/scipy are absent (e.g. on HA
+  Container/Core), the card hides the "Auto (CV)" chip and shows a note pointing to Live
+  map / custom layouts / manual bounds, rather than a silent "No segments analysed".
+- **README install matrix.** Required = Home Assistant + one supported provider vacuum
+  entity; optional = a provider map/camera entity, the CV science stack, and brand
+  companion entities. Manual map setup is the source of truth and is never required to
+  install or load — Vacuum Agent is a supervisory layer over whatever the provider exposes.
+
+### Fixed
+- Corrected a stale code comment pointing at a non-existent `mapping/image_segments.py`
+  (the CV pipeline lives in `adapters/eufy/segmentor.py`).
+
 ## [1.1.0] - 2026-06-16
 
 **Eufy live maps (via the eufy-clean fork).** Eufy vacuums can now use a live map as
