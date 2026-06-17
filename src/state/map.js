@@ -142,7 +142,7 @@ export function applyMapState(proto) {
       this._composeMergeFrom = null;
       this._composeLoadedFor = null;
       this._zoneDrawMode = false;      // exit ad-hoc zone-draw on any map/layout switch
-      this._zoneDraft = null;
+      this._zoneDrafts = [];
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       if (data?.map_id !== oldMapId) {
         this.resetMapTransform();
@@ -309,46 +309,60 @@ export function applyMapState(proto) {
     return shape;
   };
 
-  // ── Ad-hoc zone clean (draw a box on the live map → clean it) ──────────
-  // Transient card-only state (like the compose draft): one rectangle in pct
-  // (0-100) of the square map container, drawn → dispatched → discarded. Never
-  // persisted. _zoneDrawMode toggles the draw interaction; _zoneDraft holds the
-  // current rectangle ({x,y,w,h} pct) or null.
+  // ── Ad-hoc zone clean (draw boxes on the live map → clean them) ─────────
+  // Transient card-only state (like the compose draft): a LIST of rectangles in
+  // pct (0-100) of the square map container, drawn → dispatched → discarded.
+  // Never persisted. _zoneDrawMode toggles the draw interaction; _zoneDrafts holds
+  // the committed rectangles ({x,y,w,h} pct). The in-progress drag box is painted
+  // straight to the DOM and pushed here on release. App cap = 10 zones per clean.
+  proto._ZONE_MAX = 10;
   proto._zoneDrawMode = false;
-  proto._zoneDraft = null;
+  proto._zoneDrafts = null; // lazily []
 
   proto.zoneDrawMode = function () { return this._zoneDrawMode; };
-  proto.zoneDraft = function () { return this._zoneDraft; };
+  proto.zoneDrafts = function () {
+    if (this._zoneDrafts === null) this._zoneDrafts = [];
+    return this._zoneDrafts;
+  };
+  proto.zoneCount = function () { return this.zoneDrafts().length; };
+  proto.zoneMax = function () { return this._ZONE_MAX; };
+  proto.zoneAtCap = function () { return this.zoneCount() >= this._ZONE_MAX; };
 
   proto.setZoneDrawMode = function (on) {
     this._zoneDrawMode = Boolean(on);
-    if (!this._zoneDrawMode) this._zoneDraft = null;
+    if (!this._zoneDrawMode) this._zoneDrafts = [];
   };
 
-  proto.setZoneDraft = function (rect) {
-    this._zoneDraft = rect
-      ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h }
-      : null;
+  // Commit one drawn rectangle. Returns false (ignored) once at the 10-zone cap.
+  proto.addZoneDraft = function (rect) {
+    if (!rect) return false;
+    const list = this.zoneDrafts();
+    if (list.length >= this._ZONE_MAX) return false;
+    list.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+    return true;
   };
+  proto.removeZoneDraft = function (i) {
+    const list = this.zoneDrafts();
+    if (i >= 0 && i < list.length) list.splice(i, 1);
+  };
+  proto.clearZoneDrafts = function () { this._zoneDrafts = []; };
 
   /**
-   * Convert the current pct zone draft (a rect in 0-100 of the SQUARE map
-   * container) into a normalized [x0,y0,x1,y1] in the live-map IMAGE frame
-   * (fractions 0-1, top-left origin) — the shape the provider's zone_clean
-   * expects. Corrects for `object-fit: contain` letterboxing: the live image
-   * keeps its aspect ratio inside the forced-square container, so a point at
-   * "50% of the box" is NOT at 50% of the image on a non-square map. The longer
-   * image side fills the box; the shorter side is centered with equal bars.
+   * Convert ONE pct rect (0-100 of the SQUARE map container) into a normalized
+   * [x0,y0,x1,y1] in the live-map IMAGE frame (fractions 0-1, top-left origin) —
+   * the shape the provider's zone_clean expects. Corrects for `object-fit:contain`
+   * letterboxing: the longer image side fills the box; the shorter side is centered
+   * with equal bars, so "50% of the box" is NOT 50% of the image on a non-square map.
+   * Returns null for a degenerate rect (drawn entirely inside a letterbox bar).
    *
+   * @param {{x:number,y:number,w:number,h:number}} d pct rect
    * @param {{width:number,height:number}} backdropDims natural px of the live image
-   * @returns {number[]|null} [x0,y0,x1,y1] in 0-1, or null when not drawable
+   * @returns {number[]|null} [x0,y0,x1,y1] in 0-1, or null
    */
-  proto.zoneDraftToNormalizedRect = function (backdropDims) {
-    const d = this._zoneDraft;
+  proto._rectToNormalized = function (d, backdropDims) {
     if (!d || !backdropDims) return null;
     const W = backdropDims.width, H = backdropDims.height;
     if (!(W > 0) || !(H > 0)) return null;
-    // Contained image extent (in pct of the square box) + centered letterbox offset.
     const imgPctW = W >= H ? 100 : (100 * W) / H;
     const imgPctH = H >= W ? 100 : (100 * H) / W;
     const offX = (100 - imgPctW) / 2;
@@ -358,17 +372,20 @@ export function applyMapState(proto) {
       clamp01((px - offX) / imgPctW),
       clamp01((py - offY) / imgPctH),
     ];
-    // Normalize the rect so corners are min/max regardless of drag direction.
     const [nx0, ny0] = toNorm(Math.min(d.x, d.x + d.w), Math.min(d.y, d.y + d.h));
     const [nx1, ny1] = toNorm(Math.max(d.x, d.x + d.w), Math.max(d.y, d.y + d.h));
     const x0 = Math.min(nx0, nx1), y0 = Math.min(ny0, ny1);
     const x1 = Math.max(nx0, nx1), y1 = Math.max(ny0, ny1);
-    // Reject a degenerate zone: a box drawn entirely inside a letterbox bar
-    // collapses to a zero-area edge rect after per-corner clamping, which is
-    // undefined on the device. The caller treats null as "nothing to clean".
     const MIN_SIDE = 0.01;
     if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) return null;
     return [x0, y0, x1, y1];
+  };
+
+  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped).
+  proto.zoneDraftsToNormalizedRects = function (backdropDims) {
+    return this.zoneDrafts()
+      .map((d) => this._rectToNormalized(d, backdropDims))
+      .filter(Boolean);
   };
 
   /**

@@ -194,15 +194,37 @@ export const mapStyles = `
   .evcc-map-container--zone .evcc-map-animal,
   .evcc-map-container--zone .evcc-map-label { pointer-events: none !important; }
 
-  /* The drawn rectangle, positioned in pct of .evcc-map-layers. */
+  /* The in-progress drag box (dashed), positioned in pct of .evcc-map-layers. */
   .evcc-zone-draft {
     position:       absolute;
     box-sizing:     border-box;
-    border:         2px solid var(--evcc-accent, #3b82f6);
+    border:         2px dashed var(--evcc-accent, #3b82f6);
     background:     rgba(59, 130, 246, 0.18);
     border-radius:  2px;
     pointer-events: none;
+    z-index:        4;
+  }
+  /* Committed zones (display-only; pointer-events off so more can be drawn over). */
+  .evcc-zone-rect {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px solid var(--evcc-accent, #3b82f6);
+    background:     rgba(59, 130, 246, 0.12);
+    border-radius:  2px;
+    pointer-events: none;
     z-index:        3;
+  }
+  .evcc-zone-rect-num {
+    position:      absolute;
+    top:           1px;
+    left:          2px;
+    font-size:     10px;
+    font-weight:   700;
+    line-height:   1;
+    color:         #fff;
+    background:     var(--evcc-accent, #3b82f6);
+    border-radius: 3px;
+    padding:       1px 3px;
   }
 
   /* Floating action bar over the map while drawing. */

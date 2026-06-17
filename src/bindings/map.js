@@ -1224,6 +1224,13 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender?.();
       });
     });
+    root.querySelectorAll("[data-action='zone-clear']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.clearZoneDrafts?.();
+        this.card._scheduleRender?.();
+      });
+    });
     root.querySelectorAll("[data-action='zone-clean-confirm']").forEach((btn) => {
       this.card._on(btn, "click", async (e) => {
         e.stopPropagation();
@@ -1240,19 +1247,19 @@ export function applyMapBindings(proto) {
         const dims = (liveImg && liveImg.naturalWidth > 0)
           ? { width: liveImg.naturalWidth, height: liveImg.naturalHeight }
           : null;
-        const rect = this.card._state.zoneDraftToNormalizedRect?.(dims);
-        if (!rect) {
+        const rects = this.card._state.zoneDraftsToNormalizedRects?.(dims) ?? [];
+        if (!rects.length) {
           console.warn(
             "[eufy-vacuum-command-center] zone clean: nothing drawn or live image not ready",
           );
           return;
         }
         try {
-          await this.card._actions.cleanZone?.([rect], 1);
+          await this.card._actions.cleanZone?.(rects, 1);
         } catch (err) {
           console.error("[eufy-vacuum-command-center] zone clean failed:", err);
         }
-        this.card._state.setZoneDrawMode?.(false); // exit + clear the draft
+        this.card._state.setZoneDrawMode?.(false); // exit + clear the drafts
         this.card._scheduleRender?.();
       });
     });
@@ -1324,7 +1331,9 @@ export function applyMapBindings(proto) {
           document.removeEventListener("pointerup",     zUp);
           document.removeEventListener("pointercancel", zUp);
           if (Math.abs(zcur.w) < 1 || Math.abs(zcur.h) < 1) return; // ignore a stray click
-          this.card._state.setZoneDraft?.(zcur);
+          // Commit this box to the list (no-op at the 10-zone cap); re-render shows
+          // it as a persistent overlay and the in-progress box resets to hidden.
+          this.card._state.addZoneDraft?.(zcur);
           this.card._scheduleRender?.();
         };
         document.addEventListener("pointermove", zMove);

@@ -125,8 +125,10 @@ export function applyMapRenderers(proto) {
     const canZone   = state.canDrawZone?.() ?? false;
     // zoneMode is gated by canZone so the overlay, action bar, and container
     // class can never be live while the gate is false (e.g. after a rotate).
-    const zoneMode  = canZone && (state.zoneDrawMode?.() ?? false);
-    const zoneDraft = state.zoneDraft?.() ?? null;
+    const zoneMode   = canZone && (state.zoneDrawMode?.() ?? false);
+    const zoneDrafts = zoneMode ? (state.zoneDrafts?.() ?? []) : [];
+    const zoneCount  = zoneDrafts.length;
+    const zoneMax    = state.zoneMax?.() ?? 10;
     return `
       <div class="evcc-map-view">
         <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}">
@@ -183,13 +185,9 @@ export function applyMapRenderers(proto) {
               </div>`;
             }).join("") : ""}
             </div>
-            ${zoneMode ? `<div class="evcc-zone-draft" style="${
-              zoneDraft
-                ? `left:${Math.min(zoneDraft.x, zoneDraft.x + zoneDraft.w)}%;` +
-                  `top:${Math.min(zoneDraft.y, zoneDraft.y + zoneDraft.h)}%;` +
-                  `width:${Math.abs(zoneDraft.w)}%;height:${Math.abs(zoneDraft.h)}%;display:block`
-                : "display:none"
-            }"></div>` : ""}
+            ${zoneMode ? `
+              ${zoneDrafts.map((d, i) => `<div class="evcc-zone-rect" style="left:${Math.min(d.x, d.x + d.w)}%;top:${Math.min(d.y, d.y + d.h)}%;width:${Math.abs(d.w)}%;height:${Math.abs(d.h)}%"><span class="evcc-zone-rect-num">${i + 1}</span></div>`).join("")}
+              <div class="evcc-zone-draft" style="display:none"></div>` : ""}
 
           </div>
 
@@ -218,10 +216,16 @@ export function applyMapRenderers(proto) {
           ${zoneMode ? `
           <div class="evcc-zone-bar" role="group" aria-label="Zone clean controls">
             <span class="evcc-zone-bar-hint">${
-              zoneDraft ? "Clean this box, or drag a new one" : "Drag a box on the map"
+              zoneCount
+                ? `${zoneCount}/${zoneMax} zone${zoneCount === 1 ? "" : "s"}` +
+                  (zoneCount >= zoneMax ? " (max)" : " — drag to add more")
+                : "Drag a box on the map"
             }</span>
             <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
-                    data-action="zone-clean-confirm"${zoneDraft ? "" : " disabled"}>Clean zone</button>
+                    data-action="zone-clean-confirm"${zoneCount ? "" : " disabled"}>${
+              zoneCount > 1 ? `Clean ${zoneCount} zones` : "Clean zone"
+            }</button>
+            ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">Clear</button>` : ""}
             <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
           </div>` : ""}
 
