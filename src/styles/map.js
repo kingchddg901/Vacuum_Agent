@@ -173,6 +173,80 @@ export const mapStyles = `
   }
 
   /* =========================================================
+     ZONE CLEAN (ad-hoc draw-a-box → clean)
+     ========================================================= */
+
+  /* Toolbar toggle, active state. */
+  .evcc-map-zoom-btn--on {
+    background:   var(--evcc-accent, #3b82f6);
+    border-color: var(--evcc-accent, #3b82f6);
+    color:        #fff;
+  }
+
+  /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
+     the press so the rubber-band handler owns the drag. */
+  .evcc-map-container--zone { cursor: crosshair; }
+  .evcc-map-container--zone .evcc-map-svg,
+  .evcc-map-container--zone .evcc-map-animal,
+  .evcc-map-container--zone .evcc-map-label { pointer-events: none; }
+
+  /* The drawn rectangle, positioned in pct of .evcc-map-layers. */
+  .evcc-zone-draft {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px solid var(--evcc-accent, #3b82f6);
+    background:     rgba(59, 130, 246, 0.18);
+    border-radius:  2px;
+    pointer-events: none;
+    z-index:        3;
+  }
+
+  /* Floating action bar over the map while drawing. */
+  .evcc-zone-bar {
+    position:      absolute;
+    left:          50%;
+    bottom:        10px;
+    transform:     translateX(-50%);
+    display:       flex;
+    align-items:   center;
+    gap:           8px;
+    padding:       6px 10px;
+    border-radius: 8px;
+    background:    var(--evcc-surface-panel, rgba(20, 24, 30, 0.92));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    box-shadow:    0 2px 10px rgba(0, 0, 0, 0.35);
+    z-index:       5;
+    max-width:     calc(100% - 20px);
+  }
+  .evcc-zone-bar-hint {
+    font-size:   12px;
+    color:       var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+    white-space: nowrap;
+  }
+  .evcc-zone-bar-btn {
+    font-size:     12px;
+    font-weight:   600;
+    padding:       5px 10px;
+    border-radius: 6px;
+    cursor:        pointer;
+    color:         var(--evcc-map-tooltip-text, #fff);
+    background:    var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+  }
+  .evcc-zone-bar-btn:hover {
+    background:    var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+  .evcc-zone-bar-btn--primary {
+    background:    var(--evcc-accent, #3b82f6);
+    border-color:  var(--evcc-accent, #3b82f6);
+    color:         #fff;
+  }
+  .evcc-zone-bar-btn[disabled] {
+    opacity: 0.45;
+    cursor:  default;
+  }
+
+  /* =========================================================
      ANIMAL SVG COMPANION
      =========================================================
      Positioned absolutely in .evcc-map-layers (same space as

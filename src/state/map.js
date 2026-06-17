@@ -141,6 +141,8 @@ export function applyMapState(proto) {
       this._composeSelectedId = null;
       this._composeMergeFrom = null;
       this._composeLoadedFor = null;
+      this._zoneDrawMode = false;      // exit ad-hoc zone-draw on any map/layout switch
+      this._zoneDraft = null;
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       if (data?.map_id !== oldMapId) {
         this.resetMapTransform();
@@ -305,6 +307,81 @@ export function applyMapState(proto) {
     this.composeDraft().push(shape);
     this._composeSelectedId = id;
     return shape;
+  };
+
+  // ── Ad-hoc zone clean (draw a box on the live map → clean it) ──────────
+  // Transient card-only state (like the compose draft): one rectangle in pct
+  // (0-100) of the square map container, drawn → dispatched → discarded. Never
+  // persisted. _zoneDrawMode toggles the draw interaction; _zoneDraft holds the
+  // current rectangle ({x,y,w,h} pct) or null.
+  proto._zoneDrawMode = false;
+  proto._zoneDraft = null;
+
+  proto.zoneDrawMode = function () { return this._zoneDrawMode; };
+  proto.zoneDraft = function () { return this._zoneDraft; };
+
+  proto.setZoneDrawMode = function (on) {
+    this._zoneDrawMode = Boolean(on);
+    if (!this._zoneDrawMode) this._zoneDraft = null;
+  };
+
+  proto.setZoneDraft = function (rect) {
+    this._zoneDraft = rect
+      ? { x: rect.x, y: rect.y, w: rect.w, h: rect.h }
+      : null;
+  };
+
+  /**
+   * Convert the current pct zone draft (a rect in 0-100 of the SQUARE map
+   * container) into a normalized [x0,y0,x1,y1] in the live-map IMAGE frame
+   * (fractions 0-1, top-left origin) — the shape the provider's zone_clean
+   * expects. Corrects for `object-fit: contain` letterboxing: the live image
+   * keeps its aspect ratio inside the forced-square container, so a point at
+   * "50% of the box" is NOT at 50% of the image on a non-square map. The longer
+   * image side fills the box; the shorter side is centered with equal bars.
+   *
+   * @param {{width:number,height:number}} backdropDims natural px of the live image
+   * @returns {number[]|null} [x0,y0,x1,y1] in 0-1, or null when not drawable
+   */
+  proto.zoneDraftToNormalizedRect = function (backdropDims) {
+    const d = this._zoneDraft;
+    if (!d || !backdropDims) return null;
+    const W = backdropDims.width, H = backdropDims.height;
+    if (!(W > 0) || !(H > 0)) return null;
+    // Contained image extent (in pct of the square box) + centered letterbox offset.
+    const imgPctW = W >= H ? 100 : (100 * W) / H;
+    const imgPctH = H >= W ? 100 : (100 * H) / W;
+    const offX = (100 - imgPctW) / 2;
+    const offY = (100 - imgPctH) / 2;
+    const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+    const toNorm = (px, py) => [
+      clamp01((px - offX) / imgPctW),
+      clamp01((py - offY) / imgPctH),
+    ];
+    // Normalize the rect so corners are min/max regardless of drag direction.
+    const [nx0, ny0] = toNorm(Math.min(d.x, d.x + d.w), Math.min(d.y, d.y + d.h));
+    const [nx1, ny1] = toNorm(Math.max(d.x, d.x + d.w), Math.max(d.y, d.y + d.h));
+    const x0 = Math.min(nx0, nx1), y0 = Math.min(ny0, ny1);
+    const x1 = Math.max(nx0, nx1), y1 = Math.max(ny0, ny1);
+    // Reject a degenerate zone: a box drawn entirely inside a letterbox bar
+    // collapses to a zero-area edge rect after per-corner clamping, which is
+    // undefined on the device. The caller treats null as "nothing to clean".
+    const MIN_SIDE = 0.01;
+    if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) return null;
+    return [x0, y0, x1, y1];
+  };
+
+  /**
+   * Single source of truth for whether the ad-hoc zone-draw control may be
+   * shown AND used right now: the provider supports zone clean, a live-map
+   * backdrop is active (you draw on that image), and rotation is 0 (Wave 1 — a
+   * rotated map letterboxes on the swapped axis, not yet handled). The renderer
+   * gate and the drag/confirm guards both call this so they can never drift.
+   */
+  proto.canDrawZone = function () {
+    return (this.supportsZoneClean?.() ?? false)
+        && (this.isLiveBackdropActive?.() ?? false)
+        && (this.mapRotation?.() ?? 0) === 0;
   };
 
   proto.updateComposeShape = function (id, patch) {

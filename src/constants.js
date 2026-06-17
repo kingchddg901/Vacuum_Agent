@@ -71,6 +71,7 @@ export const SERVICE_CLEAR_ACTIVE_JOB       = "clear_active_job";
 export const SERVICE_GET_LIFECYCLE_STATE    = "get_lifecycle_state";
 export const SERVICE_GET_START_STATUS       = "get_start_status";
 export const SERVICE_START_SELECTED_ROOMS   = "start_selected_rooms";
+export const SERVICE_START_ZONE_CLEAN       = "start_zone_clean";
 export const SERVICE_GET_DASHBOARD_SNAPSHOT = "get_dashboard_snapshot";
 export const SERVICE_GET_PAUSE_TIMEOUT_SETTINGS = "get_pause_timeout_settings";
 export const SERVICE_SET_PAUSE_TIMEOUT_SETTINGS = "set_pause_timeout_settings";

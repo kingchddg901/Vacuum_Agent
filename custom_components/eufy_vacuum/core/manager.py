@@ -3619,6 +3619,12 @@ class EufyVacuumManager:
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
+        # Ad-hoc free-form zone cleaning (draw a box on the live map → clean it).
+        # Brand capability flag (adapter dispatch.zone_command provides the verb).
+        # The card ADDITIONALLY requires a resolved live-map image before exposing
+        # the zone-draw control — you draw the box on that image, and the live map
+        # only exists on the fork that also accepts zone_clean.
+        supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
         # Optional CV libraries (numpy / Pillow / scipy) power Auto (CV) map
         # segmentation but are NOT a hard dependency (manifest requirements = []).
         # Surface RUNTIME availability so the card can hide/disable Auto (CV) and
@@ -3694,6 +3700,7 @@ class EufyVacuumManager:
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
+            "supports_zone_clean": supports_zone_clean,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,
@@ -3925,6 +3932,7 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         payload: dict[str, Any],
+        command_override: str | None = None,
     ) -> None:
         """Send one clean payload to the vacuum service using the adapter's envelope.
 
@@ -3932,11 +3940,15 @@ class EufyVacuumManager:
         envelope shapes: wrapped ``{command, params}`` (Eufy/Roborock/Ecovacs
         send_command) when a ``command`` is declared, else direct merge-into-data
         (Dreame's vacuum_clean_segment). Shared by job start and phase advance.
+
+        ``command_override`` forces a specific send_command verb (e.g. an ad-hoc
+        ``zone_clean``) in place of the adapter's default clean command; the
+        domain/name and params-shaping still come from the adapter dispatch config.
         """
         cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
         domain = cfg.get("service_domain", "vacuum")
         name = cfg.get("service_name", "send_command")
-        command = cfg.get("command", "room_clean")
+        command = command_override or cfg.get("command", "room_clean")
         # Some brands wrap the params payload in a single-element list on the wire
         # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others
         # pass the bare dict (Eufy room_clean). Adapter-declared, default bare.
@@ -3946,6 +3958,59 @@ class EufyVacuumManager:
         else:
             data = {"entity_id": vacuum_entity_id, **payload}
         await self.hass.services.async_call(domain, name, data, blocking=True)
+
+    async def dispatch_zone_clean(
+        self,
+        *,
+        vacuum_entity_id: str,
+        zones: list[list[float]],
+        clean_times: int = 1,
+        map_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Dispatch an ad-hoc free-form zone clean (fire-and-forget).
+
+        ``zones`` is a list of normalized rectangles ``[x0, y0, x1, y1]`` (fractions
+        0-1 of the live-map image, top-left origin); the provider converts them to
+        the device world frame on its side. Unlike room cleans this carries no room
+        ids, so it deliberately BYPASSES the job/queue/learning pipeline — there is
+        nothing to track or roll over per-room. The send verb comes from the
+        adapter's ``dispatch.zone_command`` (only declared by brands whose provider
+        accepts a zone clean, and gated in the UI by ``supports_zone_clean``).
+
+        ``map_id`` is accepted because the service layer auto-resolves it, but it is
+        intentionally NOT sent: the provider uses its own currently-loaded map (the
+        same map the live image was drawn on), which avoids a stale-id mismatch.
+        """
+        if not zones:
+            raise ValueError("zone clean requires at least one zone rectangle")
+        # Defense-in-depth: reject malformed / near-zero-area rectangles before they
+        # reach the device (the card's converter is otherwise the only validator).
+        _MIN_SIDE = 0.01
+        for _z in zones:
+            if not isinstance(_z, (list, tuple)) or len(_z) != 4:
+                raise ValueError(f"zone must be [x0, y0, x1, y1], got {_z!r}")
+            _x0, _y0, _x1, _y1 = _z
+            if abs(_x1 - _x0) < _MIN_SIDE or abs(_y1 - _y0) < _MIN_SIDE:
+                raise ValueError(f"zone {_z!r} is degenerate (near-zero area)")
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        zone_command = cfg.get("zone_command")
+        if not zone_command:
+            raise ValueError(
+                f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
+                "(zone cleaning is not supported for this brand/provider)"
+            )
+        payload = {"zones": zones, "clean_times": int(clean_times)}
+        await self._dispatch_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            payload=payload,
+            command_override=zone_command,
+        )
+        return {
+            "status": "dispatched",
+            "vacuum_entity_id": vacuum_entity_id,
+            "zone_count": len(zones),
+            "clean_times": int(clean_times),
+        }
 
     async def _resolve_live_dispatch_payload(
         self,

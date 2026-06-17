@@ -468,6 +468,11 @@ def register_eufy_adapter_for_vacuum(
             "service_domain": "vacuum",
             "service_name": "send_command",
             "command": "room_clean",
+            # Ad-hoc free-form zone clean (smcneece eufy-clean fork). Same
+            # vacuum.send_command service, command=zone_clean, bare payload
+            # {zones:[[x0,y0,x1,y1],...], clean_times}. manager.dispatch_zone_clean
+            # reads this verb; absence => zone cleaning unsupported for the brand.
+            "zone_command": "zone_clean",
             "map_id_field": "map_id",
             "map_id_type": "int",
             "room_id_field": "id",
@@ -593,6 +598,13 @@ def register_eufy_adapter_for_vacuum(
             "supports_empty_dust": caps.get("supports_empty_dust", False),
             "supports_robot_position": caps.get("supports_robot_position", False),
             "supports_station_water": caps.get("supports_station_water", False),
+            # Ad-hoc free-form zone cleaning (draw a box on the live map, clean it).
+            # No runtime probe distinguishes the smcneece fork (which accepts
+            # zone_clean — see dispatch.zone_command) from stock eufy-clean, so this
+            # is True for Eufy and the card gates the zone-draw control on a RESOLVED
+            # live-map image: the fork that adds zone_clean is the same one exposing
+            # camera.<device>_map, so stock installs (no live map) never see it.
+            "supports_zone_clean": True,
             # Eufy firmware re-bases the raw coordinate frame every session, so
             # cross-session bounds geometry is unusable for room detection. The
             # room detector only trusts position/bounds when this is True (core

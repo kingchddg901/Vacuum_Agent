@@ -216,6 +216,17 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Whether the provider accepts an ad-hoc free-form zone clean (draw a box on
+   * the live map → clean it). Unlike the other supports_* getters this defaults
+   * to FALSE when absent: zone clean is a new, opt-in capability that only the
+   * adapters declaring dispatch.zone_command set true, so an older snapshot or a
+   * brand without it must NOT surface the control.
+   */
+  proto.supportsZoneClean = function () {
+    return Boolean(this.dashboardSnapshot()?.supports_zone_clean);
+  };
+
+  /**
    * Whether the optional CV libraries (numpy/Pillow/scipy) that power Auto (CV)
    * map segmentation are available in this HA environment. Default true (assume
    * available unless the backend says otherwise) so older snapshots are unaffected.

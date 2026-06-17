@@ -119,9 +119,17 @@ export function applyMapRenderers(proto) {
     // Live-map rotation is display only and applies ONLY to the live image (no
     // segment overlay to keep aligned); CV/custom maps stay at 0.
     const rot          = hasLiveImage ? (state.mapRotation?.() ?? 0) : 0;
+    // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
+    // only when the provider supports it, and only at rotation 0 for now — a
+    // rotated map letterboxes on the swapped axis (Wave 2 handles rotation).
+    const canZone   = state.canDrawZone?.() ?? false;
+    // zoneMode is gated by canZone so the overlay, action bar, and container
+    // class can never be live while the gate is false (e.g. after a rotate).
+    const zoneMode  = canZone && (state.zoneDrawMode?.() ?? false);
+    const zoneDraft = state.zoneDraft?.() ?? null;
     return `
       <div class="evcc-map-view">
-        <div class="evcc-map-container">
+        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}">
 
           <div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
             <!-- Rotation turns this whole content layer (image + polygons + labels
@@ -175,6 +183,13 @@ export function applyMapRenderers(proto) {
               </div>`;
             }).join("") : ""}
             </div>
+            ${zoneMode ? `<div class="evcc-zone-draft" style="${
+              zoneDraft
+                ? `left:${Math.min(zoneDraft.x, zoneDraft.x + zoneDraft.w)}%;` +
+                  `top:${Math.min(zoneDraft.y, zoneDraft.y + zoneDraft.h)}%;` +
+                  `width:${Math.abs(zoneDraft.w)}%;height:${Math.abs(zoneDraft.h)}%;display:block`
+                : "display:none"
+            }"></div>` : ""}
 
           </div>
 
@@ -192,9 +207,23 @@ export function applyMapRenderers(proto) {
             ${hasLiveImage ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
                     title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
+            ${canZone ? `
+            <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-zone-draw"
+                    title="Draw a zone to clean" aria-label="Draw a zone to clean">▢</button>` : ""}
             <span class="evcc-map-zoom-readout"
                   aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
           </div>
+
+          ${zoneMode ? `
+          <div class="evcc-zone-bar" role="group" aria-label="Zone clean controls">
+            <span class="evcc-zone-bar-hint">${
+              zoneDraft ? "Clean this box, or drag a new one" : "Drag a box on the map"
+            }</span>
+            <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
+                    data-action="zone-clean-confirm"${zoneDraft ? "" : " disabled"}>Clean zone</button>
+            <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
+          </div>` : ""}
 
         </div>
 

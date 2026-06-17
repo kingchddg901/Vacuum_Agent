@@ -19,9 +19,28 @@ import {
   SERVICE_RENAME_CUSTOM_LAYOUT,
   SERVICE_DELETE_CUSTOM_LAYOUT,
   SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+  SERVICE_START_ZONE_CLEAN,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
+
+  /**
+   * Dispatch an ad-hoc free-form zone clean (draw a box on the live map → clean
+   * it). `zones` is a list of normalized rectangles [x0,y0,x1,y1] (fractions 0-1
+   * of the live-map image, top-left origin). Fire-and-forget: the backend bypasses
+   * the room-id job pipeline. Returns the service response (a status dict) or null.
+   *
+   * @param {number[][]} zones
+   * @param {number} [cleanTimes=1]
+   */
+  proto.cleanZone = async function (zones, cleanTimes = 1) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !Array.isArray(zones) || zones.length === 0) return null;
+    const data = { vacuum_entity_id: vacuum, zones, clean_times: cleanTimes };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    return await this.callService(DOMAIN, SERVICE_START_ZONE_CLEAN, data, true);
+  };
 
   /**
    * Fetch map segments and store the result in state. Also drives the

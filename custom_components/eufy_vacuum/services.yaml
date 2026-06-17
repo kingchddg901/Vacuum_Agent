@@ -668,6 +668,51 @@ start_selected_rooms:
             - label: Cancel and event
               value: cancel_and_event
 
+start_zone_clean:
+  name: Start zone clean
+  description: >
+    Clean one or more free-form rectangular zones instead of whole rooms.
+    Fire-and-forget (no room-id job tracking). Each zone is normalized
+    [x0, y0, x1, y1] — fractions 0-1 of the live-map image with (0,0) at the
+    top-left; the provider converts them to the device's world frame. Requires
+    a provider that supports zone cleaning (capability supports_zone_clean).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    zones:
+      name: Zones
+      description: >
+        List of rectangles, each [x0, y0, x1, y1] as fractions 0-1 of the live
+        map image (top-left origin). Example: [[0.05, 0.70, 0.35, 0.95]].
+      required: true
+      example: "[[0.05, 0.70, 0.35, 0.95]]"
+      selector:
+        object: {}
+    clean_times:
+      name: Clean times
+      description: Number of cleaning passes per zone (1-10).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    map_id:
+      name: Map ID
+      description: >
+        Leave blank to use the current active map. Zone clean always targets the
+        provider's currently-loaded map regardless, so this is informational only.
+      required: false
+      selector:
+        text: {}
+
 # ============================================================
 # BATTERY HEALTH
 # ============================================================

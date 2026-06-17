@@ -1063,6 +1063,9 @@ export function applyMapBindings(proto) {
 
       this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
+        // In zone-draw mode the rubber-band owns the press — don't let the mascot
+        // swallow a drag that happens to start over the floating animal.
+        if (this.card._state.zoneDrawMode?.()) return;
         e.stopPropagation();   // prevent the pan handler from starting a drag
         e.preventDefault();    // prevent text selection, browser scroll takeover
 
@@ -1193,9 +1196,60 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
+        // Rotation invalidates the zone gate (Wave 1 = rot 0 only) — tear down any
+        // in-progress draw so a rotated box can never be confirmed.
+        this.card._state.setZoneDrawMode?.(false);
         const mapId = this.card._state.mapSegmentsData?.()?.map_id
           ?? this.card._state.activeMapId?.() ?? null;
         this.card._actions.rotateLiveMap?.(mapId);
+        this.card._scheduleRender?.();
+      });
+    });
+
+    // Ad-hoc zone clean: toggle draw mode / dispatch the drawn box / cancel.
+    root.querySelectorAll("[data-action='toggle-zone-draw']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.setZoneDrawMode?.(!this.card._state.zoneDrawMode?.());
+        this.card._scheduleRender?.();
+      });
+    });
+    root.querySelectorAll("[data-action='zone-clean-cancel']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.setZoneDrawMode?.(false);
+        this.card._scheduleRender?.();
+      });
+    });
+    root.querySelectorAll("[data-action='zone-clean-confirm']").forEach((btn) => {
+      this.card._on(btn, "click", async (e) => {
+        e.stopPropagation();
+        // Refuse to dispatch if the gate no longer holds (e.g. rotated mid-draw).
+        if (!this.card._state.canDrawZone?.()) {
+          this.card._state.setZoneDrawMode?.(false);
+          this.card._scheduleRender?.();
+          return;
+        }
+        // The live image's natural pixel size lets us letterbox-correct the pct
+        // draft into the image's normalized frame (object-fit:contain on a square
+        // container letterboxes a non-square map).
+        const liveImg = root.querySelector(".evcc-map-image");
+        const dims = (liveImg && liveImg.naturalWidth > 0)
+          ? { width: liveImg.naturalWidth, height: liveImg.naturalHeight }
+          : null;
+        const rect = this.card._state.zoneDraftToNormalizedRect?.(dims);
+        if (!rect) {
+          console.warn(
+            "[eufy-vacuum-command-center] zone clean: nothing drawn or live image not ready",
+          );
+          return;
+        }
+        try {
+          await this.card._actions.cleanZone?.([rect], 1);
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] zone clean failed:", err);
+        }
+        this.card._state.setZoneDrawMode?.(false); // exit + clear the draft
         this.card._scheduleRender?.();
       });
     });
@@ -1229,6 +1283,8 @@ export function applyMapBindings(proto) {
 
     this.card._on(container, "pointerdown", (e) => {
       if (e.button !== 0) return;
+      // Zone-draw mode owns the drag (rubber-band rectangle); don't pan.
+      if (this.card._state.zoneDrawMode?.()) return;
       // Always reset drag flag so the next click starts clean.
       this.card._mapDragOccurred = false;
       // Don't start a pan drag when the press originates on the
@@ -1259,6 +1315,62 @@ export function applyMapBindings(proto) {
         document.removeEventListener("pointercancel", onUp);
       };
 
+      document.addEventListener("pointermove", onMove);
+      document.addEventListener("pointerup",     onUp);
+      document.addEventListener("pointercancel", onUp);
+    });
+
+    // ----------------------------------------------------------
+    // Zone-draw rubber-band — in zone-draw mode a drag paints one rectangle
+    // (the zone to clean). Pointer math matches the composer (pct of the
+    // .evcc-map-layers box). The overlay element is painted directly during the
+    // drag for smoothness; the final rect is committed to state on release (which
+    // re-renders the action bar). Segment taps are suppressed via CSS pointer-
+    // events while .evcc-map-container--zone is set, so this handler owns the press.
+    // ----------------------------------------------------------
+    this.card._on(container, "pointerdown", (e) => {
+      if (e.button !== 0) return;
+      // Both the mode flag AND the capability gate (live backdrop + rotation 0)
+      // must hold — never start a draw the confirm path would refuse to dispatch.
+      if (!this.card._state.zoneDrawMode?.() || !this.card._state.canDrawZone?.()) return;
+      const layers = container.querySelector(".evcc-map-layers");
+      if (!layers) return;
+      const r = layers.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      e.preventDefault();
+      const clamp = (v) => Math.min(Math.max(v, 0), 100);
+      const sx = clamp(((e.clientX - r.left) / r.width)  * 100);
+      const sy = clamp(((e.clientY - r.top)  / r.height) * 100);
+      let cur = { x: sx, y: sy, w: 0, h: 0 };
+      const paint = () => {
+        // Re-query each paint so a mid-drag re-render (a HA state push) doesn't
+        // leave us painting a detached node — keeps live feedback intact.
+        const box = container.querySelector(".evcc-zone-draft");
+        if (!box) return;
+        box.style.left    = Math.min(cur.x, cur.x + cur.w) + "%";
+        box.style.top     = Math.min(cur.y, cur.y + cur.h) + "%";
+        box.style.width   = Math.abs(cur.w) + "%";
+        box.style.height  = Math.abs(cur.h) + "%";
+        box.style.display = "block";
+      };
+      paint();
+      const onMove = (ev) => {
+        cur = {
+          x: sx, y: sy,
+          w: clamp(((ev.clientX - r.left) / r.width)  * 100) - sx,
+          h: clamp(((ev.clientY - r.top)  / r.height) * 100) - sy,
+        };
+        paint();
+      };
+      const onUp = () => {
+        document.removeEventListener("pointermove", onMove);
+        document.removeEventListener("pointerup",     onUp);
+        document.removeEventListener("pointercancel", onUp);
+        // Ignore a stray click with no real drag — keep the previous draft/bar state.
+        if (Math.abs(cur.w) < 1 || Math.abs(cur.h) < 1) return;
+        this.card._state.setZoneDraft?.(cur);
+        this.card._scheduleRender?.();
+      };
       document.addEventListener("pointermove", onMove);
       document.addEventListener("pointerup",     onUp);
       document.addEventListener("pointercancel", onUp);

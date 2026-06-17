@@ -1,9 +1,10 @@
 """Job control services — start / pause / resume / cancel / clear / inspect.
 
-Eleven services covering the active-job lifecycle:
+Twelve services covering the active-job lifecycle:
 - get_start_status: pre-start readiness
 - start_selected_rooms: start the queued job
 - start_run_profile: apply + start a saved profile
+- start_zone_clean: ad-hoc free-form zone clean (fire-and-forget, no job tracking)
 - pause_active_job / resume_active_job / cancel_active_job: lifecycle controls
 - clear_active_job: clear local state without device interaction
 - get_active_job / get_job_progress_snapshot / get_job_control_state /
@@ -39,6 +40,7 @@ from ..const import (
     SERVICE_RESUME_ACTIVE_JOB,
     SERVICE_START_RUN_PROFILE,
     SERVICE_START_SELECTED_ROOMS,
+    SERVICE_START_ZONE_CLEAN,
 )
 from ._common import (
     JOB_CONTROL_SCHEMA,
@@ -54,6 +56,7 @@ _LOGGER = logging.getLogger(__name__)
 SERVICES = (
     SERVICE_GET_START_STATUS,
     SERVICE_START_SELECTED_ROOMS,
+    SERVICE_START_ZONE_CLEAN,
     SERVICE_START_RUN_PROFILE,
     SERVICE_PAUSE_ACTIVE_JOB,
     SERVICE_RESUME_ACTIVE_JOB,
@@ -101,6 +104,26 @@ _START_RUN_PROFILE_SCHEMA = vol.Schema(
     }
 )
 
+# A zone rectangle: exactly four floats [x0, y0, x1, y1], normalized (0-1) to the
+# live-map image with a top-left origin. Values aren't hard-range-clamped here —
+# a drag to the image edge can land slightly outside, and the provider clamps.
+_ZONE_RECT_SCHEMA = vol.All([vol.Coerce(float)], vol.Length(min=4, max=4))
+
+_START_ZONE_CLEAN_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # Optional + auto-resolved by resolved_call_data, but intentionally not
+        # forwarded to the device (the provider uses its current map).
+        vol.Optional("map_id"): cv.string,
+        vol.Required("zones"): vol.All(
+            cv.ensure_list, [_ZONE_RECT_SCHEMA], vol.Length(min=1)
+        ),
+        vol.Optional("clean_times", default=1): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=10)
+        ),
+    }
+)
+
 
 async def _handle_get_start_status(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Check if start is allowed.
@@ -132,6 +155,22 @@ async def _handle_start_run_profile(hass: HomeAssistant, call: ServiceCall) -> d
         raise HomeAssistantError(f"Failed to start run profile: {err}") from err
     _LOGGER.debug("start_run_profile complete: %s", payload)
     await get_manager(hass).async_save()
+    return payload
+
+
+async def _handle_start_zone_clean(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Dispatch an ad-hoc free-form zone clean (draw a box on the live map → clean).
+
+    Fire-and-forget: it carries no room ids and does NOT touch the job/queue/
+    learning store, so there is no async_save() — nothing was persisted.
+    """
+    try:
+        payload = await get_manager(hass).dispatch_zone_clean(
+            **resolved_call_data(hass, call)
+        )
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to start zone clean: {err}") from err
+    _LOGGER.debug("start_zone_clean complete: %s", payload)
     return payload
 
 
@@ -228,6 +267,9 @@ def register(hass: HomeAssistant) -> None:
     async def start_run_profile(call: ServiceCall) -> dict:
         return await _handle_start_run_profile(hass, call)
 
+    async def start_zone_clean(call: ServiceCall) -> dict:
+        return await _handle_start_zone_clean(hass, call)
+
     async def pause_active_job(call: ServiceCall) -> dict:
         return await _handle_pause_active_job(hass, call)
 
@@ -263,6 +305,10 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_START_RUN_PROFILE, start_run_profile,
         schema=_START_RUN_PROFILE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_START_ZONE_CLEAN, start_zone_clean,
+        schema=_START_ZONE_CLEAN_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_PAUSE_ACTIVE_JOB, pause_active_job,
