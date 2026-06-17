@@ -574,6 +574,22 @@ export const mapStyles = `
     gap:       6px;
   }
 
+  /* "Auto (CV) unavailable" note — shown when the optional science stack
+     (numpy/Pillow/scipy) is missing, so Auto (CV) is hidden. */
+  .evcc-map-cv-unavailable {
+    margin-top:    8px;
+    padding:       8px 10px;
+    border-radius: 8px;
+    border:        1px solid var(--evcc-border-default, rgba(255, 255, 255, 0.12));
+    background:    var(--evcc-surface-raised, rgba(255, 255, 255, 0.04));
+    color:         var(--evcc-text-secondary, rgba(240, 242, 245, 0.72));
+    font-size:     0.8rem;
+    line-height:   1.4;
+  }
+  .evcc-map-cv-unavailable a {
+    color: var(--evcc-accent, #3b9eff);
+  }
+
   /* Layout-name input (create / rename a custom layout) */
   .evcc-map-config-input {
     flex:          1 1 8rem;

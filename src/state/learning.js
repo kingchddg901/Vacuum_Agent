@@ -216,6 +216,21 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * Whether the optional CV libraries (numpy/Pillow/scipy) that power Auto (CV)
+   * map segmentation are available in this HA environment. Default true (assume
+   * available unless the backend says otherwise) so older snapshots are unaffected.
+   * When false the card hides Auto (CV) and explains; live/custom/manual still work.
+   */
+  proto.cvAvailable = function () {
+    const v = this.dashboardSnapshot()?.cv_available;
+    return v === undefined || v === null ? true : Boolean(v);
+  };
+  /** The optional CV packages that are missing in this HA env (e.g. ["scipy"]), or []. */
+  proto.cvMissing = function () {
+    return this.dashboardSnapshot()?.cv_missing ?? [];
+  };
+
+  /**
    * The HA `image` entity that exposes this vacuum's LIVE map picture (Roborock
    * core integration: image.{vacuum}_{map-slug}), or null. Used as a live backdrop
    * for the Map view when there's no CV/custom map. Backend-derived + existence-

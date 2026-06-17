@@ -495,7 +495,7 @@ def register_eufy_adapter_for_vacuum(
             # unknown names degrade to noop_fallback with a warning.
             #
             # eufy_cv_v1 wraps the Pillow + NumPy + SciPy pipeline in
-            # mapping/image_segments.py. Adapters without a usable image
+            # adapters/eufy/segmentor.py. Adapters without a usable image
             # asset should declare "noop_fallback" here so the card stops
             # trying to render polygonal overlays while the trace tracker
             # keeps working off vacuum-space coordinates.

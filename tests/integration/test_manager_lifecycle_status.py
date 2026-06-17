@@ -29,6 +29,9 @@ Coverage targets
         live_map_image_entity override (existence-checked) beats the adapter pattern
         and works with NO pattern (Eufy + the eufy-clean camera); clearing it falls
         back to the pattern.
+[LS-10] get_dashboard_snapshot surfaces cv_available + cv_missing (runtime CV-library
+        signal) so the card can hide Auto (CV) when numpy/Pillow/scipy are absent;
+        libs present -> available + empty, monkeypatched-missing -> the names.
 [EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
         "external" capture slot.
 [EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending
@@ -231,6 +234,35 @@ async def test_dashboard_snapshot_live_map_override(manager, hass):
     # Clearing the override -> the declared pattern resolves again.
     manager.data["vacuums"][_VAC].pop("live_map_image_entity", None)
     assert _snap(_pat)["live_map_image_entity"] == "image.alfred_6"
+
+
+async def test_dashboard_snapshot_cv_availability(manager, hass, monkeypatch):
+    """[LS-10] The snapshot surfaces cv_available + cv_missing (runtime CV-library
+    signal) so the card can hide Auto (CV) + explain when the optional science stack
+    (numpy/Pillow/scipy) is absent — never blocking anything else."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+    register_adapter_config(_VAC, {"adapter_id": "x", "source": "code"})
+    try:
+        # The libs are present in the test env -> available, nothing missing.
+        snap = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert snap["cv_available"] is True
+        assert snap["cv_missing"] == []
+
+        # Simulate a HA env without the science stack -> not available, names listed.
+        import custom_components.eufy_vacuum.mapping.segment_primitives as _sp
+        monkeypatch.setattr(_sp, "image_runtime_capabilities", lambda: {
+            "numpy": {"available": False},
+            "pillow": {"available": False},
+            "scipy": {"available": True},
+            "scipy_ndimage": {"available": True},
+            "pipeline_ready": False,
+        })
+        snap2 = manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        assert snap2["cv_available"] is False
+        assert snap2["cv_missing"] == ["numpy", "pillow"]
+    finally:
+        unregister_adapter_config(_VAC)
 
 
 class _FakeErrorTracker:

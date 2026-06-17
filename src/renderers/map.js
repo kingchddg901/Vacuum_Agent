@@ -547,10 +547,18 @@ export function applyMapRenderers(proto) {
     // CV is the special always-present option; each custom layout is its own chip;
     // "＋ New" opens the inline name editor. Switching a chip swaps the whole
     // layout (backdrop + authored rooms + links + mascot home).
-    const cvChip = `
+    // Auto (CV) needs the optional science stack (numpy/Pillow/scipy). When it's
+    // missing, hide the chip and explain below — it would otherwise silently produce
+    // nothing. Live/custom/manual paths don't need it.
+    const cvOk = state.cvAvailable?.() ?? true;
+    const _cvPkgLabel = { numpy: "numpy", pillow: "Pillow", scipy: "scipy", scipy_ndimage: "scipy" };
+    const cvMissingText =
+      [...new Set((state.cvMissing?.() ?? []).map((p) => _cvPkgLabel[p] ?? p))].join(", ")
+      || "numpy, Pillow, scipy";
+    const cvChip = cvOk ? `
       <button class="evcc-map-mode-btn${mode === "cv" ? " evcc-map-mode-btn--active" : ""}"
         data-action="set-segmentation-mode" data-mode="cv"
-        title="Detect rooms automatically from the map image">Auto (CV)</button>`;
+        title="Detect rooms automatically from the map image">Auto (CV)</button>` : "";
     // The live-pinned layout is represented by the dedicated "Live map" chip below,
     // not as a regular named layout chip — filter it out here to avoid a duplicate.
     const layoutChips = layouts
@@ -578,6 +586,14 @@ export function applyMapRenderers(proto) {
         <div class="evcc-map-mode-toggle">
           ${liveChip}${cvChip}${layoutChips}${newChip}
         </div>
+        ${!cvOk ? `
+        <div class="evcc-map-cv-unavailable">
+          <strong>Auto (CV)</strong> map segmentation needs optional packages
+          (${esc(cvMissingText)}) that aren't installed in this Home Assistant.
+          Use <strong>Live map</strong>, a <strong>custom layout</strong>, or manual
+          bounds instead — see the
+          <a href="https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/16-making-your-own-maps/" target="_blank" rel="noopener">map setup guide</a>.
+        </div>` : ""}
         ${editing ? `
         <div class="evcc-compose-tools">
           <input type="text" class="evcc-map-config-input" data-layout-field="name"

@@ -37,8 +37,18 @@ If you run this on another model, please [open an issue](https://github.com/king
 
 ## Prerequisites
 
+Vacuum Agent is a supervisory control layer — it consumes whatever your provider integration already exposes. The only hard requirement is one supported vacuum provider; everything else is capability-dependent.
+
+**Required**
+
 - Home Assistant 2025.6.0 or later
-- A working `vacuum.*` entity for your robot, provided by your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, or Home Assistant's built-in **Roborock** integration for Roborock. Vacuum Agent does not replace that integration — it builds on top of it.
+- A working `vacuum.*` entity for your robot, from your brand's upstream integration: [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean) for Eufy, or Home Assistant's built-in **Roborock** integration for Roborock. Vacuum Agent builds on top of it — it doesn't replace it.
+
+**Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
+
+- A provider **map / camera / image entity** for the live-map backdrop and richer map views.
+- The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
+- Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 
 ## Installation via HACS
 

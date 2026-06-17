@@ -3619,6 +3619,20 @@ class EufyVacuumManager:
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
+        # Optional CV libraries (numpy / Pillow / scipy) power Auto (CV) map
+        # segmentation but are NOT a hard dependency (manifest requirements = []).
+        # Surface RUNTIME availability so the card can hide/disable Auto (CV) and
+        # explain, instead of silently dead-ending, when they're absent (e.g. HA
+        # Container/Core without the science stack). supports_map_bounds stays the
+        # STATIC per-brand signal; cv_available is the runtime-library signal.
+        from ..mapping.segment_primitives import image_runtime_capabilities
+        _cv_caps = image_runtime_capabilities()
+        cv_available = bool(_cv_caps.get("pipeline_ready"))
+        cv_missing = [
+            _name
+            for _name in ("numpy", "pillow", "scipy", "scipy_ndimage")
+            if not (_cv_caps.get(_name) or {}).get("available")
+        ]
 
         # Live map-image backdrop. Two sources, OVERRIDE-FIRST:
         #   1) An explicit user-chosen entity-id stored per VACUUM
@@ -3680,6 +3694,8 @@ class EufyVacuumManager:
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
+            "cv_available": cv_available,
+            "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,
             "live_map_rotation": live_map_rotation,
             "updated_at": _iso_now(),
