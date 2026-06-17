@@ -8,7 +8,7 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
-## [1.0.1] - 2026-06-16
+## [1.1.0] - 2026-06-16
 
 **Eufy live maps (via the eufy-clean fork).** Eufy vacuums can now use a live map as
 the Map-view backdrop and compose tap-selectable rooms over it — the same flow the
