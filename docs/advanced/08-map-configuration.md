@@ -193,7 +193,7 @@ The layout services are all `supports_response`. Their behaviour:
 | `rename_custom_layout(layout_id, name)` | Renames the layout in place. |
 | `delete_custom_layout(layout_id)` | Deletes the layout and best-effort removes its backdrop file. If it was the active layout, the next remaining layout (by name) is activated; if it was the **last**, the map flips back to `cv`. |
 
-`get_map_segments` now reports the collection alongside the segments: its response carries `custom_layouts` (a list of `{id, name, backdrop_variant, segment_count, created_at, updated_at}`), `active_custom_layout_id`, and the active store's `segment_room_links`.
+`get_map_segments` now reports the collection alongside the segments: its response carries `custom_layouts` (a list of `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}`), `active_custom_layout_id`, and the active store's `segment_room_links`.
 
 #### When to use custom layouts
 

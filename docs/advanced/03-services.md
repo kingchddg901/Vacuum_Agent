@@ -244,7 +244,7 @@ Returns the active segmentation for a map — whichever store `segmentation_mode
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
 
-Supports response. Returns `segmentation_mode` (`cv` or `custom`), `available`, `analyzed_at`, `image`, `image_variants`, a `summary` (with `segment_count` and `adjusted_count`), `segments` (each carrying `polygon_pct` and, when linked, `room_id`), `adjustments`, and `companion_anchors` (all scoped to the active store). It also returns `active_custom_layout_id`, `segment_room_links` (the active scope's link dict), and `custom_layouts` — a list of layout summaries, each `{id, name, backdrop_variant, segment_count, created_at, updated_at}` — so the card can render the layout picker without a second fetch.
+Supports response. Returns `segmentation_mode` (`cv` or `custom`), `available`, `analyzed_at`, `image`, `image_variants`, a `summary` (with `segment_count` and `adjusted_count`), `segments` (each carrying `polygon_pct` and, when linked, `room_id`), `adjustments`, and `companion_anchors` (all scoped to the active store). It also returns `active_custom_layout_id`, `segment_room_links` (the active scope's link dict), and `custom_layouts` — a list of layout summaries, each `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}` — so the card can render the layout picker without a second fetch.
 
 #### `set_segmentation_mode`
 

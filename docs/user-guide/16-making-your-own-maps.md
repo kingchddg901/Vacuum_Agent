@@ -139,7 +139,7 @@ If you click Save with no backdrop *and* no live map, the card tells you so and 
 
 ### 5. Keep several layouts
 
-Each chip in the **Segmentation** picker is one layout; **Auto (CV)** is always there too. Click a chip to switch — the backdrop, rooms, and mascot spot all swap together. Use **Rename** / **Delete layout** for the active one. Switching never loses any layout.
+Each chip in the **Segmentation** picker is one layout; **Auto (CV)** is always there too, and a **Live map** chip leads the row when a live map is available. Click a chip to switch — the backdrop, rooms, and mascot spot all swap together. Use **Rename** / **Delete layout** for the active one. Switching never loses any layout.
 
 ---
 
@@ -172,7 +172,7 @@ On the **Setup** tab there's a **Live map camera** dropdown listing your camera/
 
 ### Compose rooms over the live map
 
-1. In **Map Configuration**, open the **Segmentation** picker. When a live map is available, a **Live map** chip appears alongside your layouts. Click it.
+1. In **Map Configuration**, open the **Segmentation** picker. When a live map is available, a **Live map** chip leads the row (before **Auto (CV)** and your layouts). Click it.
 2. This creates (or selects) a layout pinned to the live backdrop — **no upload**. The live image shows through underneath instead of a "No map image" placeholder, and a live-pinned layout always shows the live image even if a backdrop was uploaded.
 3. **Draw your rooms** over the live map with the **Compose rooms** tools (the same rectangles, circles, merge, and cutout controls as Option B), then **Link each room** and click **Save rooms**. Your rooms become tap-selectable, just like any custom layout.
 

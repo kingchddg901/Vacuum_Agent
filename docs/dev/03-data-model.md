@@ -509,7 +509,7 @@ untouched. The lazy `_migrate_custom_layouts` runs first.
 ```
 
 Each `CustomLayoutSummary` in `custom_layouts` is the layout shorn of its heavy
-stores — `{id, name, backdrop_variant, segment_count, created_at, updated_at}`
+stores — `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}`
 (`segment_count` is `len(custom_segments.segments)`). The card renders one picker
 chip per entry.
 
