@@ -88,6 +88,9 @@ export function applyMapBindings(proto) {
       let _clickTimer = null;
 
       this.card._on(el, "click", (e) => {
+        // In zone-draw mode the rubber-band owns the map — a tap must not toggle a
+        // room (belt-and-suspenders to the CSS pointer-events suppression).
+        if (this.card._state.zoneDrawMode?.()) return;
         e.stopPropagation();
         if (this.card._mapDragOccurred) {
           this.card._mapDragOccurred = false;
@@ -1283,8 +1286,52 @@ export function applyMapBindings(proto) {
 
     this.card._on(container, "pointerdown", (e) => {
       if (e.button !== 0) return;
-      // Zone-draw mode owns the drag (rubber-band rectangle); don't pan.
-      if (this.card._state.zoneDrawMode?.()) return;
+      // Zone-draw mode owns the press: paint a rubber-band rectangle instead of
+      // panning. This MUST live inside this one handler — _on() is idempotent per
+      // element+event (core.js), so a second pointerdown bind on the container is
+      // silently dropped. (That dropped-bind was the "drag does nothing" bug.)
+      if (this.card._state.zoneDrawMode?.() && this.card._state.canDrawZone?.()) {
+        const layers = container.querySelector(".evcc-map-layers");
+        if (!layers) return;
+        const zr = layers.getBoundingClientRect();
+        if (!zr.width || !zr.height) return;
+        e.preventDefault();
+        const zclamp = (v) => Math.min(Math.max(v, 0), 100);
+        const zsx = zclamp(((e.clientX - zr.left) / zr.width)  * 100);
+        const zsy = zclamp(((e.clientY - zr.top)  / zr.height) * 100);
+        let zcur = { x: zsx, y: zsy, w: 0, h: 0 };
+        const zpaint = () => {
+          // Re-query each paint so a mid-drag re-render doesn't strand a detached node.
+          const box = container.querySelector(".evcc-zone-draft");
+          if (!box) return;
+          box.style.left    = Math.min(zcur.x, zcur.x + zcur.w) + "%";
+          box.style.top     = Math.min(zcur.y, zcur.y + zcur.h) + "%";
+          box.style.width   = Math.abs(zcur.w) + "%";
+          box.style.height  = Math.abs(zcur.h) + "%";
+          box.style.display = "block";
+        };
+        zpaint();
+        const zMove = (ev) => {
+          zcur = {
+            x: zsx, y: zsy,
+            w: zclamp(((ev.clientX - zr.left) / zr.width)  * 100) - zsx,
+            h: zclamp(((ev.clientY - zr.top)  / zr.height) * 100) - zsy,
+          };
+          zpaint();
+        };
+        const zUp = () => {
+          document.removeEventListener("pointermove", zMove);
+          document.removeEventListener("pointerup",     zUp);
+          document.removeEventListener("pointercancel", zUp);
+          if (Math.abs(zcur.w) < 1 || Math.abs(zcur.h) < 1) return; // ignore a stray click
+          this.card._state.setZoneDraft?.(zcur);
+          this.card._scheduleRender?.();
+        };
+        document.addEventListener("pointermove", zMove);
+        document.addEventListener("pointerup",     zUp);
+        document.addEventListener("pointercancel", zUp);
+        return;
+      }
       // Always reset drag flag so the next click starts clean.
       this.card._mapDragOccurred = false;
       // Don't start a pan drag when the press originates on the
@@ -1315,62 +1362,6 @@ export function applyMapBindings(proto) {
         document.removeEventListener("pointercancel", onUp);
       };
 
-      document.addEventListener("pointermove", onMove);
-      document.addEventListener("pointerup",     onUp);
-      document.addEventListener("pointercancel", onUp);
-    });
-
-    // ----------------------------------------------------------
-    // Zone-draw rubber-band — in zone-draw mode a drag paints one rectangle
-    // (the zone to clean). Pointer math matches the composer (pct of the
-    // .evcc-map-layers box). The overlay element is painted directly during the
-    // drag for smoothness; the final rect is committed to state on release (which
-    // re-renders the action bar). Segment taps are suppressed via CSS pointer-
-    // events while .evcc-map-container--zone is set, so this handler owns the press.
-    // ----------------------------------------------------------
-    this.card._on(container, "pointerdown", (e) => {
-      if (e.button !== 0) return;
-      // Both the mode flag AND the capability gate (live backdrop + rotation 0)
-      // must hold — never start a draw the confirm path would refuse to dispatch.
-      if (!this.card._state.zoneDrawMode?.() || !this.card._state.canDrawZone?.()) return;
-      const layers = container.querySelector(".evcc-map-layers");
-      if (!layers) return;
-      const r = layers.getBoundingClientRect();
-      if (!r.width || !r.height) return;
-      e.preventDefault();
-      const clamp = (v) => Math.min(Math.max(v, 0), 100);
-      const sx = clamp(((e.clientX - r.left) / r.width)  * 100);
-      const sy = clamp(((e.clientY - r.top)  / r.height) * 100);
-      let cur = { x: sx, y: sy, w: 0, h: 0 };
-      const paint = () => {
-        // Re-query each paint so a mid-drag re-render (a HA state push) doesn't
-        // leave us painting a detached node — keeps live feedback intact.
-        const box = container.querySelector(".evcc-zone-draft");
-        if (!box) return;
-        box.style.left    = Math.min(cur.x, cur.x + cur.w) + "%";
-        box.style.top     = Math.min(cur.y, cur.y + cur.h) + "%";
-        box.style.width   = Math.abs(cur.w) + "%";
-        box.style.height  = Math.abs(cur.h) + "%";
-        box.style.display = "block";
-      };
-      paint();
-      const onMove = (ev) => {
-        cur = {
-          x: sx, y: sy,
-          w: clamp(((ev.clientX - r.left) / r.width)  * 100) - sx,
-          h: clamp(((ev.clientY - r.top)  / r.height) * 100) - sy,
-        };
-        paint();
-      };
-      const onUp = () => {
-        document.removeEventListener("pointermove", onMove);
-        document.removeEventListener("pointerup",     onUp);
-        document.removeEventListener("pointercancel", onUp);
-        // Ignore a stray click with no real drag — keep the previous draft/bar state.
-        if (Math.abs(cur.w) < 1 || Math.abs(cur.h) < 1) return;
-        this.card._state.setZoneDraft?.(cur);
-        this.card._scheduleRender?.();
-      };
       document.addEventListener("pointermove", onMove);
       document.addEventListener("pointerup",     onUp);
       document.addEventListener("pointercancel", onUp);

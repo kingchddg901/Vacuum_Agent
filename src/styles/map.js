@@ -186,9 +186,13 @@ export const mapStyles = `
   /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
      the press so the rubber-band handler owns the drag. */
   .evcc-map-container--zone { cursor: crosshair; }
+  /* The segment polygons + companion set pointer-events:all, which stays hittable
+     even under a parent svg's pointer-events:none — so suppress the ACTUAL targets
+     (higher specificity wins) so the rubber-band owns the press. */
   .evcc-map-container--zone .evcc-map-svg,
+  .evcc-map-container--zone .evcc-map-polygon,
   .evcc-map-container--zone .evcc-map-animal,
-  .evcc-map-container--zone .evcc-map-label { pointer-events: none; }
+  .evcc-map-container--zone .evcc-map-label { pointer-events: none !important; }
 
   /* The drawn rectangle, positioned in pct of .evcc-map-layers. */
   .evcc-zone-draft {
