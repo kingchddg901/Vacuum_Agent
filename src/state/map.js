@@ -427,6 +427,42 @@ export function applyMapState(proto) {
     return this.dashboardSnapshot?.()?.map_state_source ?? null;
   };
 
+  /* -- Live pose (Phase B) ------------------------------------------------------
+     The snapshot's map_state_source carries the MOVING overlays (robot/dock/current-
+     room/path) too, but only as fresh as the slow snapshot cadence — so a cleaning
+     robot visibly lags. The card polls get_map_live_pose (~2s, in-memory, loop-safe)
+     and stashes the result here; mapOverlayData() folds it over the snapshot so the
+     STATIC segmentation (rooms/area/hazards/image_size) stays from the snapshot while
+     the moving fields track live. null => no live override (poll off / unsupported). */
+  proto._livePose = null;
+  proto.setLivePose = function (pose) {
+    this._livePose = (pose && pose.present) ? pose : null;
+  };
+  proto.livePose = function () { return this._livePose; };
+
+  // The overlay source the device-overlay renderers read: the snapshot map_state_source
+  // with the live pose's moving fields layered on top (when present). Same normalized
+  // frame, so the existing letterbox transform (image_size) still applies unchanged.
+  proto.mapOverlayData = function () {
+    const base = this.mapStateSource();
+    const lp = this._livePose;
+    if (!base || !base.present || !lp || !lp.present) return base;
+    const merged = { ...base };
+    // The live pose OWNS current_room + path when present: clear the stale snapshot values
+    // first (mirrors the backend apply_live_pose_override) so a live anchor in a no-room
+    // (catch-all) cell, or with no live trail, can't leave the old room highlighted / a
+    // lagged trail drawn — the exact "stale in the kitchen" ghost this feature kills.
+    delete merged.current_room;
+    delete merged.path;
+    if (Array.isArray(lp.robot_anchor)) merged.robot_anchor = lp.robot_anchor;
+    if (Array.isArray(lp.dock_anchor)) merged.dock_anchor = lp.dock_anchor;
+    if (lp.current_room != null) merged.current_room = lp.current_room;
+    if (lp.robot_heading != null) merged.robot_heading = lp.robot_heading;
+    if (Array.isArray(lp.path)) merged.path = lp.path;
+    merged.robot_docked = Boolean(lp.robot_docked);
+    return merged;
+  };
+
   // Rendered-image dims [w, h] for the overlay letterbox correction (the overlays are
   // normalized to the IMAGE frame, but the live <img> is object-fit:contain inside a
   // SQUARE box). Only the aspect is used. null → card assumes square (no correction).
@@ -484,6 +520,73 @@ export function applyMapState(proto) {
       return !hasCv;                     // shared "custom": CV fallback if present
     }
     return !hasCv;                       // non-custom: CV variant if present, else live
+  };
+
+  /* =========================================================
+     VA-RENDERED MAP BACKDROP (Wave 1 — client-side canvas, no dependency)
+     =========================================================
+     The card draws its OWN full-grid backdrop from the device's room raster
+     (get_map_render_data, adapter-driven). The VA owns the frame, so the overlays
+     align perfectly (no fork-camera crop). A per-vacuum toggle picks it over the
+     live camera; the raster is cached in-memory by version (static; re-fetched only
+     when the map changes). Only offered when the adapter supplies a map_render block.
+     ========================================================= */
+
+  proto.supportsVaRender = function () {
+    return Boolean(this.dashboardSnapshot?.()?.supports_va_render);
+  };
+
+  proto._useVaRender = null; // null = not yet read from localStorage
+  proto._useVaRenderKey = function () {
+    return `evcc_va_render_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.useVaRender = function () {
+    if (this._useVaRender === null) {
+      try {
+        this._useVaRender = localStorage.getItem(this._useVaRenderKey()) === "1";
+      } catch (_) {
+        this._useVaRender = false;
+      }
+    }
+    return this._useVaRender;
+  };
+  proto.setUseVaRender = function (on) {
+    this._useVaRender = !!on;
+    // (Re)enabling drops any cached render data so the binding re-fetches fresh — this
+    // is also the retry path after a failed fetch (which stored a present:false sentinel).
+    if (on) this._mapRenderData = null;
+    try {
+      localStorage.setItem(this._useVaRenderKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleUseVaRender = function () {
+    this.setUseVaRender(!this.useVaRender());
+  };
+
+  // In-memory cache of the get_map_render_data response (the raster + decode params).
+  proto._mapRenderData = null;
+  proto.mapRenderData = function () {
+    return this._mapRenderData;
+  };
+  proto.setMapRenderData = function (rd) {
+    this._mapRenderData = (rd && typeof rd === "object") ? rd : null;
+  };
+  proto.mapRenderVersion = function () {
+    return this._mapRenderData?.version ?? null;
+  };
+
+  // The VA canvas is the active backdrop right now (toggle on + brand supports it +
+  // we have render data to draw).
+  proto.isVaRenderActive = function () {
+    return this.useVaRender()
+        && this.supportsVaRender()
+        && Boolean(this.mapRenderData()?.present);
+  };
+
+  // Overlays + the layers panel align on ANY grid-frame backdrop: the live device
+  // image OR the VA render. (Both are normalized to the same image_size grid.)
+  proto.overlaysAligned = function () {
+    return (this.isLiveImageDisplayed?.() ?? false) || this.isVaRenderActive();
   };
 
   proto.updateComposeShape = function (id, patch) {

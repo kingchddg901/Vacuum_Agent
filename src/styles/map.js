@@ -91,6 +91,15 @@ export const mapStyles = `
     -webkit-user-drag:  none;
   }
 
+  /* VA-rendered backdrop (Wave 1): the card draws the device room raster to this
+     canvas. Shares .evcc-map-image (object-fit:contain → letterboxes the same as the
+     live image, so the overlays align). Non-room pixels stay transparent → the
+     container's themed background reads as floor. The canvas intrinsic size is set on
+     draw (grid dims), so the contain ratio matches the device frame. */
+  .evcc-map-render-canvas {
+    image-rendering: auto;
+  }
+
   /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
      segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
      90° step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with

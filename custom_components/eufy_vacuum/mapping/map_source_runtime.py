@@ -33,6 +33,7 @@ from .map_source import (
     anchors_from_storage,
     build_map_source_result,
     overlays_from_storage,
+    render_data_from_storage,
     rooms_from_room_pixels,
 )
 
@@ -141,6 +142,29 @@ def eufy_result_from_store(
     )
 
 
+def eufy_render_data_from_store(
+    store_json: Any, *, expected_version: int | None = None
+) -> dict[str, Any]:
+    """PURE: the card-render raster + decode params from a loaded Eufy Store dict.
+
+    Version-guards the wrapper (the `eufy_room_pixels_v1` format), then extracts the
+    raster + explicit decode params via ``render_data_from_storage``. Degrades to
+    ``{present: false, reason}`` on any mismatch — never raises. Unit-tested without HA.
+    """
+    if not isinstance(store_json, dict):
+        return {"present": False, "reason": "no_store"}
+    if expected_version is not None and store_json.get("version") != expected_version:
+        return {"present": False, "reason": "store_version_mismatch"}
+    data = store_json.get("data")
+    if not isinstance(data, dict):
+        return {"present": False, "reason": "no_store_data"}
+    map_data = data.get("map_data")
+    if not isinstance(map_data, dict):
+        return {"present": False, "reason": "no_map_data"}
+    result = render_data_from_storage(map_data)
+    return result if result is not None else {"present": False, "reason": "no_segmentation"}
+
+
 # ---------------------------------------------------------------------------
 # Roborock memory backend (defensive runtime introspector).
 #
@@ -219,13 +243,18 @@ def find_roomlike_collection(root: Any, *, max_depth: int = 5):
 
 
 def _structure_tree(obj: Any, *, depth: int = 0, max_depth: int = 3,
-                    max_children: int = 24) -> Any:
+                    max_children: int = 24, show_skipped: bool = False) -> Any:
     """A bounded, JSON-safe shape summary of an object graph for diagnostics.
 
     Returns nested ``{"<type>": {child: subtree}}`` for objects/dicts and
     ``"<type>[n]"`` leaves for lists/scalars — enough to SEE where a parsed map /
     rooms / Room geometry lives when the duck-typed search misses, without dumping
     values. Honors the same attr denylist + depth cap as the walk.
+
+    ``show_skipped`` surfaces denylisted attrs as ``"<type> (skipped)"`` leaves
+    (without descending) so a diagnostic dump reveals that e.g. an ``api`` attr
+    exists even though the walk won't traverse it — needed when the sought data
+    might sit behind a normally-skipped attr.
     """
     tname = type(obj).__name__
     if depth >= max_depth:
@@ -233,24 +262,33 @@ def _structure_tree(obj: Any, *, depth: int = 0, max_depth: int = 3,
     if isinstance(obj, dict):
         items = list(obj.items())[:max_children]
         return {f"dict[{len(obj)}]": {
-            str(k): _structure_tree(v, depth=depth + 1, max_depth=max_depth)
+            str(k): _structure_tree(v, depth=depth + 1, max_depth=max_depth,
+                                    max_children=max_children, show_skipped=show_skipped)
             for k, v in items
         }}
     if isinstance(obj, (list, tuple)):
         if not obj:
             return f"{tname}[0]"
         return {f"{tname}[{len(obj)}]": _structure_tree(
-            obj[0], depth=depth + 1, max_depth=max_depth)}
+            obj[0], depth=depth + 1, max_depth=max_depth,
+            max_children=max_children, show_skipped=show_skipped)}
     attrs = getattr(obj, "__dict__", None)
     if isinstance(attrs, dict):
-        keep = [(k, v) for k, v in attrs.items()
-                if k not in _WALK_SKIP_ATTRS and not k.startswith("__")][:max_children]
-        if not keep:
-            return tname
-        return {tname: {
-            k: _structure_tree(v, depth=depth + 1, max_depth=max_depth)
-            for k, v in keep
-        }}
+        out: dict[str, Any] = {}
+        n = 0
+        for k, v in attrs.items():
+            if k.startswith("__"):
+                continue
+            if n >= max_children:
+                break
+            if k in _WALK_SKIP_ATTRS:
+                if show_skipped:
+                    out[k] = f"{type(v).__name__} (skipped)"
+                continue
+            out[k] = _structure_tree(v, depth=depth + 1, max_depth=max_depth,
+                                     max_children=max_children, show_skipped=show_skipped)
+            n += 1
+        return {tname: out} if out else tname
     return tname
 
 
@@ -598,6 +636,155 @@ def image_entity_object(hass: HomeAssistant, entity_id: str) -> Any:
     except Exception:  # pragma: no cover - defensive over HA internals
         return None
     return None
+
+
+# ---------------------------------------------------------------------------
+# Eufy IN-MEMORY live pose (the moving overlays — robot/dock/heading — fresh ~2s).
+#
+# The static segmentation comes from .storage (lagged by the fork's save-throttle); the
+# robot POSITION there (robot_trail[-1]) is stale. The fork's in-memory coordinator
+# holds a live-updating robot pixel (_robot_pixel) used for its own render. We read THAT
+# for the moving layers. Exact attr path isn't knowable offline -> defensive introspector
+# + structure-dump (deploy-and-discover, like the Roborock backend).
+# ---------------------------------------------------------------------------
+
+def _xy_pair(v: Any) -> bool:
+    """True iff ``v`` is a 2-element list/tuple of numbers (a [px, py] pixel)."""
+    return (
+        isinstance(v, (list, tuple)) and len(v) == 2
+        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
+    )
+
+
+def _first_attr_pair(obj: Any, attrs: Any) -> list[float] | None:
+    """First attr in ``attrs`` present on ``obj`` that is a numeric [px, py] pair."""
+    for a in (attrs or []):
+        v = getattr(obj, a, None)
+        if _xy_pair(v):
+            return [v[0], v[1]]
+    return None
+
+
+def _first_attr_trail(obj: Any, attrs: Any) -> list[Any] | None:
+    """First attr in ``attrs`` that is a non-empty sequence of [px, py] pairs (the robot
+    trail). Validated by its LAST point (cheap) and returned as a detached copy so a live
+    mutation mid-read can't corrupt it. None when absent."""
+    for a in (attrs or []):
+        v = getattr(obj, a, None)
+        if isinstance(v, (list, tuple)) and v and _xy_pair(v[-1]):
+            return list(v)
+    return None
+
+
+def _has_named_attr(obj: Any, attrs: Any) -> bool:
+    """True iff any name in ``attrs`` is an instance attribute of ``obj`` — by PRESENCE,
+    regardless of value. The fork nulls `_robot_pixel` while the robot is docked, so the
+    pose holder must be matched on the attr existing, not on it currently being a pair.
+    Prefers the side-effect-free ``__dict__`` check before falling back to hasattr.
+    hasattr only swallows AttributeError, but this predicate runs against ARBITRARY provider
+    internals during the BFS — a class-level property whose getter raises KeyError/TypeError
+    (a plausible shape mid fork-schema-merge) would otherwise escape and break the on-loop
+    snapshot. So the fallback is wrapped: any raise => treat the name as not present."""
+    d = getattr(obj, "__dict__", None)
+    if isinstance(d, dict):
+        for a in (attrs or []):
+            if a in d:
+                return True
+    for a in (attrs or []):
+        try:
+            if hasattr(obj, a):
+                return True
+        except Exception:  # noqa: BLE001 - a raising descriptor must not escape the walk
+            continue
+    return False
+
+
+def eufy_inmem_candidates(
+    hass: HomeAssistant, source_cfg: dict[str, Any]
+) -> list[tuple[str, str, Any]]:
+    """Candidate roots holding the fork's in-memory coordinator (hass.data + runtime_data)."""
+    domain = source_cfg.get("hass_data_domain", "robovac_mqtt")
+    out: list[tuple[str, str, Any]] = []
+    bucket = (hass.data or {}).get(domain)
+    if bucket is not None:
+        out.append(("hass_data", domain, bucket))
+    try:
+        entries = hass.config_entries.async_entries(domain)
+    except Exception:  # pragma: no cover - defensive over HA internals
+        entries = []
+    for entry in entries:
+        rd = getattr(entry, "runtime_data", None)
+        if rd is not None:
+            out.append(("runtime_data", entry.entry_id, rd))
+    return out
+
+
+def eufy_live_pose_from_candidates(
+    candidates: list[tuple[str, str, Any]],
+    *,
+    robot_attrs: Any,
+    dock_attrs: Any,
+    heading_attrs: Any = None,
+    trail_attrs: Any = None,
+) -> dict[str, Any]:
+    """PURE: find the fork's live robot/dock PIXEL (+ trail) in the in-memory candidates.
+
+    BFS for the pose HOLDER — the object carrying BOTH a robot- and a dock-pixel attr (by
+    PRESENCE: the fork nulls the robot pixel while docked, so value-matching would miss a
+    docked robot — exactly the case the live read exists to fix). Reads robot (None when
+    docked), dock, trail, and heading off that holder. ALWAYS attaches a ``diagnostics``
+    breadcrumb (a structure tree when nothing is found) so the first live deploy reveals the
+    real attr path. ``present`` is True when EITHER a robot or a dock pixel resolves (a
+    docked robot has only a dock). Returns the absent marker on any miss.
+
+    NEVER RAISES (the dashboard-snapshot service calls this ON THE EVENT LOOP): the walk +
+    attribute reads run against arbitrary provider internals whose property getters can raise
+    a non-AttributeError, so the per-candidate body is wrapped — a raise degrades that
+    candidate to a miss rather than aborting the snapshot. Mirrors the Roborock side's guard.
+    """
+    diag: dict[str, Any] = {"candidates": [c[0] + ":" + c[1] for c in candidates]}
+
+    def _is_pose_holder(o: Any) -> bool:
+        return _has_named_attr(o, robot_attrs) and _has_named_attr(o, dock_attrs)
+
+    for origin, key, root in candidates:
+        try:
+            holder, path = _walk(root, _is_pose_holder)
+            if holder is None:
+                continue
+            robot = _first_attr_pair(holder, robot_attrs)  # None while docked
+            dock = _first_attr_pair(holder, dock_attrs)
+            trail = _first_attr_trail(holder, trail_attrs)
+            heading = None
+            for a in (heading_attrs or []):
+                hv = getattr(holder, a, None)
+                if isinstance(hv, (int, float)) and not isinstance(hv, bool):
+                    heading = hv
+                    break
+        except Exception:  # noqa: BLE001 - a raising provider internal degrades to a miss
+            continue
+        diag.update({
+            "pose_at": f"{origin}:{key}:{path}",
+            "holder_type": type(holder).__name__,
+            "robot_docked": robot is None and dock is not None,
+        })
+        return {
+            "present": robot is not None or dock is not None,
+            "robot_pixel": robot,
+            "dock_pixel": dock,
+            "robot_heading": heading,
+            "trail_pixels": trail,
+            "diagnostics": diag,
+        }
+
+    try:
+        diag["structure"] = {
+            f"{o}:{k}": _structure_tree(r, max_depth=6, max_children=40, show_skipped=True)
+            for o, k, r in candidates
+        }
+    except Exception:  # noqa: BLE001 - the diagnostic dump must not raise either
+        diag["structure"] = {"error": "structure dump failed"}
+    return {"present": False, "reason": "no_pose", "diagnostics": diag}
 
 
 def roborock_candidates(

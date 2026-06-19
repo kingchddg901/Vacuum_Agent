@@ -163,6 +163,30 @@ Reviewed via a multi-agent adversarial pass (13 raised → 4 confirmed → fixed
 mismatch, the optimistic-rollback gap, + `image_size` plumbing). Deferred (pre-existing, low):
 live-map rotation is gated on `hasLiveImage` not `isLiveImageDisplayed`.
 
+## Self-render (client-side canvas) — Wave 1 (built 2026-06-19)
+
+The card draws its OWN full-grid map backdrop from the device's room raster — no server
+dependency (no Pillow). The VA owns the frame, so the overlays align perfectly (no
+fork-camera crop). Adapter-driven, brand-agnostic core + card.
+
+- **Adapter:** a `map_render: {format}` block declares the decode format (Eufy
+  `eufy_room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
+  schema). Roborock omits it → `supports_va_render: false` → the card hides the toggle (its
+  HA-core render is already frame-matched).
+- **Service** `get_map_render_data` → `manager.async_get_map_render_data` dispatches by
+  `map_render.format`, executor-reads `.storage`, returns the raster (`room_pixels` b64) +
+  **explicit decode params** (dims, `ro_dx/dy`, `flip_y`, `rid_shift`, `catch_all_rid`,
+  `room_names`, `version`) — so the card decodes with **no brand assumptions**.
+- **Card:** a `<canvas>` backdrop (same `object-fit:contain` as the live `<img>`, so it
+  letterboxes identically and the overlays align via `image_size`); a per-vacuum toolbar
+  toggle; fetch-once-cached-by-version; the decode is memoized by version. The overlay +
+  panel gate generalizes to `overlaysAligned()` = live image **or** VA render.
+- Reviewed (19 raised → 4 confirmed, all low → fixed: ImageData memoization, the
+  loading/fallback empty-state, the failed-fetch sentinel).
+- **Wave 1 = rooms only** (`room_pixels`). Walls/floor (`raw_pixels` — different encoding),
+  themed graph-coloring, and the in-memory live-pose re-render (kills the dynamic lag) are
+  later waves.
+
 ## Waves (each shippable, gated, additive — not a rewrite)
 
 1. **Reader + both backends + presence gate.** Output: per-room **bbox + names**. **No consumer

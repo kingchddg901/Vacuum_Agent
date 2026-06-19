@@ -14,11 +14,16 @@ import base64
 from custom_components.eufy_vacuum.mapping.map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
     anchors_from_storage,
+    apply_live_pose_override,
     build_map_source_result,
+    current_room_for_pixel,
     current_room_from_storage,
+    live_pose_overlay,
     normalize_rendered,
+    normalize_trail,
     overlays_from_storage,
     path_from_storage,
+    render_data_from_storage,
     resolve_overlay_visibility,
     rooms_from_parsed_map,
     rooms_from_room_pixels,
@@ -277,6 +282,87 @@ def test_overlays_from_storage_bundle():
     assert "no_go" not in ov and "walls" not in ov
 
 
+def test_current_room_for_pixel():
+    """[MS-13] room id at an arbitrary main-grid pixel (shared by storage + live pose)."""
+    md = _md([(5, 2, 2, 2, 2)])
+    assert current_room_for_pixel(md, 2, 2) == 5
+    assert current_room_for_pixel(md, 50, 50) is None   # off-map
+    assert current_room_for_pixel(md, 0, 0) is None     # byte 0 -> not a room
+    assert current_room_for_pixel(md, "x", 2) is None   # non-numeric
+
+
+def test_live_pose_overlay():
+    """[MS-14] in-memory pixel pose -> normalized robot/dock anchors + current-room."""
+    md = _md([(5, 2, 2, 2, 2)])
+    ov = live_pose_overlay(md, [2, 2], [8, 8], 90)
+    assert ov["robot_anchor"] == normalize_rendered(2, 2, 10, 10)
+    assert ov["current_room"] == 5
+    assert ov["dock_anchor"] == normalize_rendered(8, 8, 10, 10)
+    assert ov["robot_heading"] == 90
+    assert "robot_docked" not in ov                 # active robot is not docked
+    # no dims -> empty; bool heading rejected
+    assert live_pose_overlay({}, [2, 2], None, None) == {}
+    assert "robot_heading" not in live_pose_overlay(md, None, None, True)
+
+
+def test_apply_live_pose_override_clears_stale_owned_keys():
+    """[MS-15] the live pose is AUTHORITATIVE for current_room + path: a partial overlay that
+    omits them (e.g. a docked robot whose dock cell has no room) must CLEAR the lagged
+    .storage values, not leave them stale (the ghost the feature kills). Empty overlay = no-op."""
+    # docked, dock cell off-room: overlay carries robot/dock anchors but NO current_room/path
+    overlay = {"robot_anchor": [0.7, 0.34], "dock_anchor": [0.7, 0.34], "robot_docked": True}
+    result = {"present": True, "rooms": [{"number": 5}], "current_room": 5,  # STALE mid-clean
+              "path": [[0.1, 0.9]], "image_size": [10, 10]}
+    apply_live_pose_override(result, overlay)
+    assert "current_room" not in result and "path" not in result   # stale values cleared
+    assert result["robot_anchor"] == [0.7, 0.34] and result["robot_docked"] is True
+    assert result["rooms"] == [{"number": 5}] and result["image_size"] == [10, 10]  # static kept
+    # a resolved overlay re-supplies them (and they win over the stale base)
+    result2 = {"current_room": 5, "path": [[0.1, 0.9]]}
+    apply_live_pose_override(result2, {"current_room": 8, "path": [[0.7, 0.34]]})
+    assert result2["current_room"] == 8 and result2["path"] == [[0.7, 0.34]]
+    # empty overlay (dims missing) -> no live replacement, keep the .storage values untouched
+    result3 = {"current_room": 5, "path": [[0.1, 0.9]]}
+    assert apply_live_pose_override(result3, {}) == {"current_room": 5, "path": [[0.1, 0.9]]}
+
+
+def test_live_pose_overlay_docked_resolves_to_dock():
+    """[MS-14b] robot pixel None (docked) -> robot anchor SNAPS to the dock + robot_docked;
+    current-room comes from the dock cell. This is the fix for the stale mid-clean ghost."""
+    md = _md([(5, 2, 2, 2, 2), (7, 8, 8, 8, 8)])
+    ov = live_pose_overlay(md, None, [8, 8], None)
+    assert ov["robot_anchor"] == normalize_rendered(8, 8, 10, 10)   # == dock
+    assert ov["dock_anchor"] == normalize_rendered(8, 8, 10, 10)
+    assert ov["robot_docked"] is True
+    assert ov["current_room"] == 7                  # the dock's room, not a stale one
+    # a non-pair robot string is treated the same as docked
+    assert live_pose_overlay(md, "x", [8, 8], None)["robot_docked"] is True
+    # docked with NO dock either -> no robot anchor at all
+    assert "robot_anchor" not in live_pose_overlay(md, None, None, None)
+
+
+def test_live_pose_overlay_live_trail():
+    """[MS-14c] an in-memory robot trail -> normalized live path on the overlay."""
+    md = _md([(5, 2, 2, 2, 2)])
+    ov = live_pose_overlay(md, [2, 2], [8, 8], None, [(0, 0), (5, 5), (9, 9)])
+    assert ov["path"] == [normalize_rendered(0, 0, 10, 10),
+                          normalize_rendered(5, 5, 10, 10),
+                          normalize_rendered(9, 9, 10, 10)]
+    assert "path" not in live_pose_overlay(md, [2, 2], [8, 8], None)           # no trail arg
+    assert "path" not in live_pose_overlay(md, [2, 2], [8, 8], None, [])       # empty trail
+
+
+def test_normalize_trail():
+    """[MS-8c] the shared trail normalizer (tuples ok, decimates, always keeps the latest)."""
+    assert normalize_trail([(0, 0), (5, 5), (9, 9)], 10, 10) == [
+        [0.0, 0.9], [0.5, 0.4], [0.9, 0.0]]
+    assert normalize_trail([], 10, 10) == []
+    assert normalize_trail([(1, 1)], 0, 0) == []         # no dims
+    long = [(i % 10, 0) for i in range(1000)] + [(7, 7)]
+    out = normalize_trail(long, 10, 10, max_points=50)
+    assert len(out) <= 52 and out[-1] == normalize_rendered(7, 7, 10, 10)
+
+
 # --- Wave 3b visibility contract + decimation cap ------------------------------
 
 def test_resolve_overlay_visibility():
@@ -299,3 +385,24 @@ def test_decimate_step_hard_caps():
     assert _decimate_step(100, 160) == 1        # below cap -> keep all
     assert _decimate_step(1001, 50) == 21       # ceil(1001/50)
     assert _decimate_step(0, 160) == 1 and _decimate_step(10, 0) == 1  # degenerate
+
+
+# --- Wave-1 self-render: raster + explicit decode params --------------------------
+
+def test_render_data_from_storage():
+    """[MS-12] the card-render raster + EXPLICIT decode params (no brand assumptions
+    leak to the card — it gets dims/offset/flip/rid_shift verbatim)."""
+    md = _md([(5, 2, 2, 2, 2)], room_names={"5": "Kitchen"})
+    rd = render_data_from_storage(md)
+    assert rd["present"] is True and rd["format"] == "eufy_room_pixels_v1"
+    assert rd["width"] == 10 and rd["height"] == 10
+    assert rd["ro_width"] == 10 and rd["ro_height"] == 10
+    assert rd["ro_dx"] == 0 and rd["ro_dy"] == 0
+    assert rd["rid_shift"] == 2 and rd["catch_all_rid"] == 32 and rd["flip_y"] is True
+    assert rd["room_pixels"] == md["room_pixels"]
+    assert rd["room_names"] == {"5": "Kitchen"}
+    assert len(rd["version"]) == 12
+    # version is a stable content hash (same raster -> same version)
+    assert render_data_from_storage(md)["version"] == rd["version"]
+    # no segmentation -> None (caller treats as absent)
+    assert render_data_from_storage({"width": 10, "height": 10}) is None

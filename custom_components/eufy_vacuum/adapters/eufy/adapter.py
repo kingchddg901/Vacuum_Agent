@@ -552,6 +552,40 @@ def register_eufy_adapter_for_vacuum(
             "store_key": "robovac_mqtt.{device_id}",
             "store_version": 1,
             "present_requires_live_map_image": True,
+            # IN-MEMORY live pose (the moving overlays, fresh ~2s). The .storage robot
+            # position (robot_trail[-1]) lags the fork's save-throttle; the fork's live
+            # EufyCleanCoordinator holds a fresh pixel for its own render. We read THAT for
+            # robot/dock/current-room/path and keep .storage for the static segmentation.
+            # Attr path CONFIRMED on the live device (2026-06-19 structure dump):
+            # hass.data["robovac_mqtt"][<entry>]["coordinators"][0] (an EufyCleanCoordinator)
+            # exposes `_robot_pixel` (tuple, but NULLED while docked), `_dock_pixel` (tuple),
+            # `_robot_trail` (list of pixel tuples = the path). So the holder is matched on
+            # the robot+dock attrs EXISTING, not on the robot pixel currently being a pair —
+            # a docked robot resolves its anchor to the dock (mirrors the fork's render).
+            # There is NO in-memory heading attr (the fork bakes orientation into the
+            # rendered image bytes); heading_attrs is kept future-proof but matches nothing
+            # today. attr lists are tried in order; absence => no override (stays on
+            # .storage). Roborock doesn't need this (its in-memory MapData is frame-fresh).
+            "live_pose": {
+                "hass_data_domain": "robovac_mqtt",
+                "robot_pixel_attrs": ["_robot_pixel", "robot_pixel"],
+                "dock_pixel_attrs": ["_dock_pixel", "dock_pixel"],
+                "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
+                "heading_attrs": ["_robot_angle", "robot_angle", "_robot_heading"],
+            },
+        },
+
+        "map_render": {
+            # VA-OWNED client-side map render (no server dependency). Declares HOW the
+            # card sources the raster to draw its own full-grid backdrop — so the
+            # overlays align perfectly (no fork-camera crop) and the look is themeable.
+            # `format` names the decode (the card applies the explicit params the
+            # get_map_render_data service returns; core/card stay brand-agnostic). The
+            # source pointer (store_key/identifier_domain/store_version) is REUSED from
+            # `map_state_source` above — no duplicate schema. Roborock omits this block
+            # (its HA-core image render is already frame-matched); absence => the card's
+            # "VA-rendered map" backdrop source is hidden for that brand.
+            "format": "eufy_room_pixels_v1",
         },
 
         "job_segmenter": {

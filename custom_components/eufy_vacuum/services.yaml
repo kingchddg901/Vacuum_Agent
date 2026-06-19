@@ -2333,6 +2333,38 @@ set_map_overlay_visibility:
       selector:
         boolean: {}
 
+get_map_render_data:
+  name: Get map render data
+  description: >
+    Return the raw room raster + decode params the card uses to draw its OWN map
+    backdrop (no server-side image rendering). Adapter-driven; the card fetches this
+    on demand and caches it by the returned version. Brands without a map_render
+    config return present:false.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
+get_map_live_pose:
+  name: Get map live pose
+  description: >
+    Return the live moving-overlay pose (robot + dock anchors, current room, heading)
+    from the provider's in-memory coordinator — fresher than the .storage-derived pose.
+    The card polls this on the live cadence so the robot overlay isn't stale. Brands
+    without a live_pose config return present:false.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
 create_custom_layout:
   name: Create custom layout
   description: >

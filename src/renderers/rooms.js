@@ -92,7 +92,7 @@ export function applyRoomsRenderers(proto) {
                   state.zoneMax?.() ?? 10,
                 )
               : ""}
-            ${(state.isMapViewActive?.() && (state.isLiveImageDisplayed?.() ?? false)
+            ${(state.isMapViewActive?.() && (state.overlaysAligned?.() ?? false)
                && typeof this._renderMapLayersPanel === "function")
               ? this._renderMapLayersPanel(state)
               : ""}

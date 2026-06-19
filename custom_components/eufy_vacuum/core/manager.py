@@ -319,6 +319,10 @@ class EufyVacuumManager:
         # snapshot never does the blocking .storage read itself. Value shape:
         # {"mtime": float|None, "map_id": str, "result": <map_source result dict>}.
         self._map_state_source_cache: dict[str, dict[str, Any]] = {}
+        # Static map geometry (dims + room raster) cached by file mtime, so the live-pose
+        # service can normalize the fresh in-memory pose without reloading the 200 KB
+        # store every poll. {vacuum_entity_id: {"mtime": float, "map_data": dict}}.
+        self._live_pose_geom_cache: dict[str, dict[str, Any]] = {}
 
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
@@ -3700,6 +3704,10 @@ class EufyVacuumManager:
         map_overlay_visibility = resolve_overlay_visibility(
             _live_map_bucket.get("overlay_visibility")
         )
+        # Adapter declares a `map_render` block iff it can supply the raster for the
+        # card's OWN map render → the card offers the "VA-rendered map" backdrop source.
+        # Static per brand (Eufy yes, Roborock no — its HA image is already frame-matched).
+        supports_va_render = isinstance(_adapter_cfg.get("map_render"), dict)
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3726,6 +3734,7 @@ class EufyVacuumManager:
             "live_map_image_entity": live_map_image_entity,
             "live_map_rotation": live_map_rotation,
             "map_overlay_visibility": map_overlay_visibility,
+            "supports_va_render": supports_va_render,
             # VA-owned read of the provider's OWN segmentation (map_state_source,
             # Wave 1: per-room bbox+name + dock/robot anchors, normalized to the
             # rendered image). Read from the cache the async pre-warm populates — the
@@ -3908,10 +3917,154 @@ class EufyVacuumManager:
                 "map_state_source.store_version. Treating as unavailable.",
                 vacuum_entity_id, expected_version,
             )
+        # Override the MOVING overlays (robot/dock/current-room) with the fork's fresh
+        # in-memory pose, keeping the static segmentation from .storage. Adapter-declared
+        # `live_pose`; absent => the overlays stay on the lagged .storage values.
+        live_cfg = source_cfg.get("live_pose")
+        if isinstance(live_cfg, dict) and result.get("present"):
+            # Defensive: this runs ON THE EVENT LOOP inside the dashboard-snapshot service.
+            # A provider-internal property could raise on access (esp. across the pending
+            # fork #136 schema merge) — degrade to the lagged .storage overlays rather than
+            # abort the whole snapshot. (The introspector is also internally guarded.)
+            try:
+                pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
+                if pose.get("present"):
+                    from ..mapping.map_source import (
+                        apply_live_pose_override,
+                        live_pose_overlay,
+                    )
+                    map_data = (store_json.get("data") or {}).get("map_data") or {}
+                    overlay = live_pose_overlay(
+                        map_data, pose.get("robot_pixel"),
+                        pose.get("dock_pixel"), pose.get("robot_heading"),
+                        pose.get("trail_pixels"),
+                    )
+                    # Authoritative override: clear stale current_room/path before merging
+                    # so an off-room dock/transit anchor can't leave a stale highlight.
+                    apply_live_pose_override(result, overlay)
+            except Exception:  # noqa: BLE001 - never let the pose read break the snapshot
+                _LOGGER.debug(
+                    "live_pose override failed for %s; keeping .storage overlays",
+                    vacuum_entity_id, exc_info=True,
+                )
         self._map_state_source_cache[vacuum_entity_id] = {
             "mtime": mtime, "present_gate": present, "map_id": str(map_id), "result": result,
         }
         return result
+
+    def _read_inmem_pose(
+        self, vacuum_entity_id: str, live_cfg: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Read the fork's in-memory live robot/dock PIXEL (fresh ~2s). In-memory only —
+        loop-safe. Returns the pose + a diagnostics breadcrumb (structure dump when the
+        attr path isn't found — the deploy-and-discover signal). Never raises."""
+        from ..mapping import map_source_runtime as _msr
+
+        candidates = _msr.eufy_inmem_candidates(self.hass, live_cfg)
+        pose = _msr.eufy_live_pose_from_candidates(
+            candidates,
+            robot_attrs=live_cfg.get("robot_pixel_attrs"),
+            dock_attrs=live_cfg.get("dock_pixel_attrs"),
+            heading_attrs=live_cfg.get("heading_attrs"),
+            trail_attrs=live_cfg.get("trail_pixel_attrs"),
+        )
+        _LOGGER.debug(
+            "live_pose[%s]: present=%s reason=%s pose_at=%s",
+            vacuum_entity_id, pose.get("present"), pose.get("reason"),
+            (pose.get("diagnostics") or {}).get("pose_at"),
+        )
+        return pose
+
+    async def _load_live_pose_geom(
+        self, vacuum_entity_id: str, source_cfg: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Load (mtime-cached) the static map_data the live-pose normalization needs."""
+        from ..mapping import map_source_runtime as _msr
+
+        path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
+        if not path:
+            return None
+        mtime = await self.hass.async_add_executor_job(_stat_mtime, path)
+        cache = self._live_pose_geom_cache.get(vacuum_entity_id)
+        if cache and mtime is not None and cache.get("mtime") == mtime:
+            return cache.get("map_data")
+        store_json = await self.hass.async_add_executor_job(_msr.load_store_json, path)
+        map_data = None
+        if isinstance(store_json, dict):
+            map_data = (store_json.get("data") or {}).get("map_data")
+        if isinstance(map_data, dict):
+            self._live_pose_geom_cache[vacuum_entity_id] = {
+                "mtime": mtime, "map_data": map_data,
+            }
+            return map_data
+        return None
+
+    async def async_get_map_live_pose(
+        self, *, vacuum_entity_id: str,
+    ) -> dict[str, Any]:
+        """Return ONLY the moving overlays (robot/dock anchors + current-room + heading)
+        from the fork's fresh in-memory pose — the lightweight payload the card polls at
+        the ~2s live cadence (vs the full snapshot). Adapter-driven; degrades to an absent
+        marker (+ diagnostics for discovery)."""
+        from ..mapping.map_source import live_pose_overlay
+
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        source_cfg = adapter_cfg.get("map_state_source")
+        live_cfg = source_cfg.get("live_pose") if isinstance(source_cfg, dict) else None
+        if not isinstance(live_cfg, dict):
+            return {"present": False, "reason": "not_configured"}
+        pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
+        if not pose.get("present"):
+            return {
+                "present": False, "reason": pose.get("reason", "no_pose"),
+                "diagnostics": pose.get("diagnostics"),
+            }
+        map_data = await self._load_live_pose_geom(vacuum_entity_id, source_cfg)
+        if not map_data:
+            return {"present": False, "reason": "no_geom",
+                    "diagnostics": pose.get("diagnostics")}
+        overlay = live_pose_overlay(
+            map_data, pose.get("robot_pixel"), pose.get("dock_pixel"),
+            pose.get("robot_heading"), pose.get("trail_pixels"),
+        )
+        return {"present": True, **overlay, "diagnostics": pose.get("diagnostics")}
+
+    async def async_get_map_render_data(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> dict[str, Any]:
+        """Return the raster + decode params for the card's OWN map render (Wave 1).
+
+        Adapter-DRIVEN: the adapter's `map_render.format` selects the decode, and the
+        source pointer is REUSED from `map_state_source` (no duplicate schema). Core just
+        dispatches by format — no brand assumptions here. The card calls this on demand
+        (when the VA-rendered backdrop is selected) and caches by the returned `version`;
+        the raster is static (changes only on re-map), so it's fetch-once, not snapshot
+        bloat. Off-loop `.storage` read via executor. Degrades to an absent marker.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        render_cfg = adapter_cfg.get("map_render")
+        if not isinstance(render_cfg, dict):
+            return {"present": False, "reason": "not_configured"}
+        fmt = render_cfg.get("format")
+        source_cfg = adapter_cfg.get("map_state_source")
+        # eufy_room_pixels_v1: read the fork's .storage room-id raster (storage backend).
+        if (
+            fmt == "eufy_room_pixels_v1"
+            and isinstance(source_cfg, dict)
+            and source_cfg.get("backend") == "storage"
+        ):
+            path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
+            if not path:
+                return {"present": False, "reason": "no_device"}
+            store_json = await self.hass.async_add_executor_job(_msr.load_store_json, path)
+            return _msr.eufy_render_data_from_store(
+                store_json, expected_version=source_cfg.get("store_version")
+            )
+        return {"present": False, "reason": f"unknown_format:{fmt}"}
 
 
     # Job finalization — delegates to ActiveJobTracker

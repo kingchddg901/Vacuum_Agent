@@ -380,6 +380,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._scheduleIncompleteRunLogRefresh();
     this._scheduleTroubleRoomsLogRefresh();
     this._scheduleLiveMapRefresh();
+    this._scheduleLivePosePoll();
     this._loadInitialThemeState();
   }
 
@@ -585,6 +586,68 @@ class EufyVacuumCommandCenter extends HTMLElement {
       this._state.bumpLiveMapTick?.();
       this._scheduleRender();
     }, REFRESH_MS);
+  }
+
+  /* Poll the fork's in-memory LIVE POSE on the frame cadence (Phase B). The snapshot
+     carries the moving overlays (robot/dock/current-room/path) but only as fresh as its
+     slow cadence, so a cleaning robot visibly lags. While the device overlays are shown
+     (live image or VA render) on the map view, read the fork's fresh in-memory pose every
+     REFRESH_MS and override those fields. The read is in-memory + loop-safe (no .storage),
+     and SELF-DISABLES for a brand with no live_pose block (Roborock is frame-fresh via the
+     snapshot): the first not_configured response latches the poll off for the session.
+     Idempotent like _scheduleLiveMapRefresh — never resets a running timer. */
+  _scheduleLivePosePoll() {
+    const REFRESH_MS = 2000; // matches the fork's ~2s map-frame cadence
+
+    const wantPoll =
+      !this._livePoseUnsupported &&
+      !!this._state?.isMapViewActive?.() &&
+      !!this._state?.overlaysAligned?.() &&
+      !!this._state?.mapStateSource?.()?.present;
+
+    if (!wantPoll) {
+      if (this._livePosePollTimer) {
+        clearInterval(this._livePosePollTimer);
+        this._livePosePollTimer = null;
+      }
+      return;
+    }
+    if (this._livePosePollTimer) return; // already polling
+
+    const tick = async () => {
+      if (this._livePoseUnsupported
+          || !this._state?.isMapViewActive?.()
+          || !this._state?.overlaysAligned?.()) {
+        clearInterval(this._livePosePollTimer);
+        this._livePosePollTimer = null;
+        return;
+      }
+      if (document.hidden) return; // tab backgrounded — skip the fetch, keep the timer alive
+      try {
+        const resp = await this._actions?.getMapLivePose?.();
+        // callService swallows a WS drop and RETURNS null (it does not throw), so the catch
+        // below is dead code for that case. Guard null explicitly: a transient failure keeps
+        // the last pose + timer and retries next tick, rather than clearing the override
+        // (which would snap the robot back to the lagged snapshot for a frame). Only an
+        // explicit present:false from the backend means "genuinely no pose".
+        if (resp == null) return;
+        if (resp.present === false && resp.reason === "not_configured") {
+          this._livePoseUnsupported = true;        // latch off — this brand is frame-fresh
+          this._state?.setLivePose?.(null);
+          clearInterval(this._livePosePollTimer);
+          this._livePosePollTimer = null;
+          this._scheduleRender();
+          return;
+        }
+        this._state?.setLivePose?.(resp);
+        this._scheduleRender();
+      } catch (err) {
+        // transient WS drop — keep the last pose + the timer, retry next tick
+      }
+    };
+
+    this._livePosePollTimer = setInterval(tick, REFRESH_MS);
+    tick(); // fire immediately so the first override doesn't wait a full interval
   }
 
   async refreshDockActionStatus() {
@@ -1433,6 +1496,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._deferredRenderTimer = null;
     clearInterval(this._liveMapRefreshTimer);
     this._liveMapRefreshTimer = null;
+    clearInterval(this._livePosePollTimer);
+    this._livePosePollTimer = null;
   }
 
   _handleVisibilityChange() {

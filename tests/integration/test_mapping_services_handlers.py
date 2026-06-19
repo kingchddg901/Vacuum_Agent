@@ -177,6 +177,14 @@ async def test_set_map_overlay_visibility(hass, mapping_services):
     assert result["overlay_visibility"]["robot"] is True
 
 
+async def test_get_map_render_data_absent(hass, mapping_services):
+    """[MSV-17] get_map_render_data is registered + degrades gracefully when the adapter
+    declares no map_render block (no crash, present:false)."""
+    result = await _call(hass, ms.SERVICE_GET_MAP_RENDER_DATA, {"vacuum_entity_id": _VAC})
+    assert result["present"] is False
+    assert result.get("reason") == "not_configured"
+
+
 async def test_set_dock_anchor_docked(hass, mapping_services):
     """[MSV-6]"""
     hass.states.async_set(_VAC, "docked")

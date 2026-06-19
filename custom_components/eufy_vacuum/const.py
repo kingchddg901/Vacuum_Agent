@@ -152,6 +152,13 @@ SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
 # dict on the map bucket (user deltas over the defaults); surfaced in the snapshot as
 # `map_overlay_visibility` and mirrored on sensor.<vac>_map_overlays. Display only.
 SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility"
+# Card-render raster + decode params for the VA's OWN client-side map render (Wave 1).
+# Adapter-driven (map_render.format); fetched on demand + cached by `version`.
+SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data"
+# Lightweight live MOVING-overlay pose (robot/dock anchors + current-room + heading) from
+# the fork's in-memory coordinator (~2s fresh). Polled by the card on the live cadence so
+# the robot overlay isn't gated by the slower .storage write + full-snapshot fetch.
+SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"

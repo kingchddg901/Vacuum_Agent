@@ -12,6 +12,14 @@
 
 import { VIEWS } from "../render-cycle.js";
 
+// Per-room fill palette for the VA-rendered backdrop (indexed by room id). Mirrors the
+// renderer's segment palette; Wave 2 will move these to themeable --evcc-map-ov-* tokens.
+const _VA_ROOM_COLORS = [
+  "#00e5ff", "#ff6b35", "#a3e635", "#e879f9",
+  "#fbbf24", "#a78bfa", "#fb7185", "#34d399",
+  "#60a5fa", "#f472b6", "#4ade80", "#f97316",
+];
+
 /**
  * Mix map binding methods onto the given prototype.
  *
@@ -39,6 +47,8 @@ export function applyMapBindings(proto) {
     this._bindMapAnimal(root);
     this._bindMapAnimalSelect(root);
     this._bindMapLayersPanel(root);
+    this._bindMapRenderToggle(root);
+    this._bindMapRenderCanvas(root);
 
     const view = this.card._view;
     if (view === VIEWS.MAP_CONFIG || this.card._state.isMapViewActive?.()) {
@@ -69,6 +79,115 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+  };
+
+  /* =========================================================
+     VA-RENDERED MAP BACKDROP (Wave 1 — client-side canvas)
+     ========================================================= */
+
+  proto._bindMapRenderToggle = function (root) {
+    root.querySelectorAll("[data-action='toggle-va-render']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleUseVaRender?.();
+        this.card._scheduleRender();
+      });
+    });
+  };
+
+  /**
+   * When the VA-rendered backdrop is selected: fetch the raster ONCE (cached by
+   * version), then draw it to the <canvas> backdrop — redrawing only when the map
+   * version changes. The raster is static, so this is cheap.
+   */
+  proto._bindMapRenderCanvas = function (root) {
+    const state = this.card._state;
+    if (!(state.useVaRender?.() && state.supportsVaRender?.())) return;
+
+    const rd = state.mapRenderData?.();
+    if (!rd && !this._vaRenderFetching) {
+      this._vaRenderFetching = true;
+      this.card._actions
+        .getMapRenderData()
+        .then((data) => {
+          // Store a TRUTHY sentinel on a null/failed resolve so the binding doesn't
+          // re-fetch on every render (a transient WS drop returns null). Re-flipping the
+          // toggle clears the cache to retry.
+          state.setMapRenderData?.(
+            (data && typeof data === "object")
+              ? data
+              : { present: false, reason: "fetch_failed" });
+          this.card._scheduleRender();
+        })
+        .catch((err) => {
+          console.error("[eufy-vacuum-command-center] map render fetch failed:", err);
+          state.setMapRenderData?.({ present: false, reason: "fetch_failed" });
+        })
+        .finally(() => { this._vaRenderFetching = false; });
+      return;
+    }
+
+    const canvas = root.querySelector("canvas.evcc-map-render-canvas");
+    if (!canvas || !rd || !rd.present) return;
+    if (canvas._evccDrawnVersion === rd.version) return; // already drawn this version
+    try {
+      this._drawVaRender(canvas, rd);
+      canvas._evccDrawnVersion = rd.version;
+    } catch (err) {
+      console.error("[eufy-vacuum-command-center] map render draw failed:", err);
+    }
+  };
+
+  /**
+   * Decode the room-id raster into the canvas: per pixel, room id = byte>>rid_shift;
+   * map the room_outline raster coord to the main grid (+ro_dx/dy), apply the Y-flip,
+   * and paint the room's palette colour. All decode params come from the service
+   * response (no brand assumptions). Wave 1 = rooms only (walls/floor are Wave 2).
+   */
+  proto._drawVaRender = function (canvas, rd) {
+    const W = rd.width | 0, H = rd.height | 0;
+    if (W <= 0 || H <= 0) return;
+    canvas.width = W;
+    canvas.height = H;
+    const cctx = canvas.getContext("2d");
+    if (!cctx) return;
+    // The canvas element is recreated on every view re-render (zoom/select/etc.), but
+    // the raster is static — decode ONCE per map version into an ImageData cached on
+    // the binding instance, then just putImageData onto each fresh canvas (cheap).
+    let cache = this._vaImageCache;
+    if (!cache || cache.version !== rd.version || cache.w !== W || cache.h !== H) {
+      const img = cctx.createImageData(W, H);
+      const data = img.data;
+      const bin = atob(rd.room_pixels || "");
+      const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+      const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+      const shift = rd.rid_shift | 0;
+      const catchAll = rd.catch_all_rid | 0;
+      const flip = rd.flip_y !== false;
+      for (let ry = 0; ry < roH; ry++) {
+        const rowOff = ry * roW;
+        for (let rx = 0; rx < roW; rx++) {
+          const idx = rowOff + rx;
+          if (idx >= bin.length) break;
+          const rid = bin.charCodeAt(idx) >> shift;
+          if (!(rid > 0 && rid < catchAll)) continue;
+          const px = rx + dx, py = ry + dy;
+          if (px < 0 || px >= W || py < 0 || py >= H) continue;
+          const iy = flip ? (H - 1 - py) : py;
+          const o = (iy * W + px) * 4;
+          const c = this._vaRoomColor(rid);
+          data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+        }
+      }
+      cache = { version: rd.version, w: W, h: H, img };
+      this._vaImageCache = cache;
+    }
+    cctx.putImageData(cache.img, 0, 0);
+  };
+
+  proto._vaRoomColor = function (rid) {
+    const hex = _VA_ROOM_COLORS[(rid - 1 + _VA_ROOM_COLORS.length) % _VA_ROOM_COLORS.length];
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
 
   /* =========================================================

@@ -13,6 +13,8 @@ PURE given injected plain data — tested here without Home Assistant.
 import base64
 
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+    eufy_live_pose_from_candidates,
+    eufy_render_data_from_store,
     eufy_result_from_store,
     find_mapdata,
     find_roomlike_collection,
@@ -83,6 +85,18 @@ def test_eufy_result_from_store_presence_gate():
     out = eufy_result_from_store(_store(), expected_version=1, present=False)
     assert out["present"] is False
     assert out["reason"] == "live_map_absent"
+
+
+def test_eufy_render_data_from_store():
+    """[MSR-1g] render-data reader: version guard + extract; degrade-not-crash."""
+    out = eufy_render_data_from_store(_store(), expected_version=1)
+    assert out["present"] is True and out["format"] == "eufy_room_pixels_v1"
+    assert out["room_pixels"] == _store()["data"]["map_data"]["room_pixels"]
+    assert eufy_render_data_from_store(
+        _store(version=2), expected_version=1)["reason"] == "store_version_mismatch"
+    assert eufy_render_data_from_store(None)["reason"] == "no_store"
+    assert eufy_render_data_from_store(
+        {"version": 1, "data": {}}, expected_version=1)["reason"] == "no_map_data"
 
 
 def test_eufy_result_from_store_degrades():
@@ -289,6 +303,69 @@ def test_roborock_presence_gate():
         [("hass_data", "roborock", _Coordinator())], present=False)
     assert out["present"] is False and out["reason"] == "live_map_absent"
     assert out["diagnostics"]["candidates"] == ["hass_data:roborock"]
+
+
+def test_eufy_live_pose_from_candidates():
+    """[MSR-2i] find the fork's live robot/dock pixel + trail on the in-memory coordinator
+    (matched by attr PRESENCE); structure dump when absent."""
+    root = _Coordinator(_home_trait=_Coordinator(
+        _robot_pixel=[10, 20], _dock_pixel=[5, 6],
+        _robot_trail=[(1, 1), (2, 2)], _robot_angle=45))
+    out = eufy_live_pose_from_candidates(
+        [("hass_data", "robovac_mqtt", root)],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"],
+        heading_attrs=["_robot_angle"], trail_attrs=["_robot_trail"])
+    assert out["present"] is True
+    assert out["robot_pixel"] == [10, 20] and out["dock_pixel"] == [5, 6]
+    assert out["robot_heading"] == 45
+    assert out["trail_pixels"] == [(1, 1), (2, 2)]
+    assert out["diagnostics"]["robot_docked"] is False
+    assert "pose_at" in out["diagnostics"]
+    # nothing with the robot+dock attrs -> absent + structure dump
+    out2 = eufy_live_pose_from_candidates(
+        [("hass_data", "robovac_mqtt", _Coordinator(foo=1))],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"], heading_attrs=[])
+    assert out2["present"] is False and "structure" in out2["diagnostics"]
+
+
+def test_eufy_live_pose_docked_robot_pixel_none():
+    """[MSR-2j] the holder is matched on the attr EXISTING even though _robot_pixel is None
+    while docked (the fork nulls it) -> present via the dock; flags robot_docked."""
+    root = _Coordinator(coordinators=[_Coordinator(
+        _robot_pixel=None, _dock_pixel=(8, 8), _robot_trail=[(3, 3)])])
+    out = eufy_live_pose_from_candidates(
+        [("hass_data", "robovac_mqtt", root)],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"],
+        trail_attrs=["_robot_trail"])
+    assert out["present"] is True
+    assert out["robot_pixel"] is None and out["dock_pixel"] == [8, 8]
+    assert out["diagnostics"]["robot_docked"] is True
+    # a robot attr WITHOUT a dock attr is not a pose holder (needs both) -> miss
+    miss = eufy_live_pose_from_candidates(
+        [("hass_data", "robovac_mqtt", _Coordinator(_robot_pixel=[1, 2]))],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"])
+    assert miss["present"] is False and "structure" in miss["diagnostics"]
+
+
+def test_eufy_live_pose_never_raises_on_raising_property():
+    """[MSR-2k] a provider object exposing a configured name as a property whose getter RAISES
+    (a non-AttributeError, e.g. mid fork-schema-merge) must degrade to a miss, not propagate —
+    this runs on the event loop inside the snapshot service and must never crash it."""
+    class _Hostile:
+        @property
+        def _robot_pixel(self):  # noqa: D401 - a getter that blows up on access
+            raise RuntimeError("provider internals shifted")
+
+        @property
+        def _dock_pixel(self):
+            raise KeyError("nope")
+
+    # the hostile object is reachable in the walk; nothing should escape
+    root = _Coordinator(coordinators=[_Hostile()])
+    out = eufy_live_pose_from_candidates(
+        [("hass_data", "robovac_mqtt", root)],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"])
+    assert out["present"] is False   # degraded cleanly, no exception
 
 
 def test_find_mapdata_nested():

@@ -14,6 +14,8 @@ import {
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_LIVE_MAP_ROTATION,
   SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+  SERVICE_GET_MAP_RENDER_DATA,
+  SERVICE_GET_MAP_LIVE_POSE,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
@@ -308,6 +310,36 @@ export function applyMapActions(proto) {
     if (mapId) data.map_id = mapId;
     const result = await this.callService(
       DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, data, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Fetch the raster + decode params for the VA's own client-side map render
+   * (Wave 1). Adapter-driven; the card caches the response by its `version` and only
+   * re-fetches when the map changes. Returns the render-data object or null.
+   */
+  proto.getMapRenderData = async function () {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_GET_MAP_RENDER_DATA, { vacuum_entity_id: vacuum }, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Read the fork's FRESH in-memory live pose (robot/dock anchors + current-room + live
+   * path) — the lightweight ~2s poll that overrides the lagged snapshot overlays while
+   * the robot is cleaning (Phase B). Adapter-driven; returns the response (which may be
+   * `{present:false, reason:"not_configured"}` for a brand without a live_pose block —
+   * the caller latches that off so it never polls a frame-fresh brand). null on failure.
+   */
+  proto.getMapLivePose = async function () {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_GET_MAP_LIVE_POSE, { vacuum_entity_id: vacuum }, true,
     );
     return result?.response ?? result ?? null;
   };

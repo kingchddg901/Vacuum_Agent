@@ -78,21 +78,31 @@ export function applyMapRenderers(proto) {
     const segmentsData = state.mapSegmentsData();
     const imageUrl = state.mapImageUrl();
     const hasLiveImage = Boolean(state.liveMapImageEntity?.());
+    // VA-rendered backdrop (Wave 1): the card draws its OWN full-grid canvas from the
+    // device raster (the binding fetches via get_map_render_data + draws). When on, we
+    // proceed even without a camera URL — the canvas is the backdrop.
+    const wantVa = Boolean(state.useVaRender?.() && state.supportsVaRender?.());
+    const vaActive = state.isVaRenderActive?.() ?? false;
 
-    // A live-image brand (Roborock) has no CV/custom segments — render the picture
-    // alone as soon as we have its URL; the segment/label SVG below is a safe no-op
-    // on an empty segment list. Other modes still require an analyzed/authored map.
-    if (!imageUrl || (!segmentsData?.available && !hasLiveImage)) {
+    // Empty state ONLY when there's genuinely no usable backdrop: not the VA render
+    // (gate on vaActive, not the mere intent wantVa), no live/CV image, no custom
+    // segments. A live-image brand (Roborock) renders the picture alone once its URL is
+    // ready; the segment/label SVG below is a safe no-op on an empty segment list.
+    if (!vaActive && (!imageUrl || (!segmentsData?.available && !hasLiveImage))) {
       const isCustom = (state.segmentationMode?.() ?? "cv") === "custom";
-      const hint = hasLiveImage
-        ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
-        : isCustom
-          ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
-          : "Upload and analyze a map image to enable map view.";
+      // VA render selected but its raster hasn't loaded yet -> "rendering", not "no map".
+      const title = wantVa ? "Rendering the map…" : "No map image available.";
+      const hint = wantVa
+        ? "Drawing the map from the device's room data — one moment."
+        : hasLiveImage
+          ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
+          : isCustom
+            ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
+            : "Upload and analyze a map image to enable map view.";
       return `
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">
-            <p>No map image available.</p>
+            <p>${title}</p>
             <p class="evcc-map-unavailable-hint">${hint}</p>
           </div>
         </div>
@@ -118,7 +128,7 @@ export function applyMapRenderers(proto) {
     const ty           = state.mapTranslateY?.() ?? 0;
     // Live-map rotation is display only and applies ONLY to the live image (no
     // segment overlay to keep aligned); CV/custom maps stay at 0.
-    const rot          = hasLiveImage ? (state.mapRotation?.() ?? 0) : 0;
+    const rot          = (hasLiveImage && !wantVa) ? (state.mapRotation?.() ?? 0) : 0;
     // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
     // only when the provider supports it, and only at rotation 0 for now — a
     // rotated map letterboxes on the swapped axis (Wave 2 handles rotation).
@@ -129,9 +139,10 @@ export function applyMapRenderers(proto) {
     const zoneDrafts = zoneMode ? (state.zoneDrafts?.() ?? []) : [];
     const zoneCount  = zoneDrafts.length;
     const zoneMax    = state.zoneMax?.() ?? 10;
-    // map_state_source overlay layers (no-go/walls/path/robot/etc.) render only over
-    // the LIVE device image — the only space their normalized coords align to (Wave 3c).
-    const deviceOverlays = state.isLiveImageDisplayed?.() ?? false;
+    // map_state_source overlay layers (no-go/walls/path/robot/etc.) render over any
+    // GRID-frame backdrop their normalized coords align to: the live device image OR
+    // the VA-rendered canvas (Wave 3c overlays; Wave 1 self-render).
+    const deviceOverlays = state.overlaysAligned?.() ?? false;
     return `
       <div class="evcc-map-view">
         <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}">
@@ -142,12 +153,11 @@ export function applyMapRenderers(proto) {
                  stays on .evcc-map-layers above. --evcc-map-rotation lets labels +
                  mascot counter-rotate upright (see styles/map.js). -->
             <div class="evcc-map-content-rotator" style="transform:rotate(${rot}deg);--evcc-map-rotation:${rot}deg">
-            <img
-              class="evcc-map-image"
-              src="${this.escapeHtml(imageUrl)}"
-              alt="Floor plan"
-              draggable="false"
-            >
+            ${vaActive
+              ? `<canvas class="evcc-map-image evcc-map-render-canvas" data-render-version="${this.escapeHtml(String(state.mapRenderVersion?.() ?? ""))}"></canvas>`
+              : (imageUrl
+                  ? `<img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
+                  : "")}
             <svg
               class="evcc-map-svg"
               viewBox="0 0 100 100"
@@ -210,6 +220,10 @@ export function applyMapRenderers(proto) {
             ${hasLiveImage ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
                     title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
+            ${(state.supportsVaRender?.() ?? false) ? `
+            <button class="evcc-map-zoom-btn${(state.useVaRender?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-va-render"
+                    title="Toggle VA-rendered map" aria-label="Toggle VA-rendered map">▦</button>` : ""}
             ${canZone ? `
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"
@@ -260,7 +274,7 @@ export function applyMapRenderers(proto) {
   };
 
   proto._renderDeviceOverlaySvg = function (state) {
-    const mss = state.mapStateSource?.();
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
     if (!mss || !mss.present) return "";
     const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
     const { tx, ty, sx, sy } = this._overlayTransform(state);
@@ -309,7 +323,7 @@ export function applyMapRenderers(proto) {
   };
 
   proto._renderDeviceOverlayHtml = function (state) {
-    const mss = state.mapStateSource?.();
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
     if (!mss || !mss.present) return "";
     const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
     const { tx, ty } = this._overlayTransform(state);

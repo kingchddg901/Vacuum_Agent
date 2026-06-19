@@ -23,6 +23,7 @@ data here, so the extraction/normalization is unit-testable without Home Assista
 from __future__ import annotations
 
 import base64
+import hashlib
 from typing import Any
 
 # Room IDs at-or-above this are catch-all/background (e.g. the full-grid sentinel
@@ -200,25 +201,25 @@ def rooms_from_room_pixels(map_data: dict[str, Any]) -> list[dict[str, Any]]:
     return rooms
 
 
-def current_room_from_storage(data: dict[str, Any]) -> int | None:
-    """Eufy: the room id the robot is currently in, by exact pixel lookup.
+def current_room_for_pixel(map_data: dict[str, Any], px: Any, py: Any) -> int | None:
+    """Eufy: the room id at a MAIN-grid pixel, by exact raster lookup.
 
-    Converts the latest robot pixel (`robot_trail[-1]`, MAIN-grid space) back into the
-    room_outline raster and reads the room id there — pixel-exact membership (no bbox /
-    margin), the Roborock-grade native room detection the segmentation unlocks. None when
-    unavailable / off-map / a catch-all cell.
+    Converts (px, py) into the room_outline raster and reads the room id there —
+    pixel-exact membership (no bbox / margin). None when off-map / a catch-all cell /
+    no raster. Shared by the storage current-room and the live in-memory pose override.
     """
-    md = data.get("map_data") or {}
-    rp_b64 = md.get("room_pixels")
-    trail = data.get("robot_trail") or []
-    if not rp_b64 or not trail or not _numeric_pair(trail[-1]):
+    rp_b64 = map_data.get("room_pixels")
+    if not rp_b64:
         return None
-    geom = _outline_geometry(md)
+    geom = _outline_geometry(map_data)
     if geom is None:
         return None
     ro_w, ro_h, ro_dx, ro_dy, _res, _w, _h = geom
-    rx = int(trail[-1][0]) - ro_dx
-    ry = int(trail[-1][1]) - ro_dy
+    try:
+        rx = int(px) - ro_dx
+        ry = int(py) - ro_dy
+    except (TypeError, ValueError):
+        return None
     if not (0 <= rx < ro_w and 0 <= ry < ro_h):
         return None
     try:
@@ -232,17 +233,27 @@ def current_room_from_storage(data: dict[str, Any]) -> int | None:
     return rid if 0 < rid < _CATCH_ALL_RID else None
 
 
-def path_from_storage(data: dict[str, Any], *, max_points: int = 160) -> list[list[float]]:
-    """Eufy: the robot trail as a normalized polyline (decimated to `max_points`).
-
-    `robot_trail` is MAIN-grid pixels; we normalize each kept point to the rendered
-    image. Decimated so a long trail stays a small overlay (and stays out of the
-    recorder-bound sensor attributes). [] when absent.
+def current_room_from_storage(data: dict[str, Any]) -> int | None:
+    """Eufy: the room id the robot is currently in, from `robot_trail[-1]` (lagged
+    storage). The live in-memory pose path uses `current_room_for_pixel` directly.
     """
     md = data.get("map_data") or {}
-    width = _as_int(md.get("width"))
-    height = _as_int(md.get("height"))
     trail = data.get("robot_trail") or []
+    if not trail or not _numeric_pair(trail[-1]):
+        return None
+    return current_room_for_pixel(md, trail[-1][0], trail[-1][1])
+
+
+def normalize_trail(
+    trail: Any, width: int, height: int, *, max_points: int = 160
+) -> list[list[float]]:
+    """A MAIN-grid pixel trail → normalized rendered-image polyline (decimated).
+
+    Decimated to ~``max_points`` so a long trail stays a small overlay (and out of the
+    recorder-bound sensor attrs); the final (latest) point is always kept. [] on bad
+    input. Shared by the lagged `.storage` path and the fresh in-memory live trail so
+    both land in the identical rendered space.
+    """
     if not (width and height) or not isinstance(trail, (list, tuple)) or not trail:
         return []
     step = _decimate_step(len(trail), max_points)
@@ -258,6 +269,15 @@ def path_from_storage(data: dict[str, Any], *, max_points: int = 160) -> list[li
         if not out or out[-1] != tail:
             out.append(tail)
     return out
+
+
+def path_from_storage(data: dict[str, Any], *, max_points: int = 160) -> list[list[float]]:
+    """Eufy: the lagged `.storage` `robot_trail` as a normalized polyline."""
+    md = data.get("map_data") or {}
+    return normalize_trail(
+        data.get("robot_trail") or [],
+        _as_int(md.get("width")), _as_int(md.get("height")), max_points=max_points,
+    )
 
 
 def overlays_from_storage(data: dict[str, Any]) -> dict[str, Any]:
@@ -283,6 +303,116 @@ def overlays_from_storage(data: dict[str, Any]) -> dict[str, Any]:
     if path:
         out["path"] = path
     return out
+
+
+def live_pose_overlay(
+    map_data: dict[str, Any],
+    robot_pixel: Any,
+    dock_pixel: Any,
+    heading: Any,
+    trail: Any = None,
+) -> dict[str, Any]:
+    """PURE: normalize the fork's live in-memory PIXEL pose into the moving overlay
+    fields (robot/dock anchors + current-room + live path), in the SAME rendered space as
+    the static layers (so they override the lagged .storage values without drifting).
+
+    DOCKED SEMANTICS: the fork sets `_robot_pixel` only while the robot is away from the
+    dock; when docked it's None and the robot physically sits at `_dock_pixel` (mirrors the
+    fork's own render). So a non-pair `robot_pixel` with a valid dock resolves the robot
+    anchor TO the dock and flags `robot_docked` — this is what kills the "stale in the
+    kitchen" ghost (the lagged .storage `robot_trail[-1]` frozen mid-clean).
+
+    Empty when dims are missing; only the fields that resolve are included. Shared by the
+    snapshot override and the get_map_live_pose service.
+    """
+    out: dict[str, Any] = {}
+    width = _as_int(map_data.get("width"))
+    height = _as_int(map_data.get("height"))
+    if not (width and height):
+        return out
+    robot_active = _numeric_pair(robot_pixel)
+    anchor = robot_pixel if robot_active else (dock_pixel if _numeric_pair(dock_pixel) else None)
+    if anchor is not None:
+        out["robot_anchor"] = normalize_rendered(anchor[0], anchor[1], width, height)
+        cr = current_room_for_pixel(map_data, anchor[0], anchor[1])
+        if cr is not None:
+            out["current_room"] = cr
+        if not robot_active:
+            out["robot_docked"] = True
+    if _numeric_pair(dock_pixel):
+        out["dock_anchor"] = normalize_rendered(dock_pixel[0], dock_pixel[1], width, height)
+    if isinstance(heading, (int, float)) and not isinstance(heading, bool):
+        out["robot_heading"] = heading
+    if trail is not None:
+        path = normalize_trail(trail, width, height)
+        if path:
+            out["path"] = path
+    return out
+
+
+# The moving overlay keys the live pose OWNS when present. robot_anchor / dock_anchor /
+# robot_heading / robot_docked are always re-supplied by a present overlay (or are static
+# and harmless to keep), but current_room and path are only CONDITIONALLY emitted (room
+# resolves / trail non-empty) — so they must be cleared before a partial overlay is merged,
+# else a stale .storage value (a mid-clean robot_trail[-1] room / lagged trail) survives
+# next to a fresh dock anchor: the exact "stale in the kitchen" ghost this feature kills.
+_LIVE_POSE_OWNED_KEYS = ("current_room", "path")
+
+
+def apply_live_pose_override(result: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
+    """Make the fresh live pose AUTHORITATIVE over the lagged .storage overlays: drop the
+    owned moving keys, then merge the (possibly partial) overlay. No-op when the overlay is
+    empty (dims missing) — we then have no live replacement, so the .storage values stand.
+    Mutates + returns `result`. Mirrored on the card in state.mapOverlayData()."""
+    if not overlay:
+        return result
+    for key in _LIVE_POSE_OWNED_KEYS:
+        result.pop(key, None)
+    result.update(overlay)
+    return result
+
+
+def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
+    """Eufy storage backend: the raw RASTER + DECODE PARAMS the card renders from.
+
+    Returns the room-id raster (`room_pixels` b64) plus EXPLICIT decode params — render
+    canvas dims, the room_outline raster dims + offset to the main grid, the Y-flip, the
+    rid bit-shift, the catch-all id, and `room_names` — so the card can rebuild the
+    floor plan generically WITHOUT any brand assumptions (it just applies these params).
+    `version` is a content hash for client-side caching (re-fetch only when the map
+    changes). None when no segmentation. Pure; coupling to the Eufy shape lives behind
+    the adapter's `map_render.format` that selects this reader. Wave 1 = rooms only;
+    walls/obstacles (`raw_pixels`) are Wave 2 once that encoding is decoded.
+    """
+    rp_b64 = map_data.get("room_pixels")
+    if not rp_b64:
+        return None
+    geom = _outline_geometry(map_data)
+    if geom is None:
+        return None
+    ro_w, ro_h, ro_dx, ro_dy, res, width, height = geom
+    names = map_data.get("room_names")
+    if not isinstance(names, dict):
+        names = {}
+    rp_str = str(rp_b64)
+    version = hashlib.sha1(rp_str.encode("utf-8", "ignore")).hexdigest()[:12]
+    return {
+        "present": True,
+        "format": "eufy_room_pixels_v1",
+        "width": width,            # render-canvas dims (main grid)
+        "height": height,
+        "ro_width": ro_w,          # room_pixels raster dims (room_outline frame)
+        "ro_height": ro_h,
+        "ro_dx": ro_dx,            # raster -> main-grid integer offset
+        "ro_dy": ro_dy,
+        "res": res,
+        "flip_y": True,            # render flips top-bottom
+        "rid_shift": 2,            # room id = byte >> rid_shift
+        "catch_all_rid": _CATCH_ALL_RID,
+        "room_pixels": rp_str,
+        "room_names": {str(k): str(v) for k, v in names.items()},
+        "version": version,
+    }
 
 
 def anchors_from_storage(data: dict[str, Any]) -> dict[str, list[float]]:

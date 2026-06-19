@@ -20,6 +20,8 @@ from ..const import (
     SERVICE_ADJUST_MAP_SEGMENT,
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
+    SERVICE_GET_MAP_RENDER_DATA,
+    SERVICE_GET_MAP_LIVE_POSE,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
@@ -109,6 +111,8 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+    SERVICE_GET_MAP_RENDER_DATA,
+    SERVICE_GET_MAP_LIVE_POSE,
     # CV/Custom toggle + custom-segment authoring + named custom layouts
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -509,6 +513,12 @@ SET_MAP_OVERLAY_VISIBILITY_SCHEMA = vol.Schema(
         ),
         # Clear all stored deltas -> fall back to the defaults.
         vol.Optional("reset", default=False): cv.boolean,
+    }
+)
+
+GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
     }
 )
 
@@ -1702,6 +1712,28 @@ async def _handle_set_map_overlay_visibility(
     return {"saved": True, "map_id": map_id, "overlay_visibility": resolved}
 
 
+async def _handle_get_map_render_data(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return the raster + decode params for the card's OWN map render (Wave 1).
+
+    Adapter-driven, off-loop .storage read — delegates to
+    manager.async_get_map_render_data. The card calls this on demand (VA-rendered
+    backdrop selected) and caches by the returned `version`.
+    """
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_get_map_render_data(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
+async def _handle_get_map_live_pose(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return the live moving-overlay pose (robot/dock/current-room) from the fork's
+    in-memory coordinator — the lightweight payload the card polls at the ~2s cadence."""
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_get_map_live_pose(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
@@ -2203,6 +2235,12 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_map_overlay_visibility(call: ServiceCall) -> dict:
         return await _handle_set_map_overlay_visibility(hass, call)
 
+    async def get_map_render_data(call: ServiceCall) -> dict:
+        return await _handle_get_map_render_data(hass, call)
+
+    async def get_map_live_pose(call: ServiceCall) -> dict:
+        return await _handle_get_map_live_pose(hass, call)
+
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
 
@@ -2267,6 +2305,14 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, set_map_overlay_visibility,
         schema=SET_MAP_OVERLAY_VISIBILITY_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAP_RENDER_DATA, get_map_render_data,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAP_LIVE_POSE, get_map_live_pose,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,
