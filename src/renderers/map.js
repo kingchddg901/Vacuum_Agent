@@ -126,9 +126,9 @@ export function applyMapRenderers(proto) {
     const zoom         = state.mapZoom?.() ?? 1;
     const tx           = state.mapTranslateX?.() ?? 0;
     const ty           = state.mapTranslateY?.() ?? 0;
-    // Live-map rotation is display only and applies ONLY to the live image (no segment overlay
-    // to keep aligned); the VA self-render + CV/custom maps stay at 0. Single source so the
-    // mascot/area-label drags convert in the same frame (state.effectiveMapRotation).
+    // Display-only rotation of the whole content block (backdrop + co-rotated overlays). Applied
+    // to the contain backdrops (VA self-render canvas + live image), not uploaded CV/custom
+    // (--fill). Single source so the mascot/area-label drags convert in the same frame.
     const rot          = state.effectiveMapRotation?.() ?? 0;
     // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
     // only when the provider supports it, and only at rotation 0 for now — a
@@ -222,7 +222,7 @@ export function applyMapRenderers(proto) {
                     title="Fit map to screen" aria-label="Fit to screen">⤢</button>
             <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
                     title="Zoom in" aria-label="Zoom in">+</button>
-            ${hasLiveImage ? `
+            ${(hasLiveImage || vaActive) ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
                     title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
             ${(state.supportsVaRender?.() ?? false) ? `

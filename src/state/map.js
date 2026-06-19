@@ -58,11 +58,16 @@ export function applyMapState(proto) {
     this._mapRotationOverlay = this._normRotation(deg);
   };
 
-  // The rotation ACTUALLY applied to the content rotator: the display rotation only rotates a
-  // LIVE-image backdrop; the VA self-render canvas draws in its own orientation and CV/custom
-  // maps stay at 0. The renderer AND the drag handlers (mascot, area-label) all read this one
-  // source so a drag converts pointer->content in the SAME frame the rotator is rendered in.
+  // The rotation ACTUALLY applied to the content rotator. The whole content block (backdrop +
+  // co-rotated overlays/labels/masks) turns as one unit, so rotation is safe for the two
+  // object-fit:contain backdrops that stay inside the SQUARE container at 90/270 — the VA
+  // self-render canvas AND a live device image. It is NOT applied to an uploaded CV/custom
+  // backdrop (which can be stretched `--fill` and would leave the square frame when turned).
+  // The renderer AND the drag handlers (mascot, area-label) all read this one source, so a drag
+  // converts pointer->content in the SAME frame the rotator is rendered in. (Rubber-band DRAWS
+  // — zone/hide-area — still require rotation 0; their letterbox math isn't rotation-aware.)
   proto.effectiveMapRotation = function () {
+    if (this.isVaRenderActive?.()) return this.mapRotation?.() ?? 0;
     const hasLiveImage = Boolean(this.liveMapImageEntity?.());
     const wantVa = Boolean(this.useVaRender?.() && this.supportsVaRender?.());
     return (hasLiveImage && !wantVa) ? (this.mapRotation?.() ?? 0) : 0;

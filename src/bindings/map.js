@@ -1442,9 +1442,10 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
-        // Rotation invalidates the zone gate (Wave 1 = rot 0 only) — tear down any
+        // Rotation invalidates the draw gates (zone + hide-area are rot-0 only) — tear down any
         // in-progress draw so a rotated box can never be confirmed.
         this.card._state.setZoneDrawMode?.(false);
+        this.card._state.setHideDrawMode?.(false);
         const mapId = this.card._state.mapSegmentsData?.()?.map_id
           ?? this.card._state.activeMapId?.() ?? null;
         this.card._actions.rotateLiveMap?.(mapId);
