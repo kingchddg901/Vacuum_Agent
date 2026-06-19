@@ -17,6 +17,7 @@ import {
   SERVICE_GET_MAP_RENDER_DATA,
   SERVICE_GET_MAP_LIVE_POSE,
   SERVICE_SET_HIDDEN_REGIONS,
+  SERVICE_SET_AREA_LABEL_ANCHOR,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
@@ -323,6 +324,25 @@ export function applyMapActions(proto) {
       this.state.setHiddenRegionsOptimistic?.(resp.hidden_regions);
     }
     return resp;
+  };
+
+  /**
+   * Persist (or clear) a room's area-label (m²) position so the user can drag it off the
+   * room-name label. pct values are 0-100 of the map content box; pass null for both to reset
+   * to the room centre. Map_id auto-resolves. Returns the updated anchors map.
+   */
+  proto.setAreaLabelAnchor = async function (roomId, pctX, pctY) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || roomId == null) return null;
+    const payload = { vacuum_entity_id: vacuum, room_id: String(roomId) };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) payload.map_id = mapId;
+    if (pctX != null) payload.pct_x = Number(pctX);
+    if (pctY != null) payload.pct_y = Number(pctY);
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_AREA_LABEL_ANCHOR, payload, true,
+    );
+    return result?.response ?? result ?? null;
   };
 
   proto.setMapOverlayVisibility = async function (layer, visible) {

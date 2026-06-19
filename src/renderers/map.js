@@ -126,9 +126,10 @@ export function applyMapRenderers(proto) {
     const zoom         = state.mapZoom?.() ?? 1;
     const tx           = state.mapTranslateX?.() ?? 0;
     const ty           = state.mapTranslateY?.() ?? 0;
-    // Live-map rotation is display only and applies ONLY to the live image (no
-    // segment overlay to keep aligned); CV/custom maps stay at 0.
-    const rot          = (hasLiveImage && !wantVa) ? (state.mapRotation?.() ?? 0) : 0;
+    // Live-map rotation is display only and applies ONLY to the live image (no segment overlay
+    // to keep aligned); the VA self-render + CV/custom maps stay at 0. Single source so the
+    // mascot/area-label drags convert in the same frame (state.effectiveMapRotation).
+    const rot          = state.effectiveMapRotation?.() ?? 0;
     // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
     // only when the provider supports it, and only at rotation 0 for now — a
     // rotated map letterboxes on the swapped axis (Wave 2 handles rotation).
@@ -356,7 +357,14 @@ export function applyMapRenderers(proto) {
       for (const r of (mss.rooms || [])) {
         if (r.area_m2 == null || !Array.isArray(r.bbox) || r.bbox.length !== 4) continue;
         const [x0, y0, x1, y1] = r.bbox;
-        out += `<div class="evcc-map-ov-area" style="left:${f(tx((x0 + x1) / 2))}%;top:${f(ty((y0 + y1) / 2))}%">`
+        // Draggable: a saved anchor (map-content-box %) wins over the default room centre, so
+        // the user can pull the m² chip off the room-name label. Same % frame as tx/ty output.
+        const anchor = state.areaLabelAnchor?.(r.number);
+        const lx = anchor ? Number(anchor.pct_x) : tx((x0 + x1) / 2);
+        const ly = anchor ? Number(anchor.pct_y) : ty((y0 + y1) / 2);
+        out += `<div class="evcc-map-ov-area" data-action="area-label-drag" `
+             + `data-room="${this.escapeHtml(String(r.number))}" `
+             + `style="left:${f(lx)}%;top:${f(ly)}%">`
              + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
       }
     }

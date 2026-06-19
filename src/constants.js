@@ -133,6 +133,7 @@ export const SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility";
 export const SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data";
 export const SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose";
 export const SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions";
+export const SERVICE_SET_AREA_LABEL_ANCHOR = "set_area_label_anchor";
 
 // --- Setup ---
 export const SERVICE_SETUP_GET_STATUS       = "setup_get_status";

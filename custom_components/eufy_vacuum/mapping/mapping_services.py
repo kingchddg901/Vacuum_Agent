@@ -26,6 +26,7 @@ from ..const import (
     SERVICE_COMPARE_MAP_SOURCES,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_HIDDEN_REGIONS,
+    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_SET_SEGMENT_ROOM_LINK,
@@ -113,6 +114,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_HIDDEN_REGIONS,
+    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_GET_MAP_RENDER_DATA,
@@ -502,6 +504,18 @@ SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Optional("regions", default=list): list,
+    }
+)
+
+# Per-room AREA-LABEL position (the m² chip), so the user can drag it off the room-name label.
+# Same shape as the companion anchor; null pct_x AND pct_y resets to the default (room centre).
+SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
+        vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
     }
 )
 
@@ -1151,6 +1165,9 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         # Hidden regions are MAP-LEVEL (mode-independent physical masks), not scope-resolved.
         "hidden_regions": list(map_bucket.get("hidden_regions") or [])
         if isinstance(map_bucket.get("hidden_regions"), list) else [],
+        # Area-label positions are MAP-LEVEL too (the device rooms are mode-independent).
+        "area_label_anchors": dict(map_bucket.get("area_label_anchors") or {})
+        if isinstance(map_bucket.get("area_label_anchors"), dict) else {},
     }
 
 
@@ -1691,6 +1708,49 @@ async def _handle_set_hidden_regions(
         "set_hidden_regions: %d region(s) on %s/%s", len(cleaned), vacuum_entity_id, map_id,
     )
     return {"saved": True, "hidden_regions": list(regions)}
+
+
+async def _handle_set_area_label_anchor(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear the per-room AREA-LABEL position (the m² chip), so it can be dragged off
+    the room-name label. Stored MAP-LEVEL (the device rooms are segmentation-mode-independent),
+    keyed by room id, as ``{pct_x, pct_y}`` (0-100 of the map content box — the same frame the
+    mascot anchor uses). Null both pct_x and pct_y to reset to the default (room centre).
+    Returns the updated map."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    room_id: str = str(call.data["room_id"]).strip()
+    pct_x = call.data.get("pct_x")
+    pct_y = call.data.get("pct_y")
+
+    if not room_id:
+        return {"saved": False, "reason": "missing_room_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    anchors: dict = map_bucket.setdefault("area_label_anchors", {})
+
+    if pct_x is None and pct_y is None:
+        anchors.pop(room_id, None)
+        action = "cleared"
+    else:
+        x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
+        y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
+        anchors[room_id] = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
+        action = "set"
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_area_label_anchor: %s on %s/%s room %s",
+        action, vacuum_entity_id, map_id, room_id,
+    )
+    return {
+        "saved": True, "room_id": room_id, "action": action,
+        "area_label_anchors": dict(anchors),
+    }
 
 
 async def _handle_set_live_map_rotation(
@@ -2303,6 +2363,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_hidden_regions(call: ServiceCall) -> dict:
         return await _handle_set_hidden_regions(hass, call)
 
+    async def set_area_label_anchor(call: ServiceCall) -> dict:
+        return await _handle_set_area_label_anchor(hass, call)
+
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
 
@@ -2378,6 +2441,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_HIDDEN_REGIONS, set_hidden_regions,
         schema=SET_HIDDEN_REGIONS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_AREA_LABEL_ANCHOR, set_area_label_anchor,
+        schema=SET_AREA_LABEL_ANCHOR_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,

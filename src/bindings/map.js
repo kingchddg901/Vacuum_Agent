@@ -45,6 +45,7 @@ export function applyMapBindings(proto) {
     this._bindMapConfig(root);
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
+    this._bindAreaLabelDrag(root);
     this._bindMapAnimalSelect(root);
     this._bindMapLayersPanel(root);
     this._bindMapRenderToggle(root);
@@ -1262,7 +1263,7 @@ export function applyMapBindings(proto) {
         // rotation), but the pointer is in the unrotated .evcc-map-layers frame. Convert
         // pointer% -> CONTENT% via unrotatePct before placing/storing the anchor —
         // otherwise a 90/270 drag tracks (and persists) at the wrong spot. Identity at 0.
-        const rot = this.card._state.mapRotation?.() ?? 0;
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
         const ptrContentPct = (clientX, clientY) =>
           this.card._state.unrotatePct(
             (clientX - layerRect.left) / layerRect.width  * 100,
@@ -1304,6 +1305,75 @@ export function applyMapBindings(proto) {
               mapId, anchorKey, livePctX, livePctY,
             );
           }
+          this.card._scheduleRender();
+        };
+
+        el.addEventListener("pointermove",   onMove);
+        el.addEventListener("pointerup",     finish);
+        el.addEventListener("pointercancel", finish);
+      });
+    });
+  };
+
+  /**
+   * Drag a room's area (m²) chip off its name label. Mirrors the mascot-anchor drag exactly:
+   * rotation-aware pointer→content% conversion, grab offset so it doesn't snap, optimistic
+   * local update + backend persist on drop. The chip is positioned in map-content-box % (the
+   * same frame the renderer uses), keyed by room number, stored map-level.
+   */
+  proto._bindAreaLabelDrag = function (root) {
+    root.querySelectorAll("[data-action='area-label-drag']").forEach((el) => {
+      const layers = root.querySelector(".evcc-map-layers");
+      if (!layers) return;
+
+      this.card._on(el, "pointerdown", (e) => {
+        if (e.button !== 0) return;
+        // Don't swallow a rubber-band (zone/hide draw) that starts over a chip.
+        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.()) return;
+        e.stopPropagation();   // keep the pan handler from starting a drag
+        e.preventDefault();
+
+        const roomKey = el.dataset.room;
+        if (roomKey == null || roomKey === "") return;
+
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("evcc-map-ov-area--dragging");
+
+        const layerRect = layers.getBoundingClientRect();
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        const curPctX = parseFloat(el.style.left) || 0;
+        const curPctY = parseFloat(el.style.top)  || 0;
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        const grabOffX = grabX - curPctX;
+        const grabOffY = grabY - curPctY;
+        let livePctX = curPctX;
+        let livePctY = curPctY;
+        let moved = false;
+
+        const onMove = (ev) => {
+          const [cx, cy] = ptrContentPct(ev.clientX, ev.clientY);
+          livePctX = Math.max(0, Math.min(100, cx - grabOffX));
+          livePctY = Math.max(0, Math.min(100, cy - grabOffY));
+          moved = true;
+          el.style.left = `${livePctX}%`;
+          el.style.top  = `${livePctY}%`;
+        };
+
+        const finish = () => {
+          el.removeEventListener("pointermove",   onMove);
+          el.removeEventListener("pointerup",     finish);
+          el.removeEventListener("pointercancel", finish);
+          el.classList.remove("evcc-map-ov-area--dragging");
+          if (!moved) return;   // a tap (no drag) shouldn't pin the chip at its default spot
+          this.card._state.setAreaLabelAnchorLocal?.(roomKey, livePctX, livePctY);
+          this.card._actions?.setAreaLabelAnchor?.(roomKey, livePctX, livePctY);
           this.card._scheduleRender();
         };
 
@@ -1586,9 +1656,10 @@ export function applyMapBindings(proto) {
       }
       // Always reset drag flag so the next click starts clean.
       this.card._mapDragOccurred = false;
-      // Don't start a pan drag when the press originates on the
-      // animal icon — let its own click handler deal with it.
+      // Don't start a pan drag when the press originates on a draggable element (the animal
+      // icon or a room-area chip) — let its own drag handler deal with it.
       if (e.target.closest("[data-action='map-dot-click']")) return;
+      if (e.target.closest("[data-action='area-label-drag']")) return;
       _dragging = true;
       _moved    = false;
       _lastX    = e.clientX;

@@ -58,6 +58,16 @@ export function applyMapState(proto) {
     this._mapRotationOverlay = this._normRotation(deg);
   };
 
+  // The rotation ACTUALLY applied to the content rotator: the display rotation only rotates a
+  // LIVE-image backdrop; the VA self-render canvas draws in its own orientation and CV/custom
+  // maps stay at 0. The renderer AND the drag handlers (mascot, area-label) all read this one
+  // source so a drag converts pointer->content in the SAME frame the rotator is rendered in.
+  proto.effectiveMapRotation = function () {
+    const hasLiveImage = Boolean(this.liveMapImageEntity?.());
+    const wantVa = Boolean(this.useVaRender?.() && this.supportsVaRender?.());
+    return (hasLiveImage && !wantVa) ? (this.mapRotation?.() ?? 0) : 0;
+  };
+
   // Map a pointer position given as a 0-100 pct of the (unrotated) .evcc-map-layers box
   // into the CONTENT frame inside .evcc-map-content-rotator, which is rotated `rot`
   // degrees. The container is square, so a 90/180/270 turn maps pct corners exactly.
@@ -131,8 +141,10 @@ export function applyMapState(proto) {
     const oldKey = `${oldMapId ?? ""}:${this._mapSegmentsData?.active_custom_layout_id ?? ""}`;
     const newKey = `${data?.map_id ?? ""}:${data?.active_custom_layout_id ?? ""}`;
     this._mapSegmentsData = data;
-    // Fresh backend segments are authoritative for hidden_regions — drop the optimistic overlay.
+    // Fresh backend segments are authoritative for hidden_regions + area-label anchors — drop
+    // the optimistic overlays.
     this._hiddenRegionsOverlay = null;
+    this._areaLabelOverlay = null;
     if (oldKey !== newKey) {
       // Reset overlays + draft when the active map OR layout changes — what was
       // true for the old map/layout's segments has nothing to do with the new.
@@ -443,6 +455,25 @@ export function applyMapState(proto) {
     return (this.overlaysAligned?.() ?? false)
         && !!this.mapImageSize?.()
         && (this.mapRotation?.() ?? 0) === 0;
+  };
+
+  /* =========================================================
+     AREA-LABEL ANCHORS — per-room position for the m² chip, so it
+     can be dragged off the room-name label. Map-level (the device
+     rooms are mode-independent), keyed by room number, {pct_x,pct_y}
+     in map-content-box % (same frame as the mascot anchor). Rides on
+     get_map_segments as `area_label_anchors`. null => default (centre).
+     ========================================================= */
+  proto._areaLabelOverlay = null;
+  proto.areaLabelAnchor = function (roomKey) {
+    const k = String(roomKey);
+    if (this._areaLabelOverlay && this._areaLabelOverlay[k]) return this._areaLabelOverlay[k];
+    const anchors = this.mapSegmentsData?.()?.area_label_anchors;
+    return (anchors && anchors[k]) || null;
+  };
+  proto.setAreaLabelAnchorLocal = function (roomKey, pctX, pctY) {
+    if (!this._areaLabelOverlay) this._areaLabelOverlay = {};
+    this._areaLabelOverlay[String(roomKey)] = { pct_x: pctX, pct_y: pctY };
   };
 
   /* =========================================================

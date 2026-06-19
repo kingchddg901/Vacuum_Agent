@@ -2293,6 +2293,50 @@ set_hidden_regions:
       selector:
         object: {}
 
+set_area_label_anchor:
+  name: Set area-label position
+  description: >
+    Move a room's area (m²) chip off its name label. pct_x/pct_y are 0-100 percentages
+    of the map content box; omit both to reset to the room centre. Stored per map so it
+    follows you across devices. Normally driven by dragging the chip on the card.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        text: {}
+    pct_x:
+      name: X position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
+          mode: box
+    pct_y:
+      name: Y position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
+          mode: box
+
 set_live_map_rotation:
   name: Set live map rotation
   description: >

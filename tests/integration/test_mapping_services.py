@@ -44,6 +44,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_HIDDEN_REGIONS,
+    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_CREATE_CUSTOM_LAYOUT,
     SERVICE_RENAME_CUSTOM_LAYOUT,
@@ -339,6 +340,23 @@ async def test_hidden_regions_persist_map_level_in_custom_mode(hass, mapping_ser
     assert bucket.get("hidden_regions") == [[0.2, 0.2, 0.4, 0.4]]   # actually persisted on the bucket
     seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
     assert seg["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
+
+
+async def test_area_label_anchor_set_and_clear(hass, mapping_services):
+    """[MSH-7e] set_area_label_anchor: per-room m² chip position, MAP-LEVEL, set then reset;
+    rides back on get_map_segments."""
+    _seed_segments(mapping_services)
+    setres = await _call(hass, SERVICE_SET_AREA_LABEL_ANCHOR,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "room_id": 5, "pct_x": 30.0, "pct_y": 80.0})
+    assert setres["action"] == "set"
+    assert setres["area_label_anchors"]["5"] == {"pct_x": 30.0, "pct_y": 80.0}
+    seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert seg["area_label_anchors"]["5"] == {"pct_x": 30.0, "pct_y": 80.0}
+    # null pct resets to the default (room centre)
+    clr = await _call(hass, SERVICE_SET_AREA_LABEL_ANCHOR,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "5"})
+    assert clr["action"] == "cleared" and "5" not in clr["area_label_anchors"]
 
 
 async def test_companion_anchor_blank_room_id(hass, mapping_services):

@@ -685,7 +685,8 @@ export const mapStyles = `
   .evcc-map-ov-obstacle--photo {
     box-shadow: 0 0 0 1.5px #fff, 0 0 5px var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
   }
-  /* Area chips counter-rotate (like room labels) so the text stays upright. */
+  /* Area chips counter-rotate (like room labels) so the text stays upright. Draggable — pull
+     the m² chip off the room-name label (saved per room, per map). */
   .evcc-map-ov-area {
     position:      absolute;
     transform:     translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
@@ -697,9 +698,12 @@ export const mapStyles = `
     border-radius: 6px;
     text-shadow:   0 0 2px rgba(0, 0, 0, 0.85);
     white-space:   nowrap;
-    pointer-events: none;
+    pointer-events: auto;       /* draggable */
+    cursor:        move;
+    touch-action:  none;        /* pointer drag on touch without page scroll */
     z-index:       5;
   }
+  .evcc-map-ov-area--dragging { opacity: 0.85; cursor: grabbing; z-index: 7; }
 
   /* =========================================================
      MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
