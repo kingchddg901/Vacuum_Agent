@@ -14,7 +14,10 @@ import base64
 
 from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     eufy_live_pose_from_candidates,
+    eufy_mapdata_from_candidates,
+    eufy_mapdata_obj_from_candidates,
     eufy_render_data_from_store,
+    eufy_result_from_mapdata,
     eufy_result_from_store,
     find_mapdata,
     find_roomlike_collection,
@@ -345,6 +348,73 @@ def test_eufy_live_pose_docked_robot_pixel_none():
         [("hass_data", "robovac_mqtt", _Coordinator(_robot_pixel=[1, 2]))],
         robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"])
     assert miss["present"] is False and "structure" in miss["diagnostics"]
+
+
+def test_eufy_mapdata_from_candidates():
+    """[MSR-2l] find the fork's in-memory MapData on the coordinator and convert it to the
+    .storage map_data DICT shape (so the existing decoders consume it unchanged)."""
+    md_obj = _Coordinator(
+        room_pixels=bytes([20]) * 100,  # 10x10 raster, every byte rid=20>>2=5
+        width=10, height=10, resolution=5, origin_x=0, origin_y=0,
+        room_outline_width=10, room_outline_height=10,
+        room_outline_origin_x=0, room_outline_origin_y=0, room_names={"5": "K"},
+    )
+    root = _Coordinator(coordinators=[_Coordinator(_map_data=md_obj)])
+    out = eufy_mapdata_from_candidates(
+        [("hass_data", "robovac_mqtt", root)], mapdata_attrs=["_map_data"])
+    assert out["present"] is True
+    assert out["map_data"]["width"] == 10 and out["map_data"]["room_outline_width"] == 10
+    assert isinstance(out["map_data"]["room_pixels"], str)   # base64, decoder-ready
+    assert isinstance(out["version"], str) and len(out["version"]) == 12
+    assert "mapdata_at" in out["diagnostics"]
+    # no MapData on any walked node -> absent (caller falls back to .storage)
+    miss = eufy_mapdata_from_candidates(
+        [("hass_data", "robovac_mqtt", _Coordinator(foo=1))], mapdata_attrs=["_map_data"])
+    assert miss["present"] is False and miss["reason"] == "no_mapdata"
+
+
+def test_eufy_mapdata_obj_from_candidates():
+    """[MSR-2n] cheap locate: the RAW MapData object + a version from the RAW raster bytes
+    (no base64 convert), so the hot path can cache-check the version before converting."""
+    rp = bytes([20]) * 100
+    md_obj = _Coordinator(room_pixels=rp, width=10, height=10)
+    root = _Coordinator(coordinators=[_Coordinator(_map_data=md_obj)])
+    out = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "robovac_mqtt", root)], mapdata_attrs=["_map_data"])
+    assert out["present"] is True
+    assert out["obj"] is md_obj                              # the raw object, NOT converted
+    assert isinstance(out["version"], str) and len(out["version"]) == 12
+    assert "mapdata_at" in out["diagnostics"]
+    # same raster -> same version (cache hit); a re-map (different raster) -> different version
+    same = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "robovac_mqtt",
+          _Coordinator(coordinators=[_Coordinator(_map_data=_Coordinator(room_pixels=bytes([20]) * 100))]))],
+        mapdata_attrs=["_map_data"])
+    assert same["version"] == out["version"]
+    diff = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "robovac_mqtt",
+          _Coordinator(coordinators=[_Coordinator(_map_data=_Coordinator(room_pixels=bytes([24]) * 100))]))],
+        mapdata_attrs=["_map_data"])
+    assert diff["version"] != out["version"]
+    # no MapData -> absent
+    miss = eufy_mapdata_obj_from_candidates(
+        [("hass_data", "robovac_mqtt", _Coordinator(foo=1))], mapdata_attrs=["_map_data"])
+    assert miss["present"] is False and miss["reason"] == "no_mapdata"
+
+
+def test_eufy_result_from_mapdata():
+    """[MSR-2m] the memory-backend result builder: static rooms + image_size from the converted
+    in-memory map_data dict (no stale .storage anchors — those come from the live pose)."""
+    md = _store()["data"]["map_data"]
+    res = eufy_result_from_mapdata(md, present=True)
+    assert res["present"] is True and res["backend"] == "memory"
+    assert res["rooms"][0]["number"] == 1
+    assert res["image_size"] == [10, 10]
+    assert "robot_anchor" not in res and "current_room" not in res  # pose layered separately
+    # presence gate + a missing raster both degrade to absent (caller falls back to .storage)
+    assert eufy_result_from_mapdata(md, present=False)["present"] is False
+    assert eufy_result_from_mapdata({}, present=True)["present"] is False
+    assert eufy_result_from_mapdata(None, present=True)["present"] is False
 
 
 def test_eufy_live_pose_never_raises_on_raising_property():

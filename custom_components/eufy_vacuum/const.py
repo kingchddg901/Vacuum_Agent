@@ -159,6 +159,10 @@ SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data"
 # the fork's in-memory coordinator (~2s fresh). Polled by the card on the live cadence so
 # the robot overlay isn't gated by the slower .storage write + full-snapshot fetch.
 SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose"
+# Verify probe (diagnostic): compare the fork's in-memory _map_data against the .storage
+# map_data (byte-identical check) before repointing the map source to the fresher, loop-safe
+# in-memory MapData. Returns a per-field comparison + a normalization_safe verdict.
+SERVICE_COMPARE_MAP_SOURCES = "compare_map_sources"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"

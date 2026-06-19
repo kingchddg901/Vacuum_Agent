@@ -10,18 +10,24 @@ parsed-map path, and the presence gate.
 [MS-5] build_map_source_result: presence gate (absent vs populated).
 """
 import base64
+from types import SimpleNamespace
 
 from custom_components.eufy_vacuum.mapping.map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
     anchors_from_storage,
     apply_live_pose_override,
     build_map_source_result,
+    compare_map_data,
     current_room_for_pixel,
     current_room_from_storage,
+    eufy_version_of,
+    hazards_from_mapdata,
     live_pose_overlay,
+    mapdata_dict_from_obj,
     normalize_rendered,
     normalize_trail,
     overlays_from_storage,
+    vacuum_to_normalized,
     path_from_storage,
     render_data_from_storage,
     resolve_overlay_visibility,
@@ -324,6 +330,108 @@ def test_apply_live_pose_override_clears_stale_owned_keys():
     # empty overlay (dims missing) -> no live replacement, keep the .storage values untouched
     result3 = {"current_room": 5, "path": [[0.1, 0.9]]}
     assert apply_live_pose_override(result3, {}) == {"current_room": 5, "path": [[0.1, 0.9]]}
+
+
+def test_mapdata_dict_from_obj():
+    """[MS-16] convert the in-memory MapData OBJECT to the .storage map_data DICT (base64 for
+    the byte rasters) so the existing decoders consume it unchanged + byte-identically."""
+    rp_b64 = _raster(10, 10, [(5, 2, 2, 2, 2)])
+    rp_bytes = base64.b64decode(rp_b64)
+    obj = SimpleNamespace(
+        room_pixels=rp_bytes, raw_pixels=b"\x01\x02", width=10, height=10, resolution=5,
+        origin_x=0, origin_y=0, room_outline_width=10, room_outline_height=10,
+        room_outline_origin_x=0, room_outline_origin_y=0, room_names={"5": "Kitchen"},
+        virtual_walls=[], forbidden_zones=[], ban_mop_zones=[],
+    )
+    d = mapdata_dict_from_obj(obj)
+    assert d["room_pixels"] == rp_b64                       # byte-identical to the storage form
+    assert d["raw_pixels"] == base64.b64encode(b"\x01\x02").decode("ascii")
+    assert d["width"] == 10 and d["room_outline_width"] == 10
+    assert d["room_names"] == {"5": "Kitchen"}
+    # the converted dict drives the EXISTING decoders unchanged
+    assert current_room_for_pixel(d, 2, 2) == 5
+    assert rooms_from_room_pixels(d)[0]["number"] == 5
+    # not a usable MapData (no bytes raster) -> None (caller falls back to .storage)
+    assert mapdata_dict_from_obj(SimpleNamespace(width=10)) is None
+    assert mapdata_dict_from_obj(SimpleNamespace(room_pixels=rp_b64)) is None  # str, not bytes
+
+
+def test_compare_map_data():
+    """[MS-17] verify probe: normalization_safe iff the raster + geometry match; rasters by
+    len+sha1, hazards by count."""
+    md = _md([(5, 2, 2, 2, 2)])
+    assert compare_map_data(md, dict(md))["normalization_safe"] is True
+    # a differing geometry field -> unsafe
+    diff_geom = dict(md)
+    diff_geom["width"] = 99
+    rep = compare_map_data(md, diff_geom)
+    assert rep["normalization_safe"] is False
+    assert rep["fields"]["width"] == {"equal": False, "memory": 10, "storage": 99}
+    # a differing raster -> unsafe (compared by digest, never dumped)
+    diff_rp = dict(md)
+    diff_rp["room_pixels"] = _raster(10, 10, [(6, 0, 0, 0, 0)])
+    rep2 = compare_map_data(md, diff_rp)
+    assert rep2["normalization_safe"] is False
+    assert rep2["fields"]["room_pixels"]["equal"] is False
+    assert (rep2["fields"]["room_pixels"]["memory"]["sha1"]
+            != rep2["fields"]["room_pixels"]["storage"]["sha1"])
+    # hazards reported as counts + a shape sample (present only in memory here)
+    md_hz = dict(md)
+    md_hz["virtual_walls"] = [[1, 2], [3, 4]]
+    rep3 = compare_map_data(md_hz, md)
+    assert rep3["fields"]["virtual_walls"] == {"memory": 2, "storage": None, "sample": [1, 2]}
+    # room_names: not equal but key-types explain it (int keys in memory, str in storage)
+    rep4 = compare_map_data({"room_names": {1: "K"}}, {"room_names": {"1": "K"}})
+    rn = rep4["fields"]["room_names"]
+    assert rn["equal"] is False
+    assert rn["memory_key_types"] == "int" and rn["storage_key_types"] == "str"
+    assert rn["memory"] == {1: "K"} and rn["storage"] == {"1": "K"}
+
+
+def test_vacuum_to_normalized():
+    """[MS-19] hazard points are in vacuum coords: project to the main grid ((v-origin)/res)
+    then apply the rendered-image normalization (Y-flip)."""
+    md = {"origin_x": 0, "origin_y": 0, "resolution": 5, "width": 10, "height": 10}
+    assert vacuum_to_normalized(10, 20, md) == [0.2, 0.5]      # px=2, py=4 -> flip
+    # origin offset is applied before the divide
+    md2 = {"origin_x": -50, "origin_y": -50, "resolution": 5, "width": 10, "height": 10}
+    assert vacuum_to_normalized(0, 0, md2) == normalize_rendered(10, 10, 10, 10)
+    # non-numeric / missing dims -> None
+    assert vacuum_to_normalized("x", 0, md) is None
+    assert vacuum_to_normalized(True, 0, md) is None           # bools rejected
+    assert vacuum_to_normalized(0, 0, {}) is None
+
+
+def test_hazards_from_mapdata():
+    """[MS-20] device hazard layers (vacuum-frame) -> normalized card overlays: virtual_walls ->
+    walls (segments), forbidden_zones -> no_go (polys), ban_mop_zones -> no_mop (polys)."""
+    md = {"origin_x": 0, "origin_y": 0, "resolution": 5, "width": 10, "height": 10,
+          "virtual_walls": [[[10, 20], [30, 40]]],
+          "forbidden_zones": [[[0, 0], [10, 0], [10, 10], [0, 10]]],
+          "ban_mop_zones": [[[5, 5], [15, 5], [15, 15], [5, 15]]]}
+    hz = hazards_from_mapdata(md)
+    assert hz["walls"] == [[vacuum_to_normalized(10, 20, md), vacuum_to_normalized(30, 40, md)]]
+    assert len(hz["no_go"]) == 1 and len(hz["no_go"][0]) == 4
+    assert len(hz["no_mop"]) == 1 and len(hz["no_mop"][0]) == 4
+    # absent/empty layers omitted; a degenerate poly (<3 pts) skipped; a bad wall (not a pair) skipped
+    assert hazards_from_mapdata({"width": 10, "height": 10}) == {}
+    assert "no_go" not in hazards_from_mapdata({**md, "forbidden_zones": [[[0, 0], [1, 1]]]})
+    assert "walls" not in hazards_from_mapdata({**md, "virtual_walls": [[[1, 2], [3, 4], [5, 6]]]})
+    # a truthy NON-list scalar layer (fork-schema drift) must DEGRADE, never raise (runs on loop)
+    assert hazards_from_mapdata(
+        {**md, "virtual_walls": 123, "forbidden_zones": True, "ban_mop_zones": "x"}) == {}
+
+
+def test_eufy_version_of():
+    """[MS-18] content version = sha1 of the raster; stable per map, changes on re-map."""
+    md = _md([(5, 2, 2, 2, 2)])
+    v = eufy_version_of(md)
+    assert isinstance(v, str) and len(v) == 12
+    assert eufy_version_of(dict(md)) == v                          # stable
+    remapped = dict(md)
+    remapped["room_pixels"] = _raster(10, 10, [(6, 0, 0, 0, 0)])
+    assert eufy_version_of(remapped) != v                          # re-map -> new version
+    assert eufy_version_of({}) == ""                               # no raster
 
 
 def test_live_pose_overlay_docked_resolves_to_dock():

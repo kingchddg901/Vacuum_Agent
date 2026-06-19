@@ -22,6 +22,7 @@ from ..const import (
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_GET_MAP_RENDER_DATA,
     SERVICE_GET_MAP_LIVE_POSE,
+    SERVICE_COMPARE_MAP_SOURCES,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
@@ -113,6 +114,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_GET_MAP_RENDER_DATA,
     SERVICE_GET_MAP_LIVE_POSE,
+    SERVICE_COMPARE_MAP_SOURCES,
     # CV/Custom toggle + custom-segment authoring + named custom layouts
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -1734,6 +1736,15 @@ async def _handle_get_map_live_pose(hass: HomeAssistant, call: ServiceCall) -> d
     )
 
 
+async def _handle_compare_map_sources(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Verify probe: compare the fork's in-memory _map_data against the .storage map_data
+    (byte-identical check) before repointing the map source to memory."""
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_compare_map_sources(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
@@ -2241,6 +2252,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def get_map_live_pose(call: ServiceCall) -> dict:
         return await _handle_get_map_live_pose(hass, call)
 
+    async def compare_map_sources(call: ServiceCall) -> dict:
+        return await _handle_compare_map_sources(hass, call)
+
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
 
@@ -2312,6 +2326,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, SERVICE_GET_MAP_LIVE_POSE, get_map_live_pose,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_COMPARE_MAP_SOURCES, compare_map_sources,
         schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
     )
     hass.services.async_register(

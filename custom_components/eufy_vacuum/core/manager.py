@@ -323,6 +323,9 @@ class EufyVacuumManager:
         # service can normalize the fresh in-memory pose without reloading the 200 KB
         # store every poll. {vacuum_entity_id: {"mtime": float, "map_data": dict}}.
         self._live_pose_geom_cache: dict[str, dict[str, Any]] = {}
+        # Memory-backend per-room scan cached by content version, so the in-memory map source
+        # re-scans only on a re-map (not every refresh). {vacuum: {"version": str, "result": dict}}.
+        self._mem_rooms_cache: dict[str, dict[str, Any]] = {}
 
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
@@ -3827,37 +3830,58 @@ class EufyVacuumManager:
 
         backend = source_cfg.get("backend")
         result: dict[str, Any]
-        if backend == "storage":
-            result = await self._refresh_storage_map_source(
-                vacuum_entity_id=vacuum_entity_id, map_id=map_id,
-                source_cfg=source_cfg, present=present,
-            )
-            # Wave 1 verify line (symmetric with the memory branch): present/reason +
-            # room count, so the live deploy is visible in the log without a service
-            # call. Room bboxes stay out of the log (verbose); inspect the snapshot
-            # field for those.
-            _LOGGER.info(
-                "map_state_source[%s] storage read: present=%s reason=%s rooms=%d",
-                vacuum_entity_id, result.get("present"), result.get("reason"),
-                len(result.get("rooms") or []),
-            )
-        elif backend == "memory":
-            # In-memory introspection (no IO) — safe to run on the loop.
-            candidates = _msr.roborock_candidates(
-                self.hass, source_cfg, image_entity_id=live_img
-            )
-            result = _msr.roborock_result_from_candidates(candidates, present=present)
-            if result.get("diagnostics") is not None:
-                _LOGGER.info(
-                    "map_state_source[%s] memory introspect: present=%s reason=%s diag=%s",
-                    vacuum_entity_id, result.get("present"),
-                    result.get("reason"), result.get("diagnostics"),
+        # Defense-in-depth: this runs ON THE EVENT LOOP inside the dashboard-snapshot service,
+        # and the docstring promises "never raises". The branches are individually guarded, but
+        # wrap the whole dispatch so any unforeseen error degrades to an absent marker rather
+        # than propagating out of the snapshot service.
+        try:
+            if backend == "storage":
+                # Memory-PRIMARY when the adapter declares a `memory` block (the fork holds the
+                # same map_data in memory — fresher + loop-safe); it FALLS BACK to the .storage
+                # read internally when the in-memory MapData is absent/malformed. Without a
+                # `memory` block, the plain .storage read (legacy / other forks).
+                if isinstance(source_cfg.get("memory"), dict):
+                    result = await self._refresh_eufy_map_source(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                        source_cfg=source_cfg, present=present,
+                    )
+                else:
+                    result = await self._refresh_storage_map_source(
+                        vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                        source_cfg=source_cfg, present=present,
+                    )
+                    # Verify line (symmetric with the memory branch): present/reason + room
+                    # count, so the live deploy is visible in the log without a service call.
+                    _LOGGER.info(
+                        "map_state_source[%s] storage read: present=%s reason=%s rooms=%d",
+                        vacuum_entity_id, result.get("present"), result.get("reason"),
+                        len(result.get("rooms") or []),
+                    )
+            elif backend == "memory":
+                # In-memory introspection (no IO) — safe to run on the loop.
+                candidates = _msr.roborock_candidates(
+                    self.hass, source_cfg, image_entity_id=live_img
                 )
-            self._map_state_source_cache[vacuum_entity_id] = {
-                "mtime": None, "map_id": str(map_id), "result": result,
-            }
-        else:
-            result = {"present": False, "reason": f"unknown_backend:{backend}"}
+                result = _msr.roborock_result_from_candidates(candidates, present=present)
+                if result.get("diagnostics") is not None:
+                    _LOGGER.info(
+                        "map_state_source[%s] memory introspect: present=%s reason=%s diag=%s",
+                        vacuum_entity_id, result.get("present"),
+                        result.get("reason"), result.get("diagnostics"),
+                    )
+                self._map_state_source_cache[vacuum_entity_id] = {
+                    "mtime": None, "map_id": str(map_id), "result": result,
+                }
+            else:
+                result = {"present": False, "reason": f"unknown_backend:{backend}"}
+                self._map_state_source_cache[vacuum_entity_id] = {
+                    "mtime": None, "map_id": str(map_id), "result": result,
+                }
+        except Exception:  # noqa: BLE001 - never let the pre-warm break the snapshot service
+            _LOGGER.exception(
+                "map_state_source[%s] refresh failed; serving absent marker", vacuum_entity_id
+            )
+            result = {"present": False, "reason": "refresh_error"}
             self._map_state_source_cache[vacuum_entity_id] = {
                 "mtime": None, "map_id": str(map_id), "result": result,
             }
@@ -3917,38 +3941,133 @@ class EufyVacuumManager:
                 "map_state_source.store_version. Treating as unavailable.",
                 vacuum_entity_id, expected_version,
             )
-        # Override the MOVING overlays (robot/dock/current-room) with the fork's fresh
-        # in-memory pose, keeping the static segmentation from .storage. Adapter-declared
-        # `live_pose`; absent => the overlays stay on the lagged .storage values.
-        live_cfg = source_cfg.get("live_pose")
-        if isinstance(live_cfg, dict) and result.get("present"):
-            # Defensive: this runs ON THE EVENT LOOP inside the dashboard-snapshot service.
-            # A provider-internal property could raise on access (esp. across the pending
-            # fork #136 schema merge) — degrade to the lagged .storage overlays rather than
-            # abort the whole snapshot. (The introspector is also internally guarded.)
-            try:
-                pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
-                if pose.get("present"):
-                    from ..mapping.map_source import (
-                        apply_live_pose_override,
-                        live_pose_overlay,
-                    )
-                    map_data = (store_json.get("data") or {}).get("map_data") or {}
-                    overlay = live_pose_overlay(
-                        map_data, pose.get("robot_pixel"),
-                        pose.get("dock_pixel"), pose.get("robot_heading"),
-                        pose.get("trail_pixels"),
-                    )
-                    # Authoritative override: clear stale current_room/path before merging
-                    # so an off-room dock/transit anchor can't leave a stale highlight.
-                    apply_live_pose_override(result, overlay)
-            except Exception:  # noqa: BLE001 - never let the pose read break the snapshot
-                _LOGGER.debug(
-                    "live_pose override failed for %s; keeping .storage overlays",
-                    vacuum_entity_id, exc_info=True,
-                )
+        # Override the MOVING overlays (robot/dock/current-room/path) with the fork's fresh
+        # in-memory pose, keeping the static segmentation from .storage. store_json is None on a
+        # missing/corrupt file (load_store_json degrades to None) — stay None-safe so the
+        # on-loop snapshot never crashes (the result is already the absent marker in that case).
+        map_data = ((store_json or {}).get("data") or {}).get("map_data") or {}
+        self._apply_inmem_pose_to_result(
+            result, map_data, vacuum_entity_id, source_cfg.get("live_pose"),
+        )
         self._map_state_source_cache[vacuum_entity_id] = {
             "mtime": mtime, "present_gate": present, "map_id": str(map_id), "result": result,
+        }
+        return result
+
+    def _apply_inmem_pose_to_result(
+        self,
+        result: dict[str, Any],
+        map_data: dict[str, Any],
+        vacuum_entity_id: str,
+        live_cfg: Any,
+    ) -> None:
+        """Layer the fork's fresh in-memory pose onto a map_state_source `result`, IN PLACE.
+
+        Shared by the storage and memory backends: reads the live robot/dock/trail off the
+        coordinator and makes the live pose AUTHORITATIVE for the moving overlay fields
+        (apply_live_pose_override clears stale current_room/path first). Adapter-declared
+        `live_pose`; absent => the overlays stay on the base values. Defensive: this runs ON
+        THE EVENT LOOP inside the dashboard-snapshot service, and a provider-internal property
+        could raise (esp. across the pending fork #136 merge) — so a failure degrades to the
+        base overlays rather than aborting the snapshot. (The introspector is also guarded.)
+        """
+        if not (isinstance(live_cfg, dict) and result.get("present")):
+            return
+        try:
+            pose = self._read_inmem_pose(vacuum_entity_id, live_cfg)
+            if pose.get("present"):
+                from ..mapping.map_source import (
+                    apply_live_pose_override,
+                    live_pose_overlay,
+                )
+                overlay = live_pose_overlay(
+                    map_data, pose.get("robot_pixel"),
+                    pose.get("dock_pixel"), pose.get("robot_heading"),
+                    pose.get("trail_pixels"),
+                )
+                apply_live_pose_override(result, overlay)
+        except Exception:  # noqa: BLE001 - never let the pose read break the snapshot
+            _LOGGER.debug(
+                "live_pose override failed for %s; keeping base overlays",
+                vacuum_entity_id, exc_info=True,
+            )
+
+    async def _refresh_eufy_map_source(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        source_cfg: dict[str, Any],
+        present: bool,
+    ) -> dict[str, Any]:
+        """Memory-PRIMARY branch of the Eufy map_state_source pre-warm.
+
+        Reads the fork's fresh in-memory ``_map_data`` (loop-safe, no save-throttle lag) and
+        builds the static segmentation from it; the per-room scan is cached by a content
+        version so it only re-runs on a re-map (matching the storage path's mtime cache). The
+        moving overlays are layered on from the live pose. FALLS BACK to the .storage read when
+        the in-memory MapData is absent/malformed (early session, or fork shape drift). Never
+        raises — degrades to the storage path.
+        """
+        from ..mapping import map_source_runtime as _msr
+        from ..mapping.map_source import mapdata_dict_from_obj
+
+        mem_cfg = source_cfg.get("memory") or {}
+        if present:
+            candidates = _msr.eufy_inmem_candidates(self.hass, mem_cfg)
+            # CHEAP locate: the raw MapData object + a version from the raw raster bytes, WITHOUT
+            # the ~180 KB base64 conversion — so an unchanged map skips both the convert and the
+            # per-room scan (only the BFS + a sha1 of the raw bytes run each refresh).
+            mem = _msr.eufy_mapdata_obj_from_candidates(
+                candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                field_attrs=mem_cfg.get("field_attrs"),
+            )
+        else:
+            mem = {"present": False, "reason": "live_map_absent"}
+
+        if not mem.get("present"):
+            # No usable in-memory map — fall back to the .storage read (logs its own reason).
+            _LOGGER.debug(
+                "map_state_source[%s] memory miss (%s) — falling back to .storage",
+                vacuum_entity_id, mem.get("reason"),
+            )
+            return await self._refresh_storage_map_source(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                source_cfg=source_cfg, present=present,
+            )
+
+        version = mem["version"]
+        cache = self._mem_rooms_cache.get(vacuum_entity_id)
+        if cache and cache.get("version") == version:
+            static = cache["result"]
+            map_data = cache["map_data"]            # reuse the converted dict — no re-encode
+        else:
+            # Re-map (or first read): convert + scan ONCE, then cache both for the pose path.
+            map_data = mapdata_dict_from_obj(mem["obj"], field_attrs=mem_cfg.get("field_attrs"))
+            if map_data is None:
+                return await self._refresh_storage_map_source(
+                    vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                    source_cfg=source_cfg, present=present,
+                )
+            static = _msr.eufy_result_from_mapdata(map_data, present=True)
+            self._mem_rooms_cache[vacuum_entity_id] = {
+                "version": version, "result": static, "map_data": map_data,
+            }
+
+        # Shallow-copy the cached static result, then layer the FRESH pose on the copy (the
+        # pose changes every refresh; the static rooms scan does not). The copy keeps the
+        # cached static clean of the moving fields.
+        result = dict(static)
+        self._apply_inmem_pose_to_result(
+            result, map_data, vacuum_entity_id, source_cfg.get("live_pose"),
+        )
+        _LOGGER.info(
+            "map_state_source[%s] memory read: present=%s rooms=%d (version=%s)",
+            vacuum_entity_id, result.get("present"),
+            len(result.get("rooms") or []), version,
+        )
+        self._map_state_source_cache[vacuum_entity_id] = {
+            "mtime": None, "present_gate": present, "map_id": str(map_id), "result": result,
         }
         return result
 
@@ -4029,6 +4148,50 @@ class EufyVacuumManager:
         )
         return {"present": True, **overlay, "diagnostics": pose.get("diagnostics")}
 
+    async def async_compare_map_sources(
+        self, *, vacuum_entity_id: str,
+    ) -> dict[str, Any]:
+        """VERIFY PROBE (P1, diagnostic): read the fork's IN-MEMORY _map_data AND the .storage
+        map_data and compare them, to confirm the in-memory bytes are byte-identical before
+        repointing the map source. Returns a per-field comparison (rasters by len+sha1) + a
+        `normalization_safe` verdict over the geometry/raster fields the decoders use. Adapter-
+        driven via map_state_source.memory; degrades to a marker (+ diagnostics) on absence."""
+        from ..mapping import map_source_runtime as _msr
+        from ..mapping.map_source import compare_map_data
+
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        source_cfg = adapter_cfg.get("map_state_source")
+        if not isinstance(source_cfg, dict):
+            return {"present": False, "reason": "not_configured"}
+        mem_cfg = source_cfg.get("memory")
+        if not isinstance(mem_cfg, dict):
+            return {"present": False, "reason": "memory_not_configured"}
+
+        # In-memory MapData (loop-safe).
+        candidates = _msr.eufy_inmem_candidates(self.hass, mem_cfg)
+        mem = _msr.eufy_mapdata_from_candidates(
+            candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+            field_attrs=mem_cfg.get("field_attrs"),
+        )
+        # .storage map_data (off-loop read).
+        path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
+        store_json = (
+            await self.hass.async_add_executor_job(_msr.load_store_json, path)
+            if path else None
+        )
+        store_md = None
+        if isinstance(store_json, dict):
+            store_md = (store_json.get("data") or {}).get("map_data")
+
+        out: dict[str, Any] = {
+            "in_memory_present": bool(mem.get("present")),
+            "storage_present": isinstance(store_md, dict),
+            "diagnostics": mem.get("diagnostics"),
+        }
+        if mem.get("present") and isinstance(store_md, dict):
+            out["compare"] = compare_map_data(mem["map_data"], store_md)
+        return out
+
     async def async_get_map_render_data(
         self,
         *,
@@ -4051,20 +4214,38 @@ class EufyVacuumManager:
             return {"present": False, "reason": "not_configured"}
         fmt = render_cfg.get("format")
         source_cfg = adapter_cfg.get("map_state_source")
-        # eufy_room_pixels_v1: read the fork's .storage room-id raster (storage backend).
-        if (
+        if not (
             fmt == "eufy_room_pixels_v1"
             and isinstance(source_cfg, dict)
             and source_cfg.get("backend") == "storage"
         ):
-            path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
-            if not path:
-                return {"present": False, "reason": "no_device"}
-            store_json = await self.hass.async_add_executor_job(_msr.load_store_json, path)
-            return _msr.eufy_render_data_from_store(
-                store_json, expected_version=source_cfg.get("store_version")
+            return {"present": False, "reason": f"unknown_format:{fmt}"}
+
+        # Memory-PRIMARY: the fork's in-memory _map_data carries the same raster, fresher +
+        # loop-safe (no file read). render_data_from_storage takes the SAME map_data dict
+        # shape the shim produces, so the card decode params are identical.
+        from ..mapping.map_source import render_data_from_storage
+        mem_cfg = source_cfg.get("memory")
+        if isinstance(mem_cfg, dict):
+            candidates = _msr.eufy_inmem_candidates(self.hass, mem_cfg)
+            mem = _msr.eufy_mapdata_from_candidates(
+                candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                field_attrs=mem_cfg.get("field_attrs"),
             )
-        return {"present": False, "reason": f"unknown_format:{fmt}"}
+            if mem.get("present"):
+                rd = render_data_from_storage(mem["map_data"])
+                if rd is not None:
+                    return rd
+            # else fall through to the .storage read
+
+        # .storage fallback (or no memory block).
+        path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
+        if not path:
+            return {"present": False, "reason": "no_device"}
+        store_json = await self.hass.async_add_executor_job(_msr.load_store_json, path)
+        return _msr.eufy_render_data_from_store(
+            store_json, expected_version=source_cfg.get("store_version")
+        )
 
 
     # Job finalization — delegates to ActiveJobTracker

@@ -112,6 +112,30 @@ def normalize_rendered(px: float, py: float, width: int, height: int) -> list[fl
     return [round(nx, 5), round(ny, 5)]
 
 
+def vacuum_to_normalized(vx: Any, vy: Any, map_data: dict[str, Any]) -> list[float] | None:
+    """Map a DEVICE/VACUUM-frame point (the frame the hazard layers are stored in) to
+    normalized 0–1 of the rendered image.
+
+    Hazards (virtual_walls/forbidden_zones/ban_mop_zones) are stored in raw vacuum coords
+    (same frame as origin_x/origin_y), NOT pixels — so we first project to the main grid
+    (px = (vx - origin_x) / res) and then apply the rendered-image normalization (incl. the
+    Y-flip). None on non-numeric input / missing dims. Verified live (the hazard placement is
+    eyeballed after deploy — the Y orientation is the one assumption)."""
+    if not (
+        isinstance(vx, (int, float)) and not isinstance(vx, bool)
+        and isinstance(vy, (int, float)) and not isinstance(vy, bool)
+    ):
+        return None
+    width = _as_int(map_data.get("width"))
+    height = _as_int(map_data.get("height"))
+    res = _as_int(map_data.get("resolution"), 5) or 5
+    if not (width and height):
+        return None
+    px = (vx - _as_int(map_data.get("origin_x"))) / res
+    py = (vy - _as_int(map_data.get("origin_y"))) / res
+    return normalize_rendered(px, py, width, height)
+
+
 def _outline_geometry(map_data: dict[str, Any]):
     """Shared Eufy room_pixels geometry: (ro_w, ro_h, ro_dx, ro_dy, res, width, height).
 
@@ -280,13 +304,59 @@ def path_from_storage(data: dict[str, Any], *, max_points: int = 160) -> list[li
     )
 
 
-def overlays_from_storage(data: dict[str, Any]) -> dict[str, Any]:
-    """Eufy: the non-room overlay layers (current room, path), normalized.
+def _normalize_vacuum_point(p: Any, map_data: dict[str, Any]) -> list[float] | None:
+    """A single [vx, vy] vacuum point -> normalized rendered point (or None)."""
+    if isinstance(p, (list, tuple)) and len(p) == 2:
+        return vacuum_to_normalized(p[0], p[1], map_data)
+    return None
 
-    Hazard layers (`forbidden_zones`/`ban_mop_zones`/`virtual_walls`) exist in the
-    schema but were EMPTY on the live device, so their populated coordinate frame is
-    unverified — deferred (omitted) until a live map carries them, rather than shipping
-    a guessed transform. Eufy has no robot heading and no saved-zone/obstacle concept.
+
+def _as_seq(v: Any) -> list[Any] | tuple[Any, ...]:
+    """A hazard layer as an iterable, or [] for anything else. Guards against a truthy NON-list
+    scalar (e.g. a fork-schema drift delivering a bare int) which `(v or [])` would NOT catch —
+    iterating it would raise on the on-loop snapshot path."""
+    return v if isinstance(v, (list, tuple)) else []
+
+
+def hazards_from_mapdata(map_data: dict[str, Any]) -> dict[str, Any]:
+    """Eufy: the device HAZARD layers, vacuum-frame -> normalized rendered space.
+
+    virtual_walls -> `walls` (line segments [[x1,y1],[x2,y2]]); forbidden_zones (no-go) ->
+    `no_go` (polygons); ban_mop_zones (vacuum-only/no-mop) -> `no_mop` (polygons) — the SAME
+    shapes the card's Wave-3c overlay renderers already draw. Empty/absent layers are omitted.
+    These default OFF in the Map Layers panel. Pure; degrades a malformed entry to skipped.
+    """
+    out: dict[str, Any] = {}
+
+    walls: list[Any] = []
+    for seg in _as_seq(map_data.get("virtual_walls")):
+        if isinstance(seg, (list, tuple)) and len(seg) == 2:
+            p0 = _normalize_vacuum_point(seg[0], map_data)
+            p1 = _normalize_vacuum_point(seg[1], map_data)
+            if p0 and p1:
+                walls.append([p0, p1])
+    if walls:
+        out["walls"] = walls
+
+    for key, layer in (("no_go", "forbidden_zones"), ("no_mop", "ban_mop_zones")):
+        polys: list[Any] = []
+        for poly in _as_seq(map_data.get(layer)):
+            if isinstance(poly, (list, tuple)) and len(poly) >= 3:
+                pts = [pt for pt in (_normalize_vacuum_point(p, map_data) for p in poly) if pt]
+                if len(pts) >= 3:
+                    polys.append(pts)
+        if polys:
+            out[key] = polys
+
+    return out
+
+
+def overlays_from_storage(data: dict[str, Any]) -> dict[str, Any]:
+    """Eufy: the non-room overlay layers (current room, path, hazards), normalized.
+
+    Hazards (`virtual_walls`/`forbidden_zones`/`ban_mop_zones`) are stored in vacuum coords;
+    a live map carrying them confirmed the frame (2026-06-19), so they're now extracted via
+    hazards_from_mapdata. Eufy has no robot heading and no saved-zone/obstacle concept.
     """
     out: dict[str, Any] = {}
     # Rendered-image dims so the card can letterbox-correct (object-fit:contain) when
@@ -302,6 +372,7 @@ def overlays_from_storage(data: dict[str, Any]) -> dict[str, Any]:
     path = path_from_storage(data)
     if path:
         out["path"] = path
+    out.update(hazards_from_mapdata(md))
     return out
 
 
@@ -372,6 +443,16 @@ def apply_live_pose_override(result: dict[str, Any], overlay: dict[str, Any]) ->
     return result
 
 
+def eufy_version_of(map_data: dict[str, Any]) -> str:
+    """A short content hash of the room raster — changes only on a re-map. Used to cache the
+    per-room scan (so the memory backend re-scans on a re-map, not every refresh) and for the
+    card's render-data fetch caching. "" when there's no raster."""
+    rp = map_data.get("room_pixels")
+    if not rp:
+        return ""
+    return hashlib.sha1(str(rp).encode("utf-8", "ignore")).hexdigest()[:12]
+
+
 def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
     """Eufy storage backend: the raw RASTER + DECODE PARAMS the card renders from.
 
@@ -395,7 +476,7 @@ def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
     if not isinstance(names, dict):
         names = {}
     rp_str = str(rp_b64)
-    version = hashlib.sha1(rp_str.encode("utf-8", "ignore")).hexdigest()[:12]
+    version = eufy_version_of(map_data)
     return {
         "present": True,
         "format": "eufy_room_pixels_v1",
@@ -413,6 +494,123 @@ def render_data_from_storage(map_data: dict[str, Any]) -> dict[str, Any] | None:
         "room_names": {str(k): str(v) for k, v in names.items()},
         "version": version,
     }
+
+
+# Fields lifted from the fork's in-memory MapData OBJECT into the .storage-shaped map_data
+# DICT. The byte rasters are base64-encoded so the storage-oriented decoders (rooms /
+# render / current-room) consume them UNCHANGED; the rest copy straight across.
+_MAPDATA_BYTE_FIELDS = ("room_pixels", "raw_pixels")
+_MAPDATA_PLAIN_FIELDS = (
+    "width", "height", "origin_x", "origin_y", "resolution",
+    "room_outline_width", "room_outline_height",
+    "room_outline_origin_x", "room_outline_origin_y",
+    "room_names", "virtual_walls", "forbidden_zones", "ban_mop_zones",
+)
+
+
+def mapdata_dict_from_obj(obj: Any, *, field_attrs: Any = None) -> dict[str, Any] | None:
+    """Convert the fork's in-memory ``MapData`` OBJECT into the same map_data DICT the
+    storage decoders consume (base64 for the byte rasters), so a repointed in-memory source
+    reuses every existing decoder unchanged. ``field_attrs`` optionally remaps a logical
+    field to a different object attr (drift insurance). Returns None when there's no
+    ``room_pixels`` raster (not a usable MapData) — the caller then falls back to .storage.
+    Pure + never raises."""
+    fa = field_attrs if isinstance(field_attrs, dict) else {}
+
+    def _attr(name: str) -> Any:
+        return getattr(obj, fa.get(name, name), None)
+
+    try:
+        rp = _attr("room_pixels")
+        if not isinstance(rp, (bytes, bytearray)):
+            return None
+        out: dict[str, Any] = {}
+        for name in _MAPDATA_BYTE_FIELDS:
+            v = _attr(name)
+            if isinstance(v, (bytes, bytearray)):
+                out[name] = base64.b64encode(bytes(v)).decode("ascii")
+        for name in _MAPDATA_PLAIN_FIELDS:
+            v = _attr(name)
+            if v is not None:
+                out[name] = v
+        return out
+    except Exception:  # noqa: BLE001 - a provider object must never crash the reader
+        return None
+
+
+def _raster_digest(b64: Any) -> dict[str, Any] | None:
+    """len + short sha1 of a base64 raster — enough to prove equality without dumping 200 KB."""
+    if not isinstance(b64, str) or not b64:
+        return None
+    return {"len": len(b64), "sha1": hashlib.sha1(b64.encode("ascii")).hexdigest()[:12]}
+
+
+def _layer_count(v: Any) -> int | None:
+    return len(v) if isinstance(v, (list, tuple)) else None
+
+
+def _key_types(d: Any) -> str | None:
+    """The set of key python-types in a dict (e.g. "int" vs "str"), so a room_names
+    inequality that's purely native-int-keys vs JSON-str-keys is visible as such."""
+    if not isinstance(d, dict):
+        return None
+    if not d:
+        return "empty"
+    return "+".join(sorted({type(k).__name__ for k in d}))
+
+
+def compare_map_data(memory: dict[str, Any], storage: dict[str, Any]) -> dict[str, Any]:
+    """VERIFY PROBE (P1): field-by-field compare of the in-memory vs .storage map_data dicts
+    to confirm the in-memory bytes are byte-identical BEFORE repointing the source. Rasters are
+    compared by len+sha1 (not dumped); geometry by value. ``normalization_safe`` is True iff
+    every field the decoders actually use (the raster + the outline/grid geometry) matches — so
+    the validated dead-on overlay alignment is provably preserved. Hazards/room_names are
+    reported informationally. Pure."""
+    geom_fields = (
+        "width", "height", "origin_x", "origin_y", "resolution",
+        "room_outline_width", "room_outline_height",
+        "room_outline_origin_x", "room_outline_origin_y",
+    )
+    fields: dict[str, Any] = {}
+    normalization_safe = True
+
+    for f in _MAPDATA_BYTE_FIELDS:
+        mv, sv = memory.get(f), storage.get(f)
+        equal = mv == sv
+        fields[f] = {"equal": equal, "memory": _raster_digest(mv), "storage": _raster_digest(sv)}
+        if f == "room_pixels" and not equal:
+            normalization_safe = False
+
+    for f in geom_fields:
+        mv, sv = memory.get(f), storage.get(f)
+        equal = mv == sv
+        fields[f] = {"equal": equal, "memory": mv, "storage": sv}
+        if not equal:
+            normalization_safe = False
+
+    # room_names is labels-only (never affects normalization). Dump both + their key TYPES so
+    # an inequality is explained (native int keys in memory vs JSON str keys in storage is the
+    # benign + expected case the decoders already handle).
+    mem_names, store_names = memory.get("room_names"), storage.get("room_names")
+    fields["room_names"] = {
+        "equal": mem_names == store_names,
+        "memory_key_types": _key_types(mem_names),
+        "storage_key_types": _key_types(store_names),
+        "memory": mem_names,
+        "storage": store_names,
+    }
+    # Hazard layers: counts + the FIRST entry of each (shape sample) so the coordinate frame
+    # can be designed before rendering them (P3). Eufy: virtual_walls / forbidden_zones (no-go)
+    # / ban_mop_zones (vacuum-only).
+    for hz in ("virtual_walls", "forbidden_zones", "ban_mop_zones"):
+        mv, sv = memory.get(hz), storage.get(hz)
+        fields[hz] = {
+            "memory": _layer_count(mv),
+            "storage": _layer_count(sv),
+            "sample": (mv[0] if isinstance(mv, (list, tuple)) and mv else None),
+        }
+
+    return {"normalization_safe": normalization_safe, "fields": fields}
 
 
 def anchors_from_storage(data: dict[str, Any]) -> dict[str, list[float]]:

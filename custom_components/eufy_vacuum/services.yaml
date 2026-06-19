@@ -2365,6 +2365,22 @@ get_map_live_pose:
           integration: eufy_vacuum
           domain: vacuum
 
+compare_map_sources:
+  name: Compare map sources (diagnostic)
+  description: >
+    Verify probe: compare the provider's IN-MEMORY map data against the .storage copy
+    and report whether the raster + geometry are byte-identical (normalization_safe). Run
+    this once before repointing the map source to the fresher, loop-safe in-memory data —
+    a true result means the validated overlay alignment is preserved. Diagnostic only.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
 create_custom_layout:
   name: Create custom layout
   description: >

@@ -573,6 +573,17 @@ def register_eufy_adapter_for_vacuum(
                 "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
                 "heading_attrs": ["_robot_angle", "robot_angle", "_robot_heading"],
             },
+            # IN-MEMORY MapData source (the SAME EufyCleanCoordinator the live pose reads also
+            # holds `_map_data`, a full MapData object: room_pixels/raw_pixels bytes + dims +
+            # room_outline_* + room_names + virtual_walls/forbidden_zones/ban_mop_zones). It is
+            # FRESHER than .storage (no save-throttle lag) and loop-safe (no file read). The
+            # compare_map_sources probe verifies its bytes are byte-identical to .storage before
+            # we repoint the source to it (P2). mapdata_attrs locate the object; field_attrs
+            # (optional) remap a field if the fork renames one across the pending #136 merge.
+            "memory": {
+                "hass_data_domain": "robovac_mqtt",
+                "mapdata_attrs": ["_map_data", "map_data"],
+            },
         },
 
         "map_render": {

@@ -19,6 +19,7 @@ called via an executor; everything else is in-memory.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from collections import deque
@@ -28,10 +29,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from .map_source import (
+    _as_int,
     _clamp01,
     _decimate_step,
     anchors_from_storage,
     build_map_source_result,
+    hazards_from_mapdata,
     overlays_from_storage,
     render_data_from_storage,
     rooms_from_room_pixels,
@@ -140,6 +143,43 @@ def eufy_result_from_store(
     return build_map_source_result(
         present=True, backend="storage", rooms=rooms, anchors=anchors, extra=extra
     )
+
+
+def eufy_result_from_mapdata(
+    map_data: Any, *, present: bool = True,
+) -> dict[str, Any]:
+    """PURE: normalized ``map_state_source`` result from an already-converted IN-MEMORY
+    map_data dict (the memory backend — the SAME normalized shape as the storage backend).
+
+    Carries only the STATIC segmentation (per-room bbox+name+area + image_size). The MOVING
+    overlays (robot/dock/current-room/path) come from the live pose the caller layers on top
+    via apply_live_pose_override — so NO .storage anchors here, BY DESIGN. When the live pose
+    is momentarily absent the memory result carries no robot/dock anchor (vs the storage path's
+    .storage anchors). That is intentional and MORE correct, not a regression: the .storage
+    robot position is the lagged "stale in the kitchen" ghost this feature exists to suppress,
+    and the .storage dock pixel can be CROSS-SESSION-DRIFTED (Eufy re-localizes its coordinate
+    origin every session — reference_eufy_intersession_coord_drift), so showing it when there's
+    no live dock would place the dock at a wrong spot. A transient missing marker (early
+    session, before the fork populates the pose) self-heals on the next poll; consumers treat
+    anchors as optional and hide them.
+
+    ``present`` is the caller's gate. Degrades to absent on a missing/empty raster (the caller
+    then falls back to the .storage read). Never raises. Unit-tested without HA.
+    """
+    if not present:
+        return build_map_source_result(present=False, backend="memory", reason="live_map_absent")
+    if not isinstance(map_data, dict):
+        return build_map_source_result(present=False, backend="memory", reason="no_mapdata")
+    rooms = rooms_from_room_pixels(map_data)
+    extra: dict[str, Any] = {}
+    w = _as_int(map_data.get("width"))
+    h = _as_int(map_data.get("height"))
+    if w and h:
+        extra["image_size"] = [w, h]
+    # Device hazard layers (no-go / vacuum-only / virtual walls) — static, so they ride the
+    # version-cached static result alongside the rooms (default OFF in the Map Layers panel).
+    extra.update(hazards_from_mapdata(map_data))
+    return build_map_source_result(present=True, backend="memory", rooms=rooms, extra=extra)
 
 
 def eufy_render_data_from_store(
@@ -785,6 +825,82 @@ def eufy_live_pose_from_candidates(
     except Exception:  # noqa: BLE001 - the diagnostic dump must not raise either
         diag["structure"] = {"error": "structure dump failed"}
     return {"present": False, "reason": "no_pose", "diagnostics": diag}
+
+
+def eufy_mapdata_obj_from_candidates(
+    candidates: list[tuple[str, str, Any]],
+    *,
+    mapdata_attrs: Any,
+    field_attrs: Any = None,
+) -> dict[str, Any]:
+    """Find the fork's in-memory ``MapData`` OBJECT + a CHEAP content version, WITHOUT the
+    ~180 KB base64 conversion.
+
+    BFS for the holder of one of ``mapdata_attrs`` (e.g. ``_map_data``) whose value carries a
+    bytes ``room_pixels`` raster; the version is sha1 of the RAW raster bytes. Lets the hot
+    map_state_source path cache-check the version and only do the (expensive) dict conversion +
+    per-room scan on a genuine re-map. Returns ``{present, obj, version, diagnostics}``; the
+    absent marker on a miss. NEVER RAISES — runs on the event loop.
+    """
+    fa = field_attrs if isinstance(field_attrs, dict) else {}
+    rp_name = fa.get("room_pixels", "room_pixels")
+    names = mapdata_attrs or ["_map_data", "map_data"]
+    diag: dict[str, Any] = {"candidates": [c[0] + ":" + c[1] for c in candidates]}
+
+    def _holds_mapdata(o: Any) -> bool:
+        # Cheap predicate: an object exposing a MapData with a bytes raster (no convert).
+        for a in names:
+            v = getattr(o, a, None)
+            if v is not None and isinstance(getattr(v, rp_name, None), (bytes, bytearray)):
+                return True
+        return False
+
+    for origin, key, root in candidates:
+        try:
+            holder, path = _walk(root, _holds_mapdata)
+            if holder is None:
+                continue
+            for a in names:
+                v = getattr(holder, a, None)
+                rp = getattr(v, rp_name, None) if v is not None else None
+                if isinstance(rp, (bytes, bytearray)):
+                    version = hashlib.sha1(bytes(rp)).hexdigest()[:12]
+                    diag["mapdata_at"] = f"{origin}:{key}:{path}.{a}"
+                    return {"present": True, "obj": v, "version": version, "diagnostics": diag}
+        except Exception:  # noqa: BLE001 - a raising provider internal degrades to a miss
+            continue
+
+    return {"present": False, "reason": "no_mapdata", "diagnostics": diag}
+
+
+def eufy_mapdata_from_candidates(
+    candidates: list[tuple[str, str, Any]],
+    *,
+    mapdata_attrs: Any,
+    field_attrs: Any = None,
+) -> dict[str, Any]:
+    """Find the fork's in-memory ``MapData`` and CONVERT it to the .storage map_data DICT shape
+    (so the existing decoders consume it unchanged). Thin wrapper over
+    ``eufy_mapdata_obj_from_candidates`` + ``mapdata_dict_from_obj`` — for the non-hot callers
+    (the render-data fetch + the compare probe); the hot map_state_source path uses the obj
+    locator + its own version cache to avoid re-converting an unchanged map. Returns
+    ``{present, map_data, version, diagnostics}``; absent on a miss. Never raises.
+    """
+    from .map_source import mapdata_dict_from_obj
+
+    fa = field_attrs if isinstance(field_attrs, dict) else {}
+    found = eufy_mapdata_obj_from_candidates(
+        candidates, mapdata_attrs=mapdata_attrs, field_attrs=fa
+    )
+    if not found.get("present"):
+        return found
+    md = mapdata_dict_from_obj(found["obj"], field_attrs=fa)
+    if md is None:
+        return {"present": False, "reason": "no_mapdata", "diagnostics": found.get("diagnostics")}
+    return {
+        "present": True, "map_data": md,
+        "version": found.get("version"), "diagnostics": found.get("diagnostics"),
+    }
 
 
 def roborock_candidates(
