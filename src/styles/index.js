@@ -354,6 +354,29 @@ export const MODAL_HOST_STYLES = `
     --evcc-map-vertex-selected-glow:
       var(--evcc-map-vertex-selected-glow, rgba(255, 221, 0, 0.9));
 
+    /* Map_state_source overlay layers (Wave 3c). Defaults chosen to read over a
+       live-map backdrop; tune per theme in the Theme editor's "Map" group. */
+    --evcc-map-ov-current:
+      var(--evcc-map-ov-current, rgba(0, 229, 255, 0.85));
+    --evcc-map-ov-nogo:
+      var(--evcc-map-ov-nogo, rgba(255, 59, 48, 0.85));
+    --evcc-map-ov-nomop:
+      var(--evcc-map-ov-nomop, rgba(10, 132, 255, 0.85));
+    --evcc-map-ov-wall:
+      var(--evcc-map-ov-wall, rgba(255, 214, 10, 0.9));
+    --evcc-map-ov-zone:
+      var(--evcc-map-ov-zone, rgba(52, 211, 153, 0.85));
+    --evcc-map-ov-path:
+      var(--evcc-map-ov-path, rgba(255, 255, 255, 0.8));
+    --evcc-map-ov-robot:
+      var(--evcc-map-ov-robot, #00e5ff);
+    --evcc-map-ov-dock:
+      var(--evcc-map-ov-dock, #a3e635);
+    --evcc-map-ov-obstacle:
+      var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+    --evcc-map-ov-area-text:
+      var(--evcc-map-ov-area-text, #ffffff);
+
     --evcc-chip-border:
       var(--evcc-modal-chip-border,
       var(--evcc-border-default));

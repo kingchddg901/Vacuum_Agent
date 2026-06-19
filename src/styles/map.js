@@ -272,6 +272,127 @@ export const mapStyles = `
     cursor:  default;
   }
 
+  /* Zone-clean panel lives in the right column under Run Profiles. The side column
+     stacks the Run Profiles panel + the zone panel; the run-profiles panel keeps its
+     natural height there (its workspace flex would otherwise stretch it vertically). */
+  .evcc-rooms-sidecol {
+    flex:           1 1 300px;
+    min-width:      0;
+    display:        flex;
+    flex-direction: column;
+    gap:            16px;
+  }
+  .evcc-rooms-sidecol > .evcc-run-profiles-panel {
+    flex: 0 0 auto;
+  }
+  .evcc-zone-panel {
+    box-sizing:     border-box;
+    display:        flex;
+    flex-direction: column;
+    gap:            10px;
+    padding:        12px;
+    border-radius:  var(--evcc-radius-card, 12px);
+    background:     var(--evcc-surface-panel, rgba(28, 33, 39, 0.92));
+    border:         1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
+  }
+  .evcc-zone-panel-title {
+    font-size:   13px;
+    font-weight: 700;
+    color:       var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-panel-section {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+  }
+  .evcc-zone-panel-section-title {
+    font-size:      11px;
+    font-weight:    600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color:          var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+  }
+  .evcc-zone-panel-note {
+    font-weight:    400;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity:        0.7;
+  }
+  .evcc-zone-panel-empty {
+    font-size: 12px;
+    color:     var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.6));
+  }
+  .evcc-zone-setting {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+  }
+  .evcc-zone-setting-label {
+    font-size: 12px;
+    color:     var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-setting-select {
+    flex:          0 1 auto;
+    max-width:     60%;
+    font-size:     12px;
+    padding:       3px 6px;
+    border-radius: 6px;
+    color:         var(--evcc-map-tooltip-text, #fff);
+    background:    var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+  }
+  .evcc-zone-list {
+    list-style:     none;
+    margin:         0;
+    padding:        0;
+    display:        flex;
+    flex-direction: column;
+    gap:            3px;
+    max-height:     160px;
+    overflow-y:     auto;
+  }
+  .evcc-zone-list-item {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+    font-size:       12px;
+    color:           var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-list-num {
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    min-width:       18px;
+    height:          18px;
+    font-size:       10px;
+    font-weight:     700;
+    color:           #fff;
+    background:      var(--evcc-accent, #3b82f6);
+    border-radius:   4px;
+  }
+  .evcc-zone-list-del {
+    font-size:     12px;
+    line-height:   1;
+    cursor:        pointer;
+    color:         var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+    background:    transparent;
+    border:        none;
+    padding:       2px 5px;
+    border-radius: 4px;
+  }
+  .evcc-zone-list-del:hover {
+    color:      #fff;
+    background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+  .evcc-zone-panel-actions {
+    display:    flex;
+    flex-wrap:  wrap;
+    gap:        6px;
+    margin-top: auto;
+  }
+
   /* =========================================================
      ANIMAL SVG COMPANION
      =========================================================
@@ -388,6 +509,154 @@ export const mapStyles = `
     line-height:     1;
     box-shadow:      0 1px 4px rgba(0, 0, 0, 0.55);
   }
+
+  /* =========================================================
+     MAP_STATE_SOURCE DEVICE OVERLAYS (Wave 3c)
+     ========================================================= */
+
+  /* SVG layers — non-scaling-stroke keeps lines crisp under the 0–100 viewBox. */
+  .evcc-map-ov-current {
+    fill:          var(--evcc-map-ov-current, rgba(0, 229, 255, 0.85));
+    fill-opacity:  0.18;
+    stroke:        var(--evcc-map-ov-current, rgba(0, 229, 255, 0.85));
+    stroke-width:  2;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-nogo, .evcc-map-ov-nomop, .evcc-map-ov-zone {
+    fill-opacity:  0.18;
+    stroke-width:  1.5;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-nogo {
+    fill:   var(--evcc-map-ov-nogo, rgba(255, 59, 48, 0.85));
+    stroke: var(--evcc-map-ov-nogo, rgba(255, 59, 48, 0.85));
+  }
+  .evcc-map-ov-nomop {
+    fill:   var(--evcc-map-ov-nomop, rgba(10, 132, 255, 0.85));
+    stroke: var(--evcc-map-ov-nomop, rgba(10, 132, 255, 0.85));
+  }
+  .evcc-map-ov-zone {
+    fill:             var(--evcc-map-ov-zone, rgba(52, 211, 153, 0.85));
+    stroke:           var(--evcc-map-ov-zone, rgba(52, 211, 153, 0.85));
+    stroke-dasharray: 4 2;
+  }
+  .evcc-map-ov-wall {
+    stroke:         var(--evcc-map-ov-wall, rgba(255, 214, 10, 0.9));
+    stroke-width:   3;
+    stroke-linecap: round;
+    vector-effect:  non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-path {
+    fill:            none;
+    stroke:          var(--evcc-map-ov-path, rgba(255, 255, 255, 0.8));
+    stroke-width:    1.5;
+    stroke-linejoin: round;
+    stroke-linecap:  round;
+    opacity:         0.8;
+    vector-effect:   non-scaling-stroke;
+    pointer-events:  none;
+  }
+
+  /* HTML markers — absolutely positioned in the rotator (turn with the map). */
+  .evcc-map-ov-robot, .evcc-map-ov-dock, .evcc-map-ov-obstacle {
+    position:       absolute;
+    transform:      translate(-50%, -50%);
+    pointer-events: none;
+    z-index:        6;
+  }
+  .evcc-map-ov-dock {
+    width:         10px;
+    height:        10px;
+    border-radius: 3px;
+    background:    var(--evcc-map-ov-dock, #a3e635);
+    box-shadow:    0 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+  .evcc-map-ov-robot {
+    width:         14px;
+    height:        14px;
+    border-radius: 50%;
+    background:    var(--evcc-map-ov-robot, #00e5ff);
+    box-shadow:    0 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+  /* Heading triangle: points up at heading 0; the inline transform rotates it. */
+  .evcc-map-ov-robot-arrow {
+    display:           block;
+    width:             0;
+    height:            0;
+    margin:            -9px 0 0 -6px;
+    border-left:       6px solid transparent;
+    border-right:      6px solid transparent;
+    border-bottom:     12px solid var(--evcc-map-ov-robot, #00e5ff);
+    transform-origin:  50% 100%;
+    filter:            drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  }
+  .evcc-map-ov-obstacle {
+    width:         8px;
+    height:        8px;
+    border-radius: 50%;
+    background:    var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+    box-shadow:    0 0 0 1.5px rgba(0, 0, 0, 0.6);
+  }
+  .evcc-map-ov-obstacle--photo {
+    box-shadow: 0 0 0 1.5px #fff, 0 0 5px var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+  }
+  /* Area chips counter-rotate (like room labels) so the text stays upright. */
+  .evcc-map-ov-area {
+    position:      absolute;
+    transform:     translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    font-size:     0.66rem;
+    font-weight:   600;
+    color:         var(--evcc-map-ov-area-text, #ffffff);
+    background:    var(--evcc-map-label-bg, rgba(15, 18, 22, 0.60));
+    padding:       0 5px;
+    border-radius: 6px;
+    text-shadow:   0 0 2px rgba(0, 0, 0, 0.85);
+    white-space:   nowrap;
+    pointer-events: none;
+    z-index:       5;
+  }
+
+  /* =========================================================
+     MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
+     ========================================================= */
+
+  .evcc-map-layers-panel {
+    flex:           0 0 auto;
+    box-sizing:     border-box;
+    display:        flex;
+    flex-direction: column;
+    gap:            8px;
+    padding:        12px;
+    border-radius:  var(--evcc-radius-card, 12px);
+    background:     var(--evcc-surface-panel, rgba(28, 33, 39, 0.92));
+    border:         1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
+  }
+  .evcc-map-layers-title {
+    font-size:   13px;
+    font-weight: 700;
+    color:       var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-map-layers-hint {
+    font-size: 11px;
+    color:     var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.6));
+  }
+  .evcc-map-layers-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+  }
+  .evcc-map-layers-row {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+    font-size:   12.5px;
+    color:       var(--evcc-map-tooltip-text, #fff);
+    cursor:      pointer;
+  }
+  .evcc-map-layers-row input { cursor: pointer; margin: 0; }
 
   /* =========================================================
      MAP TOOLTIP

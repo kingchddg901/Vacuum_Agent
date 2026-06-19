@@ -14,6 +14,9 @@ Coverage targets
 [MTE-7]  end_job archives raw samples for a single-room job.
 [MTE-8]  confidence threshold + room exit fires eufy_vacuum_room_completed.
 [MTE-9]  _get_raw_position reads capability/state; all None branches + numeric success.
+[MTE-10] Wave 1 dock anchors: captured at start + end, stamped on history + archive.
+[MTE-10b] dock anchor left None on a mid-job restart (recovered samples).
+[MTE-11] dock-drift log: docked+no-job readings logged with deltas; dup/non-docked skipped.
 """
 
 from __future__ import annotations
@@ -166,6 +169,81 @@ def test_end_job_archives_samples(tracker):
     tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0)]
     tracker.end_job(vacuum_entity_id=_VAC)
     assert tracker._find_raw_samples_path(_VAC, "3") is not None
+
+
+def test_dock_anchor_capture_start_and_end(tracker):
+    """[MTE-10] Wave 1: a fresh start captures the dock anchor; end captures the
+    re-dock position; both are stamped on the room's history entry AND the raw
+    archive line (so cross-session re-anchoring has them later)."""
+    import json
+
+    _register(tracker)
+    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4000.0)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte10dock", rooms=_ROOMS)
+    assert tracker._active_job[_VAC]["dock_anchor_start"] == [15000.0, 4000.0]
+
+    tracker._job_samples[_VAC] = [(0.0, 0.0), (10.0, 10.0), (20.0, 20.0)]
+    # re-dock at a drifted position
+    tracker._get_raw_position = lambda vacuum_entity_id: (15050.0, 4250.0)
+    tracker.end_job(vacuum_entity_id=_VAC)
+
+    entry = (
+        tracker._manager._load_map_data(_VAC, "mte10dock")
+        ["rooms"]["3"]["job_bounds_history"][0]
+    )
+    assert entry["dock_anchor_start"] == [15000.0, 4000.0]
+    assert entry["dock_anchor_end"] == [15050.0, 4250.0]
+
+    path = tracker._find_raw_samples_path(_VAC, "3")
+    last = [ln for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip()][-1]
+    rec = json.loads(last)
+    assert rec["dock_anchor_start"] == [15000.0, 4000.0]
+    assert rec["dock_anchor_end"] == [15050.0, 4250.0]
+
+
+def test_dock_anchor_absent_on_restart_recovery(tracker):
+    """[MTE-10b] On a mid-job HA restart, start_job recovers samples from disk and
+    the live position is mid-run (not the dock) — so the start anchor is left None
+    rather than recording a bogus anchor."""
+    _register(tracker)
+    tracker._flush_samples_to_disk(_VAC, "mte10b", _ROOMS, [(1.0, 1.0), (2.0, 2.0)])
+    # would-be mid-run read; must be ignored because samples were recovered
+    tracker._get_raw_position = lambda vacuum_entity_id: (999.0, 999.0)
+    tracker.start_job(vacuum_entity_id=_VAC, map_id="mte10b", rooms=_ROOMS)
+    assert tracker._active_job[_VAC]["dock_anchor_start"] is None
+
+
+async def test_dock_drift_log(tracker, hass):
+    """[MTE-11] With NO active job and the vacuum docked, each distinct position
+    reading is logged to the dock-drift JSONL (with a delta); an unchanged reading
+    and a non-docked state are both skipped."""
+    import json
+
+    _register(tracker)
+    hass.states.async_set(_VAC, "docked")  # docked, and start_job NOT called -> no job
+
+    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4000.0)
+    tracker._handle_position_update(_VAC)            # first reading -> logged
+    tracker._handle_position_update(_VAC)            # unchanged -> skipped
+    tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4237.0)
+    tracker._handle_position_update(_VAC)            # drift -> logged with dy=+237
+
+    # not docked: a change here must NOT be logged
+    hass.states.async_set(_VAC, "cleaning")
+    tracker._get_raw_position = lambda vacuum_entity_id: (15010.0, 4250.0)
+    tracker._handle_position_update(_VAC)
+
+    await hass.async_block_till_done()  # let the executor appends complete
+
+    path = tracker._dock_drift_path(_VAC)
+    recs = [
+        json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()
+        if ln.strip() and '"_meta"' not in ln
+    ]
+    assert len(recs) == 2  # first + the drift; dup and the cleaning-state read skipped
+    assert (recs[0]["vx"], recs[0]["vy"]) == (15000.0, 4000.0)
+    assert "dx" not in recs[0]                 # no delta on the first reading
+    assert recs[1]["dy"] == 237.0              # drift delta captured
 
 
 # ---------------------------------------------------------------------------

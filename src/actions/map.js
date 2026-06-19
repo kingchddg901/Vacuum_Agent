@@ -13,6 +13,7 @@ import {
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_LIVE_MAP_ROTATION,
+  SERVICE_SET_MAP_OVERLAY_VISIBILITY,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
@@ -40,6 +41,22 @@ export function applyMapActions(proto) {
     const mapId = this.state.activeMapId?.();
     if (mapId) data.map_id = mapId;
     return await this.callService(DOMAIN, SERVICE_START_ZONE_CLEAN, data, true);
+  };
+
+  /**
+   * Set one of the vacuum's provider setting selects (suction/mode/intensity/water)
+   * to `option`. These are the device's current settings a zone clean runs off, so
+   * the zone panel edits the real entity directly via the HA `select` service.
+   *
+   * @param {string} entityId  a select.* entity id from settingEntities()
+   * @param {string} option    one of the entity's options
+   */
+  proto.setVacuumSetting = async function (entityId, option) {
+    if (!entityId || option == null) return null;
+    return await this.callService("select", "select_option", {
+      entity_id: entityId,
+      option,
+    });
   };
 
   /**
@@ -272,6 +289,25 @@ export function applyMapActions(proto) {
       SERVICE_SET_LIVE_MAP_ROTATION,
       { vacuum_entity_id: vacuum, map_id: mapId, rotation: next },
       true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Toggle one map_state_source overlay layer's visibility (Wave 3c). Sends only the
+   * one layer as a partial `visibility` delta (the backend merges over the defaults);
+   * map_id auto-resolves server-side when omitted. Optimistic flip first so the
+   * checkbox + overlay update instantly; the snapshot reconciles on its next push.
+   */
+  proto.setMapOverlayVisibility = async function (layer, visible) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !layer) return null;
+    this.state.setOverlayVisibilityOptimistic?.(layer, visible);
+    const data = { vacuum_entity_id: vacuum, visibility: { [layer]: Boolean(visible) } };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, data, true,
     );
     return result?.response ?? result ?? null;
   };

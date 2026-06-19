@@ -7,6 +7,7 @@ from datetime import datetime
 import functools
 import hashlib
 import logging
+import os
 from typing import Any
 
 from homeassistant.core import HomeAssistant, callback
@@ -127,6 +128,14 @@ _PATH_BLOCK_ACTIONS = frozenset(
 def _iso_now() -> str:
     """Return current UTC timestamp in stable format."""
     return utc_now_iso()
+
+
+def _stat_mtime(path: str) -> float | None:
+    """Return a file's mtime, or None if it doesn't exist. Blocking — call via executor."""
+    try:
+        return os.stat(path).st_mtime
+    except OSError:
+        return None
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
@@ -304,6 +313,12 @@ class EufyVacuumManager:
         self.data: dict[str, Any] = {}
         self.runtime: dict[str, VacuumRuntimeState] = {}
         self._room_history_cache_ready: set[str] = set()
+        # map_state_source cache (Wave 1): the normalized, VA-owned read of the
+        # provider's OWN segmentation, keyed by vacuum_entity_id. Populated by the
+        # async pre-warm (async_refresh_map_state_source) so the on-loop sync
+        # snapshot never does the blocking .storage read itself. Value shape:
+        # {"mtime": float|None, "map_id": str, "result": <map_source result dict>}.
+        self._map_state_source_cache: dict[str, dict[str, Any]] = {}
 
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
@@ -3625,6 +3640,18 @@ class EufyVacuumManager:
         # the zone-draw control — you draw the box on that image, and the live map
         # only exists on the fork that also accepts zone_clean.
         supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
+        # The vacuum's provider setting entities (suction / mode / intensity / water
+        # level selects), resolved + existence-checked from the adapter's
+        # `settings_selects` (the same block the external-run capture uses). Surfaced
+        # so the card's zone-clean panel can render them as LIVE controls — a zone
+        # clean runs off the device's current settings, so the panel edits these real
+        # entities (select.select_option) rather than holding a parallel store.
+        _settings_selects = _adapter_cfg.get("settings_selects", {}) or {}
+        setting_entities: dict[str, str] = {}
+        for _skey, _scfg in _settings_selects.items():
+            _seid = (_scfg or {}).get("entity_id")
+            if _seid and self.hass.states.get(_seid) is not None:
+                setting_entities[_skey] = _seid
         # Optional CV libraries (numpy / Pillow / scipy) power Auto (CV) map
         # segmentation but are NOT a hard dependency (manifest requirements = []).
         # Surface RUNTIME availability so the card can hide/disable Auto (CV) and
@@ -3654,24 +3681,9 @@ class EufyVacuumManager:
         #      {map_slug} = the slugified map id).
         # Either source is existence-checked; absent -> no live backdrop (byte-identical
         # to before for brands that declare no pattern and have no override).
-        live_map_image_entity = None
-        _vac_record = self.data.get("vacuums", {}).get(vacuum_entity_id, {}) or {}
-        _override = _vac_record.get("live_map_image_entity")
-        if _override and self.hass.states.get(_override) is not None:
-            live_map_image_entity = _override
-        if live_map_image_entity is None:
-            _live_pattern = _mapping_cfg.get("live_map_image_entity_pattern")
-            if _live_pattern:
-                from homeassistant.util import slugify as _slugify
-                try:
-                    _candidate = str(_live_pattern).format(
-                        object_id=vacuum_entity_id.split(".", 1)[-1],
-                        map_slug=_slugify(str(map_id)),
-                    )
-                except (KeyError, IndexError, ValueError):
-                    _candidate = None
-                if _candidate and self.hass.states.get(_candidate) is not None:
-                    live_map_image_entity = _candidate
+        live_map_image_entity = self._resolve_live_map_image_entity(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=_adapter_cfg
+        )
         # User's chosen live-map display rotation (0/90/180/270), stored per map so
         # it follows them across devices. Surfaced even at 0 so the card has a value.
         _live_map_bucket = (
@@ -3681,6 +3693,13 @@ class EufyVacuumManager:
             live_map_rotation = int(_live_map_bucket.get("live_map_rotation", 0) or 0) % 360
         except (TypeError, ValueError):
             live_map_rotation = 0
+        # Per-map overlay-layer visibility (Wave 3b): the user's stored deltas merged
+        # over the defaults, so the card knows which map_state_source layers to draw.
+        # Independent of map_state_source presence (prefs exist even when no map data).
+        from ..mapping.map_source import resolve_overlay_visibility
+        map_overlay_visibility = resolve_overlay_visibility(
+            _live_map_bucket.get("overlay_visibility")
+        )
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3701,12 +3720,198 @@ class EufyVacuumManager:
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
+            "setting_entities": setting_entities,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,
             "live_map_rotation": live_map_rotation,
+            "map_overlay_visibility": map_overlay_visibility,
+            # VA-owned read of the provider's OWN segmentation (map_state_source,
+            # Wave 1: per-room bbox+name + dock/robot anchors, normalized to the
+            # rendered image). Read from the cache the async pre-warm populates — the
+            # on-loop snapshot never does the blocking .storage read. Absent marker
+            # when not configured / not yet warmed / source not present. No consumer
+            # wiring yet (Wave 1 = expose + verify); see docs/dev/map-state-source.md.
+            "map_state_source": (
+                (self._map_state_source_cache.get(vacuum_entity_id) or {}).get("result")
+                or {"present": False, "reason": "not_loaded"}
+            ),
             "updated_at": _iso_now(),
         }
+
+    def _resolve_live_map_image_entity(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        adapter_cfg: dict[str, Any] | None = None,
+    ) -> str | None:
+        """Resolve the live map-image backdrop entity for a vacuum/map, or None.
+
+        Two sources, OVERRIDE-FIRST (see get_dashboard_snapshot for the full why):
+          1) the per-VACUUM user override (data["vacuums"][vid]["live_map_image_entity"]),
+          2) else the ADAPTER's live_map_image_entity_pattern ({object_id}/{map_slug}).
+        Either is existence-checked; absent → None. Shared by the snapshot and the
+        map_state_source presence gate so both agree on "is the live map present?".
+        """
+        adapter_cfg = adapter_cfg if adapter_cfg is not None else (
+            _get_adapter_config(vacuum_entity_id) or {}
+        )
+        mapping_cfg = adapter_cfg.get("mapping", {}) or {}
+        vac_record = self.data.get("vacuums", {}).get(vacuum_entity_id, {}) or {}
+        override = vac_record.get("live_map_image_entity")
+        if override and self.hass.states.get(override) is not None:
+            return override
+        pattern = mapping_cfg.get("live_map_image_entity_pattern")
+        if not pattern:
+            return None
+        from homeassistant.util import slugify as _slugify
+        try:
+            candidate = str(pattern).format(
+                object_id=vacuum_entity_id.split(".", 1)[-1],
+                map_slug=_slugify(str(map_id)),
+            )
+        except (KeyError, IndexError, ValueError):
+            return None
+        if candidate and self.hass.states.get(candidate) is not None:
+            return candidate
+        return None
+
+    async def async_refresh_map_state_source(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+    ) -> dict[str, Any]:
+        """Pre-warm the map_state_source cache for one vacuum (async, off-loop IO).
+
+        Reads the adapter's `map_state_source` block, applies the presence gate
+        (live-map artifact), and populates self._map_state_source_cache so the sync
+        on-loop snapshot can include the result without doing the blocking .storage
+        read itself. Called from the dashboard-snapshot service handler before the
+        sync snapshot. Degrades to an absent marker on any failure — never raises.
+
+        Returns the result dict it cached (also handy for tests / a future sensor).
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        source_cfg = adapter_cfg.get("map_state_source")
+        if not isinstance(source_cfg, dict):
+            result = {"present": False, "reason": "not_configured"}
+            self._map_state_source_cache[vacuum_entity_id] = {
+                "mtime": None, "map_id": str(map_id), "result": result,
+            }
+            return result
+
+        # Presence gate — most backends require the live-map artifact (the same
+        # gate the card uses to show the live backdrop). An adapter can opt out
+        # with present_requires_live_map_image: False. The resolved entity_id is
+        # also handed to the Roborock introspector (the parsed MapData likely lives
+        # on that image entity object).
+        live_img = self._resolve_live_map_image_entity(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=adapter_cfg
+        )
+        present = (live_img is not None) if source_cfg.get(
+            "present_requires_live_map_image", True
+        ) else True
+
+        backend = source_cfg.get("backend")
+        result: dict[str, Any]
+        if backend == "storage":
+            result = await self._refresh_storage_map_source(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+                source_cfg=source_cfg, present=present,
+            )
+            # Wave 1 verify line (symmetric with the memory branch): present/reason +
+            # room count, so the live deploy is visible in the log without a service
+            # call. Room bboxes stay out of the log (verbose); inspect the snapshot
+            # field for those.
+            _LOGGER.info(
+                "map_state_source[%s] storage read: present=%s reason=%s rooms=%d",
+                vacuum_entity_id, result.get("present"), result.get("reason"),
+                len(result.get("rooms") or []),
+            )
+        elif backend == "memory":
+            # In-memory introspection (no IO) — safe to run on the loop.
+            candidates = _msr.roborock_candidates(
+                self.hass, source_cfg, image_entity_id=live_img
+            )
+            result = _msr.roborock_result_from_candidates(candidates, present=present)
+            if result.get("diagnostics") is not None:
+                _LOGGER.info(
+                    "map_state_source[%s] memory introspect: present=%s reason=%s diag=%s",
+                    vacuum_entity_id, result.get("present"),
+                    result.get("reason"), result.get("diagnostics"),
+                )
+            self._map_state_source_cache[vacuum_entity_id] = {
+                "mtime": None, "map_id": str(map_id), "result": result,
+            }
+        else:
+            result = {"present": False, "reason": f"unknown_backend:{backend}"}
+            self._map_state_source_cache[vacuum_entity_id] = {
+                "mtime": None, "map_id": str(map_id), "result": result,
+            }
+        return result
+
+    async def _refresh_storage_map_source(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        source_cfg: dict[str, Any],
+        present: bool,
+    ) -> dict[str, Any]:
+        """Storage-backend branch of the map_state_source pre-warm (Eufy fork).
+
+        Stats the Store file; re-parses (off-loop) only when the mtime changed since
+        the cached read, so an unchanged map costs one stat, not a 200 KB parse +
+        base64 decode every snapshot.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        path = _msr.eufy_store_path(self.hass, vacuum_entity_id, source_cfg)
+        if not path:
+            result = {"present": False, "backend": "storage", "reason": "no_device"}
+            self._map_state_source_cache[vacuum_entity_id] = {
+                "mtime": None, "map_id": str(map_id), "result": result,
+            }
+            return result
+
+        try:
+            mtime: float | None = await self.hass.async_add_executor_job(
+                _stat_mtime, path
+            )
+        except OSError:
+            mtime = None
+
+        cached = self._map_state_source_cache.get(vacuum_entity_id) or {}
+        # Reuse the cached normalized result iff the file is unchanged AND the
+        # presence gate is unchanged (live-map could appear/disappear between calls).
+        if (
+            mtime is not None
+            and cached.get("mtime") == mtime
+            and cached.get("present_gate") == present
+            and isinstance(cached.get("result"), dict)
+        ):
+            return cached["result"]
+
+        store_json = await self.hass.async_add_executor_job(_msr.load_store_json, path)
+        expected_version = source_cfg.get("store_version")
+        result = _msr.eufy_result_from_store(
+            store_json, expected_version=expected_version, present=present
+        )
+        if result.get("reason") == "store_version_mismatch":
+            _LOGGER.warning(
+                "map_state_source[%s]: store version mismatch (expected %s) — "
+                "the fork schema may have shifted; re-point the adapter's "
+                "map_state_source.store_version. Treating as unavailable.",
+                vacuum_entity_id, expected_version,
+            )
+        self._map_state_source_cache[vacuum_entity_id] = {
+            "mtime": mtime, "present_gate": present, "map_id": str(map_id), "result": result,
+        }
+        return result
 
 
     # Job finalization — delegates to ActiveJobTracker

@@ -2295,6 +2295,44 @@ set_live_map_rotation:
             - "180"
             - "270"
 
+set_map_overlay_visibility:
+  name: Set map overlay visibility
+  description: >
+    Show or hide individual map overlay layers (room labels, room area, current room,
+    robot, dock, no-go / no-mop zones, virtual walls, saved zones, cleaning path,
+    obstacles) in the card's Map view. Stored per map (only your changes are kept,
+    merged over the defaults). Display only — never affects cleaning.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    visibility:
+      name: Visibility
+      description: >
+        Map of overlay layer -> true/false (partial; only the layers you list change).
+        Layers: room_labels, room_area, current_room, robot, dock, no_go, no_mop,
+        walls, zones, path, obstacles.
+      required: false
+      selector:
+        object: {}
+    reset:
+      name: Reset to defaults
+      description: Clear all saved overrides and fall back to the default visibility.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
 create_custom_layout:
   name: Create custom layout
   description: >

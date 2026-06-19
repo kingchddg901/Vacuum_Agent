@@ -63,6 +63,31 @@ test("[LMU-4] missing last_updated -> URL returned unbusted", () => {
   assert.equal(s._liveMapImageUrl(), "/p?token=z");
 });
 
+test("[LMU-5] camera URL advances on bumpLiveMapTick (poll refresh); image.* unaffected", () => {
+  const cam = makeState({
+    liveMapImageEntity: () => "camera.alfred_map",
+    entity: () => ({
+      attributes: { entity_picture: "/api/camera_proxy/camera.alfred_map?token=abc" },
+      last_updated: "2026-06-16T00:00:02.000Z",
+    }),
+  });
+  const camBefore = cam._liveMapImageUrl();
+  cam.bumpLiveMapTick();
+  assert.notEqual(cam._liveMapImageUrl(), camBefore); // a poll changes the URL -> <img> refetches
+
+  // image.* rotates its own token per frame, so the tick must NOT alter its URL.
+  const img = makeState({
+    liveMapImageEntity: () => "image.alfred_6",
+    entity: () => ({
+      attributes: { entity_picture: "/p?token=t" },
+      last_updated: "2026-06-16T00:00:02.000Z",
+    }),
+  });
+  const imgBefore = img._liveMapImageUrl();
+  img.bumpLiveMapTick();
+  assert.equal(img._liveMapImageUrl(), imgBefore);
+});
+
 test("[LIVE-1] a live-pinned layout shows the live URL, ignoring any uploaded variant", () => {
   const s = makeState();
   s._mapSegmentsData = {

@@ -37,4 +37,15 @@ export const MAP_TOKENS = [
   mapToken.color("--evcc-map-compose-cut-fill", "Composer Cutout Fill"),
   mapToken.color("--evcc-map-compose-cut-selected-fill", "Composer Cutout Fill (Selected)"),
   mapToken.color("--evcc-map-vertex-selected-glow", "Composer Selected Vertex Glow"),
+  // Wave 3c — map_state_source overlay layers (no-go / walls / path / robot / etc.).
+  mapToken.color("--evcc-map-ov-current", "Overlay: Current Room"),
+  mapToken.color("--evcc-map-ov-nogo", "Overlay: No-Go Zone"),
+  mapToken.color("--evcc-map-ov-nomop", "Overlay: No-Mop Zone"),
+  mapToken.color("--evcc-map-ov-wall", "Overlay: Virtual Wall"),
+  mapToken.color("--evcc-map-ov-zone", "Overlay: Saved Zone"),
+  mapToken.color("--evcc-map-ov-path", "Overlay: Cleaning Path"),
+  mapToken.color("--evcc-map-ov-robot", "Overlay: Robot Marker"),
+  mapToken.color("--evcc-map-ov-dock", "Overlay: Dock Marker"),
+  mapToken.color("--evcc-map-ov-obstacle", "Overlay: Obstacle Marker"),
+  mapToken.color("--evcc-map-ov-area-text", "Overlay: Area Label Text"),
 ];

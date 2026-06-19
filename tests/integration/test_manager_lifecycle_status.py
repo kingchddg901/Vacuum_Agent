@@ -236,6 +236,41 @@ async def test_dashboard_snapshot_live_map_override(manager, hass):
     assert _snap(_pat)["live_map_image_entity"] == "image.alfred_6"
 
 
+async def test_dashboard_snapshot_setting_entities(manager, hass):
+    """[LS-11] The snapshot surfaces the adapter's settings_selects as resolved,
+    existence-checked entity-ids — the live controls for the zone-clean panel.
+    Only entities that actually exist are included; none declared -> empty."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=1)
+
+    def _snap(cfg):
+        register_adapter_config(_VAC, {"adapter_id": "x", "source": "code", **cfg})
+        try:
+            return manager.get_dashboard_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+        finally:
+            unregister_adapter_config(_VAC)
+
+    cfg = {"settings_selects": {
+        "fan_speed":   {"entity_id": "select.alfred_suction_level"},
+        "clean_mode":  {"entity_id": "select.alfred_cleaning_mode"},
+        "water_level": {"entity_id": "select.alfred_water_level"},
+    }}
+
+    # No entities exist yet -> empty (existence-checked).
+    assert _snap(cfg)["setting_entities"] == {}
+
+    # Only the entities that actually exist are surfaced (water_level missing -> dropped).
+    hass.states.async_set("select.alfred_suction_level", "Max", {})
+    hass.states.async_set("select.alfred_cleaning_mode", "vacuum", {})
+    assert _snap(cfg)["setting_entities"] == {
+        "fan_speed": "select.alfred_suction_level",
+        "clean_mode": "select.alfred_cleaning_mode",
+    }
+
+    # No settings_selects declared -> empty.
+    assert _snap({})["setting_entities"] == {}
+
+
 async def test_dashboard_snapshot_cv_availability(manager, hass, monkeypatch):
     """[LS-10] The snapshot surfaces cv_available + cv_missing (runtime CV-library
     signal) so the card can hide Auto (CV) + explain when the optional science stack

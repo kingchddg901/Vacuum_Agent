@@ -1342,6 +1342,8 @@ class MappingManager:
         map_id: str,
         samples: list[tuple[float, float]],
         rooms: dict[str, Any],
+        dock_anchor_start: list[float] | None = None,
+        dock_anchor_end: list[float] | None = None,
     ) -> None:
         """Attribute position samples from a completed job to room bounding boxes.
 
@@ -1372,7 +1374,9 @@ class MappingManager:
         if len(non_transition) == 1:
             room_id = str(non_transition[0])
             job_bounds[room_id] = self._update_bounds_for_room(
-                data, room_id, _percentile_trim(samples)
+                data, room_id, _percentile_trim(samples),
+                dock_anchor_start=dock_anchor_start,
+                dock_anchor_end=dock_anchor_end,
             )
         else:
             map_rooms = data.get("rooms", {})
@@ -1399,7 +1403,9 @@ class MappingManager:
                     )
                     continue
                 job_bounds[rid] = self._update_bounds_for_room(
-                    data, rid, _percentile_trim(room_samples)
+                    data, rid, _percentile_trim(room_samples),
+                    dock_anchor_start=dock_anchor_start,
+                    dock_anchor_end=dock_anchor_end,
                 )
 
         self._save_map_data(vacuum_entity_id, map_id, data)
@@ -1410,6 +1416,8 @@ class MappingManager:
         data: dict[str, Any],
         room_id: str,
         samples: list[tuple[float, float]],
+        dock_anchor_start: list[float] | None = None,
+        dock_anchor_end: list[float] | None = None,
     ) -> dict[str, Any]:
         """Add a job entry to the room's history and recompute bounds."""
         room_key = str(room_id)
@@ -1453,6 +1461,11 @@ class MappingManager:
             "recorded_at": now,
             "job_id": job_id,
             "excluded": False,
+            # Per-session dock anchors (Wave 1, capture-only) — the run's coordinate
+            # frame origin (start) + re-dock position (end). Consumed by the Wave 2
+            # cross-session re-anchor; harmless metadata until then.
+            "dock_anchor_start": dock_anchor_start,
+            "dock_anchor_end": dock_anchor_end,
         }
 
         history = [job_entry] + history

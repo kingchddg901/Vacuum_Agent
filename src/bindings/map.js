@@ -38,11 +38,37 @@ export function applyMapBindings(proto) {
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
     this._bindMapAnimalSelect(root);
+    this._bindMapLayersPanel(root);
 
     const view = this.card._view;
     if (view === VIEWS.MAP_CONFIG || this.card._state.isMapViewActive?.()) {
       this._ensureMapSegments();
     }
+  };
+
+  /* =========================================================
+     MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
+     ========================================================= */
+
+  proto._bindMapLayersPanel = function (root) {
+    root.querySelectorAll("[data-action='toggle-map-overlay']").forEach((el) => {
+      this.card._on(el, "change", () => {
+        const layer = el.dataset.layer;
+        if (!layer) return;
+        this.card._actions
+          .setMapOverlayVisibility(layer, el.checked)
+          .then(() => this.card._scheduleRender())
+          .catch((err) => {
+            // Service failed — roll back the optimistic flip so the checkbox +
+            // overlay revert to the backend value instead of sticking unsaved.
+            console.error("[eufy-vacuum-command-center] Overlay toggle failed:", err);
+            this.card._state.clearOverlayVisibilityOptimistic?.(layer);
+            this.card._scheduleRender();
+          });
+        // Optimistic flip already applied in state; re-render now for instant feedback.
+        this.card._scheduleRender();
+      });
+    });
   };
 
   /* =========================================================
@@ -1228,6 +1254,23 @@ export function applyMapBindings(proto) {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
         this.card._state.clearZoneDrafts?.();
+        this.card._scheduleRender?.();
+      });
+    });
+    // Live setting selects in the zone panel — set the real provider entity. The
+    // HA state push re-renders with the confirmed value; no local render needed.
+    root.querySelectorAll("[data-action='zone-setting']").forEach((sel) => {
+      this.card._on(sel, "change", (e) => {
+        e.stopPropagation();
+        this.card._actions.setVacuumSetting?.(sel.dataset.entityId, sel.value);
+      });
+    });
+    // Per-zone remove in the zone panel.
+    root.querySelectorAll("[data-action='zone-remove']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        const i = Number(btn.dataset.zoneIndex);
+        if (!Number.isNaN(i)) this.card._state.removeZoneDraft?.(i);
         this.card._scheduleRender?.();
       });
     });

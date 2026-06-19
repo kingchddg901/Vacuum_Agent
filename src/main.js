@@ -379,6 +379,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._scheduleRunProfilesRefresh();
     this._scheduleIncompleteRunLogRefresh();
     this._scheduleTroubleRoomsLogRefresh();
+    this._scheduleLiveMapRefresh();
     this._loadInitialThemeState();
   }
 
@@ -548,6 +549,42 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._dashboardSnapshotTimer = setTimeout(() => {
       this.refreshDashboardSnapshot();
     }, 500);
+  }
+
+  /* Poll the live-map CAMERA backdrop on the frame cadence.
+     A camera.* live entity pushes new frames WITHOUT a state change (HA dedupes identical
+     state+attrs), so last_updated barely moves and the <img> shows a frozen frame until a
+     manual refresh. While a live camera backdrop is on the map view, bump a tick + re-render
+     every REFRESH_MS so the cache-bust advances and the image refetches. image.* live
+     entities self-bust (token rotates per frame) -> no poll needed. Idempotent: set hass is
+     frequent, so we never reset a running timer (that would starve it). */
+  _scheduleLiveMapRefresh() {
+    const REFRESH_MS = 2000; // smcneece eufy-clean fork pushes a new map frame ~every 2s
+
+    const liveCamera =
+      !!this._state?.isMapViewActive?.() &&
+      !!this._state?.isLiveBackdropActive?.() &&
+      !!this._state?.liveMapImageEntity?.()?.startsWith?.("camera.");
+
+    if (!liveCamera) {
+      if (this._liveMapRefreshTimer) {
+        clearInterval(this._liveMapRefreshTimer);
+        this._liveMapRefreshTimer = null;
+      }
+      return;
+    }
+    if (this._liveMapRefreshTimer) return; // already polling
+
+    this._liveMapRefreshTimer = setInterval(() => {
+      if (!this._state?.isMapViewActive?.() || !this._state?.isLiveBackdropActive?.()) {
+        clearInterval(this._liveMapRefreshTimer);
+        this._liveMapRefreshTimer = null;
+        return;
+      }
+      if (document.hidden) return; // tab backgrounded — skip the fetch, keep the timer alive
+      this._state.bumpLiveMapTick?.();
+      this._scheduleRender();
+    }, REFRESH_MS);
   }
 
   async refreshDockActionStatus() {
@@ -1394,6 +1431,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
     clearTimeout(this._setupStatusTimer);
     clearTimeout(this._deferredRenderTimer);
     this._deferredRenderTimer = null;
+    clearInterval(this._liveMapRefreshTimer);
+    this._liveMapRefreshTimer = null;
   }
 
   _handleVisibilityChange() {

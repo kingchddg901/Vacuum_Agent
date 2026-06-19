@@ -528,6 +528,32 @@ def register_eufy_adapter_for_vacuum(
             "live_map_image_entity_pattern": "camera.{object_id}_map",
         },
 
+        "map_state_source": {
+            # Read the eufy-clean fork's OWN map segmentation (the device's
+            # authoritative room data) into normalized, VA-owned room bboxes +
+            # dock/robot anchors — so room regions / current-room / mascots are
+            # AUTO-DERIVED, not hand-composed, and immune to the per-session raw
+            # coordinate drift (reference_eufy_intersession_coord_drift). See
+            # docs/dev/map-state-source.md.
+            #
+            # STORAGE backend: the fork persists the DECODED map to its HA Store
+            # file (.storage/robovac_mqtt.<serial>). store_key fills {device_id}
+            # from the (robovac_mqtt, <serial>) device-registry identifier. The
+            # store wraps {version, data:{map_data:{room_pixels,...}, dock_pixel,
+            # robot_trail}} — store_version guards that wrapper (the fork may bump
+            # it at the pending #136 merge → re-point this number, don't rewrite).
+            #
+            # Presence-gated on the live-map camera artifact (same gate as the
+            # live backdrop): plain non-fork eufy-clean has no camera.<device>_map,
+            # so this resolves to "not present" and segmentation features hide —
+            # exactly like the model/CV presence gates.
+            "backend": "storage",
+            "identifier_domain": "robovac_mqtt",
+            "store_key": "robovac_mqtt.{device_id}",
+            "store_version": 1,
+            "present_requires_live_map_image": True,
+        },
+
         "job_segmenter": {
             # Selects the pluggable JOB (run) segmenter engine — the brand-specific
             # detection of per-room boundaries from a run's progress signal. The

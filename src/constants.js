@@ -129,6 +129,7 @@ export const SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout";
 export const SERVICE_SET_SEGMENT_ROOM_LINK  = "set_segment_room_link";
 export const SERVICE_SET_COMPANION_ANCHOR   = "set_companion_anchor";
 export const SERVICE_SET_LIVE_MAP_ROTATION  = "set_live_map_rotation";
+export const SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility";
 
 // --- Setup ---
 export const SERVICE_SETUP_GET_STATUS       = "setup_get_status";

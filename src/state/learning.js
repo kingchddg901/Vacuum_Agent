@@ -227,6 +227,16 @@ export function applyLearningState(proto) {
   };
 
   /**
+   * The vacuum's provider setting-select entity-ids, resolved by the backend from
+   * the adapter's `settings_selects` (existence-checked). Keyed by setting name
+   * (fan_speed / clean_mode / clean_intensity / water_level / …). The zone panel
+   * renders these as live controls. Empty object when none resolve.
+   */
+  proto.settingEntities = function () {
+    return this.dashboardSnapshot()?.setting_entities ?? {};
+  };
+
+  /**
    * Whether the optional CV libraries (numpy/Pillow/scipy) that power Auto (CV)
    * map segmentation are available in this HA environment. Default true (assume
    * available unless the backend says otherwise) so older snapshots are unaffected.

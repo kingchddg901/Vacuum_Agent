@@ -369,6 +369,26 @@ def register_roborock_adapter_for_vacuum(
             "live_map_image_entity_pattern": "image.{object_id}_{map_slug}",
         },
 
+        "map_state_source": {
+            # MEMORY backend: unlike the Eufy fork (decoded map on disk), the HA-core
+            # Roborock integration keeps the parsed map (vacuum-map-parser MapData,
+            # rooms = Room bboxes) ONLY in memory — config-entry runtime_data /
+            # hass.data["roborock"]. The exact attribute path varies across HA
+            # versions and is NOT knowable offline, so the reader is a DEFENSIVE
+            # runtime introspector that duck-types for a Room-like collection +
+            # image dims and logs a diagnostics breadcrumb. The first live deploy's
+            # log is what confirms/tunes the path (docs/dev/map-state-source.md,
+            # Wave 1) — and reveals whether the no-dock S6 even produces in-memory
+            # rooms (the .storage/roborock map content was empty for it).
+            #
+            # Presence-gated on the live map IMAGE entity (image.{object_id}_{map};
+            # same gate as the live backdrop): no parsed map → no image → hidden.
+            "backend": "memory",
+            "identifier_domain": "roborock",
+            "hass_data_domain": "roborock",
+            "present_requires_live_map_image": True,
+        },
+
         "job_segmenter": {
             # Roborock reports per-room progress NATIVELY (sensor.{id}_current_room +
             # segment_cleaning status), so there is no counter stream to plateau-detect.

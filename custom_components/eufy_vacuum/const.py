@@ -148,6 +148,10 @@ SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
 # `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
 # affects dispatch. Backend-stored so the orientation follows the user across devices.
 SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
+# Per-map overlay-layer visibility (Wave 3b). Stores a partial `overlay_visibility`
+# dict on the map bucket (user deltas over the defaults); surfaced in the snapshot as
+# `map_overlay_visibility` and mirrored on sensor.<vac>_map_overlays. Display only.
+SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"

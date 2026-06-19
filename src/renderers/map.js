@@ -129,6 +129,9 @@ export function applyMapRenderers(proto) {
     const zoneDrafts = zoneMode ? (state.zoneDrafts?.() ?? []) : [];
     const zoneCount  = zoneDrafts.length;
     const zoneMax    = state.zoneMax?.() ?? 10;
+    // map_state_source overlay layers (no-go/walls/path/robot/etc.) render only over
+    // the LIVE device image — the only space their normalized coords align to (Wave 3c).
+    const deviceOverlays = state.isLiveImageDisplayed?.() ?? false;
     return `
       <div class="evcc-map-view">
         <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}">
@@ -165,6 +168,7 @@ export function applyMapRenderers(proto) {
                     this._renderFloorTexturePolygon(seg, segFloorTypes[i])
                   ).join("")
                 : ""}
+              ${deviceOverlays ? this._renderDeviceOverlaySvg(state) : ""}
             </svg>
             ${this._renderMapAnimal(state, vacuumStatus)}
             ${(state.mapRoomLabelsEnabled?.() ?? true) ? segments.map((seg) => {
@@ -184,6 +188,7 @@ export function applyMapRenderers(proto) {
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;
             }).join("") : ""}
+            ${deviceOverlays ? this._renderDeviceOverlayHtml(state) : ""}
             </div>
             ${zoneMode ? `
               ${zoneDrafts.map((d, i) => `<div class="evcc-zone-rect" style="left:${Math.min(d.x, d.x + d.w)}%;top:${Math.min(d.y, d.y + d.h)}%;width:${Math.abs(d.w)}%;height:${Math.abs(d.h)}%"><span class="evcc-zone-rect-num">${i + 1}</span></div>`).join("")}
@@ -213,26 +218,232 @@ export function applyMapRenderers(proto) {
                   aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
           </div>
 
-          ${zoneMode ? `
-          <div class="evcc-zone-bar" role="group" aria-label="Zone clean controls">
-            <span class="evcc-zone-bar-hint">${
-              zoneCount
-                ? `${zoneCount}/${zoneMax} zone${zoneCount === 1 ? "" : "s"}` +
-                  (zoneCount >= zoneMax ? " (max)" : " — drag to add more")
-                : "Drag a box on the map"
-            }</span>
-            <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
-                    data-action="zone-clean-confirm"${zoneCount ? "" : " disabled"}>${
-              zoneCount > 1 ? `Clean ${zoneCount} zones` : "Clean zone"
-            }</button>
-            ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">Clear</button>` : ""}
-            <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
-          </div>` : ""}
-
         </div>
 
       </div>
     `;
+  };
+
+  /* =========================================================
+     MAP_STATE_SOURCE DEVICE OVERLAYS (Wave 3c)
+     =========================================================
+     The VA's read of the device's own map, normalized 0–1 of the LIVE rendered
+     image -> ×100 into the same 0–100 SVG / pct space the room polygons use, inside
+     the rotator so they turn with the map. SVG layers (polygons/lines/rects) here;
+     HTML markers + area labels in _renderDeviceOverlayHtml. Each layer is gated by
+     its own visibility toggle (state.isOverlayVisible). Every array is guarded.
+     ========================================================= */
+
+  /**
+   * Letterbox transform: the backend normalizes overlay coords to the 0–1 IMAGE
+   * frame, but the live <img> is object-fit:contain inside a SQUARE box, so a
+   * non-square image gets centered bars. This maps image-normalized (0–1) to
+   * container space (0–100, the SVG viewBox + HTML %) the SAME way the zone-clean
+   * path does (state._rectToNormalized, inverted). Identity when the size is unknown
+   * (assumes square). Returns {tx, ty, sx, sy} in container-% units.
+   */
+  proto._overlayTransform = function (state) {
+    const size = state.mapImageSize?.();
+    let sx = 100, sy = 100, offX = 0, offY = 0;
+    if (Array.isArray(size) && size.length === 2 && size[0] > 0 && size[1] > 0) {
+      const W = Number(size[0]), H = Number(size[1]);
+      sx = W >= H ? 100 : (100 * W) / H;
+      sy = H >= W ? 100 : (100 * H) / W;
+      offX = (100 - sx) / 2;
+      offY = (100 - sy) / 2;
+    }
+    return {
+      sx, sy,
+      tx: (v) => offX + Number(v) * sx,
+      ty: (v) => offY + Number(v) * sy,
+    };
+  };
+
+  proto._renderDeviceOverlaySvg = function (state) {
+    const mss = state.mapStateSource?.();
+    if (!mss || !mss.present) return "";
+    const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
+    const { tx, ty, sx, sy } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    const pts = (poly) => poly.map((p) => `${f(tx(p[0]))},${f(ty(p[1]))}`).join(" ");
+    const rect = (cls, x0, y0, x1, y1) => {
+      const ax = tx(Math.min(x0, x1)), ay = ty(Math.min(y0, y1));
+      return `<rect class="${cls}" x="${f(ax)}" y="${f(ay)}" `
+           + `width="${f(Math.abs(x1 - x0) * sx)}" height="${f(Math.abs(y1 - y0) * sy)}" />`;
+    };
+    let out = "";
+
+    if (vis("current_room") && mss.current_room != null) {
+      const r = (mss.rooms || []).find((rm) => rm.number === mss.current_room);
+      if (r && Array.isArray(r.bbox) && r.bbox.length === 4) {
+        out += rect("evcc-map-ov-current", r.bbox[0], r.bbox[1], r.bbox[2], r.bbox[3]);
+      }
+    }
+    if (vis("no_go")) {
+      for (const poly of (mss.no_go || [])) {
+        if (Array.isArray(poly) && poly.length >= 3) out += `<polygon class="evcc-map-ov-nogo" points="${pts(poly)}" />`;
+      }
+    }
+    if (vis("no_mop")) {
+      for (const poly of (mss.no_mop || [])) {
+        if (Array.isArray(poly) && poly.length >= 3) out += `<polygon class="evcc-map-ov-nomop" points="${pts(poly)}" />`;
+      }
+    }
+    if (vis("zones")) {
+      for (const z of (mss.zones || [])) {
+        if (Array.isArray(z) && z.length === 4) out += rect("evcc-map-ov-zone", z[0], z[1], z[2], z[3]);
+      }
+    }
+    if (vis("walls")) {
+      for (const w of (mss.walls || [])) {
+        if (Array.isArray(w) && w.length === 2 && Array.isArray(w[0]) && Array.isArray(w[1])) {
+          out += `<line class="evcc-map-ov-wall" x1="${f(tx(w[0][0]))}" y1="${f(ty(w[0][1]))}" `
+               + `x2="${f(tx(w[1][0]))}" y2="${f(ty(w[1][1]))}" />`;
+        }
+      }
+    }
+    if (vis("path") && Array.isArray(mss.path) && mss.path.length >= 2) {
+      out += `<polyline class="evcc-map-ov-path" points="${pts(mss.path)}" />`;
+    }
+    return out;
+  };
+
+  proto._renderDeviceOverlayHtml = function (state) {
+    const mss = state.mapStateSource?.();
+    if (!mss || !mss.present) return "";
+    const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    let out = "";
+
+    if (vis("robot") && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+      const [x, y] = mss.robot_anchor;
+      const h = Number(mss.robot_heading ?? 0);
+      out += `<div class="evcc-map-ov-robot" style="left:${f(tx(x))}%;top:${f(ty(y))}%">`
+           + `<span class="evcc-map-ov-robot-arrow" style="transform:rotate(${h}deg)"></span></div>`;
+    }
+    if (vis("dock") && Array.isArray(mss.dock_anchor) && mss.dock_anchor.length === 2) {
+      const [x, y] = mss.dock_anchor;
+      out += `<div class="evcc-map-ov-dock" style="left:${f(tx(x))}%;top:${f(ty(y))}%" title="Dock"></div>`;
+    }
+    if (vis("obstacles")) {
+      for (const o of (mss.obstacles || [])) {
+        if (!o || !Array.isArray(o.pos) || o.pos.length !== 2) continue;
+        const cls = o.has_photo ? " evcc-map-ov-obstacle--photo" : "";
+        out += `<div class="evcc-map-ov-obstacle${cls}" style="left:${f(tx(o.pos[0]))}%;top:${f(ty(o.pos[1]))}%" `
+             + `title="${this.escapeHtml(String(o.type ?? "obstacle"))}"></div>`;
+      }
+    }
+    if (vis("room_area")) {
+      for (const r of (mss.rooms || [])) {
+        if (r.area_m2 == null || !Array.isArray(r.bbox) || r.bbox.length !== 4) continue;
+        const [x0, y0, x1, y1] = r.bbox;
+        out += `<div class="evcc-map-ov-area" style="left:${f(tx((x0 + x1) / 2))}%;top:${f(ty((y0 + y1) / 2))}%">`
+             + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
+      }
+    }
+    return out;
+  };
+
+  /* =========================================================
+     MAP LAYERS PANEL (right column; Wave 3c visibility toggles)
+     ========================================================= */
+
+  proto._renderMapLayersPanel = function (state) {
+    const vis = state.mapOverlayVisibility?.() ?? {};
+    const live = state.isLiveImageDisplayed?.() ?? false;
+    const LAYERS = [
+      { key: "current_room", label: "Current room" },
+      { key: "robot",        label: "Robot + heading" },
+      { key: "dock",         label: "Dock" },
+      { key: "room_area",    label: "Room area (m²)" },
+      { key: "no_go",        label: "No-go zones" },
+      { key: "no_mop",       label: "No-mop zones" },
+      { key: "walls",        label: "Virtual walls" },
+      { key: "zones",        label: "Saved zones" },
+      { key: "path",         label: "Cleaning path" },
+      { key: "obstacles",    label: "Obstacles" },
+    ];
+    return `
+      <div class="evcc-map-layers-panel">
+        <div class="evcc-map-layers-title">Map Layers</div>
+        ${live ? "" : `<div class="evcc-map-layers-hint">Overlays appear on the live-map backdrop.</div>`}
+        <div class="evcc-map-layers-list">
+          ${LAYERS.map((l) => `
+            <label class="evcc-map-layers-row">
+              <input type="checkbox" data-action="toggle-map-overlay" data-layer="${l.key}"${vis[l.key] ? " checked" : ""}>
+              <span>${this.escapeHtml(l.label)}</span>
+            </label>`).join("")}
+        </div>
+      </div>`;
+  };
+
+  /* =========================================================
+     ZONE-CLEAN PANEL (rendered in the right column, under Run Profiles)
+     ========================================================= */
+
+  proto._renderZonePanel = function (state, zoneDrafts, zoneCount, zoneMax) {
+    const esc = (s) => this.escapeHtml(String(s));
+    const settingEntities = state.settingEntities?.() ?? {};
+
+    // The vacuum's setting selects, in display order. Each is rendered live from
+    // the real provider entity (current value + options); changing it calls
+    // select.select_option — a zone clean runs off these current settings.
+    const SETTINGS = [
+      { key: "fan_speed",       label: "Suction" },
+      { key: "clean_mode",      label: "Mode" },
+      { key: "clean_intensity", label: "Intensity" },
+      { key: "water_level",     label: "Water" },
+    ];
+    const settingRows = SETTINGS.map(({ key, label }) => {
+      const eid = settingEntities[key];
+      if (!eid) return "";
+      const ent = state.entity?.(eid);
+      const opts = ent?.attributes?.options ?? [];
+      if (!ent || !opts.length) return "";
+      const cur = ent.state;
+      return `
+        <label class="evcc-zone-setting">
+          <span class="evcc-zone-setting-label">${esc(label)}</span>
+          <select class="evcc-zone-setting-select" data-action="zone-setting"
+                  data-entity-id="${esc(eid)}">
+            ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}
+          </select>
+        </label>`;
+    }).join("");
+
+    const zoneList = zoneDrafts.map((_, i) => `
+      <li class="evcc-zone-list-item">
+        <span class="evcc-zone-list-num">${i + 1}</span>
+        <button class="evcc-zone-list-del" data-action="zone-remove" data-zone-index="${i}"
+                title="Remove zone ${i + 1}" aria-label="Remove zone ${i + 1}">✕</button>
+      </li>`).join("");
+
+    return `
+      <div class="evcc-zone-panel" role="group" aria-label="Zone clean">
+        <div class="evcc-zone-panel-title">Zone clean</div>
+        ${settingRows ? `
+        <div class="evcc-zone-panel-section">
+          <div class="evcc-zone-panel-section-title">Settings
+            <span class="evcc-zone-panel-note">apply to the whole clean</span></div>
+          ${settingRows}
+        </div>` : ""}
+        <div class="evcc-zone-panel-section">
+          <div class="evcc-zone-panel-section-title">Zones
+            <span class="evcc-zone-panel-note">${zoneCount}/${zoneMax}</span></div>
+          ${zoneCount
+            ? `<ul class="evcc-zone-list">${zoneList}</ul>`
+            : `<div class="evcc-zone-panel-empty">Drag a box on the map to add a zone.</div>`}
+        </div>
+        <div class="evcc-zone-panel-actions">
+          <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
+                  data-action="zone-clean-confirm"${zoneCount ? "" : " disabled"}>${
+            zoneCount > 1 ? `Clean ${zoneCount} zones` : "Clean zone"
+          }</button>
+          ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">Clear</button>` : ""}
+          <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
+        </div>
+      </div>`;
   };
 
   /* =========================================================

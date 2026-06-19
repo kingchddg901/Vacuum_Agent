@@ -40,6 +40,7 @@
   "entity": {
     "sensor": {
       "onboarding_state": { "name": "Onboarding State" },
+      "map_overlays": { "name": "Map Overlays" },
       "dock_events": { "name": "Dock Events" },
       "theme_state": { "name": "Theme State" },
       "available_profiles": { "name": "Available Profiles" },

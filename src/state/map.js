@@ -233,15 +233,21 @@ export function applyMapState(proto) {
       ?? this._liveMapImageUrl();
   };
 
+  // Live-camera poll tick. Bumped by the card's poll timer (main._scheduleLiveMapRefresh)
+  // so a camera.* backdrop refetches on the frame cadence — see _liveMapImageUrl below.
+  proto._liveMapTick = 0;
+  proto.bumpLiveMapTick = function () { this._liveMapTick = (this._liveMapTick || 0) + 1; };
+
   /**
    * The LIVE map backdrop URL: the live-map entity's entity_picture.
    * - An `image.` entity (Roborock current map) rotates its token on each frame, so
    *   the URL self-busts and <img src> refreshes live with no polling.
-   * - A `camera.` entity (e.g. the eufy-clean fork's camera.<device>_map) has a
-   *   STABLE access token, so <img src> would keep the cached first frame forever.
-   *   We append the entity's last_updated as a cache-buster — each pushed frame
-   *   (~2s) then forces a refetch. Keyed on last_updated (a real entity update), not
-   *   a render counter, so unrelated card re-renders don't thrash the <img>.
+   * - A `camera.` entity (e.g. the eufy-clean fork's camera.<device>_map) has a STABLE
+   *   token, and HA dedupes identical state writes, so its last_updated only advances on
+   *   token rotation (~5 min) — NOT per pushed frame. last_updated alone would leave the
+   *   <img> on a frozen frame until a manual refresh; the card polls the camera on the
+   *   frame cadence (main._scheduleLiveMapRefresh) and bumps _liveMapTick, which we fold
+   *   into the cache-bust so each poll refetches the latest frame.
    * Null when the adapter declares no live entity (plain Eufy) or there's no picture yet.
    */
   proto._liveMapImageUrl = function () {
@@ -250,7 +256,9 @@ export function applyMapState(proto) {
     const ent = this.entity?.(eid);
     const url = ent?.attributes?.entity_picture ?? null;
     if (!url) return null;
-    const stamp = ent?.last_updated ? Date.parse(ent.last_updated) : 0;
+    let stamp = ent?.last_updated ? Date.parse(ent.last_updated) : 0;
+    // camera.* doesn't self-bust (stable token + deduped writes) -> fold in the poll tick.
+    if (eid.startsWith("camera.")) stamp += (this._liveMapTick || 0);
     if (!stamp) return url;
     return url + (url.includes("?") ? "&" : "?") + "_=" + stamp;
   };
@@ -399,6 +407,83 @@ export function applyMapState(proto) {
     return (this.supportsZoneClean?.() ?? false)
         && (this.isLiveBackdropActive?.() ?? false)
         && (this.mapRotation?.() ?? 0) === 0;
+  };
+
+  /* =========================================================
+     MAP_STATE_SOURCE OVERLAYS (Wave 3c) — the VA's read of the
+     device's own map (rooms+area, anchors, no-go/walls/zones/path/
+     obstacles), normalized 0–1 of the LIVE rendered image, + the
+     per-layer visibility the user toggles.
+     ========================================================= */
+
+  // Card-side defaults — a mirror of the backend OVERLAY_VISIBILITY_DEFAULTS, used
+  // only if the snapshot omits a layer (it normally resolves all of them server-side).
+  proto._OVERLAY_VIS_DEFAULTS = {
+    room_labels: true, room_area: true, current_room: true, robot: true, dock: true,
+    no_go: false, no_mop: false, walls: false, zones: false, path: false, obstacles: false,
+  };
+
+  proto.mapStateSource = function () {
+    return this.dashboardSnapshot?.()?.map_state_source ?? null;
+  };
+
+  // Rendered-image dims [w, h] for the overlay letterbox correction (the overlays are
+  // normalized to the IMAGE frame, but the live <img> is object-fit:contain inside a
+  // SQUARE box). Only the aspect is used. null → card assumes square (no correction).
+  proto.mapImageSize = function () {
+    const s = this.mapStateSource()?.image_size;
+    return (Array.isArray(s) && s.length === 2 && s[0] > 0 && s[1] > 0) ? s : null;
+  };
+
+  // Pending optimistic per-layer toggles (cleared once the snapshot catches up),
+  // so a checkbox flip is instant across the click → service-ack → refresh window.
+  proto._overlayVisOverlay = null;
+  proto.mapOverlayVisibility = function () {
+    const snap = this.dashboardSnapshot?.()?.map_overlay_visibility ?? {};
+    const base = { ...this._OVERLAY_VIS_DEFAULTS, ...snap };
+    if (this._overlayVisOverlay) {
+      for (const [k, v] of Object.entries(this._overlayVisOverlay)) {
+        if (snap[k] === v) delete this._overlayVisOverlay[k]; // backend caught up
+        else base[k] = v;
+      }
+      if (Object.keys(this._overlayVisOverlay).length === 0) this._overlayVisOverlay = null;
+    }
+    return base;
+  };
+  proto.isOverlayVisible = function (layer) {
+    return Boolean(this.mapOverlayVisibility()[layer]);
+  };
+  proto.setOverlayVisibilityOptimistic = function (layer, on) {
+    if (!this._overlayVisOverlay) this._overlayVisOverlay = {};
+    this._overlayVisOverlay[layer] = Boolean(on);
+  };
+  // Roll back one pending optimistic flip (e.g. the service call failed) so the
+  // checkbox + overlay revert to the backend value instead of sticking unsaved.
+  proto.clearOverlayVisibilityOptimistic = function (layer) {
+    if (!this._overlayVisOverlay) return;
+    delete this._overlayVisOverlay[layer];
+    if (Object.keys(this._overlayVisOverlay).length === 0) this._overlayVisOverlay = null;
+  };
+
+  /**
+   * True when the DISPLAYED backdrop is the LIVE device image — the only space the
+   * map_state_source overlays are normalized to. Mirrors mapImageUrl()'s live
+   * branches: Roborock/no-CV always live; Eufy shows the CV image unless a live
+   * source is active, so overlays hide there (they'd misalign). NOT
+   * isLiveBackdropActive() (that's the custom-layout-pinned-to-live predicate).
+   */
+  proto.isLiveImageDisplayed = function () {
+    if (!this._liveMapImageUrl?.()) return false;
+    const variants = this._mapSegmentsData?.image_variants ?? {};
+    const hasCv = Boolean(variants.dark || variants.default || variants.light);
+    if (this.segmentationMode?.() === "custom") {
+      if (this.activeCustomLayout?.()?.backdrop_source === "live") return true;
+      const v = this.activeCustomLayout?.()?.backdrop_variant || "custom";
+      if (variants[v]) return false;     // an uploaded custom backdrop is showing
+      if (v !== "custom") return true;   // per-layout, not uploaded → live
+      return !hasCv;                     // shared "custom": CV fallback if present
+    }
+    return !hasCv;                       // non-custom: CV variant if present, else live
   };
 
   proto.updateComposeShape = function (id, patch) {

@@ -22,6 +22,7 @@ from ..const import (
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -35,6 +36,7 @@ from ..const import (
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
 from .manager import MappingManager
+from .map_source import OVERLAY_VISIBILITY_DEFAULTS, resolve_overlay_visibility
 from .segment_primitives import polygon_area, rasterize_primitives
 from .tracker import EVENT_BOUNDARY_SAVED
 
@@ -106,6 +108,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     # CV/Custom toggle + custom-segment authoring + named custom layouts
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -489,6 +492,23 @@ SET_LIVE_MAP_ROTATION_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("rotation"): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
+    }
+)
+
+SET_MAP_OVERLAY_VISIBILITY_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # Optional — blank/absent auto-resolves to the active map (then the first
+        # stored map), like the dashboard-snapshot service.
+        vol.Optional("map_id"): cv.string,
+        # Partial map of overlay-layer -> bool, merged over the stored deltas. Keys
+        # are validated against the known layers so a typo is rejected, not silently
+        # stored. Omitted entirely on a reset.
+        vol.Optional("visibility"): vol.Schema(
+            {vol.In(tuple(OVERLAY_VISIBILITY_DEFAULTS)): cv.boolean}
+        ),
+        # Clear all stored deltas -> fall back to the defaults.
+        vol.Optional("reset", default=False): cv.boolean,
     }
 )
 
@@ -1630,6 +1650,58 @@ async def _handle_set_live_map_rotation(
     return {"saved": True, "live_map_rotation": rotation}
 
 
+async def _handle_set_map_overlay_visibility(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist per-map overlay-layer visibility (Wave 3b). Display only.
+
+    Stores only the user's DELTAS as ``overlay_visibility`` on the map bucket (a partial
+    dict merged over the defaults at read time via ``resolve_overlay_visibility``), so the
+    defaults can evolve without rewriting stored prefs. ``reset:true`` clears the deltas.
+    Returns the fully-resolved visibility for the card. Like rotation, this never touches
+    cleaning/dispatch — the card reads it to show/hide overlay layers on the backdrop.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    # Resolve map_id when omitted: active map, then the first stored map.
+    map_id = call.data.get("map_id")
+    if not map_id:
+        from ..rooms.room_discovery import get_active_map_id
+        try:
+            map_id = get_active_map_id(hass, vacuum_entity_id)
+        except Exception:  # noqa: BLE001
+            map_id = None
+    if not map_id:
+        vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
+        map_id = next(iter(vac_maps), None)
+    if not map_id:
+        return {
+            "saved": False,
+            "error": "no_map",
+            "message": f"No map found for '{vacuum_entity_id}'; pass map_id explicitly.",
+        }
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    if call.data.get("reset"):
+        map_bucket.pop("overlay_visibility", None)
+    else:
+        stored = map_bucket.get("overlay_visibility")
+        if not isinstance(stored, dict):
+            stored = {}
+        stored.update({k: bool(v) for k, v in (call.data.get("visibility") or {}).items()})
+        map_bucket["overlay_visibility"] = stored
+    await manager.async_save()
+    resolved = resolve_overlay_visibility(map_bucket.get("overlay_visibility"))
+    _LOGGER.debug(
+        "set_map_overlay_visibility: %s/%s -> %s",
+        vacuum_entity_id, map_id, resolved,
+    )
+    return {"saved": True, "map_id": map_id, "overlay_visibility": resolved}
+
+
 # ---------------------------------------------------------------------------
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
@@ -2128,6 +2200,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
 
+    async def set_map_overlay_visibility(call: ServiceCall) -> dict:
+        return await _handle_set_map_overlay_visibility(hass, call)
+
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
 
@@ -2188,6 +2263,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,
         schema=SET_LIVE_MAP_ROTATION_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, set_map_overlay_visibility,
+        schema=SET_MAP_OVERLAY_VISIBILITY_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,

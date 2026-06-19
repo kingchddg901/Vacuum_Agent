@@ -80,9 +80,23 @@ export function applyRoomsRenderers(proto) {
                  </div>`}
           </div>
 
-          ${typeof this.renderRunProfilesPanel === "function"
-            ? this.renderRunProfilesPanel(state)
-            : ""}
+          <div class="evcc-rooms-sidecol">
+            ${typeof this.renderRunProfilesPanel === "function"
+              ? this.renderRunProfilesPanel(state)
+              : ""}
+            ${(state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
+              ? this._renderZonePanel(
+                  state,
+                  state.zoneDrafts?.() ?? [],
+                  state.zoneCount?.() ?? 0,
+                  state.zoneMax?.() ?? 10,
+                )
+              : ""}
+            ${(state.isMapViewActive?.() && (state.isLiveImageDisplayed?.() ?? false)
+               && typeof this._renderMapLayersPanel === "function")
+              ? this._renderMapLayersPanel(state)
+              : ""}
+          </div>
         </div>
 
       </div>
