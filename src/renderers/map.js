@@ -139,13 +139,15 @@ export function applyMapRenderers(proto) {
     const zoneDrafts = zoneMode ? (state.zoneDrafts?.() ?? []) : [];
     const zoneCount  = zoneDrafts.length;
     const zoneMax    = state.zoneMax?.() ?? 10;
+    // Hide-area draw: same gate spirit as zones (overlay-aligned backdrop + rotation 0).
+    const hideMode   = (state.canDrawHideArea?.() ?? false) && (state.hideDrawMode?.() ?? false);
     // map_state_source overlay layers (no-go/walls/path/robot/etc.) render over any
     // GRID-frame backdrop their normalized coords align to: the live device image OR
     // the VA-rendered canvas (Wave 3c overlays; Wave 1 self-render).
     const deviceOverlays = state.overlaysAligned?.() ?? false;
     return `
       <div class="evcc-map-view">
-        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}">
+        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}">
 
           <div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
             <!-- Rotation turns this whole content layer (image + polygons + labels
@@ -199,10 +201,12 @@ export function applyMapRenderers(proto) {
               </div>`;
             }).join("") : ""}
             ${deviceOverlays ? this._renderDeviceOverlayHtml(state) : ""}
+            ${this._renderHiddenRegions(state, hideMode)}
             </div>
             ${zoneMode ? `
               ${zoneDrafts.map((d, i) => `<div class="evcc-zone-rect" style="left:${Math.min(d.x, d.x + d.w)}%;top:${Math.min(d.y, d.y + d.h)}%;width:${Math.abs(d.w)}%;height:${Math.abs(d.h)}%"><span class="evcc-zone-rect-num">${i + 1}</span></div>`).join("")}
               <div class="evcc-zone-draft" style="display:none"></div>` : ""}
+            ${hideMode ? `<div class="evcc-hide-draft" style="display:none"></div>` : ""}
 
           </div>
 
@@ -359,6 +363,39 @@ export function applyMapRenderers(proto) {
     return out;
   };
 
+  /**
+   * User-drawn HIDDEN REGIONS — background-colored rects that mask map noise (a porch off a
+   * room). Rendered INSIDE the rotator (so they rotate with the map), emitted LAST in the DOM
+   * but at z-index 5 — so they cover every static z5 layer (room labels AND the area chips,
+   * which also live in the device-overlay HTML) while the z6 robot/dock markers stay on top.
+   * Each region is normalized [x0,y0,x1,y1]; positioned with the same letterbox transform the
+   * device overlays use. Hidden by the "Hidden areas" toggle (unless editing, so you can still
+   * see + delete them). In edit mode each gets a × delete + reads semi-transparent.
+   */
+  proto._renderHiddenRegions = function (state, editMode) {
+    const regions = state.hiddenRegions?.() ?? [];
+    if (!regions.length) return "";
+    const visible = state.isOverlayVisible?.("hidden_regions") ?? true;
+    if (!visible && !editMode) return "";   // toggled off + not editing -> reveal what's under
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    const cls = "evcc-hidden-region" + (editMode ? " evcc-hidden-region--edit" : "");
+    let out = "";
+    for (let i = 0; i < regions.length; i++) {
+      const r = regions[i];
+      if (!Array.isArray(r) || r.length !== 4) continue;
+      const left = tx(r[0]), top = ty(r[1]);
+      const w = tx(r[2]) - left, h = ty(r[3]) - top;
+      out += `<div class="${cls}" style="left:${f(left)}%;top:${f(top)}%;width:${f(w)}%;height:${f(h)}%">`
+           + (editMode
+               ? `<button class="evcc-hidden-region-del" data-action="delete-hidden-region" `
+                 + `data-index="${i}" title="Remove this hidden area" aria-label="Remove hidden area">×</button>`
+               : "")
+           + `</div>`;
+    }
+    return out;
+  };
+
   /* =========================================================
      MAP LAYERS PANEL (right column; Wave 3c visibility toggles)
      ========================================================= */
@@ -377,7 +414,13 @@ export function applyMapRenderers(proto) {
       { key: "zones",        label: "Saved zones" },
       { key: "path",         label: "Cleaning path" },
       { key: "obstacles",    label: "Obstacles" },
+      { key: "hidden_regions", label: "Hidden areas" },
     ];
+    // Hide-area draw control. Available wherever a device-overlay-aligned backdrop is shown at
+    // rotation 0 (same gate as the masks). In draw mode: drag to add a mask, × to delete one.
+    const canHide  = state.canDrawHideArea?.() ?? false;
+    const hideMode = canHide && (state.hideDrawMode?.() ?? false);
+    const regionCount = (state.hiddenRegions?.() ?? []).length;
     return `
       <div class="evcc-map-layers-panel">
         <div class="evcc-map-layers-title">Map Layers</div>
@@ -389,6 +432,19 @@ export function applyMapRenderers(proto) {
               <span>${this.escapeHtml(l.label)}</span>
             </label>`).join("")}
         </div>
+        ${canHide ? `
+        <div class="evcc-map-hide-tools">
+          <button class="evcc-map-hide-btn${hideMode ? " evcc-map-hide-btn--on" : ""}"
+                  data-action="toggle-hide-draw">
+            ${hideMode ? "Done" : "Hide area…"}
+          </button>
+          ${regionCount > 0 ? `
+          <button class="evcc-map-hide-btn evcc-map-hide-btn--clear" data-action="clear-hidden-regions">
+            Clear (${regionCount})
+          </button>` : ""}
+        </div>
+        ${hideMode ? `<div class="evcc-map-layers-hint">Drag a box over the map to hide it; × removes one.</div>` : ""}
+        ` : ""}
       </div>`;
   };
 

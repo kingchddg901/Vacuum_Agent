@@ -144,6 +144,9 @@ SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"
 # get_map_segments response.
 SERVICE_SET_SEGMENT_ROOM_LINK = "set_segment_room_link"
 SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
+# Replace-all the per-map HIDDEN REGIONS — drawn [x0,y0,x1,y1] rects (normalized) that mask
+# out map noise (e.g. a porch off a room) in the render. Stored per scope like the anchors.
+SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions"
 # Live-map display rotation (0/90/180/270), stored on the per-map bucket as
 # `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
 # affects dispatch. Backend-stored so the orientation follows the user across devices.

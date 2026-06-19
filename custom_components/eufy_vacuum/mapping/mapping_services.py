@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import os
 from datetime import datetime
 from typing import Any
@@ -24,6 +25,7 @@ from ..const import (
     SERVICE_GET_MAP_LIVE_POSE,
     SERVICE_COMPARE_MAP_SOURCES,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_HIDDEN_REGIONS,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_SET_SEGMENT_ROOM_LINK,
@@ -107,9 +109,10 @@ ALL_MAPPING_SERVICES = (
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_ADJUST_MAP_SEGMENT,
-    # Map UI overlay state (segment→room links, companion anchors)
+    # Map UI overlay state (segment→room links, companion anchors, hidden regions)
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_HIDDEN_REGIONS,
     SERVICE_SET_LIVE_MAP_ROTATION,
     SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_GET_MAP_RENDER_DATA,
@@ -489,6 +492,16 @@ SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
         # Pass null / omit pct_x AND pct_y to clear the anchor.
         vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
         vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
+# Replace-all the per-map HIDDEN REGIONS (drawn rects that mask map noise). The handler
+# sanitizes each entry, so the schema only needs the list shape; an empty/omitted list clears.
+SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("regions", default=list): list,
     }
 )
 
@@ -1135,6 +1148,9 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "segments": adjusted_segments,
         "adjustments": adjustments,
         "companion_anchors": dict(anchors) if isinstance(anchors, dict) else {},
+        # Hidden regions are MAP-LEVEL (mode-independent physical masks), not scope-resolved.
+        "hidden_regions": list(map_bucket.get("hidden_regions") or [])
+        if isinstance(map_bucket.get("hidden_regions"), list) else [],
     }
 
 
@@ -1631,6 +1647,50 @@ async def _handle_set_companion_anchor(
         "action": action,
         "companion_anchors": dict(anchors),
     }
+
+
+async def _handle_set_hidden_regions(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Replace-all the per-map HIDDEN REGIONS — normalized ``[x0, y0, x1, y1]`` rects (0-1 of
+    the rendered image, top-left origin) the card draws to MASK map noise (e.g. porch noise off
+    a room). Stored at the MAP-BUCKET level (NOT per segmentation scope): a hidden area is a
+    physical region, mode-independent, and only drawable over the device-frame backdrop — so it
+    follows the map regardless of CV/custom layout. An empty/omitted ``regions`` clears them.
+    Each entry is sanitized (4 FINITE numbers, clamped 0-1, ordered min<max, degenerate dropped).
+    Returns the updated list."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    raw = call.data.get("regions") or []
+
+    cleaned: list[list[float]] = []
+    for rect in raw:
+        if not (isinstance(rect, (list, tuple)) and len(rect) == 4):
+            continue
+        if not all(
+            isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c)
+            for c in rect
+        ):
+            continue  # reject non-numeric / bool / NaN / inf (NaN would clamp to an edge, not drop)
+        x0, y0, x1, y1 = (max(0.0, min(1.0, float(c))) for c in rect)
+        lo_x, hi_x = sorted((x0, x1))
+        lo_y, hi_y = sorted((y0, y1))
+        if hi_x - lo_x > 0.001 and hi_y - lo_y > 0.001:  # drop degenerate / stray taps
+            cleaned.append([round(lo_x, 5), round(lo_y, 5), round(hi_x, 5), round(hi_y, 5)])
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    regions: list = map_bucket.setdefault("hidden_regions", [])
+    regions.clear()
+    regions.extend(cleaned)
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_hidden_regions: %d region(s) on %s/%s", len(cleaned), vacuum_entity_id, map_id,
+    )
+    return {"saved": True, "hidden_regions": list(regions)}
 
 
 async def _handle_set_live_map_rotation(
@@ -2240,6 +2300,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_companion_anchor(call: ServiceCall) -> dict:
         return await _handle_set_companion_anchor(hass, call)
 
+    async def set_hidden_regions(call: ServiceCall) -> dict:
+        return await _handle_set_hidden_regions(hass, call)
+
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
 
@@ -2311,6 +2374,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_COMPANION_ANCHOR, set_companion_anchor,
         schema=SET_COMPANION_ANCHOR_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_HIDDEN_REGIONS, set_hidden_regions,
+        schema=SET_HIDDEN_REGIONS_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,

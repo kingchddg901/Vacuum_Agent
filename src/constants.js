@@ -132,6 +132,7 @@ export const SERVICE_SET_LIVE_MAP_ROTATION  = "set_live_map_rotation";
 export const SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility";
 export const SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data";
 export const SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose";
+export const SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions";
 
 // --- Setup ---
 export const SERVICE_SETUP_GET_STATUS       = "setup_get_status";

@@ -2264,6 +2264,35 @@ set_companion_anchor:
           step: 0.01
           mode: box
 
+set_hidden_regions:
+  name: Set hidden regions
+  description: >
+    Replace the per-map "hidden regions" — rectangles you draw on the map to mask out
+    render noise (e.g. a porch the vacuum picked up off a room). Each region is a
+    normalized [x0, y0, x1, y1] (0-1 of the map image). Send an empty list to clear.
+    Stored per map so it follows you across devices. Normally driven by the card's
+    "Hide area" draw tool, not called by hand.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    regions:
+      name: Regions
+      description: List of [x0, y0, x1, y1] normalized rectangles. Empty clears all.
+      required: false
+      selector:
+        object: {}
+
 set_live_map_rotation:
   name: Set live map rotation
   description: >

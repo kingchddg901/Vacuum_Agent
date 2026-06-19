@@ -79,6 +79,34 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+
+    // Hide-area draw: enter/exit the draw+edit mode (the rubber-band drag lives in the
+    // map-container pointerdown handler).
+    root.querySelectorAll("[data-action='toggle-hide-draw']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setHideDrawMode?.(!(this.card._state.hideDrawMode?.() ?? false));
+        this.card._scheduleRender();
+      });
+    });
+    // Delete ONE hidden region (the × on a mask while editing).
+    root.querySelectorAll("[data-action='delete-hidden-region']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.index);
+        const cur = this.card._state.hiddenRegions?.() ?? [];
+        if (!Number.isInteger(idx) || idx < 0 || idx >= cur.length) return;
+        const next = cur.filter((_, i) => i !== idx);
+        this.card._actions?.setHiddenRegions?.(next);
+        this.card._scheduleRender();
+      });
+    });
+    // Clear ALL hidden regions.
+    root.querySelectorAll("[data-action='clear-hidden-regions']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._actions?.setHiddenRegions?.([]);
+        this.card._scheduleRender();
+      });
+    });
   };
 
   /* =========================================================
@@ -1501,6 +1529,59 @@ export function applyMapBindings(proto) {
         document.addEventListener("pointermove", zMove);
         document.addEventListener("pointerup",     zUp);
         document.addEventListener("pointercancel", zUp);
+        return;
+      }
+      // Hide-area draw owns the press the same way (mirrors the zone rubber-band): drag a box,
+      // convert it to a normalized image rect (letterbox-corrected), and append it to the
+      // persisted hidden regions. Like zones, this MUST live in this one pointerdown handler.
+      if (this.card._state.hideDrawMode?.() && this.card._state.canDrawHideArea?.()) {
+        // Don't start a rubber-band when the press is on the × delete button (its own click
+        // handler owns it) — else a tiny move while deleting would paint a stray draft.
+        if (e.target.closest("[data-action='delete-hidden-region']")) return;
+        const layers = container.querySelector(".evcc-map-layers");
+        if (!layers) return;
+        const hr = layers.getBoundingClientRect();
+        if (!hr.width || !hr.height) return;
+        e.preventDefault();
+        const hclamp = (v) => Math.min(Math.max(v, 0), 100);
+        const hsx = hclamp(((e.clientX - hr.left) / hr.width)  * 100);
+        const hsy = hclamp(((e.clientY - hr.top)  / hr.height) * 100);
+        let hcur = { x: hsx, y: hsy, w: 0, h: 0 };
+        const hpaint = () => {
+          const box = container.querySelector(".evcc-hide-draft");
+          if (!box) return;
+          box.style.left    = Math.min(hcur.x, hcur.x + hcur.w) + "%";
+          box.style.top     = Math.min(hcur.y, hcur.y + hcur.h) + "%";
+          box.style.width   = Math.abs(hcur.w) + "%";
+          box.style.height  = Math.abs(hcur.h) + "%";
+          box.style.display = "block";
+        };
+        hpaint();
+        const hMove = (ev) => {
+          hcur = {
+            x: hsx, y: hsy,
+            w: hclamp(((ev.clientX - hr.left) / hr.width)  * 100) - hsx,
+            h: hclamp(((ev.clientY - hr.top)  / hr.height) * 100) - hsy,
+          };
+          hpaint();
+        };
+        const hUp = () => {
+          document.removeEventListener("pointermove", hMove);
+          document.removeEventListener("pointerup",     hUp);
+          document.removeEventListener("pointercancel", hUp);
+          if (Math.abs(hcur.w) < 1 || Math.abs(hcur.h) < 1) return; // ignore a stray click
+          const size = this.card._state.mapImageSize?.();
+          const dims = (Array.isArray(size) && size.length === 2)
+            ? { width: size[0], height: size[1] } : null;
+          const norm = this.card._state._rectToNormalized?.(hcur, dims);
+          if (!norm) return;
+          const next = [...(this.card._state.hiddenRegions?.() ?? []), norm];
+          this.card._actions?.setHiddenRegions?.(next);   // optimistic + persist
+          this.card._scheduleRender?.();
+        };
+        document.addEventListener("pointermove", hMove);
+        document.addEventListener("pointerup",     hUp);
+        document.addEventListener("pointercancel", hUp);
         return;
       }
       // Always reset drag flag so the next click starts clean.

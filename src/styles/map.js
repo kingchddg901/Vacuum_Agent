@@ -194,14 +194,19 @@ export const mapStyles = `
 
   /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
      the press so the rubber-band handler owns the drag. */
-  .evcc-map-container--zone { cursor: crosshair; }
+  .evcc-map-container--zone,
+  .evcc-map-container--hide { cursor: crosshair; }
   /* The segment polygons + companion set pointer-events:all, which stays hittable
      even under a parent svg's pointer-events:none — so suppress the ACTUAL targets
      (higher specificity wins) so the rubber-band owns the press. */
   .evcc-map-container--zone .evcc-map-svg,
   .evcc-map-container--zone .evcc-map-polygon,
   .evcc-map-container--zone .evcc-map-animal,
-  .evcc-map-container--zone .evcc-map-label { pointer-events: none !important; }
+  .evcc-map-container--zone .evcc-map-label,
+  .evcc-map-container--hide .evcc-map-svg,
+  .evcc-map-container--hide .evcc-map-polygon,
+  .evcc-map-container--hide .evcc-map-animal,
+  .evcc-map-container--hide .evcc-map-label { pointer-events: none !important; }
 
   /* The in-progress drag box (dashed), positioned in pct of .evcc-map-layers. */
   .evcc-zone-draft {
@@ -235,6 +240,74 @@ export const mapStyles = `
     border-radius: 3px;
     padding:       1px 3px;
   }
+
+  /* HIDDEN REGIONS — user-drawn masks covering map noise (a porch off a room). Opaque map-bg
+     fill so the area reads as "not mapped"; z-index 5 (rendered after labels) keeps it above
+     the static map + labels but below the live robot/dock markers (z-index 6). */
+  .evcc-hidden-region {
+    position:       absolute;
+    box-sizing:     border-box;
+    background:     var(--evcc-surface-panel, #1c2127);
+    z-index:        5;
+    pointer-events: none;
+  }
+  /* While editing: a translucent tinted box (so you see what's under + that it's editable). */
+  .evcc-hidden-region--edit {
+    background:     rgba(59, 130, 246, 0.20);
+    border:         2px dashed var(--evcc-accent, #3b82f6);
+    border-radius:  2px;
+  }
+  .evcc-hidden-region-del {
+    position:        absolute;
+    top:             -9px;
+    right:           -9px;
+    width:           18px;
+    height:          18px;
+    padding:         0;
+    font-size:       13px;
+    line-height:     1;
+    border:          none;
+    border-radius:   50%;
+    background:      var(--evcc-accent, #3b82f6);
+    color:           #fff;
+    cursor:          pointer;
+    pointer-events:  auto;       /* the × stays clickable even though the mask isn't */
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+  }
+  /* In-progress hide-draw box (dashed), in pct of .evcc-map-layers like the zone draft. */
+  .evcc-hide-draft {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px dashed var(--evcc-accent, #3b82f6);
+    background:     rgba(120, 120, 130, 0.35);
+    border-radius:  2px;
+    pointer-events: none;
+    z-index:        6;
+  }
+  /* Hide-area tools row in the Map Layers panel. */
+  .evcc-map-hide-tools {
+    display:    flex;
+    gap:        6px;
+    margin-top: 8px;
+  }
+  .evcc-map-hide-btn {
+    flex:          1;
+    padding:       5px 8px;
+    font-size:     12px;
+    border:        1px solid var(--evcc-border, #2d333b);
+    border-radius: 6px;
+    background:    var(--evcc-surface-raised, #232a31);
+    color:         var(--evcc-text, #e6edf3);
+    cursor:        pointer;
+  }
+  .evcc-map-hide-btn--on {
+    background:   var(--evcc-accent, #3b82f6);
+    color:        #fff;
+    border-color: var(--evcc-accent, #3b82f6);
+  }
+  .evcc-map-hide-btn--clear { flex: 0 0 auto; }
 
   /* Floating action bar over the map while drawing. */
   .evcc-zone-bar {

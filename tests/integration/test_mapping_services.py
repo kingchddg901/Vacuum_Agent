@@ -43,6 +43,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_DELETE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_HIDDEN_REGIONS,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_CREATE_CUSTOM_LAYOUT,
     SERVICE_RENAME_CUSTOM_LAYOUT,
@@ -296,6 +297,48 @@ async def test_companion_anchor_set_and_clear(hass, mapping_services):
                            {"vacuum_entity_id": _VAC, "map_id": _MAP, "room_id": "3"})
     assert clearres["action"] == "cleared"
     assert "3" not in clearres["companion_anchors"]
+
+
+async def test_hidden_regions_set_and_clear(hass, mapping_services):
+    """[MSH-7c] set_hidden_regions: sanitize (clamp, order min<max, drop degenerate/malformed),
+    persist, surface in get_map_segments; an empty list clears."""
+    _seed_segments(mapping_services)
+    res = await _call(hass, SERVICE_SET_HIDDEN_REGIONS,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                       "regions": [[0.8, 0.1, 0.5, 0.4],      # unordered -> reordered min<max
+                                   [2, -1, 0.5, 0.5],         # out of range -> clamped 0-1
+                                   [0.1, 0.1, 0.1001, 0.5],   # degenerate width -> dropped
+                                   "junk", [0.1, 0.2]]})       # malformed -> dropped
+    assert res["saved"] is True
+    regions = res["hidden_regions"]
+    assert regions == [[0.5, 0.1, 0.8, 0.4], [0.5, 0.0, 1.0, 0.5]]
+    # rides back on get_map_segments
+    seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert seg["hidden_regions"] == regions
+    # NaN/inf coords are REJECTED (not clamped to an edge — a NaN would otherwise pin to 0/1)
+    nanres = await _call(hass, SERVICE_SET_HIDDEN_REGIONS,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "regions": [[float("nan"), 0.1, 0.5, 0.5],
+                                      [0.1, 0.1, float("inf"), 0.5]]})
+    assert nanres["hidden_regions"] == []
+    # empty list clears
+    cleared = await _call(hass, SERVICE_SET_HIDDEN_REGIONS,
+                          {"vacuum_entity_id": _VAC, "map_id": _MAP, "regions": []})
+    assert cleared["hidden_regions"] == []
+
+
+async def test_hidden_regions_persist_map_level_in_custom_mode(hass, mapping_services):
+    """[MSH-7d] hidden regions are MAP-LEVEL (not scope-resolved): they persist even in custom
+    mode with NO active layout — the per-scope version silently dropped them (data loss)."""
+    _seed_segments(mapping_services)
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    bucket["segmentation_mode"] = "custom"          # custom mode, no active layout
+    res = await _call(hass, SERVICE_SET_HIDDEN_REGIONS,
+                      {"vacuum_entity_id": _VAC, "map_id": _MAP, "regions": [[0.2, 0.2, 0.4, 0.4]]})
+    assert res["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
+    assert bucket.get("hidden_regions") == [[0.2, 0.2, 0.4, 0.4]]   # actually persisted on the bucket
+    seg = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    assert seg["hidden_regions"] == [[0.2, 0.2, 0.4, 0.4]]
 
 
 async def test_companion_anchor_blank_room_id(hass, mapping_services):

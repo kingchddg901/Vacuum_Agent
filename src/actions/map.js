@@ -16,6 +16,7 @@ import {
   SERVICE_SET_MAP_OVERLAY_VISIBILITY,
   SERVICE_GET_MAP_RENDER_DATA,
   SERVICE_GET_MAP_LIVE_POSE,
+  SERVICE_SET_HIDDEN_REGIONS,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
@@ -301,6 +302,29 @@ export function applyMapActions(proto) {
    * map_id auto-resolves server-side when omitted. Optimistic flip first so the
    * checkbox + overlay update instantly; the snapshot reconciles on its next push.
    */
+  /**
+   * Replace-all the per-map hidden regions (drawn rects that mask map noise). `regions` is a
+   * list of normalized [x0,y0,x1,y1]; an empty list clears them. Optimistic first so the mask
+   * appears/disappears instantly, then the (sanitized) backend list becomes authoritative.
+   */
+  proto.setHiddenRegions = async function (regions) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const list = Array.isArray(regions) ? regions : [];
+    this.state.setHiddenRegionsOptimistic?.(list);
+    const data = { vacuum_entity_id: vacuum, regions: list };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_HIDDEN_REGIONS, data, true,
+    );
+    const resp = result?.response ?? result ?? null;
+    if (resp && Array.isArray(resp.hidden_regions)) {
+      this.state.setHiddenRegionsOptimistic?.(resp.hidden_regions);
+    }
+    return resp;
+  };
+
   proto.setMapOverlayVisibility = async function (layer, visible) {
     const vacuum = this.state.vacuumEntityId();
     if (!vacuum || !layer) return null;

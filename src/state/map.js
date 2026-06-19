@@ -131,12 +131,15 @@ export function applyMapState(proto) {
     const oldKey = `${oldMapId ?? ""}:${this._mapSegmentsData?.active_custom_layout_id ?? ""}`;
     const newKey = `${data?.map_id ?? ""}:${data?.active_custom_layout_id ?? ""}`;
     this._mapSegmentsData = data;
+    // Fresh backend segments are authoritative for hidden_regions — drop the optimistic overlay.
+    this._hiddenRegionsOverlay = null;
     if (oldKey !== newKey) {
       // Reset overlays + draft when the active map OR layout changes — what was
       // true for the old map/layout's segments has nothing to do with the new.
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
       this._mapAnchorMode = false;
+      this._hideDrawMode = false;        // exit hide-area draw on any map/layout switch
       this._composeDraft = null;       // new map/layout → fresh draft, reload from its segments
       this._composeSelectedId = null;
       this._composeMergeFrom = null;
@@ -410,6 +413,39 @@ export function applyMapState(proto) {
   };
 
   /* =========================================================
+     HIDDEN REGIONS (user-drawn rects that MASK map noise, e.g. a
+     porch off a room). Persisted per-map like companion_anchors
+     (ride along on get_map_segments as `hidden_regions`); stored as
+     normalized [x0,y0,x1,y1] in the rendered-image frame — the same
+     space the device overlays use, so _overlayTransform places them.
+     ========================================================= */
+  proto._hideDrawMode = false;
+  proto.hideDrawMode = function () { return this._hideDrawMode; };
+  proto.setHideDrawMode = function (on) { this._hideDrawMode = Boolean(on); };
+
+  // Optimistic overlay so a draw/delete shows instantly; the set_hidden_regions
+  // response (authoritative) replaces it, and a fresh segments fetch clears it.
+  proto._hiddenRegionsOverlay = null;
+  proto.hiddenRegions = function () {
+    if (Array.isArray(this._hiddenRegionsOverlay)) return this._hiddenRegionsOverlay;
+    const r = this.mapSegmentsData?.()?.hidden_regions;
+    return Array.isArray(r) ? r : [];
+  };
+  proto.setHiddenRegionsOptimistic = function (list) {
+    this._hiddenRegionsOverlay = Array.isArray(list) ? list : [];
+  };
+  proto.clearHiddenRegionsOptimistic = function () { this._hiddenRegionsOverlay = null; };
+
+  // Draw gate: a device-overlay-aligned backdrop is shown (live image OR VA render — the
+  // masks need map_state_source.image_size for the letterbox transform) and rotation is 0
+  // (a rotated map letterboxes on the swapped axis — not handled for drawing, same as zones).
+  proto.canDrawHideArea = function () {
+    return (this.overlaysAligned?.() ?? false)
+        && !!this.mapImageSize?.()
+        && (this.mapRotation?.() ?? 0) === 0;
+  };
+
+  /* =========================================================
      MAP_STATE_SOURCE OVERLAYS (Wave 3c) — the VA's read of the
      device's own map (rooms+area, anchors, no-go/walls/zones/path/
      obstacles), normalized 0–1 of the LIVE rendered image, + the
@@ -421,6 +457,7 @@ export function applyMapState(proto) {
   proto._OVERLAY_VIS_DEFAULTS = {
     room_labels: true, room_area: true, current_room: true, robot: true, dock: true,
     no_go: false, no_mop: false, walls: false, zones: false, path: false, obstacles: false,
+    hidden_regions: true,
   };
 
   proto.mapStateSource = function () {

@@ -46,6 +46,9 @@ OVERLAY_VISIBILITY_DEFAULTS: dict[str, bool] = {
     "zones": False,
     "path": False,
     "obstacles": False,
+    # User-drawn masks that hide map noise (a porch off a room). ON by default = the masking
+    # is active; toggling off reveals what's under them without deleting them.
+    "hidden_regions": True,
 }
 
 
