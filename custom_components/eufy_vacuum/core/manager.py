@@ -2559,6 +2559,10 @@ class EufyVacuumManager:
         """Append a counter sample to in-flight jobs — delegates to ActiveJobTracker."""
         return self.active_job.record_counter_sample(**kwargs)
 
+    def record_pose_sample(self, **kwargs) -> bool:
+        """Append a pose sample to an external run (W5b) — delegates to ActiveJobTracker."""
+        return self.active_job.record_pose_sample(**kwargs)
+
     def clear_active_job(self, **kwargs) -> dict:
         """Clear active job state — delegates to ActiveJobTracker."""
         return self.active_job.clear_active_job(**kwargs)

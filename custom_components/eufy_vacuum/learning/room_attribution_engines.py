@@ -58,11 +58,14 @@ except ImportError:  # pragma: no cover - py<3.8 shim, unused on HA's runtime
 class PoseSample(TypedDict, total=False):
     """One per-tick pose row the run-active sampler records (W5b) and an engine reads.
 
-    ``current_room`` is the MANAGED room id (``map_source.current_room_for_pixel``),
-    ``None`` while docked / off-raster — those ticks MUST be recorded, not dropped
-    (the dock-trap exclusion depends on ``None`` runs existing). ``anchor`` is
-    ``[x, y]`` (``None`` while docked). ``cleaning_area`` is cumulative swept m²
-    (``None`` when unavailable → anchor-only mode).
+    ``current_room`` is the MANAGED room id (``map_source.current_room_for_pixel``). The
+    SAMPLER records ``None`` for both ``current_room`` and ``anchor`` while the robot is
+    DOCKED — the fork otherwise anchors a docked robot to the dock, yielding the dock's
+    room id, which would false-positive a parked dock in anchor-only mode. ``current_room``
+    is also ``None`` genuinely while off-raster in transit. Those ``None`` ticks MUST be
+    recorded, not dropped: the parked-dock exclusion relies on them in anchor-only mode
+    (robust mode also excludes a parked dock via its ~0 swept area). ``cleaning_area`` is
+    cumulative swept m² (``None`` when unavailable → anchor-only mode).
     """
 
     t: str
@@ -206,18 +209,28 @@ def _classify(
         if rid is None:
             verdicts[rid] = ("transit", "no room (transit cell)")
             continue
-        if m["winding"] < wind_transit:
-            verdicts[rid] = ("transit", f"straight pass (winding {m['winding']:.2f} < {wind_transit})")
-            continue
-        if swept_area_by_room is not None:                       # ROBUST mode
+        if swept_area_by_room is not None:
+            # ROBUST: swept area is THIS module's authoritative clean signal — gate
+            # "cleaned" on it directly. The winding short-circuit must NOT pre-empt it:
+            # a room can have a high-spread transit pass AND a real clean, and the
+            # best (max-spread) run may be the transit, so winding-dropping first would
+            # silently drop a genuinely-cleaned room. winding is used only to LABEL the
+            # not-cleaned remainder (transit vs parked dock).
             a = float(swept_area_by_room.get(rid, 0.0))
             if a >= swept_area_min_m2:
                 cleaned.add(rid)
                 verdicts[rid] = ("cleaned", f"swept {a:.1f} m^2")
+            elif m["winding"] < wind_transit:
+                verdicts[rid] = ("transit", f"straight pass (winding {m['winding']:.2f}), ~{a:.1f} m^2")
             else:
                 verdicts[rid] = ("parked/dock", f"swept ~{a:.1f} m^2 (< {swept_area_min_m2})")
-        else:                                                    # ANCHOR-ONLY fallback
-            if m["dwell_s"] >= dwell_min_s:
+        else:
+            # ANCHOR-ONLY fallback (no swept area): winding drops a straight transit, then
+            # dwell gates. This path can false-positive a long jittering parked dock — it's
+            # best-effort; prefer robust mode (callers gate on `mode`).
+            if m["winding"] < wind_transit:
+                verdicts[rid] = ("transit", f"straight pass (winding {m['winding']:.2f} < {wind_transit})")
+            elif m["dwell_s"] >= dwell_min_s:
                 cleaned.add(rid)
                 verdicts[rid] = ("cleaned?", f"dwell {m['dwell_s']:.0f}s + winding {m['winding']:.1f} "
                                              f"(anchor-only — cannot exclude a jittering parked dock)")
@@ -312,7 +325,9 @@ class NoopRoomAttributor:
     def attribute(
         self, pose_samples: list[dict[str, Any]], *, tuning: dict[str, Any] | None = None
     ) -> RoomAttributionResult:
-        return {"cleaned": set(), "verdicts": {}, "per_room": {}, "mode": "robust"}
+        # "anchor_only" matches the Eufy engine's no-usable-input labeling (it ran no
+        # swept-area analysis), so callers gating on `mode` treat both the same.
+        return {"cleaned": set(), "verdicts": {}, "per_room": {}, "mode": "anchor_only"}
 
 
 # =============================================================================

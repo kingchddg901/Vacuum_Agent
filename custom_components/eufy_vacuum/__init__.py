@@ -67,6 +67,7 @@ from .listeners import (
     lifecycle,
     path_blockers,
     pause_timeout,
+    pose_sampler,
 )
 from .mapping.mapping_services import (
     async_register_mapping_services,
@@ -343,6 +344,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     path_blockers.register(hass)
     pause_timeout.register(hass)
     job_progress.register(hass)
+    pose_sampler.register(hass)
     discovery.register(hass)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -424,6 +426,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         path_blockers.remove(hass)
         pause_timeout.remove(hass)
         job_progress.remove(hass)
+        pose_sampler.remove(hass)
         discovery.remove(hass)
 
         await async_unregister_mapping_services(hass)

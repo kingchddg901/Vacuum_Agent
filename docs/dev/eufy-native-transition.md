@@ -222,10 +222,17 @@ plays today, but grounded in observed position + device area.
     no consumer yet. Tests: `tests/unit/test_room_attribution_engines.py` (RA-1..10, seam) +
     `tests/adapters/eufy/test_room_attribution.py` (the 3 adversarial runs, 9/9 area + the anchor-only
     dock false-positive + a synthetic full-pipeline). Full suite green (2527).
-  - **W5b — NEXT.** Run-active 2s pose sampler in `listeners/` (a `pose_samples` buffer recording
-    `{current_room, anchor, cleaning_area}`, `None`-while-docked, gated on `status=="external"`).
-    **Capture-only/inert** — and the gating live experiment: one external clean, diff the sampler's
-    `pose_samples` against a parallel probe JSONL to confirm in-integration freshness/frame.
+  - **W5b — DONE 2026-06-20 (built + adversarially reviewed).** Run-active sampler
+    `listeners/pose_sampler.py` (cadence + gating from the adapter's `room_attribution` block;
+    EXTERNAL-only; `map_state_source`-gated) appends `{current_room, anchor, cleaning_area}` to
+    `pose_samples` via `record_pose_sample` (`jobs/active_job.py`). **Capture-only/inert.** The
+    review caught + fixed: a real robust-mode false-negative (swept-area is now authoritative over
+    the winding drop), docked-tick buffer poisoning (sampler nulls `current_room`/`anchor` on
+    `robot_docked` → a parked dock is a genuine None-run), and an adapter-discipline miss
+    (`cleaning_area` now read from `entities.cleaning_area`, not a guessed name). Tests:
+    `tests/unit/test_pose_sampler.py` + `record_pose_sample` cases in `test_jobs_active_job.py`;
+    full suite green (2543). **Still owes the live experiment:** one external clean, then diff the
+    sampler's `pose_samples` against a parallel probe JSONL to confirm in-integration freshness/frame.
   - **W5c** — `build_attributed_job` in `external_ingest.py` + finalize wiring (`manager.py:2776`
     `_finalize_external_run`) + the hybrid gate (availability fallback + robust/anchor-only confidence)
     feeding a PRE-FILLED wizard (counter-plateau segments own time/area; the classifier owns identity).

@@ -88,6 +88,12 @@ def _normalize_pause_timeout_minutes(value: Any) -> int:
 # stuck/never-finalized job from growing the buffer unbounded.
 _MAX_COUNTER_SAMPLES = 2000
 
+# Pose samples (W5b) are DENSE (one per ~2 s tick) vs the event-driven counter samples,
+# so they get a larger cap — ~100 min at 2 s. del-oldest on overflow drops the run's
+# START; an extreme clean truncating its early rooms degrades attribution (the W5c
+# confidence/availability gate handles low-quality input), it doesn't break finalize.
+_MAX_POSE_SAMPLES = 3000
+
 # Live current-room rollover ORCHESTRATION knobs only — an adapter WITHOUT a
 # "live_transition" block behaves as before EXCEPT it now also rolls on a "transit"
 # boundary (a 60-90 s flat-area inter-room hop the legacy live path discarded). The
@@ -1567,6 +1573,49 @@ class ActiveJobTracker:
             except Exception:
                 pass
         return updated
+
+    def record_pose_sample(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        current_room: int | None,
+        anchor: list[float] | None,
+        cleaning_area: float | None,
+        heading: float | None = None,
+        observed_at: str | None = None,
+    ) -> bool:
+        """Append one pose sample to an EXTERNAL run's ``pose_samples`` buffer (W5b).
+
+        Fed by the run-active pose sampler (``listeners/pose_sampler.py``) so the
+        room-attribution engine (W5c) can recover which rooms an app-started run cleaned.
+        EXTERNAL-only — a dispatched run already knows its rooms.
+
+        ``current_room`` is the MANAGED room id, ``None`` while docked / off-raster — those
+        ticks ARE recorded (the parked-dock exclusion depends on ``None`` runs existing).
+        Capture-only: nothing reads ``pose_samples`` yet. No ``async_save`` here — the
+        samples ride the counter-sample save cadence + finalize (a save every 2 s would be
+        churn). Returns True if appended.
+        """
+        jobs = self._manager.data.get("active_jobs", {}).get(vacuum_entity_id, {})
+        job = jobs.get(str(map_id)) if isinstance(jobs, dict) else None
+        if not isinstance(job, dict):
+            return False
+        if job.get("status") != "external" or not (job.get("started_at") and not job.get("ended_at")):
+            return False
+        samples = job.setdefault("pose_samples", [])
+        samples.append(
+            {
+                "t": observed_at or _iso_now(),
+                "current_room": current_room,
+                "anchor": anchor,
+                "cleaning_area": cleaning_area,
+                "heading": heading,
+            }
+        )
+        if len(samples) > _MAX_POSE_SAMPLES:
+            del samples[: len(samples) - _MAX_POSE_SAMPLES]
+        return True
 
     def _snapshot_settings_selects(self, vacuum_entity_id: str) -> dict[str, str]:
         """Read the adapter's ``settings_selects`` entities → a settings dict.

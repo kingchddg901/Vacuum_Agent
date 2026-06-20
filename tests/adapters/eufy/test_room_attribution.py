@@ -114,6 +114,11 @@ def _park_run(rid, n, area):
     return [{"current_room": rid, "anchor": list(pts[i % 2]), "cleaning_area": area} for i in range(n)]
 
 
+def _straight_run(rid, n, area):
+    # a long straight diagonal: HIGH spread, winding ~1.0 (a transit pass through the room)
+    return [{"current_room": rid, "anchor": [0.1 * i, 0.1 * i], "cleaning_area": area} for i in range(n)]
+
+
 def test_attribute_full_pipeline_robust_excludes_parked_dock():
     """Full segment -> run_metrics -> swept-area -> classify: a cleaned room is kept, a
     straight transit is dropped, and a jittering parked dock (flat area) is excluded."""
@@ -138,3 +143,19 @@ def test_attribute_anchor_only_false_positives_the_dock():
     result = engine.attribute(park)
     assert result["mode"] == "anchor_only"
     assert 8 in result["cleaned"]
+
+
+def test_robust_keeps_cleaned_room_whose_best_run_is_a_transit_pass():
+    """F1 regression: a room with a high-spread STRAIGHT transit pass AND a later real
+    clean of the same room. best_run_by_room picks the transit (max spread, winding ~1),
+    so a winding short-circuit would drop the room — but swept area says cleaned. Robust
+    mode must keep it. (The fixtures above never hit this: each room had one run.)"""
+    engine = EufyAnchorWindingAttributor()
+    stream = (
+        _straight_run(5, n=6, area=0.0)             # room 5: long straight pass, no area, winding ~1
+        + _transit_run(9, n=2, area=0.0)            # leave room 5
+        + _clean_run(5, n=12, area0=0.0, step=0.2)  # room 5 again: zigzag clean, area 0 -> 2.2
+    )
+    result = engine.attribute(stream)
+    assert result["mode"] == "robust"
+    assert 5 in result["cleaned"]   # swept ~2.2 m^2 — kept despite the transit max-spread run
