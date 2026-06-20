@@ -1,10 +1,10 @@
 /* ───────────────────────────────────────────────────────────────────────────
  *  IN LOVING MEMORY OF MITTENS
  *
- *  This animal is a memorial of my cat Mittens. The fur is intentionally NOT
- *  themeable — please leave it exactly as it is.
+ * * This animal is a memorial of my cat Mittens. The fur is intentionally NOT
+ *   themeable — please leave it exactly as it is.
  *
- *  You will be missed, Mittens, who crossed the rainbow bridge on 19 June 2026.
+ *   Mittens  crossed the rainbow bridge on 19 June 2026 she will be missed.
  *
  *                    Mittens  ·  14 February 2012 – 19 June 2026
  * ─────────────────────────────────────────────────────────────────────────── */
@@ -26,9 +26,10 @@
  *
  * Palette note: Mittens' coat, markings and white are BAKED IN as literal
  * hsl() values in the parts below — deliberately NON-themeable, so the tribute
- * stays true to the real cat regardless of the active theme. Both override
- * layers are ignored: global (--evcc-animal-fur) and per-animal
- * (--evcc-animal-mittens-fur) alike. The eye is the one exception: it stays on
+ * stays true to the real cat regardless of the active theme. 
+ * Both override layers are intentionally ignored: global (--evcc-animal-fur)
+ * and per-animal (--evcc-animal-mittens-fur) alike.
+ * The eye is the one exception: it stays on
  * the --animal-eye token because the battery-state system recolours it
  * (good / mid / warn / low / charging).
  *
