@@ -211,9 +211,42 @@ plays today, but grounded in observed position + device area.
 - **W2** — shim #3 (server-side run-time refresh) **only if W0.5 contradicts** the "already-live" finding.
 - **W3** — flip `native_transition_source` + shim #4 (settle) + availability fallback gate; `NR`-parity tests.
 - **W4** — strict-order path via `native_current_room_target_id` + shim #5 (re-map reconciliation).
-- **W5** — external-run auto-attribution: wire the dwell+spread+winding classifier into the
-  external-capture path to auto-derive cleaned rooms (replacing the manual room-set / counter-plateau
-  inference), gated on a confidence check with the heuristic as fallback.
+- **W5** — external-run auto-attribution (chosen first; planned by the w5-external-attribution-plan
+  workflow). Wires the classifier into the external-capture path to auto-derive cleaned rooms, gated
+  on a confidence check with the manual wizard as fallback. Sliced:
+  - **W5a — DONE 2026-06-20.** Ported the classifier to a pluggable engine
+    `learning/room_attribution_engines.py` (`eufy_anchor_winding_v1`, mirrors the `job_segmenter`
+    seam: Protocol + by-ref `DEFAULT_TUNING` + Eufy-fallback registry); added the swept-area-from-
+    `cleaning_area`-timeline derivation the prototype received pre-aligned; declared the adapter
+    `room_attribution` block (`adapters/eufy/adapter.py`) + registry validation. **Ships DORMANT** —
+    no consumer yet. Tests: `tests/unit/test_room_attribution_engines.py` (RA-1..10, seam) +
+    `tests/adapters/eufy/test_room_attribution.py` (the 3 adversarial runs, 9/9 area + the anchor-only
+    dock false-positive + a synthetic full-pipeline). Full suite green (2527).
+  - **W5b — NEXT.** Run-active 2s pose sampler in `listeners/` (a `pose_samples` buffer recording
+    `{current_room, anchor, cleaning_area}`, `None`-while-docked, gated on `status=="external"`).
+    **Capture-only/inert** — and the gating live experiment: one external clean, diff the sampler's
+    `pose_samples` against a parallel probe JSONL to confirm in-integration freshness/frame.
+  - **W5c** — `build_attributed_job` in `external_ingest.py` + finalize wiring (`manager.py:2776`
+    `_finalize_external_run`) + the hybrid gate (availability fallback + robust/anchor-only confidence)
+    feeding a PRE-FILLED wizard (counter-plateau segments own time/area; the classifier owns identity).
+  - **W5d (later)** — opt-in auto-confirm for proven high-confidence robust runs.
+
+  **W5 gating + adapter discipline.** The native path rides `current_room`, which is *derived from
+  map data* (`current_room_for_pixel` over the fork's in-memory `MapData` raster — `map_source.py:231`;
+  no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`, `manager.py:4153`).
+  So: no map → `current_room` is `None` → the engine returns an empty cleaned set → **W5c's
+  availability gate falls back to today's manual wizard** (and the in-job track falls back to the
+  map-independent counter-plateau heuristic). W5 is therefore **purely additive** — with the live map
+  you get the native signal, without it you get exactly today's behavior. Two consequences for the
+  build:
+  - **W5b's sampler gates on `map_state_source` presence** — don't sample pose for a vacuum with no
+    live map (the rows would be all-`None`).
+  - **All brand settings stay in the adapter.** The engine choice, the thresholds
+    (`wind_transit`/`dwell_min_s`/`swept_area_min_m2`), and the **sampler `interval_s`** (which the
+    `dwell_min_s` tuning assumes) all come from the adapter's `room_attribution` block — the single
+    operative source, mirroring `job_segmenter.tuning`. Core `listeners/` + `external_ingest` read
+    those (resolved via a helper like `_resolve_engine_tuning`); they must **never hardcode** the
+    cadence or thresholds. Same rule for the W5c confidence/availability gate values.
 
 ## Open unknowns (honest)
 

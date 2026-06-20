@@ -620,6 +620,27 @@ def register_eufy_adapter_for_vacuum(
             },
         },
 
+        "room_attribution": {
+            # Selects the pluggable ROOM-ATTRIBUTION engine — recovers WHICH managed
+            # rooms an EXTERNAL (undispatched) run cleaned, from a per-tick pose
+            # time-series (current_room + anchor + cleaning_area). A DIFFERENT axis from
+            # job_segmenter (which owns time/area boundaries); this owns room identity.
+            # Looked up in learning.room_attribution_engines._ROOM_ATTRIBUTION_ENGINES;
+            # absent/unknown falls back to eufy_anchor_winding_v1 (NOT noop).
+            # DORMANT until the run-active pose sampler (W5b) + finalize wiring (W5c) land
+            # — declared now so the engine selection is validated + explicit.
+            # eufy_anchor_winding_v1 segments by current_room, drops transit by
+            # path-winding, and separates cleaned vs parked-dock by the cleaning_area
+            # (swept m²) delta. See docs/dev/eufy-native-transition.md.
+            "engine": "eufy_anchor_winding_v1",
+            "tuning": {
+                "wind_transit": 1.5,
+                "dwell_min_s": 25.0,
+                "swept_area_min_m2": 0.5,
+                "interval_s": 2.0,
+            },
+        },
+
         "live_transition": {
             # LIVE current-room rollover orchestration. The gap/area/cadence thresholds
             # now live in job_segmenter.tuning (the single source); this block carries
