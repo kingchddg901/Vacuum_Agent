@@ -705,6 +705,36 @@ export const mapStyles = `
   }
   .evcc-map-ov-area--dragging { opacity: 0.85; cursor: grabbing; z-index: 7; }
 
+  /* Auto-derived click-target SELECTION (subtractive): the scrim canvas dims UN-selected rooms
+     per-pixel (exact shapes) right over the backdrop, so selected rooms stay bright with no
+     overlap. Positioned like the backdrop (.evcc-map-image); just needs to be click-through. */
+  .evcc-map-selection-canvas {
+    position:       absolute;
+    inset:          0;
+    pointer-events: none;
+    /* No z-index: as a positioned element emitted right after the backdrop and before the
+       SVG, DOM order paints it ABOVE the (in-flow) backdrop and BELOW the SVG/labels. The
+       backdrop .evcc-map-image is NOT positioned, so the scrim MUST be absolute+inset:0 to
+       overlay it (else it lays out as a second in-flow block and gets clipped off-map). */
+  }
+  /* Clean-order badge on each selected room (bbox top-left); counter-rotates upright. */
+  .evcc-map-ov-selnum {
+    position:       absolute;
+    transform:      translate(-2px, -2px) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    min-width:      16px;
+    height:         16px;
+    padding:        0 3px;
+    box-sizing:     border-box;
+    font-size:      10px;
+    font-weight:    700;
+    line-height:    16px;
+    text-align:     center;
+    color:          #fff;
+    background:      var(--evcc-accent, #3b82f6);
+    border-radius:  8px;
+    pointer-events: none;
+    z-index:        5;
+  }
   /* =========================================================
      MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
      ========================================================= */

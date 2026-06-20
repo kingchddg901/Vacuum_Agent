@@ -445,7 +445,14 @@ export function applyMapState(proto) {
   proto._hiddenRegionsOverlay = null;
   proto.hiddenRegions = function () {
     if (Array.isArray(this._hiddenRegionsOverlay)) return this._hiddenRegionsOverlay;
-    const r = this.mapSegmentsData?.()?.hidden_regions;
+    // Editor fetch when present, else the dashboard snapshot — same reason as areaLabelAnchor.
+    // Empty-aware: a present-but-empty [] from the editor must not shadow a populated snapshot
+    // (get_map_segments always emits hidden_regions:[]). An intentional in-editor clear is held
+    // by the optimistic overlay above until the snapshot settles.
+    const seg = this.mapSegmentsData?.()?.hidden_regions;
+    const r = (Array.isArray(seg) && seg.length)
+      ? seg
+      : this.dashboardSnapshot?.()?.hidden_regions;
     return Array.isArray(r) ? r : [];
   };
   proto.setHiddenRegionsOptimistic = function (list) {
@@ -473,7 +480,17 @@ export function applyMapState(proto) {
   proto.areaLabelAnchor = function (roomKey) {
     const k = String(roomKey);
     if (this._areaLabelOverlay && this._areaLabelOverlay[k]) return this._areaLabelOverlay[k];
-    const anchors = this.mapSegmentsData?.()?.area_label_anchors;
+    // Editor fetch (get_map_segments) when present, else the dashboard snapshot — the m² chips
+    // render on the plain dashboard (overlaysAligned) where segments are NOT fetched, so the
+    // saved positions must ride the snapshot too (mirrors map_overlay_visibility). Without the
+    // snapshot fallback a dragged label reverts to centre on reload off the editor.
+    // Empty-aware: get_map_segments ALWAYS emits area_label_anchors:{} and the editor cache
+    // isn't cleared on leaving the editor, so a `??` chain would let a present-but-empty {}
+    // shadow a populated snapshot. Only treat the editor set as authoritative when non-empty.
+    const seg = this.mapSegmentsData?.()?.area_label_anchors;
+    const anchors = (seg && Object.keys(seg).length)
+      ? seg
+      : this.dashboardSnapshot?.()?.area_label_anchors;
     return (anchors && anchors[k]) || null;
   };
   proto.setAreaLabelAnchorLocal = function (roomKey, pctX, pctY) {
@@ -498,6 +515,61 @@ export function applyMapState(proto) {
 
   proto.mapStateSource = function () {
     return this.dashboardSnapshot?.()?.map_state_source ?? null;
+  };
+
+  /* -- Auto-derived click targets: pixel-exact room hit-test ---------------------
+     Given a CONTENT-box % point (0-100 of the rotator, i.e. AFTER unrotatePct), resolve the
+     DEVICE ROOM ID under it by reading the room raster from the card-render data (room_pixels
+     + decode params from get_map_render_data — the same bundle the ▦ render decodes). Exact
+     room boundaries (no bbox overlap). null when off-map / a catch-all cell / no render data.
+     The device room id IS the managed room id, so the caller toggles it straight into the
+     clean selection. */
+  proto._roomRasterBin = function (rd) {
+    // Decode the base64 raster once, cached by content version.
+    if (this._roomRasterCache && this._roomRasterCache.version === rd.version) {
+      return this._roomRasterCache.bin;
+    }
+    let bin = null;
+    try { bin = atob(rd.room_pixels || ""); } catch (_) { bin = null; }
+    this._roomRasterCache = { version: rd.version, bin };
+    return bin;
+  };
+
+  proto.roomIdAtContentPct = function (contentX, contentY, rd) {
+    if (!rd || !rd.present || !rd.room_pixels) return null;
+    const W = rd.width | 0, H = rd.height | 0;
+    if (!(W > 0 && H > 0)) return null;
+    // content% -> image-normalized: undo the object-fit:contain letterbox (same math as
+    // _overlayTransform/_rectToNormalized). Aspect comes from map_state_source.image_size when
+    // present, else the render dims (rd.width/height) — the VA canvas IS letterboxed by those, and
+    // for the camera-less VA-render config map_state_source is absent, so mapImageSize() is null.
+    // Both derive from the same md.width/height, so this is byte-identical whenever both exist.
+    const size = this.mapImageSize?.();
+    const iw = (Array.isArray(size) && size[0] > 0 && size[1] > 0) ? size[0] : W;
+    const ih = (Array.isArray(size) && size[0] > 0 && size[1] > 0) ? size[1] : H;
+    const sx = iw >= ih ? 100 : (100 * iw) / ih;
+    const sy = ih >= iw ? 100 : (100 * ih) / iw;
+    const offX = (100 - sx) / 2;
+    const offY = (100 - sy) / 2;
+    const nx = (contentX - offX) / sx;
+    const ny = (contentY - offY) / sy;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;   // outside the image (letterbox bar)
+    // image-normalized -> MAIN-grid pixel (undo normalize_rendered's Y-flip).
+    const flip = rd.flip_y !== false;
+    const px = Math.min(W - 1, Math.max(0, Math.floor(nx * W)));
+    const pyN = flip ? ((H - 1) - ny * H) : (ny * H);
+    const py = Math.min(H - 1, Math.max(0, Math.floor(pyN)));
+    // MAIN grid -> room_outline raster cell -> rid (byte >> rid_shift), catch-all filtered.
+    const bin = this._roomRasterBin(rd);
+    if (!bin) return null;
+    const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+    const rx = px - (rd.ro_dx | 0), ry = py - (rd.ro_dy | 0);
+    if (rx < 0 || rx >= roW || ry < 0 || ry >= roH) return null;
+    const idx = ry * roW + rx;
+    if (idx < 0 || idx >= bin.length) return null;
+    const rid = bin.charCodeAt(idx) >> (rd.rid_shift | 0);
+    const catchAll = rd.catch_all_rid | 0;
+    return (rid > 0 && rid < catchAll) ? rid : null;
   };
 
   /* -- Live pose (Phase B) ------------------------------------------------------

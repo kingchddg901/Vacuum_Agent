@@ -28,6 +28,38 @@ test("[AL-2] optimistic overlay overrides the backend; survives until a fresh se
   assert.deepEqual(s.areaLabelAnchor(5), { pct_x: 99, pct_y: 99 });   // overrides backend
 });
 
+test("[AL-4] falls back to the dashboard snapshot when segments aren't fetched (the plain dashboard)", () => {
+  const s = makeState();
+  // The editor fetch is absent on the dashboard — the saved anchor rides the snapshot.
+  s.mapSegmentsData = () => null;
+  s.dashboardSnapshot = () => ({ area_label_anchors: { "5": { pct_x: 30, pct_y: 80 } } });
+  assert.deepEqual(s.areaLabelAnchor(5), { pct_x: 30, pct_y: 80 });
+  assert.equal(s.areaLabelAnchor(9), null);
+  // Editor data, when present, wins over the snapshot (freshest after an edit).
+  s.mapSegmentsData = () => ({ area_label_anchors: { "5": { pct_x: 1, pct_y: 2 } } });
+  assert.deepEqual(s.areaLabelAnchor(5), { pct_x: 1, pct_y: 2 });
+  // hiddenRegions takes the same snapshot fallback.
+  s.mapSegmentsData = () => null;
+  s.dashboardSnapshot = () => ({ hidden_regions: [{ rect: [0, 0, 1, 1] }] });
+  assert.deepEqual(s.hiddenRegions(), [{ rect: [0, 0, 1, 1] }]);
+});
+
+test("[AL-5] a present-but-empty editor result does NOT shadow a populated snapshot (empty-aware fallback)", () => {
+  const s = makeState();
+  // get_map_segments ALWAYS emits {} / [] and the editor cache isn't cleared on leaving the
+  // editor — a plain ?? chain would let that empty shadow the real persisted snapshot values.
+  s.mapSegmentsData = () => ({ area_label_anchors: {}, hidden_regions: [] });
+  s.dashboardSnapshot = () => ({
+    area_label_anchors: { "5": { pct_x: 30, pct_y: 80 } },
+    hidden_regions: [{ rect: [0, 0, 1, 1] }],
+  });
+  assert.deepEqual(s.areaLabelAnchor(5), { pct_x: 30, pct_y: 80 });   // snapshot, not the empty {}
+  assert.deepEqual(s.hiddenRegions(), [{ rect: [0, 0, 1, 1] }]);      // snapshot, not the empty []
+  // a NON-empty editor set still wins (freshest after an in-editor edit)
+  s.mapSegmentsData = () => ({ area_label_anchors: { "5": { pct_x: 1, pct_y: 2 } } });
+  assert.deepEqual(s.areaLabelAnchor(5), { pct_x: 1, pct_y: 2 });
+});
+
 test("[AL-3] effectiveMapRotation = the rotator's angle: rotates the contain backdrops (VA render + live image), not an uploaded/CV one", () => {
   const s = makeState();
   s.mapRotation = () => 90;

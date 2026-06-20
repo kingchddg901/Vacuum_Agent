@@ -3737,6 +3737,18 @@ class EufyVacuumManager:
             "live_map_image_entity": live_map_image_entity,
             "live_map_rotation": live_map_rotation,
             "map_overlay_visibility": map_overlay_visibility,
+            # Map-level display data the DASHBOARD map needs (the live map renders the m²
+            # chips + noise masks outside the editor, where get_map_segments isn't fetched).
+            # Surfaced here from the same bucket as map_overlay_visibility so a dragged label
+            # position + a drawn mask PERSIST on the plain dashboard, not only in the editor.
+            "area_label_anchors": (
+                dict(_live_map_bucket.get("area_label_anchors") or {})
+                if isinstance(_live_map_bucket.get("area_label_anchors"), dict) else {}
+            ),
+            "hidden_regions": (
+                list(_live_map_bucket.get("hidden_regions") or [])
+                if isinstance(_live_map_bucket.get("hidden_regions"), list) else []
+            ),
             "supports_va_render": supports_va_render,
             # VA-owned read of the provider's OWN segmentation (map_state_source,
             # Wave 1: per-room bbox+name + dock/robot anchors, normalized to the

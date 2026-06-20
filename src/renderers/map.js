@@ -161,6 +161,7 @@ export function applyMapRenderers(proto) {
               : (imageUrl
                   ? `<img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
                   : "")}
+            ${this._renderSelectionScrim(state)}
             <svg
               class="evcc-map-svg"
               viewBox="0 0 100 100"
@@ -202,6 +203,7 @@ export function applyMapRenderers(proto) {
               </div>`;
             }).join("") : ""}
             ${deviceOverlays ? this._renderDeviceOverlayHtml(state) : ""}
+            ${this._renderRoomSelection(state)}
             ${this._renderHiddenRegions(state, hideMode)}
             </div>
             ${zoneMode ? `
@@ -400,6 +402,55 @@ export function applyMapRenderers(proto) {
                  + `data-index="${i}" title="Remove this hidden area" aria-label="Remove hidden area">×</button>`
                : "")
            + `</div>`;
+    }
+    return out;
+  };
+
+  // The enabled (tapped) device rooms + their clean-order (sorted by the order field).
+  // Map(deviceNumber -> orderPosition). Empty when nothing's selected.
+  proto._selectedRoomOrder = function (state) {
+    const enabled = (state.getRoomsForActiveMap?.() ?? []).filter((r) => r.enabled);
+    const order = new Map();
+    [...enabled].sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+      .forEach((r, i) => order.set(Number(r.id), i + 1));
+    return order;
+  };
+
+  /**
+   * SUBTRACTIVE selection canvas: dims the UN-selected device rooms (per-pixel, exact room
+   * shapes from the raster) so selected rooms stay bright with no bbox overlap. Rendered right
+   * over the backdrop, inside the rotator (co-rotates). Drawn by the binding; only present when a
+   * raster + a partial selection exist (all-selected => nothing to dim => no canvas).
+   */
+  proto._renderSelectionScrim = function (state) {
+    if (!(state.overlaysAligned?.() ?? false)) return "";   // only over a co-registered backdrop
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return "";
+    const order = this._selectedRoomOrder(state);
+    const total = (state.getRoomsForActiveMap?.() ?? []).length;
+    if (order.size === 0 || order.size >= total) return "";   // none or all selected => no dim
+    return `<canvas class="evcc-map-image evcc-map-selection-canvas" `
+         + `data-sel-key="${this.escapeHtml(String(rd.version) + ":" + [...order.keys()].sort((a, b) => a - b).join(","))}"></canvas>`;
+  };
+
+  /**
+   * Clean-ORDER badges for the selected rooms (HTML, at each room's bbox top-left). The exact
+   * highlight is the subtractive scrim above; this just shows the sequence. Co-rotates; the badge
+   * counter-rotates upright. Keyed by device room number (== managed room id).
+   */
+  proto._renderRoomSelection = function (state) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present || !Array.isArray(mss.rooms)) return "";
+    const order = this._selectedRoomOrder(state);
+    if (order.size === 0) return "";
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    let out = "";
+    for (const room of mss.rooms) {
+      const pos = order.get(Number(room.number));
+      if (pos == null || !Array.isArray(room.bbox) || room.bbox.length !== 4) continue;
+      const [x0, y0, x1, y1] = room.bbox;
+      out += `<div class="evcc-map-ov-selnum" style="left:${f(tx(Math.min(x0, x1)))}%;top:${f(ty(Math.min(y0, y1)))}%">${pos}</div>`;
     }
     return out;
   };

@@ -50,6 +50,7 @@ export function applyMapBindings(proto) {
     this._bindMapLayersPanel(root);
     this._bindMapRenderToggle(root);
     this._bindMapRenderCanvas(root);
+    this._bindSelectionScrim(root);
 
     const view = this.card._view;
     if (view === VIEWS.MAP_CONFIG || this.card._state.isMapViewActive?.()) {
@@ -130,11 +131,24 @@ export function applyMapBindings(proto) {
    */
   proto._bindMapRenderCanvas = function (root) {
     const state = this.card._state;
-    if (!(state.useVaRender?.() && state.supportsVaRender?.())) return;
+    // Fetch the render raster whenever overlays are shown over a render-capable map — the canvas
+    // draws it for the VA backdrop AND the room hit-test (auto-derived click targets) needs it on
+    // the live backdrop too. Drawing below is a no-op when the canvas element isn't rendered
+    // (i.e. the VA backdrop isn't active). Fetch-once, cached by version.
+    if (!(state.supportsVaRender?.() && state.overlaysAligned?.())) return;
 
+    // Invalidate a raster fetched for a DIFFERENT map — we only auto-fetch when rd is null
+    // (below), so without this a map/layout switch would keep hit-testing + dimming against the
+    // previous map's frame. The version-keyed derived caches (raster/vaImage/scrim) self-clear
+    // once the new map's render data (new version) lands.
+    const mapId = state.activeMapId?.() ?? null;
+    if (state.mapRenderData?.() && this._renderDataMapId != null && this._renderDataMapId !== mapId) {
+      state.setMapRenderData?.(null);
+    }
     const rd = state.mapRenderData?.();
     if (!rd && !this._vaRenderFetching) {
       this._vaRenderFetching = true;
+      this._renderDataMapId = mapId;   // tag the map this fetch belongs to (stale-on-switch guard)
       this.card._actions
         .getMapRenderData()
         .then((data) => {
@@ -164,6 +178,59 @@ export function applyMapBindings(proto) {
     } catch (err) {
       console.error("[eufy-vacuum-command-center] map render draw failed:", err);
     }
+  };
+
+  /**
+   * SUBTRACTIVE room selection: draw a per-pixel dark scrim over the UN-selected device rooms
+   * (exact room shapes from the raster) so selected rooms stay bright with no bbox overlap. The
+   * scrim ImageData is cached on the binding by (version + selection) and re-stamped onto each
+   * freshly-rendered canvas (cheap), mirroring _drawVaRender.
+   */
+  proto._bindSelectionScrim = function (root) {
+    const state = this.card._state;
+    const canvas = root.querySelector("canvas.evcc-map-selection-canvas");
+    if (!canvas) return;
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return;
+    const W = rd.width | 0, H = rd.height | 0;
+    if (W <= 0 || H <= 0) return;
+    const selKey = canvas.dataset.selKey || "";
+    let cache = this._scrimCache;
+    if (!cache || cache.key !== selKey || cache.w !== W || cache.h !== H) {
+      const bin = state._roomRasterBin?.(rd);
+      if (!bin) return;
+      const selected = new Set(
+        (state.getRoomsForActiveMap?.() ?? []).filter((r) => r.enabled).map((r) => Number(r.id)),
+      );
+      const ctx0 = canvas.getContext("2d");
+      if (!ctx0) return;
+      const img = ctx0.createImageData(W, H);
+      const data = img.data;
+      const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+      const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+      const shift = rd.rid_shift | 0, catchAll = rd.catch_all_rid | 0;
+      const flip = rd.flip_y !== false;
+      for (let py = 0; py < H; py++) {
+        for (let px = 0; px < W; px++) {
+          const rx = px - dx, ry = py - dy;
+          if (rx < 0 || rx >= roW || ry < 0 || ry >= roH) continue;
+          const idx = ry * roW + rx;
+          if (idx >= bin.length) continue;
+          const rid = bin.charCodeAt(idx) >> shift;
+          if (!(rid > 0 && rid < catchAll)) continue;   // not a room -> never dim
+          if (selected.has(rid)) continue;              // selected -> stays bright
+          const iy = flip ? (H - 1 - py) : py;
+          const o = (iy * W + px) * 4;
+          data[o] = 8; data[o + 1] = 10; data[o + 2] = 14; data[o + 3] = 168;  // ~0.66 dark scrim
+        }
+      }
+      cache = { key: selKey, w: W, h: H, img };
+      this._scrimCache = cache;
+    }
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.putImageData(cache.img, 0, 0);
   };
 
   /**
@@ -1384,6 +1451,37 @@ export function applyMapBindings(proto) {
     });
   };
 
+  /**
+   * Auto-derived click target: a clean tap on a room region toggles it into the clean selection.
+   * Pixel-exact — convert the tap (screen) through pan/zoom -> un-rotate -> the room raster to a
+   * DEVICE ROOM ID (== the managed room id), then toggle that room's enabled switch. No-op while
+   * drawing/anchoring or when the raster isn't available (no map_render / not yet fetched).
+   */
+  proto._handleRoomTap = function (container, clientX, clientY) {
+    const state = this.card._state;
+    if (state.zoneDrawMode?.() || state.hideDrawMode?.() || state.isMapAnchorMode?.()) return;
+    // Only hit-test over a backdrop the device-frame raster is registered to (VA render or live
+    // image). On an uploaded/CV --fill backdrop the raster doesn't co-register, so a tap would
+    // toggle the wrong room. Mirrors the deviceOverlays / scrim gate.
+    if (!(state.overlaysAligned?.() ?? false)) return;
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return;
+    const layers = container.querySelector(".evcc-map-layers");
+    if (!layers) return;
+    const r = layers.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const fx = (clientX - r.left) / r.width  * 100;
+    const fy = (clientY - r.top)  / r.height * 100;
+    const rot = state.effectiveMapRotation?.() ?? 0;
+    const [cx, cy] = state.unrotatePct(fx, fy, rot);
+    const rid = state.roomIdAtContentPct(cx, cy, rd);
+    if (rid == null) return;
+    const mapId = state.activeMapId?.();
+    const room = (state.getRoomsForActiveMap?.() ?? []).find((rm) => Number(rm.id) === Number(rid));
+    this.card._actions?.toggleRoomEnabled?.(mapId, rid, room?.enabled ?? false);
+    this.card._scheduleRender?.();
+  };
+
 /* =========================================================
    ZOOM / PAN
    =========================================================
@@ -1665,6 +1763,7 @@ export function applyMapBindings(proto) {
       _moved    = false;
       _lastX    = e.clientX;
       _lastY    = e.clientY;
+      const downX = e.clientX, downY = e.clientY;
 
       const onMove = (ev) => {
         if (!_dragging) return;
@@ -1684,6 +1783,8 @@ export function applyMapBindings(proto) {
         document.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerup",     onUp);
         document.removeEventListener("pointercancel", onUp);
+        // A clean tap (no drag) on a room region -> toggle it into the clean selection.
+        if (!_moved) this._handleRoomTap(container, downX, downY);
       };
 
       document.addEventListener("pointermove", onMove);
