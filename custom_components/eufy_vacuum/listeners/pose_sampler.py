@@ -72,6 +72,30 @@ def _has_live_map(vacuum_entity_id: str) -> bool:
     return isinstance(src, dict) and isinstance(src.get("live_pose"), dict)
 
 
+def _is_parked(hass, cfg: dict, pose: dict) -> bool:
+    """True when the robot is parked / not floor-cleaning, so this tick's pose reflects the
+    DOCK (or a station cycle) rather than a cleaned room → null current_room/anchor for it.
+
+    Primary signal: the MQTT-backed ``task_status`` is present and NOT an active-run state
+    (the adapter's ``vocabulary.active_run_task_states``) — i.e. Completed / Washing Mop /
+    Emptying Dust / Charging / docked. That signal is reliable and flips on time, UNLIKE the
+    fork's pose ``robot_docked`` flag, which can stay ``False`` through a real dock (observed
+    live: it sat reporting the robot "in" the dock room for ~13 min after a ``Completed`` dock,
+    so 100 dock-sitting ticks were recorded as that room). ``returning``/``navigating`` ARE
+    active-run states, so they are NOT nulled here — their ~0 swept area lets the engine label
+    them transit. We fall back to the pose flag only when task_status can't be read (no declared
+    entity / unavailable state / no vocab — e.g. a future non-Eufy brand)."""
+    vocab = cfg.get("vocabulary") or {}
+    active = {str(s).strip().lower() for s in (vocab.get("active_run_task_states") or [])}
+    ts_id = (cfg.get("entities", {}) or {}).get("task_status")
+    if active and ts_id:
+        state_obj = hass.states.get(ts_id)
+        value = str(getattr(state_obj, "state", "") or "").strip().lower()
+        if value and value not in {"unknown", "unavailable"}:
+            return value not in active
+    return bool(pose.get("robot_docked"))
+
+
 async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
     """Sample one vacuum's active EXTERNAL run(s) this tick; returns samples recorded.
 
@@ -109,11 +133,13 @@ async def _sample_vacuum_once(hass, manager, vacuum_entity_id: str) -> int:
         except (TypeError, ValueError):
             cleaning_area = None
 
-        # While docked the fork anchors to the DOCK — current_room becomes the dock's room id
-        # and anchor the dock pixel. Null both so a parked dock is a genuine None-run: that's
-        # what excludes it in anchor-only mode (robust mode also excludes it via ~0 swept area).
+        # While parked/docked the fork anchors to the DOCK — current_room becomes the dock's
+        # room id and anchor the dock pixel. Null both so a parked dock is a genuine None-run:
+        # that's what excludes it in anchor-only mode (robust mode also excludes it via ~0 swept
+        # area). The parked signal is the MQTT task_status (reliable), NOT the pose's own
+        # robot_docked flag (which can stay False through a real dock) — see _is_parked.
         # current_room may also be None genuinely (off-raster transit) — recorded on purpose.
-        docked = bool(pose.get("robot_docked"))
+        docked = _is_parked(hass, cfg, pose)
         if manager.record_pose_sample(
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id_str,

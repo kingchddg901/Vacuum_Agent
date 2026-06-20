@@ -231,11 +231,64 @@ plays today, but grounded in observed position + device area.
     `robot_docked` → a parked dock is a genuine None-run), and an adapter-discipline miss
     (`cleaning_area` now read from `entities.cleaning_area`, not a guessed name). Tests:
     `tests/unit/test_pose_sampler.py` + `record_pose_sample` cases in `test_jobs_active_job.py`;
-    full suite green (2543). **Still owes the live experiment:** one external clean, then diff the
-    sampler's `pose_samples` against a parallel probe JSONL to confirm in-integration freshness/frame.
-  - **W5c** — `build_attributed_job` in `external_ingest.py` + finalize wiring (`manager.py:2776`
-    `_finalize_external_run`) + the hybrid gate (availability fallback + robust/anchor-only confidence)
-    feeding a PRE-FILLED wizard (counter-plateau segments own time/area; the classifier owns identity).
+    full suite green (2543).
+  - **W5b live experiment — DONE 2026-06-20, PASS.** One real 5-room external clean on
+    `vacuum.alfred` (rooms 5,6,7,8,9; 404 sampler ticks / 13.5 min), sampler + throwaway probe both
+    capturing. Diff (`scratch-external-estimator/w5b_diff.py`, time-aligned on overlap): **freshness**
+    nearest-probe \|dt\| median 1.0s = pure 2s-cadence phase, no staleness; **frame** anchor coord
+    ranges identical and coincident-tick (\|dt\|≤0.6s, n=120) anchor distance median 0.000 — the
+    sampler reads the *same live value* as the probe, so anchor-unit thresholds port directly;
+    **transitions** macro room-sequence matches the probe, the 7 disagreements (98.3% agree) are all
+    1-tick flickers / ~1s boundary phase present on BOTH sides (no systematic lag). Preserved native
+    fixture: `scratch-external-estimator/w5b_live_pose_samples.json`. **Notable:** this run's
+    counter-plateau finalize wrote NO record (`build_pending_record → None`, 25 counter samples, no
+    plateaus) and the slot was cleared `external→idle` on normal completion — `pose_samples` must be
+    read out of `.storage` before that reset (they're dropped from the record AND wiped). Recorder
+    ground truth: cleaning 08:13:11 → returning 08:23:44 → docked/`Completed` 08:24:40 (a clean finalize,
+    NOT premature — an early probe-flag-based "premature finalize" read was wrong; the probe's
+    `robot_docked` stayed `False` through the real dock).
+  - **W5c previewed on the real samples** (`scratch-external-estimator/w5b_attribute_real.py`, the
+    engine run directly on the 404 native ticks): `mode=robust`, `cleaned=[5 (kitchen, 6 m²),
+    9 (~2 m²)]`. **The win:** room 8 (the dock room) had the MOST presence of any room — 100 ticks /
+    200 s — but **0.0 m² swept → `parked/dock`, not cleaned.** Hard version of the trap: the pose source
+    reported the parked robot as "moving in room 8" the whole time (`robot_docked` never flipped) AND
+    `cleaning_area` was non-monotonic (stale 16 → reset → 10); the positive-delta swept logic absorbed
+    both. Counter-segmentation found nothing here → argues W5c should let the pose path stand up a
+    record on its own, not only enrich a counter-segmented one. (cleaned set still wants the user's
+    ground truth of what the app actually cleaned.)
+  - **Refinement W5c must carry — docked-gate signal.** The sampler's F2 docked-nulling keys off the
+    pose source's `robot_docked`, which is UNRELIABLE (stayed `False` through the 08:24:40 dock → the
+    null path never fired; 100 dock/return ticks were recorded as room 8 and only swept-area excluded
+    them). Gate docked-nulling on the MQTT-backed `task_status`/vacuum state instead
+    (`Returning`/`Completed`/`docked`/`Charging` — these flipped cleanly and on-time), so the
+    parked-dock exclusion has an independent reliable signal and doesn't lean solely on swept-area
+    (which itself can be flaky, as `cleaning_area` was here).
+  - **W5c — DONE 2026-06-20 (built + adversarially reviewed).** Pose attribution wired into the
+    external-run finalize, backend-only (the card already auto-selects `shortlist[0]`, so promoting
+    the classified room there pre-answers the wizard with NO frontend change):
+    - `learning/external_ingest.py`: `_resolve_attribution`/`_attribute` (engine + tuning from the
+      adapter's `room_attribution` block, Eufy fallback — mirrors `_resolve_engine_tuning`);
+      `_apply_pose_identity` + `_dominant_cleaned_room` + `_promote_pose_room` ENRICH each counter
+      segment with its dominant cleaned room → `shortlist[0]` (ROBUST mode only — anchor-only can
+      false-positive a parked dock, so it doesn't override the settings shortlist); `build_attributed_job`
+      STANDS UP a pose-only record when the counter segmenter finds nothing (the common app-run case —
+      this morning's run produced no counter record). `build_pending_record` gained a `pose_samples`
+      param; `attribution_mode` is stamped on the record for the card.
+    - `listeners/pose_sampler.py`: `_is_parked` — the docked-gate now reads the MQTT `task_status` vs
+      the adapter's `vocabulary.active_run_task_states` (reliable), falling back to the pose
+      `robot_docked` flag only when task_status can't be read (the F2-via-MQTT refinement above).
+    - `core/manager.py`: `_finalize_external_run` passes `slot["pose_samples"]` through and now ALWAYS
+      clears the slot (try/finally) so a build error can't orphan a `status="external"` zombie.
+    - **Hybrid gate:** no pose stream / empty cleaned set → `attribution` is None → exactly pre-W5c
+      behavior (availability fallback). robust vs anchor_only rides `attribution_mode`.
+    - **Adversarial review (16 agents):** 5 findings survived refutation; only one was a real fix —
+      an uncaught `engine.attribute()` exception that dropped the run AND orphaned the slot. FIXED:
+      `_attribute` degrades to counter-only on engine error + the finalize try/finally always clears.
+      The other 4 were verified-but-inert (dead `gap_transit_s` field, missing `source` label on enrich
+      records, pose metadata lost on re-segment, unreachable out-of-order `wall_s`) — documented, no
+      change. Tests: `tests/unit/test_external_ingest_attribution.py`, `test_pose_sampler.py` (MQTT
+      gate incl. the exact live failure), `tests/integration/test_manager_external_finalize.py`
+      (EXT-FIN-2 pose-only finalize, EXT-FIN-3 slot-clears-on-error). Full suite 2559 pass / 1 skip.
   - **W5d (later)** — opt-in auto-confirm for proven high-confidence robust runs.
 
   **W5 gating + adapter discipline.** The native path rides `current_room`, which is *derived from

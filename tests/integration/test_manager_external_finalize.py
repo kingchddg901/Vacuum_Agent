@@ -58,6 +58,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -246,6 +247,112 @@ async def test_external_grace_finalize_writes_record_and_fires_event(manager, ha
         assert isinstance(record["return_intervals"], list)
         # the record's own segment count matches what the event advertised.
         assert record["segment_count"] == payload["segment_count"]
+    finally:
+        unsub()
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+# W5c pose stream helpers — a cleaned room (zigzag anchors + rising cleaning_area) and a
+# parked dock (jitter + flat area). The finalize resolves the attribution engine from the
+# adapter; _EXT_ADAPTER declares no room_attribution block, so it falls back to the Eufy engine.
+def _pose_clean(rid: int, start: int, n: int, area0: float, step: float) -> list[dict]:
+    pts = [(0.0, 0.0), (0.1, 0.1)]
+    return [
+        {"t": (_BASE + timedelta(seconds=start + 2 * i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+         "current_room": rid, "anchor": list(pts[i % 2]), "cleaning_area": area0 + i * step}
+        for i in range(n)
+    ]
+
+
+def _pose_park(rid: int, start: int, n: int, area: float) -> list[dict]:
+    pts = [(0.5, 0.5), (0.51, 0.51)]
+    return [
+        {"t": (_BASE + timedelta(seconds=start + 2 * i)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+         "current_room": rid, "anchor": list(pts[i % 2]), "cleaning_area": area}
+        for i in range(n)
+    ]
+
+
+async def test_external_grace_finalize_pose_only_record(manager, hass):
+    """[EXT-FIN-2] W5c: a run the counter segmenter can't split (NO counter samples) is no
+    longer lost — the pose stream stands up a pose-attribution record, and the parked dock
+    (room 2, flat area) is excluded while the cleaned room (room 1) is kept."""
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _EXT_ADAPTER)
+    events: list[dict] = []
+    unsub = hass.bus.async_listen(
+        EVENT_EXTERNAL_RUN_PENDING, lambda ev: events.append(dict(ev.data))
+    )
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+        slot = manager.data["active_jobs"][_VAC][_MAP]
+        slot["counter_samples"] = []   # no plateaus to segment — pose is the only signal
+        slot["settings_samples"] = []
+        slot["pose_samples"] = _pose_clean(1, 0, 14, 0.0, 0.2) + _pose_park(2, 28, 20, 2.6)
+        slot["started_at"] = _BASE.isoformat()
+
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set("sensor.alfred_task", "Charging")
+        await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+
+        assert manager.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)["status"] != "external"
+        assert len(events) == 1
+        record = json.loads(Path(events[0]["record_path"]).read_text(encoding="utf-8"))
+        assert record["source"] == "pose_attribution"
+        assert record["attribution_mode"] == "robust"
+        assert [s["pose_room_id"] for s in record["segments"]] == [1]  # dock (room 2) excluded
+        assert record["segments"][0]["shortlist"][0]["room_id"] == 1   # wizard pre-answered
+        assert "counter_samples" not in record  # not counter-resegmentable
+    finally:
+        unsub()
+        for _cancel in list(manager._external_grace_timers().values()):
+            _cancel()
+        unregister_adapter_config(_VAC)
+
+
+async def test_external_finalize_clears_slot_on_build_error(manager, hass, monkeypatch):
+    """[EXT-FIN-3] P1 (review): if record-building raises, the slot is STILL cleared — no zombie
+    status='external' slot that the pose sampler keeps writing into and that wedges this
+    (vacuum, map)'s future grace handling — and no pending event fires."""
+    import custom_components.eufy_vacuum.learning.external_ingest as ei
+
+    manager.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    setup_map(manager, _VAC, _MAP, count=2)
+    register_adapter_config(_VAC, _EXT_ADAPTER)
+
+    def _boom(**kwargs):
+        raise RuntimeError("build boom")
+
+    monkeypatch.setattr(ei, "build_pending_record", _boom)  # _build_and_write imports it at call time
+    events: list[dict] = []
+    unsub = hass.bus.async_listen(
+        EVENT_EXTERNAL_RUN_PENDING, lambda ev: events.append(dict(ev.data))
+    )
+    try:
+        manager.start_external_capture(vacuum_entity_id=_VAC, map_id=_MAP)
+        slot = manager.data["active_jobs"][_VAC][_MAP]
+        slot["counter_samples"] = [dict(s) for s in _COUNTER_SAMPLES]
+        slot["started_at"] = _BASE.isoformat()
+
+        hass.states.async_set(_VAC, "docked")
+        hass.states.async_set("sensor.alfred_task", "Charging")
+        await manager.maybe_handle_external_run(vacuum_entity_id=_VAC)
+        async_fire_time_changed(
+            hass, dt_util.utcnow() + timedelta(seconds=EXTERNAL_FINALIZE_GRACE_S + 1)
+        )
+        await hass.async_block_till_done()
+
+        # The slot cleared despite the build error (no zombie), and nothing was advertised.
+        assert manager.get_active_job(vacuum_entity_id=_VAC, map_id=_MAP)["status"] != "external"
+        assert (_VAC, _MAP) not in manager._external_grace_timers()
+        assert events == []
     finally:
         unsub()
         for _cancel in list(manager._external_grace_timers().values()):

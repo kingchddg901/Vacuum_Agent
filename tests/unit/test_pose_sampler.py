@@ -123,3 +123,83 @@ async def test_sample_skips_vacuum_without_live_map(monkeypatch):
                         lambda vid: {"room_attribution": {"tuning": {}}})
     mgr = _mock_manager({"present": True, "current_room": 5})
     assert await pose_sampler._sample_vacuum_once(_hass_with_area(), mgr, "vacuum.alfred") == 0
+
+
+# --- W5c: docked-gate from the MQTT task_status (not the unreliable pose flag) ---
+
+
+def _hass_states(mapping: dict):
+    """hass whose states.get(eid) returns SimpleNamespace(state=...) per entity, else None."""
+    hass = MagicMock()
+    hass.states.get.side_effect = lambda eid: (
+        SimpleNamespace(state=mapping[eid]) if eid in mapping else None
+    )
+    return hass
+
+
+# Adapter that declares the MQTT signals the W5c docked-gate reads (task_status entity +
+# the active-run vocabulary). "returning"/"navigating" ARE active (not nulled).
+_ACTIVE = ["cleaning", "room cleaning", "spot cleaning", "returning", "resuming", "navigating"]
+
+
+def _cfg_mqtt(_vid):
+    return {
+        "room_attribution": {"tuning": {"interval_s": 2.0}},
+        "map_state_source": {"live_pose": {}},
+        "entities": {"cleaning_area": "sensor.alfred_cleaning_area",
+                     "task_status": "sensor.alfred_task_status"},
+        "vocabulary": {"active_run_task_states": _ACTIVE},
+    }
+
+
+def test_is_parked_uses_task_status_over_pose_flag():
+    cfg = _cfg_mqtt("vacuum.alfred")
+    # Completed/Washing Mop are NOT active -> parked, even though the pose flag says undocked.
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "Completed"}), cfg, {"robot_docked": False}) is True
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "Washing Mop"}), cfg, {"robot_docked": False}) is True
+    # Cleaning / Returning ARE active -> not parked.
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "Cleaning"}), cfg, {"robot_docked": True}) is False
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "Returning"}), cfg, {"robot_docked": False}) is False
+
+
+def test_is_parked_falls_back_to_pose_flag_when_task_status_unreadable():
+    cfg = _cfg_mqtt("vacuum.alfred")
+    # unavailable task_status -> fall back to the pose robot_docked flag.
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "unavailable"}), cfg, {"robot_docked": True}) is True
+    assert pose_sampler._is_parked(
+        _hass_states({"sensor.alfred_task_status": "unavailable"}), cfg, {"robot_docked": False}) is False
+    # no vocab/entity at all -> pose flag.
+    assert pose_sampler._is_parked(_hass_states({}), {"entities": {}}, {"robot_docked": True}) is True
+
+
+async def test_sample_nulls_on_inactive_task_status(monkeypatch):
+    """The F2-via-MQTT fix: a Completed/docked task_status nulls current_room even when the
+    fork's pose flag still says undocked (the live failure that recorded 100 dock-sitting ticks
+    as a room). cleaning_area is still recorded."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_mqtt)
+    mgr = _mock_manager({"present": True, "current_room": 8, "robot_anchor": [0.7, 0.3],
+                         "robot_docked": False})
+    hass = _hass_states({"sensor.alfred_cleaning_area": "5.0", "sensor.alfred_task_status": "Completed"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.alfred")
+    assert n == 1
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["current_room"] is None and kw["anchor"] is None
+    assert kw["cleaning_area"] == 5.0
+
+
+async def test_sample_keeps_active_cleaning_task_status(monkeypatch):
+    """An active-run task_status (Cleaning) records the room — not nulled — even if the pose
+    flag is (wrongly) set."""
+    monkeypatch.setattr(pose_sampler, "get_adapter_config", _cfg_mqtt)
+    mgr = _mock_manager({"present": True, "current_room": 8, "robot_anchor": [0.7, 0.3],
+                         "robot_docked": True})
+    hass = _hass_states({"sensor.alfred_cleaning_area": "5.0", "sensor.alfred_task_status": "Cleaning"})
+    n = await pose_sampler._sample_vacuum_once(hass, mgr, "vacuum.alfred")
+    assert n == 1
+    kw = mgr.record_pose_sample.call_args.kwargs
+    assert kw["current_room"] == 8 and kw["anchor"] == [0.7, 0.3]

@@ -2783,6 +2783,10 @@ class EufyVacuumManager:
         """Segment a finished external capture into a pending record + clear the slot."""
         counter_samples = list(slot.get("counter_samples", []) or [])
         settings_samples = list(slot.get("settings_samples", []) or [])
+        # W5c: the run-active pose stream (pose_sampler) — drives room attribution in
+        # build_pending_record (pre-fills the wizard / stands up a pose-only record). Empty
+        # for a non-map brand or a run with no live map → attribution is skipped downstream.
+        pose_samples = list(slot.get("pose_samples", []) or [])
         detection_ts = slot.get("started_at")
         rooms = (
             self.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
@@ -2825,6 +2829,7 @@ class EufyVacuumManager:
                 rooms=rooms,
                 baselines=baselines,
                 vacuum_entity_id=vacuum_entity_id,
+                pose_samples=pose_samples,
             )
             if record is None:
                 return None
@@ -2837,8 +2842,20 @@ class EufyVacuumManager:
             store.write_json(path, record)
             return {"path": str(path), "segment_count": record.get("segment_count")}
 
-        result = await self.hass.async_add_executor_job(_build_and_write)
-        self.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # Always clear the slot, even if the build raises — otherwise a build error leaves a
+        # zombie status="external" slot that the pose sampler keeps writing into and that wedges
+        # this (vacuum, map)'s future grace handling. (_attribute already degrades a failed
+        # attribution to None on its own, so the common case still writes a counter record.)
+        try:
+            result = await self.hass.async_add_executor_job(_build_and_write)
+        except Exception:
+            _LOGGER.exception(
+                "eufy_vacuum: external-run finalize failed for %s/%s — clearing the slot",
+                vacuum_entity_id, map_id,
+            )
+            result = None
+        finally:
+            self.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if result is not None:
             from ..const import EVENT_EXTERNAL_RUN_PENDING
 

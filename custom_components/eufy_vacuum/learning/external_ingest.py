@@ -27,8 +27,11 @@ out to the card.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 # select_active is the brand-agnostic selection stage (pure ranking/filtering over
 # the candidate shape) — it stays a direct framework import. find_candidates /
@@ -38,6 +41,7 @@ from typing import Any
 from ..counter_segmentation import select_active
 from ..timestamp_utils import parse_timestamp
 from .job_segmenter_engines import get_job_segmenter_engine
+from .room_attribution_engines import get_room_attribution_engine
 from .utils import _canonical_clean_mode, _safe_bool, _safe_float, _safe_int
 
 # Settings-match is the PRIMARY shortlist signal: a room whose config matches the
@@ -348,6 +352,240 @@ def strip_samples(rec: dict[str, Any]) -> dict[str, Any]:
     return rec
 
 
+# --- W5c: pose-attribution identity (counter owns time/area; classifier owns identity) -----
+#
+# The counter-plateau segmenter owns each segment's *time/area* boundaries; the room-
+# attribution engine owns *which managed room* a segment is. We use the classifier two ways:
+#   - ENRICH: when counter segmentation produced segments, label each with the cleaned room
+#     the pose stream says dominated its window and PROMOTE that room to ``shortlist[0]`` (the
+#     card auto-selects shortlist[0], so the wizard opens pre-answered). Only in ROBUST mode —
+#     anchor-only attribution can false-positive a parked dock, so we don't override the
+#     settings-based shortlist with a low-confidence guess.
+#   - STAND ALONE (``build_attributed_job``): when counter segmentation produced NOTHING (thin
+#     counters / no plateaus — the common app-run case), build a pending record straight from
+#     the pose attribution so the run isn't lost. Built in BOTH modes (a reviewable pre-fill
+#     beats no record), tagged with ``attribution_mode`` so the card can flag anchor-only.
+
+
+def _resolve_attribution(vacuum_entity_id: str | None) -> tuple[Any, dict[str, Any]]:
+    """Resolve the (room-attribution engine, effective tuning) for a vacuum — the adapter's
+    ``room_attribution`` block over the engine's ``DEFAULT_TUNING`` (Eufy fallback for an absent
+    block, mirroring ``_resolve_engine_tuning``). ``interval_s`` is the single source the engine's
+    dwell and this module's stand-alone timing both read."""
+    engine_name = None
+    adapter_tuning = None
+    if vacuum_entity_id:
+        from ..adapters.registry import get_adapter_config
+
+        _ra = (get_adapter_config(vacuum_entity_id) or {}).get("room_attribution") or {}
+        if isinstance(_ra, dict):
+            engine_name = _ra.get("engine")
+            adapter_tuning = _ra.get("tuning")
+    engine = get_room_attribution_engine(engine_name)
+    eff: dict[str, Any] = dict(getattr(engine, "DEFAULT_TUNING", {}))
+    if isinstance(adapter_tuning, dict):
+        eff.update({k: v for k, v in adapter_tuning.items() if v is not None})
+    return engine, eff
+
+
+def _attribute(
+    pose_samples: list[dict[str, Any]] | None, vacuum_entity_id: str | None
+) -> dict[str, Any] | None:
+    """Run the resolved attribution engine over the run's pose stream → its result dict plus
+    the resolved ``interval_s`` (for stand-alone timing). ``None`` when there is no pose stream
+    (no live map / non-map brand) — the caller then behaves exactly as pre-W5c."""
+    if not pose_samples:
+        return None
+    engine, tuning = _resolve_attribution(vacuum_entity_id)
+    try:
+        result = dict(engine.attribute(pose_samples, tuning=tuning))
+    except Exception:
+        # Attribution is a best-effort enrichment — never let an engine error lose the run.
+        # Returning None degrades to the counter-only path (and build_attributed_job returns
+        # None cleanly), so the run is still captured and the slot still clears.
+        _LOGGER.exception("eufy_vacuum: room attribution failed; building without pose identity")
+        return None
+    result["interval_s"] = _safe_float(tuning.get("interval_s"), 2.0)
+    return result
+
+
+def _dominant_cleaned_room(
+    pose_samples: list[dict[str, Any]],
+    t_start: Any,
+    t_end: Any,
+    cleaned: set[int],
+) -> int | None:
+    """The cleaned room with the most pose ticks inside ``[t_start, t_end]`` — a counter
+    segment's identity. Only rooms in ``cleaned`` count (so transit / parked-dock ticks in
+    the window never win). ``None`` when no cleaned room appears in the window."""
+    s0, s1 = _dt(t_start), _dt(t_end)
+    counts: dict[int, int] = {}
+    for sample in pose_samples or []:
+        rid = sample.get("current_room")
+        if rid is None or rid not in cleaned:
+            continue
+        t = _dt(sample.get("t"))
+        if t is None or (s0 is not None and t < s0) or (s1 is not None and t > s1):
+            continue
+        counts[rid] = counts.get(rid, 0) + 1
+    if not counts:
+        return None
+    return max(counts, key=lambda r: counts[r])
+
+
+def _room_shortlist_entry(room_id: int, rooms: dict[str, Any]) -> dict[str, Any]:
+    """A ``shortlist`` entry for a room known by identity (not by area/settings ranking)."""
+    room = (rooms or {}).get(str(room_id))
+    room = room if isinstance(room, dict) else {}
+    return {
+        "room_id": room_id,
+        "slug": str(room.get("slug", "")).strip().lower(),
+        "name": room.get("name"),
+        "is_carpet": str(room.get("floor_type", "")).strip().lower().startswith("carpet"),
+        "learned_area_m2": None,
+        "settings_score": None,
+        "score": None,
+        "from_pose": True,
+    }
+
+
+def _promote_pose_room(seg: dict[str, Any], room_id: int, rooms: dict[str, Any]) -> None:
+    """Make ``room_id`` the segment's ``shortlist[0]`` (the card pre-selects it). If the room
+    was already shortlisted, keep its richer (area/settings) entry but move it to front and tag
+    ``from_pose``; otherwise prepend a bare identity entry. Caps at ``_SHORTLIST_SIZE``."""
+    shortlist = list(seg.get("shortlist") or [])
+    existing = next(
+        (e for e in shortlist if _safe_int(e.get("room_id"), -2) == room_id), None
+    )
+    head = {**existing, "from_pose": True} if existing else _room_shortlist_entry(room_id, rooms)
+    rest = [e for e in shortlist if _safe_int(e.get("room_id"), -2) != room_id]
+    seg["shortlist"] = [head, *rest][:_SHORTLIST_SIZE]
+    seg["pose_room_id"] = room_id
+
+
+def _apply_pose_identity(
+    out_segments: list[dict[str, Any]],
+    pose_samples: list[dict[str, Any]],
+    attribution: dict[str, Any],
+    rooms: dict[str, Any],
+) -> None:
+    """Label each counter segment with its dominant cleaned room and promote it to
+    ``shortlist[0]`` (mutates). ROBUST mode only — see the section note."""
+    if attribution.get("mode") != "robust":
+        return
+    cleaned = attribution.get("cleaned") or set()
+    if not cleaned:
+        return
+    mode = attribution.get("mode")
+    for seg in out_segments:
+        rid = _dominant_cleaned_room(
+            pose_samples, seg.get("t_start"), seg.get("t_end"), cleaned
+        )
+        if rid is not None:
+            _promote_pose_room(seg, rid, rooms)
+            seg["pose_mode"] = mode
+
+
+def build_attributed_job(
+    *,
+    detection_ts: str | None,
+    map_id: Any,
+    pose_samples: list[dict[str, Any]] | None,
+    attribution: dict[str, Any] | None,
+    settings_samples: list[dict[str, Any]],
+    rooms: dict[str, Any],
+    baselines: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Stand up a pending review record straight from the pose attribution, for a run the
+    counter segmenter couldn't split (the common app-run case — see the section note). One
+    segment per cleaned room: area = the engine's swept m² (authoritative), active time = the
+    room's tick count × cadence, identity pre-filled as ``shortlist[0]``. Returns ``None`` when
+    there is no usable attribution (so finalize writes nothing, exactly as pre-W5c).
+
+    NOT counter-resegmentable (no counter samples embedded → the card hides the room-count /
+    split-here controls); the user can still re-assign or merge rooms in the wizard. ``time_active_s``
+    is the real per-room cleaning time even when the ``[t_start, t_end]`` windows of interleaved
+    rooms overlap (the windows are display-only). Assumes ``pose_samples`` are time-ordered —
+    guaranteed by the single ``async_track_time_interval`` sampler (one append per tick); the
+    classification engine shares that assumption (its run-length encoding is order-sensitive)."""
+    if not attribution or not attribution.get("cleaned"):
+        return None
+    cleaned = attribution["cleaned"]
+    per_room = attribution.get("per_room") or {}
+    mode = attribution.get("mode")
+    interval_s = _safe_float(attribution.get("interval_s"), 2.0)
+    area_by_slug = _baseline_area_by_slug(baselines, map_id)
+
+    # Per cleaned room: first/last tick t (display window) + tick count (active time).
+    info: dict[int, dict[str, Any]] = {}
+    for sample in pose_samples or []:
+        rid = sample.get("current_room")
+        if rid is None or rid not in cleaned:
+            continue
+        entry = info.get(rid)
+        if entry is None:
+            info[rid] = {"first": sample.get("t"), "last": sample.get("t"), "n": 1}
+        else:
+            entry["last"] = sample.get("t")
+            entry["n"] += 1
+    if not info:
+        return None
+
+    # Sort cleaned rooms by first-seen tick. epoch via _dt so its tz-awareness matches the
+    # parsed sample timestamps (never mix naive/aware in the sort key).
+    epoch = _dt("1970-01-01T00:00:00Z")
+    ordered = sorted(info.items(), key=lambda kv: _dt(kv[1]["first"]) or epoch)
+    segments: list[dict[str, Any]] = []
+    for order, (rid, entry) in enumerate(ordered):
+        settings = _segment_settings(settings_samples, entry["last"])
+        area = round(_safe_float((per_room.get(rid) or {}).get("swept_area_m2"), 0.0), 2)
+        active_s = int(round(entry["n"] * interval_s))
+        wall_s = active_s
+        ts0, ts1 = _dt(entry["first"]), _dt(entry["last"])
+        if ts0 is not None and ts1 is not None:
+            wall_s = max(active_s, int((ts1 - ts0).total_seconds()))
+        seg = {
+            "order": order,
+            "boundary_id": None,
+            "t_start": entry["first"],
+            "t_end": entry["last"],
+            "area_m2": area,
+            "time_wall_s": wall_s,
+            "time_active_s": active_s,
+            "pass_count": 1,  # not recoverable from pose alone
+            "settings": settings,
+            "boundary": "pose_attribution",
+            # No counter boundary to be confident about; confidence rides attribution_mode.
+            "confident_boundary": None,
+            "pose_mode": mode,
+            "shortlist": _rank_shortlist(
+                seg_area=area,
+                seg_settings=settings,
+                seg_passes=1,
+                rooms=rooms,
+                area_by_slug=area_by_slug,
+            ),
+        }
+        _promote_pose_room(seg, rid, rooms)  # classified room becomes shortlist[0]
+        segments.append(seg)
+
+    return {
+        "schema_version": PENDING_SCHEMA_VERSION,
+        "status": "pending",
+        "origin": "external",
+        "source": "pose_attribution",  # a pose-only record (no counter segmentation)
+        "attribution_mode": mode,
+        "detection_ts": detection_ts,
+        "map_id": str(map_id),
+        "segment_count": len(segments),
+        "suggested_room_count": len(segments),
+        "gap_transit_s": 60.0,  # schema field; unused (no counter resegment for pose-only)
+        "candidates": [],  # no counter candidates → resegmentable=False at the service
+        "active_boundaries": [],
+        "segments": segments,
+    }
+
+
 def build_pending_record(
     *,
     detection_ts: str | None,
@@ -357,6 +595,7 @@ def build_pending_record(
     rooms: dict[str, Any],
     baselines: list[dict[str, Any]],
     vacuum_entity_id: str | None = None,
+    pose_samples: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """Turn a captured external run into a pending review record (schema v2), or None
     when there is no usable cleaning signal (so a false-start writes nothing).
@@ -367,9 +606,20 @@ def build_pending_record(
     room count or boundary set. Segmentation routes through the adapter's job-segmenter
     engine (``vacuum_entity_id`` resolves it; absent → the Eufy counter engine,
     byte-identical).
+
+    W5c — pose attribution (when ``pose_samples`` is supplied): the room-attribution
+    engine recovers the cleaned-room SET, used to (a) PROMOTE each counter segment's
+    identified room to ``shortlist[0]`` so the wizard opens pre-answered (robust mode
+    only), or (b) STAND UP a record from pose alone (``build_attributed_job``) when the
+    counter segmenter found nothing. No pose stream → ``attribution`` is ``None`` and the
+    function behaves exactly as pre-W5c.
     """
     counter = counter_samples or []
     settings = settings_samples or []
+    # Classifier identity (counter owns time/area; this owns which room). None when there is
+    # no pose stream (non-map brand / no live map) → every branch below is pre-W5c behavior.
+    attribution = _attribute(pose_samples, vacuum_entity_id)
+
     engine, tuning = _resolve_engine_tuning(vacuum_entity_id)
     candidates = engine.find_candidates(counter, tuning=tuning)
     _mark_candidate_confidence(candidates, counter, settings, engine=engine, tuning=tuning)
@@ -378,18 +628,33 @@ def build_pending_record(
         counter, select_active(candidates, default="confident"), tuning=tuning
     )
     if not segments:
-        return None
+        # Counter found no plateaus — stand up a record from the pose attribution instead (the
+        # common app-run case). None when there's no usable attribution → finalize writes nothing.
+        return build_attributed_job(
+            detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
+            attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
+        )
 
     out_segments, _confident_count, active_ids = _enrich_segments(
         segments, candidates, counter, settings, rooms, baselines, map_id
     )
     if not out_segments:
-        return None  # every stretch was sub-room area (no real cleaning signal)
+        # Every counter stretch was sub-room area — fall back to the pose attribution.
+        return build_attributed_job(
+            detection_ts=detection_ts, map_id=map_id, pose_samples=pose_samples,
+            attribution=attribution, settings_samples=settings, rooms=rooms, baselines=baselines,
+        )
+
+    if attribution and pose_samples:
+        _apply_pose_identity(out_segments, pose_samples, attribution, rooms)
 
     return {
         "schema_version": PENDING_SCHEMA_VERSION,
         "status": "pending",
         "origin": "external",
+        # Attribution confidence for the card (robust = swept-area; anchor_only = best-effort);
+        # None when no pose stream was available.
+        "attribution_mode": attribution.get("mode") if attribution else None,
         "detection_ts": detection_ts,
         "map_id": str(map_id),
         "segment_count": len(out_segments),
