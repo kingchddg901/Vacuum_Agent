@@ -21,6 +21,12 @@
  *
  * See animals/*.js and README.md for the definition shape.
  *
+ * Optional `memorial: true` on a definition marks it a tribute (e.g. a baked-fur
+ * memorial like Mittens). It's orthogonal to `type` (body plan) and groups the
+ * animal under a "Rainbow Bridge" section in the theme editor + the map-view
+ * picker. The editor also lists only the tokens such an animal actually themes,
+ * derived from its `colors` block (src/theme-tokens/animals.js).
+ *
  * Theme integration:
  *   All colors a definition declares in its `colors` block become theme-
  *   overridable. Each --animal-X default is wrapped as

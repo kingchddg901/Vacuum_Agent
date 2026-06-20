@@ -29,7 +29,7 @@
  * ============================================================
  */
 
-import { animalSubGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
+import { animalEditorGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/index.js";
 
 /* =========================================================
    STATIC PREVIEW ENTRIES (non-animal groups)
@@ -155,7 +155,9 @@ function buildAnimalSubgroupEntries(animals) {
     const safe = String(name || "").replace(/[^a-z0-9-]/gi, "");
     if (!safe) continue;
     const display = safe.charAt(0).toUpperCase() + safe.slice(1);
-    out[animalSubGroupLabel(safe)] = {
+    // Key by the memorial-aware editor group (Rainbow Bridge — X for memorials),
+    // so the preview pane resolves for a tribute animal too.
+    out[animalEditorGroupLabel(name)] = {
       method:     "_renderThemePreviewAnimal",
       methodArgs: [safe],
       title:      `${display} Preview`,

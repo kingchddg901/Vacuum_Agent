@@ -33,11 +33,11 @@
  * the --animal-eye token because the battery-state system recolours it
  * (good / mid / warn / low / charging).
  *
- * Caveat: the theme editor still lists Mittens' palette tokens (fur, nose, …)
- * because that list is a fixed 14-suffix template in
- * src/theme-tokens/animals.js, not derived from this colors block. For Mittens
- * those baked entries are inert no-ops; only the eye tokens are live. To make
- * the editor omit them, drive PER_ANIMAL_SUFFIXES from the live colors block.
+ * Editor: the theme editor lists ONLY Mittens' live tokens — the eye base +
+ * the 5 battery-state eye bands (6 total), not the baked fur/nose/whisker/…
+ * palette. The per-animal token list is now derived from this `colors` block
+ * (src/theme-tokens/animals.js → declaredColorSuffixes), so the inert no-ops
+ * never surface. Other animals with a full `colors` block still get all 14.
  */
 (function () {
   // Baked, non-themeable identity palette (literal hsl — see header note).
@@ -56,6 +56,9 @@
   AnimalSVG.register('mittens', {
     label: 'Mittens',
     type: 'quadruped',
+    // Memorial: groups Mittens under the "Rainbow Bridge" tribute section in the
+    // theme editor + animal picker (orthogonal to `type` — still a quadruped).
+    memorial: true,
     // Only the eye is declared here — everything else is baked into the parts
     // as literal hsl() and is intentionally not theme-overridable. The eye base
     // feeds the no-battery-attribute case; battery-state bands override it.

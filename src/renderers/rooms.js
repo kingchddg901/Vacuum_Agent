@@ -173,12 +173,23 @@ export function applyRoomsRenderers(proto) {
           title="Companion animal"
           aria-label="Companion animal"
         >
-          ${(window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"]).map((a) => {
-            const def     = window.AnimalSVG?.get?.(a);
-            const label   = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
+          ${(() => {
+            const list    = window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"];
             const current = state.mapAnimalSelection?.() ?? "cat";
-            return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
-          }).join("")}
+            const opt = (a) => {
+              const def   = window.AnimalSVG?.get?.(a);
+              const label = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
+              return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
+            };
+            // Memorial companions sit in their own "Rainbow Bridge" optgroup, set
+            // apart from the everyday animals.
+            const memorial = list.filter((a) => window.AnimalSVG?.get?.(a)?.memorial);
+            const regular  = list.filter((a) => !window.AnimalSVG?.get?.(a)?.memorial);
+            return regular.map(opt).join("")
+              + (memorial.length
+                  ? `<optgroup label="🌈 Rainbow Bridge">${memorial.map(opt).join("")}</optgroup>`
+                  : "");
+          })()}
         </select>
         <input
           type="range"

@@ -56,6 +56,7 @@ import { FOUNDATION_TOKENS     } from "./foundations.js";
 import {
   ANIMAL_PARENT_GROUP,
   animalSubGroupLabel,
+  animalEditorGroupLabel,
   buildAnimalTokenSets,
   buildAnimalGroupOrder,
 } from "./animals.js";
@@ -177,4 +178,4 @@ if (typeof document !== "undefined" && document.addEventListener) {
 
 // Re-export helpers so consumers can resolve animal group labels
 // without importing animals.js directly.
-export { ANIMAL_PARENT_GROUP, animalSubGroupLabel };
+export { ANIMAL_PARENT_GROUP, animalSubGroupLabel, animalEditorGroupLabel };

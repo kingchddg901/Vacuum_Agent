@@ -167,11 +167,15 @@ token registry and editor preview pane both auto-derive from the live
 AnimalSVG list — once your file's `register()` call fires, an event
 notifies the theme system, which rebuilds the registry and adds:
 
-- An "Animal Companion — `<Yourname>`" editor sub-group with 14 tokens
-  (5 battery-state overrides + 9 palette overrides), all prefixed
-  `--evcc-animal-<yourname>-`
+- An "Animal Companion — `<Yourname>`" editor sub-group listing the tokens
+  your animal actually themes — derived from its `colors` block. A full
+  palette is 9 palette + 5 battery-state = 14 tokens, all prefixed
+  `--evcc-animal-<yourname>-`; declare fewer keys and only those appear.
 - A single-animal preview pane in the editor showing your animal in all
   five battery-state bands
+
+(Mark the definition `memorial: true` and it groups under a 🌈 **Rainbow
+Bridge** tribute section instead — see [Memorial animals](#memorial-animals).)
 
 PR description should include: a screenshot of all six poses (you can use
 `demo.html` for this), what the animal expresses (cat → reserved, parrot
@@ -181,6 +185,32 @@ If your animal needs procedural rendering (snake-like), use
 `type: 'custom'`. See `animals/snake.js` for the pattern. You are entirely
 responsible for the warning pose in custom animals — the framework hands
 you the pose name and walks away.
+
+### Memorial animals
+
+A memorial mascot is a tribute to a real animal (e.g. `animals/mittens.js`,
+modelled from photos of the author's cat). The "placeholder quality" disclaimer
+at the top does **not** apply — a memorial is held to a *higher* bar than the
+bundled animals: it should read as that specific animal, with its real markings,
+not a generic shape.
+
+Two things set a memorial apart from a normal animal:
+
+- **Bake the colors in.** Put the fur, markings, and white as literal `hsl()`
+  values directly in the parts — *not* as `colors` keys. A tribute should stay
+  true to the real animal regardless of the active theme, so its palette is
+  deliberately **not** themeable. Leave only `--animal-eye` in the `colors` block
+  (the battery-state system needs it dynamic), and the editor then lists just the
+  eye tokens for it — no inert fur/nose/whisker entries.
+- **Set `memorial: true`.** This groups the animal under a 🌈 **Rainbow Bridge**
+  section in the theme editor and the map-view picker, set apart from the everyday
+  companions. It's orthogonal to `type` — a memorial keeps its body plan (Mittens
+  is a `quadruped`).
+
+Everything else is the same as any animal: it still has to express all six poses
+and obey the coordinate space — it just does so as a faithful portrait rather than
+a placeholder. The technical specifics (the `memorial` flag, the colors-derived
+token list) are in the [animal-svg dev doc](../dev/24-animal-svg.md#memorial-animals-rainbow-bridge).
 
 ### Sanity check before submitting
 

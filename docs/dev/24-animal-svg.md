@@ -28,7 +28,8 @@ animal-svg/
 │   ├── dog.js
 │   ├── raccoon.js
 │   ├── parrot.js
-│   └── snake.js
+│   ├── snake.js
+│   └── mittens.js    memorial tribute (see "Memorial animals")
 └── demo.html         open in a browser to verify everything works
 ```
 
@@ -199,14 +200,20 @@ A theme that wants per-animal character (cat black, dog brown, parrot bright)
 sets per-animal tokens. Both layers can coexist — per-animal wins where set,
 global fills in everywhere else.
 
-The theme editor surfaces these in six groups:
+The theme editor surfaces these in grouped sections:
 
 - **Animal Companion** — global tokens (5 eye-state colors + 9 palette
   fallbacks). Bulk-override every animal at once.
 - **Animal Companion — Cat / Dog / Raccoon / Parrot / Snake** — per-animal
-  overrides. Each sub-group has 14 tokens (5 eye-state + 9 palette). Each
-  also has its own preview showing just that animal in all five battery
-  states, so it's clear what each token controls before you save.
+  overrides. The full catalog is 14 tokens (5 eye-state + 9 palette), but each
+  sub-group lists **only the tokens that animal actually themes**, derived from
+  its `colors` block. A full-palette animal shows all 14; a baked-down one (only
+  `--animal-eye` declared) shows just its 6 live tokens instead of 8 inert no-ops.
+  Each sub-group also has its own preview showing that animal across all five
+  battery states, so it's clear what each token controls before you save.
+- **Rainbow Bridge — <Name>** — memorial animals (registered `memorial: true`)
+  group here instead, a tribute section apart from the everyday companions. See
+  [Memorial animals](#memorial-animals-rainbow-bridge).
 
 ## Wiring to HA state (standalone usage)
 
@@ -250,8 +257,9 @@ To add one:
 `animal-svg-registered` document event tells the integration's theme
 system to rebuild its dynamic registry. Your animal appears automatically
 in the map view's animal selector, in the theme editor with its own
-sub-group of 14 tokens, and in the editor's per-animal preview pane.
-There are no `src/` edits to make.
+sub-group (listing the tokens it actually themes, derived from its `colors`
+block), and in the editor's per-animal preview pane. There are no `src/`
+edits to make.
 
 To remove one, delete its `.js` file and restart HA.
 
@@ -266,6 +274,7 @@ The first argument to `AnimalSVG.register()` is the animal's **ID** — the valu
 AnimalSVG.register('myanimal', {
   label: 'My Animal',
   type:  'quadruped',  // or 'parrot' or 'custom'
+  // memorial: true,   // optional — groups under "Rainbow Bridge" (see "Memorial animals")
 
   // CSS variables consumed by the SVG paths (HSL components, no `hsl()`).
   colors: {
@@ -306,6 +315,29 @@ AnimalSVG.register('myanimal', {
   wingRight: '<g class="f-wing-r">...</g>',
 });
 ```
+
+### Memorial animals (Rainbow Bridge)
+
+Set `memorial: true` on a definition to mark it a tribute (e.g. a baked-fur
+memorial like `mittens.js`). The flag is **orthogonal to `type`** — a memorial
+keeps its body plan (Mittens is still a `quadruped`) — and changes only how the
+animal is *presented*:
+
+- **Theme editor** — it groups under a **Rainbow Bridge** section
+  (`Rainbow Bridge — <Name>`) instead of Animal Companion, a tribute area set
+  apart from the everyday companions.
+- **Animal picker** (map view) — it appears in a `🌈 Rainbow Bridge` `<optgroup>`,
+  below the regular animals.
+- **Token list** — like any animal, only the tokens it actually themes are
+  listed (derived from its `colors` block). A memorial typically bakes its fur
+  and markings as literal `hsl()` directly in the parts and leaves just
+  `--animal-eye` dynamic (the battery-state system re-targets it), so the editor
+  shows only the eye base + the 5 battery-state bands.
+
+To add one: register with `memorial: true`, bake the colors you don't want
+themed into the parts, and keep only the keys you *do* want themeable in the
+`colors` block. No framework or `src/` edits — the editor and picker derive the
+grouping + token list from the flag and the `colors` block automatically.
 
 ### Coordinate space
 
