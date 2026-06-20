@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import json
 import logging
 import math
 import os
+import time
 from datetime import datetime
 from typing import Any
 
@@ -1865,6 +1868,143 @@ async def _handle_compare_map_sources(hass: HomeAssistant, call: ServiceCall) ->
     )
 
 
+# ===========================================================================
+# THROWAWAY DIAGNOSTIC — Wave 0 of the native-transition design
+# (docs/dev/eufy-native-transition.md). REMOVE after the validation recording.
+#
+# Question it answers: is the inferred live `current_room` fresh + non-flickering
+# during a real run WITH NO CARD OPEN? It runs server-side (so the card's ~2s UI
+# poll is NOT keeping the signal warm) and logs the SAME `async_get_map_live_pose`
+# payload the card reads, one line per tick, to a JSONL file in the config dir.
+# Read three numbers off it: (1) refresh actually happening server-side,
+# (2) doorway/transit flicker rate, (3) None-while-cleaning frequency.
+# ===========================================================================
+
+# Active probe tasks, keyed by vacuum entity id (so a second call can stop/restart).
+_LIVE_ROOM_PROBE_TASKS: dict[str, asyncio.Task] = {}
+
+DEBUG_LOG_LIVE_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("interval_seconds", default=2.0): vol.All(
+            vol.Coerce(float), vol.Range(min=0.5, max=60.0)
+        ),
+        vol.Optional("duration_minutes", default=30): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=180)
+        ),
+        vol.Optional("stop", default=False): cv.boolean,
+    }
+)
+
+
+def _append_jsonl(path: str, obj: dict) -> None:
+    """Append one JSON line (sync — runs in the executor, never on the loop)."""
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(obj) + "\n")
+
+
+async def _handle_debug_log_live_room(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Start (or stop) a server-side per-tick logger of the live current_room signal.
+
+    THROWAWAY — see the banner above. Call with stop: true to cancel early; otherwise it
+    auto-stops after duration_minutes. Restarting cancels any prior probe for the vacuum.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    stop: bool = call.data["stop"]
+
+    # Cancel any in-flight probe for this vacuum first (restart or stop both want this).
+    existing = _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
+    if existing is not None and not existing.done():
+        existing.cancel()
+    if stop:
+        return {"stopped": True, "vacuum_entity_id": vacuum_entity_id}
+
+    interval: float = float(call.data["interval_seconds"])
+    duration_minutes: int = int(call.data["duration_minutes"])
+    duration_s = duration_minutes * 60
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    path = hass.config.path(
+        f"eufy_current_room_probe_{vacuum_entity_id.replace('.', '_')}.jsonl"
+    )
+    oid = vacuum_entity_id.split(".", 1)[-1]   # for the device sensors below
+
+    def _sensor_num(suffix):
+        s = hass.states.get(f"sensor.{oid}_{suffix}")
+        try:
+            return float(s.state) if s is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _sensor_str(suffix):
+        s = hass.states.get(f"sensor.{oid}_{suffix}")
+        return s.state if s is not None else None
+
+    await hass.async_add_executor_job(
+        _append_jsonl, path,
+        {
+            "kind": "meta", "vacuum": vacuum_entity_id, "started": utc_now_iso(),
+            "interval_seconds": interval, "duration_minutes": duration_minutes,
+            "note": "tab-CLOSED validation; read freshness/flicker/None-rate",
+        },
+    )
+
+    async def _loop() -> None:
+        start = time.monotonic()
+        n = 0
+        try:
+            while time.monotonic() - start < duration_s:
+                tick = utc_now_iso()
+                try:
+                    pose = await manager.async_get_map_live_pose(
+                        vacuum_entity_id=vacuum_entity_id
+                    )
+                except Exception as err:  # a probe must never crash a real run
+                    pose = {"present": False, "reason": f"probe_error:{err!r}"}
+                # Log only the small fields (skip the verbose `path` trail).
+                await hass.async_add_executor_job(
+                    _append_jsonl, path,
+                    {
+                        "kind": "sample", "t": tick, "i": n,
+                        "present": bool(pose.get("present")),
+                        "reason": pose.get("reason"),
+                        "current_room": pose.get("current_room"),
+                        "robot_docked": pose.get("robot_docked", False),
+                        "robot_anchor": pose.get("robot_anchor"),
+                        "robot_heading": pose.get("robot_heading"),
+                        # Device signals for the room-attribution classifier: swept-area is the
+                        # REQUIRED clean-vs-parked separator (a wash/park sweeps ~0 m^2); the
+                        # status fields timestamp the washes. See room_attribution.py.
+                        "cleaning_area": _sensor_num("cleaning_area"),
+                        "cleaning_time": _sensor_num("cleaning_time"),
+                        "task_status": _sensor_str("task_status"),
+                        "dock_status": _sensor_str("dock_status"),
+                        "diagnostics": pose.get("diagnostics"),
+                    },
+                )
+                n += 1
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
+            try:
+                await hass.async_add_executor_job(
+                    _append_jsonl, path,
+                    {"kind": "end", "ended": utc_now_iso(), "samples": n},
+                )
+            except Exception:  # executor may be gone on shutdown — best-effort
+                pass
+
+    task = hass.async_create_background_task(
+        _loop(), name=f"eufy_live_room_probe:{vacuum_entity_id}"
+    )
+    _LIVE_ROOM_PROBE_TASKS[vacuum_entity_id] = task
+    return {
+        "started": True, "vacuum_entity_id": vacuum_entity_id, "path": path,
+        "interval_seconds": interval, "duration_minutes": duration_minutes,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Custom layout CRUD
 # ---------------------------------------------------------------------------
@@ -2465,6 +2605,15 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_COMPARE_MAP_SOURCES, compare_map_sources,
         schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+
+    # THROWAWAY DIAGNOSTIC (Wave 0, eufy-native-transition) — remove after validation.
+    async def debug_log_live_room(call: ServiceCall) -> dict:
+        return await _handle_debug_log_live_room(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, "debug_log_live_room", debug_log_live_room,
+        schema=DEBUG_LOG_LIVE_ROOM_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,

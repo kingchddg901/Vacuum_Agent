@@ -2454,6 +2454,47 @@ compare_map_sources:
           integration: eufy_vacuum
           domain: vacuum
 
+debug_log_live_room:
+  name: "Debug: log live current_room (THROWAWAY)"
+  description: >
+    Wave 0 validation probe (docs/dev/eufy-native-transition.md) — TEMPORARY, remove after use.
+    Logs the live current_room signal server-side, one line per tick, to
+    config/eufy_current_room_probe_<vacuum>.jsonl. Run it, then start a multi-room clean with
+    the map tab CLOSED (so the card's UI poll isn't keeping the signal warm). Read the file for
+    (1) is the signal refreshing server-side, (2) doorway/transit flicker rate,
+    (3) None-while-cleaning frequency. Call again with stop:true to end early; otherwise it
+    auto-stops after duration_minutes.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    interval_seconds:
+      name: Sample interval (s)
+      default: 2.0
+      selector:
+        number:
+          min: 0.5
+          max: 60
+          step: 0.5
+          unit_of_measurement: s
+    duration_minutes:
+      name: Max duration (min)
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 180
+          unit_of_measurement: min
+    stop:
+      name: Stop the running probe
+      default: false
+      selector:
+        boolean:
+
 create_custom_layout:
   name: Create custom layout
   description: >

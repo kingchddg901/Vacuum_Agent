@@ -1,0 +1,232 @@
+# Eufy native current-room transition detection (hybrid)
+
+**Status:** design proposed 2026-06-19; **Wave 0 validation CAPTURED 2026-06-20.** The freshness gate
+**PASSED** (signal is live server-side with the map tab fully closed), and a **blind** room-attribution
+test **recovered the exact cleaned set (3/3, precision = recall = 1.0)** on a deliberately adversarial
+external run — dock-trap avoided, tiny-room floor caught. Direction approved (hybrid: native-primary +
+heuristic fallback). **All three adversarial cases PASSED — 9/9 cleaned-room calls, 0 false positives** across:
+dock-trap (room 8 excluded when parked), dock-room-cleaned (room 8 included when cleaned, parked↔cleaned
+flip on spread), tiny-room floor (1 m² / 30 s), and the **interleaved mop-wash** "vicious" run
+(3-way cross-check: probe ↔ record ↔ device history; **cleaned-area** confirmed as the wash/clean
+tiebreaker). **Still APPROVAL PAUSE on runtime code:** the meanest realistic cases held, so what remains
+before code is to **formalize the dwell + spread + winding + cleaned-area rule with the validated
+thresholds** (and re-confirm the file:line anchors). See
+[Wave 0 results](#wave-0--the-validation-gate-captured-2026-06-20). Anchors below are *as-investigated*
+and must be re-confirmed at implementation time (verify-vs-code rule).
+
+## The question
+
+Eufy now exposes a per-frame `current_room` (read from the eufy-clean fork's in-memory `MapData`,
+surfaced on the map-overlays sensor). Historically Eufy had no native current-room, so run-time
+room-transition detection used the **counter-plateau / timing heuristic** (`eufy_counter_v1`).
+Roborock instead gets a **native** rollover via the brand-agnostic `live_transition` seam. Can
+Eufy's `current_room` now drive transition detection through that same seam?
+
+## Verdict
+
+**Yes — with caveats — via the EXISTING `live_transition.native_transition_source` seam.** The seam
+has zero brand-specific engine code, so an Eufy adapter could in principle ride the same
+`_maybe_roll_current_room_by_native_signal` path Roborock uses. **But the signal is the wrong shape
+today, and it is itself an inference** — so the answer is a *hybrid*, not a flag flip.
+
+Two facts shape the whole design:
+
+1. **Shape mismatch.** The seam consumes a live room-**NAME** entity (slug-matched to job targets,
+   `_resolve_native_target_room_id` at `jobs/active_job.py:883-929`) wired as
+   `entities.active_cleaning_target`. Eufy's `current_room` is an inferred raster-lookup room **ID**
+   (`mapping/map_source.py:231-260`, surfaced at `sensor/map_overlays.py:72-84`), and Eufy already
+   uses `active_cleaning_target` as a completion **sentinel** (`adapters/eufy/adapter.py:353`). So a
+   name-surfacing + slug-reconciliation shim and a completion-path migration are prerequisites.
+2. **It's inference, not an upstream signal.** Our "prefer dedicated upstream signals over inferred
+   state" principle would push native-only — but Eufy's `current_room` is a raster lookup *we*
+   compute, not a device field. It is a better-grounded inference than counter-plateau, yet it goes
+   **blind (`None`)** exactly when the robot is between rooms or docked. That is precisely where the
+   heuristic must remain as a fallback.
+
+## The seam (existing, brand-agnostic)
+
+Three collaborators (`jobs/active_job.py:596-708`):
+
+- `live_transition.native_transition_source: True` — Eufy is currently `False` (`adapters/eufy/adapter.py:632`).
+- `entities.active_cleaning_target` → a **live room-NAME** sensor.
+- the ~5s tick caller `_maybe_roll_current_room_by_timing` (`core/manager.py:3111`), which
+  short-circuits into the native branch when the flag is set (`jobs/active_job.py:701-708`).
+
+Native rollover logic is **order-agnostic and idempotent** (`jobs/active_job.py:931-1001`):
+first-confirmed target is *adopted* with no completion (queue order was a guess); a move to a
+different target *completes only the previously-confirmed* target; same-target is a no-op. Unknown /
+transit / non-job-target names resolve to `None` and are ignored (`:931`) — this is the built-in
+transit + dock filter. Roborock proves coordinate drift is irrelevant here: its rollover is
+purely name-driven and uses no position/bounds (`position_lock_reliable` is also `False`).
+
+Sequenced/strict-order jobs bypass both paths (`jobs/active_job.py:687-688`) and instead read the
+same native signal through the phase watchdog's `native_current_room_target_id` accessor
+(`core/manager.py:4954`).
+
+**Dock-start phantom is already handled (not a new edge case).** When the dock sits *inside a queued
+room*, `current_room` reads that room while parked, then changes as the robot leaves — naively
+"completing" a room that was never cleaned. This is documented + tested: `NR-10` (sequenced jobs no-op
+the live rollover via the phases guard, `:687`) and `NR-4` (the first confirmed signal is *adopted*
+with **no** completion). Eufy inherits both by riding the seam; we just mirror those cases in the Eufy
+contract tests (shim #6). Confirmed empirically in Wave 0 — the dock room was *seen* but correctly not
+attributed (see below).
+
+## The hybrid design
+
+**Native-primary, heuristic-fallback, gated on availability + an N-frame settle.**
+
+- When `current_room` resolves to a confirmed job-target name **and** has held for **N consecutive
+  ticks**, the native path completes/advances.
+- When it is `None` / stale / off-map / docked, fall back to the dormant `eufy_counter_v1`
+  counter-plateau engine (kept wired at `adapters/eufy/adapter.py:613`, `counter_segmentation.py`).
+- The settle requirement replaces the smoothing the plateau logic gave for free — the native
+  rollover path has **no debounce of its own** (settle/verify/retry lives only in the strict-order
+  phase watchdog, `core/manager.py:4835-4988`, not in grouped-job rollover).
+
+This captures most of the better-grounded-signal win while the heuristic covers the inference's
+blind spots.
+
+## Prerequisite shims
+
+| # | Shim | Why | Anchor |
+|---|---|---|---|
+| 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py:82` |
+| 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py:353`, `adapters/roborock/adapter.py:201` |
+| 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js:600-625`) and does NOT run when the tab is backgrounded | new periodic task |
+| 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `jobs/active_job.py:931-1001` |
+| 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py:449-456`, cf. `adapters/roborock/adapter.py:274` |
+| 6 | Contract tests mirroring `NR-1..NR-11` for the Eufy adapter | parity with Roborock's native-rollover suite | `tests/integration/test_native_rollover.py` |
+
+The flag flip + per-room-live-settings reuse are nearly free; shims 1–4 are the real work.
+
+## Wave 0 — the validation gate (CAPTURED 2026-06-20)
+
+**Instrumentation:** throwaway server-side service `eufy_vacuum.debug_log_live_room` (in
+`mapping/mapping_services.py`, REMOVE after validation) — resolves the live pose every 2s via the same
+`async_get_map_live_pose` path and logs `{t, current_room, robot_docked, robot_anchor, …}` to
+`config/eufy_current_room_probe_<vacuum>.jsonl`, with **no card open**. Two runs captured on
+`vacuum.alfred`: a 2-room dispatched run + a deliberately adversarial 3-room external run.
+
+**Result — the gate PASSED on all three numbers:**
+1. **Refresh server-side, card closed: YES.** 351 distinct anchors / 375 consecutive changes over the
+   external run — the fork pushes pose via MQTT independent of any UI poll. So **shim #3 may be
+   unnecessary** (the signal is already live without us driving it). *Caveat:* no in-repo proof the
+   `_robot_pixel` frame is stable mid-run; observed-only.
+2. **Flicker: 0 single-tick room blips** on the dispatched run; on the external run the only 1-tick
+   blips were `None`/transit cells and **post-dock previous-room flashes**, all filtered by dwell.
+3. **`None`-while-cleaning: 0%.** The signal never went blind through either run, even across a 43 s
+   inter-room transit.
+
+**Decisive headline — blind room attribution recovered the exact cleaned set.** From `current_room`
+alone (no labels), classifying each room the signal saw by **dwell + anchor spread + path-winding**,
+the predicted cleaned set `{2, 4, 6}` matched the ground-truth external job record exactly:
+
+| Room | Name / area | Signal | Verdict |
+|---|---|---|---|
+| 4 | Hallway 6 m² | dwell 118 s, spread 0.069, winding 126 | CLEANED ✓ |
+| 2 | Bathroom 2 m² | dwell 110 s, spread 0.054, winding 31 | CLEANED ✓ |
+| 6 | Entryway **1 m²** | dwell 46 s, spread 0.026, winding 5.2 | CLEANED ✓ (tiny floor) |
+| 8 | Dining (dock) | dwell **271 s** (longest!), spread **0.015** | dock — correctly NOT attributed |
+| 7 | — | 8× ~16 s, winding ~1.2 | transit hallway — not attributed |
+
+The two hard cases both broke right: the **dock trap** (room 8 had the *longest dwell of the whole run*
+and would be the #1 false positive on dwell alone — only its **low spread** excluded it) and the
+**tiny-room floor** (entryway, 1 m², ~60 s clean — cleared the transit band: min-cleaned 46 s vs
+max-transit 18 s, a 28 s gap).
+
+**Caveats (why the gate isn't fully closed):**
+- **n=1 per pattern** (2 runs). Thresholds were *interpreted on this data*, not pre-registered.
+- **The naïve auto-classifier mis-included the dock** (room 8) on dwell; the **spread-rescue** rule is
+  what excluded it. So the signal *contains* enough to be exact, but the rule (dwell + spread + winding,
+  with a dock spread-rescue) must be **formalized and re-validated** before it runs unsupervised.
+- ~~**Dock-room-*cleaned* is untested.**~~ **CLOSED 2026-06-20 (run #2, dock-room-first).** Dining
+  (room 8, the dock room) was cleaned first; the classifier flipped it **parked→cleaned** correctly on
+  spread alone: **cleaned-dock spread 0.073** (one contiguous park+clean run, cleaning dominates) vs
+  **parked-dock ~0.015–0.016** (last run + this run's end park) — a ~4.5× gap, same physical room,
+  both directions correct. Blind prediction `{2, 6, 8}` = ground truth exactly (precision = recall = 1.0).
+  The **max-spread-per-run** aggregation was validated (room 8 had both a cleaned run and a park run;
+  max picked the clean). Combined **6/6** cleaned-room calls across the two adversarial external runs,
+  0 false positives. (then 6/6.)
+- **Interleaved mop-wash (the "vicious" case): PASSED 2026-06-20 (run #3) — now 9/9 across all three
+  adversarial runs, 0 false positives.** Kitchen(mop)→Dining(vacuum, the dock room)→Hallway(vacuum+mop)
+  with mid-run washes; blind `{4,5,8}` = ground truth. Room 8 had **5 runs**; **max-spread-per-run**
+  picked the dining clean (spread 0.071) out of the start-wash/early-clean/clean+folded-wash/park/
+  final-wash pile. A **three-way cross-check** — probe `current_room` ↔ finalized record ↔ device-history
+  CSV — all agreed. **Cleaned-area (`sensor.*_cleaning_area`) validated as the wash/clean tiebreaker:**
+  swept m² accrues during cleans (kitchen ~2, dining ~8, hallway ~2) and is **FLAT during the wash**
+  (03:44–03:46, `vacuum=docked`/`dock=Washing`, 0 m² added) — separating "washing in the dock room" from
+  "cleaning the dock room" when spread can't (same room id, contiguous). Measured (not assumed): the
+  device does **NOT** wash on every mode switch (no wash between kitchen-mop and dining-vacuum) — real
+  cadence ≠ predicted. And `sensor.*_active_cleaning_target` stayed **`None`** the whole external run →
+  the in-job seam's name-signal is unavailable for app cleans, so external runs **must** use this
+  classifier (→ W5), not the seam. **Set attribution is robust on dwell+spread+winding; *time*
+  attribution needs cleaned-area to subtract the folded wash (run 5 = ~600s clean + ~170s wash).**
+
+## External-run auto-attribution (first-class consumer — validated)
+
+The headline use is **not just** the in-job rollover. An app-started (external) clean has no
+dispatched queue, so the integration can't anchor to targets — today it leans on the counter-plateau
+heuristic + a manual room-set step in the external-capture wizard. The Wave 0 external run was exactly
+this case, and `current_room` recovered the cleaned rooms **exactly** (3/3) — so it can **auto-attribute
+external runs** instead of inferring/asking. Treated here as a first-class consumer, built to the same
+bar (rare-use is no reason to half-build it; and it rides the same signal as the in-job rollover, so
+it's cheap to add).
+
+Two concrete wins seen in the data:
+- The external job record logged **`transitions: []`** — the capture system recorded *zero*
+  transitions — while `current_room` captured the full device path (`8→7→4→…→2→…→6→8`) with clean
+  handoffs. So the native signal **adds path/transition data the capture system doesn't have today.**
+- The dwell+spread+winding classifier separated the 3 cleaned rooms from the dock + transit rooms with
+  clean margins (see the Wave 0 table).
+
+**The classification rule — FORMALIZED 2026-06-20** (`scratch-external-estimator/room_attribution.py`
++ `test_room_attribution.py`, a pure-Python prototype with the 3 runs as regression fixtures):
+1. Segment by `current_room` into contiguous runs; per run compute dwell, anchor spread (RMS),
+   path-winding (`path_len / net_disp`), bbox area.
+2. **Drop TRANSIT by winding** — a run with winding < ~1.5 is a straight pass-through (transit
+   rooms measured 1.0–1.22; cleaned rooms ≥ 4.9). Robust across all 3 runs.
+3. **Cleaned vs parked-dock by SWEPT AREA** — `sensor.<vac>_cleaning_area` delta over the room's
+   windows ≥ ~0.5 m² ⇒ cleaned; a wash/park sweeps ~0 m². Aggregate per room by its best run
+   (NOT total dwell).
+
+**KEY FINDING the formalization surfaced — swept-area is REQUIRED, not optional.** The anchor-only
+signals (dwell + spread + winding) **cannot** separate a *jittering parked dock* from a clean: in
+run #1, room 8 (parked) sits inside the cleaned cluster on every anchor axis (dwell 271 s, winding 43,
+spread 0.028 — all ≥ the cleaned tiny rooms). The harness proves it — **anchor-only = 9/9 recall but
+1 false positive** (the parked dock leaks through); the live "9/9" had silently patched that with
+manual judgment on that exact room. **Area-augmented = 9/9, 0 FP.** So the earlier "spread-rescue"
+framing was not robust; the device swept-area is the load-bearing clean/parked separator. (The probe
+`debug_log_live_room` now logs `cleaning_area` + `task_status`/`dock_status` so future runs carry it
+natively.) Distinct from the in-job seam (job-target slug match, unavailable for external runs), this
+is a **segment-by-current_room + swept-area** classifier — the role the counter-plateau heuristic
+plays today, but grounded in observed position + device area.
+
+## Waves (post-gate, pending approval)
+
+- **W0.5** — DONE: all adversarial runs captured + the rule **formalized** with regression fixtures
+  (`scratch-external-estimator/`). Outstanding: the probe now logs `cleaning_area`, so capture a couple
+  more runs to re-validate the **area-augmented** rule end-to-end (the anchor-only fixtures used the
+  record's per-room area as a stand-in for runs #1/#2; run #3 was device-verified).
+- **W1** — shim #1 (name sensor) + shim #2 (completion migration), with tests. No behavior change yet.
+- **W2** — shim #3 (server-side run-time refresh) **only if W0.5 contradicts** the "already-live" finding.
+- **W3** — flip `native_transition_source` + shim #4 (settle) + availability fallback gate; `NR`-parity tests.
+- **W4** — strict-order path via `native_current_room_target_id` + shim #5 (re-map reconciliation).
+- **W5** — external-run auto-attribution: wire the dwell+spread+winding classifier into the
+  external-capture path to auto-derive cleaned rooms (replacing the manual room-set / counter-plateau
+  inference), gated on a confidence check with the heuristic as fallback.
+
+## Open unknowns (honest)
+
+- No in-code assertion that the live `_robot_pixel` frame is stable mid-run — inferred from fork
+  behavior, not proven here (`mapping/map_source.py:407-415`).
+- Device→fork→render latency rides on top of our freshness guarantee and is outside this repo; the
+  seam's idempotency absorbs a coarse cadence, but the settle value (N) must come from W0 data.
+
+## Related
+
+- `docs/dev/map-state-source.md` — where the rid signal comes from.
+- `docs/dev/29-roborock-adapter.md` — the native-rollover precedent.
+- `docs/dev/06-job-lifecycle.md` — the rollover tick + phase model.
+- memory: `reference_eufy_intersession_coord_drift`, `project_room_segmentation_unified`,
+  `feedback_kiss_upstream_signals`, `feedback_archive_cheap_raw_data`,
+  `feedback_quality_not_gated_by_usage` (why external-run auto-attribution is first-class despite rare use).
