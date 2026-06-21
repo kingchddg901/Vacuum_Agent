@@ -176,7 +176,9 @@ card never needs them; re-segmentation reads them on the server.
       "settings": { "clean_mode": "vacuum_mop", "fan_speed": "Turbo", ... },
       "boundary": "job_start",          // the kind of cut that opened it (job_start / wash_plateau / transit / area_jump / weak)
       "confident_boundary": null,        // null for order 0; bool for K>0
-      "shortlist": [ { "room_id", "slug", "name", "is_carpet", "learned_area_m2", "settings_score", "score" }, ... ]
+      "shortlist": [ { "room_id", "slug", "name", "is_carpet", "learned_area_m2", "settings_score", "score", "from_pose" }, ... ],
+      "pose_room_id": 5,                 // W5c: the room the pose stream identified (promoted to shortlist[0]); absent without a pose stream
+      "pose_confidence": "cleaned"       // "cleaned" (swept-area confirmed) | "presence" (counter-vouched, named by dwell when stale cleaning_area masked the swept area)
     },
     ...
   ]
@@ -187,6 +189,14 @@ card never needs them; re-segmentation reads them on the server.
 for what happens on accept. (v1 records — written before this change, no embedded
 samples — still load and confirm; they simply cannot be re-segmented and degrade
 to the legacy merge-only review, see §5a.)
+
+**W5c — pose attribution.** When a run-active pose stream is captured, the room-attribution
+engine recovers the cleaned-room set and **promotes** each counter segment's identified room to
+`shortlist[0]` (`from_pose: true`), recorded as `pose_room_id` + `pose_confidence`: `cleaned` =
+the room's swept area confirmed it; `presence` = the counter vouched the segment is a real clean
+but the swept area was masked (e.g. a stale `cleaning_area` through the run's first room), so it's
+named by the dominant room the robot dwelt in. Pose-only runs (no counter segments) stand a record
+up straight from pose. See [external-run-robustness-followups](external-run-robustness-followups.md).
 
 ---
 

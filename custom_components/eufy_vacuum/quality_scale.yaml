@@ -51,20 +51,27 @@ rules:
   docs-actions:
     status: todo
     comment: >
-      Developer documentation pass is planned (12-file scope, tracked in
-      project memory). Service action reference is part of that pass.
+      Service actions are described in services.yaml (rendered in the HA UI) and
+      the dev/user-guide docs (now DONE). Formal Silver action-reference sign-off
+      is pending the Silver pass.
 
   docs-high-level-description:
     status: todo
-    comment: Planned as part of the dev docs pass.
+    comment: >
+      The dev + user-guide docs pass is DONE (docs/ tree + the live docs site);
+      formal Silver sign-off for this specific rule is pending the Silver pass.
 
   docs-installation-instructions:
     status: todo
-    comment: Planned as part of the dev docs pass.
+    comment: >
+      The dev + user-guide docs pass is DONE (docs/ tree + the live docs site);
+      formal Silver sign-off for this specific rule is pending the Silver pass.
 
   docs-removal-instructions:
     status: todo
-    comment: Planned as part of the dev docs pass.
+    comment: >
+      The dev + user-guide docs pass is DONE (docs/ tree + the live docs site);
+      formal Silver sign-off for this specific rule is pending the Silver pass.
 
   entity-event-setup:
     status: done

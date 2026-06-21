@@ -14,6 +14,9 @@ htmlcov/
 htmlcov_scratch/
 .pytest_cache/
 
+# Local scratch / one-off analysis dir (throwaway; keepers get promoted to tests/ or scripts/)
+scratch-external-estimator/
+
 # Node / card build
 node_modules/
 dist/

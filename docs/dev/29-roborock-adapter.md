@@ -190,6 +190,12 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
   per-phase watchdog (settle → dispatch → verify the device actually started THIS
   room → retry) handles the S6 ignoring a clean sent the instant it docks. See
   [06-job-lifecycle](06-job-lifecycle.md) / [07-queue-engine](07-queue-engine.md).
+  > **Known limitation (recording, not cleaning):** finalization currently captures
+  > only the **last phase's** room, so a multi-room strict-order run mis-attributes the
+  > whole run's battery/area to that one room in learning (`room_timings` comes from a
+  > transit tracker that breaks on the per-room dock trip). The cleaning sequence is
+  > correct; the per-phase recording fix (snapshot each phase's timing in
+  > `maybe_advance_phase`, finalize from `job["phases"]`) is tracked.
 - **Native current-room live rollover** — driven by `live_transition.
   native_transition_source` (§4), suppressed for sequenced jobs so a parked dock
   room is never phantom-completed.
