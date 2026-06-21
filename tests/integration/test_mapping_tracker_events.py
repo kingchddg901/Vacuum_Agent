@@ -222,11 +222,19 @@ async def test_dock_drift_log(tracker, hass):
     _register(tracker)
     hass.states.async_set(_VAC, "docked")  # docked, and start_job NOT called -> no job
 
+    # The HA test config_dir is shared/persistent across runs, so start from a clean
+    # slate — otherwise a leftover drift log makes the count assertion non-deterministic.
+    drift_path = tracker._dock_drift_path(_VAC)
+    if drift_path.exists():
+        drift_path.unlink()
+
     tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4000.0)
     tracker._handle_position_update(_VAC)            # first reading -> logged
+    await hass.async_block_till_done()               # finish this append before the next
     tracker._handle_position_update(_VAC)            # unchanged -> skipped
     tracker._get_raw_position = lambda vacuum_entity_id: (15000.0, 4237.0)
     tracker._handle_position_update(_VAC)            # drift -> logged with dy=+237
+    await hass.async_block_till_done()               # ordered after the first append
 
     # not docked: a change here must NOT be logged
     hass.states.async_set(_VAC, "cleaning")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
@@ -126,6 +127,10 @@ class MappingTracker:
         self._last_recorded_pos: dict[str, tuple[float, float]] = {}
         # Last logged DOCKED position, for the dock-coordinate drift log (diagnostic).
         self._last_dock_pos: dict[str, tuple[float, float]] = {}
+        # Serializes the dock-drift JSONL read-modify-write across executor threads —
+        # appends rewrite the whole (rolled-off) file, so concurrent appends could
+        # otherwise lose an update. Passive diagnostic; one lock is ample.
+        self._dock_drift_lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # Temp-file persistence helpers
@@ -449,45 +454,46 @@ class MappingTracker:
     ) -> None:
         """Append one dock-drift reading as a JSONL line, rolling off beyond DOCK_DRIFT_MAX_LINES."""
         path = self._dock_drift_path(vacuum_entity_id)
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            record: dict = {
-                "ts": datetime_to_utc_iso(utc_now()),
-                "vx": vx,
-                "vy": vy,
-                "state": state,
-            }
-            if dx is not None:
-                record["dx"] = dx
-                record["dy"] = dy
-            existing: list[str] = []
-            if path.exists():
-                existing = path.read_text(encoding="utf-8").splitlines()
-            else:
-                existing = [json.dumps({
-                    "_meta": "eufy_vacuum dock-coordinate drift log",
-                    "vacuum": vacuum_entity_id,
-                    "description": (
-                        "One line per distinct docked position. The dock is a fixed "
-                        "point, so any change is coordinate-frame drift. dx/dy = delta "
-                        "from the previous logged reading."
-                    ),
-                })]
-            existing.append(json.dumps(record))
-            if existing and '"_meta"' in existing[0]:
-                body = existing[1:]
-                if len(body) > self.DOCK_DRIFT_MAX_LINES:
-                    body = body[-self.DOCK_DRIFT_MAX_LINES:]
-                existing = [existing[0]] + body
-            elif len(existing) > self.DOCK_DRIFT_MAX_LINES:
-                existing = existing[-self.DOCK_DRIFT_MAX_LINES:]
-            tmp = path.with_suffix(".tmp")
-            tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
-            tmp.replace(path)
-        except Exception:
-            _LOGGER.exception(  # pragma: no cover
-                "MappingTracker: failed to append dock-drift for %s", vacuum_entity_id,
-            )
+        with self._dock_drift_lock:
+            try:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                record: dict = {
+                    "ts": datetime_to_utc_iso(utc_now()),
+                    "vx": vx,
+                    "vy": vy,
+                    "state": state,
+                }
+                if dx is not None:
+                    record["dx"] = dx
+                    record["dy"] = dy
+                existing: list[str] = []
+                if path.exists():
+                    existing = path.read_text(encoding="utf-8").splitlines()
+                else:
+                    existing = [json.dumps({
+                        "_meta": "eufy_vacuum dock-coordinate drift log",
+                        "vacuum": vacuum_entity_id,
+                        "description": (
+                            "One line per distinct docked position. The dock is a fixed "
+                            "point, so any change is coordinate-frame drift. dx/dy = delta "
+                            "from the previous logged reading."
+                        ),
+                    })]
+                existing.append(json.dumps(record))
+                if existing and '"_meta"' in existing[0]:
+                    body = existing[1:]
+                    if len(body) > self.DOCK_DRIFT_MAX_LINES:
+                        body = body[-self.DOCK_DRIFT_MAX_LINES:]
+                    existing = [existing[0]] + body
+                elif len(existing) > self.DOCK_DRIFT_MAX_LINES:
+                    existing = existing[-self.DOCK_DRIFT_MAX_LINES:]
+                tmp = path.with_suffix(".tmp")
+                tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
+                tmp.replace(path)
+            except Exception:
+                _LOGGER.exception(  # pragma: no cover
+                    "MappingTracker: failed to append dock-drift for %s", vacuum_entity_id,
+                )
 
     # ------------------------------------------------------------------
     # Listener registration
