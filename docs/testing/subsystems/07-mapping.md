@@ -42,10 +42,6 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `map_source_runtime.py` | 456 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
 | `map_source_coordinator.py` | 189 | 52% | `tests/integration/test_manager_compare_sources.py` + `tests/integration/test_manager_live_pose.py` | integration |
 
-> The `TBD` Stmts/Cov cells above are filled in by `scripts/update_test_docs.py`
-> on the next coverage run (it owns the numeric cells + the headline test count);
-> the headline above still reflects the pre-`map_state_source` table until that run.
-
 ---
 
 ## What's tested
