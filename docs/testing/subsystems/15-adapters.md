@@ -25,7 +25,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `registry.py` | 141 | 94% | `test_adapters.py` | integration |
+| `registry.py` | 154 | 92% | `test_adapters.py` | integration |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter |
@@ -39,7 +39,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/water_config.py` | 2 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/maintenance_components.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
 

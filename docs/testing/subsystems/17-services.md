@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **164 tests across 14 files**.
+contract). Covered by **166 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -14,16 +14,16 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 | Source module | Stmts | Cov | Test file |
 |---------------|------:|----:|-----------|
-| `job_control.py` | 115 | 100% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
+| `job_control.py` | 127 | 95% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
 | `run_profiles.py` | 89 | 100% | `test_services_run_profiles.py` |
 | `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
-| `setup.py` | 108 | 91% | `test_services_errors_setup.py` |
+| `setup.py` | 124 | 91% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
 | `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
 | `rooms.py` | 80 | 95% | `test_services_rooms.py` |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
 | `queue.py` | 43 | 100% | `test_services_queue.py` |
-| `snapshots.py` | 40 | 100% | `test_services_snapshots.py` |
+| `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` |
 | `access_graph.py` | 25 | 100% | `test_services_access_graph.py` |
 | `_common.py` | 35 | 89% | `test_services_common.py`, `test_services_misc.py` |

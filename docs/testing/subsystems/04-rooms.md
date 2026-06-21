@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `access_graph.py` | 404 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
-| `room_crud.py` | 114 | 99% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
+| `room_crud.py` | 116 | 99% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
 | `room_discovery.py` | 79 | 93% | `test_room_discovery.py` | integration |
 | `room_manager.py` | 40 | 100% | `test_room_manager.py` (unit) | unit |
 | `utils.py` | 2 | 100% | `test_rooms_utils.py` (unit) | unit |

@@ -2,7 +2,7 @@
 
 The battery subsystem tracks cell wear: it accumulates battery samples into
 charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy
-vs. an install baseline, and records per-job drain metrics. Covered by **95 tests across 4 files**.
+vs. an install baseline, and records per-job drain metrics. Covered by **97 tests across 4 files**.
 
 Source: `custom_components/eufy_vacuum/battery/`
 Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-system.md)
@@ -16,7 +16,7 @@ Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-sys
 | `job_metrics.py` | 77 | 98% | `tests/unit/test_battery_metrics.py` | unit (pure) |
 | `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
 | `sensors.py` | 165 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
-| `manager.py` | 413 | 91% | `tests/integration/test_battery_manager.py` | integration |
+| `manager.py` | 414 | 93% | `tests/integration/test_battery_manager.py` | integration |
 
 ---
 
