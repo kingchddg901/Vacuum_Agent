@@ -108,11 +108,11 @@ def _make_cloud_issue(hass, *, duid=_DUID):
 async def test_getter_defaults_and_overrides(hass, manager):
     """[LRR-1]"""
     _register(hass, live_room_refresh=None)
-    cfg = manager._live_room_refresh(_VAC)
+    cfg = manager.live_room_refresh._resolve_config(_VAC)
     assert cfg["enabled"] is False and cfg["service"] is None and cfg["local_gate"] is None
 
     _register(hass)
-    cfg = manager._live_room_refresh(_VAC)
+    cfg = manager.live_room_refresh._resolve_config(_VAC)
     assert cfg["enabled"] is True and cfg["interval_s"] == 15
     assert cfg["service"]["domain"] == "roborock"  # NOT vacuum.* (see services.py)
     assert cfg["service"]["service"] == "get_vacuum_current_position"
@@ -120,9 +120,9 @@ async def test_getter_defaults_and_overrides(hass, manager):
     assert cfg["local_gate"]["issue_domain"] == "roborock"
 
     _register(hass, live_room_refresh={**_LRR, "interval_s": "oops"})
-    assert manager._live_room_refresh(_VAC)["interval_s"] == 15  # bad -> default
+    assert manager.live_room_refresh._resolve_config(_VAC)["interval_s"] == 15  # bad -> default
     _register(hass, live_room_refresh={**_LRR, "interval_s": 0})
-    assert manager._live_room_refresh(_VAC)["interval_s"] == 1  # clamped to >= 1
+    assert manager.live_room_refresh._resolve_config(_VAC)["interval_s"] == 1  # clamped to >= 1
 
 
 # --- behavior ----------------------------------------------------------------
@@ -173,9 +173,9 @@ async def test_rate_limited_per_vacuum(hass, manager, mock_config_entry):
     manager.maybe_pulse_live_room_refresh(vid)  # within interval -> coalesced
     await hass.async_block_till_done()
     assert len(calls) == 1
-    assert isinstance(manager._live_room_pulse_at(), dict)  # in-memory, not persisted
+    assert isinstance(manager.live_room_refresh._pulse_at, dict)  # in-memory, not persisted
 
-    manager._live_room_pulse_at()[vid] -= 999  # simulate the interval elapsing
+    manager.live_room_refresh._pulse_at[vid] -= 999  # simulate the interval elapsing
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
     assert len(calls) == 2
@@ -210,9 +210,9 @@ async def test_unsupported_service_sticky_disables(hass, manager, mock_config_en
 
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
-    assert len(calls) == 1 and vid in manager._live_room_pulse_off()
+    assert len(calls) == 1 and vid in manager.live_room_refresh._disabled
 
-    manager._live_room_pulse_at()[vid] -= 999  # even past the interval...
+    manager.live_room_refresh._pulse_at[vid] -= 999  # even past the interval...
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
     assert len(calls) == 1  # ...sticky-off, never called again
@@ -237,9 +237,9 @@ async def test_transient_error_swallowed_not_disabled(hass, manager, mock_config
 
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
-    assert len(calls) == 1 and vid not in manager._live_room_pulse_off()
+    assert len(calls) == 1 and vid not in manager.live_room_refresh._disabled
 
-    manager._live_room_pulse_at()[vid] -= 999
+    manager.live_room_refresh._pulse_at[vid] -= 999
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
     assert len(calls) == 2  # fired again — not sticky
@@ -255,7 +255,7 @@ async def test_service_not_found_sticky_disables(hass, manager, mock_config_entr
 
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
-    assert vid in manager._live_room_pulse_off()  # disabled after the first ServiceNotFound
+    assert vid in manager.live_room_refresh._disabled  # disabled after the first ServiceNotFound
 
 
 async def test_gate_failsafe_no_device(hass, manager, mock_config_entry):

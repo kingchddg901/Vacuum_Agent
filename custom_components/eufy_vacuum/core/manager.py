@@ -391,6 +391,12 @@ class EufyVacuumManager:
         from ..rooms import RoomMapManager
         self.room_map = RoomMapManager(manager=self)
 
+        # Construct LiveRoomRefreshManager (Lever B) - owns the contiguous-run live
+        # current-room refresh: adapter-config resolution, the per-vacuum rate-limit +
+        # sticky-disable state, the local-connection probe, and the fire-and-forget pulse.
+        from ..live_refresh import LiveRoomRefreshManager
+        self.live_room_refresh = LiveRoomRefreshManager(manager=self)
+
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
         for _vac_maps in self.data.get("maps", {}).values():
@@ -4974,194 +4980,11 @@ class EufyVacuumManager:
                     pass
         return pt
 
-    # --- Lever B: live current-room refresh (contiguous runs) -----------------
-    #
-    # A brand whose live current-room signal lags its status poll (Roborock: the
-    # room is MAP-derived, refreshed only on the ~30s IMAGE_CACHE_INTERVAL gate, while
-    # status moves at ~15s) can declare `dispatch.live_room_refresh` so the framework
-    # pulses an adapter-named service that refreshes that signal off-cadence during a
-    # contiguous run. Core stays brand-agnostic: the service AND the local-connection
-    # gate (which avoids a cloud rate-limit) are entirely adapter-declared data; a brand
-    # that omits the block is disabled = a no-op. Excluded for strict-order (phased) runs
-    # by the caller — those dock per room, so each room-start is a state flip that already
-    # forces a free refresh. See the Roborock adapter's dispatch.live_room_refresh.
-
-    def _live_room_refresh(self, vacuum_entity_id: str) -> dict[str, Any]:
-        """Resolve the adapter's ``dispatch.live_room_refresh`` block over inert defaults
-        (disabled). Brands that omit it are a no-op, byte-identical."""
-        cfg: dict[str, Any] = {
-            "enabled": False, "interval_s": 15, "service": None, "local_gate": None,
-        }
-        declared = (
-            (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {}) or {}
-        ).get("live_room_refresh", {}) or {}
-        cfg["enabled"] = bool(declared.get("enabled"))
-        if "interval_s" in declared:
-            try:
-                cfg["interval_s"] = max(1, int(declared["interval_s"]))
-            except (TypeError, ValueError):
-                pass
-        svc = declared.get("service")
-        cfg["service"] = svc if isinstance(svc, dict) else None
-        gate = declared.get("local_gate")
-        cfg["local_gate"] = gate if isinstance(gate, dict) else None
-        return cfg
-
-    def _live_room_pulse_at(self) -> dict[str, float]:
-        """Per-vacuum monotonic timestamp of the last live-room refresh pulse (the rate
-        limit; the refresh is per-vacuum upstream, so it's keyed by vacuum, not map).
-        Lazily created, in-memory only — a restart drops it."""
-        at = getattr(self, "_live_room_pulse_ts", None)
-        if at is None:
-            at = {}
-            self._live_room_pulse_ts = at
-        return at
-
-    def _live_room_pulse_off(self) -> set[str]:
-        """Vacuums whose live-room refresh service proved unsupported this session (e.g. a
-        non-V1 Roborock raising ServiceNotSupported) — sticky-off so we stop pulsing instead
-        of failing every interval. Lazily created, in-memory only."""
-        off = getattr(self, "_live_room_pulse_disabled", None)
-        if off is None:
-            off = set()
-            self._live_room_pulse_disabled = off
-        return off
-
-    def _connection_is_local_for_refresh(
-        self, vacuum_entity_id: str, gate: dict[str, Any] | None
-    ) -> bool:
-        """Generic, fail-safe local-connection probe from an adapter-declared ``local_gate``
-        spec. ALL brand-specific strings (the device-identifier domain, the upstream repair
-        issue domain + id template) come from ``gate`` — core stays brand-agnostic. Returns
-        True ONLY when local is positively confirmed; any uncertainty (no spec, unknown
-        device/identifier) returns False so the caller SKIPS the pulse and falls back to the
-        device's native cadence rather than risk a cloud-rate-limited refresh.
-
-        Signal: the upstream integration raises a "using cloud API" repair issue while a
-        device has never connected locally and clears it once local. Issue ABSENT/inactive =>
-        local. Re-evaluated every pulse (never cached) so a mid-run local->cloud flip disables
-        the pulse within one interval."""
-        if not gate:
-            return False
-        from homeassistant.helpers import (
-            device_registry as dr,
-            entity_registry as er,
-            issue_registry as ir,
-        )
-        from homeassistant.util import slugify
-
-        ent = er.async_get(self.hass).async_get(vacuum_entity_id)
-        if ent is None or not ent.device_id:
-            return False
-        dev = dr.async_get(self.hass).async_get(ent.device_id)
-        if dev is None:
-            return False
-        id_domain = gate.get("device_identifier_domain")
-        duid = next((i[1] for i in dev.identifiers if i[0] == id_domain), None)
-        if not duid:
-            return False
-        template = str(gate.get("issue_id_template") or "")
-        issue_domain = gate.get("issue_domain")
-        if not template or not issue_domain:
-            return False
-        try:
-            issue_id = template.format(duid_slug=slugify(duid))
-        except (KeyError, IndexError, ValueError):
-            return False
-        issue = ir.async_get(self.hass).async_get_issue(issue_domain, issue_id)
-        return issue is None or not getattr(issue, "active", True)
-
     def maybe_pulse_live_room_refresh(self, vacuum_entity_id: str) -> None:
-        """Lever B — during a CONTIGUOUS run, keep the brand's live current-room/map data
-        fresh so the native per-room rollover + live fan track the adapter's interval instead
-        of the device's slower native map cadence. No-op for brands that don't declare
-        ``dispatch.live_room_refresh`` (e.g. Eufy). Local-gated (never pulse a cloud
-        connection — the device's map throttle is a cloud rate-limit guard), availability-
-        gated, and rate-limited per vacuum. Fire-and-forget; any failure degrades to the
-        native cadence. The caller (the job-progress ticker) must exclude strict-order
-        (phased) runs — those advance one room per dispatched phase, not by this rollover."""
-        cfg = self._live_room_refresh(vacuum_entity_id)
-        if not cfg["enabled"] or not cfg["service"]:
-            return
-        if vacuum_entity_id in self._live_room_pulse_off():
-            return
-        pulses = self._live_room_pulse_at()
-        now = self.hass.loop.time()
-        if now - pulses.get(vacuum_entity_id, 0.0) < cfg["interval_s"]:
-            return
-        st = self.hass.states.get(vacuum_entity_id)
-        if st is None or st.state in ("unavailable", "unknown"):
-            return
-        if not self._connection_is_local_for_refresh(vacuum_entity_id, cfg["local_gate"]):
-            return
-        pulses[vacuum_entity_id] = now
-        self.hass.async_create_task(
-            self._do_live_room_pulse(vacuum_entity_id, cfg["service"])
-        )
-
-    async def _do_live_room_pulse(
-        self, vacuum_entity_id: str, service: dict[str, Any]
-    ) -> None:
-        """Fire the adapter-named refresh service (blocking so we can observe the outcome,
-        but on a background task so the ticker never waits). A service that is missing on
-        this install (ServiceNotFound) or unsupported by the model (ServiceNotSupported)
-        sticky-disables the pulse for the session — neither will ever work, so we must NOT
-        retry it every interval. A transient error (e.g. the no-dock S6 reporting no position
-        mid-transit) IS swallowed and retried — its useful side effect, the off-gate map
-        refresh, already ran before the raise. The refresh service may be SupportsResponse.
-        ONLY (Roborock's is), so honor the adapter's ``returns_response`` flag; we discard
-        the returned value and only want the refresh side effect."""
-        from homeassistant.exceptions import (
-            HomeAssistantError,
-            ServiceNotFound,
-            ServiceNotSupported,
-        )
-
-        domain = service.get("domain")
-        name = service.get("service")
-        if not domain or not name:
-            return
-        try:
-            await self.hass.services.async_call(
-                domain, name, {"entity_id": vacuum_entity_id},
-                blocking=True, return_response=bool(service.get("returns_response")),
-            )
-        except (ServiceNotFound, ServiceNotSupported) as err:
-            self._live_room_pulse_off().add(vacuum_entity_id)
-            _LOGGER.info(
-                "eufy_vacuum: live-room refresh %s.%s unavailable for %s (%s); disabling "
-                "the pulse for this session",
-                domain, name, vacuum_entity_id, err,
-            )
-            return
-        except HomeAssistantError as err:
-            # Transient (e.g. position_not_found / map_failure). The off-gate map refresh
-            # already applied; the discarded return value raising is harmless — don't count
-            # it toward the sticky-disable.
-            _LOGGER.debug(
-                "eufy_vacuum: live-room refresh for %s returned %s (refresh still applied)",
-                vacuum_entity_id, err,
-            )
-            return
-        except Exception:  # pragma: no cover - defensive
-            _LOGGER.exception(
-                "eufy_vacuum: live-room refresh pulse error for %s", vacuum_entity_id
-            )
-            return
-        # First successful pulse per vacuum per session: a breadcrumb so a live run confirms
-        # the feature is active (the plan's on-device validation hook) without a debugger.
-        seen = getattr(self, "_live_room_pulse_seen", None)
-        if seen is None:
-            seen = set()
-            self._live_room_pulse_seen = seen
-        if vacuum_entity_id not in seen:
-            seen.add(vacuum_entity_id)
-            _LOGGER.info(
-                "eufy_vacuum: live-room refresh active for %s via %s.%s — live current-room "
-                "+ per-room fan now track the ~%ss refresh instead of the native map cadence",
-                vacuum_entity_id, domain, name,
-                self._live_room_refresh(vacuum_entity_id)["interval_s"],
-            )
+        """Lever B trigger — delegate to the live_refresh subsystem. Called from the
+        job-progress ticker for CONTIGUOUS runs (the caller excludes strict-order phased
+        runs). See live_refresh/manager.py for the full contract."""
+        self.live_room_refresh.maybe_pulse(vacuum_entity_id)
 
     async def _run_advanced_phase(
         self,
