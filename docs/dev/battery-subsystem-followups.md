@@ -16,6 +16,14 @@ gaps live.
 
 ## Item 1 — per-job drain is recharge-naive (biases dispatched recharge runs low)
 
+> **✅ FIXED 2026-06-20 (option a).** A mid-job-recharge run is flagged in `job_finalizer`
+> (`battery_metrics["mid_job_recharge"]`, from the active job's `recharge_seconds_accumulated` /
+> `observed_mid_job_recharge_count`), and `record_job_metrics` keeps a flagged run OUT of the
+> per-config drain buckets (`by_clean_mode` / `by_fan_speed` / `by_water_level`) — the same
+> anti-bias spirit as the `is_single_*` gates. It still records `last_job` (with the flag) and
+> `all_jobs`. Option (b) — true discharge from the session engine's `cumulative_drain_pct` —
+> remains the richer future fix if recharge runs become common.
+
 **Where:** `learning/job_finalizer.py:770` calls
 `compute_job_battery_metrics(battery_start=…, battery_end=…)` with the raw job-edge battery
 levels. `battery/job_metrics.py:_safe_drain` computes `drain = start − end`.

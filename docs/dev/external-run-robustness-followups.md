@@ -78,6 +78,12 @@ swept area across all rooms), set an explicit low-confidence marker on the recor
 the card can show "pose attribution unavailable for this run — pick rooms manually" instead of
 silently defaulting all segments to the same settings-ranked room.
 
+> **✅ ADDRESSED 2026-06-20.** `build_pending_record` now sets `attribution_confidence` on the
+> record: `"available"` when pose named ≥1 segment, `"unavailable"` when a pose stream existed but
+> named NONE (degenerate/empty cleaned set, anchor-only that isn't promoted, or the engine
+> declined to attribute), `None` when no pose stream was captured. The card keys its "pose
+> attribution unavailable — pick rooms manually" prompt off `"unavailable"`.
+
 > **Partially addressed by Item 4's fix (2026-06-20).** `_apply_pose_identity` no longer
 > early-returns on an empty `cleaned` set — it now **presence-names** each counter segment by its
 > dominant pose room. So a segment that *has* pose coverage gets a real (low-confidence) room

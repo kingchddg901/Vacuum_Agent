@@ -269,6 +269,7 @@ def test_build_pending_record_no_pose_is_pre_w5c():
         rooms=_ROOMS, baselines=[], vacuum_entity_id=None, pose_samples=None,
     )
     assert rec["attribution_mode"] is None
+    assert rec["attribution_confidence"] is None  # no pose stream → no claim
     assert "source" not in rec  # a counter record, not pose-only
     assert "pose_room_id" not in rec["segments"][0]
     assert rec["counter_samples"]  # counter-resegmentable
@@ -345,6 +346,27 @@ def test_build_pending_record_enrich_counter_with_pose():
     assert rec["segments"][1]["pose_room_id"] == 9
     assert rec["segments"][1]["shortlist"][0]["room_id"] == 9
     assert rec["counter_samples"]  # still a counter record (resegmentable)
+    assert rec["attribution_confidence"] == "available"  # pose named both segments
+
+
+def test_attribution_confidence_unavailable_when_pose_names_nothing():
+    """A pose stream existed but named NO segment (here: current_room never reported) →
+    attribution_confidence 'unavailable', so the wizard prompts a MANUAL room pick instead of
+    silently defaulting every segment to its settings-ranked shortlist[0]."""
+    counter = [_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)]
+    pose = [
+        {"t": _pose_t(s), "current_room": None, "anchor": [0.1 * s, 0.1 * s],
+         "cleaning_area": float(s)}
+        for s in range(0, 90, 2)
+    ]
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=counter, settings_samples=[_ss(30, {"clean_mode": "vacuum"})],
+        rooms=_ROOMS, baselines=[], vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert rec is not None
+    assert all(s.get("pose_room_id") is None for s in rec["segments"])
+    assert rec["attribution_confidence"] == "unavailable"
 
 
 # --- REAL-DATA regression: stale cleaning_area drops the first room ----------

@@ -774,6 +774,15 @@ class LearningJobFinalizer:
                     cleaning_area_m2=inputs.get("cleaning_area_m2"),
                     resolved_rooms=resolved_rooms or [],
                 )
+                # A mid-job recharge nets out of the raw start−end drain (start−end then
+                # UNDERSTATES the true discharge — duration IS recharge-adjusted, drain is not),
+                # so flag the run; record_job_metrics keeps a flagged run out of the per-config
+                # drain MEANS while still recording last_job. See battery-subsystem-followups.md.
+                _ajs = active_job_state if isinstance(active_job_state, dict) else {}
+                battery_metrics["mid_job_recharge"] = bool(
+                    _safe_int(_ajs.get("recharge_seconds_accumulated"), 0) > 0
+                    or _safe_int(_ajs.get("observed_mid_job_recharge_count"), 0) > 0
+                )
                 _job["battery_metrics"] = battery_metrics
 
                 # Push to BatteryHealthManager so sensors and aggregates update.

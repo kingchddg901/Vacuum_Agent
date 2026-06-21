@@ -672,14 +672,24 @@ def build_pending_record(
 
     if attribution and pose_samples:
         _apply_pose_identity(out_segments, pose_samples, attribution, rooms)
+    # A pose stream existed but named NO segment (degenerate/empty cleaned set, anchor-only which
+    # is not promoted, or the engine declined to attribute) → "unavailable", so the wizard prompts
+    # a MANUAL room pick instead of silently accepting the settings-ranked shortlist[0] on every
+    # segment. "available" when pose named ≥1 segment; None when no pose stream was captured.
+    pose_named_any = any(s.get("pose_room_id") is not None for s in out_segments)
+    attribution_confidence = (
+        "available" if pose_named_any
+        else ("unavailable" if pose_samples else None)
+    )
 
     return {
         "schema_version": PENDING_SCHEMA_VERSION,
         "status": "pending",
         "origin": "external",
-        # Attribution confidence for the card (robust = swept-area; anchor_only = best-effort);
-        # None when no pose stream was available.
+        # Attribution mode (robust = swept-area; anchor_only = best-effort); None without pose.
         "attribution_mode": attribution.get("mode") if attribution else None,
+        # Did the shortlist get a pose identity: available / unavailable (→ prompt manual) / None.
+        "attribution_confidence": attribution_confidence,
         "detection_ts": detection_ts,
         "map_id": str(map_id),
         "segment_count": len(out_segments),

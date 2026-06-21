@@ -122,6 +122,25 @@ def test_record_job_metrics_fan_and_water_buckets(bm):
     assert aggr["by_water_level"]["High"]["count"] == 1
 
 
+def test_record_job_metrics_mid_recharge_skips_config_buckets(bm):
+    """[BM-4c] a mid-job-recharge run's start−end drain nets out the recharge and understates
+    the true discharge, so it stays OUT of the per-config drain buckets — but still records
+    last_job + all_jobs (mirrors the is_single_* anti-bias gate)."""
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="jr", metrics={
+        "battery_used_pct": 50, "duration_min": 60, "area_m2": 30, "drain_per_min": 0.8,
+        "is_single_clean_mode": True, "single_clean_mode": "vacuum_mop",
+        "is_single_fan_speed": True, "single_fan_speed": "Turbo",
+        "is_single_water_level": True, "single_water_level": "Low",
+        "mid_job_recharge": True,
+    })
+    rec = bm.get_record(_VAC)
+    assert rec["last_job"]["job_id"] == "jr" and rec["last_job"]["mid_job_recharge"] is True
+    assert rec["job_aggregates"]["all_jobs"]["count"] == 1            # all_jobs still records it
+    assert "vacuum_mop" not in rec["job_aggregates"].get("by_clean_mode", {})  # config buckets skipped
+    assert "Turbo" not in rec["job_aggregates"].get("by_fan_speed", {})
+    assert "Low" not in rec["job_aggregates"].get("by_water_level", {})
+
+
 def test_update_aggregate_bucket(bm):
     """[BM-5]"""
     bucket: dict = {}
