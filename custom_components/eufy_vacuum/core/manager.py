@@ -4743,6 +4743,12 @@ class EufyVacuumManager:
         it would finalize.
         """
         active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # Snapshot the FINISHING phase's room_timing from its OWN counter slice BEFORE advance
+        # resets the queue/timing. Without this, strict-order finalization segments the whole
+        # accumulated counter stream against only the LAST phase's queue (the per-room dock trips
+        # break the segmenter) and records one room with the whole run's battery/area. Captures
+        # the final phase too — advance returns None just below, but this already ran.
+        self._capture_finishing_phase_timing(vacuum_entity_id, str(map_id), active_job)
         advanced = advance_active_job_phase(active_job)
         if advanced is None:
             return False
@@ -4765,6 +4771,163 @@ class EufyVacuumManager:
             )
         )
         return True
+
+    def _learned_room_area_m2(
+        self, vacuum_entity_id: str, map_id: str, room_id: Any
+    ) -> float | None:
+        """The room's learned area (m²) from the map registry, for the strict-order per-phase
+        AREA fallback when the live cleaning_area delta is unusable. None when unknown."""
+        rid = _safe_int(room_id, -1)
+        if rid <= 0:
+            return None
+        rooms = (
+            self.data.get("maps", {})
+            .get(vacuum_entity_id, {})
+            .get(str(map_id), {})
+            .get("rooms", {})
+        )
+        room = rooms.get(str(rid)) or rooms.get(rid)
+        if not isinstance(room, dict):
+            return None
+        for key in ("learned_area_m2", "area_m2"):
+            try:
+                val = float(room.get(key))
+            except (TypeError, ValueError):
+                continue
+            if val > 0:
+                return val
+        return None
+
+    def _capture_finishing_phase_timing(
+        self, vacuum_entity_id: str, map_id: str, active_job: dict[str, Any]
+    ) -> None:
+        """Strict-order recording fix: snapshot the FINISHING phase's ``room_timing`` from ITS
+        OWN counter-sample slice and stash it on the phase, so finalization can reconstruct
+        per-phase timings instead of mis-attributing the whole run to the last phase's room.
+
+        The whole-run counter stream can't be segmented across the per-room dock trips (the
+        segmenter's transit capture breaks → empty ``room_timings``), so each phase is segmented
+        ALONE: its slice (the samples since the previous phase ended) holds exactly one room's
+        cleaning rise. Idempotent. Per-room AREA is the within-phase ``cleaning_area`` delta, with
+        the room's learned area as a fallback when that delta is unusable (a stale/flat sensor
+        through the phase). A phase that never cleaned (empty slice) records an EMPTY timing so the
+        run reads as not-fully-captured rather than a phantom room. Timestamps are all from
+        ``_iso_now()`` so a lexical compare slices correctly. Atomic jobs (no ``phases``) → no-op."""
+        phases = active_job.get("phases")
+        if not isinstance(phases, list):
+            return
+        idx = _safe_int(active_job.get("current_phase_index"), 0)
+        if not (0 <= idx < len(phases)) or not isinstance(phases[idx], dict):
+            return
+        if phases[idx].get("_timing_end_t"):
+            return  # already attempted (idempotent — an empty capture must not re-run either)
+
+        now_t = _iso_now()
+        # Slice from the previous phase's recorded end (None for phase 0 → from the run start).
+        start_t: str | None = None
+        for j in range(idx - 1, -1, -1):
+            if isinstance(phases[j], dict) and phases[j].get("_timing_end_t"):
+                start_t = str(phases[j]["_timing_end_t"])
+                break
+        samples = active_job.get("counter_samples") or []
+        if start_t:
+            slice_samples = [
+                s for s in samples
+                if isinstance(s, dict) and str(s.get("t") or "") > start_t
+            ]
+        else:
+            slice_samples = [s for s in samples if isinstance(s, dict)]
+
+        slug_by_id: dict[int, str | None] = {}
+        for r in active_job.get("resolved_rooms") or []:
+            if isinstance(r, dict):
+                rid = _safe_int(r.get("room_id", r.get("id")), -1)
+                if rid > 0 and rid not in slug_by_id:
+                    slug_by_id[rid] = str(r.get("slug") or "").strip().lower() or None
+
+        queue_ids = [
+            _safe_int(r, -1) for r in (active_job.get("queue_room_ids") or [])
+            if _safe_int(r, -1) > 0
+        ]
+        rid = queue_ids[0] if queue_ids else None
+        # A phase that never cleaned (watchdog gave up / a stale completion signal) leaves no
+        # usable counter samples — record an EMPTY timing so finalize reads the run as not-fully-
+        # captured (transit_capture_valid=False, excluded from learning) instead of a phantom room
+        # with a fabricated learned area. A real delta needs >= 2 samples carrying a counter.
+        usable = [
+            s for s in slice_samples
+            if s.get("cleaning_time") is not None or s.get("cleaning_area") is not None
+        ]
+        room_timings = (
+            [self._phase_room_timing(rid, slug_by_id.get(rid), slice_samples)]
+            if rid is not None and len(usable) >= 2 else []
+        )
+        # AREA fallback: a within-phase cleaning_area delta of ~0 (a stale/flat sensor through
+        # the phase) is unusable → use the room's learned area instead.
+        for rt in room_timings:
+            try:
+                area_ok = float(rt.get("area_m2") or 0.0) > 0.0
+            except (TypeError, ValueError):
+                area_ok = False
+            if not area_ok:
+                learned = self._learned_room_area_m2(vacuum_entity_id, map_id, rt.get("room_id"))
+                if learned:
+                    rt["area_m2"] = learned
+                    rt["area_source"] = "learned_fallback"
+        phases[idx]["room_timing"] = room_timings
+        phases[idx]["_timing_end_t"] = now_t
+
+    @staticmethod
+    def _wall_seconds(t0: str, t1: str) -> int:
+        """Whole seconds between two ISO timestamps (best-effort; 0 on parse failure)."""
+        try:
+            from datetime import datetime
+
+            a = datetime.fromisoformat(str(t0).replace("Z", "+00:00"))
+            b = datetime.fromisoformat(str(t1).replace("Z", "+00:00"))
+            return int(max(0.0, (b - a).total_seconds()))
+        except (ValueError, TypeError):
+            return 0
+
+    def _phase_room_timing(
+        self, room_id: Any, slug: str | None, slice_samples: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """One strict-order phase = one room. Compute its timing/area directly from the phase's
+        counter slice as WITHIN-slice deltas — cleaning_time / cleaning_area are CUMULATIVE across
+        the run, so the per-phase figure is last − first. No segmenter: a single-room slice needs
+        no segmentation, and the direct delta avoids the segmenter's cumulative-from-zero area
+        accounting (which would report a later phase's cumulative total, not its own area)."""
+        def _vals(key: str) -> list[float]:
+            out: list[float] = []
+            for s in slice_samples:
+                v = s.get(key)
+                if v is None:
+                    continue
+                try:
+                    out.append(float(v))
+                except (TypeError, ValueError):
+                    pass
+            return out
+
+        cas = _vals("cleaning_area")
+        cts = _vals("cleaning_time")
+        bats = _vals("battery")
+        ts = [str(s.get("t")) for s in slice_samples if s.get("t")]
+        area = max(0.0, cas[-1] - cas[0]) if len(cas) >= 2 else 0.0
+        secs = int(max(0.0, cts[-1] - cts[0])) if len(cts) >= 2 else 0
+        bat_delta = int(bats[0] - bats[-1]) if len(bats) >= 2 else None
+        wall = self._wall_seconds(ts[0], ts[-1]) if len(ts) >= 2 else secs
+        return {
+            "room_id": room_id,
+            "slug": slug,
+            "cleaning_start": ts[0] if ts else None,
+            "cleaning_end": ts[-1] if ts else None,
+            "cleaning_seconds": secs,
+            "cleaning_wall_seconds": wall,
+            "area_m2": round(area, 3),
+            "battery_delta": bat_delta,
+            "boundary": "phase",
+        }
 
     def _phase_target_is_dock_room(
         self, vacuum_entity_id: str, map_id: str, room_id: int | str | None

@@ -1093,16 +1093,37 @@ class LearningHistoryStore:
             _queue_ids_for_transit = active_job_state.get("queue_room_ids", [])
         else:
             _queue_ids_for_transit = []
-        room_timings, transitions, transit_capture_valid = _build_transit_blocks(
-            counter_samples=(
-                active_job_state.get("counter_samples", [])
-                if isinstance(active_job_state, dict)
-                else []
-            ),
-            queue_room_ids=_queue_ids_for_transit,
-            slug_by_id=slug_by_id,
-            vacuum_entity_id=vacuum_entity_id,
-        )
+        # Strict-order (sequenced) jobs: each phase captured its OWN room_timing from its own
+        # counter slice at advance time (manager._capture_finishing_phase_timing) — the only
+        # reliable per-room attribution, because the whole-run stream can't be segmented across
+        # the per-room dock trips against the single last-phase queue. Concatenate in phase order
+        # instead of running the whole stream through _build_transit_blocks (which would credit
+        # the entire run to one room). Atomic jobs leave `phases` absent → the legacy path.
+        _phases = active_job_state.get("phases") if isinstance(active_job_state, dict) else None
+        _phase_room_timings: list[dict[str, Any]] = []
+        _every_phase_captured = isinstance(_phases, list) and bool(_phases)
+        if isinstance(_phases, list):
+            for _p in _phases:
+                _rt = _p.get("room_timing") if isinstance(_p, dict) else None
+                if _rt:
+                    _phase_room_timings.extend(_rt)
+                else:
+                    _every_phase_captured = False
+        if _phase_room_timings:
+            room_timings = _phase_room_timings
+            transitions = []  # inter-phase gaps are dock overhead, not room-to-room transit
+            transit_capture_valid = _every_phase_captured
+        else:
+            room_timings, transitions, transit_capture_valid = _build_transit_blocks(
+                counter_samples=(
+                    active_job_state.get("counter_samples", [])
+                    if isinstance(active_job_state, dict)
+                    else []
+                ),
+                queue_room_ids=_queue_ids_for_transit,
+                slug_by_id=slug_by_id,
+                vacuum_entity_id=vacuum_entity_id,
+            )
 
         return {
             "schema_version": 1,
