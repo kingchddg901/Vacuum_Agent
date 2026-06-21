@@ -62,15 +62,29 @@ def test_normalize_water_level_key(rpm, value, aliases, expected):
     assert rm._normalize_water_level_key(value, aliases=aliases) == expected
 
 
+# The brand water-rate table now lives in the Eufy adapter (water_config.py); the planning
+# core carries no brand table, so the test supplies it as the rate_override the manager threads.
+_EUFY_RATES = {"off": 0.0, "low": 3.2, "medium": 4.0, "high": 5.3}
+
+
 @pytest.mark.parametrize("level,expected", [
     ("off", 0.0), ("low", 3.2), ("medium", 4.0), ("high", 5.3),
     ("", 0.0),            # empty → off → 0.0
     ("mystery", 4.0),     # unknown key → default 4.0
 ])
 def test_water_rate(rpm, level, expected):
-    """[RPM-2]"""
+    """[RPM-2] per-level rates come from the adapter table (rate_override); unknown key → 4.0."""
     rm, _ = rpm
-    assert rm._water_rate_ml_per_minute(level) == pytest.approx(expected)
+    assert rm._water_rate_ml_per_minute(level, rate_override=_EUFY_RATES) == pytest.approx(expected)
+
+
+def test_water_rate_no_override_is_neutral(rpm):
+    """[RPM-2b] with NO adapter water_rates, core stays brand-neutral: off = 0 (no water,
+    universal) and a single generic ~4 ml/min for every other level — no brand table in core."""
+    rm, _ = rpm
+    assert rm._water_rate_ml_per_minute("off") == pytest.approx(0.0)
+    for level in ("low", "high", "mystery"):
+        assert rm._water_rate_ml_per_minute(level) == pytest.approx(4.0)
 
 
 def test_station_clean_water_percent(rpm, hass):
@@ -124,6 +138,8 @@ def test_derive_wash_frequency_config(rpm, hass):
             "wash_frequency_value_time": "number.wash_interval",
         },
         "vocabulary": {"wash_frequency_mode_aliases": {"by room": "by_room"}},
+        # The wash-cadence bounds are adapter-owned now (Eufy X10 firmware range).
+        "wash_frequency_bounds": {"default": 20.0, "min": 15.0, "max": 25.0},
     })
     hass.states.async_set("select.wash_mode", "By Room")
     hass.states.async_set("number.wash_interval", "18")
@@ -166,6 +182,7 @@ def test_estimate_full_path(rpm, hass):
                 "robot_internal_tank_ml": 80,
                 "dock_clean_tank_capacity_ml": 4000,
                 "dock_wash_overhead_ml_per_cycle": 100,
+                "water_rates": _EUFY_RATES,
             },
         },
         "entities": {
@@ -218,6 +235,7 @@ def test_estimate_wash_cycles_non_by_room(rpm, hass, mode_state, alias, expected
                 "robot_internal_tank_ml": 80,
                 "dock_clean_tank_capacity_ml": 4000,
                 "dock_wash_overhead_ml_per_cycle": 100,
+                "water_rates": _EUFY_RATES,
             },
         },
         "entities": {
@@ -257,6 +275,7 @@ def test_estimate_no_station_water_leaves_clean_tank_unknown(rpm, hass):
                 "robot_internal_tank_ml": 80,
                 "dock_clean_tank_capacity_ml": 4000,
                 "dock_wash_overhead_ml_per_cycle": 100,
+                "water_rates": _EUFY_RATES,
             },
         },
         # No water_level entity declared → station_water_percent resolves to None.

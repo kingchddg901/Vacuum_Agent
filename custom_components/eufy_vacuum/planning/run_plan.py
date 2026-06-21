@@ -228,17 +228,13 @@ class RunPlanManager:
     ) -> float:
         """Return first-pass floor application water rate (ml/min) by water level.
 
-        ``rate_override`` (adapter ``water_model_configs[...]["water_rates"]``, keyed
-        by canonical level) replaces the default table when declared, so a non-Eufy
-        dock can carry its own flow rates. The default below was measured on the Eufy
-        X10 dock and is the bootstrap fallback."""
+        ``rate_override`` (adapter ``water_model_configs[...]["water_rates"]``, keyed by
+        canonical level) carries the brand's measured flow rates — Eufy declares the X10
+        table in its adapter (see adapters/eufy/water_config.py). Core keeps NO brand-measured
+        table: with no override it applies ``off`` = 0 (no water, a universal) and a single
+        generic ~4 ml/min to other levels, rather than imposing one brand's numbers on another."""
         normalized = self._normalize_water_level_key(water_level, aliases=aliases)
-        table = rate_override if (isinstance(rate_override, dict) and rate_override) else {
-            "off": 0.0,
-            "low": 3.2,
-            "medium": 4.0,
-            "high": 5.3,
-        }
+        table = rate_override if (isinstance(rate_override, dict) and rate_override) else {"off": 0.0}
         return _safe_float(table.get(normalized, 4.0), 4.0)
 
     def _get_station_clean_water_percent(
@@ -296,12 +292,14 @@ class RunPlanManager:
         compact_mode = " ".join(raw_mode.split())
         mode_key = _wash_freq_aliases.get(compact_mode, "unknown")
 
-        # Wash-cadence interval bounds default to the Eufy X10 firmware range
-        # (15-25 min, default 20); adapters override via ``wash_frequency_bounds``.
+        # Wash-cadence interval bounds (minutes) are BRAND-owned via ``wash_frequency_bounds``
+        # — the Eufy X10 firmware range (15-25, default 20) lives in the Eufy adapter. Core
+        # falls back to a generic, effectively non-clamping range so an undeclared brand is
+        # not forced into another brand's firmware limits.
         _wf_bounds = (_get_adapter_config(vacuum_entity_id) or {}).get("wash_frequency_bounds", {})
         _wf_default = _safe_float(_wf_bounds.get("default"), 20.0)
-        _wf_min = _safe_float(_wf_bounds.get("min"), 15.0)
-        _wf_max = _safe_float(_wf_bounds.get("max"), 25.0)
+        _wf_min = _safe_float(_wf_bounds.get("min"), 1.0)
+        _wf_max = _safe_float(_wf_bounds.get("max"), 1440.0)
         interval_minutes = _safe_float(interval_state.state if interval_state is not None else None, _wf_default)
         if interval_minutes <= 0:
             interval_minutes = _wf_default

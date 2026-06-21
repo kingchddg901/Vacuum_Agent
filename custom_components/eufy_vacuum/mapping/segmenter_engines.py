@@ -24,6 +24,12 @@ from __future__ import annotations
 import logging
 from typing import Any, Literal, NotRequired, Protocol, TypedDict
 
+# DELIBERATE DEVIATION (accepted, not drift): the CV segmentation pipeline is Eufy-special and
+# lives in the Eufy adapter (adapters/eufy/segmentor). This brand-agnostic registry imports it and
+# statically registers it under the GENERIC engine key 'eufy_cv_v1' — routing stays adapter-config-
+# driven by mapping.segmenter_engine name, never by a brand check. It is the one engine class not
+# relocated behind an adapter hook, because the optional numpy/Pillow CV stack makes a lazy adapter-
+# side registration awkward; the import lives here by design. See [[project_custom_segment_path]].
 from ..adapters.eufy.segmentor import detect_room_segments, image_runtime_capabilities
 
 _LOGGER = logging.getLogger(__name__)

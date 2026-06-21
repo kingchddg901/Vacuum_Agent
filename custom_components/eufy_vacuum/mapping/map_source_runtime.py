@@ -82,7 +82,9 @@ def eufy_store_path(
     Registry lookup only (in-memory, loop-safe). The actual file read is
     ``load_store_json`` and MUST go through an executor.
     """
-    domain = source_cfg.get("identifier_domain", "robovac_mqtt")
+    domain = source_cfg.get("identifier_domain")
+    if not domain:
+        return None
     device_id = device_identifier_value(hass, vacuum_entity_id, domain)
     if not device_id:
         return None
@@ -743,8 +745,10 @@ def eufy_inmem_candidates(
     hass: HomeAssistant, source_cfg: dict[str, Any]
 ) -> list[tuple[str, str, Any]]:
     """Candidate roots holding the fork's in-memory coordinator (hass.data + runtime_data)."""
-    domain = source_cfg.get("hass_data_domain", "robovac_mqtt")
+    domain = source_cfg.get("hass_data_domain")
     out: list[tuple[str, str, Any]] = []
+    if not domain:
+        return out
     bucket = (hass.data or {}).get(domain)
     if bucket is not None:
         out.append(("hass_data", domain, bucket))
@@ -916,21 +920,22 @@ def roborock_candidates(
     In-memory only (loop-safe). The duck-typed search + structure dump pick the rooms
     out of whatever shape these expose, so we don't over-filter here.
     """
-    domain = source_cfg.get("hass_data_domain", "roborock")
+    domain = source_cfg.get("hass_data_domain")
     out: list[tuple[str, str, Any]] = []
     if image_entity_id:
         ent = image_entity_object(hass, image_entity_id)
         if ent is not None:
             out.append(("image_entity", image_entity_id, ent))
-    try:
-        entries = hass.config_entries.async_entries(domain)
-    except Exception:  # pragma: no cover - defensive over HA internals
-        entries = []
-    for entry in entries:
-        rd = getattr(entry, "runtime_data", None)
-        if rd is not None:
-            out.append(("runtime_data", entry.entry_id, rd))
-    bucket = (hass.data or {}).get(domain)
-    if bucket is not None:
-        out.append(("hass_data", domain, bucket))
+    if domain:
+        try:
+            entries = hass.config_entries.async_entries(domain)
+        except Exception:  # pragma: no cover - defensive over HA internals
+            entries = []
+        for entry in entries:
+            rd = getattr(entry, "runtime_data", None)
+            if rd is not None:
+                out.append(("runtime_data", entry.entry_id, rd))
+        bucket = (hass.data or {}).get(domain)
+        if bucket is not None:
+            out.append(("hass_data", domain, bucket))
     return out

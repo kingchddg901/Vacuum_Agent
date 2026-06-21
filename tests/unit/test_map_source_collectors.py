@@ -20,6 +20,11 @@ from custom_components.eufy_vacuum.mapping.map_source_runtime import (
     roborock_candidates,
 )
 
+# The collectors carry NO brand default — the adapter ALWAYS declares hass_data_domain
+# (adapters/eufy/adapter.py + adapters/roborock/adapter.py), so the tests declare it too.
+_EUFY = {"hass_data_domain": "robovac_mqtt"}
+_RB = {"hass_data_domain": "roborock"}
+
 
 # ---------------------------------------------------------------------------
 # Minimal fakes: just enough hass surface for the collectors.
@@ -79,7 +84,7 @@ def test_eufy_inmem_hass_data_bucket_only():
     """[MSC-1] a hass.data[domain] bucket -> the ('hass_data', domain, bucket) candidate."""
     bucket = {"coordinators": ["x"]}
     hass = _Hass(data={"robovac_mqtt": bucket})
-    out = eufy_inmem_candidates(hass, {})
+    out = eufy_inmem_candidates(hass, _EUFY)
     assert out == [("hass_data", "robovac_mqtt", bucket)]
     # the third tuple element is the SAME object (a root to walk), not a copy
     assert out[0][2] is bucket
@@ -89,7 +94,7 @@ def test_eufy_inmem_runtime_data_only():
     """[MSC-1b] a config entry with runtime_data -> ('runtime_data', entry_id, rd)."""
     rd = object()
     hass = _Hass(entries=[_Entry("entry_abc", runtime_data=rd)])
-    out = eufy_inmem_candidates(hass, {})
+    out = eufy_inmem_candidates(hass, _EUFY)
     assert out == [("runtime_data", "entry_abc", rd)]
     assert out[0][2] is rd
 
@@ -102,7 +107,7 @@ def test_eufy_inmem_both_sources_ordered():
         data={"robovac_mqtt": bucket},
         entries=[_Entry("e1", rd1), _Entry("e2", rd2)],
     )
-    out = eufy_inmem_candidates(hass, {})
+    out = eufy_inmem_candidates(hass, _EUFY)
     assert out == [
         ("hass_data", "robovac_mqtt", bucket),
         ("runtime_data", "e1", rd1),
@@ -116,25 +121,32 @@ def test_eufy_inmem_runtime_data_none_skipped():
         _Entry("e_none", runtime_data=None),     # rd is None -> skipped
         _Entry("e_real", runtime_data=object()),
     ])
-    out = eufy_inmem_candidates(hass, {})
+    out = eufy_inmem_candidates(hass, _EUFY)
     assert [(o, k) for o, k, _ in out] == [("runtime_data", "e_real")]
 
 
 def test_eufy_inmem_neither_present_empty():
     """[MSC-1e] no bucket and no entries -> []."""
     hass = _Hass()
-    assert eufy_inmem_candidates(hass, {}) == []
+    assert eufy_inmem_candidates(hass, _EUFY) == []
 
 
 def test_eufy_inmem_custom_domain_from_cfg():
-    """[MSC-1f] hass_data_domain in source_cfg overrides the default 'robovac_mqtt'."""
+    """[MSC-1f] the DECLARED hass_data_domain selects the bucket — the collector carries no
+    brand default, so a different domain's bucket is NOT consulted."""
     bucket = {"x": 1}
     hass = _Hass(data={"my_fork": bucket})
     out = eufy_inmem_candidates(hass, {"hass_data_domain": "my_fork"})
     assert out == [("hass_data", "my_fork", bucket)]
-    # the default domain bucket is NOT consulted under the override
     assert eufy_inmem_candidates(_Hass(data={"robovac_mqtt": bucket}),
                                  {"hass_data_domain": "my_fork"}) == []
+
+
+def test_eufy_inmem_no_domain_declared_returns_empty():
+    """[MSC-1j] no hass_data_domain -> [] even with a bucket + entries present (no brand
+    fallback: an adapter that declares no domain can't locate candidates)."""
+    hass = _Hass(data={"robovac_mqtt": {"x": 1}}, entries=[_Entry("e", runtime_data=object())])
+    assert eufy_inmem_candidates(hass, {}) == []
 
 
 def test_eufy_inmem_async_entries_raises_degrades_to_hass_data():
@@ -142,21 +154,21 @@ def test_eufy_inmem_async_entries_raises_degrades_to_hass_data():
     returns the hass_data candidate (never aborts the whole collection)."""
     bucket = {"b": 1}
     hass = _Hass(data={"robovac_mqtt": bucket}, raise_exc=RuntimeError("HA internals shifted"))
-    out = eufy_inmem_candidates(hass, {})
+    out = eufy_inmem_candidates(hass, _EUFY)
     assert out == [("hass_data", "robovac_mqtt", bucket)]
 
 
 def test_eufy_inmem_async_entries_raises_no_bucket_empty():
     """[MSC-1h] async_entries() raising and no bucket -> [] (clean degrade, no raise)."""
     hass = _Hass(raise_exc=ValueError("boom"))
-    assert eufy_inmem_candidates(hass, {}) == []
+    assert eufy_inmem_candidates(hass, _EUFY) == []
 
 
 def test_eufy_inmem_hass_data_none():
     """[MSC-1i] hass.data is None -> the (hass.data or {}) guard yields no bucket -> []."""
     hass = _Hass()
     hass.data = None
-    assert eufy_inmem_candidates(hass, {}) == []
+    assert eufy_inmem_candidates(hass, _EUFY) == []
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +181,7 @@ def test_roborock_image_entity_candidate():
     ent = object()
     hass = _Hass(data={"entity_components": {"image": _ImageComponent(
         {"image.ivy_map": ent})}})
-    out = roborock_candidates(hass, {}, image_entity_id="image.ivy_map")
+    out = roborock_candidates(hass, _RB, image_entity_id="image.ivy_map")
     assert out == [("image_entity", "image.ivy_map", ent)]
     assert out[0][2] is ent
 
@@ -177,7 +189,7 @@ def test_roborock_image_entity_candidate():
 def test_roborock_image_entity_unresolved_omitted():
     """[MSC-2b] image_entity_id given but get_entity returns None -> no image candidate."""
     hass = _Hass(data={"entity_components": {"image": _ImageComponent({})}})
-    out = roborock_candidates(hass, {}, image_entity_id="image.missing")
+    out = roborock_candidates(hass, _RB, image_entity_id="image.missing")
     assert out == []
 
 
@@ -192,7 +204,7 @@ def test_roborock_runtime_data_and_hass_data_order():
         },
         entries=[_Entry("e1", rd)],
     )
-    out = roborock_candidates(hass, {}, image_entity_id="image.ivy_map")
+    out = roborock_candidates(hass, _RB, image_entity_id="image.ivy_map")
     assert out == [
         ("image_entity", "image.ivy_map", ent),
         ("runtime_data", "e1", rd),
@@ -201,11 +213,11 @@ def test_roborock_runtime_data_and_hass_data_order():
 
 
 def test_roborock_no_image_id_runtime_and_bucket():
-    """[MSC-2d] no image_entity_id -> just runtime_data + hass_data (default 'roborock')."""
+    """[MSC-2d] no image_entity_id -> just runtime_data + hass_data (declared domain 'roborock')."""
     rd = object()
     bucket = {"b": 1}
     hass = _Hass(data={"roborock": bucket}, entries=[_Entry("e1", rd)])
-    out = roborock_candidates(hass, {})
+    out = roborock_candidates(hass, _RB)
     assert out == [
         ("runtime_data", "e1", rd),
         ("hass_data", "roborock", bucket),
@@ -213,7 +225,7 @@ def test_roborock_no_image_id_runtime_and_bucket():
 
 
 def test_roborock_custom_domain_from_cfg():
-    """[MSC-2e] hass_data_domain overrides the default 'roborock' for both entries+bucket."""
+    """[MSC-2e] the DECLARED hass_data_domain selects both entries+bucket (no brand default)."""
     rd = object()
     bucket = {"b": 1}
     hass = _Hass(data={"rr2": bucket}, entries=[_Entry("e1", rd)])
@@ -222,6 +234,19 @@ def test_roborock_custom_domain_from_cfg():
         ("runtime_data", "e1", rd),
         ("hass_data", "rr2", bucket),
     ]
+
+
+def test_roborock_no_domain_declared_keeps_image_only():
+    """[MSC-2g] no hass_data_domain -> the image candidate is still gathered (domain-independent),
+    but the runtime_data / hass_data sources are skipped (no brand fallback)."""
+    ent = object()
+    hass = _Hass(
+        data={"roborock": {"b": 1},
+              "entity_components": {"image": _ImageComponent({"image.ivy_map": ent})}},
+        entries=[_Entry("e1", object())],
+    )
+    out = roborock_candidates(hass, {}, image_entity_id="image.ivy_map")
+    assert out == [("image_entity", "image.ivy_map", ent)]
 
 
 def test_roborock_async_entries_raises_keeps_image_and_hass_data():
@@ -236,7 +261,7 @@ def test_roborock_async_entries_raises_keeps_image_and_hass_data():
         },
         raise_exc=RuntimeError("entries unavailable"),
     )
-    out = roborock_candidates(hass, {}, image_entity_id="image.ivy_map")
+    out = roborock_candidates(hass, _RB, image_entity_id="image.ivy_map")
     assert out == [
         ("image_entity", "image.ivy_map", ent),
         ("hass_data", "roborock", bucket),
@@ -247,7 +272,7 @@ def test_roborock_runtime_data_none_skipped():
     """[MSC-2g] an entry with runtime_data None contributes nothing; bucket still added."""
     bucket = {"b": 1}
     hass = _Hass(data={"roborock": bucket}, entries=[_Entry("e_none", runtime_data=None)])
-    out = roborock_candidates(hass, {})
+    out = roborock_candidates(hass, _RB)
     assert out == [("hass_data", "roborock", bucket)]
 
 
@@ -261,7 +286,7 @@ def test_roborock_hass_data_none():
     (no image id given, no entries)."""
     hass = _Hass()
     hass.data = None
-    assert roborock_candidates(hass, {}) == []
+    assert roborock_candidates(hass, _RB) == []
 
 
 # ---------------------------------------------------------------------------

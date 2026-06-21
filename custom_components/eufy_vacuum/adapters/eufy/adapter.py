@@ -742,6 +742,11 @@ def register_eufy_adapter_for_vacuum(
         },
 
         "water_model_configs": WATER_MODEL_CONFIGS,
+
+        # Mop-wash cadence interval bounds (minutes) from the X10 firmware — brand-owned
+        # here so the planning core carries no Eufy-specific range (planning/run_plan.py
+        # _derive_wash_frequency_config reads this and otherwise stays generic).
+        "wash_frequency_bounds": {"default": 20.0, "min": 15.0, "max": 25.0},
     }
 
     register_adapter_config(vacuum_entity_id, config)
