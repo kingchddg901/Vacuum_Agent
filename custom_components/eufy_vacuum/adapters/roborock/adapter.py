@@ -317,9 +317,16 @@ def register_roborock_adapter_for_vacuum(
             "live_room_refresh": {
                 "enabled": True,
                 "interval_s": 15,
+                # roborock.get_vacuum_current_position (NOT vacuum.*): registered under the
+                # roborock domain via async_register_platform_entity_service (services.py),
+                # targeting the vacuum entity. It is SupportsResponse.ONLY, so the call MUST
+                # set return_response (returns_response) — we discard the x/y; we only want
+                # its map_content.refresh() side effect. Its absence/unsupported raises
+                # ServiceNotFound / ServiceNotSupported -> core sticky-disables the pulse.
                 "service": {
-                    "domain": "vacuum",
+                    "domain": "roborock",
                     "service": "get_vacuum_current_position",
+                    "returns_response": True,
                 },
                 "local_gate": {
                     "device_identifier_domain": "roborock",

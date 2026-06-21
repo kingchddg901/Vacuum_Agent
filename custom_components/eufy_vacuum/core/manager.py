@@ -4940,11 +4940,19 @@ class EufyVacuumManager:
         self, vacuum_entity_id: str, service: dict[str, Any]
     ) -> None:
         """Fire the adapter-named refresh service (blocking so we can observe the outcome,
-        but on a background task so the ticker never waits). A service the model doesn't
-        support sticky-disables the pulse for the session; a transient error (e.g. the
-        no-dock S6 reporting no position mid-transit) is swallowed — its USEFUL side effect,
-        the off-gate map refresh, already ran before the raise."""
-        from homeassistant.exceptions import HomeAssistantError, ServiceNotSupported
+        but on a background task so the ticker never waits). A service that is missing on
+        this install (ServiceNotFound) or unsupported by the model (ServiceNotSupported)
+        sticky-disables the pulse for the session — neither will ever work, so we must NOT
+        retry it every interval. A transient error (e.g. the no-dock S6 reporting no position
+        mid-transit) IS swallowed and retried — its useful side effect, the off-gate map
+        refresh, already ran before the raise. The refresh service may be SupportsResponse.
+        ONLY (Roborock's is), so honor the adapter's ``returns_response`` flag; we discard
+        the returned value and only want the refresh side effect."""
+        from homeassistant.exceptions import (
+            HomeAssistantError,
+            ServiceNotFound,
+            ServiceNotSupported,
+        )
 
         domain = service.get("domain")
         name = service.get("service")
@@ -4952,12 +4960,13 @@ class EufyVacuumManager:
             return
         try:
             await self.hass.services.async_call(
-                domain, name, {"entity_id": vacuum_entity_id}, blocking=True
+                domain, name, {"entity_id": vacuum_entity_id},
+                blocking=True, return_response=bool(service.get("returns_response")),
             )
-        except ServiceNotSupported as err:
+        except (ServiceNotFound, ServiceNotSupported) as err:
             self._live_room_pulse_off().add(vacuum_entity_id)
             _LOGGER.info(
-                "eufy_vacuum: live-room refresh %s.%s unsupported for %s (%s); disabling "
+                "eufy_vacuum: live-room refresh %s.%s unavailable for %s (%s); disabling "
                 "the pulse for this session",
                 domain, name, vacuum_entity_id, err,
             )

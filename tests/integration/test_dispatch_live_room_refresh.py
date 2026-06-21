@@ -22,6 +22,7 @@ Coverage targets
 
 from __future__ import annotations
 
+from homeassistant.core import SupportsResponse
 from homeassistant.exceptions import HomeAssistantError, ServiceNotSupported
 from homeassistant.helpers import (
     device_registry as dr,
@@ -35,10 +36,15 @@ from custom_components.eufy_vacuum.adapters.registry import register_adapter_con
 _VAC = "vacuum.ivy"
 _DUID = "57R4LhSyBB7y24BiKWWGiI"
 
+# Roborock registers get_vacuum_current_position under the ROBOROCK domain (not vacuum),
+# SupportsResponse.ONLY -> the call must set return_response (returns_response).
 _LRR = {
     "enabled": True,
     "interval_s": 15,
-    "service": {"domain": "vacuum", "service": "get_vacuum_current_position"},
+    "service": {
+        "domain": "roborock", "service": "get_vacuum_current_position",
+        "returns_response": True,
+    },
     "local_gate": {
         "device_identifier_domain": "roborock",
         "issue_domain": "roborock",
@@ -79,8 +85,12 @@ def _capture(hass):
 
     async def _h(call):
         calls.append(dict(call.data))
+        return {"x": 1, "y": 2}  # SupportsResponse service returns a value
 
-    hass.services.async_register("vacuum", "get_vacuum_current_position", _h)
+    hass.services.async_register(
+        "roborock", "get_vacuum_current_position", _h,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     return calls
 
 
@@ -104,7 +114,9 @@ async def test_getter_defaults_and_overrides(hass, manager):
     _register(hass)
     cfg = manager._live_room_refresh(_VAC)
     assert cfg["enabled"] is True and cfg["interval_s"] == 15
+    assert cfg["service"]["domain"] == "roborock"  # NOT vacuum.* (see services.py)
     assert cfg["service"]["service"] == "get_vacuum_current_position"
+    assert cfg["service"]["returns_response"] is True  # SupportsResponse.ONLY
     assert cfg["local_gate"]["issue_domain"] == "roborock"
 
     _register(hass, live_room_refresh={**_LRR, "interval_s": "oops"})
@@ -188,9 +200,12 @@ async def test_unsupported_service_sticky_disables(hass, manager, mock_config_en
 
     async def _raise(call):
         calls.append(1)
-        raise ServiceNotSupported("vacuum", "get_vacuum_current_position", vid)
+        raise ServiceNotSupported("roborock", "get_vacuum_current_position", vid)
 
-    hass.services.async_register("vacuum", "get_vacuum_current_position", _raise)
+    hass.services.async_register(
+        "roborock", "get_vacuum_current_position", _raise,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.states.async_set(vid, "cleaning")
 
     manager.maybe_pulse_live_room_refresh(vid)
@@ -214,7 +229,10 @@ async def test_transient_error_swallowed_not_disabled(hass, manager, mock_config
         calls.append(1)
         raise HomeAssistantError("position_not_found")
 
-    hass.services.async_register("vacuum", "get_vacuum_current_position", _raise)
+    hass.services.async_register(
+        "roborock", "get_vacuum_current_position", _raise,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
     hass.states.async_set(vid, "cleaning")
 
     manager.maybe_pulse_live_room_refresh(vid)
@@ -225,6 +243,19 @@ async def test_transient_error_swallowed_not_disabled(hass, manager, mock_config
     manager.maybe_pulse_live_room_refresh(vid)
     await hass.async_block_till_done()
     assert len(calls) == 2  # fired again — not sticky
+
+
+async def test_service_not_found_sticky_disables(hass, manager, mock_config_entry):
+    """[LRR-10] regression: the service not registered on this install (ServiceNotFound, e.g.
+    the wrong domain or an older Roborock integration) must sticky-disable, NOT retry every
+    interval forever. This is the live bug the first deploy surfaced (vacuum.* vs roborock.*)."""
+    vid = _link_device(hass, mock_config_entry)
+    _register(hass)  # declares the service, but we register NO handler for it
+    hass.states.async_set(vid, "cleaning")
+
+    manager.maybe_pulse_live_room_refresh(vid)
+    await hass.async_block_till_done()
+    assert vid in manager._live_room_pulse_off()  # disabled after the first ServiceNotFound
 
 
 async def test_gate_failsafe_no_device(hass, manager, mock_config_entry):
