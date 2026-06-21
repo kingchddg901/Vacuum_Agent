@@ -84,7 +84,7 @@ def test_apply_no_live_cfg_leaves_result_untouched(manager):
     """[LP-1] live_cfg=None (not a dict) -> early return, result is byte-identical."""
     result = {"present": True, "robot_anchor": [0.9, 0.9], "current_room": 7}
     before = dict(result)
-    manager._apply_inmem_pose_to_result(result, _GEOM, _VAC, None)
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, None)
     assert result == before
 
 
@@ -97,8 +97,8 @@ def test_apply_result_not_present_leaves_untouched(manager):
     def _boom(*a, **k):  # pragma: no cover - asserts it is NOT called
         raise AssertionError("_read_inmem_pose called despite result not present")
 
-    manager._read_inmem_pose = _boom
-    manager._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._read_inmem_pose = _boom
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
     assert result == before
 
 
@@ -107,8 +107,8 @@ def test_apply_pose_absent_keeps_base_overlays(manager):
     result = {"present": True, "robot_anchor": [0.9, 0.9], "current_room": 5,
               "path": [[0.1, 0.1]]}
     before = dict(result)
-    manager._read_inmem_pose = lambda vid, cfg: {"present": False, "reason": "no_pose"}
-    manager._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._read_inmem_pose = lambda vid, cfg: {"present": False, "reason": "no_pose"}
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
     assert result == before
 
 
@@ -122,8 +122,8 @@ def test_apply_pose_present_overlays_moving_fields(manager):
         "current_room": 99,                # stale, NOT re-emitted (no raster) -> cleared
         "path": [[0.99, 0.99]],            # stale -> replaced by fresh trail
     }
-    manager._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
-    manager._apply_inmem_pose_to_result(
+    manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
+    manager.map_source._apply_inmem_pose_to_result(
         result, _GEOM, _VAC, {"robot_pixel_attrs": ["robot_pixel"]},
     )
 
@@ -148,9 +148,9 @@ def test_apply_pose_read_raises_keeps_base_overlays(manager):
     def _raise(vid, cfg):
         raise RuntimeError("provider internal blew up")
 
-    manager._read_inmem_pose = _raise
+    manager.map_source._read_inmem_pose = _raise
     # Must NOT raise (on-loop snapshot contract).
-    manager._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
+    manager.map_source._apply_inmem_pose_to_result(result, _GEOM, _VAC, {"robot_pixel_attrs": ["x"]})
     assert result == before
 
 
@@ -164,8 +164,8 @@ def test_apply_docked_robot_flags_and_anchors_to_dock(manager):
         "robot_heading": None,
         "trail_pixels": None,
     }
-    manager._read_inmem_pose = lambda vid, cfg: dict(docked)
-    manager._apply_inmem_pose_to_result(
+    manager.map_source._read_inmem_pose = lambda vid, cfg: dict(docked)
+    manager.map_source._apply_inmem_pose_to_result(
         result, _GEOM, _VAC, {"robot_pixel_attrs": ["robot_pixel"]},
     )
     assert result["robot_anchor"] == _EXPECT_DOCK    # robot resolved to the dock
@@ -196,7 +196,7 @@ async def test_get_live_pose_pose_absent_carries_reason_and_diag(manager):
     """[LP-7] pose locator returns absent -> reason + diagnostics passthrough; no geom read."""
     _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
     diag = {"candidates": ["hass_data:robovac_mqtt"], "structure": {"x": 1}}
-    manager._read_inmem_pose = lambda vid, cfg: {
+    manager.map_source._read_inmem_pose = lambda vid, cfg: {
         "present": False, "reason": "no_pose", "diagnostics": diag,
     }
 
@@ -204,7 +204,7 @@ async def test_get_live_pose_pose_absent_carries_reason_and_diag(manager):
     async def _boom(*a, **k):  # pragma: no cover - asserts it is NOT awaited
         raise AssertionError("geometry loaded despite absent pose")
 
-    manager._load_live_pose_geom = _boom
+    manager.map_source._load_live_pose_geom = _boom
 
     out = await manager.async_get_map_live_pose(vacuum_entity_id=_VAC)
     assert out == {"present": False, "reason": "no_pose", "diagnostics": diag}
@@ -213,12 +213,12 @@ async def test_get_live_pose_pose_absent_carries_reason_and_diag(manager):
 async def test_get_live_pose_no_geom(manager):
     """[LP-8] pose present but geometry missing -> {present:False, reason:no_geom} + diag."""
     _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
-    manager._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
+    manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
 
     async def _no_geom(vid, cfg):
         return None
 
-    manager._load_live_pose_geom = _no_geom
+    manager.map_source._load_live_pose_geom = _no_geom
 
     out = await manager.async_get_map_live_pose(vacuum_entity_id=_VAC)
     assert out == {
@@ -231,12 +231,12 @@ async def test_get_live_pose_no_geom(manager):
 async def test_get_live_pose_present_overlay_plus_diag(manager):
     """[LP-9] pose + geometry present -> present overlay + diagnostics breadcrumb."""
     _register(live_pose={"robot_pixel_attrs": ["robot_pixel"]})
-    manager._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
+    manager.map_source._read_inmem_pose = lambda vid, cfg: dict(_POSE_PRESENT)
 
     async def _geom(vid, cfg):
         return dict(_GEOM)
 
-    manager._load_live_pose_geom = _geom
+    manager.map_source._load_live_pose_geom = _geom
 
     out = await manager.async_get_map_live_pose(vacuum_entity_id=_VAC)
     assert out["present"] is True
@@ -257,5 +257,5 @@ async def test_load_live_pose_geom_no_path_returns_none(manager):
     """[LP-10] no resolvable store path -> None (the absent branch)."""
     # No active_map entity / store config on the MagicMock-ish hass, so
     # eufy_store_path returns falsy and the method short-circuits to None.
-    out = await manager._load_live_pose_geom(_VAC, {"backend": "storage"})
+    out = await manager.map_source._load_live_pose_geom(_VAC, {"backend": "storage"})
     assert out is None
