@@ -482,3 +482,114 @@ def test_walk_node_cap_terminates():
     big = {str(i): {"a": i} for i in range(10000)}
     hit, _ = _walk(big, lambda o: False, max_nodes=50)
     assert hit is None
+
+
+# --- defensive-introspector hardening (blind-agent flagged; this module's JOB
+# --- is surviving unknown/malformed runtime shapes, so these are behavior, not padding) ---
+
+def test_eufy_render_data_from_store_bad_shapes():
+    """[MSR-1b] eufy_render_data_from_store degrades (never raises) on EVERY bad shape."""
+    f = eufy_render_data_from_store
+    assert f("not a dict")["reason"] == "no_store"
+    assert f({"version": 2, "data": {}}, expected_version=1)["reason"] == "store_version_mismatch"
+    assert f({"data": "nope"})["reason"] == "no_store_data"            # data not a dict
+    assert f({"data": {"map_data": "nope"}})["reason"] == "no_map_data"
+    assert f({"data": {"map_data": {}}})["reason"] == "no_segmentation"  # decoder -> None
+
+
+# Minimal fakes mimicking the vacuum-map-parser MapData/Room/Image the introspector duck-types.
+class _FPoint:
+    def __init__(self, x, y): self.x, self.y = x, y
+    def rotated(self, dims): return self
+
+
+class _FDims:
+    rotation = 0
+    def __init__(self, raise_on=None): self._raise_on = raise_on
+    def to_img(self, p):
+        if self._raise_on is not None and p.x == self._raise_on:
+            raise ValueError("bad point")
+        return _FPoint(p.x, p.y)
+
+
+class _FData:
+    def __init__(self, size=(100, 100)): self.size = size
+
+
+class _FImage:
+    def __init__(self, dims=None, data=None):
+        self.dimensions = _FDims() if dims is None else dims
+        self.data = _FData() if data is None else data
+
+
+class _FRoom:
+    def __init__(self, x0, y0, x1, y1, number=1, name=None):
+        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
+        self.number, self.name = number, name
+
+
+class _FMap:
+    def __init__(self, rooms, image="default"):
+        self.rooms = rooms
+        self.image = _FImage() if image == "default" else image
+
+
+def test_rooms_from_mapdata_malformed_and_skips():
+    """[MSR-2b] rooms_from_mapdata: [] on missing rooms / no projector geometry; skips a
+    None-corner room and a projection-failing room; keeps the valid one. Never raises."""
+    assert rooms_from_mapdata(_FMap(rooms=None)) == []                       # rooms None
+    assert rooms_from_mapdata(_FMap(rooms={1: _FRoom(0, 0, 50, 50)}, image=None)) == []  # no projector
+
+    md = _FMap(rooms={
+        1: _FRoom(10, 10, 60, 60),      # valid -> kept
+        2: _FRoom(None, 0, 50, 50),     # None corner -> skipped
+        3: _FRoom(999, 0, 50, 50),      # projection raises -> skipped
+    }, image=_FImage(dims=_FDims(raise_on=999)))
+    out = rooms_from_mapdata(md)
+    assert len(out) == 1 and out[0]["number"] == 1 and out[0]["approximate"] is True
+
+
+def test_rooms_from_mapdata_bad_projector_geometry():
+    """[MSR-2c] the projector returns None (=> rooms []) on zero / unparseable image dims."""
+    assert rooms_from_mapdata(_FMap(rooms={1: _FRoom(0, 0, 1, 1)},
+                                    image=_FImage(data=_FData(size=(0, 0))))) == []
+    assert rooms_from_mapdata(_FMap(rooms={1: _FRoom(0, 0, 1, 1)},
+                                    image=_FImage(data=_FData(size="bad")))) == []
+
+
+def test_has_named_attr_raising_descriptor():
+    """[MSR-3b] a class-level property that RAISES must not escape the BFS -> not-present; a
+    normal class attr (not in instance __dict__) is still found via the hasattr fallback."""
+    from custom_components.eufy_vacuum.mapping.map_source_runtime import _has_named_attr
+
+    class _Raises:
+        @property
+        def boom(self): raise KeyError("descriptor blew up")
+
+    class _HasClassAttr:
+        foo = 1
+
+    assert _has_named_attr(_Raises(), ["boom"]) is False
+    assert _has_named_attr(_HasClassAttr(), ["foo"]) is True
+
+
+def test_eufy_live_pose_hostile_candidate_then_success():
+    """[MSR-3c] a candidate whose provider internal RAISES degrades to a miss (not an abort);
+    a later clean candidate still resolves the pose."""
+    class _RaisingHeading:
+        _robot_pixel = [1, 2]
+        _dock_pixel = [3, 4]
+        @property
+        def _heading(self): raise TypeError("provider internal raised")
+
+    class _Good:
+        def __init__(self):
+            self._robot_pixel = [5, 6]
+            self._dock_pixel = [7, 8]
+
+    out = eufy_live_pose_from_candidates(
+        [("bad", "1", _RaisingHeading()), ("good", "2", _Good())],
+        robot_attrs=["_robot_pixel"], dock_attrs=["_dock_pixel"], heading_attrs=["_heading"],
+    )
+    assert out["present"] is True
+    assert out["robot_pixel"] == [5, 6] and out["dock_pixel"] == [7, 8]

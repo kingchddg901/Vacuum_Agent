@@ -43,6 +43,55 @@ def test_build_payload_room_slugs_from_queue_rooms(tmp_path):
     assert "kitchen" in jp["room_slugs"] and "bath" in jp["room_slugs"]
 
 
+def _phased_ajs(phases):
+    return {
+        "queue_room_ids": [8],  # the bug's single last-phase view
+        "counter_samples": [{"t": "2026-01-01T09:00:10Z", "cleaning_time": 100, "cleaning_area": 5}],
+        "phases": phases,
+    }
+
+
+def test_build_payload_strict_order_concats_phase_room_timings(tmp_path):
+    """Strict-order (phased) job: room_timings come from concatenating each phase's captured
+    room_timing — BOTH rooms, not just the last-phase queue — and transit_capture_valid is True
+    only when every phase captured one. Covers the finalize-side of the strict-order fix."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.ivy", job_id="jso",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=60, queue_state={}, payload_state={},
+        active_job_state=_phased_ajs([
+            {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+             "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 6.0, "cleaning_seconds": 120}]},
+            {"resolved_rooms": [{"room_id": 8, "slug": "dining_room"}],
+             "room_timing": [{"room_id": 8, "slug": "dining_room", "area_m2": 4.5, "cleaning_seconds": 90}]},
+        ]),
+    )
+    job = payload["job"]
+    assert [rt["room_id"] for rt in job["room_timings"]] == [5, 8]   # not just the last phase
+    assert job["transit_capture_valid"] is True
+    assert job["transitions"] == []  # inter-phase gaps are dock overhead, not room transit
+
+
+def test_build_payload_strict_order_partial_capture_invalid(tmp_path):
+    """A phase that never cleaned (empty room_timing) → transit_capture_valid False, but the
+    captured phases' timings still surface (excluded from learning aggregates by the gate)."""
+    store = _make_store(tmp_path)
+    payload = store.build_completed_job_payload(
+        vacuum_entity_id="vacuum.ivy", job_id="jso2",
+        started_at="2026-01-01T09:00:00+00:00", ended_at="2026-01-01T09:30:00+00:00",
+        battery_start=90, battery_end=60, queue_state={}, payload_state={},
+        active_job_state=_phased_ajs([
+            {"resolved_rooms": [{"room_id": 5, "slug": "kitchen"}],
+             "room_timing": [{"room_id": 5, "slug": "kitchen", "area_m2": 6.0, "cleaning_seconds": 120}]},
+            {"resolved_rooms": [{"room_id": 8, "slug": "dining_room"}], "room_timing": []},  # never cleaned
+        ]),
+    )
+    job = payload["job"]
+    assert [rt["room_id"] for rt in job["room_timings"]] == [5]
+    assert job["transit_capture_valid"] is False
+
+
 def test_room_stats_cached_per_hass(tmp_path):
     """[HS-cache] load_room_stats serves from an hass-scoped cache so the hot
     dashboard-snapshot estimate doesn't re-read room_stats.json off the event loop

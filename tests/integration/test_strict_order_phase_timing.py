@@ -148,3 +148,38 @@ async def test_atomic_job_is_noop(hass, manager):
     _seed_job(manager, job)
     manager._capture_finishing_phase_timing(_VAC, _MAP, job)
     assert "phases" not in job and "room_timing" not in job
+
+
+async def test_learned_room_area_prefers_learned_then_area_then_none(hass, manager):
+    """[SOPT-6] the AREA fallback source: learned_area_m2 preferred, area_m2 next, None when
+    neither / no room / bad id."""
+    manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {"rooms": {
+        "5": {"learned_area_m2": 9.3, "area_m2": 1.0},  # learned wins
+        "6": {"area_m2": 4.0},                            # only area_m2 -> fallback key
+        "7": {"slug": "x"},                               # neither -> None
+    }}
+    assert manager._learned_room_area_m2(_VAC, _MAP, 5) == 9.3
+    assert manager._learned_room_area_m2(_VAC, _MAP, 6) == 4.0
+    assert manager._learned_room_area_m2(_VAC, _MAP, 7) is None
+    assert manager._learned_room_area_m2(_VAC, _MAP, 99) is None   # no such room
+    assert manager._learned_room_area_m2(_VAC, _MAP, 0) is None    # bad id
+
+
+async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
+    """[SOPT-7] per-phase deltas: cleaning_seconds/area = within-slice delta, battery_delta =
+    first−last, wall = parsed ISO span; bad timestamps degrade to 0 wall without crashing."""
+    good = [
+        {"t": "2026-01-01T00:00:00Z", "cleaning_time": 10, "cleaning_area": 1.0, "battery": 80},
+        {"t": "2026-01-01T00:02:00Z", "cleaning_time": 130, "cleaning_area": 7.0, "battery": 74},
+    ]
+    rt = manager._phase_room_timing(5, "kitchen", good)
+    assert rt["cleaning_seconds"] == 120 and rt["area_m2"] == 6.0
+    assert rt["battery_delta"] == 6 and rt["cleaning_wall_seconds"] == 120
+
+    bad_ts = [
+        {"t": "nope", "cleaning_time": 0, "cleaning_area": 0.0, "battery": 50},
+        {"t": "also-bad", "cleaning_time": 30, "cleaning_area": 2.0, "battery": 48},
+    ]
+    rt2 = manager._phase_room_timing(5, "kitchen", bad_ts)
+    assert rt2["cleaning_seconds"] == 30 and rt2["battery_delta"] == 2
+    assert rt2["cleaning_wall_seconds"] == 0  # _wall_seconds swallows the parse error
