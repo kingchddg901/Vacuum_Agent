@@ -178,8 +178,12 @@ saved run profile; use the `id` field from the profile you want.
 
 - If the profile's run is reduced by active blocker rules and
   `confirm_reduced_run` is `false` (the default), the service returns
-  `{"status": "confirmation_required"}` and the job does not start. Set
-  `confirm_reduced_run: true` for fully automated schedules.
+  `{"started": false, "reason": "confirmation_required"}` (alongside
+  `message`, `warning`, `preflight`, and `confirm_token`) and the job does
+  not start. An automation that inspects the response must test
+  `started == false` and `reason == "confirmation_required"` — there is no
+  `status` field. Set `confirm_reduced_run: true` for fully automated
+  schedules.
 - `start_run_profile` requires the vacuum to be docked and idle. It will return
   an error if a job is already in progress.
 
@@ -234,6 +238,8 @@ automation:
 | `used_for_learning` | bool or null | Whether the job was used to update learned stats |
 | `finalized_at` | string or null | ISO timestamp when the job was finalized |
 | `room_count` | int or null | Number of rooms in the job |
+| `duration_minutes` | float or null | Total wall-clock duration of the job in minutes |
+| `actual_cleaning_minutes` | float or null | Minutes the vacuum spent actively cleaning |
 | `job_path` | string or null | Path to the archived job file |
 
 **Customization points:**

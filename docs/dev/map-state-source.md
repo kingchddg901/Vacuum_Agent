@@ -29,7 +29,7 @@ changes required.
 |---|---|
 | Pure reader core (extraction/normalization, HA-free) | `mapping/map_source.py` (13 tests) |
 | Runtime locators (Eufy `.storage` read; Roborock introspector) | `mapping/map_source_runtime.py` (13 tests) |
-| Async pre-warm + cache + snapshot field | `core/manager.py` `async_refresh_map_state_source` / `_refresh_storage_map_source` / `_resolve_live_map_image_entity`; snapshot key `map_state_source` |
+| Async pre-warm + cache + snapshot field | `mapping/map_source_coordinator.py` `MapSourceCoordinator.async_refresh_map_state_source` / `_refresh_storage_map_source` / `_refresh_eufy_map_source` (constructed as `self.map_source = MapSourceCoordinator(manager=self)` in `core/manager.py` `async_initialize`); `core/manager.py` keeps thin 1-line delegators plus `_map_state_source_cache` and `_resolve_live_map_image_entity`; snapshot key `map_state_source` |
 | Pre-warm call site (off-loop IO before the on-loop sync snapshot) | `services/snapshots.py` `_handle_get_dashboard_snapshot` |
 | Adapter config blocks | `adapters/eufy/adapter.py` + `adapters/roborock/adapter.py` `map_state_source` |
 
@@ -173,8 +173,10 @@ fork-camera crop). Adapter-driven, brand-agnostic core + card.
   `eufy_room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
   schema). Roborock omits it → `supports_va_render: false` → the card hides the toggle (its
   HA-core render is already frame-matched).
-- **Service** `get_map_render_data` → `manager.async_get_map_render_data` dispatches by
-  `map_render.format`, executor-reads `.storage`, returns the raster (`room_pixels` b64) +
+- **Service** `get_map_render_data` → `manager.async_get_map_render_data` (a thin delegator to
+  `MapSourceCoordinator.async_get_map_render_data` in `mapping/map_source_coordinator.py`)
+  dispatches by `map_render.format`, executor-reads `.storage`, returns the raster (`room_pixels`
+  b64) +
   **explicit decode params** (dims, `ro_dx/dy`, `flip_y`, `rid_shift`, `catch_all_rid`,
   `room_names`, `version`) — so the card decodes with **no brand assumptions**.
 - **Card:** a `<canvas>` backdrop (same `object-fit:contain` as the live `<img>`, so it

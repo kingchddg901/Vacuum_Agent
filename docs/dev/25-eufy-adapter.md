@@ -19,9 +19,10 @@
 Eufy (the X10 Pro Omni) is the reference adapter because it exercises **every**
 schema block the framework can read: mop/water control, dock wash/dry/empty
 events, post-job water amendment, per-model maintenance + upkeep guides, room
-discovery, a rich dispatch payload, a CV map segmenter, a counter-based job
-segmenter, the room-profile vocabulary, and live current-room transition +
-anomaly tuning. A minimal adapter
+discovery, a rich dispatch payload (room clean + ad-hoc zone clean), a CV map
+segmenter, the device-map state source + VA-owned map render, a counter-based job
+segmenter, a room-attribution engine, the room-profile vocabulary, and live
+current-room transition + anomaly tuning. A minimal adapter
 can omit most of these (absent blocks degrade gracefully — see the
 "if absent" column in [22 §consumers](22-adapter-config-reference.md)). Eufy is
 the upper bound, so it's the best thing to read when you want to see how a block
@@ -176,6 +177,14 @@ payload `{map_id:int, rooms:[{id, clean_times, …}]}`. Eufy uses the canonical
 framework field names and values verbatim, so every `room_fields` entry is an
 **identity rename with `value_map: None`**. This block is technically optional
 for Eufy (defaults match) but is kept as the **copy template** a port edits.
+
+The block also declares `zone_command: "zone_clean"` — the ad-hoc free-form
+zone-clean verb (draw a box on the live map, clean it) via the same
+`vacuum.send_command` service with a bare `{zones:[[x0,y0,x1,y1],…], clean_times}`
+payload, supported by the smcneece eufy-clean fork. `manager.dispatch_zone_clean`
+reads this verb; an **absent** `zone_command` means zone cleaning is unsupported for
+the brand (it raises rather than dispatching). It pairs with
+`capabilities.supports_zone_clean` below.
 **Pattern:** the dispatch block is where brand payload shape is expressed; pick a
 built-in template or add one to the dispatch engine.
 
@@ -198,6 +207,38 @@ tab "Live map camera", set via `setup_set_map_camera`) wins.
 **Pattern:** the live-map pattern is a brand-default guess, existence-gated, with
 the per-vacuum override as the escape hatch — never hard-code a camera name in
 core.
+
+### `map_state_source`
+Where the framework reads the **device's own** map segmentation — normalized into
+VA-owned room bboxes + dock/robot anchors — so room regions, current-room, and
+mascot anchors are auto-derived (immune to the per-session raw coordinate drift).
+Consumed by `mapping/map_source_coordinator.py`. Eufy declares a `storage` backend:
+`identifier_domain: "robovac_mqtt"`, a `store_key: "robovac_mqtt.{device_id}"`
+(filled from the `(robovac_mqtt, <serial>)` device-registry identifier), and a
+`store_version` guarding the fork's stored-wrapper shape (re-point the number if the
+fork bumps it). `present_requires_live_map_image: True` gates the whole block on the
+`camera.<device>_map` artifact, so plain non-fork installs resolve to "not present"
+and the segmentation features hide — same presence-gate idea as the model/CV gates.
+Two sub-blocks override the static-storage source with the fork's **fresher
+in-memory** state: `live_pose` (the `EufyCleanCoordinator`'s `_robot_pixel` /
+`_dock_pixel` / `_robot_trail` for the moving overlays, ~2 s fresh vs the
+save-throttled `.storage`) and `memory` (the in-memory `_map_data` MapData, fresher
+and loop-safe vs a file read), each listing the attr names to try in order with
+absence ⇒ stay on `.storage`. See [map-state-source](map-state-source.md).
+**Pattern:** declare *where* the authoritative map state lives (a store key, a
+presence gate) and *which* in-memory holders supersede it; core owns the read.
+
+### `map_render`
+The VA-owned client-side map render — declares **how** the card sources the raster
+to draw its own full-grid backdrop (so overlays align with no fork-camera crop and
+the look is themeable). One key, `format: "eufy_room_pixels_v1"`, naming the decode;
+the card applies the explicit params `get_map_render_data` returns, so core/card stay
+brand-agnostic. The **source pointer** (`store_key` / `identifier_domain` /
+`store_version`) is reused from `map_state_source` above — no duplicate schema.
+Roborock omits this block (its HA-core image render is already frame-matched);
+absence ⇒ the card's "VA-rendered map" backdrop source is hidden for that brand.
+**Pattern:** name the decode format and reuse the existing source pointer; absent ⇒
+the feature degrades off.
 
 ### `job_segmenter`
 `engine: "eufy_counter_v1"` + `tuning`. This is the **run/counter** segmenter — a
@@ -230,6 +271,24 @@ per-room telemetry registers its own engine here that emits the same
 `JobBoundaryCandidate` / `JobSegment` shape. See
 [22 §job_segmenter](22-adapter-config-reference.md).
 
+### `room_attribution`
+A **third** pluggable engine seam, on a different axis from `job_segmenter`: it
+recovers **which managed rooms an external (undispatched) run cleaned**, from a
+per-tick pose time-series (`current_room` + anchor + `cleaning_area`). Where
+`job_segmenter` owns time/area *boundaries*, this owns room *identity*. `engine:
+"eufy_anchor_winding_v1"` is looked up in
+`learning/room_attribution_engines.py::_ROOM_ATTRIBUTION_ENGINES`; an absent or
+unknown name falls back to `eufy_anchor_winding_v1` (not `noop`), mirroring the
+job-segmenter default. The engine segments by `current_room`, drops transit by
+path-winding, and separates a cleaned room from a parked dock by the swept-area
+(`cleaning_area`) delta. `tuning` carries `wind_transit` / `dwell_min_s` /
+`swept_area_min_m2` / `interval_s`. This block is **declared-but-dormant** — wired
+and validated now, but inert until the run-active pose sampler (W5b) and finalize
+wiring (W5c) land. See [eufy-native-transition](eufy-native-transition.md).
+**Pattern:** room-identity recovery for external runs is its own pluggable engine,
+declared up front so the selection is explicit even while the upstream sampler is
+still pending.
+
 ### `live_transition`
 The **orchestration** half of live current-room rollover (the detection thresholds
 live in `job_segmenter.tuning`, above — this block was trimmed to the knobs that
@@ -254,11 +313,13 @@ roll the queue) here, so a port re-tunes either without touching `jobs/`. See
 [22 §live_transition](22-adapter-config-reference.md).
 
 ### `anomaly`
-Live anomaly-tuning ratios for the job-progress snapshot
-(`core/manager.py::get_job_progress_snapshot`). `running_long_ratio: 1.5`
-(the **soft** tier — current room over 1.5× its estimate with no pending
-transition) and `stall_ratio: 2.0` (the existing hard stall). Both equal the
-manager fallbacks, so Eufy is unchanged; both are adapter-tunable.
+Live anomaly-tuning ratios for the run-anomaly detector
+(`jobs/active_job.py::ActiveJobTracker.detect_run_anomalies`, which the job-progress
+snapshot composer `core/manager.py::get_job_progress_snapshot` now just delegates to).
+`running_long_ratio: 1.5` (the **soft** tier — current room over 1.5× its estimate
+with no pending transition) and `stall_ratio: 2.0` (the existing hard stall). Both
+equal the `detect_run_anomalies` fallbacks, so Eufy is unchanged; both are
+adapter-tunable.
 **Pattern:** thresholds for "this is taking too long" are firmware/brand-paced,
 so they're config scalars, not core constants. See
 [22 §anomaly](22-adapter-config-reference.md).
@@ -293,11 +354,17 @@ its own profiles/aliases without forking the resolver. See
 ### `capabilities`
 Hardware/entity-surface flags are sourced from `detect_capabilities()`
 (`caps.get(...)`) so the registered config matches the install's real entities.
-Two **behavioural** flags are hardcoded literals instead, because they describe
-firmware behaviour an entity probe can't see: `position_lock_reliable = False`
-(Eufy re-bases the raw coordinate frame each session) and
-`rooms_unique_per_job = True` (no vacuum-then-mop whole-home mode, so a room is
-cleaned at most once per job). See [22-adapter-config-reference](22-adapter-config-reference.md).
+Three flags are hardcoded literals instead, because they can't be settled by a
+runtime entity probe: `position_lock_reliable = False` (Eufy re-bases the raw
+coordinate frame each session) and `rooms_unique_per_job = True` (no vacuum-then-mop
+whole-home mode, so a room is cleaned at most once per job) describe firmware
+behaviour an entity probe can't see; `supports_zone_clean = True` is a literal
+because no probe distinguishes the smcneece fork (which accepts `zone_clean` — see
+`dispatch.zone_command`) from stock eufy-clean. It is gated **downstream** rather
+than at the probe: the card only shows the zone-draw control when a live-map image
+resolves, and the fork that adds `zone_clean` is the same one exposing
+`camera.<device>_map`, so stock (no-live-map) installs never see it. See
+[22-adapter-config-reference](22-adapter-config-reference.md).
 
 ### `settings_selects`
 The global select entities (`cleaning_mode` / `suction_level` / `water_level` /
@@ -305,6 +372,19 @@ The global select entities (`cleaning_mode` / `suction_level` / `water_level` /
 while a job runs — the only window into an **app-started** run's per-room settings.
 Consumed by external-run ingestion ([28](28-external-run-ingestion.md)); the
 `clean_mode` entry carries a `value_map` to canonicalise the raw firmware strings.
+
+### `external_mid_run_statuses`
+A list of `task_status` values that mean "docked mid-run, will resume" — mop prewash
+(`Returning to Wash` / `Washing Mop`), dust empty (`Returning to Empty` /
+`Emptying Dust`), and recharge-resume (`Returning to Charge` / `Charging (Resume)`).
+The external-run finalizer **holds the run open** while `task_status` is one of these
+instead of closing it at the dock, so a vacuum→mop run stays one multi-segment
+record. Source strings are extracted from `robovac_mqtt`'s `_map_task_status`; an
+unrecognized value falls back to the time-based grace, so a string drift just loses
+the long-wash hold rather than crashing. Consumed by external-run ingestion
+([28](28-external-run-ingestion.md)).
+**Pattern:** the "stay open across a dock return" vocabulary is brand firmware
+strings in config, not a core constant.
 
 ### `maintenance_components`
 Projected from `MAINTENANCE_COMPONENTS`: `sensor_suffix` (full suffix → counter
@@ -314,30 +394,34 @@ built from `buttons.py` (§5). See [13-maintenance-manager](13-maintenance-manag
 ### `upkeep_catalog` / `water_model_configs`
 Per-model guide library + model→family maps, and tank/flow constants per model.
 `water_model_configs` is projected verbatim from
-`water_config.py::WATER_MODEL_CONFIGS` — today that's the physical tank trio only
+`water_config.py::WATER_MODEL_CONFIGS` — today that's the physical tank trio
 (`robot_internal_tank_ml` / `dock_clean_tank_capacity_ml` /
-`dock_wash_overhead_ml_per_cycle`).
+`dock_wash_overhead_ml_per_cycle`) **plus** a `water_rates` map: per-canonical-level
+floor-application rate in ml/min (`off/low/medium/high = 0/3.2/4.0/5.3`, measured on
+the X10 dock). Living it here (brand-owned) keeps the planning core neutral — it
+reads `water_model_configs[<model>]["water_rates"]` and otherwise applies a generic
+rate, so these Eufy numbers never leak onto an unconfigured brand.
 **Pattern:** model-keyed reference data is plain dict literals in their own
 modules, projected verbatim into the config.
 
-> **Water-rate / wash-interval seam (read by the framework, not yet declared by
-> Eufy).** `planning/run_plan.py` now reads three optional override hooks and
-> falls back to the measured Eufy values when they're absent — which is exactly
-> what Eufy does, so Eufy is byte-identical:
+> **Water-rate / wash-interval seam (`planning/run_plan.py`).** The planner reads
+> three optional override hooks; absent ones fall back to the measured Eufy values.
+> Two of the three are now **explicitly declared** by Eufy (no longer riding the
+> absent-fallback) and one is still undeclared:
 > - `water_model_configs[<model>]["water_rates"]` — per-canonical-level ml/min,
->   passed as `rate_override` to `_water_rate_ml_per_minute()`. Eufy rides the
->   built-in table (`off/low/medium/high = 0/3.2/4.0/5.3`, the
->   `WATER_RATE_*_ML_PER_MIN` constants).
-> - `water_model_configs[<model>]["low_clean_water_margin_ml"]` — low-water
->   margin (default `300.0`).
-> - **top-level** `wash_frequency_bounds` `{min, max, default}` — wash-cadence
->   interval clamp, read in `_derive_wash_frequency_config()` (default
->   `15/25/20`, the `WASH_INTERVAL_*_MINUTES` constants). Note this is a
->   *top-level* adapter key, **not** nested under `water_model_configs`.
+>   passed as `rate_override` to `_water_rate_ml_per_minute()`. **Declared** in
+>   `water_config.py` (`off/low/medium/high = 0/3.2/4.0/5.3`); documented in the
+>   `water_model_configs` body above.
+> - **top-level** `wash_frequency_bounds` `{default, min, max}` — wash-cadence
+>   interval clamp, read in `_derive_wash_frequency_config()`. **Declared** as a
+>   real top-level adapter key (`{default: 20, min: 15, max: 25}`, sourced from the
+>   `WASH_INTERVAL_*_MINUTES` constants); note it is *top-level*, **not** nested
+>   under `water_model_configs`.
+> - `water_model_configs[<model>]["low_clean_water_margin_ml"]` — low-water margin.
+>   **Still undeclared** by Eufy; rides the framework default `300.0`. A second
+>   brand with a different dock declares it to override.
 >
-> The constants back these defaults in `constants.py` but are **not** wired into
-> the Eufy config dict — a second brand with a different dock declares them to
-> override. See [22-adapter-config-reference](22-adapter-config-reference.md).
+> See [22-adapter-config-reference](22-adapter-config-reference.md).
 
 ---
 

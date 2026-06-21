@@ -3,7 +3,7 @@
 The profiles subsystem owns reusable per-room cleaning profiles (fan speed, water
 level, mop mode, etc.): the user library, the protected built-in profiles,
 applying a profile to a room, and saving/overwriting a profile from a room's
-current settings. Covered by **48 tests across 2 files**.
+current settings. Covered by **53 tests across 3 files**.
 
 Source: `custom_components/eufy_vacuum/profiles/`
 Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-manager.md)
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
 | `manager.py` | 315 | 95% | `test_profiles_manager.py` | integration |
-| `room_profiles.py` | 180 | 95% | `test_profiles_room_profiles.py` (unit) | unit |
+| `room_profiles.py` | 180 | 95% | `test_profiles_room_profiles.py` (unit), `test_profile_catalog.py` (unit) | unit |
 
 (The room-profile *services* are in [17 — services](17-services.md) via
 `test_services_room_profiles.py`.)
@@ -30,6 +30,12 @@ Architecture reference: [docs/dev/16-profile-manager.md](../../dev/16-profile-ma
   including the overwrite-from-room variant.
 - **Pure normalization** (unit) — `room_profiles.py` field coercion, protected
   names, and the profile-match resolution used to label a room's current config.
+- **Adapter-sourced catalog seam** (unit, `test_profile_catalog.py`) —
+  `resolve_profile_catalog` per-key merge of an adapter `room_profiles` block over
+  the in-code defaults, catalog-driven resolution (`resolve_room_profile_for_room`
+  honouring a catalog's floor-type water default, `default_profile` fallback, and a
+  custom `builtins` entry), and `None`/empty block staying byte-identical to the
+  in-code defaults (see [16 — profile manager §1.1](../../dev/16-profile-manager.md)).
 
 ---
 
@@ -42,13 +48,14 @@ normalization + matching helpers are unit-tested in isolation.
 
 ## Known gaps
 
-`manager.py` (94%) is diffuse — single-line defensive returns and not-found
+`manager.py` (95%) is diffuse — single-line defensive returns and not-found
 guards scattered across the CRUD methods (the `_safe_int` empty/except path at
-50–53, and `reason: ...` early-returns / `continue` skip-guards for non-dict
-entries at 403, 474, 623, 756, 1014–1033); no contiguous untested behavior block.
+50/52/53, and `continue` skip-guards for non-dict entries at 623, 756, and the
+restore-profile not-dict guards at 1014/1018/1025/1028/1032/1033); no contiguous
+untested behavior block.
 
-`room_profiles.py` (94%) is likewise defensive: the `TypedDict` ImportError
-fallback shim (10–11), empty-name `continue` guards (208), legacy-value
-migrations and aliases ("carpet"→`carpet_low_pile` at 234, `vacuum_mop_standard`
-at 342), the double-fallback when even `default_profile` is missing (263–264),
-and a capability-gating branch (484). All intentionally left uncovered.
+`room_profiles.py` (95%) is likewise defensive: the `TypedDict` ImportError
+fallback shim (10–11), empty-name `continue` guards (208), the
+`vacuum_mop_standard` alias fallback (342), the double-fallback when even
+`default_profile` is missing (263–264), and a capability-gating branch (484). All
+intentionally left uncovered.

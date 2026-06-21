@@ -2,7 +2,7 @@
 
 The battery subsystem tracks cell wear: it accumulates battery samples into
 charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy
-vs. an install baseline, and records per-job drain metrics. Covered by **97 tests across 4 files**.
+vs. an install baseline, and records per-job drain metrics. Covered by **97 tests across the 4 core files**, plus a service-level test for `battery_rebaseline`.
 
 Source: `custom_components/eufy_vacuum/battery/`
 Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-system.md)
@@ -17,6 +17,7 @@ Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-sys
 | `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
 | `sensors.py` | 165 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
 | `manager.py` | 414 | 93% | `tests/integration/test_battery_manager.py` | integration |
+| `__init__.py` (service) | — | 100% | `tests/integration/test_init_battery_rebaseline_service.py` | integration (service) |
 
 ---
 
@@ -50,11 +51,19 @@ Two layers, against the real `manager` fixture:
   (including the `"full"` close at 100%), the 50→90 health-proxy baseline anchor
   (CC + CV regimes), and out-of-range rejection.
 
+### `__init__.py` — `battery_rebaseline` service (prefix `INIT-REBASE`, service)
+The `eufy_vacuum.battery_rebaseline` service handler registered during setup.
+Boots the integration through the real config-entry path, swaps in a spy battery
+manager, then drives the service via `hass.services.async_call` and asserts the
+handler read `vacuum_entity_id` from the call data and delegated exactly once to
+`bm.rebaseline(...)` — including the `if not ok` "no record found" branch when
+`rebaseline` returns `False`.
+
 ---
 
 ## How it's tested
 
-Four patterns:
+Five patterns:
 1. **Pure import** — `job_metrics`.
 2. **`tmp_path`** — `store`.
 3. **Mock manager** — `sensors`: the entities only read `manager.get_record()`,
@@ -64,6 +73,9 @@ Four patterns:
    `_process_sample(...)` directly with explicit `battery_level` / `charging` /
    `ts`. This drives the whole cycle/rate/session/health state machine
    deterministically without real battery sensors.
+5. **Service through real setup** — `__init__.py`: boot the integration via the
+   config-entry path, swap in a spy battery manager, and call the registered
+   `battery_rebaseline` service to assert the handler's delegation contract.
 
 > The `_process_sample` tests must be `async def` — the method calls
 > `hass.async_add_executor_job` for the JSONL append, which needs a running

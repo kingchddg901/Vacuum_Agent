@@ -32,7 +32,7 @@ today, and it is itself an inference** — so the answer is a *hybrid*, not a fl
 Two facts shape the whole design:
 
 1. **Shape mismatch.** The seam consumes a live room-**NAME** entity (slug-matched to job targets,
-   `_resolve_native_target_room_id` at `jobs/active_job.py:883-929`) wired as
+   `_resolve_native_target_room_id` at `jobs/active_job.py:1048`) wired as
    `entities.active_cleaning_target`. Eufy's `current_room` is an inferred raster-lookup room **ID**
    (`mapping/map_source.py:231-260`, surfaced at `sensor/map_overlays.py:72-84`), and Eufy already
    uses `active_cleaning_target` as a completion **sentinel** (`adapters/eufy/adapter.py:353`). So a
@@ -45,28 +45,36 @@ Two facts shape the whole design:
 
 ## The seam (existing, brand-agnostic)
 
-Three collaborators (`jobs/active_job.py:596-708`):
+Three collaborators (`jobs/active_job.py`, `_maybe_roll_current_room_by_timing` at :814):
 
 - `live_transition.native_transition_source: True` — Eufy is currently `False` (`adapters/eufy/adapter.py:632`).
 - `entities.active_cleaning_target` → a **live room-NAME** sensor.
-- the ~5s tick caller `_maybe_roll_current_room_by_timing` (`core/manager.py:3111`), which
-  short-circuits into the native branch when the flag is set (`jobs/active_job.py:701-708`).
+- the ~5s tick caller `_maybe_roll_current_room_by_timing` — a `**kwargs` delegator on the manager
+  (`core/manager.py:843`) called from the tick at `core/manager.py:3139`, whose real implementation is
+  `jobs/active_job.py:814` — short-circuits into the native branch
+  `_maybe_roll_current_room_by_native_signal` (`jobs/active_job.py:1096`) when the flag is set.
 
-Native rollover logic is **order-agnostic and idempotent** (`jobs/active_job.py:931-1001`):
+Native rollover logic is **order-agnostic and idempotent**
+(`_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py:1096`):
 first-confirmed target is *adopted* with no completion (queue order was a guess); a move to a
 different target *completes only the previously-confirmed* target; same-target is a no-op. Unknown /
-transit / non-job-target names resolve to `None` and are ignored (`:931`) — this is the built-in
+transit / non-job-target names resolve to `None` and are ignored (in
+`_resolve_native_target_room_id`, `jobs/active_job.py:1048`) — this is the built-in
 transit + dock filter. Roborock proves coordinate drift is irrelevant here: its rollover is
 purely name-driven and uses no position/bounds (`position_lock_reliable` is also `False`).
 
-Sequenced/strict-order jobs bypass both paths (`jobs/active_job.py:687-688`) and instead read the
-same native signal through the phase watchdog's `native_current_room_target_id` accessor
-(`core/manager.py:4954`).
+Sequenced/strict-order jobs bypass both paths (the `if active_job.get("phases")` guard,
+`jobs/active_job.py:852`) and instead read the same native signal through the strict-order phase
+watchdog. That watchdog now lives in `jobs/phase_runner.py` (class `PhaseRunner`), **not**
+`core/manager.py` (it moved out in the `feat/zone-clean` re-bundle); it calls the
+`native_current_room_target_id` accessor — a method of `ActiveJobTracker`
+(`jobs/active_job.py:1039`) — via `self._manager.active_job.native_current_room_target_id(...)` at
+`jobs/phase_runner.py:450`.
 
 **Dock-start phantom is already handled (not a new edge case).** When the dock sits *inside a queued
 room*, `current_room` reads that room while parked, then changes as the robot leaves — naively
 "completing" a room that was never cleaned. This is documented + tested: `NR-10` (sequenced jobs no-op
-the live rollover via the phases guard, `:687`) and `NR-4` (the first confirmed signal is *adopted*
+the live rollover via the phases guard) and `NR-4` (the first confirmed signal is *adopted*
 with **no** completion). Eufy inherits both by riding the seam; we just mirror those cases in the Eufy
 contract tests (shim #6). Confirmed empirically in Wave 0 — the dock room was *seen* but correctly not
 attributed (see below).
@@ -81,7 +89,13 @@ attributed (see below).
   counter-plateau engine (kept wired at `adapters/eufy/adapter.py:613`, `counter_segmentation.py`).
 - The settle requirement replaces the smoothing the plateau logic gave for free — the native
   rollover path has **no debounce of its own** (settle/verify/retry lives only in the strict-order
-  phase watchdog, `core/manager.py:4835-4988`, not in grouped-job rollover).
+  phase watchdog `PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py:287`, with the re-dispatch at
+  `_dispatch_active_phase`, `jobs/phase_runner.py:486` — **not** in grouped-job rollover). The watchdog
+  moved out of `core/manager.py` to `jobs/phase_runner.py` in the `feat/zone-clean` re-bundle;
+  `core/manager.py` keeps only a `maybe_advance_phase` delegator (`core/manager.py:4206`) and spawns
+  the initial phase via `self.phase_runner._run_advanced_phase` (`core/manager.py:4403`). The `_PHASE_*`
+  timing constants (`core/manager.py:85-110`) and the `_phase_timing` resolver (`core/manager.py:4220`)
+  stayed on the manager.
 
 This captures most of the better-grounded-signal win while the heuristic covers the inference's
 blind spots.
@@ -93,7 +107,7 @@ blind spots.
 | 1 | Live current-room-**NAME** sensor (rid → `room.number` → managed name, slug-reconciled) | seam matches by slug, not id | `mapping/map_source.py:201,:259`, `sensor/map_overlays.py:82` |
 | 2 | Migrate Eufy completion off the `active_cleaning_target` sentinel → adopt `require_job_active_clear: True` | frees the entity to carry the live name (Roborock's approach) | `adapters/eufy/adapter.py:353`, `adapters/roborock/adapter.py:201` |
 | 3 | **Server-side** refresh of the rid/name during a run, independent of the map tab | the 2s freshness is UI-poll-coupled (`src/cards/main.js:600-625`) and does NOT run when the tab is backgrounded | new periodic task |
-| 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `jobs/active_job.py:931-1001` |
+| 4 | N-frame settle on the native rollover for non-phased jobs | no built-in debounce; doorway cells can flicker the rid for one frame | `_maybe_roll_current_room_by_native_signal`, `jobs/active_job.py:1096` |
 | 5 | Re-map reconciliation: re-resolve rid→name when the raster version changes | rid raster is content-versioned (`eufy_version_of`, sha1) | `mapping/map_source.py:449-456`, cf. `adapters/roborock/adapter.py:274` |
 | 6 | Contract tests mirroring `NR-1..NR-11` for the Eufy adapter | parity with Roborock's native-rollover suite | `tests/integration/test_native_rollover.py` |
 
@@ -293,7 +307,11 @@ plays today, but grounded in observed position + device area.
 
   **W5 gating + adapter discipline.** The native path rides `current_room`, which is *derived from
   map data* (`current_room_for_pixel` over the fork's in-memory `MapData` raster — `map_source.py:231`;
-  no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`, `manager.py:4153`).
+  no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`. That method moved to
+  `mapping/map_source_coordinator.py` (class `MapSourceCoordinator`); the `no_geom` return is at
+  `mapping/map_source_coordinator.py:412`. `core/manager.py:3742` keeps only a thin delegator that calls
+  `self.map_source.async_get_map_live_pose` — the manager's `MapSourceCoordinator` instance is held on
+  the `self.map_source` attribute, constructed at `core/manager.py:398`).
   So: no map → `current_room` is `None` → the engine returns an empty cleaned set → **W5c's
   availability gate falls back to today's manual wizard** (and the in-job track falls back to the
   map-independent counter-plateau heuristic). W5 is therefore **purely additive** — with the live map

@@ -102,8 +102,11 @@ All logic lives in `_detect_room_segments_pipeline()`. Stages in order:
    `fragmented_candidate`.
 8. **Suspicious-merge split.** Large, low-fill / oversized components run the
    splitter cascade (§5).
-9. **Emit candidates.** For each (possibly split) mask: crop, trace to polygon
-   (marching-square + RDP via `simplify_epsilon`), offset to global coords,
+9. **Emit candidates.** For each (possibly split) mask: crop, trace the outer
+   boundary via the hand-rolled edge-follower in
+   `segment_primitives.mask_to_polygon` (per-cell boundary edges → closed-loop
+   walk with angle-sorted junctions → largest-area loop), then RDP-simplify it
+   (`simplify_epsilon`, auto-derived when `None`), offset to global coords,
    recompute metrics, compute `confidence`, assign `quality` / `structural_role`
    / `segmentation_state` / `edit_readiness`, then keep/drop rules. Kept →
    `segments`; dropped → `deferred_small_regions`.
@@ -136,7 +139,7 @@ first that yields ≥ 2 masks:
 
 `_reclaim_localized_child_mask` repairs vertically-clipped localized children;
 `_component_should_keep` arbitrates small-region keep/drop. This cascade plus the
-recovery loop is why the module is the codebase's lowest-coverage file — most
+recovery loop is why the module is a deliberate coverage thin spot (~91%) — most
 strategies only fire on specific multi-room imagery (§9).
 
 ---
@@ -148,7 +151,7 @@ The `segmenter_tuning` dict (validated against the engine's known-key set):
 | Key | Default | Controls |
 |---|---|---|
 | `min_area_pixels` | 1200 | minimum component area to keep; scales most split/keep thresholds |
-| `simplify_epsilon` | `None` | RDP polygon simplification tolerance (`None` = no simplification) |
+| `simplify_epsilon` | `None` | RDP polygon simplification tolerance. `None` = **auto-derive** the epsilon (`max(1.0, sqrt(raw_point_count) * 0.42)`); a positive float overrides it. Simplification **always** runs — `None` is not "off". |
 | `expected_room_count` | `None` | triggers the recovery backfill when fewer rooms are found |
 | `max_segments` | `None` | hard cap on emitted segments |
 | `assist_image_path` | `None` | second image variant enabling wall-cut / color refinement |
@@ -206,7 +209,7 @@ area_percent      float
 center_pixel      [x, y]
 confidence        float 0–1
 quality           "strong" | "good" | "usable" | "poor"
-structural_role   str
+structural_role   str           # engine-defined; eufy_cv_v1 emits "hub" | "connector" | "spine" | "room" | "uncertain"
 segmentation_state str
 edit_readiness    str
 matched_room_id   None          # filled downstream, not here

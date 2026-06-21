@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-The `listeners/` package contains seven listener modules that register HA event and state-change subscriptions at integration load time: `lifecycle`, `dock_events`, `path_blockers`, `pause_timeout`, `job_progress`, `job_metrics`, and `discovery`. (`_common.py` is a shared helper module, not a listener — see §2.) Each listener module has a consistent two-function public surface:
+The `listeners/` package contains eight listener modules that register HA event and state-change subscriptions at integration load time: `lifecycle`, `dock_events`, `path_blockers`, `pause_timeout`, `job_progress`, `job_metrics`, `discovery`, and `pose_sampler`. (`_common.py` is a shared helper module, not a listener — see §2.) Each listener module has a consistent two-function public surface:
 
 ```python
 register(hass: HomeAssistant) -> None
@@ -203,6 +203,7 @@ Pushes periodic progress snapshots for active jobs.
 
 On each tick:
 - Only processes vacuums with active jobs in `{"started", "paused"}` status.
+- For **non-phased (contiguous) active jobs only**, calls `manager.maybe_pulse_live_room_refresh(vacuum_entity_id)` (Lever B) *before* the snapshot, keeping the brand's live current-room/map fresh so per-room rollover + live fan track the adapter's interval rather than the device's slower native map cadence. Strict-order phased runs (those carrying `phases`, which advance one room per dispatched phase and dock between rooms) are excluded — they already get a free refresh on each state flip. The pulse is a no-op unless the adapter declares `dispatch.live_room_refresh`; per-vacuum rate-limiting and local-gating live inside the `live_refresh` subsystem (`LiveRoomRefreshManager` in `live_refresh/manager.py`, reached via the `maybe_pulse_live_room_refresh` manager delegator).
 - Calls `get_job_progress_snapshot()` — drives stall detection and bounds-exit derivation.
 - Fires `eufy_vacuum_job_progress_tick` event with the snapshot for each active (vacuum, map).
 
@@ -248,7 +249,26 @@ Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in
 
 ---
 
-## 10. Module Summary
+## 10. Pose Sampler (`pose_sampler.py`)
+
+Records the per-tick robot pose time-series during an **external** (app-started) run, for room auto-attribution (W5b). It is the production version of the throwaway `debug_log_live_room` probe.
+
+**Module:** `listeners/pose_sampler.py`
+
+**Timer:** `async_track_time_interval`. The period is the **smallest declared `room_attribution.tuning.interval_s` across all configured vacuums** (one ticker samples them all). The value is resolved from the adapter — never hardcoded: adapter `room_attribution.tuning.interval_s` → else the resolved engine's `DEFAULT_TUNING['interval_s']` → else a last-resort `_FALLBACK_INTERVAL_S` of 2 s. No adapter declaring `room_attribution` ⇒ no ticker is registered at all.
+
+**Gating** (a vacuum is skipped this tick unless all hold):
+- **External runs only.** Only `(vacuum, map)` pairs whose active job has `status == "external"` are sampled — dispatched runs already know their rooms.
+- **Live-pose-capable vacuums only.** The vacuum's adapter must declare `map_state_source.live_pose`; without it `current_room` is always `None` and sampling is pointless.
+- **Live pose present this tick.** `manager.async_get_map_live_pose()` must return `present` — otherwise the tick is skipped rather than polluting the buffer with `None`.
+
+On each qualifying tick it reads the declared `entities.cleaning_area` value and records one sample via `manager.record_pose_sample(...)` (`current_room`, `anchor`, `cleaning_area`, `heading`). While the robot is parked/docked — detected primarily from the MQTT `task_status` not being one of the adapter's `vocabulary.active_run_task_states` (more reliable than the fork's pose `robot_docked` flag), with the pose flag as a fallback — `current_room` and `anchor` are nulled so a dock-sitting tick is not mis-attributed to the dock's room.
+
+**Capture-only / inert** — nothing consumes `pose_samples` yet; the engine wiring is W5c.
+
+---
+
+## 11. Module Summary
 
 | Module | Trigger type | Period | Primary side effect |
 |---|---|---|---|
@@ -256,6 +276,7 @@ Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in
 | `dock_events.py` | State change (dock entities) | — | Dock cycle recording via DockManager |
 | `path_blockers.py` | State change (binary sensors) | — | `eufy_vacuum_path_blocked` event, optional pause/cancel |
 | `pause_timeout.py` | Time interval | 1 min | Cancel timed-out paused jobs |
-| `job_progress.py` | Time interval | 5 sec | `eufy_vacuum_job_progress_tick` event |
+| `job_progress.py` | Time interval | 5 sec | `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs) |
 | `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/water into active job |
 | `discovery.py` | State change + time interval | 6 hr | Run discovery pass, update drift history |
+| `pose_sampler.py` | Time interval | min adapter `room_attribution.interval_s` (fallback 2 s) | Record per-tick pose sample into the external run slot (`record_pose_sample`), external-run/live-pose-gated |

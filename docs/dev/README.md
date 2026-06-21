@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-29 numbered files covering the integration's architecture, subsystems, and porting contract.
+31 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -27,6 +27,7 @@ The manager and the job pipeline.
 | 05 | [core-manager](05-core-manager.md) | The central manager class: runtime state, method surface, subsystem wiring |
 | 06 | [job-lifecycle](06-job-lifecycle.md) | Full job flow from queue to finalization, including pause/resume and cancellation |
 | 07 | [queue-engine](07-queue-engine.md) | The queue data structure, room ordering, dispatch payload construction |
+| 30 | [phase-runner](30-phase-runner.md) | Strict-order (sequenced) per-room phase execution: the settle/dispatch/verify/retry watchdog + per-phase timing capture (`PhaseRunner`, `jobs/`) |
 
 ---
 
@@ -40,6 +41,7 @@ Domain subsystems in dependency order (rooms first, everything else builds on th
 | 09 | [room-rules-system](09-room-rules-system.md) | Per-room rules: blockers, modifiers, rule evaluation at job build time |
 | 10 | [learning-system](10-learning-system.md) | Timing learning: recording runs, ETA estimation, confidence model |
 | 11 | [mapping-system](11-mapping-system.md) | Coordinate tracking, map bounds learning, segmenter engine seam |
+| 31 | [map-source-coordinator](31-map-source-coordinator.md) | Provider-authoritative map-source reader: storage/memory/introspect backends, the four async readers, live-pose overlay (`MapSourceCoordinator`, `mapping/`) |
 | 12 | [battery-system](12-battery-system.md) | Battery health: cycle counting, zone-aware charge rate tracking, job drain metrics |
 | 13 | [maintenance-manager](13-maintenance-manager.md) | Maintenance tracking: interval overrides, reset snapshots, upkeep snapshot |
 | 14 | [dock-manager](14-dock-manager.md) | Dock state, gated dock actions, dock event recording |
@@ -80,7 +82,7 @@ The Lovelace panel card and everything the card reads from integration state.
 | # | File | What it covers |
 |---|---|---|
 | 23 | [error-tracker](23-error-tracker.md) | Error classification, per-vacuum error state, repair-issue patterns |
-| 24 | [animal-svg](24-animal-svg.md) | Map-view animal companions: SVG structure, zone assignments, authoring rules |
+| 24 | [animal-svg](24-animal-svg.md) | Map-view animal companions: SVG structure, state→pose mapping, battery-state eye color, theme tokens, memorial animals, authoring rules |
 
 ---
 

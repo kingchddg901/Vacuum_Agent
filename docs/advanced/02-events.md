@@ -24,7 +24,7 @@ Fires after a cleaning job has been finalized. This covers every path to job com
 | `map_id` | `str` | Map ID the job ran on, as a string |
 | `job_id` | `str \| null` | Internal job identifier assigned at job start |
 | `status` | `str` | Outcome of the job — `completed`, `cancelled`, `failed`, or `interrupted` |
-| `reason_detail` | `str \| null` | Human-readable lifecycle message, e.g. `"pause_timeout"` or `null` for clean completions |
+| `reason_detail` | `str \| null` | Human-readable lifecycle message, e.g. `"pause_timeout"`. On the auto-finalize paths (lifecycle/pause-timeout/path-blocker) it falls back to the `status` string when no lifecycle message is present, so a clean completion reports `"completed"` rather than `null` there. Only the `eufy_vacuum.finalize_learning_job` service path uses the lifecycle message alone and yields `null` for clean completions. |
 | `used_for_learning` | `bool \| null` | Whether this job was included in the learning system's stats; `null` when learning is not active |
 | `finalized_at` | `str \| null` | ISO 8601 timestamp of finalization |
 | `room_count` | `int \| null` | Number of rooms that were queued in the job |
@@ -318,12 +318,12 @@ action:
 
 ### When it fires
 
-Fires from `get_job_progress_snapshot()` (called on every dashboard poll) when both of the following are true:
+Fires from `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`), which `get_job_progress_snapshot()` invokes on every dashboard poll / progress tick. The event fires when both of the following are true:
 
 1. The integration is already in `awaiting_bounds_exit` state for the current room — meaning the timing threshold was met but the robot has not yet crossed the room boundary
 2. The robot has been in the room for **at least 2× the learned timing threshold** for that room (`_STALL_RATIO`)
 
-The integration tracks which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many dashboard polls occur.
+The tracker records which rooms have already triggered this event per job via `_stall_notified_room_ids` on the active job, so **it fires at most once per room per job** regardless of how many dashboard polls occur.
 
 This event requires the learning system to have timing data for the room. If no learned threshold exists, the stall check is skipped.
 
@@ -376,7 +376,7 @@ action:
 
 ### When it fires
 
-Fires when the **live job queue advances past a queued room that was never cleaned** — a non-sequential advance. The integration computes this in `get_job_progress_snapshot()` (in `core/manager.py`) as the conservative "skipped" set: any room positioned strictly **before** the current room in queue order that is not in `completed_room_ids`.
+Fires when the **live job queue advances past a queued room that was never cleaned** — a non-sequential advance. The integration computes this in `ActiveJobTracker.detect_run_anomalies` (in `jobs/active_job.py`), invoked by `get_job_progress_snapshot()`, as the conservative "skipped" set: any room positioned strictly **before** the current room in queue order that is not in `completed_room_ids`.
 
 For Eufy this is **almost never** observed: Eufy's sequential counter rollover keeps `completed_room_ids` a contiguous prefix of the queue, so there is no room "left behind" to attribute. The hook exists for position-reliable brands or transition-detection paths that can legitimately jump forward, and to future-proof the queue model. There is no false-positive heuristic — if the skip can't be proven from the queue order, the event does not fire.
 

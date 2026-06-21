@@ -61,6 +61,7 @@ Current checks:
 
 - **`mapping` block** (when present): must be a dict; `mapping.segmenter_engine` is required and must resolve to a known engine (`known_engine_names()` in `mapping/segmenter_engines.py`); `mapping.segmenter_tuning` must pass the resolved engine's own `validate_tuning()`.
 - **`job_segmenter` block** (when present): must be a dict; `job_segmenter.engine` is required and must resolve to a known job/run segmenter engine (`known_job_engine_names()` in `learning/job_segmenter_engines.py`); `job_segmenter.tuning` must pass the resolved engine's own `validate_tuning()`. This mirrors the `mapping` check (deferred import). Note this is the **counter/run** segmenter seam, distinct from the **map** segmenter `mapping` block above (see §2.4).
+- **`room_attribution` block** (when present): must be a dict; `room_attribution.engine` is required and must resolve to a known room-attribution engine (`known_room_attribution_names()` in `learning/room_attribution_engines.py`); `room_attribution.tuning` must pass the resolved engine's own `validate_tuning()`. This mirrors the `job_segmenter` check (deferred import). An absent block falls back to the Eufy engine (`eufy_anchor_winding_v1`); declare `noop_room_attribution` to disable external-run auto-attribution. This is the external-run room-attribution seam (see §2.4).
 - **`room_profiles` block** (when present): must be a dict; `room_profiles.default_profile` (when set) must be a string, and each of `builtins`, `custom_template`, `legacy_aliases`, `floor_type_water_defaults`, `floor_type_fan_defaults`, `normalize_defaults` (when set) must be a dict. The framework merges this block over the in-code defaults per key (`resolve_profile_catalog()`), so a partial block is fine — this rule only catches a malformed declaration.
 - **`dispatch.template`** (when present): must resolve to a registered dispatch engine (`known_dispatch_templates()` in `queue/dispatch_engines.py`). A schema-valid template with no registered engine yet is flagged rather than silently falling back to the Eufy shape.
 
@@ -83,13 +84,14 @@ get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 
 ### 2.4 Pluggable engine seams
 
-Three brand-specific subsystems are pluggable behind the **same seam shape**: a `Protocol`, a module-level registry dict, a `get_*()` resolver with a fallback, a `known_*()` enumerator for the validator, an adapter config block that names the engine, and a `_validate_adapter` rule. The adapter declares *which* engine; the framework owns *resolution and the cross-engine contract*. This is how a second brand swaps brand-specific behavior without touching the framework call sites.
+Four brand-specific subsystems are pluggable behind the **same seam shape**: a `Protocol`, a module-level registry dict, a `get_*()` resolver with a fallback, a `known_*()` enumerator for the validator, an adapter config block that names the engine, and a `_validate_adapter` rule. The adapter declares *which* engine; the framework owns *resolution and the cross-engine contract*. This is how a second brand swaps brand-specific behavior without touching the framework call sites.
 
 | Seam | Module | Protocol | Registry / resolver | Adapter block | Fallback | `select`-style framework function |
 |---|---|---|---|---|---|---|
 | **Map segmenter** | `mapping/segmenter_engines.py` | `MapSegmenter` | `_SEGMENTER_ENGINES` / `get_segmenter_engine()` | `mapping` (`segmenter_engine` + `segmenter_tuning`) | `noop_fallback` (empty result) | — |
 | **Dispatch engine** | `queue/dispatch_engines.py` | `DispatchEngine` | `_DISPATCH_ENGINES` / `get_dispatch_engine()` | `dispatch` (`template` + field map; see "Dispatch-engine specifics" below) | `eufy_room_clean` | — |
 | **Job/run segmenter** | `learning/job_segmenter_engines.py` | `JobSegmenter` | `_JOB_SEGMENTER_ENGINES` / `get_job_segmenter_engine()` | `job_segmenter` (`engine` + `tuning`) | `eufy_counter_v1` | `counter_segmentation.select_active` |
+| **Room attribution** | `learning/room_attribution_engines.py` | `RoomAttributionEngine` | `_ROOM_ATTRIBUTION_ENGINES` / `get_room_attribution_engine()` | `room_attribution` (`engine` + `tuning`) | `eufy_anchor_winding_v1` | — |
 
 **Two segmenters, different jobs — do not conflate them.** The **map** segmenter (`eufy_cv_v1`, the Eufy CV pipeline in `adapters/eufy/segmentor.py`) turns a *map image* into polygonal room overlays. The **job/run** segmenter (`eufy_counter_v1`) turns a *counter-sample stream* (`cleaning_time` / `cleaning_area`) into ordered per-room boundaries within a single run — no geometry. They are independent seams with independent registries.
 
@@ -104,7 +106,8 @@ Three brand-specific subsystems are pluggable behind the **same seam shape**: a 
 
 - **Beyond `template` + field map, a dispatch engine also declares its job model.** `DispatchEngine.job_model` is `"atomic_batch"` (one dispatch of a fixed room set — the default, mixed in by `_SinglePhaseMixin`) or `"sequenced"` (a logical job is an ordered list of phases, each its own dispatch that finalizes like a one-room atomic sub-job). `build_phases()` returns the ordered per-phase payload envelopes; the default is a single phase == `build_payload()` output, so an atomic engine is exactly a one-phase sequenced engine and the framework treats both uniformly.
 - **`build_phases(strict_order=True)` turns a flat-id engine into a per-room sequenced job.** A flat-id batch shape (`generic_room_ids` / its `roborock_segment_clean` naming subclass) path-optimizes and *ignores* the dispatched order for a multi-room batch. With `strict_order` set, `GenericRoomIdsEngine.build_phases()` instead emits one single-segment phase per resolved room in queue order — the sequenced job model then cleans them strictly in order, and each phase carries its own room's passes (the batch path otherwise collapses passes to one max-wins value). This is the shipping Roborock opt-in (`dispatch_engines.py:79-98, 219-281, 284`).
-- **Per-phase watchdog timing is adapter-declarable.** The framework re-dispatches each strict-order phase from a background task (the device just docked after the previous room and ignores a clean sent at that instant) and verifies it actually started, retrying if not — the retry loop doubling as the per-phase watchdog. The timing knobs live under `dispatch.phase_timing`: `settle_seconds` / `dock_settle_seconds` / `verify_seconds` / `confirm_seconds` / `poll_seconds` + `max_attempts`. `core/manager.py::_phase_timing` merges the adapter's declared overrides over the in-core `_PHASE_*` defaults *per key*, so a brand whose post-dock transient differs declares only what it needs and anything omitted stays byte-identical to the defaults. The whole mode is gated on `capabilities.honors_clean_order` being `False` (a path-optimizing brand); an order-honoring brand like Eufy never enters it. The phase advance/finalize decision is made at the completion hook by `maybe_advance_phase` (`manager.py:4064, 4121-4145, 4509-4518`).
+- **Per-phase watchdog timing is adapter-declarable.** The framework re-dispatches each strict-order phase from a background task (the device just docked after the previous room and ignores a clean sent at that instant) and verifies it actually started, retrying if not — the retry loop doubling as the per-phase watchdog. The timing knobs live under `dispatch.phase_timing`: `settle_seconds` / `dock_settle_seconds` / `verify_seconds` / `confirm_seconds` / `poll_seconds` + `max_attempts`. `core/manager.py::_phase_timing` merges the adapter's declared overrides over the in-core `_PHASE_*` defaults *per key*, so a brand whose post-dock transient differs declares only what it needs and anything omitted stays byte-identical to the defaults. The whole mode is gated on `capabilities.honors_clean_order` being `False` (a path-optimizing brand); an order-honoring brand like Eufy never enters it.
+- **The strict-order phase logic lives in `jobs/phase_runner.py::PhaseRunner` (bundled subsystem), not the manager.** The phase advance/finalize decision at the completion hook is `PhaseRunner.maybe_advance_phase`; `EufyVacuumManager.maybe_advance_phase` is a one-line delegator that calls it. The watchdog itself — the background re-dispatch + settle/verify/retry loop and per-phase timing capture (`_run_advanced_phase`, `_await_phase_started`, `_dispatch_active_phase`, `_vacuum_started_cleaning`) — is also on `PhaseRunner` (constructed as `self.phase_runner`). What stays on `core/manager.py` is only the timing config: the `_PHASE_*` module constants and the `_phase_timing` resolver `PhaseRunner` reads.
 
 For the per-field documentation of `dispatch` (including `phase_timing` and the strict-order keys) see [Adapter config reference](22-adapter-config-reference.md) §13.
 
@@ -112,7 +115,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 
 ## 3. Config Schema (`config_schema.py`)
 
-`ADAPTER_CONFIG_SCHEMA` is a single dict defining all valid top-level blocks. The 20 top-level keys:
+`ADAPTER_CONFIG_SCHEMA` is a single dict defining all valid top-level blocks. The 21 top-level keys:
 
 | Block | Description |
 |---|---|
@@ -131,22 +134,25 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `setup` | Adapter-specific setup step list |
 | `dispatch` | Room-clean command template and field mapping |
 | `capabilities` | Detected capability flags |
+| `live_transition` | Live room-rollover orchestration (`enabled` / `rollover_kinds` / `native_transition_source`) |
 | `external_mid_run_statuses` | `task_status` strings = robot docked mid-run and will resume (holds the external run open instead of closing at the dock) |
 | `settings_selects` | Global select entities for recovering per-room settings on external (app-started) runs — canonical key → `{entity_id, value_map}` |
 | `maintenance_components` | Consumable component definitions |
 | `upkeep_catalog` | Per-model upkeep guide library |
 | `water_model_configs` | Tank capacity and water usage constants |
 
-> **Note:** the 20 keys above are the complete set in `ADAPTER_CONFIG_SCHEMA`.
+> **Note:** the 21 keys above are the complete set in `ADAPTER_CONFIG_SCHEMA`.
 > Several blocks the Eufy adapter actually declares are **not** in the schema
-> dict — `mapping`, `job_segmenter`, `live_transition`, and `room_profiles`. The
+> dict — `mapping`, `job_segmenter`, `room_profiles`, `map_state_source`,
+> `map_render`, `room_attribution`, and `anomaly`. The
 > schema walker iterates the *schema's* keys, so extra blocks are simply ignored
 > by the schema (declaring them there is a deferred follow-up). `_validate_adapter()`
-> nonetheless validates `mapping`, `job_segmenter`, and `room_profiles`
-> opportunistically *when present* (see §2.2 and §2.4); `live_transition` carries
-> only live-rollover orchestration knobs and has no validation rule yet. The Eufy
-> CV map segmenter lives in `adapters/eufy/segmentor.py`; the Eufy counter/run
-> segmenter engine is `eufy_counter_v1` in `learning/job_segmenter_engines.py`.
+> nonetheless validates `mapping`, `job_segmenter`, `room_attribution`, and
+> `room_profiles` opportunistically *when present* (see §2.2 and §2.4); the
+> remaining schema-absent blocks carry orchestration knobs with no validation rule
+> yet. The Eufy CV map segmenter lives in `adapters/eufy/segmentor.py`; the Eufy
+> counter/run segmenter engine is `eufy_counter_v1` in
+> `learning/job_segmenter_engines.py`.
 
 ### 3.1 `entities` block (17 keys)
 
@@ -184,6 +190,7 @@ State string sets (all normalized to lowercase before matching unless noted):
 | `blocked_task_status_states` | list[str] | Task status values that block queue-engine jobs |
 | `blocked_dock_status_states` | list[str] | Dock status values that block queue-engine jobs |
 | `cancel_service_exclusion_states` | list[str] | Task status values that explain early return as service (not cancel) |
+| `cancel_detection_states` | dict[str, Any] | Normalized task_status transition strings the cancel detector matches: `active` (cleaning state — string or list), `returning` (return-to-dock state), `paused`; a cancel is active→returning or paused→returning |
 | `water_level_aliases` | dict[str, str] | Brand display strings → canonical water level keys |
 | `wash_frequency_mode_aliases` | dict[str, str] | Brand display strings → canonical frequency keys |
 | `clean_mode_options` | list[{value, label}] | Card dropdown options for clean mode |

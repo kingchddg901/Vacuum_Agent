@@ -188,7 +188,7 @@ Returns the single `active_run_error` latch dict for the given vacuum and nulls 
 ```python
 tracker.acknowledge(vacuum_entity_id: str, *, scope: str = "both") -> bool
 ```
-Clears one or both single-value latches for a vacuum. `scope` is **keyword-only**. Returns `True` if a record existed for the vacuum, `False` otherwise. Used by the panel's "acknowledge errors" action.
+Clears one or both single-value latches for a vacuum. `scope` is **keyword-only**. Returns `True` if a record existed for the vacuum, `False` otherwise. Invoked via the `eufy_vacuum.acknowledge_error` service (see below) — there is no panel/frontend caller.
 
 | `scope` value | Effect |
 |---|---|
@@ -198,12 +198,42 @@ Clears one or both single-value latches for a vacuum. `scope` is **keyword-only*
 
 `recent_errors` is never cleared by `acknowledge` — it is a non-destructive rolling log.
 
+This method is invoked by the registered HA service `eufy_vacuum.acknowledge_error` (`SERVICE_ACKNOWLEDGE_ERROR`; handled by `_handle_acknowledge_error` in `services/errors.py`, which calls `tracker.acknowledge`). The service takes `vacuum_entity_id` (required) and `scope` (optional select — `active_run` / `last_device` / `both`, default `both`), is registered with `supports_response=True`, and returns `{acknowledged, vacuum_entity_id, scope}`. There is no panel/frontend caller.
+
 ### 7.4 Update Listeners
 
 ```python
 unsub = tracker.add_update_listener(cb: Callable[[str], None]) -> Callable[[], None]
 ```
 Registers a callback fired whenever a vacuum's latch state changes (rising edge, falling edge, harvest, ack). The callback is invoked with a single argument — the `vacuum_entity_id` whose state changed — not with no arguments. Returns an unsubscribe callable.
+
+### 7.5 Read Accessors
+
+The tracker exposes four public read accessors. Each calls `_ensure_record()` first, so the per-device record (with default keys) is created if absent. These are what the HA `sensor`/`binary_sensor` entities read to populate `native_value` and `extra_state_attributes`.
+
+```python
+tracker.get_record(vacuum_entity_id: str) -> dict
+tracker.get_active_run_latch(vacuum_entity_id: str) -> dict | None
+tracker.get_last_device_latch(vacuum_entity_id: str) -> dict | None
+tracker.recent_errors(vacuum_entity_id: str, *, limit: int | None = None) -> list[dict]
+```
+
+| Accessor | Returns |
+|---|---|
+| `get_record` | The full per-device record dict (`active_run_error` / `last_device_error` / `recent_errors`) |
+| `get_active_run_latch` | The `active_run_error` latch dict, or `None` |
+| `get_last_device_latch` | The `last_device_error` dict, or `None` |
+| `recent_errors` | A copy of the `recent_errors` list, tail-trimmed to the last `limit` entries when `limit` is a non-negative int (`limit` is keyword-only; `None` = all) |
+
+`sensor/error.py` calls `get_active_run_latch` and `get_last_device_latch` directly to drive the error sensors.
+
+### 7.6 Recent-Errors Service Accessor
+
+```python
+tracker.recent_errors(vacuum_entity_id: str, *, limit: int | None = None) -> list[dict]
+```
+
+Beyond driving the entities, `recent_errors` (see §7.5) backs a second registered HA service, `eufy_vacuum.get_recent_errors` (`SERVICE_GET_RECENT_ERRORS`; handled by `_handle_get_recent_errors` in `services/errors.py`). The service takes `vacuum_entity_id` (required) and `limit` (optional `number` selector, range 1–50, default 20, `mode: box`), is registered with `supports_response=True`, and returns `{vacuum_entity_id, errors, count}` where `errors` is the tail slice of the ring buffer (entry shape per §4.3).
 
 ---
 
@@ -237,4 +267,6 @@ All lookups use `get_adapter_config()` with safe fallbacks — the tracker degra
 | `__init__.py` `async_setup_entry` | `ErrorTracker(...)` + `tracker.start(vacuum_entity_ids)` | Integration load |
 | `__init__.py` `async_unload_entry` | `tracker.stop()` | Integration unload |
 | `learning/job_finalizer.py` | `tracker.harvest_active_run(vacuum_entity_id, job_id)` | Job finalization |
-| Panel error-acknowledge service | `tracker.acknowledge(vacuum_entity_id, scope=...)` | User action |
+| `sensor/error.py` entities | `tracker.get_active_run_latch(...)` / `tracker.get_last_device_latch(...)` | Entity state read |
+| `eufy_vacuum.acknowledge_error` service (`services/errors.py`) | `tracker.acknowledge(vacuum_entity_id, scope=...)` | User action |
+| `eufy_vacuum.get_recent_errors` service (`services/errors.py`) | `tracker.recent_errors(vacuum_entity_id, limit=...)` | User / debugging query |

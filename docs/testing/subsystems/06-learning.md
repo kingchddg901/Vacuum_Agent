@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **390 tests across 11 files** (382 test functions, expanded by
+is exercised by **406 tests across 13 files** (398 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -28,11 +28,18 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | `services.py` | 241 | 96% | `tests/integration/test_learning_services.py` | integration |
 | `external_ingest.py` | 390 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
+| `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
 | `counter_segmentation.py` | 165 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
 
 `counter_segmentation.py` lives at the package root (not under `learning/`) — it
 is the shared counter-plateau segmentation primitive used here and by the jobs
 subsystem's live rollover, tabled here alongside the engine that wraps it.
+
+¹ `room_attribution_engines.py` reads low in the *learning* run because the real
+`eufy_anchor_winding_v1` classifier (winding/swept-area math) is exercised in
+`tests/adapters/eufy/test_room_attribution.py` (Eufy-specific, run with the
+adapter suite, not these 11 files); the learning-run number only reflects the
+seam-level registry/tuning tests in `tests/unit/test_room_attribution_engines.py`.
 
 Numbers are line coverage with branch coverage enabled, measured by running all
 these files together (see [running-tests §per-file vs combined](../02-running-tests.md#per-file-vs-combined-coverage)).
@@ -91,12 +98,32 @@ old-format jobs-index rebuild, and `async_preload_learning_stats` guards.
 ### `external_ingest.py` — app-started-run capture + review wizard
 Detection of runs started outside HA, the pending-record build + persistence, the
 re-segmentation service, and the confirm path that turns a reviewed run into a
-learned job (the v2 samples-saved re-segment plus the v1 fallback).
+learned job (the v2 samples-saved re-segment plus the v1 fallback). The newer
+pose-based room-attribution path (`_resolve_attribution` / `_attribute` /
+`build_attributed_job`) runs the resolved room-attribution engine over a run's
+pose stream to pre-fill which managed rooms it cleaned; the engine itself is
+tested separately (see the room-attribution seam below), and its
+caller-side wiring in `external_ingest` is covered by
+`tests/unit/test_external_ingest_attribution.py`.
 
 ### `job_segmenter_engines.py` — pluggable job-segmenter seam
 The `JobSegmenter` registry + the `eufy_counter_v1` engine: byte-identical
 delegation to `counter_segmentation` (the fidelity battery), `DEFAULT_TUNING`
 mirroring the module constants, and the Eufy-fallback for an absent/unknown engine.
+
+### `room_attribution_engines.py` — pluggable room-attribution seam
+The sibling of the job-segmenter seam (it owns *which managed room* a segment is,
+not its *time/area* boundary). Split across two files:
+- **Seam tests** (`tests/unit/test_room_attribution_engines.py`): the
+  `get_room_attribution_engine` registry — resolves a registered engine, the
+  Eufy-fallback for an absent/unknown name, the `known_names` list — plus
+  `DEFAULT_TUNING`-by-reference, `validate_tuning` (partial merge over defaults),
+  and the `NoopRoomAttributor` (empty result, key-rejecting `validate_tuning`).
+- **Classifier tests** (`tests/adapters/eufy/test_room_attribution.py`, run with
+  the adapter suite): the real `eufy_anchor_winding_v1` rule — segment by
+  `current_room`, drop transit by path-winding, separate cleaned-vs-parked-dock by
+  swept `cleaning_area`, and the anchor-only fallback when area is absent.
+  Validated on the three adversarial external runs (9/9 cleaned-room calls).
 
 ### `counter_segmentation.py` — counter-plateau segmentation primitives
 `find_candidates` / `select_active` / `build_segments` — the frame-invariant
@@ -172,10 +199,11 @@ Coverage is high (89-100% per module); the remainder is mostly defensive
 guards, inactive code, or paths reachable only by injecting malformed data.
 
 - **`job_finalizer` cancel-detection sub-branches** — the
-  `early_return_likely_cancelled` return (line 1258) and the learning-estimate
-  call it depends on (`manager._get_learning_manager()` / `expected_room_minutes`
-  at 1218-1219) need a non-zero learning estimate staged to reach; low value.
-  The floor-time fast-path above it (around 1203-1216) is similarly conditional.
+  `early_return_likely_cancelled` return (~line 1277) and the learning-estimate
+  call it depends on (`manager._get_learning_manager()` / `expected_room_minutes`,
+  initialized ~1238 and set from the timeline ~1252) need a non-zero learning
+  estimate staged to reach; low value. The floor-time fast-path above it (the
+  `floor_time_too_short` return, ~1222-1235) is similarly conditional.
 - **Defensive `except` / `# pragma: no cover` blocks across all modules** —
   e.g. `job_finalizer` 1354-1359 (incomplete-run-log write) and 1449-1453
   (trouble-rooms write), and the per-room `estimate_failed` handler logic in
@@ -189,11 +217,11 @@ guards, inactive code, or paths reachable only by injecting malformed data.
 - **`manager` direct reload path (271-284)** — the immediate
   reload-from-disk helper; integration tests drive the executor-backed preload
   instead, so this synchronous variant is uncovered. Low value.
-- **`_auto_derive_room_boundary` (`job_finalizer` 1455-1503)** — currently
+- **`_auto_derive_room_boundary` (`job_finalizer` ~1474-1522)** — currently
   inactive: the method runs its eligibility gates then unconditionally returns
-  None (skip-log at 1497-1503). Uncovered lines 1489/1493 are room-guard
-  branches inside that inert gate. No behavior to test until the feature is
-  re-activated.
+  None (skip-log + `return None` at ~1516-1522). Uncovered lines ~1508/1512 are
+  room-guard branches (the non-dict-room and empty/`"None"` room-id returns)
+  inside that inert gate. No behavior to test until the feature is re-activated.
 
 These are skipped on purpose ([conventions §what not to test](../04-patterns-and-conventions.md#what-not-to-test)).
 

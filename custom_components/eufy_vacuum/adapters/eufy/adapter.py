@@ -510,9 +510,11 @@ def register_eufy_adapter_for_vacuum(
                 # engine's validate_tuning() rejects unknown keys at
                 # registration time.
                 "min_area_pixels": 1200,
-                # simplify_epsilon: None means "no polygon simplification"
-                # (default from detect_room_segments). Set a small positive
-                # float (e.g. 2.5) to merge near-collinear vertices.
+                # simplify_epsilon: None AUTO-DERIVES the RDP epsilon from the
+                # polygon's vertex count (~max(1.0, sqrt(points) * 0.42); see
+                # segment_primitives.mask_to_polygon). Set a positive float to
+                # FORCE a fixed epsilon (larger = more aggressive vertex merging);
+                # 0 keeps every vertex (no simplification).
                 "simplify_epsilon": None,
                 # expected_room_count: None lets the engine infer; set an
                 # int to bias the candidate-scoring pass toward that count.

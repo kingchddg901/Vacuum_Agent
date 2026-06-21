@@ -83,7 +83,7 @@ No third-party Python packages are required (`requirements` is empty).
 ┌────────────────────────▼────────────────────────────────────────────┐
 │  Service Layer  (services/, learning/services.py,                   │
 │                  themes/services.py, mapping/mapping_services.py)   │
-│  ~70 named services — validate input, call manager, return payload  │
+│  ~100+ named services — validate input, call manager, return payload│
 └────────────────────────┬────────────────────────────────────────────┘
                          │  method calls
 ┌────────────────────────▼────────────────────────────────────────────┐
@@ -93,12 +93,13 @@ No third-party Python packages are required (`requirements` is empty).
 │                                                                     │
 │  Subsystems (each a manager class, holds a back-reference):         │
 │  themes · maintenance · dock · onboarding · profiles                │
-│  access_graph · active_job · run_plan · room_map                    │
+│  access_graph · active_job · phase_runner · run_plan · room_map     │
+│  live_room_refresh · map_source                                     │
 └──┬───────────┬──────────┬────────────────────┬───────────────────┬──┘
    │           │          │                    │                   │
    ▼           ▼          ▼                    ▼                   ▼
 battery/   mapping/  learning/            listeners/         HA entities
-manager    manager   manager              (7 modules)        (sensor/,
+manager    manager   manager              (8 modules)        (sensor/,
 BatteryH   Mapping   LearningM            each owns          switch/,
 ealthMgr   Manager   anager               its listener       button/,
                                           lifecycle)         number/,
@@ -128,6 +129,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `core/capabilities.py` | Reads upstream entities to populate `data["capabilities"]` |
 | `core/error_tracker.py` | `ErrorTracker` — latches vacuum errors, persists across restarts |
 | `core/water_amendment.py` | Mopping water-level protection rules |
+| `core/charging.py` | Brand-agnostic battery-level / charging-state / low-battery-return reads from adapter-declared entities |
 
 ### Subsystem managers (all constructed in `manager.async_initialize()`)
 
@@ -140,8 +142,11 @@ module (flat file) or a subsystem package. Here is the full map:
 | `manager.profiles` | `profiles/` | Room profiles and run profiles CRUD |
 | `manager.access_graph` | `rooms/access_graph.py` | Room-to-room access graph (grants_access_to) |
 | `manager.active_job` | `jobs/active_job.py` | Active job slot CRUD and finalization handoff |
+| `manager.phase_runner` | `jobs/phase_runner.py` | Strict-order (sequenced) phase execution — per-phase watchdog (settle/dispatch/verify/retry) + per-phase timing |
 | `manager.run_plan` | `planning/run_plan.py` | Preflight rule evaluation, effective start plan |
 | `manager.room_map` | `rooms/room_crud.py` | Room and map CRUD operations |
+| `manager.live_room_refresh` | `live_refresh/manager.py` | Lever B contiguous-run live current-room refresh (rate-limit + sticky-disable + local-connection pulse) |
+| `manager.map_source` | `mapping/map_source_coordinator.py` | `map_state_source` backend dispatch (provider segmentation + live-pose reads) |
 
 ### Entry-point singletons (constructed in `__init__.async_setup_entry()`)
 
@@ -213,9 +218,9 @@ entities share the base class in `room_entities.py`.
    service — `battery_rebaseline` — is registered inline in `__init__.py`
    rather than through a group function (it drives `BatteryHealthManager`).
 
-7. **Listener registration** — seven listener modules registered:
+7. **Listener registration** — eight listener modules registered:
    `lifecycle`, `job_metrics`, `dock_events`, `path_blockers`,
-   `pause_timeout`, `job_progress`, `discovery`.
+   `pause_timeout`, `job_progress`, `pose_sampler`, `discovery`.
 
 8. **Platform forward** — `async_forward_entry_setups` triggers
    `async_setup_entry` in all five platform modules, creating and registering
@@ -284,7 +289,8 @@ listeners/lifecycle.py  (charging state detected)
   Calls manager.async_finalize_completed_job(...)
   │
   ▼
-learning/job_finalizer.py — async_finalize_completed_job()
+learning/manager.py — LearningManager.async_finalize_completed_job()
+  (drives the LearningJobFinalizer in learning/job_finalizer.py)
   1. Reads active job, calculates duration
   2. Writes completed_job record to disk (per-job JSON)
   3. Updates learning stats
@@ -402,11 +408,17 @@ The coordinator's registry is populated in two ways:
 
 ### Adding a new brand
 
-To add Roborock support (for example), you would:
+Roborock is already shipped as a worked second-brand adapter
+(`adapters/roborock/`, registered via `register_roborock_adapter_for_vacuum` in
+`__init__.async_setup_entry`, brand-gated by `is_roborock_vacuum`) — see
+[29-roborock-adapter](29-roborock-adapter.md) for that walkthrough.
 
-1. Create `adapters/roborock/` with `adapter.py`, `const.py`, and vocabulary
-   files mirroring the Eufy structure.
-2. Register it in `__init__.async_setup_entry` for each known Roborock vacuum.
+To add a *third* brand (e.g. Dreame), you would:
+
+1. Create `adapters/dreame/` with `adapter.py`, `const.py`, and vocabulary
+   files mirroring the Eufy / Roborock structure.
+2. Register it in `__init__.async_setup_entry` (a `register_dreame_adapter_for_vacuum`
+   call, brand-gated like the Roborock branch) for each known Dreame vacuum.
 3. The rest of the codebase calls `get_adapter_config(vacuum_entity_id)` — no
    other files change.
 
@@ -418,7 +430,7 @@ See the [porting guide](../contributing/porting-guide.md) for the complete porti
 
 ## 8. Listener Architecture
 
-All upstream HA state changes are handled by the seven listener modules in
+All upstream HA state changes are handled by the eight listener modules in
 `listeners/`. Each module owns its listener registration, unsubscription, and
 any private constants. None of them hold persistent state — they read from
 `manager.data` and call manager methods to mutate it.
@@ -431,9 +443,10 @@ any private constants. None of them hold persistent state — they read from
 | `path_blockers.py` | Rule trigger entities | Mid-job blocker rule evaluation |
 | `pause_timeout.py` | HA time + vacuum state | Auto-cancel on overlong pause |
 | `job_progress.py` | `EVENT_JOB_PROGRESS_TICK` | Job progress snapshot trigger |
+| `pose_sampler.py` | HA time + vacuum state | Buffers the per-tick pose time-series (`pose_samples`) during an external/app-started run for room auto-attribution; map-capable vacuums only |
 | `discovery.py` | Vacuum entity state | Auto-discovery on first non-idle state |
 
-Registration pattern (all seven are identical):
+Registration pattern (all eight are identical):
 
 ```python
 # In __init__.py
@@ -449,9 +462,9 @@ lifecycle.remove(hass)    # calls unsub and cleans up
 
 ## 9. Service Layer
 
-Services are the card's primary API surface. `const.py` defines 80+ `SERVICE_*`
+Services are the card's primary API surface. `const.py` defines 100+ `SERVICE_*`
 constants, plus the inline `battery_rebaseline` service registered directly in
-`__init__.py` — roughly 80+ services in total. They are registered in four
+`__init__.py` — roughly 100+ services in total. They are registered in four
 groups (the inline `battery_rebaseline` registration is the one exception to the
 group pattern):
 

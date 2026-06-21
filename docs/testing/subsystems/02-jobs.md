@@ -1,9 +1,11 @@
 # Jobs — Subsystem Test Map
 
 The jobs subsystem owns active-job state and the start-time lifecycle gate:
-`job_monitor.py` evaluates whether the vacuum is ready to start, and
+`job_monitor.py` evaluates whether the vacuum is ready to start,
 `active_job.py` tracks an in-flight job (room rollover, recharge/mop-wash
-observations, transition-room detection). Covered by **116 tests across 3 files**.
+observations, transition-room detection, live run-anomaly detection), and
+`phase_runner.py` runs strict-order (sequenced) per-room phase execution +
+per-phase timing capture. Covered by **170 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/jobs/`
 Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycle.md)
@@ -15,13 +17,14 @@ Architecture reference: [docs/dev/06-job-lifecycle.md](../../dev/06-job-lifecycl
 | Source module | Stmts | Cov | Test file(s) | Layer |
 |---------------|------:|----:|--------------|-------|
 | `job_monitor.py` | 115 | 99% | `tests/unit/test_jobs_job_monitor.py` | unit (pure) |
-| `active_job.py` | 867 | 93% | `test_jobs_active_job.py` (unit) + `test_jobs_active_job.py` + `test_jobs_active_job_spatial.py` (integration) | unit + integration |
+| `active_job.py` | 867 | 93% | `tests/unit/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job.py` + `tests/integration/test_jobs_active_job_spatial.py` | unit + integration |
+| `phase_runner.py` | 197 | 93% | `tests/integration/test_strict_order_phase_timing.py` | integration |
 
 ---
 
 ## What's tested
 
-### `job_monitor.py` — start-gate evaluation (prefix `JM`, 36 tests)
+### `job_monitor.py` — start-gate evaluation (prefix `JM`, 31 tests)
 The whole module is pure, so coverage is near-total:
 - **`_norm`** — sentinel collapsing (`unknown`/`unavailable`/`none` → `""`).
 - **`build_job_metadata_from_payload`** — room id/slug/clean-mode extraction,
@@ -36,8 +39,8 @@ The whole module is pure, so coverage is near-total:
   invalid payload) and the canned-message fallback.
 
 ### `active_job.py` — active-job tracking (prefixes `AJ` unit, `AJI` integration)
-`active_job.py` is a 1,673-line file that is mostly the `ActiveJobTracker` class
-(lines 104-1673), bound to the manager and hass. Two layers:
+`active_job.py` is a 2,283-line file that is mostly the `ActiveJobTracker` class
+(lines 117-2283), bound to the manager and hass. Two layers:
 - **`AJ` (unit, `MagicMock` manager)** — module helpers (`_safe_int`,
   `_normalize_path_block_action`, …) and the pure tracker methods:
   `_default_active_job_state`, `_derive_active_job_current_room_id`,
@@ -49,6 +52,14 @@ The whole module is pure, so coverage is near-total:
   `record_active_lifecycle_observed`, `record_active_job_sensor_value`,
   `add_update_listener`/`_notify`, and `update_active_job_recharge_observation`.
 
+`ActiveJobTracker` also owns **`detect_run_anomalies`** (`active_job.py:628`) —
+the live stall / running-long / skipped detection that emits
+`EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` (once per room per job) for the
+progress snapshot, moved out of the manager snapshot composer because the tracker
+holds the active-job dict and the per-job dedup state the one-shot emission keys
+on. Its anomaly behavior is currently exercised from
+`tests/integration/test_manager_progress.py` rather than the `AJ`/`AJI` suites.
+
 > The recharge test surfaced a real bug: the method called
 > `hass.states.get(None)` when the adapter has no `task_status` entity. Fixed
 > with the same `if entity_id else None` guard already applied in `core/manager`
@@ -56,6 +67,29 @@ The whole module is pure, so coverage is near-total:
 
 The spatial pipeline is now covered (see the `AJS` integration suite below); the
 remaining ~8% is defensive guards and edge branches — see **Known gaps**.
+
+### `phase_runner.py` — strict-order phase execution (prefix `SOPT`, integration)
+`PhaseRunner` (`phase_runner.py:59`) owns the two halves of strict-order
+(sequenced, one-room-per-phase) cleaning, extracted from `core/manager.py`:
+- **Per-phase timing capture** — `maybe_advance_phase` (the public entry point,
+  called by the completion hook via the manager delegator) snapshots each
+  finishing phase's room timing from *its own* counter slice
+  (`_capture_finishing_phase_timing` → `_phase_room_timing` / `_wall_seconds` /
+  `_learned_room_area_m2`) before `advance_active_job_phase` resets the queue, so
+  finalization reconstructs per-phase timings instead of mis-attributing the whole
+  run to the last phase's room.
+- **Watchdog** — `_run_advanced_phase` (settle → dispatch → verify → retry) with
+  `_await_phase_started` / `_dispatch_active_phase`, the per-phase re-dispatch that
+  works around a path-optimizing brand ignoring a clean sent the instant it docks.
+
+Covered by `tests/integration/test_strict_order_phase_timing.py` (`SOPT`, 6
+tests): per-phase capture from its own slice (`SOPT-1`), capture idempotence on
+retry/double-completion (`SOPT-2`), the learned-area fallback when a flat
+`cleaning_area` sensor leaves no in-slice delta (`SOPT-3` / `SOPT-6`), atomic
+(no-phase) jobs as a no-op (`SOPT-4`), and the per-phase battery/area/wall deltas
+(`SOPT-7`). The watchdog timing defaults (`_PHASE_*` / the adapter
+`dispatch.phase_timing` overrides) stay resolved on the core manager via
+`_phase_timing`.
 
 ---
 

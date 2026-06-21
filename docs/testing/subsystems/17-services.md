@@ -8,6 +8,18 @@ contract). Covered by **166 tests across 14 files**.
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
 
+**Scope.** This doc covers only the `services/` package — the handlers wired by
+`async_register_services`. The integration registers many more `eufy_vacuum.*`
+services from sibling packages, and those are tested under their own subsystem
+docs, not here:
+
+- Map/segment/layout/live-pose services in `mapping/mapping_services.py`
+  (registered via `async_register_mapping_services`) — see
+  [07-mapping.md](07-mapping.md).
+- Learning + external-run services in `learning/services.py` — see
+  [06-learning.md](06-learning.md).
+- Theme services in `themes/services.py` — see [14-themes.md](14-themes.md).
+
 ---
 
 ## Coverage map
@@ -56,9 +68,12 @@ manager method to raise and assert the wrapped exception type.
 
 The remaining misses are almost all defensive, not untested behavior:
 
-- **`manager is None` early-returns (defensive)** — `setup.py:147, 174, 204, 232`
-  and `adapter_config.py:64-65, 103` are runtime-not-available guards that return
-  a `{"status": "error"}` stub or log-and-return. Unreachable in the
+- **`manager is None` early-returns (defensive)** — the runtime-not-available
+  guards at the top of `setup.py`'s `setup_get_map_rooms` / `setup_save_rooms` /
+  `setup_reject_rooms` / `setup_force_remove_room` / `setup_set_panel_title` /
+  `setup_set_map_camera` handlers, plus `adapter_config.py`'s
+  `_handle_save_adapter_config` / `_handle_delete_adapter_config`, return a
+  `{"status": "error"}` stub or log-and-return. Unreachable in the
   fixture-registered service set, intentionally uncovered.
 - **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
   `except` → default 20), `_common.py:96` (non-dict `completed_job` guard) and

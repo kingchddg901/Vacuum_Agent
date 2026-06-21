@@ -232,10 +232,34 @@ context in [Roborock adapter](../dev/29-roborock-adapter.md).
   clearing instead of a current-room sentinel.
 - `mapping.live_map_image_entity_pattern` — an HA `image`/`camera` entity-id
   pattern for a **live-map backdrop** in the card.
+- `dispatch.global_pre_calls` — push a setting **once before** an atomic dispatch
+  for a brand that exposes it only globally (e.g. a single `set_fan_speed`). Each
+  entry reads a canonical per-room field across the selected rooms and applies the
+  max-wins value via a side service call (mirrors the batch-passes rule).
+  Best-effort. Use this for a global-only setting; use `per_room_live_settings`
+  (above) when the device honors mid-run per-room changes.
+- `map_state_source` / `map_render` — read a provider's **own** map segmentation
+  (authoritative room bboxes + dock/robot anchors) into normalized, VA-owned
+  geometry, plus the **in-memory live pose** for the moving overlays. `map_render`
+  declares how the card sources the raster for its own VA-owned backdrop (the
+  source pointer is reused from `map_state_source`, no duplicate schema). Eufy
+  declares both against the eufy-clean fork's storage backend; a brand whose
+  integration already exposes frame-fresh map data (Roborock) omits them.
+- `room_attribution` — a pluggable engine that recovers **which** managed rooms an
+  **external** (undispatched) run cleaned, from a per-tick pose time-series. A
+  different axis from the job/run segmenter (§9): that one owns time/area
+  boundaries, this one owns room identity. Eufy declares `eufy_anchor_winding_v1`;
+  absent/unknown falls back to it (not noop).
+- `dispatch.zone_command` + `capabilities.supports_zone_clean` — ad-hoc free-form
+  **zone cleaning** (draw a box on the live map, clean that rectangle). The verb
+  is the `send_command` command name (`manager.dispatch_zone_clean` reads it);
+  absence means zone cleaning is unsupported for the brand.
 
 A divergent brand can thus opt into: the **strict-order** per-run sequenced
-clean, the **live-map backdrop**, name-slug **room-identity reconciliation**, and
-a per-vacuum **panel rename** — without forking core.
+clean, the **live-map backdrop**, a VA-owned **provider-map source** with live
+pose, **external-run room attribution**, ad-hoc **zone cleaning**, name-slug
+**room-identity reconciliation**, and a per-vacuum **panel rename** — without
+forking core.
 
 ---
 

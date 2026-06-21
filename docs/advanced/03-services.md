@@ -55,6 +55,19 @@ Returns the vacuum to base, finalizes the active job as cancelled, and emits the
 | `vacuum_entity_id` | Yes |
 | `map_id` | No |
 
+### `start_zone_clean`
+
+Dispatches an ad-hoc free-form zone clean — draw one or more boxes on the live map, clean only inside them. This is fire-and-forget: it carries no room IDs and does **not** touch the active job, queue, or learning store, so there is no job tracking, no completion event, and nothing is persisted.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | Accepted and auto-resolved, but **not** forwarded to the device — the provider cleans on its current map. |
+| `zones` | Yes | List of zone rectangles. Each is exactly four floats `[x0, y0, x1, y1]`, normalized `0–1` to the live-map image with a top-left origin. Minimum one zone. Values are not hard-clamped here — a drag to the image edge can land slightly outside and the provider clamps. |
+| `clean_times` | No | Number of passes over the zones, `1`–`10`. Default `1`. |
+
+Supports response.
+
 ---
 
 ## Queue Building
@@ -71,6 +84,15 @@ Builds the cleaning queue from all currently enabled rooms in their configured o
 | `map_id` | No |
 
 Call this after changing room settings or enabling/disabling rooms, before calling `start_selected_rooms`.
+
+### `build_room_payload`
+
+Builds the resolved per-room cleaning payload — the exact per-room settings as they would be sent to the vacuum — without rebuilding the queue. This is the payload-side counterpart to `build_queue`; inspect the result with `get_payload_state`.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+| `map_id` | No |
 
 ### `start_run_profile`
 
@@ -262,7 +284,7 @@ Supports response. Returns `{"saved": true, "mode": ..., "segment_count": N}` wh
 
 #### `set_custom_segments`
 
-Authors no-CV map segments from primitive shapes — **replace-all**. Rebuilds the **active** custom layout's `custom_segments` store from the supplied list (auto-creating and activating a default layout first if the map has none). Each segment's primitives are rasterised server-side (via `rasterize_primitives` → `mask_to_polygon`, the same polygon tracer the CV path uses) onto a `1`-bit mask, scaled to the active layout's backdrop pixel dimensions, and wrapped in the same segment shape the CV segmenter produces — so room-linking and dispatch treat custom and CV segments identically. Requires the active layout's backdrop to be uploaded (for the canvas dimensions). Never runs the segmenter.
+Authors no-CV map segments from primitive shapes — **replace-all**. Rebuilds the **active** custom layout's `custom_segments` store from the supplied list (auto-creating and activating a default layout first if the map has none). Each segment's primitives are rasterised server-side (via `rasterize_primitives` → `mask_to_polygon`, the same polygon tracer the CV path uses) onto a `1`-bit mask, scaled to the active layout's backdrop pixel dimensions, and wrapped in the same segment shape the CV segmenter produces — so room-linking and dispatch treat custom and CV segments identically. Requires the active layout's backdrop to be uploaded (for the canvas dimensions), **or** explicit `backdrop_width`/`backdrop_height` for a live-pinned layout that has no uploaded backdrop. Never runs the segmenter.
 
 One segment is one room. Multiple primitives in a segment merge into a single room; a primitive with `op: subtract` carves material away (an edge cut yields a concave simple polygon; an interior hole cannot be represented by one polygon). Primitives are applied in list order. Degenerate segments (nothing drawn, or the result collapses) are dropped.
 
@@ -271,6 +293,8 @@ One segment is one room. Multiple primitives in a segment merge into a single ro
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
 | `segments` | Yes | List of `{id?, primitives: [...]}`. Extra keys are allowed and ignored. A stable `id` is preserved across re-saves (auto `custom_N` otherwise) so segment-room links survive. |
+| `backdrop_width` | No | Rasterise-canvas width in pixels. For a live-pinned layout (no uploaded backdrop) the card sends the rendered live image's natural pixel size here so the writer has a canvas to rasterise against. |
+| `backdrop_height` | No | Rasterise-canvas height in pixels. Same use as `backdrop_width`. |
 
 Each primitive is `{type: rect|circle|polygon, op?: subtract, ...coords}` with coordinates as 0–100 percentages of the map:
 
@@ -365,6 +389,51 @@ Persists or clears the map position of the animated companion sprite for one roo
 
 Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "companion_anchors": {...}}`.
 
+#### `set_area_label_anchor`
+
+Persists or clears the position of one room's m² area-label chip, so it can be dragged off the room-name label. Stored at the **map** level (rooms are segmentation-mode-independent), keyed by room ID, as `{pct_x, pct_y}` in the same 0–100 content-box frame the companion anchor uses. Pass `null`/omit **both** `pct_x` and `pct_y` to reset to the default (room centre).
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `room_id` | Yes | Target room ID. |
+| `pct_x` | No | X position (0–100%). Clear both to reset. |
+| `pct_y` | No | Y position (0–100%). |
+
+Supports response. Returns `{"saved": true, "room_id", "action": "set"|"cleared", "area_label_anchors": {...}}`.
+
+#### `set_hidden_regions`
+
+Replace-all the per-map hidden regions — normalized `[x0, y0, x1, y1]` rects (0–1 of the rendered image, top-left origin) drawn to mask map noise (e.g. porch noise off a room). Hidden regions are physical, so they are stored at the **map** level (not per CV/custom scope) and follow the map regardless of segmentation mode. Each entry is sanitised server-side — four finite numbers, clamped 0–1, ordered min < max, degenerate rects dropped. An empty or omitted `regions` clears them all.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `regions` | No | List of `[x0, y0, x1, y1]` rects (0–1). Omit or send an empty list to clear all hidden regions. |
+
+Supports response. Returns `{"saved": true, "hidden_regions": [...]}` with the cleaned, stored list.
+
+#### `adjust_map_segment`
+
+Applies a per-segment geometry nudge to a CV segment — a whole-segment translate, per-edge grow/shrink, and/or individual vertex moves. Adjustments are stored against the map-bucket `image_segments` and are **cumulative**: each call's deltas add onto the segment's existing stored adjustment (a net-zero result drops that adjustment). Returns `{"saved": false, "reason": "segment_not_found"}` when the segment ID is unknown.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `segment_id` | Yes | The CV segment to adjust. |
+| `delta_x` | No | Whole-segment translate in pixels. Default `0`. |
+| `delta_y` | No | Whole-segment translate in pixels. Default `0`. |
+| `edge_left` | No | Per-edge grow/shrink in pixels. Default `0`. |
+| `edge_right` | No | Per-edge grow/shrink in pixels. Default `0`. |
+| `edge_top` | No | Per-edge grow/shrink in pixels. Default `0`. |
+| `edge_bottom` | No | Per-edge grow/shrink in pixels. Default `0`. |
+| `vertex_moves` | No | List of `{index, delta_x?, delta_y?}` per-vertex nudges. |
+
+Supports response.
+
 #### `set_live_map_rotation`
 
 Persists a display-only rotation for the live map — surfaced as `live_map_rotation` in the dashboard snapshot. The setting is backend-stored per map (so it follows the user across browsers and devices) and rotates the whole live-map layer together: the map image, room polygons, labels, and the animated companion. It does not affect segmentation or dispatch.
@@ -376,6 +445,51 @@ Persists a display-only rotation for the live map — surfaced as `live_map_rota
 | `rotation` | Yes | One of `0`, `90`, `180`, or `270` (degrees clockwise). |
 
 Supports response.
+
+#### `set_map_overlay_visibility`
+
+Persists which overlay layers are shown on the map backdrop (display only — never affects segmentation or dispatch). Only the user's **deltas** are stored as `overlay_visibility` on the map bucket — a partial dict merged over the defaults at read time, so the shipped defaults can evolve without rewriting stored prefs. Visibility keys are validated against the known overlay layers, so a typo is rejected rather than silently stored. Pass `reset: true` to clear all deltas and fall back to the defaults.
+
+> **Exception to this section's `map_id`-required rule:** `set_map_overlay_visibility` accepts an **optional** `map_id`. When omitted it auto-resolves to the active map, then to the first stored map (returning `{"saved": false, "error": "no_map"}` when there is none) — like the dashboard-snapshot service.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | Auto-resolves to the active map (then the first stored map) when omitted. |
+| `visibility` | No | Partial map of overlay-layer name to bool, merged over the stored deltas. Unknown layer keys are rejected. Omit on a reset. |
+| `reset` | No | Clear all stored visibility deltas and fall back to the defaults. Default `false`. |
+
+Supports response. Returns `{"saved": true, "map_id", "overlay_visibility": {...}}` with the fully-resolved visibility for the card.
+
+### Live Map Source
+
+These three read services back the card's own map render and its live moving overlays. They are served by the `MapSourceCoordinator` (`mapping/map_source_coordinator.py`, reached via the manager's `async_get_map_render_data` / `async_get_map_live_pose` / `async_compare_map_sources` delegators).
+
+Unlike the rest of this section, these three are **vacuum-scoped — they take only `vacuum_entity_id`, no `map_id`** (the coordinator resolves the live source itself). The "every service in this section requires `map_id`" rule above does not apply to them. All support response.
+
+#### `get_map_render_data`
+
+Returns the raster plus decode parameters for the card's own map render — the on-demand fetch used when the brand's VA-rendered backdrop is selected. The card caches the result by the returned `version`.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+
+#### `get_map_live_pose`
+
+Returns only the live moving overlays — robot/dock anchors, current room, and heading — from the brand fork's fresh in-memory pose. This is the lightweight payload the card polls at the ~2-second live cadence, distinct from the full snapshot. Degrades gracefully when no live pose is available.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+
+#### `compare_map_sources`
+
+Diagnostic verify probe: compares the fork's in-memory `_map_data` against the `.storage` map data (rasters by length + SHA-1, per field) to confirm the in-memory bytes are byte-identical before repointing the map source to memory.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
 
 ---
 
@@ -893,6 +1007,8 @@ Recomputes room ETAs mid-job using actual completed room durations. Call this ea
 | `completed_rooms` | Yes | List of dicts, each with `room_id` or `slug` and `actual_duration_minutes`. Pass all completed rooms, not just the latest. |
 | `reanchor_at` | No | ISO timestamp to anchor remaining ETAs from. Defaults to now. |
 | `current_battery` | No | Updates battery warning for remaining rooms if supplied. |
+| `charge_percent_per_minute` | No | Default `1.0`. Used in the remaining-rooms battery warning. |
+| `reserve_battery_percent` | No | Minimum battery buffer to keep in reserve. Default `5.0`. |
 
 **Returns:** Updated estimate payload with revised ETAs for remaining rooms.
 
@@ -956,6 +1072,7 @@ Fires `eufy_vacuum_job_finished` on completion. Also fires `eufy_vacuum_run_inco
 | `used_for_learning` | No | Whether to include this job in learned stats. Default `true`. |
 | `rebuild_stats` | No | Rebuild learned stats after finalizing. Default `true`. |
 | `rebuild_csv` | No | Also rebuild CSV exports. Default `false`. |
+| `forced_outcome_status` | No | Override the inferred outcome status (e.g. to force `completed`/`cancelled`) for internal or forced-status finalization. Omit to let the integration infer it. |
 
 ### `exclude_learning_job`
 
@@ -996,6 +1113,43 @@ Returns a card-friendly snapshot of learned history including recent jobs, room 
 | `limit` | No | Maximum recent jobs to return. Default `50`, max `500`. |
 
 **Returns:** History snapshot with recent jobs and aggregated room statistics.
+
+### `record_estimate_accuracy`
+
+Records estimated-vs-actual minutes per room after a job completes, feeding the estimator's accuracy tracking. Supports response.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `room_actuals` | Yes | List of per-room dicts, each with `slug`, `clean_mode`, `clean_passes`, `is_carpet`, `clean_intensity`, `estimated_minutes`, `actual_minutes`, and `map_id`. |
+
+### `get_metrics_snapshot`
+
+Returns a metrics-focused slice of learned history for the card, with the same optional filters as `get_learning_history_snapshot`. Supports response.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `room_slug` | No | Filter to a single room slug. |
+| `profile_key` | No | Filter by room profile signature. |
+| `status` | No | Filter by job status. |
+| `used_for_learning` | No | Filter to jobs included in or excluded from learned stats. |
+
+### `get_trouble_rooms_log`
+
+Returns the chronic trouble-rooms log for a vacuum — per-room miss counts and miss rates. Rooms with `miss_count >= 2` and `miss_rate >= 0.33` are flagged `is_trouble: true` for the card. Returns an empty dict when no log exists. Supports response.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
+
+### `get_incomplete_run_log`
+
+Returns the last incomplete-run log for a vacuum — the payload recorded when a previous job was cancelled, failed, or interrupted before all queued rooms were cleaned. This is the source `retry_missed_rooms` reads from. Returns an empty dict when no incomplete run log exists. Supports response.
+
+| Parameter | Required |
+|---|---|
+| `vacuum_entity_id` | Yes |
 
 ---
 
@@ -1180,6 +1334,17 @@ Use this for the "I know this room is gone" manual action when you do not want t
 | `room_id` | Yes |
 
 **Returns:** `{"status": "success", "room_id": int, "missing_passes": int, "threshold": int}`.
+
+### `setup_set_panel_title`
+
+Sets (or clears) the title of this vacuum's sidebar panel entry. The title is stored per-vacuum on the vacuum record as `panel_title` and the panel is re-registered live, so the sidebar updates without a restart (a browser refresh may be needed to repaint). The Setup tab exposes this as a panel-title field.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `title` | No | New sidebar title, max 48 characters. Pass blank or omit to revert to the default name. |
+
+**Returns:** `{"status": "success", "message": ..., "vacuum_entity_id": ..., "panel_title": <the effective title>}`.
 
 ### `setup_set_map_camera`
 

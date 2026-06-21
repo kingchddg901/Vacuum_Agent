@@ -64,9 +64,10 @@ have made — see [Sharing themes](15-sharing-themes.md).
 ## Colorblind basics
 
 If color-vision deficiency makes statuses hard to tell apart, switch to the
-built-in **Colorblind Safe** theme — it retunes the five status colors (success,
-warning, error, info, muted) to stay distinct, and it's *verified* by simulation,
-not eyeballed.
+built-in **Colorblind Safe** theme — it keeps the four status colors (success,
+warning, error, info) distinct, and that separation is *verified* by simulation,
+not eyeballed. (The theme also restyles the muted color, but the verification
+gate covers the four status semantics.)
 
 Two things worth knowing when you're choosing one:
 

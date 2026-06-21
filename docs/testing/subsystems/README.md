@@ -11,10 +11,10 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 01 | Core (orchestrator, lifecycle, progress, errors, storage) | [01-core](01-core.md) | 96% |
 | 02 | Jobs (start gate + active-job tracker) | [02-jobs](02-jobs.md) | 94% |
 | 03 | Queue (ordered clean queue) | [03-queue](03-queue.md) | 95% |
-| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 95% |
+| 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 94% |
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
 | 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 94% |
-| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 93% |
+| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 91% |
 | 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 95% |
 | 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 93% |
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 98% |
@@ -23,7 +23,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 13 | Onboarding (discovery + floor-type state) | [13-onboarding](13-onboarding.md) | 95% |
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
 | 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 93%¹ |
-| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 96% |
+| 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 95% |
 | 17 | Services (HA service-call layer) | [17-services](17-services.md) | 96% |
 | 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 96% |
 

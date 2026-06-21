@@ -230,17 +230,18 @@ A pin is only ever cleared once the library has actually loaded, so the very fir
 One built-in preset, **Colorblind Safe**, is designed for color-vision
 deficiency. Its status palette — success, warning, error, info (reference), and
 muted — is validated to stay distinguishable under simulated protanopia,
-deuteranopia, and tritanopia (ΔE76 ≥ 19 on every pair), so the
-red/amber/green states that collapse in a typical palette stay readable. Select
-it like any other preset card.
+deuteranopia, and tritanopia (CIEDE2000 ≥ 15 across all ten group pairs,
+including muted), so the red/amber/green states that collapse in a typical
+palette stay readable. Select it like any other preset card.
 
 Color is never the only cue. The mapping-bounds badges (OK / Likely / No-bounds /
 Outlier / Excluded / Baseline) each carry a distinct **shape mark** —
 ✓ ◐ ! ✕ – ◆ — that reads in flat grayscale, so the states are identifiable
 without relying on hue. The marks are always on, in every theme.
 
-How the palette is validated (the CVD simulation matrices, the ΔE separation
-gate, and the shape-mark grayscale check) is covered in
+How the palette is validated (the CVD simulation matrices — Machado 2009
+protan/deutan plus Brettel 1997 tritan — the CIEDE2000 ≥ 15 separation gate over
+the ten group pairs, and the shape-mark grayscale check) is covered in
 [dev/27-render-harness](../dev/27-render-harness.md).
 
 ---

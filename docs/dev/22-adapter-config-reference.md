@@ -74,7 +74,10 @@ shared.
     "discovery": { ... },        # optional — how room list is exposed
     "dispatch": { ... },         # required — how to send a clean job
     "mapping": { ... },          # optional — pluggable MAP segmenter engine selection
+    "map_state_source": { ... }, # optional — read the provider's OWN map segmentation (VA-owned room data)
+    "map_render": { ... },       # optional — VA-owned client-side map raster render
     "job_segmenter": { ... },    # optional — pluggable JOB/run segmenter engine + threshold tuning
+    "room_attribution": { ... }, # optional — pluggable ROOM-ATTRIBUTION engine (external-run room recovery)
     "live_transition": { ... },  # optional — live current-room rollover orchestration
     "room_profiles": { ... },    # optional — adapter-sourced room-profile vocabulary
     "anomaly": { ... },          # optional — live anomaly ratios (running-long / stall)
@@ -898,6 +901,38 @@ phased-clean — would instead subclass its engine with
 `job_model = "sequenced"` + a `build_phases` override, making the sequence
 intrinsic to every run rather than a per-run opt-in.
 
+### `dispatch.phase_timing` — strict-order phase watchdog timing
+
+For a sequenced (strict-order) job, each room is a phase dispatched only
+once the prior phase docks, and a watchdog settles + verifies + re-dispatches
+each phase. `dispatch.phase_timing` lets a brand whose post-dock transient
+differs override the per-phase watchdog timing; anything omitted falls back
+to the in-core `_PHASE_*` defaults (so Eufy, which declares nothing here, is
+byte-identical). Read by `core/manager.py::_phase_timing`.
+
+| Field | Type | Default | Purpose |
+|-------|------|---------|---------|
+| `settle_seconds` | `int` | `10` | Pause after a phase is queued before the watchdog first verifies it started. |
+| `dock_settle_seconds` | `int` | `45` | Longer settle when the prior phase has just docked (the device ignores a clean dispatched the instant it docks). |
+| `verify_seconds` | `int` | `90` | Window to confirm the phase actually started before re-dispatching. |
+| `confirm_seconds` | `int` | `45` | Window to confirm the phase completed (docked) before advancing. |
+| `poll_seconds` | `int` | `5` | Watchdog poll interval. |
+| `max_attempts` | `int` | `3` | Re-dispatch attempts per phase before giving up. |
+
+```python
+"dispatch": {
+    # ...outer wrapper fields...
+    "phase_timing": {
+        "settle_seconds": 10,
+        "dock_settle_seconds": 45,
+        "verify_seconds": 90,
+        "confirm_seconds": 45,
+        "poll_seconds": 5,
+        "max_attempts": 3,
+    },
+},
+```
+
 ### Implementation status
 
 The full dispatch path — payload **structure**, per-room field
@@ -920,13 +955,31 @@ as future work): structurally-different payload shapes (flat-id+scalar,
 parallel arrays), `template` being load-bearing, and the sequenced job
 model.
 
+**Also done — send-side pre-call hooks are now config-driven** (was
+previously listed as brand-aware framework code). Two `dispatch` blocks
+cover both timings:
+
+- `dispatch.global_pre_calls` — one value per run, pushed **before** an
+  atomic dispatch, for a setting the device exposes only globally
+  (Roborock/Ecovacs global `set_fan_speed`, Dreame global
+  `select.cleaning_mode`). Each entry picks the run value from the
+  selected rooms' canonical field by **max-wins over `rank`**, maps it via
+  optional `value_map`, and calls the declared `service`. Best-effort (a
+  failed pre-call never aborts the run). Run by
+  `core/manager.py::_run_global_pre_calls`.
+- `dispatch.per_room_live_settings` — pushed **mid-run** as the robot
+  enters each room (driven by the native current-room rollover, so the
+  device keeps one path-optimized run — no per-room re-dispatch). Each
+  entry names a canonical room field plus a side service call (with an
+  optional `options_key` vocabulary guard). Applied by
+  `jobs/active_job.py::ActiveJobTracker.apply_per_room_live_settings` (and
+  `apply_per_room_live_settings_awaited` for the strict-order phase path).
+
 **What still remains brand-aware in framework code** (a PR, not config):
 
 - `vacuum.clean_area` (`ha_clean_area`) — a service **target**
   (`target: {area_id: [...]}`), not a data payload. Needs engines to own
   the *full* service call rather than just the payload dict.
-- Send-side **pre-call hooks** — Roborock/Ecovacs global `set_fan_speed`,
-  Dreame global `select.cleaning_mode` between phases.
 - `live_queue` job model — mid-job room injection (dequeue already works).
 - A new canonical field outside the six in `room_fields`.
 
@@ -1032,6 +1085,105 @@ as misconfiguration (since noop ignores tuning by definition).
 - `mapping/mapping_services.py:_handle_analyze_map_image` — same pattern for the user-facing service call.
 
 The two call sites consume the canonical `SegmentationResult` and cache it under `map_bucket["image_segments"]` in `.storage`. The `runtime` and `segmentation.*` blocks that were top-level in earlier versions are now under `engine_diagnostics`; consumers that need them read via that path.
+
+---
+
+## 13a.2 `map_state_source` — read the provider's own map segmentation
+
+Where [§13a `mapping`](#13a-mapping--pluggable-map-segmenter-engine-selection)
+turns a stored map *image* into overlays, `map_state_source` reads the
+**provider's own** map segmentation — the device's authoritative room
+data — into normalized, VA-owned room bboxes plus dock / robot anchors.
+This makes room regions, current-room, and mascot anchors **auto-derived**
+rather than hand-composed, and (for Eufy) immune to the per-session raw
+coordinate-frame re-basing that makes absolute robot coordinates
+non-comparable across sessions. The Eufy adapter declares it against the
+eufy-clean fork's decoded map; brands whose in-memory map is already
+frame-fresh (Roborock) omit it.
+
+The whole block is optional. Absent → no provider-map read; trace-based
+room bounds and the CV image segmenter keep working unchanged.
+
+### Schema
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `backend` | `str` | Which read strategy to use. Eufy: `"storage"` (the fork persists its decoded map to an HA `Store` file). |
+| `identifier_domain` | `str` | Device-registry identifier domain used to resolve the device (Eufy: `"robovac_mqtt"`). |
+| `store_key` | `str` | `Store` file key, with `{device_id}` filled from the `(identifier_domain, <serial>)` device-registry identifier (Eufy: `"robovac_mqtt.{device_id}"`). |
+| `store_version` | `int` | Expected store wrapper version. A mismatch is treated as unavailable (re-point this number, don't rewrite, if the provider bumps it). |
+| `present_requires_live_map_image` | `bool` | When `True`, presence is gated on the live-map camera artifact (the same gate as the live backdrop), so a plain non-fork install resolves to "not present" and the feature hides. |
+| `live_pose` | `dict` | In-memory live-pose source — the fresh moving overlays (robot / dock / trail) read from the provider's live coordinator rather than the save-throttled `.storage` snapshot. Keys: `hass_data_domain`, `robot_pixel_attrs`, `dock_pixel_attrs`, `trail_pixel_attrs`, `heading_attrs` (each an ordered attr-name list tried in turn; absence → no override, stays on `.storage`). |
+| `memory` | `dict` | In-memory `MapData` source — the same live coordinator also holds the full decoded map (fresher than `.storage`, loop-safe). Keys: `hass_data_domain`, `mapdata_attrs` (and optional per-field remap `field_attrs`). |
+
+### Example (from the Eufy adapter)
+
+```python
+"map_state_source": {
+    "backend": "storage",
+    "identifier_domain": "robovac_mqtt",
+    "store_key": "robovac_mqtt.{device_id}",
+    "store_version": 1,
+    "present_requires_live_map_image": True,
+    "live_pose": {
+        "hass_data_domain": "robovac_mqtt",
+        "robot_pixel_attrs": ["_robot_pixel", "robot_pixel"],
+        "dock_pixel_attrs":  ["_dock_pixel", "dock_pixel"],
+        "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
+        "heading_attrs":     ["_robot_angle", "robot_angle", "_robot_heading"],
+    },
+    "memory": {
+        "hass_data_domain": "robovac_mqtt",
+        "mapdata_attrs": ["_map_data", "map_data"],
+    },
+},
+```
+
+### Where the framework reads it
+
+- `mapping/map_source_coordinator.py::MapSourceCoordinator.async_refresh_map_state_source`
+  — pre-warms the normalized read (storage / memory backends + the live-pose
+  layer) into `manager._map_state_source_cache`. Constructed on the manager
+  (`self.map_source = MapSourceCoordinator(manager=self)`); the manager exposes
+  thin delegators (`async_refresh_map_state_source`, the live-pose poll, the
+  compare probe). The on-loop dashboard snapshot composer reads the cached
+  `result` back into `get_dashboard_snapshot`.
+
+---
+
+## 13a.3 `map_render` — VA-owned client-side map render
+
+A small block declaring **how the card sources the raster** for its own
+full-grid map backdrop (no server-side render dependency), so the overlays
+align perfectly and the look stays themeable. `format` names the decode the
+card applies; the source pointer (`store_key` / `identifier_domain` /
+`store_version`) is **reused from
+[`map_state_source`](#13a2-map_state_source--read-the-providers-own-map-segmentation)**
+— no duplicate schema. Roborock omits this block (its HA-core image render is
+already frame-matched); absence → the card's "VA-rendered map" backdrop source
+is hidden for that brand, and `supports_va_render` is `False`.
+
+### Schema
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `format` | `str` | Names the raster decode the card applies (Eufy: `"eufy_room_pixels_v1"`). The source pointer is inherited from `map_state_source`. |
+
+### Example (from the Eufy adapter)
+
+```python
+"map_render": {
+    "format": "eufy_room_pixels_v1",
+},
+```
+
+### Where the framework reads it
+
+- `mapping/map_source_coordinator.py::MapSourceCoordinator.async_get_map_render_data`
+  — fetches the card's own-render raster (delegated from
+  `core/manager.py::async_get_map_render_data`).
+- `core/manager.py::get_dashboard_snapshot` — reads the **presence** of this
+  block to gate `supports_va_render` (`isinstance(adapter_cfg.get("map_render"), dict)`).
 
 ---
 
@@ -1170,6 +1322,87 @@ delta in m²).
 
 ---
 
+## 13a.4 `room_attribution` — pluggable room-attribution engine
+
+The **4th pluggable engine seam** (alongside `mapping`, `job_segmenter`,
+and the dispatch engines). It selects the engine that recovers **which
+managed rooms an external (app-started, undispatched) run cleaned**, from
+a per-tick pose time-series (current-room + anchor + cleaning-area). This
+is a **different axis from [§13a.1 `job_segmenter`](#13a1-job_segmenter--pluggable-jobrun-segmenter-engine--threshold-tuning)**:
+the job segmenter owns time/area *boundaries*; room attribution owns room
+*identity*.
+
+The whole block is optional and validated at registration. Its
+**run-active consumers are still dormant** (the run-active pose sampler /
+finalize wiring is pending), so it is declared now to make the engine
+selection explicit and validated; the seam, engines, validation, and
+tests already exist.
+
+### Schema
+
+```python
+"room_attribution": {
+    "engine":  str,                  # required when `room_attribution` present
+    "tuning":  dict[str, float],     # optional; validated by the engine (may be partial)
+}
+```
+
+### `engine` *(required when `room_attribution` is present, str)*
+
+One of the names registered in `learning/room_attribution_engines.py`
+(`known_room_attribution_names()`). Currently:
+
+| Name | What it does |
+|---|---|
+| `eufy_anchor_winding_v1` | Segments by `current_room`, drops transit by path-winding, and separates cleaned vs. parked-dock rooms by the `cleaning_area` (swept m²) delta. Default for adapters with no native external-run room signal. |
+| `noop_room_attribution` | Returns no attribution. Declare it to explicitly disable auto-attribution. |
+
+**Fallback is the Eufy engine, not noop** — `get_room_attribution_engine()`
+returns `eufy_anchor_winding_v1` for an absent *or* unknown name (an
+unknown non-empty name is logged). `registry._validate_adapter` requires
+`engine` when the block is present, rejects an unknown name, and validates
+the tuning via the engine.
+
+### `tuning` *(optional when `room_attribution` is present, dict)*
+
+Engine-owned thresholds (`eufy_anchor_winding_v1`):
+`wind_transit`, `dwell_min_s`, `swept_area_min_m2`, `interval_s`.
+
+### Example (from the Eufy adapter)
+
+```python
+"room_attribution": {
+    "engine": "eufy_anchor_winding_v1",
+    "tuning": {
+        "wind_transit": 1.5,
+        "dwell_min_s": 25.0,
+        "swept_area_min_m2": 0.5,
+        "interval_s": 2.0,
+    },
+},
+```
+
+### Where the framework reads it
+
+- `adapters/registry.py::_validate_adapter` — validates the block at
+  registration (engine required + known, tuning validated by the engine).
+- The run-active consumers (pose sampler + finalize attribution) are
+  **pending wiring**; until they land, this block is validated and
+  selectable but not yet read during a run.
+
+> **No `ADAPTER_CONFIG_SCHEMA` entry yet.** Like `job_segmenter`,
+> `live_transition`, and `room_profiles`, `room_attribution` has no entry
+> in `adapters/config_schema.py` (the schema walker iterates schema keys,
+> so extra blocks are ignored). Validation lives in
+> `registry._validate_adapter`. Schema entries are a deferred follow-up.
+
+**UI builder notes:** Advanced section — collapse by default and pre-fill
+the Eufy defaults. `engine` is a dropdown over
+`known_room_attribution_names()`; the four `tuning` values are detection
+thresholds (winding ratio, dwell seconds, swept-area m², sample interval).
+
+---
+
 ## 13b. `live_transition` — live current-room rollover orchestration
 
 Configures the **orchestration** of the live current-room rollover that
@@ -1247,9 +1480,15 @@ form, not here.
 
 ## 13c. `anomaly` — live anomaly ratios
 
-Two ratio thresholds for the **live** job-progress anomaly signals
-surfaced by `core/manager.py::get_job_progress_snapshot`. Both defaults
-match the manager's hardcoded fallbacks, so Eufy is unchanged.
+Two ratio thresholds for the **live** job-progress anomaly signals.
+Anomaly detection — reading these ratios, computing the stall /
+running_long tiers, and emitting the `EVENT_STALL_DETECTED` /
+`EVENT_ROOM_SKIPPED` events — lives in
+`jobs/active_job.py::ActiveJobTracker.detect_run_anomalies` (the tracker
+owns the active-job dict and the per-job event-dedup state). The
+manager's `get_job_progress_snapshot` delegates to it and surfaces the
+result in the snapshot. Both defaults match the tracker's hardcoded
+fallbacks, so Eufy is unchanged.
 
 ### Schema
 
@@ -1274,9 +1513,12 @@ once per skipped room as `EVENT_ROOM_SKIPPED`).
 
 ### Where the framework reads it
 
-- `core/manager.py::get_job_progress_snapshot` — reads both ratios with
-  the defaults above as fallbacks; computes the `running_long` /
-  stall tiers.
+- `jobs/active_job.py::ActiveJobTracker.detect_run_anomalies` — reads both
+  ratios from the `anomaly` block with the defaults above as fallbacks;
+  computes the `running_long` / stall tiers and fires the one-shot
+  `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` events.
+- `core/manager.py::get_job_progress_snapshot` — delegates to
+  `detect_run_anomalies` and surfaces its fields in the snapshot.
 
 **UI builder notes:** Advanced section. Two numeric inputs constrained to
 `running_long_ratio < stall_ratio` (a softer tier below the hard stall);
@@ -1433,10 +1675,14 @@ supports_base_station      supports_map_bounds        supports_room_profiles
 > - `supports_room_profiles` (default `True`) — `False` drops per-room profile
 >   templates (the S6: mop unsettable, passes global).
 >
-> The remaining Roborock-introduced keys live in their own blocks and are
-> documented in context in [29-roborock-adapter](29-roborock-adapter.md):
+> The remaining Roborock-introduced keys live in their own blocks. Two are
+> documented in §13 above: `dispatch.per_room_live_settings` (under
+> [Implementation status](#implementation-status)) and
+> [`dispatch.phase_timing`](#dispatchphase_timing--strict-order-phase-watchdog-timing).
+> The rest are documented in context in
+> [29-roborock-adapter](29-roborock-adapter.md):
 > `completion.require_job_active_clear`; `dispatch.{resolve_live_ids_by_slug,
-> params_as_list, per_room_live_settings, passes_is_global, phase_timing}`; and
+> params_as_list, passes_is_global}`; and
 > `mapping.live_map_image_entity_pattern`. Threading each into its block table
 > here is a deferred polish follow-up.
 
@@ -1714,10 +1960,13 @@ this table maps schema sections to the modules that consume them:
 | `discovery` | `setup/workflow.py` (`discover_rooms_for_vacuum`) |
 | `dispatch` | `queue/queue_engine.py` (`build_room_clean_payload`), `core/manager.py` (`async_start_room_clean_job`) |
 | `mapping` | `mapping/manager.py` (`get_image_segment_suggestions`), `mapping/mapping_services.py` (`_handle_analyze_map_image`) |
+| `map_state_source` | `mapping/map_source_coordinator.py` (`MapSourceCoordinator.async_refresh_map_state_source`); `core/manager.py` (delegators + `get_dashboard_snapshot` reads the cached result) |
+| `map_render` | `mapping/map_source_coordinator.py` (`MapSourceCoordinator.async_get_map_render_data`); `core/manager.py` (`get_dashboard_snapshot` gates `supports_va_render` on its presence) |
 | `job_segmenter` | `jobs/active_job.py` (`_live_boundary_count`), `learning/external_ingest.py` (`build_pending_record`, `resegment_pending_record`, `_resolve_engine_tuning`), `learning/history_store.py` (`_build_transit_blocks`) — engine + thresholds |
+| `room_attribution` | `adapters/registry.py` (`_validate_adapter`) — validated + selectable; run-active consumers pending wiring |
 | `live_transition` | `jobs/active_job.py` (`_live_transition_config`, `_live_boundary_count`) — orchestration knobs only (thresholds live in `job_segmenter`) |
 | `room_profiles` | `queue/queue_engine.py` (`build_room_clean_payload` via `resolve_profile_catalog`), `profiles/room_profiles.py` (resolver `catalog` param) |
-| `anomaly` | `core/manager.py` (`get_job_progress_snapshot`) |
+| `anomaly` | `jobs/active_job.py` (`ActiveJobTracker.detect_run_anomalies`); `core/manager.py` (`get_job_progress_snapshot`) delegates |
 | `wash_frequency_bounds` | `planning/run_plan.py` (`_derive_wash_frequency_config`) |
 | `capabilities` | `core/capabilities.py` (`detect_capabilities`) |
 | `maintenance_components` | `core/manager.py` (`get_upkeep_snapshot`) |

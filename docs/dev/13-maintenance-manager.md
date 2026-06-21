@@ -88,11 +88,13 @@ Each entry in `adapter_config["maintenance_components"]` defines one trackable c
 |---|---|---|
 | `sensor_suffix` | str \| None | Full suffix appended to `sensor.{object_id}_` to form the counter entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). `None` when the component sources via `proxy_for`. |
 | `proxy_for` | str \| None | If set, this component sources from that component's sensor when present, falling back to its own `sensor_suffix` |
-| `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match registry fallbacks. Absent → no reset button. |
+| `reset_button` | dict \| None | Resolves the component's reset button: `entity_suffixes` (appended to `button.{object_id}_`) tried first, then `token_sets` as all-tokens-must-match registry fallbacks. A `token_sets` match is additionally rejected if its resolved `entity_id` contains the substring `"maintenance"` (see note below). Absent → no reset button. |
 | `default_interval_hours` | float | Factory-default cleaning/replacement interval |
 | `max_interval_hours` | float | Maximum allowed interval override |
 | `label` | str | Display name shown in panel |
 | `icon` | str | MDI icon name |
+
+> **`token_sets` `"maintenance"` exclusion guard.** `_get_replacement_reset_entity()` resolves the **upstream** reset button. After trying `entity_suffixes`, it falls back to `token_sets` (all required tokens must match an entity in the registry). A token-matched button is accepted **only if** its `entity_id` does **not** contain the substring `"maintenance"` (`"maintenance" not in entity_id.lower()`). This guard exists so the integration's own `number.{object_id}_{component}_maintenance_interval` interval-override entities (`translation_key: "maintenance_interval"`) are never mis-resolved as the upstream counter-reset button. `entity_suffixes` matches are not subject to this guard.
 
 ### 4.2 `upkeep_catalog` block
 

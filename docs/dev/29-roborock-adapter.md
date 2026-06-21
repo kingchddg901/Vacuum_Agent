@@ -52,10 +52,10 @@ modules are simply absent (the blocks degrade gracefully).
 | Module | Role |
 |---|---|
 | `adapter.py` | Assembly + `register_roborock_adapter_for_vacuum()`. Pure assembly, as in Eufy. |
-| `const.py` | `ADAPTER_ID`, `STORAGE_KEY`. |
+| `const.py` | Identity strings (`DOMAIN`, `NAME`, `SUPPORTED_TESTED_MODEL`), the brand-level `ADAPTER_ID`, and `LOW_BATTERY_THRESHOLD_PERCENT`. |
 | `entities.py` | `build_entity_id()` + the Roborock-core entity suffixes (`_status`, `_current_room`, `_cleaning_time`, …). |
 | `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. |
-| `model_catalog.py` | `detect_model_family()` — maps `roborock.vacuum.s6` → the `s6` profile. |
+| `model_catalog.py` | `profile_for_model()` — maps `roborock.vacuum.s6` → the s6 **capability profile** (a dict: `family`/`display_name`/`has_dock`/`has_mop`/`supports_segments`), not a family string like Eufy's `detect_model_family()`. |
 | `maintenance_components.py` | The 4 consumables (main/side brush, filter, sensor) as device-owned `*_time_left` countdowns. |
 
 There is **no `segmentor.py`** (no CV pipeline — see `mapping` below), **no
@@ -81,7 +81,7 @@ else follows the Eufy pattern.
 
 ### `entities`
 Roborock-core names are stable (`sensor.{object_id}_status`,
-`_current_room`, `_cleaning_time`, `_total_cleaning_area`, `binary_sensor.
+`_current_room`, `_cleaning_time`, `_cleaning_area`, `binary_sensor.
 {object_id}_charging`, `binary_sensor.{object_id}_cleaning`). The two that drive
 new framework behavior: **`active_cleaning_target` = `_current_room`** (a room
 NAME the device reports live) and **`job_active` = `binary_sensor.{id}_cleaning`**
@@ -132,9 +132,23 @@ bare dict). Roborock-specific keys with no Eufy equivalent:
   `options_key` vocabulary so an out-of-vocab value is skipped), while passes are
   a **global** scalar on the run (the S6 can't vary passes per room).
 - **`phase_timing`** — the strict-order watchdog's settle/verify/confirm/poll
-  seconds + retry cap, S6-tuned and **adapter-declared** (core keeps the same
-  numbers as defaults; a brand whose post-dock transient differs declares its
-  own). See [22 §dispatch](22-adapter-config-reference.md).
+  seconds + retry cap, S6-tuned and **adapter-declared**. Core falls back to its own
+  `_PHASE_*` defaults for any omitted key, and most S6 values match those defaults
+  (settle 10, dock_settle 45, verify 90, poll 5, max 3) — but the S6 deliberately
+  overrides `confirm_seconds` to **15**, well below the core default of 45, so a
+  confirmed room releases the guard fast. A brand whose post-dock transient differs
+  declares its own. See [22 §dispatch](22-adapter-config-reference.md).
+- **`live_room_refresh`** (Lever B) — the S6's live `_current_room` + per-room fan
+  ride the upstream coordinator's **map** cadence (`IMAGE_CACHE_INTERVAL` ~30 s), not
+  the ~15 s status poll. During a **contiguous** run this block has the framework pulse
+  `roborock.get_vacuum_current_position` (a `returns_response` service whose
+  `map_content.refresh()` side effect runs off the 30 s gate) every `interval_s` (15)
+  so the native rollover + per-room fan track at ~15 s. It is **LAN-gated** (`local_gate`
+  keys off the *absence* of the upstream `cloud_api_used` repair issue — cloud ⇒ skip,
+  re-checked each pulse) and **excluded for strict-order/phased runs** (each per-room
+  dock already forces a free refresh). Eufy omits this block (it has a ~2 s fork pose) →
+  no-op. Owner: `live_refresh/LiveRoomRefreshManager` (core delegates via
+  `maybe_pulse_live_room_refresh`).
 
 ### `discovery` — `get_maps` + name-slug reconciliation
 Rooms come from the `roborock.get_maps` **service** (`source: service_response`),
@@ -190,15 +204,27 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
   per-phase watchdog (settle → dispatch → verify the device actually started THIS
   room → retry) handles the S6 ignoring a clean sent the instant it docks. See
   [06-job-lifecycle](06-job-lifecycle.md) / [07-queue-engine](07-queue-engine.md).
-  > **Known limitation (recording, not cleaning):** finalization currently captures
-  > only the **last phase's** room, so a multi-room strict-order run mis-attributes the
-  > whole run's battery/area to that one room in learning (`room_timings` comes from a
-  > transit tracker that breaks on the per-room dock trip). The cleaning sequence is
-  > correct; the per-phase recording fix (snapshot each phase's timing in
-  > `maybe_advance_phase`, finalize from `job["phases"]`) is tracked.
+  > **Per-phase recording (shipped):** because the per-room dock trips break the
+  > whole-run transit segmenter, each phase is segmented **alone**: at phase
+  > completion `PhaseRunner.maybe_advance_phase` calls `_capture_finishing_phase_timing`
+  > (`jobs/phase_runner.py`), which snapshots the finishing phase's own
+  > `room_timing` (cleaning-time rise + `cleaning_area` delta, with the room's learned
+  > area as a fallback) onto `job["phases"][idx]` before the queue/timing resets.
+  > Finalization then reconstructs per-phase `room_timings` from
+  > `active_job["phases"][].room_timing` (`learning/history_store.py`), and only marks
+  > the run valid (`transit_capture_valid`) when **every** phase captured. A multi-room
+  > strict-order run is no longer mis-attributed to the last phase's room; a phase that
+  > never cleaned records an empty timing so the run reads as not-fully-captured rather
+  > than a phantom room.
 - **Native current-room live rollover** — driven by `live_transition.
   native_transition_source` (§4), suppressed for sequenced jobs so a parked dock
   room is never phantom-completed.
+- **Live-room refresh during a contiguous run (Lever B)** — driven by
+  `dispatch.live_room_refresh` (§4): a ~15 s pulse of
+  `roborock.get_vacuum_current_position` that refreshes the live room + per-room fan
+  off the 30 s map gate, LAN-gated and excluded for phased (strict-order) runs. Owned
+  by `live_refresh/LiveRoomRefreshManager` (core delegator
+  `maybe_pulse_live_room_refresh`); Eufy is inert here.
 - **Live-map card backdrop + rotation + dwell-follow mascot** — the live `image`
   entity as the Map view, backend-stored rotation, and a dwell-debounced mascot
   that follows the reported room. See [19-card-architecture](19-card-architecture.md).
@@ -211,9 +237,9 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
 
 The adapter declares these so the UI never offers a control the firmware ignores:
 
-- **Mop is unsettable** — observe-only via a water-box sensor; `SET_WATER_BOX` /
-  `MOP_MODE` raise `RoborockUnsupportedFeature`. The room editor hides mop
-  controls for the S6.
+- **Mop is unsettable** — observe-only via a water-box sensor;
+  `SET_WATER_BOX_CUSTOM_MODE` / `SET_MOP_MODE` raise `RoborockUnsupportedFeature`
+  on the S6. The room editor hides mop controls for the S6.
 - **Passes are global** (`passes_is_global`) — one passes value for the run, not
   per room.
 - **No room profiles** (`supports_room_profiles: False`), **no Base Station / Map

@@ -6,11 +6,13 @@ This document covers the complete mapping subsystem: image segment analysis, tra
 
 ## 1. Overview
 
-The mapping system has two independent subsystems that address different aspects of knowing where rooms are.
+The mapping system has three subsystems that address different aspects of knowing where rooms are. The first two — covered in depth here — are local: they derive room geometry from a map PNG (pixel space) or learn it from cleaning runs (vacuum space). The third reads the room layout the provider's *own* firmware already knows.
 
 **Image segment analysis** answers: *given a map PNG, what regions probably correspond to rooms?* It is a pure computer-vision pipeline that works from pixel data alone. The brand-agnostic geometry/image primitives live in `mapping/segment_primitives.py`; the Eufy HSV pipeline that uses them lives in `adapters/eufy/segmentor.py` and is invoked through the segmenter-engine abstraction in `mapping/segmenter_engines.py`. Its outputs are polygons in pixel space, labelled with quality signals (confidence, structural role, issues). These polygons are used as room shape overlays in the UI map card.
 
 **Trace-based room bounds** (`manager.py`, `tracker.py`) answers: *given that the robot just cleaned, what bounding box best describes each room in vacuum coordinate space?* This subsystem learns incrementally from actual cleaning runs. Each run appends a new job entry to the room's history; bounds are always the union of all non-excluded history entries. The result is an axis-aligned bounding box in vacuum units, used for real-time room presence detection.
+
+**Provider map source** (`map_state_source`) answers: *what room layout does the provider's own firmware already know?* Rather than deriving rooms from pixels (image analysis) or learning them from drifting robot samples (trace bounds), this reader normalises the device's authoritative segmentation — per-room bbox/name plus dock/robot anchors and (later waves) area, current room, and overlay layers — into VA-owned room data in a single rendered-image-normalised (0–1) coordinate space. It is covered in §11 and documented in full in the design reference [`dev/map-state-source.md`](map-state-source.md).
 
 The two subsystems are **independent** and operate in different coordinate spaces — image analysis in pixel space, trace bounds in vacuum space. There is no transform between them: the legacy "System A" affine vacuum↔pixel transform was removed.
 
@@ -737,3 +739,34 @@ Two adjacent toolbar concerns share the same map view:
 - **Mascot dock spot.** When the vacuum is `docked` or `idle`, the companion sprite homes to the reserved `"dock"` key in `companion_anchors` — a single map-level spot, *not* a room. Dragging the mascot while docked writes that `"dock"` anchor (the same drag that, mid-clean, writes a per-room anchor). Until the dock spot is set, the mascot falls back to the resolved dock segment's centroid.
 - **Mascot on/off.** Card state `mapAnimalEnabled` (localStorage `evcc_animal_on_<vac>`, default on) is **separate** from animal *selection*. A paw button in the rooms-panel map toolbar toggles it; `_renderMapAnimal` returns `''` when off.
 - **Floor-texture on/off (split).** Two independent card-state toggles: `mapFloorTextureEnabled` (localStorage `evcc_floor_tex_map_<vac>`) gates the map texture polygons (`_renderFloorTexturePolygon` / `_buildFloorTextureDefs`); `roomFloorTextureEnabled` (`evcc_floor_tex_rooms_<vac>`) gates the room-card texture layers (`_renderFloorTextureLayer`). Both default on and seed from the legacy unified `evcc_floor_tex_<vac>` key on first read. Two hatch buttons toggle them (`map-texture-toggle` / `room-texture-toggle`); the map one is map-view-only, the room-card one stays in the toggle row for list view.
+
+---
+
+## 11. Provider Map Source (`map_state_source`)
+
+The two subsystems above derive room geometry locally — image analysis from pixels (§2), trace bounds from cleaning runs (§3). The **provider map source** is a third reader that instead normalises the room layout the device's *own* firmware already knows. Where image/trace are best-effort inferences, this reads the provider's authoritative segmentation directly, so room tap-regions, current-room, and anchors are *auto-derived* rather than hand-composed or learned from drifting samples.
+
+This section is an orientation only; the full design — wave scope, both brand backends, the normalisation transform, and overlay-layer details — lives in the authoritative design reference [`dev/map-state-source.md`](map-state-source.md).
+
+### 11.1 Modules
+
+| Module | Role |
+|--------|------|
+| `mapping/map_source.py` | Brand-agnostic, **HA-free pure** core. Turns the device's segmentation (raster + anchors) into normalised room data (per-room bbox + name + dock/robot anchors), in 0–1 of the *rendered* image (top-left origin, Y-flip applied) — the same space the card draws zones/labels in. Unit-testable without Home Assistant. |
+| `mapping/map_source_runtime.py` | The HA-aware runtime **locators** that find the provider's data and hand plain dicts to the pure core. Eufy uses the **storage backend** (reads the eufy-clean fork's `.storage/robovac_mqtt.<serial>` Store); Roborock uses the **memory backend** (a defensive introspector over the in-memory parsed `MapData` on the map image entity). Both apply the live-map presence gate and degrade to an absent marker — never raise. |
+| `mapping/map_source_coordinator.py` | `MapSourceCoordinator` — the async backend dispatcher (bundled-subsystem pattern, constructed with the core manager; extracted from `core/manager.py`, which keeps one-line delegators). |
+
+### 11.2 Coordinator surface
+
+`MapSourceCoordinator` exposes four public async readers, dispatched by the adapter's declared `map_state_source` backend/format:
+
+- `async_refresh_map_state_source(...)` — pre-warm dispatcher; reads the adapter's `map_state_source` block, applies the presence gate, and writes the normalised result into `manager._map_state_source_cache` so the sync on-loop dashboard snapshot can include it without doing the blocking `.storage` read itself.
+- `async_get_map_live_pose(...)` — lightweight live-pose poll.
+- `async_compare_map_sources(...)` — in-memory-vs-storage verify probe.
+- `async_get_map_render_data(...)` — the card's own-render raster fetch.
+
+Two seams deliberately stay on the manager: `_map_state_source_cache` (the pre-warm writes it; the on-loop snapshot composer and the map-overlays sensor read it directly) and `_resolve_live_map_image_entity` (shared with the dashboard snapshot composer as the live-map presence gate).
+
+### 11.3 Relationship to §2/§3
+
+This reader does **not** replace image analysis or trace bounds — they remain the path for maps where no provider segmentation is available, and the local subsystems own the CV/custom authoring and presence-detection machinery. The provider map source is consumed by the live-map overlay path: because it normalises into the rendered-image (0–1) space the card already draws in, its bboxes/anchors overlay the device-rendered backdrop directly rather than needing the (removed) pixel↔vacuum transform (§4).

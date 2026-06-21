@@ -360,7 +360,7 @@ Parrot anatomy:
 |------|----------------|
 | Head | `(220, 140)` |
 | Eyes | `(218, 108)` |
-| Body | `(258, 244)` (perched) / `(258, 200)` (warning) |
+| Body | `(258, 244)` (perched) / `(258, 190)` (warning) |
 | Tail base | `(320, 225)` |
 | Wings | left `(210, 155)`, right `(310, 155)` |
 | Perch | `y = 278` |

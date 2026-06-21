@@ -8,6 +8,7 @@ be able to follow the entire flow from source code using this document.
 - `custom_components/eufy_vacuum/core/manager.py`
 - `custom_components/eufy_vacuum/jobs/active_job.py`
 - `custom_components/eufy_vacuum/jobs/job_monitor.py`
+- `custom_components/eufy_vacuum/jobs/phase_runner.py`
 - `custom_components/eufy_vacuum/__init__.py`
 - `custom_components/eufy_vacuum/learning/job_finalizer.py`
 - `custom_components/eufy_vacuum/learning/services.py`
@@ -208,7 +209,9 @@ rollover occurs. Each call:
    `ActiveJobTracker`: wall-clock elapsed since `current_room_started_at` minus
    accumulated `current_room_paused_seconds` and any ongoing pause.
 7. **Timing rollover** — delegates to
-   `active_job.tracker._maybe_roll_current_room_by_timing` (see §4).
+   `active_job._maybe_roll_current_room_by_timing` (the manager's `active_job`
+   attribute is the `ActiveJobTracker`; method defined at
+   `jobs/active_job.py:814`, reached via the `manager.py:843` delegator). See §4.
 8. **Bounds-exit detection** (`awaiting_bounds_exit`).
 9. **Anomaly detection** — `stall` (hard), `running_long` (soft), and
    `skipped` (conservative). See below.
@@ -224,9 +227,14 @@ bounds.
 
 ### Anomaly detection
 
-The snapshot computes three disjoint anomaly tiers. Both ratios are read from
-the adapter's `anomaly` block (`running_long_ratio`, `stall_ratio`), each
-falling back to the Eufy default if absent.
+The three disjoint anomaly tiers (and the one-shot `EVENT_STALL_DETECTED` /
+`EVENT_ROOM_SKIPPED` emission) are computed by
+`ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py:628`), which
+`get_job_progress_snapshot` calls (`manager.py:3202`) and whose returned fields
+it merges into the snapshot. Both ratios are read from the adapter's `anomaly`
+block (`running_long_ratio`, `stall_ratio`), each falling back to the Eufy
+default if absent. The `_STALL_RATIO` / `_RUNNING_LONG_RATIO` locals live inside
+`detect_run_anomalies` (`active_job.py:661-662`), not in the snapshot composer.
 
 ```
 _STALL_RATIO        = anomaly.stall_ratio        or 2.0
@@ -238,8 +246,9 @@ _RUNNING_LONG_RATIO = anomaly.running_long_ratio  or 1.5
 - `current_room_elapsed_minutes >= threshold * _STALL_RATIO` (≥2× by default)
 
 `EVENT_STALL_DETECTED` fires at most once per room per job. Already-notified
-rooms are tracked in `active_job["_stall_notified_room_ids"]` (written back to
-storage). Subsequent snapshot calls suppress the event for those rooms.
+rooms are tracked in `active_job["_stall_notified_room_ids"]` — owned and
+written back to storage by the tracker (`active_job.py:687-691`). Subsequent
+calls suppress the event for those rooms.
 
 **Running-long (soft).** The tier *below* the stall band — set when the room is
 genuinely overrunning but not yet stalled, and there is no pending live
@@ -311,8 +320,12 @@ brands that ignore the dispatched order (Roborock, Ecovacs) take this
 path; order-honoring brands (Eufy) never sequence. When the resulting plan
 holds more than one phase, the framework attaches the sequence to the
 active job and runs it as a sequenced job: `maybe_advance_phase` advances +
-re-dispatches at each completion (`manager.py:4554-4563`,
-`run_plan.py:773-781`, `lifecycle.py:307-312`), and each phase finalizes
+re-dispatches at each completion (`PhaseRunner.maybe_advance_phase`,
+`jobs/phase_runner.py:67`, reached via the `manager.py:4206` delegator; the
+advance step itself is `advance_active_job_phase` in
+`queue/queue_engine.py:409`; the per-run phase build is
+`planning/run_plan.py:778`; the completion-hook call is `lifecycle.py:307-312`),
+and each phase finalizes
 as its own job record. The advance/finalize machinery is wired into both
 the start and completion paths (`maybe_advance_phase` runs in the
 completion hook, see §6a; the start-side spawn and per-phase watchdog are
@@ -324,9 +337,13 @@ in §2a and §4a). See [07-queue-engine.md](07-queue-engine.md) and
 A sequenced strict-order run can't simply re-dispatch the next room at the
 completion hook: a path-optimizing device (Roborock S6) returns to the dock
 and starts charging at the end of each single-room phase, and **ignores an
-`app_segment_clean` sent at that instant**. The per-phase watchdog
-(`manager._run_advanced_phase`, `manager.py:4147-4237`) wraps each phase in
-a settle → dispatch → verify → retry loop.
+`app_segment_clean` sent at that instant**. The per-phase watchdog lives on
+the dedicated `PhaseRunner` subsystem
+(`PhaseRunner._run_advanced_phase`, `jobs/phase_runner.py:287`) and wraps
+each phase in a settle → dispatch → verify → retry loop. The manager keeps
+only the initial-phase spawn (`self.phase_runner._run_advanced_phase`,
+`manager.py:4403`) and a thin `maybe_advance_phase` delegator
+(`manager.py:4206`).
 
 - **Initial phase (`initial=True`).** Phase 0 was already dispatched by
   `start_selected_rooms`, so the watchdog skips the settle and the first
@@ -336,8 +353,8 @@ a settle → dispatch → verify → retry loop.
   settle is extended when the phase's target room *is* the dock room
   (`_phase_target_is_dock_room` → `dock_settle_seconds`), because a robot
   parked + charging on its target has the longest post-dock ignore-transient.
-  It then **dispatches**, **verifies** via `_await_phase_started`
-  (`manager.py:4260-4344`) that the device actually started *and sustained*
+  It then **dispatches**, **verifies** via `PhaseRunner._await_phase_started`
+  (`jobs/phase_runner.py:400`) that the device actually started *and sustained*
   this room — polling `confirm_seconds` of cumulative cleaning-the-target
   (a brief dip just doesn't add to the tally; a small room that finishes
   under `confirm_seconds` is weak-confirmed on idle-exit rather than
@@ -353,9 +370,9 @@ just-advanced phase on the lingering dock/charging signal of the room that
 just finished (see §6a).
 
 **Timing (adapter-declarable).** The watchdog timing is resolved by
-`_phase_timing` (`manager.py:4121-4145`): the adapter's
-`dispatch.phase_timing` block merged over the `_PHASE_*` module defaults
-(`manager.py:86-111`) — settle 10 s, dock-settle 45 s, verify 90 s, confirm
+`_phase_timing` (`manager.py:4220-4244`, which stays on the manager): the
+adapter's `dispatch.phase_timing` block merged over the `_PHASE_*` module
+defaults (`manager.py:85-110`) — settle 10 s, dock-settle 45 s, verify 90 s, confirm
 45 s, poll 5 s, max-attempts 3. Any key a brand omits falls back to the
 default. The Roborock adapter overrides **`confirm_seconds` to 15 s**
 (`adapters/roborock/adapter.py`); all other keys match the defaults.

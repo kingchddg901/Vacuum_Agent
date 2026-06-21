@@ -59,7 +59,7 @@ edge/path as real wire fields and asserts both per-room writes land on the wire.
 No shipped adapter declares these fields, so DE-11b is the only path that drives
 them.
 
-`dispatch_engines.py` (95%) leaves line 303 — the `if cfg is None: continue` skip
+`dispatch_engines.py` (95%) leaves lines 376-377 — the `if cfg is None: continue` skip
 in `DreameSegmentEngine`'s array transpose, the path where a canonical field is
 simply not declared in `room_fields` (Dreame omits most). Defensive; the declared
 and `field_name: None` cases are both covered.
