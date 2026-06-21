@@ -296,6 +296,37 @@ def register_roborock_adapter_for_vacuum(
                     },
                 },
             ],
+            # LEVER B — live current-room refresh during a CONTIGUOUS run. The S6's live
+            # current_room + per-room fan ride the upstream coordinator's MAP cadence
+            # (IMAGE_CACHE_INTERVAL ~30s), NOT the ~15s status poll — vacuum_room is
+            # map-derived, refreshed only inside the 30s-gated update_map(). During a
+            # contiguous run (state stays "cleaning", no per-room docking) the framework
+            # pulses get_vacuum_current_position, which calls map_content.refresh() DIRECTLY
+            # and OFF that 30s gate (and un-debounced), so the native rollover + per-room fan
+            # track at ~interval_s (~15s) instead of ~30s. The map IMAGE backdrop stays 30s
+            # (a separate refresh) — acceptable; this is about which room is live, not pixels.
+            # Strict-order runs dock per room, so each room-start is a state flip that already
+            # forces a free refresh — they're EXCLUDED (the pulse is skipped when the job has
+            # phases). LOCAL-ONLY by design: the 30s map gate is a Roborock CLOUD rate-limit
+            # guard, so local_gate restricts the pulse to a LAN connection, detected from the
+            # ABSENCE of the upstream integration's "cloud_api_used" repair issue (present =>
+            # cloud => skip), re-checked every pulse so a mid-run local->cloud flip disables it
+            # within one interval. ALL brand-specific strings (service + gate) live HERE; core
+            # evaluates them generically (manager._live_room_refresh / maybe_pulse_live_room_
+            # refresh). Eufy omits this block (it already has a ~2s fork pose) -> no-op.
+            "live_room_refresh": {
+                "enabled": True,
+                "interval_s": 15,
+                "service": {
+                    "domain": "vacuum",
+                    "service": "get_vacuum_current_position",
+                },
+                "local_gate": {
+                    "device_identifier_domain": "roborock",
+                    "issue_domain": "roborock",
+                    "issue_id_template": "cloud_api_used_{duid_slug}",
+                },
+            },
         },
 
         "setup": {
