@@ -1254,6 +1254,13 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    // Mascot follows the live robot position (replaces the dot) vs. room/dock homing.
+    root.querySelectorAll("[data-action='map-animal-follow-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMapAnimalFollowsRobot?.();
+        this.card._scheduleRender();
+      });
+    });
     // Floor textures on/off — map polygons and room cards toggle independently.
     root.querySelectorAll("[data-action='map-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {

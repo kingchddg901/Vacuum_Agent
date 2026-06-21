@@ -504,6 +504,14 @@ export const mapStyles = `
     transition: none;   /* suppress filter transition while moving */
   }
 
+  /* Follow-robot mode: rides the live robot pixel. Ease left/top so it GLIDES to each
+     new position instead of teleporting (esp. Roborock's ~16-30s polls — a smooth ~1s
+     hop reads as intentional). Not draggable (it's tracking, not placeable). */
+  .evcc-map-animal--following {
+    cursor:     default;
+    transition: filter 400ms ease, opacity 400ms ease, left 900ms ease, top 900ms ease;
+  }
+
   /* Docked / charging — gentle luminance + alpha breath pulse */
   .evcc-map-animal--pulse {
     animation: evcc-animal-pulse 3.5s ease-in-out infinite;

@@ -216,6 +216,19 @@ export function applyRoomsRenderers(proto) {
           </svg>
         </button>
         <button
+          class="evcc-rooms-view-toggle-btn${(state.mapAnimalFollowsRobot?.() ?? false) ? " active" : ""}"
+          data-action="map-animal-follow-toggle"
+          title="${(state.mapAnimalFollowsRobot?.() ?? false) ? "Mascot follows the live robot position — tap for room/dock mode" : "Make the mascot ride the live robot position (replaces the dot)"}"
+          aria-label="Mascot follows robot"
+          aria-pressed="${(state.mapAnimalFollowsRobot?.() ?? false) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="8" cy="8" r="3"/>
+            <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
+            <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
+          </svg>
+        </button>
+        <button
           class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-texture-toggle"
           title="${(state.mapFloorTextureEnabled?.() ?? true) ? "Hide map textures" : "Show map textures"}"

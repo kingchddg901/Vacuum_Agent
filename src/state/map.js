@@ -1546,6 +1546,34 @@ export function applyMapState(proto) {
     this.setMapAnimalEnabled(!this.mapAnimalEnabled());
   };
 
+  /* Mascot FOLLOWS the live robot pixel (rides robot_anchor, replacing the position
+     dot) vs. homing to rooms / the dock spot. Default OFF — the existing room/dock
+     behavior (and the draggable dock spot) is unchanged unless turned on. When docked
+     the mascot still homes to the dock spot in BOTH modes, so dragging survives. */
+  proto._mapAnimalFollowsRobot = null; // null = not yet read
+  proto._animalFollowsRobotKey = function () {
+    return `evcc_animal_follow_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.mapAnimalFollowsRobot = function () {
+    if (this._mapAnimalFollowsRobot === null) {
+      try {
+        this._mapAnimalFollowsRobot = localStorage.getItem(this._animalFollowsRobotKey()) === "1";
+      } catch (_) {
+        this._mapAnimalFollowsRobot = false;
+      }
+    }
+    return this._mapAnimalFollowsRobot;
+  };
+  proto.setMapAnimalFollowsRobot = function (on) {
+    this._mapAnimalFollowsRobot = !!on;
+    try {
+      localStorage.setItem(this._animalFollowsRobotKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleMapAnimalFollowsRobot = function () {
+    this.setMapAnimalFollowsRobot(!this.mapAnimalFollowsRobot());
+  };
+
   /* =========================================================
      ROOM LABELS ON / OFF  (per vacuum, localStorage)
      =========================================================

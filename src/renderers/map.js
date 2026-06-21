@@ -337,7 +337,9 @@ export function applyMapRenderers(proto) {
     const f = (v) => v.toFixed(2);
     let out = "";
 
-    if (vis("robot") && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+    // The mascot REPLACES the dot when "follow robot" is on (and the companion is shown).
+    const _followActive = (state.mapAnimalFollowsRobot?.() ?? false) && (state.mapAnimalEnabled?.() ?? true);
+    if (vis("robot") && !_followActive && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
       const [x, y] = mss.robot_anchor;
       const h = Number(mss.robot_heading ?? 0);
       out += `<div class="evcc-map-ov-robot" style="left:${f(tx(x))}%;top:${f(ty(y))}%">`
@@ -616,6 +618,20 @@ export function applyMapRenderers(proto) {
 
   proto._renderMapAnimal = function (state, vacuumStatus) {
     if (!(state.mapAnimalEnabled?.() ?? true)) return "";   // mascot toggled off
+
+    const isAtDock = (vacuumStatus === "docked" || vacuumStatus === "idle");
+    // Follow-robot mode: ride the live robot pixel (replacing the position dot). When
+    // docked we fall through to the dock-spot homing below, so the calm parked placement
+    // and dragging both survive. Reads the live anchor + transform exactly as the dot does.
+    if ((state.mapAnimalFollowsRobot?.() ?? false) && !isAtDock) {
+      const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+      if (mss && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+        const { tx, ty } = this._overlayTransform(state);
+        const [rx, ry] = mss.robot_anchor;
+        return this._animalDivHtml(state, vacuumStatus, (+tx(rx)).toFixed(2), (+ty(ry)).toFixed(2), null);
+      }
+    }
+
     const allSegments = state.mapSegments();
     const rooms       = state.getRoomsForActiveMap?.() ?? [];
 
@@ -637,7 +653,6 @@ export function applyMapRenderers(proto) {
       return allSegments.find((s) => String(s.segment_id) === String(segId)) ?? null;
     };
 
-    const isAtDock = (vacuumStatus === "docked" || vacuumStatus === "idle");
     if (isAtDock) {
       const dockRoom = rooms.find((r) => r.isDockRoom);
       targetSeg = _segForRoom(dockRoom?.id);
@@ -682,31 +697,34 @@ export function applyMapRenderers(proto) {
       [pct_x, pct_y] = _polygonCentroid(poly);
     }
 
-    const pose     = _vacuumStateToPose(vacuumStatus ?? "");
-    const isDocked = pose === "curled";
-    const animal   = state.mapAnimalSelection?.() ?? "cat";
-    const scale    = state.mapAnimalScale?.()     ?? 1.0;
-    // Battery state is an auxiliary visual signal orthogonal to pose. The
-    // five-band resolution (charging/good/mid/warn/low) lives in
-    // state.batteryState(); the animal renders the corresponding eye color
-    // via :host([battery-state="X"]) rules, plus a charging pulse.
-    const batteryState = state.batteryState?.() ?? "good";
-
     // Anchor key matches the lookup key — so dragging the DOCKED mascot writes
     // the shared "dock" spot, while dragging it mid-clean writes the per-room
     // anchor as before.
-    const anchorKey = lookupKey;
+    return this._animalDivHtml(state, vacuumStatus, pct_x, pct_y, lookupKey);
+  };
 
+  /* Render the <animal-svg> companion div at a map-content-box % position.
+     anchorKey != null → draggable (writes that per-room / "dock" anchor on drag);
+     anchorKey == null → follow-robot mode: NO drag (it's tracking the live pixel).
+     Battery state is an auxiliary visual signal orthogonal to pose (five-band
+     charging/good/mid/warn/low → eye color via :host([battery-state]) + charge pulse). */
+  proto._animalDivHtml = function (state, vacuumStatus, pct_x, pct_y, anchorKey) {
+    const pose         = _vacuumStateToPose(vacuumStatus ?? "");
+    const isDocked     = pose === "curled";
+    const animal       = state.mapAnimalSelection?.() ?? "cat";
+    const scale        = state.mapAnimalScale?.()     ?? 1.0;
+    const batteryState = state.batteryState?.()       ?? "good";
     const W = Math.round(64 * scale);
     const H = Math.round(44 * scale);
-
-    return `<div
-      class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}"
-      style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"
-      data-action="map-dot-click"
-      data-anchor-key="${this.escapeHtml(anchorKey)}"
-      title="${isAtDock ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"
-    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
+    const drag = anchorKey != null
+      ? ` data-action="map-dot-click" data-anchor-key="${this.escapeHtml(String(anchorKey))}"`
+        + ` title="${isDocked ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"`
+      : ` title="Following the robot"`;
+    return `<div class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}`
+         + `${anchorKey == null ? " evcc-map-animal--following" : ""}"`
+         + ` style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"${drag}`
+         + `><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}"`
+         + ` width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
   };
 
   /* =========================================================
