@@ -4,7 +4,7 @@ A sequenced (strict-order) job advances one room per PHASE, docking between room
 whole-run counter stream can't be segmented across those dock trips against the single
 last-phase queue, so finalization used to record only the last phase's room with the whole
 run's battery/area. The fix snapshots each finishing phase's room_timing from its OWN counter
-slice (manager._capture_finishing_phase_timing) before advance resets the queue; finalization
+slice (manager.phase_runner._capture_finishing_phase_timing) before advance resets the queue; finalization
 concatenates them.
 
 [SOPT-1] each phase captures its OWN room from its own slice (not the whole stream).
@@ -15,7 +15,7 @@ concatenates them.
 
 from __future__ import annotations
 
-import custom_components.eufy_vacuum.core.manager as manager_mod
+import custom_components.eufy_vacuum.jobs.phase_runner as phase_runner_mod
 
 _VAC = "vacuum.ivy"
 _MAP = "Main floor"
@@ -41,7 +41,7 @@ async def test_capture_per_phase_room_timing(hass, manager, monkeypatch):
     """[SOPT-1] + [SOPT-2]"""
     # Deterministic clock so each phase's _timing_end_t lands between the two phases' samples.
     clock = iter(["2026-01-01T00:01:00Z", "2026-01-01T00:03:00Z", "2026-01-01T00:03:00Z"])
-    monkeypatch.setattr(manager_mod, "_iso_now", lambda: next(clock))
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: next(clock))
 
     phase_a = [
         _cs(f"2026-01-01T00:00:{s:02d}Z", ct, ca)
@@ -58,12 +58,12 @@ async def test_capture_per_phase_room_timing(hass, manager, monkeypatch):
     }
     _seed_job(manager, job)
 
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     rt0 = job["phases"][0].get("room_timing")
     assert rt0 and rt0[0]["room_id"] == 5
 
     # [SOPT-2] idempotent — second call leaves it untouched
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     assert job["phases"][0]["room_timing"] is rt0
 
     # advance to phase 1: more samples arrive, index bumps (as advance_active_job_phase does)
@@ -76,7 +76,7 @@ async def test_capture_per_phase_room_timing(hass, manager, monkeypatch):
     job["resolved_rooms"] = [{"room_id": 8, "slug": "dining_room"}]
     job["queue_room_ids"] = [8]
 
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     rt1 = job["phases"][1].get("room_timing")
     assert rt1 and rt1[0]["room_id"] == 8
 
@@ -88,7 +88,7 @@ async def test_capture_per_phase_room_timing(hass, manager, monkeypatch):
 
 async def test_area_fallback_to_learned(hass, manager, monkeypatch):
     """[SOPT-3] a phase whose cleaning_area is flat (stale sensor) falls back to learned area."""
-    monkeypatch.setattr(manager_mod, "_iso_now", lambda: "2026-01-01T00:05:00Z")
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:05:00Z")
     # learned area for room 5 in the map registry
     manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
         "rooms": {"5": {"slug": "kitchen", "learned_area_m2": 9.3}}
@@ -108,7 +108,7 @@ async def test_area_fallback_to_learned(hass, manager, monkeypatch):
     }
     _seed_job(manager, job)
 
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     rt = job["phases"][0].get("room_timing")
     assert rt and rt[0]["room_id"] == 5
     assert rt[0]["area_m2"] == 9.3 and rt[0].get("area_source") == "learned_fallback"
@@ -118,7 +118,7 @@ async def test_never_cleaned_phase_records_empty_not_phantom(hass, manager, monk
     """A phase whose slice has no usable counter samples (never cleaned — the watchdog gave up,
     or a stale completion signal) records an EMPTY timing, marked attempted — NOT a phantom room
     with a fabricated learned area (which would poison learning)."""
-    monkeypatch.setattr(manager_mod, "_iso_now", lambda: "2026-01-01T00:06:00Z")
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:06:00Z")
     manager.data.setdefault("maps", {}).setdefault(_VAC, {})[_MAP] = {
         "rooms": {"5": {"slug": "kitchen", "learned_area_m2": 9.3}}
     }
@@ -133,12 +133,12 @@ async def test_never_cleaned_phase_records_empty_not_phantom(hass, manager, monk
     }
     _seed_job(manager, job)
 
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     assert job["phases"][0]["room_timing"] == []        # no phantom room, no learned-area fabrication
     assert job["phases"][0].get("_timing_end_t")         # but marked attempted (idempotent)
 
     # re-running is a no-op — guarded on _timing_end_t, NOT room_timing truthiness
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     assert job["phases"][0]["room_timing"] == []
 
 
@@ -146,7 +146,7 @@ async def test_atomic_job_is_noop(hass, manager):
     """[SOPT-4] a job with no phases is untouched."""
     job = {"vacuum_entity_id": _VAC, "map_id": _MAP, "queue_room_ids": [5], "counter_samples": []}
     _seed_job(manager, job)
-    manager._capture_finishing_phase_timing(_VAC, _MAP, job)
+    manager.phase_runner._capture_finishing_phase_timing(_VAC, _MAP, job)
     assert "phases" not in job and "room_timing" not in job
 
 
@@ -158,11 +158,11 @@ async def test_learned_room_area_prefers_learned_then_area_then_none(hass, manag
         "6": {"area_m2": 4.0},                            # only area_m2 -> fallback key
         "7": {"slug": "x"},                               # neither -> None
     }}
-    assert manager._learned_room_area_m2(_VAC, _MAP, 5) == 9.3
-    assert manager._learned_room_area_m2(_VAC, _MAP, 6) == 4.0
-    assert manager._learned_room_area_m2(_VAC, _MAP, 7) is None
-    assert manager._learned_room_area_m2(_VAC, _MAP, 99) is None   # no such room
-    assert manager._learned_room_area_m2(_VAC, _MAP, 0) is None    # bad id
+    assert manager.phase_runner._learned_room_area_m2(_VAC, _MAP, 5) == 9.3
+    assert manager.phase_runner._learned_room_area_m2(_VAC, _MAP, 6) == 4.0
+    assert manager.phase_runner._learned_room_area_m2(_VAC, _MAP, 7) is None
+    assert manager.phase_runner._learned_room_area_m2(_VAC, _MAP, 99) is None   # no such room
+    assert manager.phase_runner._learned_room_area_m2(_VAC, _MAP, 0) is None    # bad id
 
 
 async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
@@ -172,7 +172,7 @@ async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
         {"t": "2026-01-01T00:00:00Z", "cleaning_time": 10, "cleaning_area": 1.0, "battery": 80},
         {"t": "2026-01-01T00:02:00Z", "cleaning_time": 130, "cleaning_area": 7.0, "battery": 74},
     ]
-    rt = manager._phase_room_timing(5, "kitchen", good)
+    rt = manager.phase_runner._phase_room_timing(5, "kitchen", good)
     assert rt["cleaning_seconds"] == 120 and rt["area_m2"] == 6.0
     assert rt["battery_delta"] == 6 and rt["cleaning_wall_seconds"] == 120
 
@@ -180,6 +180,6 @@ async def test_phase_room_timing_battery_delta_and_wall_parse(hass, manager):
         {"t": "nope", "cleaning_time": 0, "cleaning_area": 0.0, "battery": 50},
         {"t": "also-bad", "cleaning_time": 30, "cleaning_area": 2.0, "battery": 48},
     ]
-    rt2 = manager._phase_room_timing(5, "kitchen", bad_ts)
+    rt2 = manager.phase_runner._phase_room_timing(5, "kitchen", bad_ts)
     assert rt2["cleaning_seconds"] == 30 and rt2["battery_delta"] == 2
     assert rt2["cleaning_wall_seconds"] == 0  # _wall_seconds swallows the parse error

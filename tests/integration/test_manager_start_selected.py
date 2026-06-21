@@ -494,7 +494,7 @@ async def test_initial_phase_is_verify_only(manager, hass, monkeypatch):
             "has_observed_active_lifecycle": True,
             "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
         }
-        await manager._run_advanced_phase(
+        await manager.phase_runner._run_advanced_phase(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=True
         )
         await hass.async_block_till_done()
@@ -540,7 +540,7 @@ async def test_phase_verify_requires_sustained_cleaning(manager, hass, monkeypat
             "has_observed_active_lifecycle": True,
             "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
         }
-        result = await manager._await_phase_started(
+        result = await manager.phase_runner._await_phase_started(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
         )
         assert result is True                       # sustained cleaning-on-target confirms
@@ -596,7 +596,7 @@ async def test_phase_verify_tolerates_current_room_dips(manager, hass, monkeypat
             "has_observed_active_lifecycle": True,
             "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
         }
-        result = await manager._await_phase_started(
+        result = await manager.phase_runner._await_phase_started(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
         )
         assert result is True
@@ -632,7 +632,7 @@ async def test_phase_verify_non_native_immediate(manager, hass, monkeypatch):
         "has_observed_active_lifecycle": True,
         "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
     }
-    result = await manager._await_phase_started(
+    result = await manager.phase_runner._await_phase_started(
         vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
     )
     assert result is True
@@ -673,7 +673,7 @@ async def test_phase_verify_idle_window_retries(manager, hass, monkeypatch):
             "has_observed_active_lifecycle": True,
             "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
         }
-        result = await manager._await_phase_started(
+        result = await manager.phase_runner._await_phase_started(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0
         )
         assert result is False                  # no cleaning-of-target -> idle budget hit
@@ -690,11 +690,11 @@ def test_phase_target_is_dock_room(manager):
             "27": {"room_id": 27, "name": "Kitchen", "is_dock_room": False},
         }
     }
-    assert manager._phase_target_is_dock_room(_VAC, _MAP, 18) is True
-    assert manager._phase_target_is_dock_room(_VAC, _MAP, "18") is True
-    assert manager._phase_target_is_dock_room(_VAC, _MAP, 27) is False
-    assert manager._phase_target_is_dock_room(_VAC, _MAP, 99) is False    # unknown room
-    assert manager._phase_target_is_dock_room(_VAC, _MAP, None) is False
+    assert manager.phase_runner._phase_target_is_dock_room(_VAC, _MAP, 18) is True
+    assert manager.phase_runner._phase_target_is_dock_room(_VAC, _MAP, "18") is True
+    assert manager.phase_runner._phase_target_is_dock_room(_VAC, _MAP, 27) is False
+    assert manager.phase_runner._phase_target_is_dock_room(_VAC, _MAP, 99) is False    # unknown room
+    assert manager.phase_runner._phase_target_is_dock_room(_VAC, _MAP, None) is False
 
 
 def _seed_dock_phase(manager, hass, *, room_id, room_name, is_dock):
@@ -745,7 +745,7 @@ async def test_advanced_phase_extends_settle_for_dock_room(manager, hass, monkey
     })
     try:
         _seed_dock_phase(manager, hass, room_id=18, room_name="Dining Room", is_dock=True)
-        await manager._run_advanced_phase(
+        await manager.phase_runner._run_advanced_phase(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=False
         )
         await hass.async_block_till_done()
@@ -778,7 +778,7 @@ async def test_advanced_phase_normal_settle_for_non_dock_room(manager, hass, mon
     })
     try:
         _seed_dock_phase(manager, hass, room_id=27, room_name="Kitchen", is_dock=False)
-        await manager._run_advanced_phase(
+        await manager.phase_runner._run_advanced_phase(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0, initial=False
         )
         await hass.async_block_till_done()
@@ -892,7 +892,7 @@ async def test_advanced_phase_aborts_when_cancelled_during_settle(manager, hass,
     }
     # Directly awaited (nothing spawned) -> no async_block_till_done, which would add
     # an incidental asyncio.sleep(0) to the globally-patched mock and skew the count.
-    await manager._run_advanced_phase(
+    await manager.phase_runner._run_advanced_phase(
         vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1, initial=False)
     # the settle ran (one sleep), then the guard aborted before any dispatch
     assert sleep_mock.await_count == 1
@@ -918,7 +918,7 @@ async def test_await_phase_started_returns_true_when_job_moved_on(manager, hass,
         "resolved_rooms": [{"room_id": 1}], "current_room_id": 1,
         "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
     }
-    result = await manager._await_phase_started(
+    result = await manager.phase_runner._await_phase_started(
         vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0)
     assert result is True               # job moved on -> treated as confirmed
     assert sleep_mock.await_count == 0  # returned before polling, no retry pressure
@@ -941,9 +941,9 @@ def test_vacuum_started_cleaning_job_active_fallback(manager, hass):
     })
     try:
         hass.states.async_set("binary_sensor.ivy_cleaning", "on")
-        assert manager._vacuum_started_cleaning(_VAC) is True
+        assert manager.phase_runner._vacuum_started_cleaning(_VAC) is True
         hass.states.async_set("binary_sensor.ivy_cleaning", "off")
-        assert manager._vacuum_started_cleaning(_VAC) is False
+        assert manager.phase_runner._vacuum_started_cleaning(_VAC) is False
     finally:
         unregister_adapter_config(_VAC)
 
@@ -993,7 +993,7 @@ async def test_phase_verify_fast_room_confirms_on_idle_exit(manager, hass, monke
             "has_observed_active_lifecycle": True,
             "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
         }
-        result = await manager._await_phase_started(
+        result = await manager.phase_runner._await_phase_started(
             vacuum_entity_id=_VAC, map_id=_MAP, phase_index=0)
         assert result is True   # cleaned the target (briefly) then docked -> confirmed, not retried
     finally:
@@ -1039,7 +1039,7 @@ async def test_watchdog_bails_when_cancel_in_flight(manager, hass, monkeypatch):
         "has_observed_active_lifecycle": True,
         "job_id": "j1", "started_at": "2026-01-01T00:00:00+00:00",
     }
-    await manager._run_advanced_phase(
+    await manager.phase_runner._run_advanced_phase(
         vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1, initial=False)
     await hass.async_block_till_done()
     assert calls == []   # cancel in flight -> watchdog bailed before dispatching
