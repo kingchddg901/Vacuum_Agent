@@ -82,8 +82,12 @@ pass `--no-cov` to suppress it.
 ## Reading coverage
 
 The default run prints a `term-missing` table (uncovered line numbers per file)
-and writes an HTML report to `htmlcov/`. Both `htmlcov/` and the `.coverage`
-data file are gitignored.
+only — no HTML report is written. The `addopts` in `pytest.ini` enable just
+`--cov-report=term-missing` and `--cov-branch`. To get an HTML report, ask for one
+explicitly: pass `--cov-report=html:htmlcov_scratch` for a disposable report, or
+`--cov-report=html:htmlcov` for the canonical regen. (Keeping `htmlcov/`
+explicit-only means an incidental or sub-agent coverage run can never clobber it.)
+Both `htmlcov/` and the `.coverage` data file are gitignored.
 
 ### Refreshing the numbers in these docs
 

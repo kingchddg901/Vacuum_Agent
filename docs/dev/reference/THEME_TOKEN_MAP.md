@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **377 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **387 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -112,7 +112,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-room-grid-gap` | Room Grid Gap | size |  |
 | `--evcc-room-grid-min` | Room Grid Min | size |  |
 
-## Map  ·  12
+## Map  ·  22
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
@@ -128,6 +128,16 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-map-compose-cut-fill` | Composer Cutout Fill | color |  |
 | `--evcc-map-compose-cut-selected-fill` | Composer Cutout Fill (Selected) | color |  |
 | `--evcc-map-vertex-selected-glow` | Composer Selected Vertex Glow | color |  |
+| `--evcc-map-ov-current` | Overlay: Current Room | color |  |
+| `--evcc-map-ov-nogo` | Overlay: No-Go Zone | color |  |
+| `--evcc-map-ov-nomop` | Overlay: No-Mop Zone | color |  |
+| `--evcc-map-ov-wall` | Overlay: Virtual Wall | color |  |
+| `--evcc-map-ov-zone` | Overlay: Saved Zone | color |  |
+| `--evcc-map-ov-path` | Overlay: Cleaning Path | color |  |
+| `--evcc-map-ov-robot` | Overlay: Robot Marker | color |  |
+| `--evcc-map-ov-dock` | Overlay: Dock Marker | color |  |
+| `--evcc-map-ov-obstacle` | Overlay: Obstacle Marker | color |  |
+| `--evcc-map-ov-area-text` | Overlay: Area Label Text | color |  |
 
 ## Floor Textures  ·  4
 

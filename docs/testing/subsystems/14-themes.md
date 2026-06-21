@@ -46,21 +46,26 @@ through the registry with `manager_with_services`.
 
 ## Known gaps
 
-`manager.py` (95%) — the remaining uncovered lines are defensive input-validation
+`manager.py` (96%) — the remaining uncovered lines are defensive input-validation
 guards on the two import paths, not behavior gaps. `import_theme` rejects a
-non-dict payload (444) and a non-dict `theme` (448), and rejects non-dict
-`colors`/`alpha` (468, 470 — the parallel `tokens` guard at 466 *is* covered).
-`_import_scoped` returns `empty_scope` when every scope name strips blank (518)
-and re-inits a bucket that storage left as a non-dict (541-542). One normalize-
-loop guard skips a blank theme id (142). All are the same skip-the-malformed
-class — deliberately measured, not pragma'd. The update-callback fan-out except
-(`_notify_updated`, 59-68) is now *covered* by the raising-callback test
-([TMD-3]).
+non-dict payload (523) and a non-dict `theme` (527), and rejects non-dict
+`colors`/`alpha` (547, 549 — the parallel `tokens` guard *is* covered).
+`_import_scoped` returns `empty_scope` when every scope name strips blank (616)
+and re-inits a bucket that storage left as a non-dict (639-640). One normalize-
+loop guard skips a blank theme id (`_get_theme_library_entries`, 182), and the
+tag-list cap break in `_clean_theme_tags` (48) never fires under test. All are
+the same skip-the-malformed class — deliberately measured, not pragma'd. The
+update-callback fan-out except (`_notify_updated`) is *covered* by the
+raising-callback test ([TMD-3]).
 
-`services.py` (100%) — fully covered; every handler's failure path and success
-path, including the `handle_overwrite_theme` `async_save` + return tail, is
-exercised.
+`services.py` (95%) — nearly fully covered; the one uncovered handler is
+`handle_set_theme_tags` (192-200), whose `set_theme_tags` → `_raise_if_failed`
+→ `async_save` + return tail has no test driving it through the registry. Every
+other handler's failure and success path, including the `handle_overwrite_theme`
+`async_save` + return tail, is exercised.
 
-`preloaded.py` (94%) — one line: the idempotent re-seed skip
-(`ensure_preloaded_theme_library`, 536) that leaves an already-present built-in
-untouched on re-entry.
+`preloaded.py` (97%) — one branch: the `533->535` partial in
+`ensure_preloaded_theme_library`, where an already-present built-in entry is *not*
+a dict, so the `setdefault("source", "core")` provenance backfill is skipped and
+the loop falls straight through to `continue`. Tests only exercise the dict-entry
+re-seed path.

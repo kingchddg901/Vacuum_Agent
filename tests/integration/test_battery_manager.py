@@ -30,7 +30,9 @@ Coverage targets
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -40,6 +42,7 @@ from custom_components.eufy_vacuum.battery.manager import BatteryHealthManager
 
 _VAC = "vacuum.alfred"
 _T0 = datetime(2026, 1, 1, 10, 0, 0, tzinfo=timezone.utc)
+_FIXTURES = Path(__file__).parent.parent / "fixtures" / "battery"
 
 
 @pytest.fixture
@@ -119,6 +122,25 @@ def test_record_job_metrics_fan_and_water_buckets(bm):
     assert aggr["by_water_level"]["High"]["count"] == 1
 
 
+def test_record_job_metrics_mid_recharge_skips_config_buckets(bm):
+    """[BM-4c] a mid-job-recharge run's start−end drain nets out the recharge and understates
+    the true discharge, so it stays OUT of the per-config drain buckets — but still records
+    last_job + all_jobs (mirrors the is_single_* anti-bias gate)."""
+    bm.record_job_metrics(vacuum_entity_id=_VAC, job_id="jr", metrics={
+        "battery_used_pct": 50, "duration_min": 60, "area_m2": 30, "drain_per_min": 0.8,
+        "is_single_clean_mode": True, "single_clean_mode": "vacuum_mop",
+        "is_single_fan_speed": True, "single_fan_speed": "Turbo",
+        "is_single_water_level": True, "single_water_level": "Low",
+        "mid_job_recharge": True,
+    })
+    rec = bm.get_record(_VAC)
+    assert rec["last_job"]["job_id"] == "jr" and rec["last_job"]["mid_job_recharge"] is True
+    assert rec["job_aggregates"]["all_jobs"]["count"] == 1            # all_jobs still records it
+    assert "vacuum_mop" not in rec["job_aggregates"].get("by_clean_mode", {})  # config buckets skipped
+    assert "Turbo" not in rec["job_aggregates"].get("by_fan_speed", {})
+    assert "Low" not in rec["job_aggregates"].get("by_water_level", {})
+
+
 def test_update_aggregate_bucket(bm):
     """[BM-5]"""
     bucket: dict = {}
@@ -190,6 +212,48 @@ async def test_health_anchors_on_full_charge(bm):
     assert rec["baseline"]["cv_min_per_pct"] is not None
     # first qualifying session anchors the baseline → current == baseline → 100%
     assert rec["stats"]["health_pct"] == pytest.approx(100.0)
+
+
+async def test_qualifying_charge_revives_health_against_anchored_baseline(bm):
+    """[BM-11b] REAL-DATA regression: replay the rare 17→100% qualifying deep-charge
+    captured live on 2026-06-20 (tests/fixtures/battery/) through the manager, with the
+    per-install baseline ALREADY anchored (the 2026-06-08 anchor). A fresh qualifying
+    session must REVIVE health_pct relative to that anchor (~117.6 — this cell charges
+    faster than the anchor session did, so >100%). This is the only real-data coverage of
+    the CC/CV → health math, which is otherwise tested only on synthetic charges.
+
+    The trace took a freak chain to capture (dead job → freeze → recharge cycling drained
+    it to 9%, then a deliberate deep charge) — kept as a fixture so the math stays pinned."""
+    fx = json.loads((_FIXTURES / "alfred_qualifying_charge_2026-06-20.json").read_text(encoding="utf-8"))
+    ha = fx["health_after"]
+
+    # Pre-anchor the per-install baseline (the 2026-06-08 deep charge already set it).
+    rec = bm.ensure_record(_VAC)
+    rec["baseline"]["cc_min_per_pct"] = ha["baseline_cc_min_per_pct"]
+    rec["baseline"]["cv_min_per_pct"] = ha["baseline_cv_min_per_pct"]
+    rec["baseline"]["session_count"] = 1
+    rec["baseline"]["anchored_at"] = ha["baseline_anchored_at"]
+
+    # Replay the real per-tick curve: discharge → recharge cycling → the deep 17→100 charge.
+    for s in fx["samples"]:
+        t = datetime.fromisoformat(str(s["ts"]).replace("Z", "+00:00"))
+        bm._process_sample(
+            vacuum_entity_id=_VAC, battery_level=int(s["battery_level"]),
+            charging=bool(s["charging"]), ts=t,
+        )
+
+    stats = bm.get_record(_VAC)["stats"]
+    # health REVIVED (was blank live) and reads relative to the anchor.
+    assert stats["health_pct"] is not None
+    assert stats["health_pct"] == pytest.approx(ha["health_pct"], abs=2.0)
+    assert stats["cc_charge_speed_pct"] == pytest.approx(ha["cc_charge_speed_pct"], abs=2.0)
+    assert stats["cv_charge_speed_pct"] == pytest.approx(ha["cv_charge_speed_pct"], abs=2.0)
+    # the baseline anchor is UNCHANGED (per-install — a later session doesn't re-anchor).
+    assert rec["baseline"]["cc_min_per_pct"] == ha["baseline_cc_min_per_pct"]
+    # a real qualifying session (start≤50, end≥90, full) landed in the history.
+    qual = [h for h in bm.get_record(_VAC)["session_history_recent"]
+            if (h.get("start_battery") or 99) <= 50 and (h.get("end_battery") or 0) >= 90]
+    assert qual and qual[-1]["ended_reason"] == "full"
 
 
 async def test_out_of_range_ignored(bm):

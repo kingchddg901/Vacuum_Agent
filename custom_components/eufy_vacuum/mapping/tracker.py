@@ -124,6 +124,8 @@ class MappingTracker:
         # WHY: X and Y sensors each fire on the same movement event; tracking
         # the last recorded position deduplicates the resulting double-fire.
         self._last_recorded_pos: dict[str, tuple[float, float]] = {}
+        # Last logged DOCKED position, for the dock-coordinate drift log (diagnostic).
+        self._last_dock_pos: dict[str, tuple[float, float]] = {}
 
     # ------------------------------------------------------------------
     # Temp-file persistence helpers
@@ -201,6 +203,7 @@ class MappingTracker:
             )
 
     RAW_SAMPLES_MAX_LINES = 1000
+    DOCK_DRIFT_MAX_LINES = 5000
 
     def rebuild_room_bounds_from_archive(
         self,
@@ -307,8 +310,11 @@ class MappingTracker:
     def _find_raw_samples_path(self, vacuum_entity_id: str, room_id: str) -> Path | None:
         """Return the existing archive path for a room, regardless of slug suffix.
 
-        Globs for raw_samples_room_{id}*.jsonl and returns the first match,
-        or None if no archive exists yet.
+        Globs for raw_samples_room_{id}*.jsonl and returns the MOST-RECENTLY-WRITTEN
+        match, or None if no archive exists yet. A room can briefly have both a
+        no-slug file (written before its slug was known) and a slugged file; the live
+        archive is the newer one, so picking by mtime returns it — alphabetical-first
+        would return the stale no-slug file (".jsonl" sorts before "_slug.jsonl").
         """
         vac_slug = re.sub(r"[^a-z0-9_]", "_", vacuum_entity_id.lower())
         directory = (
@@ -317,8 +323,15 @@ class MappingTracker:
             / "mapping"
             / vac_slug
         )
-        matches = sorted(directory.glob(f"raw_samples_room_{room_id}*.jsonl"))
-        return matches[0] if matches else None
+
+        def _mtime(path: Path) -> float:
+            try:
+                return path.stat().st_mtime
+            except OSError:  # vanished between glob and stat — treat as oldest
+                return -1.0
+
+        return max(directory.glob(f"raw_samples_room_{room_id}*.jsonl"),
+                   key=_mtime, default=None)
 
     def _append_raw_samples(
         self,
@@ -330,6 +343,8 @@ class MappingTracker:
         samples: list[tuple[float, float]],
         room_slug: str | None = None,
         room_name: str | None = None,
+        dock_anchor_start: list[float] | None = None,
+        dock_anchor_end: list[float] | None = None,
     ) -> None:
         """Append one job's raw samples as a JSONL line, rolling off entries beyond RAW_SAMPLES_MAX_LINES."""
         path = self._raw_samples_path(vacuum_entity_id, room_id, room_slug)
@@ -344,6 +359,12 @@ class MappingTracker:
             }
             if room_name:
                 record["room_name"] = room_name
+            # Per-session dock anchors for cross-session re-anchoring (Wave 1).
+            # Omitted when unavailable so legacy/older lines stay schema-compatible.
+            if dock_anchor_start is not None:
+                record["dock_anchor_start"] = dock_anchor_start
+            if dock_anchor_end is not None:
+                record["dock_anchor_end"] = dock_anchor_end
             entry = json.dumps(record)
             existing: list[str] = []
             if path.exists():
@@ -381,6 +402,91 @@ class MappingTracker:
             _LOGGER.exception(  # pragma: no cover
                 "MappingTracker: failed to append raw samples for room %s (%s)",
                 room_id, vacuum_entity_id,
+            )
+
+    # ------------------------------------------------------------------
+    # Dock-coordinate drift log (diagnostic)
+    # ------------------------------------------------------------------
+    # The dock is a physically fixed point, so any change in the robot's REPORTED
+    # position while docked is pure coordinate-frame drift (the device re-localizes
+    # per session). We log each distinct docked reading to a per-vacuum JSONL so the
+    # drift timeline can be inspected — when it drifts, by how much, on which axis.
+    # Passive: append-only, never feeds bounds or cleaning.
+
+    def _dock_drift_path(self, vacuum_entity_id: str) -> Path:
+        """Return the dock-drift log path for this vacuum."""
+        slug = re.sub(r"[^a-z0-9_]", "_", vacuum_entity_id.lower())
+        return (
+            Path(self.hass.config.config_dir)
+            / "eufy_vacuum" / "mapping" / slug / "_dock_drift.jsonl"
+        )
+
+    def _maybe_log_dock_drift(self, vacuum_entity_id: str, vx: float, vy: float) -> None:
+        """Log a docked-position reading when it changes (each change = a drift event)."""
+        state = self.hass.states.get(vacuum_entity_id)
+        s = str(state.state).strip().lower() if state else ""
+        if s not in ("docked", "charging"):
+            return
+        last = self._last_dock_pos.get(vacuum_entity_id)
+        if last == (vx, vy):
+            return  # unchanged -> nothing drifted
+        self._last_dock_pos[vacuum_entity_id] = (vx, vy)
+        dx = round(vx - last[0], 4) if last is not None else None
+        dy = round(vy - last[1], 4) if last is not None else None
+        self.hass.async_add_executor_job(
+            self._append_dock_drift,
+            vacuum_entity_id, round(vx, 4), round(vy, 4), s, dx, dy,
+        )
+
+    def _append_dock_drift(
+        self,
+        vacuum_entity_id: str,
+        vx: float,
+        vy: float,
+        state: str,
+        dx: float | None,
+        dy: float | None,
+    ) -> None:
+        """Append one dock-drift reading as a JSONL line, rolling off beyond DOCK_DRIFT_MAX_LINES."""
+        path = self._dock_drift_path(vacuum_entity_id)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            record: dict = {
+                "ts": datetime_to_utc_iso(utc_now()),
+                "vx": vx,
+                "vy": vy,
+                "state": state,
+            }
+            if dx is not None:
+                record["dx"] = dx
+                record["dy"] = dy
+            existing: list[str] = []
+            if path.exists():
+                existing = path.read_text(encoding="utf-8").splitlines()
+            else:
+                existing = [json.dumps({
+                    "_meta": "eufy_vacuum dock-coordinate drift log",
+                    "vacuum": vacuum_entity_id,
+                    "description": (
+                        "One line per distinct docked position. The dock is a fixed "
+                        "point, so any change is coordinate-frame drift. dx/dy = delta "
+                        "from the previous logged reading."
+                    ),
+                })]
+            existing.append(json.dumps(record))
+            if existing and '"_meta"' in existing[0]:
+                body = existing[1:]
+                if len(body) > self.DOCK_DRIFT_MAX_LINES:
+                    body = body[-self.DOCK_DRIFT_MAX_LINES:]
+                existing = [existing[0]] + body
+            elif len(existing) > self.DOCK_DRIFT_MAX_LINES:
+                existing = existing[-self.DOCK_DRIFT_MAX_LINES:]
+            tmp = path.with_suffix(".tmp")
+            tmp.write_text("\n".join(existing) + "\n", encoding="utf-8")
+            tmp.replace(path)
+        except Exception:
+            _LOGGER.exception(  # pragma: no cover
+                "MappingTracker: failed to append dock-drift for %s", vacuum_entity_id,
             )
 
     # ------------------------------------------------------------------
@@ -434,6 +540,7 @@ class MappingTracker:
         self._job_samples.pop(vacuum_entity_id, None)
         self._samples_since_flush.pop(vacuum_entity_id, None)
         self._last_recorded_pos.pop(vacuum_entity_id, None)
+        self._last_dock_pos.pop(vacuum_entity_id, None)
 
     def unregister_all(self) -> None:
         """Remove all position listeners — called on integration unload."""
@@ -457,10 +564,6 @@ class MappingTracker:
         and boundary info available from the mapping manager.
         """
         map_id_str = str(map_id)
-        self._active_job[vacuum_entity_id] = {
-            "map_id": map_id_str,
-            "rooms": rooms,
-        }
         self._last_recorded_pos.pop(vacuum_entity_id, None)
         if vacuum_entity_id in self._confidence:
             self._confidence[vacuum_entity_id].reset_job()
@@ -469,6 +572,26 @@ class MappingTracker:
         # the new job will write its own file at SAMPLES_FLUSH_INTERVAL cadence.
         recovered = self._load_samples_from_disk(vacuum_entity_id, map_id_str)
         self._delete_samples_tmp_file(vacuum_entity_id)
+
+        # Per-session dock anchor (Wave 1, capture-only): the device re-localizes
+        # its coordinate origin every session, so absolute coords aren't comparable
+        # across sessions. At a FRESH job start the robot is at the dock, so this
+        # snapshot is the session's origin in vacuum space — later used to re-anchor
+        # cross-session bounds. On a mid-job HA restart `recovered` is truthy and the
+        # live position is mid-run (not the dock), so we leave it None and that run
+        # is treated as un-anchored.
+        dock_anchor_start: list[float] | None = None
+        if not recovered:
+            pos = self._get_raw_position(vacuum_entity_id)
+            if pos is not None:
+                dock_anchor_start = [round(pos[0], 4), round(pos[1], 4)]
+
+        self._active_job[vacuum_entity_id] = {
+            "map_id": map_id_str,
+            "rooms": rooms,
+            "dock_anchor_start": dock_anchor_start,
+        }
+
         if recovered:
             self._job_samples[vacuum_entity_id] = recovered
             self._samples_since_flush[vacuum_entity_id] = 0
@@ -518,12 +641,26 @@ class MappingTracker:
             now_iso  = datetime_to_utc_iso(utc_now())
             job_id   = "job_" + now_iso[:16].replace(":", "-")
 
+            # Per-session dock anchors (Wave 1, capture-only). start = the session
+            # origin captured at job start; end = the re-dock position now (robot is
+            # docked/charging at finalization). The start→end delta is a per-run
+            # within-run-drift signal. Stored on the history entry + archive only;
+            # no bounds math consumes them yet (that is Wave 2).
+            dock_anchor_start = job.get("dock_anchor_start")
+            _end_pos = self._get_raw_position(vacuum_entity_id)
+            dock_anchor_end = (
+                [round(_end_pos[0], 4), round(_end_pos[1], 4)]
+                if _end_pos is not None else None
+            )
+
             try:
                 self._manager.update_room_bounds(
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=map_id,
                     samples=samples,
                     rooms=rooms,
+                    dock_anchor_start=dock_anchor_start,
+                    dock_anchor_end=dock_anchor_end,
                 )
             except Exception:
                 _LOGGER.exception(  # pragma: no cover
@@ -548,6 +685,8 @@ class MappingTracker:
                         job_id=job_id,
                         recorded_at=now_iso,
                         samples=samples,
+                        dock_anchor_start=dock_anchor_start,
+                        dock_anchor_end=dock_anchor_end,
                     )
                 else:
                     # Multi-room job: attribute samples using the same bounding-box
@@ -584,6 +723,8 @@ class MappingTracker:
                             job_id=job_id,
                             recorded_at=now_iso,
                             samples=room_samples,
+                            dock_anchor_start=dock_anchor_start,
+                            dock_anchor_end=dock_anchor_end,
                         )
             except Exception:
                 _LOGGER.exception(  # pragma: no cover
@@ -681,6 +822,11 @@ class MappingTracker:
 
             # Run confidence tracking.
             self._update_confidence(vacuum_entity_id, vx, vy, job)
+        else:
+            # No active cleaning job. If the robot is parked on the dock, record the
+            # reported position — the dock is fixed, so any change in it is pure
+            # coordinate-frame drift. Diagnostic timeline only; never feeds bounds.
+            self._maybe_log_dock_drift(vacuum_entity_id, vx, vy)
 
     def _update_confidence(
         self,

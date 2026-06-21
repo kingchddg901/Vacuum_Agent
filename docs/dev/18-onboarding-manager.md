@@ -207,7 +207,7 @@ Keyword-only. Carries existing floor-type confirmations onto re-segmented room I
 
 Without this re-keying, every renumbered-but-already-confirmed room reads as needing confirmation (its confirmation is still keyed to the old ID), so `floor_types_complete` flips False and the core start gate blocks cleaning with `onboarding_required` until the user re-confirms each one.
 
-Called by `RoomCrudManager.reconcile_room()` (`rooms/room_crud.py`) as part of the reconcile migrate, right after the `id_remap` is applied to the room records. See §6.
+Called by `RoomMapManager.reconcile_room()` (`rooms/room_crud.py`) as part of the reconcile migrate, right after the `id_remap` is applied to the room records. See §6.
 
 ---
 
@@ -232,4 +232,4 @@ A room with `confirmed == False` or missing from the dict counts as unconfirmed.
 | `EufyVacuumManager` delegation only (no live caller) | `check_for_new_rooms()` | Predicate; the live drift path uses `setup/drift.py` instead |
 | Panel setup tab | `get_onboarding_state()` | On render |
 | Panel room editor | `confirm_floor_type()` | User saves floor type |
-| `RoomCrudManager.reconcile_room()` (`rooms/room_crud.py`) | `remap_confirmed_floor_types()` | After a reconcile migrate applies the `id_remap` — re-keys confirmations so renumbered rooms don't re-block start |
+| `RoomMapManager.reconcile_room()` (`rooms/room_crud.py`) | `remap_confirmed_floor_types()` | After a reconcile migrate applies the `id_remap` — re-keys confirmations so renumbered rooms don't re-block start |

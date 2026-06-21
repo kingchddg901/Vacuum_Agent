@@ -37,6 +37,7 @@ SERVICE_BUILD_QUEUE = "build_queue"
 SERVICE_BUILD_ROOM_PAYLOAD = "build_room_payload"
 SERVICE_GET_START_STATUS = "get_start_status"
 SERVICE_START_SELECTED_ROOMS = "start_selected_rooms"
+SERVICE_START_ZONE_CLEAN = "start_zone_clean"
 SERVICE_PAUSE_ACTIVE_JOB = "pause_active_job"
 SERVICE_RESUME_ACTIVE_JOB = "resume_active_job"
 SERVICE_CANCEL_ACTIVE_JOB = "cancel_active_job"
@@ -143,10 +144,31 @@ SERVICE_ADJUST_MAP_SEGMENT = "adjust_map_segment"
 # get_map_segments response.
 SERVICE_SET_SEGMENT_ROOM_LINK = "set_segment_room_link"
 SERVICE_SET_COMPANION_ANCHOR = "set_companion_anchor"
+# Replace-all the per-map HIDDEN REGIONS — drawn [x0,y0,x1,y1] rects (normalized) that mask
+# out map noise (e.g. a porch off a room) in the render. Stored per scope like the anchors.
+SERVICE_SET_HIDDEN_REGIONS = "set_hidden_regions"
+# Per-room AREA-LABEL position (the m² chip) so it can be dragged off the room-name label.
+# Stored map-level as {room_id: {pct_x, pct_y}}; null pct resets to the room centre.
+SERVICE_SET_AREA_LABEL_ANCHOR = "set_area_label_anchor"
 # Live-map display rotation (0/90/180/270), stored on the per-map bucket as
 # `live_map_rotation` and surfaced in the dashboard snapshot. Display only — never
 # affects dispatch. Backend-stored so the orientation follows the user across devices.
 SERVICE_SET_LIVE_MAP_ROTATION = "set_live_map_rotation"
+# Per-map overlay-layer visibility (Wave 3b). Stores a partial `overlay_visibility`
+# dict on the map bucket (user deltas over the defaults); surfaced in the snapshot as
+# `map_overlay_visibility` and mirrored on sensor.<vac>_map_overlays. Display only.
+SERVICE_SET_MAP_OVERLAY_VISIBILITY = "set_map_overlay_visibility"
+# Card-render raster + decode params for the VA's OWN client-side map render (Wave 1).
+# Adapter-driven (map_render.format); fetched on demand + cached by `version`.
+SERVICE_GET_MAP_RENDER_DATA = "get_map_render_data"
+# Lightweight live MOVING-overlay pose (robot/dock anchors + current-room + heading) from
+# the fork's in-memory coordinator (~2s fresh). Polled by the card on the live cadence so
+# the robot overlay isn't gated by the slower .storage write + full-snapshot fetch.
+SERVICE_GET_MAP_LIVE_POSE = "get_map_live_pose"
+# Verify probe (diagnostic): compare the fork's in-memory _map_data against the .storage
+# map_data (byte-identical check) before repointing the map source to the fresher, loop-safe
+# in-memory MapData. Returns a per-field comparison + a normalization_safe verdict.
+SERVICE_COMPARE_MAP_SOURCES = "compare_map_sources"
 # CV-or-Custom segmentation toggle. Only flips `segmentation_mode` on the map
 # bucket; never re-runs the segmenter (see _handle_set_segmentation_mode).
 SERVICE_SET_SEGMENTATION_MODE = "set_segmentation_mode"

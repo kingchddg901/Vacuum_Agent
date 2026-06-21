@@ -33,6 +33,7 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 | Service | Required fields | Notes |
 |---|---|---|
 | `start_selected_rooms` | `vacuum_entity_id`, `map_id` | Optional: `confirm_reduced_run`, `confirm_token`. Do **not** call with `returnResponse = true` |
+| `start_zone_clean` | `vacuum_entity_id`, `zones` | Optional: `clean_times` (1–10, default 1), `map_id`. Ad-hoc free-form zone clean — `zones` is a list of `[x0, y0, x1, y1]` rectangles as 0–1 fractions of the live-map image (top-left origin). Fire-and-forget: no room ids, no job/queue/learning tracking. Requires a provider with the `supports_zone_clean` capability |
 | `pause_active_job` | `vacuum_entity_id` | |
 | `resume_active_job` | `vacuum_entity_id` | |
 | `cancel_active_job` | `vacuum_entity_id` | |
@@ -86,6 +87,7 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `stop_dry_mop` | `vacuum_entity_id`, `map_id` |
 | `empty_dust` | `vacuum_entity_id`, `map_id` |
 | `reset_maintenance` | `vacuum_entity_id` |
+| `set_maintenance_interval` | `vacuum_entity_id`, `component` (`brush` \| `side_brush` \| `filter` \| `mop` \| `sensor`), `interval_hours` (> 0) |
 | `set_dock_event_count` | `vacuum_entity_id` |
 | `set_pause_timeout_settings` | `vacuum_entity_id`, `pause_timeout_minutes_default` |
 
@@ -120,6 +122,7 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `save_theme_as_new` | `vacuum_entity_id`, `name`; optional `set_as_default` |
 | `overwrite_theme` | `vacuum_entity_id`, `theme_id` |
 | `rename_theme` | `theme_id`, `name` |
+| `set_theme_tags` | `theme_id`, `tags` (free-text "vibe" tag list; empty list clears them — facet/colorblind-safe tags are derived from the palette, never set here) |
 | `delete_theme` | `theme_id` |
 | `export_theme` | `theme_id` |
 | `import_theme` | `payload` |
@@ -134,6 +137,8 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `setup_get_map_rooms` | `vacuum_entity_id`, `map_id` |
 | `setup_save_rooms` | `vacuum_entity_id`, `map_id`, `enabled_room_ids`, `floor_types` |
 | `setup_delete_map` | `vacuum_entity_id`, `map_id`; optional `confirmation_token` (required for high-protection maps) |
+| `setup_set_panel_title` | `vacuum_entity_id`; optional `title` (blank reverts to the default). Renames the vacuum's sidebar panel and re-registers it live (refresh the browser to repaint the sidebar) |
+| `setup_set_map_camera` | `vacuum_entity_id`; optional `entity_id` (blank clears the override → falls back to the adapter's `live_map_image_entity_pattern`). Sets the per-vacuum live-map image/camera override the dashboard snapshot prefers over the pattern (see § 1.1 Live-map backdrop read model) |
 
 #### Mapping / map image
 
@@ -153,6 +158,12 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `set_companion_anchor` | `vacuum_entity_id`, `map_id`, `room_id` | Optional: `pct_x`, `pct_y` (0–100; omit both to clear). Stored as `{room_id: {pct_x, pct_y}}` in `companion_anchors`. The reserved key `dock` holds the docked-mascot home spot. Returns the full updated `companion_anchors`. **response** |
 | `set_live_map_rotation` | `vacuum_entity_id`, `rotation` | Optional: `map_id` (defaults to the active map). `rotation` ∈ {`0`, `90`, `180`, `270`}. Stores the live-map display rotation per map; **display-only — never affects dispatch** (cleaning is by room), and follows the user across devices. **response** |
 | `adjust_map_segment` | `vacuum_entity_id`, `map_id`, `segment_id` | Optional adjustment fields (`delta_x`/`delta_y`, `edge_*`, `vertex_moves`). Accumulates into `image_segment_adjustments`; applied at read time. **response** |
+| `set_map_overlay_visibility` | `vacuum_entity_id` | Optional: `map_id`, `visibility` (partial map of overlay layer → bool: `room_labels`, `room_area`, `current_room`, `robot`, `dock`, `no_go`, `no_mop`, `walls`, `zones`, `path`, `obstacles`), `reset`. Show/hide individual Map-view overlay layers; stored per map, **display-only — never affects cleaning**. **response** |
+| `set_hidden_regions` | `vacuum_entity_id` | Optional: `map_id`, `regions` (list of `[x0, y0, x1, y1]` normalised 0–1 rectangles; empty clears all). Per-map mask rectangles that hide render noise; normally driven by the card's "Hide area" draw tool. **response** |
+| `set_area_label_anchor` | `vacuum_entity_id`, `room_id` | Optional: `map_id`, `pct_x`, `pct_y` (0–100; omit both to reset to the room centre). Moves a room's area (m²) chip off its name label; stored per map. **response** |
+| `get_map_render_data` | `vacuum_entity_id` | Returns the raw room raster + decode params the card uses to draw its own backdrop (no server-side rendering); adapter-driven, cached by the returned version. Brands without a `map_render` config return `{present: false}`. **response** |
+| `get_map_live_pose` | `vacuum_entity_id` | Returns the live moving-overlay pose (robot + dock anchors, current room, heading) from the provider's in-memory coordinator — fresher than the `.storage`-derived pose. Polled on the live cadence. Brands without a `live_pose` config return `{present: false}`. **response** |
+| `compare_map_sources` | `vacuum_entity_id` | Diagnostic verify probe: compares the provider's in-memory map data against the `.storage` copy and reports whether raster + geometry are byte-identical (`normalization_safe`). **response** |
 | `get_room_bounds_snapshot` | `vacuum_entity_id`, `map_id` | |
 | `clear_room_bounds` | `vacuum_entity_id`, `map_id`, `room_id` | |
 | `exclude_room_job_bounds` | `vacuum_entity_id`, `map_id`, `room_id`, `job_index` | |
@@ -186,6 +197,7 @@ Subscribe via `hass.connection.subscribeEvents(callback, eventType)`.
 | `eufy_vacuum_room_finished` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, timing fields | Robot finishes a room |
 | `eufy_vacuum_path_blocked` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name` | Blockage detected during cleaning |
 | `eufy_vacuum_stall_detected` | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` | Robot has been in a room >= 2x its learned threshold with `awaiting_bounds_exit = true`. Fires at most once per room per job |
+| `eufy_vacuum_room_skipped` | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` (list of int) | Live tracking advanced past a queued room that was never completed. Fired by `ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`), deduped once per room per job via `_skipped_notified_room_ids`. Largely inert for Eufy's sequential counter; meaningful on brands whose live position can leapfrog the queue order |
 | `eufy_vacuum_run_incomplete` | `vacuum_entity_id`, `job_id`, `outcome_status`, `missed_room_ids` (list of int), `missed_rooms` (list of `{room_id, name}`) | Fired by `finalize_learning_job` when a cancelled/failed/interrupted job left uncleaned rooms |
 
 ---
@@ -447,7 +459,7 @@ The texture layers are themed entirely through the `Floor Textures — *` token 
 | learning | `state/learning.js` | Live-job learning state: estimate, reanchored estimate, next room, completed rooms, job-active flag; incomplete run log; trouble rooms log |
 | order | `state/order.js` | Generic order selector (scope, item, position) shared by rooms and run profiles |
 | theme | `state/theme.js` | Active theme id, working draft, draft dirty flag, theme library; editor UI state (search query, group filter, open groups) |
-| map | `state/map.js` | Map segments data; zoom/pan transform; segment selection + segment↔room overlay; dot-anchor overlay; active `segmentation_mode`; the **named custom layouts** — `customLayouts()` / `activeCustomLayoutId()` / `activeCustomLayout()` plus the layout-editor slice (`openNewLayoutEditor` / `openRenameLayoutEditor` / `closeLayoutEditor` / `isLayoutEditorOpen` / `layoutEditorMode` / `layoutDraftName` / `setLayoutDraftName`); the **custom-segment composer draft** (shapes, grouping/merge/cut, move-scope, rotate, nudge step) via `proto.compose*` — the draft load and mascot anchors are keyed on `${map_id}:${active_custom_layout_id}` (`setMapSegmentsData` resets the draft when **either** changes; `_composeKey`/`maybeLoadComposeDraft` reload on a layout switch); animal selection/scale; `mapAnimalEnabled` plus the split `mapFloorTextureEnabled` / `roomFloorTextureEnabled` toggles (localStorage `evcc_animal_on_<vac>` / `evcc_floor_tex_map_<vac>` / `evcc_floor_tex_rooms_<vac>`, default on); the **live-map display-rotation** slice (`mapRotation` / `setMapRotationOptimistic` / the `_mapRotationOverlay` optimistic value — applied only to the live image, never to CV/custom maps); the **dwell-debounced mascot follow** (`mascotDwelledRoomId`, committing a room only after sustained dwell); the **live-backdrop URL** slice — `mapImageUrl` (the active backdrop URL, short-circuiting to the live image via `isLiveBackdropActive` when the active scope is a `backdrop_source: "live"` layout) and `_liveMapImageUrl` (appends the live entity's `last_updated` as a query param to cache-bust a stable-token `camera.` entity each frame); and the **per-vacuum room-label visibility** toggle `mapRoomLabelsEnabled` (localStorage `evcc_map_labels_<vac>`, default on) gating the `.evcc-map-label` render so VA's labels don't stack on a label-baked live backdrop. Note: `liveMapImageEntity` is owned by `state/learning.js` (reads `dashboardSnapshot().live_map_image_entity`), **not** this module — but `mapRotation`, `mascotDwelledRoomId`, the live-URL slice, and `mapRoomLabelsEnabled` live here |
+| map | `state/map.js` | Map segments data; zoom/pan transform; segment selection + segment↔room overlay; dot-anchor overlay; active `segmentation_mode`; the **named custom layouts** — `customLayouts()` / `activeCustomLayoutId()` / `activeCustomLayout()` plus the layout-editor slice (`openNewLayoutEditor` / `openRenameLayoutEditor` / `closeLayoutEditor` / `isLayoutEditorOpen` / `layoutEditorMode` / `layoutDraftName` / `setLayoutDraftName`); the **custom-segment composer draft** (shapes, grouping/merge/cut, move-scope, rotate, nudge step) via `proto.compose*` — the draft load and mascot anchors are keyed on `${map_id}:${active_custom_layout_id}` (`setMapSegmentsData` resets the draft when **either** changes; `_composeKey`/`maybeLoadComposeDraft` reload on a layout switch); animal selection/scale; `mapAnimalEnabled` plus the split `mapFloorTextureEnabled` / `roomFloorTextureEnabled` toggles (localStorage `evcc_animal_on_<vac>` / `evcc_floor_tex_map_<vac>` / `evcc_floor_tex_rooms_<vac>`, default on); the **live-map display-rotation** slice (`mapRotation` / `setMapRotationOptimistic` / the `_mapRotationOverlay` optimistic value — applied only to the live image, never to CV/custom maps); the **dwell-debounced mascot follow** (`mascotDwelledRoomId`, committing a room only after sustained dwell); the **live-backdrop URL** slice — `mapImageUrl` (the active backdrop URL, short-circuiting to the live image via `isLiveBackdropActive` when the active scope is a `backdrop_source: "live"` layout) and `_liveMapImageUrl` (appends the live entity's `last_updated` as a query param to cache-bust a stable-token `camera.` entity each frame); and the **per-vacuum room-label visibility** toggle `mapRoomLabelsEnabled` (localStorage `evcc_map_labels_<vac>`, default on) gating the `.evcc-map-label` render so VA's labels don't stack on a label-baked live backdrop. It also owns the **zone-clean draft** (`zoneDrafts` / `zoneDrawMode` / `canDrawZone` / `zoneMax` / `addZoneDraft` — the rectangles fed to `start_zone_clean`), the **hidden-regions draw** slice (`hiddenRegions` / `hideDrawMode` / `canDrawHideArea` → `set_hidden_regions`), the **area-label anchor** slice (`areaLabelAnchor` → `set_area_label_anchor`), the **overlay-visibility** slice (`overlaysAligned` → `set_map_overlay_visibility`), and the **live-pose** slice (`livePose`, fed by `get_map_live_pose`) — each with its own `*.test.mjs` under `src/state/` (`zone-draft`, `hidden-regions`, `area-label-anchor`, `live-pose-overlay`). Note: `liveMapImageEntity` is owned by `state/learning.js` (reads `dashboardSnapshot().live_map_image_entity`), **not** this module — but `mapRotation`, `mascotDwelledRoomId`, the live-URL slice, and `mapRoomLabelsEnabled` live here |
 | setup | `state/setup.js` | Setup status; setup loading flag |
 | mapping-review | `state/mapping-review.js` | Room bounds snapshot |
 | confirmations | `state/confirmations.js` | Two-tap confirm state for destructive actions |
@@ -556,14 +568,16 @@ On map view open / when map_id or vacuum changes:
 
 ### 5.2 Event subscriptions needed for real-time updates
 
-Subscribe to all five events for any UI that tracks live jobs:
+Subscribe to all seven events for any UI that tracks live jobs:
 
 | Event | Why |
 |---|---|
 | `eufy_vacuum_room_started` | Update "currently cleaning" indicator |
 | `eufy_vacuum_room_finished` | Update completed rooms list; trigger reanchor call |
 | `eufy_vacuum_job_finished` | Clear active job UI; show summary |
+| `eufy_vacuum_path_blocked` | Surface a blockage warning |
 | `eufy_vacuum_stall_detected` | Show stall warning banner |
+| `eufy_vacuum_room_skipped` | Flag a queued room the run advanced past without cleaning |
 | `eufy_vacuum_run_incomplete` | Show missed rooms prompt; offer retry action |
 
 ### 5.3 Entity reads needed for room state
@@ -587,6 +601,7 @@ The active map ID comes from `sensor.{object_id}_active_map` state value.
 **Has side effects — understand before calling:**
 
 - `start_selected_rooms` — starts the vacuum. Do not call without confirming `get_start_status` returns non-blocked. Do not call with `returnResponse = true` (HA rejects it).
+- `start_zone_clean` — dispatches an ad-hoc free-form zone clean (rectangles drawn on the live map) on `supports_zone_clean` providers. Fire-and-forget — it carries no room ids and never touches the job/queue/learning store, so there is no tracked active job to pause/resume/cancel afterward.
 - `clear_queue` — empties the pending run queue only; does **not** disable rooms (the card UI disables rooms as a separate composite action before calling it).
 - `finalize_learning_job` — fires `eufy_vacuum_run_incomplete` if rooms were missed. Call only when a job ends.
 - `setup_delete_map` — destroys a map and all its room data. Requires a confirmation token for high-protection maps.

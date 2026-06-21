@@ -221,16 +221,6 @@ export function applyRoomsActions(proto) {
     );
   };
 
-  /** Disable all rooms that are currently enabled. */
-  proto.deselectAllRooms = async function () {
-    const rooms = this.state.getRoomsForActiveMap();
-    await Promise.all(
-      rooms
-        .filter((r) => r.enabled)
-        .map((r) => this.toggleRoomEnabled(r.mapId, r.id, true)),
-    );
-  };
-
   /**
    * Force a fresh room-estimate pull.
    * WHY: an explicit save is a strong user action; chips must not show stale data after it.

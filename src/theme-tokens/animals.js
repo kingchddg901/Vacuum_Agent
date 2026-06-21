@@ -59,6 +59,18 @@ export function animalSubGroupLabel(animalName) {
   return `${ANIMAL_PARENT_GROUP} — ${display}`;
 }
 
+/* Memorial animals (registered with `memorial: true`, e.g. Mittens) live under
+   their own "Rainbow Bridge" tribute section — separate from the everyday
+   companions in both the theme editor and the map-view picker. The flag is
+   orthogonal to `type` (body plan), so a memorial can be any animal shape. */
+export const MEMORIAL_PARENT_GROUP = "Rainbow Bridge";
+
+export function memorialSubGroupLabel(animalName) {
+  const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
+  const display = safe.charAt(0).toUpperCase() + safe.slice(1);
+  return `${MEMORIAL_PARENT_GROUP} — ${display}`;
+}
+
 /* =========================================================
    PARENT GROUP — global tokens (shape never depends on animal list)
    ========================================================= */
@@ -88,9 +100,16 @@ const PARENT_TOKENS = [
 /* =========================================================
    PER-ANIMAL TOKEN SHAPE
    =========================================================
-   Every animal exposes the same 14 tokens — 5 battery-state overrides
-   plus 9 palette overrides. The names are derived from the animal name
-   so the registry is mechanical.
+   The full catalog is 14 suffixes — 5 battery-state eye overrides plus
+   9 palette overrides — but each animal exposes only the subset it
+   actually themes: a palette token appears iff the animal's `colors`
+   block declares the matching `--animal-<suffix>` key, and the eye-state
+   bands appear iff it declares a themeable `--animal-eye`. Derived from
+   the LIVE registry (window.AnimalSVG.get(name).colors), so a memorial
+   like Mittens — baked-literal fur, only `--animal-eye` left dynamic —
+   shows just its 6 real tokens instead of 8 inert no-op palette entries.
+   Falls back to the full catalog when the registry isn't loaded yet (the
+   pre-load bundle build); the 'animal-svg-registered' rebuild then refines.
    ========================================================= */
 
 const PER_ANIMAL_SUFFIXES = [
@@ -112,14 +131,60 @@ const PER_ANIMAL_SUFFIXES = [
   { suffix: "white-tip",      label: "White Tip / Accent" },
 ];
 
+/** The colors-block key a per-animal suffix depends on. The battery-state eye
+ *  bands (eye-good/mid/warn/low/charging) are live iff the animal has a
+ *  themeable eye, so they all key off "eye"; every other suffix keys off itself. */
+function colorKeyForSuffix(suffix) {
+  return suffix.startsWith("eye-") ? "eye" : suffix;
+}
+
+/** The palette suffixes an animal actually themes, read from its LIVE `colors`
+ *  block (keys are `--animal-<suffix>`). Returns null when the registry isn't
+ *  available (e.g. the pre-load bundle build) → caller shows the full catalog as
+ *  a safe default; the 'animal-svg-registered' rebuild then refines it. */
+function declaredColorSuffixes(animalName) {
+  try {
+    const def = (typeof window !== "undefined" && window.AnimalSVG?.get)
+      ? window.AnimalSVG.get(animalName)
+      : null;
+    const colors = def && def.colors;
+    if (colors && typeof colors === "object") {
+      return new Set(Object.keys(colors).map((k) => k.replace(/^--animal-/, "")));
+    }
+  } catch (_) { /* registry not ready — fall through to "show all" */ }
+  return null;
+}
+
+/** Whether an animal is a memorial (def.memorial), read from the live registry. */
+function isMemorial(animalName) {
+  try {
+    const def = (typeof window !== "undefined" && window.AnimalSVG?.get)
+      ? window.AnimalSVG.get(animalName)
+      : null;
+    return Boolean(def && def.memorial);
+  } catch (_) {
+    return false;
+  }
+}
+
+/** The editor sub-group label for an animal — the Rainbow Bridge tribute section
+ *  for memorials, the normal Animal Companion section otherwise. The canonical
+ *  memorial-aware label; all consumers (token build + preview registry) use it. */
+export function animalEditorGroupLabel(animalName) {
+  return isMemorial(animalName)
+    ? memorialSubGroupLabel(animalName)
+    : animalSubGroupLabel(animalName);
+}
+
 function buildPerAnimalTokens(animalName) {
   const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
   if (!safe) return [];
-  const group = animalSubGroupLabel(safe);
+  const group = animalEditorGroupLabel(animalName);   // Rainbow Bridge for memorials
   const tk = makeTypedGroupToken(group, "color");
-  return PER_ANIMAL_SUFFIXES.map(({ suffix, label }) =>
-    tk.color(`--evcc-animal-${safe}-${suffix}`, label)
-  );
+  const declared = declaredColorSuffixes(animalName);   // null => show the full catalog
+  return PER_ANIMAL_SUFFIXES
+    .filter(({ suffix }) => declared === null || declared.has(colorKeyForSuffix(suffix)))
+    .map(({ suffix, label }) => tk.color(`--evcc-animal-${safe}-${suffix}`, label));
 }
 
 /* =========================================================
@@ -146,7 +211,7 @@ export function buildAnimalTokenSets(animals) {
   return {
     parent: PARENT_TOKENS,
     perAnimal: names.map((name) => ({
-      group:  animalSubGroupLabel(name),
+      group:  animalEditorGroupLabel(name),
       tokens: buildPerAnimalTokens(name),
     })),
   };
@@ -176,5 +241,13 @@ export function buildAnimalTokenRegistry(animals) {
  */
 export function buildAnimalGroupOrder(animals) {
   const names = Array.isArray(animals) ? animals.filter(Boolean) : [];
-  return [ANIMAL_PARENT_GROUP, ...names.map(animalSubGroupLabel)];
+  const regular  = names.filter((n) => !isMemorial(n));
+  const memorial = names.filter((n) => isMemorial(n));
+  const order = [ANIMAL_PARENT_GROUP, ...regular.map(animalSubGroupLabel)];
+  if (memorial.length) {
+    // Tribute section after the everyday companions. The parent is heading-only
+    // (no tokens of its own); the editor renders it because it has children.
+    order.push(MEMORIAL_PARENT_GROUP, ...memorial.map(memorialSubGroupLabel));
+  }
+  return order;
 }

@@ -940,6 +940,7 @@ class BatteryHealthManager:
             "is_single_clean_mode": bool(metrics.get("is_single_clean_mode")),
             "is_single_fan_speed": bool(metrics.get("is_single_fan_speed")),
             "is_single_water_level": bool(metrics.get("is_single_water_level")),
+            "mid_job_recharge": bool(metrics.get("mid_job_recharge")),
             "single_clean_mode": metrics.get("single_clean_mode"),
             "single_fan_speed": metrics.get("single_fan_speed"),
             "single_water_level": metrics.get("single_water_level"),
@@ -960,19 +961,24 @@ class BatteryHealthManager:
 
         self._update_aggregate_bucket(aggregates["all_jobs"], metrics)
 
-        if metrics.get("is_single_clean_mode") and metrics.get("single_clean_mode"):
+        # A mid-job recharge nets out of the raw start−end drain, understating the true
+        # discharge — so keep a flagged run OUT of the per-config drain means (the same
+        # anti-bias spirit as the is_single_* gates). last_job / all_jobs still record it.
+        single_ok = not bool(metrics.get("mid_job_recharge"))
+
+        if single_ok and metrics.get("is_single_clean_mode") and metrics.get("single_clean_mode"):
             bucket = aggregates["by_clean_mode"].setdefault(
                 metrics["single_clean_mode"], _new_aggregate_bucket()
             )
             self._update_aggregate_bucket(bucket, metrics)
 
-        if metrics.get("is_single_fan_speed") and metrics.get("single_fan_speed"):
+        if single_ok and metrics.get("is_single_fan_speed") and metrics.get("single_fan_speed"):
             bucket = aggregates["by_fan_speed"].setdefault(
                 metrics["single_fan_speed"], _new_aggregate_bucket()
             )
             self._update_aggregate_bucket(bucket, metrics)
 
-        if metrics.get("is_single_water_level") and metrics.get("single_water_level"):
+        if single_ok and metrics.get("is_single_water_level") and metrics.get("single_water_level"):
             bucket = aggregates["by_water_level"].setdefault(
                 metrics["single_water_level"], _new_aggregate_bucket()
             )

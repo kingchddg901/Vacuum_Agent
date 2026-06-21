@@ -56,6 +56,10 @@ Things that delegate to subsystems:
 - Dock actions → `dock` (`dock/`)
 - Onboarding state machine → `onboarding` (`onboarding/`)
 - Access graph → `access_graph` (`rooms/access_graph.py`)
+- Strict-order phase execution → `phase_runner` (`jobs/phase_runner.py`)
+- Live current-room refresh (Lever B) → `live_room_refresh` (`live_refresh/manager.py`)
+- `map_state_source` dispatch and live-pose reads → `map_source`
+  (`mapping/map_source_coordinator.py`)
 
 ---
 
@@ -75,8 +79,11 @@ async_initialize()
 ├── ProfileManager(manager=self)             → self.profiles
 ├── AccessGraphManager(data, hass)           → self.access_graph
 ├── ActiveJobTracker(manager=self)           → self.active_job
+├── PhaseRunner(manager=self)                → self.phase_runner (after ActiveJobTracker)
 ├── RunPlanManager(manager=self)             → self.run_plan
 ├── RoomMapManager(manager=self)             → self.room_map
+├── LiveRoomRefreshManager(manager=self)     → self.live_room_refresh
+├── MapSourceCoordinator(manager=self)       → self.map_source
 ├── room field backfills (setdefault loop)   → existing rooms get new fields
 ├── discovery shape migration                → old flat → per-map-id dict
 ├── _migrate_setup_progress()                → stamps existing installs complete
@@ -122,14 +129,33 @@ Each subsystem receives the manager in its constructor and uses it as follows:
 | `ProfileManager` | `(manager)` | `self._manager.data` |
 | `AccessGraphManager` | `(data, hass)` | `data["maps"]` |
 | `ActiveJobTracker` | `(manager)` | `self._manager.data`, hass, runtime state |
+| `PhaseRunner` | `(manager)` | `self._manager.data["active_jobs"]`, hass, dispatch/save helpers, `_phase_timing` |
 | `RunPlanManager` | `(manager)` | `self._manager.*` broadly |
 | `RoomMapManager` | `(manager)` | `self._manager.data` |
+| `LiveRoomRefreshManager` | `(manager)` | `self._manager.hass`, adapter config (fire-and-forget service pulse) |
+| `MapSourceCoordinator` | `(manager)` | `self._manager.hass`, writes `_map_state_source_cache`, shares `_resolve_live_map_image_entity` |
 
 **The subsystem/manager write boundary**: subsystem managers write directly
 to `self._manager.data[key]` for their own domain keys. They never call
 `async_save()` themselves — saving is always the manager's (or the service
 handler's) responsibility. The final `await manager.async_save()` call always
 lives at the service layer.
+
+**Delegators and shared state that stay on the manager.** For the three
+most-recently bundled-out subsystems the manager keeps thin delegators (called
+from production listeners/lifecycle, so the entry points stay stable) and the
+shared caches/helpers each subsystem reads back through `self._manager`:
+
+- `PhaseRunner` — `maybe_advance_phase()` delegates; the `_PHASE_*` constants
+  and `_phase_timing()` (adapter overrides merged over the defaults) stay on
+  the manager.
+- `LiveRoomRefreshManager` — `maybe_pulse_live_room_refresh()` delegates (the
+  job-progress ticker calls it for contiguous runs only).
+- `MapSourceCoordinator` — the four async readers `async_refresh_map_state_source`,
+  `async_get_map_live_pose`, `async_compare_map_sources`, and
+  `async_get_map_render_data` delegate; the `_map_state_source_cache` (read
+  on-loop by the snapshot composer and the map-overlays sensor) and
+  `_resolve_live_map_image_entity` stay on the manager.
 
 ---
 
@@ -229,11 +255,16 @@ post-start, persist. Returns a structured start summary.
 ### `get_job_progress_snapshot`
 
 Reads active job state, computes elapsed/expected times per room (active_job),
-emits a timing-only bounds-exit signal (`awaiting_bounds_exit`) when
-`current_room_elapsed_minutes` exceeds the timing-completion threshold —
-`mapping_available` / `mapping_used` are always `False` — fires
-`EVENT_STALL_DETECTED` if stall threshold is exceeded, returns a complete
-card-ready progress payload. Too many concerns for one subsystem.
+and emits a timing-only bounds-exit signal (`awaiting_bounds_exit`) — computed
+by the composer itself — when `current_room_elapsed_minutes` exceeds the
+timing-completion threshold; `mapping_available` / `mapping_used` are always
+`False`. Run-anomaly detection (stall / running-long / skipped) and the
+one-shot `EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` emission (deduped per
+room per job) are delegated to `ActiveJobTracker.detect_run_anomalies`
+(`jobs/active_job.py`), which owns the active-job dict and the dedup state; the
+composer hands it the already-resolved locals and reads the anomaly fields back
+into the snapshot. It then returns a complete card-ready progress payload.
+Still too many concerns to belong to a single subsystem.
 
 ### `get_dashboard_snapshot`
 

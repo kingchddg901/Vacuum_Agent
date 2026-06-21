@@ -4,7 +4,7 @@ The planning subsystem (`RunPlanManager`) is the authoritative rule-evaluation
 point for a job start: it builds the effective start plan (queue + payload +
 preflight), evaluates blocker/modifier rules and their fan-out, computes the
 confirmation token for a reduced run, and produces the runtime path-block report
-when a rule fires mid-job. Covered by **58 tests across 3 files**.
+when a rule fires mid-job. Covered by **59 tests across 3 files**.
 
 Source: `custom_components/eufy_vacuum/planning/`
 Architecture reference: [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
@@ -50,7 +50,7 @@ build rule dicts, and binary-sensor states drive rule matches.
 
 ## Known gaps
 
-`run_plan.py` (92%) leaves two fan-out per-target guards (the `int()`-except on a
+`run_plan.py` (93%) leaves two fan-out per-target guards (the `int()`-except on a
 non-numeric target id and the not-selected `continue`), the module-level helper
 except-paths (`_safe_int` / `_safe_float` `TypeError`/`ValueError` arms), the
 `by_time` wash-cycle branch and other water-usage partial branches, and the

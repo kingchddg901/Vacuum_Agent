@@ -74,6 +74,22 @@ def register(hass: HomeAssistant) -> None:
                 if active_job.get("status") not in {"started", "paused"}:
                     continue
 
+                # Lever B: during a CONTIGUOUS run, keep the brand's live current-room/map
+                # fresh so the per-room rollover + live fan track the adapter's interval, not
+                # the device's slower native map cadence. Strict-order runs (which advance one
+                # room per dispatched PHASE via the watchdog, docking between rooms) are
+                # excluded — they already get a free refresh on each state flip. No-op unless
+                # the adapter declares dispatch.live_room_refresh; per-vacuum rate-limited and
+                # local-gated inside the manager helper.
+                if not active_job.get("phases"):
+                    try:
+                        manager.maybe_pulse_live_room_refresh(vacuum_entity_id)
+                    except Exception:  # pragma: no cover - never break the tick
+                        _LOGGER.exception(
+                            "eufy_vacuum: live-room refresh pulse scheduling failed for %s",
+                            vacuum_entity_id,
+                        )
+
                 try:
                     manager.get_job_progress_snapshot(
                         vacuum_entity_id=vacuum_entity_id,

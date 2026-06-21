@@ -280,6 +280,73 @@ def test_record_counter_sample_skips_finalized_job():
 
 
 # ---------------------------------------------------------------------------
+# record_pose_sample (W5b external pose buffer for room attribution)
+# ---------------------------------------------------------------------------
+
+def _external_job() -> dict:
+    return {"status": "external", "started_at": "2026-01-01T09:00:00+00:00"}
+
+
+def test_record_pose_sample_buffers_external():
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    assert tracker.record_pose_sample(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        current_room=5, anchor=[0.1, 0.2], cleaning_area=2.0,
+    ) is True
+    s = job["pose_samples"]
+    assert len(s) == 1
+    assert s[0]["current_room"] == 5 and s[0]["anchor"] == [0.1, 0.2] and s[0]["cleaning_area"] == 2.0
+
+
+def test_record_pose_sample_records_none_current_room():
+    """None current_room (docked / off-raster) is recorded, not dropped — the parked-dock
+    exclusion depends on None runs existing."""
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    assert tracker.record_pose_sample(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        current_room=None, anchor=None, cleaning_area=2.0,
+    ) is True
+    assert job["pose_samples"][0]["current_room"] is None
+
+
+def test_record_pose_sample_skips_dispatched_run():
+    """A dispatched run already knows its rooms -> external-only, no pose sample."""
+    job = {"status": "started", "started_at": "2026-01-01T09:00:00+00:00"}
+    tracker = _tracker_with_job(job)
+    assert tracker.record_pose_sample(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        current_room=5, anchor=[0.1, 0.2], cleaning_area=2.0,
+    ) is False
+    assert job.get("pose_samples", []) == []
+
+
+def test_record_pose_sample_skips_finalized():
+    job = {"status": "external", "started_at": "2026-01-01T09:00:00+00:00",
+           "ended_at": "2026-01-01T09:30:00+00:00"}
+    tracker = _tracker_with_job(job)
+    assert tracker.record_pose_sample(
+        vacuum_entity_id="vacuum.alfred", map_id="6",
+        current_room=5, anchor=None, cleaning_area=None,
+    ) is False
+
+
+def test_record_pose_sample_caps_buffer():
+    from custom_components.eufy_vacuum.jobs.active_job import _MAX_POSE_SAMPLES
+    job = _external_job()
+    tracker = _tracker_with_job(job)
+    for i in range(_MAX_POSE_SAMPLES + 25):
+        tracker.record_pose_sample(
+            vacuum_entity_id="vacuum.alfred", map_id="6",
+            current_room=i, anchor=None, cleaning_area=None,
+        )
+    s = job["pose_samples"]
+    assert len(s) == _MAX_POSE_SAMPLES
+    assert s[-1]["current_room"] == _MAX_POSE_SAMPLES + 24  # del-oldest: newest survive
+
+
+# ---------------------------------------------------------------------------
 # External-run capture (W6.2): status="external" slot + setting-select snapshot
 # ---------------------------------------------------------------------------
 

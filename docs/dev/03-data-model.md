@@ -56,8 +56,17 @@ produce `.corrupt` backup files.
   "dock_events":      dict                             # domain bucket; see dock/
   "onboarding":       dict                             # domain bucket; see onboarding/
   "discovery":        dict[vacuum_entity_id, dict[map_id, DiscoveryPayload]]
+  "queue":            dict[vacuum_entity_id, dict[map_id_str, QueueState]]    # derived snapshot; see §4
+  "payloads":         dict[vacuum_entity_id, dict[map_id_str, PayloadState]]  # derived room-clean payload snapshot; see §4
 }
 ```
+
+`queue` and `payloads` are **derived-state** snapshots: `core/manager.py` lazily
+`setdefault`s each (`data["queue"][vacuum][map]` = the queue state,
+`data["payloads"][vacuum][map]` = the resolved room-clean payload) when the queue
+or a run is built, and they persist alongside the rest of `self.data`. Like the
+other lazily-created keys, a reader must tolerate their absence (see §16's
+derived-state note).
 
 **Key seeding:** `core/storage.py async_load()` returns a default dict with
 `vacuums`, `maps`, `theme`, `analytics`, `maintenance`, `dock_events`,
@@ -365,6 +374,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `enabled` | `bool` | Whether the room is included in the next job queue. |
 | `order` | `int` | Zero-based sort position within the map. |
 | `is_configured` | `bool` | Gating flag: only rooms with `True` become HA entities. Backfilled `True` for pre-existing rooms; new rooms enter `False` and advance through the setup wizard. |
+| `configured_at` | `str \| None` | ISO timestamp the room was approved/backfilled — stamped (`setdefault`) when `is_configured` first flips `True`. Defined on `RoomConfig`; like `is_transition`, not in the `RoomRecord` TypedDict. |
 | `profile_name` | `str \| None` | Active preset name; default `"vacuum_quick"`. |
 | `floor_type` | `str` | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
@@ -883,18 +893,26 @@ Two further keys are written to the active job to drive the strict-order
 watchdog. They are **internal/transient** runtime control flags — not part of the
 persisted job contract — so a reader should never depend on their presence:
 
+The strict-order watchdog itself lives in `jobs/phase_runner.py` (`PhaseRunner`);
+`core/manager.py` keeps only the `maybe_advance_phase` delegator and the
+initial-phase spawn (`active_job["_phase_dispatch_pending"] = True` then
+`phase_runner._run_advanced_phase(...)`).
+
 - `_phase_dispatch_pending` (`bool`) — completion suppression. Set `True` when a
-  phase is dispatched (sequenced start, `manager.py:4555`, and on each phase
-  advance) and cleared `False` once the per-phase watchdog confirms the device
-  actually started the dispatched phase (`manager.py:4257`). While set, the
-  completion gate refuses to finalize (`listeners/lifecycle.py:297-298`), so the
-  just-finished room's docked/charging completion signal cannot finalize the next
-  phase before it begins.
-- `_cancel_in_flight` (`bool`) — set `True` before a cancel
-  (`jobs/active_job.py:1962`) to halt the watchdog and block re-dispatch during
-  the return-to-base window. The watchdog reads it and bails
-  (`manager.py:4201`, `manager.py:4304`) so a cancel cannot be undone by a
-  re-sent clean.
+  phase is dispatched — the sequenced/initial start in `core/manager.py` (just
+  before spawning `_run_advanced_phase`) and on each phase advance — and cleared
+  `False` by `PhaseRunner._clear_phase_dispatch_pending` once the per-phase
+  watchdog (`_await_phase_started`) confirms the device actually started the
+  dispatched phase's target room. While set, the completion gate refuses to
+  finalize (`listeners/lifecycle.py`), so the just-finished room's
+  docked/charging completion signal cannot finalize the next phase before it
+  begins.
+- `_cancel_in_flight` (`bool`) — set `True` (alongside clearing
+  `_phase_dispatch_pending`) at the top of `async_cancel` in
+  `jobs/active_job.py` to halt the watchdog and block re-dispatch during the
+  return-to-base window. The `PhaseRunner` watchdog reads it and bails (in
+  `_run_advanced_phase` and `_await_phase_started`) so a cancel cannot be undone
+  by a re-sent clean.
 
 ### Fields written during the run (by listener / sensor callbacks)
 
@@ -1005,6 +1023,13 @@ rollover keeps `completed_room_ids` a queue prefix, so this is ~empty live for E
 (the reliable "missed rooms" signal is the post-run incomplete-run log, §14); it
 fires only on a non-sequential advance (position-reliable brands). New skips fire
 `EVENT_ROOM_SKIPPED` (`const.py`) once per room per job.
+
+The stall / running_long / skipped detection — and the deduped one-shot
+`EVENT_STALL_DETECTED` / `EVENT_ROOM_SKIPPED` emission — lives in
+`ActiveJobTracker.detect_run_anomalies` (`jobs/active_job.py`), not in the
+snapshot composer; `get_job_progress_snapshot` calls it and just reads back the
+returned anomaly fields (it owns the active-job dict and the per-job dedup state
+the once-per-room emission keys on). The output shape above is unchanged.
 
 #### `TimelineRoom` (inside `timeline`)
 
@@ -1201,26 +1226,45 @@ round-trip.
 `data["room_rule_status"][vacuum_entity_id][map_id_str][room_id_str]`
 
 Written by `_update_room_rule_status_snapshot` on every preflight plan
-evaluation. One entry per room, per map, per vacuum.
+evaluation (`last_evaluation_scope == "start_preflight"`). One entry per room,
+per map, per vacuum. The shape is the `LiveRuleState` TypedDict (`models/models.py`,
+`total=False`) — every field is `last_*`-prefixed.
 
 ```
 {
-  "last_result":        str          # see values below
-  "blocked_by":         list[str]    # rule labels / IDs that triggered blockers
-  "modifiers_applied":  list[dict]   # applied modifier effects (changes dicts)
-  "reason":             str | None   # human-readable reason string for blocked rooms
-  "evaluated_at":       str          # ISO timestamp
+  "room_id":                    int          # numeric room ID
+  "map_id":                     str          # string form of the map ID
+  "room_name":                  str          # display name (falls back to "Room {id}")
+  "last_evaluated_at":          str          # ISO timestamp of this evaluation
+  "last_result":                str          # see values below
+  "last_selected":              bool         # room was in the selected/queued set
+  "last_included":              bool         # room survived to the dispatched set
+  "last_block_reason":          str | None   # human-readable reason a blocker fired
+  "last_block_source":          str | None   # "direct_rule" | "access_graph"
+  "last_blocked_by_room_id":    str | None   # upstream room that blocked this one (access graph)
+  "last_blocked_by_room_name":  str | None
+  "last_triggered_rule_ids":    list[str]    # sorted IDs of the blocker/modifier rules that fired
+  "last_modifier_changes":      dict         # applied modifier effects (partial RoomRecord fields); {} when none
+  "last_requires_confirmation": bool         # the preflight flagged a confirm-required gate
+  "last_preflight_reason":      str          # preflight reason string; "ready" when clear
+  "last_warning_codes":         list         # preflight warning codes
+  "last_evaluation_scope":      str          # always "start_preflight"
 }
 ```
+
+`last_warning_codes` and `last_evaluation_scope` are written by the snapshot but
+are not declared on the `LiveRuleState` TypedDict; since it is `total=False`,
+readers must tolerate any subset of these keys.
 
 ### `last_result` values
 
 | Value | Meaning |
 |---|---|
-| `"pass"` | Room passed all rules; no changes |
+| `"not_selected"` | Room was not in the selected/queued set for this run |
+| `"allowed"` | Room was selected; no blocker or modifier fired (the no-change default) |
 | `"blocked"` | At least one blocker rule fired; room excluded from job |
 | `"modified"` | At least one modifier rule fired; room settings changed |
-| `"not_evaluated"` | Room was not in the evaluation set (disabled, not queued) |
+| `"blocked_and_modified"` | A blocker AND a modifier both fired for this room |
 
 Both `map_id_str` and `room_id_str` keys are always strings. The sensor
 `EufyVacuumRoomRuleStatusSensor` reads via

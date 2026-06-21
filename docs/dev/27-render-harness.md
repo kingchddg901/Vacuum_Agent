@@ -67,10 +67,14 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 |---|---|
 | `render(view, opts)` | Render one tab. `opts`: `bundle`, `overrides`, `controller`, `width`, `freeze`, `modal` (a renderer name to mount as a body-level modal — §3). Returns `{ok, error?, misses}` — never throws to the page. |
 | `renderGallery(id, opts)` | Render an all-states gallery entry (§3). |
+| `renderThemePresets(themes, opts)` | Render the Themes-tab presets grid driven by **real** state — a `VacuumCardState` seeded with the theme library, the facet filter / search / Browse-gallery UI, so the picker is captured on genuine state (the null-object stub can't exercise the filter). Backs `shoot-theme-picker.mjs`. |
 | `ingestTheme(envelope)` | The intake gate (§6). |
 | `semanticTokens` | The registry-derived semantic-color token set (§3). |
 | `badgeMarks`, `markViewBox` | The shape-mark SVGs (§5). |
 | `tokenMap`, `VIEWS`, `VIEW_ORDER` | Registry + view constants for tests. |
+| `VacuumCardState` | The real `src/state/index.js` state class, exposed so tooling can drive genuine state (e.g. per-device theme, driven by `device-theme.spec.mjs`). |
+| `gallery` | The gallery-entry metadata list (`id`, `view`, `label`, `tokens`, `clip`, `modal`) for tests. |
+| `version` | Surface version (`1`). |
 
 ### The stub state
 
@@ -136,8 +140,8 @@ can't reach (z-index, shadow DOM, layout, flood).
 across OSes, so baselines are generated *and* gated in one pinned image —
 `mcr.microsoft.com/playwright:v1.60.0-noble` — making the comparison byte-for-
 byte stable. The visual specs are gated to CI / `VISUAL=1` (other platforms
-would mismatch); smoke, completeness, CVD, shape, and intake gates run
-everywhere. See [testing/07-render-harness](../testing/07-render-harness.md) for
+would mismatch); smoke, completeness, CVD, shape, intake, tab-gating, and
+device-theme gates run everywhere. See [testing/07-render-harness](../testing/07-render-harness.md) for
 the regenerate-baselines workflow.
 
 **Structural, not color.** The diff budget is an **absolute** `maxDiffPixels`,
@@ -338,7 +342,10 @@ PR (also documented in the workflow header):
 | `harness/cvd/` | `simulate.mjs` (Machado+Brettel), `color.mjs` (CIEDE2000), `report.mjs` (matrix), `tune.mjs` (palette scratchpad). |
 | `harness/bundles/` | Flat `--evcc-*` maps: `default`, `cvd-safe`. |
 | `harness/lib/mount-page.mjs` | Node helpers: load bundle into a page, render. |
-| `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `census.mjs` | esbuild + capture CLIs. |
+| `harness/lib/gallery-html.mjs` | Playwright-free gallery HTML generator (index filter bar + per-theme pages) shared by `preview.mjs` and the dry-run; owns the author-URL XSS-escaping contract. |
+| `harness/lib/gallery-html.test.mjs` | `node --test` unit tests for the gallery HTML escaping / author-URL contract. |
+| `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `shoot-theme-picker.mjs` · `census.mjs` | esbuild + capture CLIs (`shoot-theme-picker.mjs` shoots the Themes picker with a real-state fixture). |
+| `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
 | `harness/preview.mjs` | Builds the gallery: lobby `index.html`, per-theme detail pages, thumbnails, contact sheets. |
 | `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake. |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |

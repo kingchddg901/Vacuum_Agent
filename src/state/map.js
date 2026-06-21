@@ -58,6 +58,21 @@ export function applyMapState(proto) {
     this._mapRotationOverlay = this._normRotation(deg);
   };
 
+  // The rotation ACTUALLY applied to the content rotator. The whole content block (backdrop +
+  // co-rotated overlays/labels/masks) turns as one unit, so rotation is safe for the two
+  // object-fit:contain backdrops that stay inside the SQUARE container at 90/270 — the VA
+  // self-render canvas AND a live device image. It is NOT applied to an uploaded CV/custom
+  // backdrop (which can be stretched `--fill` and would leave the square frame when turned).
+  // The renderer AND the drag handlers (mascot, area-label) all read this one source, so a drag
+  // converts pointer->content in the SAME frame the rotator is rendered in. (Rubber-band DRAWS
+  // — zone/hide-area — still require rotation 0; their letterbox math isn't rotation-aware.)
+  proto.effectiveMapRotation = function () {
+    if (this.isVaRenderActive?.()) return this.mapRotation?.() ?? 0;
+    const hasLiveImage = Boolean(this.liveMapImageEntity?.());
+    const wantVa = Boolean(this.useVaRender?.() && this.supportsVaRender?.());
+    return (hasLiveImage && !wantVa) ? (this.mapRotation?.() ?? 0) : 0;
+  };
+
   // Map a pointer position given as a 0-100 pct of the (unrotated) .evcc-map-layers box
   // into the CONTENT frame inside .evcc-map-content-rotator, which is rotated `rot`
   // degrees. The container is square, so a 90/180/270 turn maps pct corners exactly.
@@ -131,16 +146,23 @@ export function applyMapState(proto) {
     const oldKey = `${oldMapId ?? ""}:${this._mapSegmentsData?.active_custom_layout_id ?? ""}`;
     const newKey = `${data?.map_id ?? ""}:${data?.active_custom_layout_id ?? ""}`;
     this._mapSegmentsData = data;
+    // Fresh backend segments are authoritative for hidden_regions + area-label anchors — drop
+    // the optimistic overlays.
+    this._hiddenRegionsOverlay = null;
+    this._areaLabelOverlay = null;
     if (oldKey !== newKey) {
       // Reset overlays + draft when the active map OR layout changes — what was
       // true for the old map/layout's segments has nothing to do with the new.
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
       this._mapAnchorMode = false;
+      this._hideDrawMode = false;        // exit hide-area draw on any map/layout switch
       this._composeDraft = null;       // new map/layout → fresh draft, reload from its segments
       this._composeSelectedId = null;
       this._composeMergeFrom = null;
       this._composeLoadedFor = null;
+      this._zoneDrawMode = false;      // exit ad-hoc zone-draw on any map/layout switch
+      this._zoneDrafts = [];
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
       if (data?.map_id !== oldMapId) {
         this.resetMapTransform();
@@ -231,15 +253,21 @@ export function applyMapState(proto) {
       ?? this._liveMapImageUrl();
   };
 
+  // Live-camera poll tick. Bumped by the card's poll timer (main._scheduleLiveMapRefresh)
+  // so a camera.* backdrop refetches on the frame cadence — see _liveMapImageUrl below.
+  proto._liveMapTick = 0;
+  proto.bumpLiveMapTick = function () { this._liveMapTick = (this._liveMapTick || 0) + 1; };
+
   /**
    * The LIVE map backdrop URL: the live-map entity's entity_picture.
    * - An `image.` entity (Roborock current map) rotates its token on each frame, so
    *   the URL self-busts and <img src> refreshes live with no polling.
-   * - A `camera.` entity (e.g. the eufy-clean fork's camera.<device>_map) has a
-   *   STABLE access token, so <img src> would keep the cached first frame forever.
-   *   We append the entity's last_updated as a cache-buster — each pushed frame
-   *   (~2s) then forces a refetch. Keyed on last_updated (a real entity update), not
-   *   a render counter, so unrelated card re-renders don't thrash the <img>.
+   * - A `camera.` entity (e.g. the eufy-clean fork's camera.<device>_map) has a STABLE
+   *   token, and HA dedupes identical state writes, so its last_updated only advances on
+   *   token rotation (~5 min) — NOT per pushed frame. last_updated alone would leave the
+   *   <img> on a frozen frame until a manual refresh; the card polls the camera on the
+   *   frame cadence (main._scheduleLiveMapRefresh) and bumps _liveMapTick, which we fold
+   *   into the cache-bust so each poll refetches the latest frame.
    * Null when the adapter declares no live entity (plain Eufy) or there's no picture yet.
    */
   proto._liveMapImageUrl = function () {
@@ -248,7 +276,9 @@ export function applyMapState(proto) {
     const ent = this.entity?.(eid);
     const url = ent?.attributes?.entity_picture ?? null;
     if (!url) return null;
-    const stamp = ent?.last_updated ? Date.parse(ent.last_updated) : 0;
+    let stamp = ent?.last_updated ? Date.parse(ent.last_updated) : 0;
+    // camera.* doesn't self-bust (stable token + deduped writes) -> fold in the poll tick.
+    if (eid.startsWith("camera.")) stamp += (this._liveMapTick || 0);
     if (!stamp) return url;
     return url + (url.includes("?") ? "&" : "?") + "_=" + stamp;
   };
@@ -305,6 +335,403 @@ export function applyMapState(proto) {
     this.composeDraft().push(shape);
     this._composeSelectedId = id;
     return shape;
+  };
+
+  // ── Ad-hoc zone clean (draw boxes on the live map → clean them) ─────────
+  // Transient card-only state (like the compose draft): a LIST of rectangles in
+  // pct (0-100) of the square map container, drawn → dispatched → discarded.
+  // Never persisted. _zoneDrawMode toggles the draw interaction; _zoneDrafts holds
+  // the committed rectangles ({x,y,w,h} pct). The in-progress drag box is painted
+  // straight to the DOM and pushed here on release. App cap = 10 zones per clean.
+  proto._ZONE_MAX = 10;
+  proto._zoneDrawMode = false;
+  proto._zoneDrafts = null; // lazily []
+
+  proto.zoneDrawMode = function () { return this._zoneDrawMode; };
+  proto.zoneDrafts = function () {
+    if (this._zoneDrafts === null) this._zoneDrafts = [];
+    return this._zoneDrafts;
+  };
+  proto.zoneCount = function () { return this.zoneDrafts().length; };
+  proto.zoneMax = function () { return this._ZONE_MAX; };
+  proto.zoneAtCap = function () { return this.zoneCount() >= this._ZONE_MAX; };
+
+  proto.setZoneDrawMode = function (on) {
+    this._zoneDrawMode = Boolean(on);
+    if (!this._zoneDrawMode) this._zoneDrafts = [];
+  };
+
+  // Commit one drawn rectangle. Returns false (ignored) once at the 10-zone cap.
+  proto.addZoneDraft = function (rect) {
+    if (!rect) return false;
+    const list = this.zoneDrafts();
+    if (list.length >= this._ZONE_MAX) return false;
+    list.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
+    return true;
+  };
+  proto.removeZoneDraft = function (i) {
+    const list = this.zoneDrafts();
+    if (i >= 0 && i < list.length) list.splice(i, 1);
+  };
+  proto.clearZoneDrafts = function () { this._zoneDrafts = []; };
+
+  /**
+   * Convert ONE pct rect (0-100 of the SQUARE map container) into a normalized
+   * [x0,y0,x1,y1] in the live-map IMAGE frame (fractions 0-1, top-left origin) —
+   * the shape the provider's zone_clean expects. Corrects for `object-fit:contain`
+   * letterboxing: the longer image side fills the box; the shorter side is centered
+   * with equal bars, so "50% of the box" is NOT 50% of the image on a non-square map.
+   * Returns null for a degenerate rect (drawn entirely inside a letterbox bar).
+   *
+   * @param {{x:number,y:number,w:number,h:number}} d pct rect
+   * @param {{width:number,height:number}} backdropDims natural px of the live image
+   * @returns {number[]|null} [x0,y0,x1,y1] in 0-1, or null
+   */
+  proto._rectToNormalized = function (d, backdropDims) {
+    if (!d || !backdropDims) return null;
+    const W = backdropDims.width, H = backdropDims.height;
+    if (!(W > 0) || !(H > 0)) return null;
+    const imgPctW = W >= H ? 100 : (100 * W) / H;
+    const imgPctH = H >= W ? 100 : (100 * H) / W;
+    const offX = (100 - imgPctW) / 2;
+    const offY = (100 - imgPctH) / 2;
+    const clamp01 = (v) => Math.min(Math.max(v, 0), 1);
+    const toNorm = (px, py) => [
+      clamp01((px - offX) / imgPctW),
+      clamp01((py - offY) / imgPctH),
+    ];
+    const [nx0, ny0] = toNorm(Math.min(d.x, d.x + d.w), Math.min(d.y, d.y + d.h));
+    const [nx1, ny1] = toNorm(Math.max(d.x, d.x + d.w), Math.max(d.y, d.y + d.h));
+    const x0 = Math.min(nx0, nx1), y0 = Math.min(ny0, ny1);
+    const x1 = Math.max(nx0, nx1), y1 = Math.max(ny0, ny1);
+    const MIN_SIDE = 0.01;
+    if (x1 - x0 < MIN_SIDE || y1 - y0 < MIN_SIDE) return null;
+    return [x0, y0, x1, y1];
+  };
+
+  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped).
+  proto.zoneDraftsToNormalizedRects = function (backdropDims) {
+    return this.zoneDrafts()
+      .map((d) => this._rectToNormalized(d, backdropDims))
+      .filter(Boolean);
+  };
+
+  /**
+   * Single source of truth for whether the ad-hoc zone-draw control may be
+   * shown AND used right now: the provider supports zone clean, a live-map
+   * backdrop is active (you draw on that image), and rotation is 0 (Wave 1 — a
+   * rotated map letterboxes on the swapped axis, not yet handled). The renderer
+   * gate and the drag/confirm guards both call this so they can never drift.
+   */
+  proto.canDrawZone = function () {
+    return (this.supportsZoneClean?.() ?? false)
+        && (this.isLiveBackdropActive?.() ?? false)
+        && (this.mapRotation?.() ?? 0) === 0;
+  };
+
+  /* =========================================================
+     HIDDEN REGIONS (user-drawn rects that MASK map noise, e.g. a
+     porch off a room). Persisted per-map like companion_anchors
+     (ride along on get_map_segments as `hidden_regions`); stored as
+     normalized [x0,y0,x1,y1] in the rendered-image frame — the same
+     space the device overlays use, so _overlayTransform places them.
+     ========================================================= */
+  proto._hideDrawMode = false;
+  proto.hideDrawMode = function () { return this._hideDrawMode; };
+  proto.setHideDrawMode = function (on) { this._hideDrawMode = Boolean(on); };
+
+  // Optimistic overlay so a draw/delete shows instantly; the set_hidden_regions
+  // response (authoritative) replaces it, and a fresh segments fetch clears it.
+  proto._hiddenRegionsOverlay = null;
+  proto.hiddenRegions = function () {
+    if (Array.isArray(this._hiddenRegionsOverlay)) return this._hiddenRegionsOverlay;
+    // Editor fetch when present, else the dashboard snapshot — same reason as areaLabelAnchor.
+    // Empty-aware: a present-but-empty [] from the editor must not shadow a populated snapshot
+    // (get_map_segments always emits hidden_regions:[]). An intentional in-editor clear is held
+    // by the optimistic overlay above until the snapshot settles.
+    const seg = this.mapSegmentsData?.()?.hidden_regions;
+    const r = (Array.isArray(seg) && seg.length)
+      ? seg
+      : this.dashboardSnapshot?.()?.hidden_regions;
+    return Array.isArray(r) ? r : [];
+  };
+  proto.setHiddenRegionsOptimistic = function (list) {
+    this._hiddenRegionsOverlay = Array.isArray(list) ? list : [];
+  };
+  proto.clearHiddenRegionsOptimistic = function () { this._hiddenRegionsOverlay = null; };
+
+  // Draw gate: a device-overlay-aligned backdrop is shown (live image OR VA render — the
+  // masks need map_state_source.image_size for the letterbox transform) and rotation is 0
+  // (a rotated map letterboxes on the swapped axis — not handled for drawing, same as zones).
+  proto.canDrawHideArea = function () {
+    return (this.overlaysAligned?.() ?? false)
+        && !!this.mapImageSize?.()
+        && (this.mapRotation?.() ?? 0) === 0;
+  };
+
+  /* =========================================================
+     AREA-LABEL ANCHORS — per-room position for the m² chip, so it
+     can be dragged off the room-name label. Map-level (the device
+     rooms are mode-independent), keyed by room number, {pct_x,pct_y}
+     in map-content-box % (same frame as the mascot anchor). Rides on
+     get_map_segments as `area_label_anchors`. null => default (centre).
+     ========================================================= */
+  proto._areaLabelOverlay = null;
+  proto.areaLabelAnchor = function (roomKey) {
+    const k = String(roomKey);
+    if (this._areaLabelOverlay && this._areaLabelOverlay[k]) return this._areaLabelOverlay[k];
+    // Editor fetch (get_map_segments) when present, else the dashboard snapshot — the m² chips
+    // render on the plain dashboard (overlaysAligned) where segments are NOT fetched, so the
+    // saved positions must ride the snapshot too (mirrors map_overlay_visibility). Without the
+    // snapshot fallback a dragged label reverts to centre on reload off the editor.
+    // Empty-aware: get_map_segments ALWAYS emits area_label_anchors:{} and the editor cache
+    // isn't cleared on leaving the editor, so a `??` chain would let a present-but-empty {}
+    // shadow a populated snapshot. Only treat the editor set as authoritative when non-empty.
+    const seg = this.mapSegmentsData?.()?.area_label_anchors;
+    const anchors = (seg && Object.keys(seg).length)
+      ? seg
+      : this.dashboardSnapshot?.()?.area_label_anchors;
+    return (anchors && anchors[k]) || null;
+  };
+  proto.setAreaLabelAnchorLocal = function (roomKey, pctX, pctY) {
+    if (!this._areaLabelOverlay) this._areaLabelOverlay = {};
+    this._areaLabelOverlay[String(roomKey)] = { pct_x: pctX, pct_y: pctY };
+  };
+
+  /* =========================================================
+     MAP_STATE_SOURCE OVERLAYS (Wave 3c) — the VA's read of the
+     device's own map (rooms+area, anchors, no-go/walls/zones/path/
+     obstacles), normalized 0–1 of the LIVE rendered image, + the
+     per-layer visibility the user toggles.
+     ========================================================= */
+
+  // Card-side defaults — a mirror of the backend OVERLAY_VISIBILITY_DEFAULTS, used
+  // only if the snapshot omits a layer (it normally resolves all of them server-side).
+  proto._OVERLAY_VIS_DEFAULTS = {
+    room_labels: true, room_area: true, current_room: true, robot: true, dock: true,
+    no_go: false, no_mop: false, walls: false, zones: false, path: false, obstacles: false,
+    hidden_regions: true,
+  };
+
+  proto.mapStateSource = function () {
+    return this.dashboardSnapshot?.()?.map_state_source ?? null;
+  };
+
+  /* -- Auto-derived click targets: pixel-exact room hit-test ---------------------
+     Given a CONTENT-box % point (0-100 of the rotator, i.e. AFTER unrotatePct), resolve the
+     DEVICE ROOM ID under it by reading the room raster from the card-render data (room_pixels
+     + decode params from get_map_render_data — the same bundle the ▦ render decodes). Exact
+     room boundaries (no bbox overlap). null when off-map / a catch-all cell / no render data.
+     The device room id IS the managed room id, so the caller toggles it straight into the
+     clean selection. */
+  proto._roomRasterBin = function (rd) {
+    // Decode the base64 raster once, cached by content version.
+    if (this._roomRasterCache && this._roomRasterCache.version === rd.version) {
+      return this._roomRasterCache.bin;
+    }
+    let bin = null;
+    try { bin = atob(rd.room_pixels || ""); } catch (_) { bin = null; }
+    this._roomRasterCache = { version: rd.version, bin };
+    return bin;
+  };
+
+  proto.roomIdAtContentPct = function (contentX, contentY, rd) {
+    if (!rd || !rd.present || !rd.room_pixels) return null;
+    const W = rd.width | 0, H = rd.height | 0;
+    if (!(W > 0 && H > 0)) return null;
+    // content% -> image-normalized: undo the object-fit:contain letterbox (same math as
+    // _overlayTransform/_rectToNormalized). Aspect comes from map_state_source.image_size when
+    // present, else the render dims (rd.width/height) — the VA canvas IS letterboxed by those, and
+    // for the camera-less VA-render config map_state_source is absent, so mapImageSize() is null.
+    // Both derive from the same md.width/height, so this is byte-identical whenever both exist.
+    const size = this.mapImageSize?.();
+    const iw = (Array.isArray(size) && size[0] > 0 && size[1] > 0) ? size[0] : W;
+    const ih = (Array.isArray(size) && size[0] > 0 && size[1] > 0) ? size[1] : H;
+    const sx = iw >= ih ? 100 : (100 * iw) / ih;
+    const sy = ih >= iw ? 100 : (100 * ih) / iw;
+    const offX = (100 - sx) / 2;
+    const offY = (100 - sy) / 2;
+    const nx = (contentX - offX) / sx;
+    const ny = (contentY - offY) / sy;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;   // outside the image (letterbox bar)
+    // image-normalized -> MAIN-grid pixel (undo normalize_rendered's Y-flip).
+    const flip = rd.flip_y !== false;
+    const px = Math.min(W - 1, Math.max(0, Math.floor(nx * W)));
+    const pyN = flip ? ((H - 1) - ny * H) : (ny * H);
+    const py = Math.min(H - 1, Math.max(0, Math.floor(pyN)));
+    // MAIN grid -> room_outline raster cell -> rid (byte >> rid_shift), catch-all filtered.
+    const bin = this._roomRasterBin(rd);
+    if (!bin) return null;
+    const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+    const rx = px - (rd.ro_dx | 0), ry = py - (rd.ro_dy | 0);
+    if (rx < 0 || rx >= roW || ry < 0 || ry >= roH) return null;
+    const idx = ry * roW + rx;
+    if (idx < 0 || idx >= bin.length) return null;
+    const rid = bin.charCodeAt(idx) >> (rd.rid_shift | 0);
+    const catchAll = rd.catch_all_rid | 0;
+    return (rid > 0 && rid < catchAll) ? rid : null;
+  };
+
+  /* -- Live pose (Phase B) ------------------------------------------------------
+     The snapshot's map_state_source carries the MOVING overlays (robot/dock/current-
+     room/path) too, but only as fresh as the slow snapshot cadence — so a cleaning
+     robot visibly lags. The card polls get_map_live_pose (~2s, in-memory, loop-safe)
+     and stashes the result here; mapOverlayData() folds it over the snapshot so the
+     STATIC segmentation (rooms/area/hazards/image_size) stays from the snapshot while
+     the moving fields track live. null => no live override (poll off / unsupported). */
+  proto._livePose = null;
+  proto.setLivePose = function (pose) {
+    this._livePose = (pose && pose.present) ? pose : null;
+  };
+  proto.livePose = function () { return this._livePose; };
+
+  // The overlay source the device-overlay renderers read: the snapshot map_state_source
+  // with the live pose's moving fields layered on top (when present). Same normalized
+  // frame, so the existing letterbox transform (image_size) still applies unchanged.
+  proto.mapOverlayData = function () {
+    const base = this.mapStateSource();
+    const lp = this._livePose;
+    if (!base || !base.present || !lp || !lp.present) return base;
+    const merged = { ...base };
+    // The live pose OWNS current_room + path when present: clear the stale snapshot values
+    // first (mirrors the backend apply_live_pose_override) so a live anchor in a no-room
+    // (catch-all) cell, or with no live trail, can't leave the old room highlighted / a
+    // lagged trail drawn — the exact "stale in the kitchen" ghost this feature kills.
+    delete merged.current_room;
+    delete merged.path;
+    if (Array.isArray(lp.robot_anchor)) merged.robot_anchor = lp.robot_anchor;
+    if (Array.isArray(lp.dock_anchor)) merged.dock_anchor = lp.dock_anchor;
+    if (lp.current_room != null) merged.current_room = lp.current_room;
+    if (lp.robot_heading != null) merged.robot_heading = lp.robot_heading;
+    if (Array.isArray(lp.path)) merged.path = lp.path;
+    merged.robot_docked = Boolean(lp.robot_docked);
+    return merged;
+  };
+
+  // Rendered-image dims [w, h] for the overlay letterbox correction (the overlays are
+  // normalized to the IMAGE frame, but the live <img> is object-fit:contain inside a
+  // SQUARE box). Only the aspect is used. null → card assumes square (no correction).
+  proto.mapImageSize = function () {
+    const s = this.mapStateSource()?.image_size;
+    return (Array.isArray(s) && s.length === 2 && s[0] > 0 && s[1] > 0) ? s : null;
+  };
+
+  // Pending optimistic per-layer toggles (cleared once the snapshot catches up),
+  // so a checkbox flip is instant across the click → service-ack → refresh window.
+  proto._overlayVisOverlay = null;
+  proto.mapOverlayVisibility = function () {
+    const snap = this.dashboardSnapshot?.()?.map_overlay_visibility ?? {};
+    const base = { ...this._OVERLAY_VIS_DEFAULTS, ...snap };
+    if (this._overlayVisOverlay) {
+      for (const [k, v] of Object.entries(this._overlayVisOverlay)) {
+        if (snap[k] === v) delete this._overlayVisOverlay[k]; // backend caught up
+        else base[k] = v;
+      }
+      if (Object.keys(this._overlayVisOverlay).length === 0) this._overlayVisOverlay = null;
+    }
+    return base;
+  };
+  proto.isOverlayVisible = function (layer) {
+    return Boolean(this.mapOverlayVisibility()[layer]);
+  };
+  proto.setOverlayVisibilityOptimistic = function (layer, on) {
+    if (!this._overlayVisOverlay) this._overlayVisOverlay = {};
+    this._overlayVisOverlay[layer] = Boolean(on);
+  };
+  // Roll back one pending optimistic flip (e.g. the service call failed) so the
+  // checkbox + overlay revert to the backend value instead of sticking unsaved.
+  proto.clearOverlayVisibilityOptimistic = function (layer) {
+    if (!this._overlayVisOverlay) return;
+    delete this._overlayVisOverlay[layer];
+    if (Object.keys(this._overlayVisOverlay).length === 0) this._overlayVisOverlay = null;
+  };
+
+  /**
+   * True when the DISPLAYED backdrop is the LIVE device image — the only space the
+   * map_state_source overlays are normalized to. Mirrors mapImageUrl()'s live
+   * branches: Roborock/no-CV always live; Eufy shows the CV image unless a live
+   * source is active, so overlays hide there (they'd misalign). NOT
+   * isLiveBackdropActive() (that's the custom-layout-pinned-to-live predicate).
+   */
+  proto.isLiveImageDisplayed = function () {
+    if (!this._liveMapImageUrl?.()) return false;
+    const variants = this._mapSegmentsData?.image_variants ?? {};
+    const hasCv = Boolean(variants.dark || variants.default || variants.light);
+    if (this.segmentationMode?.() === "custom") {
+      if (this.activeCustomLayout?.()?.backdrop_source === "live") return true;
+      const v = this.activeCustomLayout?.()?.backdrop_variant || "custom";
+      if (variants[v]) return false;     // an uploaded custom backdrop is showing
+      if (v !== "custom") return true;   // per-layout, not uploaded → live
+      return !hasCv;                     // shared "custom": CV fallback if present
+    }
+    return !hasCv;                       // non-custom: CV variant if present, else live
+  };
+
+  /* =========================================================
+     VA-RENDERED MAP BACKDROP (Wave 1 — client-side canvas, no dependency)
+     =========================================================
+     The card draws its OWN full-grid backdrop from the device's room raster
+     (get_map_render_data, adapter-driven). The VA owns the frame, so the overlays
+     align perfectly (no fork-camera crop). A per-vacuum toggle picks it over the
+     live camera; the raster is cached in-memory by version (static; re-fetched only
+     when the map changes). Only offered when the adapter supplies a map_render block.
+     ========================================================= */
+
+  proto.supportsVaRender = function () {
+    return Boolean(this.dashboardSnapshot?.()?.supports_va_render);
+  };
+
+  proto._useVaRender = null; // null = not yet read from localStorage
+  proto._useVaRenderKey = function () {
+    return `evcc_va_render_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.useVaRender = function () {
+    if (this._useVaRender === null) {
+      try {
+        this._useVaRender = localStorage.getItem(this._useVaRenderKey()) === "1";
+      } catch (_) {
+        this._useVaRender = false;
+      }
+    }
+    return this._useVaRender;
+  };
+  proto.setUseVaRender = function (on) {
+    this._useVaRender = !!on;
+    // (Re)enabling drops any cached render data so the binding re-fetches fresh — this
+    // is also the retry path after a failed fetch (which stored a present:false sentinel).
+    if (on) this._mapRenderData = null;
+    try {
+      localStorage.setItem(this._useVaRenderKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleUseVaRender = function () {
+    this.setUseVaRender(!this.useVaRender());
+  };
+
+  // In-memory cache of the get_map_render_data response (the raster + decode params).
+  proto._mapRenderData = null;
+  proto.mapRenderData = function () {
+    return this._mapRenderData;
+  };
+  proto.setMapRenderData = function (rd) {
+    this._mapRenderData = (rd && typeof rd === "object") ? rd : null;
+  };
+  proto.mapRenderVersion = function () {
+    return this._mapRenderData?.version ?? null;
+  };
+
+  // The VA canvas is the active backdrop right now (toggle on + brand supports it +
+  // we have render data to draw).
+  proto.isVaRenderActive = function () {
+    return this.useVaRender()
+        && this.supportsVaRender()
+        && Boolean(this.mapRenderData()?.present);
+  };
+
+  // Overlays + the layers panel align on ANY grid-frame backdrop: the live device
+  // image OR the VA render. (Both are normalized to the same image_size grid.)
+  proto.overlaysAligned = function () {
+    return (this.isLiveImageDisplayed?.() ?? false) || this.isVaRenderActive();
   };
 
   proto.updateComposeShape = function (id, patch) {
@@ -1117,6 +1544,34 @@ export function applyMapState(proto) {
   };
   proto.toggleMapAnimalEnabled = function () {
     this.setMapAnimalEnabled(!this.mapAnimalEnabled());
+  };
+
+  /* Mascot FOLLOWS the live robot pixel (rides robot_anchor, replacing the position
+     dot) vs. homing to rooms / the dock spot. Default OFF — the existing room/dock
+     behavior (and the draggable dock spot) is unchanged unless turned on. When docked
+     the mascot still homes to the dock spot in BOTH modes, so dragging survives. */
+  proto._mapAnimalFollowsRobot = null; // null = not yet read
+  proto._animalFollowsRobotKey = function () {
+    return `evcc_animal_follow_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto.mapAnimalFollowsRobot = function () {
+    if (this._mapAnimalFollowsRobot === null) {
+      try {
+        this._mapAnimalFollowsRobot = localStorage.getItem(this._animalFollowsRobotKey()) === "1";
+      } catch (_) {
+        this._mapAnimalFollowsRobot = false;
+      }
+    }
+    return this._mapAnimalFollowsRobot;
+  };
+  proto.setMapAnimalFollowsRobot = function (on) {
+    this._mapAnimalFollowsRobot = !!on;
+    try {
+      localStorage.setItem(this._animalFollowsRobotKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleMapAnimalFollowsRobot = function () {
+    this.setMapAnimalFollowsRobot(!this.mapAnimalFollowsRobot());
   };
 
   /* =========================================================

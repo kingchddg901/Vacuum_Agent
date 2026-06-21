@@ -3,7 +3,7 @@
 The platform layer is the HA-facing entity surface: the `sensor/` package, the
 `binary_sensor` / `button` / `number` / `switch` platforms, room entities, the
 config flow, and the small shared helpers (entity helpers, frontend URL,
-timestamp utils, models, map manager). Covered by **120 tests across 11 files**.
+timestamp utils, models, map manager). Covered by **129 tests across 13 files**.
 
 Source: `custom_components/eufy_vacuum/sensor/`, `binary_sensor.py`, `button.py`,
 `number.py`, `switch.py`, `room_entities.py`, `config_flow.py`, `repairs.py`,
@@ -25,6 +25,7 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 | `sensor/dock_event.py` | 24 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_history.py` | 19 | 100% | `test_sensor_remaining.py` |
 | `sensor/room_rule_status.py` | 19 | 100% | `test_sensor_remaining.py` |
+| `sensor/map_overlays.py` | 54 | 99% | `test_sensor_map_overlays.py`, `test_map_overlays_sensor.py` (unit) |
 | `button.py` | 134 | 93% | `test_button_entity.py` |
 | `number.py` | 121 | 97% | `test_number_entity.py` |
 | `switch.py` | 63 | 98% | `test_switch_entity.py` |
@@ -44,6 +45,13 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 - **Sensors** — `native_value` / attributes for status, lifecycle, remaining-life,
   onboarding, theme, profile, room-history, room-rule-status, dock-event sensors.
+- **Map overlays sensor** — the per-vacuum diagnostic sensor whose state is the
+  current room name (or `unavailable` / `available` when the map cache is
+  unwarmed). Its attributes mirror the normalized `map_state_source` layers
+  (per-room bbox + area, dock/robot anchors + heading, no-go / no-mop / walls /
+  zones / obstacles) plus the resolved per-map overlay visibility; the verbose
+  geometry layers are recorder-excluded. Reads `manager._map_state_source_cache`
+  only (a cheap sync property).
 - **Button** — maintenance-reset + saved-run-profile buttons; `unique_id`,
   `name`, `available`, `async_press`, and the **dynamic run-profile button
   reconciliation** (setup wires the update callback; exposing a profile builds +

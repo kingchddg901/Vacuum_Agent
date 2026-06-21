@@ -296,6 +296,35 @@ def _validate_adapter(config: dict[str, Any]) -> list[str]:
                 engine = get_job_segmenter_engine(engine_name)
                 issues.extend(engine.validate_tuning(tuning))
 
+    # Room-attribution engine check — mirrors the job-segmenter check. A declared block
+    # must name a registered room-attribution engine and pass its tuning validator.
+    # Absent block → external-run auto-attribution falls back to the Eufy engine.
+    attr_block = config.get("room_attribution")
+    if attr_block is not None:
+        if not isinstance(attr_block, dict):
+            issues.append("'room_attribution' must be a dict if present")
+        else:
+            from ..learning.room_attribution_engines import (
+                known_room_attribution_names,
+                get_room_attribution_engine,
+            )
+
+            engine_name = attr_block.get("engine")
+            if engine_name is None:
+                issues.append(
+                    "room_attribution.engine is required when 'room_attribution' is "
+                    "present; declare 'noop_room_attribution' to disable auto-attribution"
+                )
+            elif engine_name not in known_room_attribution_names():
+                issues.append(
+                    f"room_attribution.engine {engine_name!r} is unknown; "
+                    f"valid names: {sorted(known_room_attribution_names())}"
+                )
+            else:
+                tuning = attr_block.get("tuning") or {}
+                engine = get_room_attribution_engine(engine_name)
+                issues.extend(engine.validate_tuning(tuning))
+
     # Room-profile catalog check — a declared block must be a dict with sane field
     # types. The framework merges it over the in-code defaults (resolve_profile_catalog),
     # so a partial block is fine; this only catches a malformed declaration.

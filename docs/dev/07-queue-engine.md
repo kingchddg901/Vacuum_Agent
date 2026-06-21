@@ -86,10 +86,10 @@ room's `clean_mode` requires them.
 | `clean_times` | `int` | Number of cleaning passes (always ≥ 1) |
 | `fan_speed` | `str` | `"Quiet"`, `"Standard"`, `"Boost"`, `"Max"` |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, `"vacuum_mop"` |
-| `clean_intensity` | `str` | `"Quick"`, `"Narrow"`, `"Deep"` |
+| `clean_intensity` | `str` | `"Quick"`, `"Standard"`, `"Deep"` (default `"Standard"`) |
 | `water_level` | `str` | Only when `supports_water_control` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
 | `edge_mopping` | `bool` | Only when `supports_edge_mopping` AND `clean_mode` in `{"mop", "vacuum_mop"}` |
-| `path_type` | `str` | Only when `supports_path_control` |
+| `path_type` | `str` | `"wide"`, `"narrow"` (default `"wide"`); only when `supports_path_control` |
 
 The vacuum processes rooms in the order they appear in the `rooms` array.
 

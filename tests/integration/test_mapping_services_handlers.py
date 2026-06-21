@@ -146,6 +146,45 @@ async def test_set_live_map_rotation(hass, mapping_services):
     assert manager.data["maps"][_VAC][_MAP]["live_map_rotation"] == 270
 
 
+async def test_set_map_overlay_visibility(hass, mapping_services):
+    """[MSV-16] set_map_overlay_visibility stores only the user's deltas, merges them
+    over the defaults at read time, rejects unknown layers, and resets cleanly."""
+    manager = mapping_services
+    result = await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                          "visibility": {"no_go": True, "dock": False}})
+    assert result["saved"] is True
+    vis = result["overlay_visibility"]
+    assert vis["no_go"] is True and vis["dock"] is False
+    assert vis["robot"] is True                       # default preserved
+    # only the deltas are persisted, not the full resolved map
+    assert manager.data["maps"][_VAC][_MAP]["overlay_visibility"] == {
+        "no_go": True, "dock": False}
+    # a second partial call MERGES (doesn't wipe the prior deltas)
+    await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+                {"vacuum_entity_id": _VAC, "map_id": _MAP, "visibility": {"path": True}})
+    assert manager.data["maps"][_VAC][_MAP]["overlay_visibility"] == {
+        "no_go": True, "dock": False, "path": True}
+    # an unknown layer is rejected by the schema
+    with pytest.raises(Exception):
+        await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+                    {"vacuum_entity_id": _VAC, "map_id": _MAP,
+                     "visibility": {"bogus": True}})
+    # reset clears the deltas -> back to defaults
+    result = await _call(hass, ms.SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+                         {"vacuum_entity_id": _VAC, "map_id": _MAP, "reset": True})
+    assert "overlay_visibility" not in manager.data["maps"][_VAC][_MAP]
+    assert result["overlay_visibility"]["robot"] is True
+
+
+async def test_get_map_render_data_absent(hass, mapping_services):
+    """[MSV-17] get_map_render_data is registered + degrades gracefully when the adapter
+    declares no map_render block (no crash, present:false)."""
+    result = await _call(hass, ms.SERVICE_GET_MAP_RENDER_DATA, {"vacuum_entity_id": _VAC})
+    assert result["present"] is False
+    assert result.get("reason") == "not_configured"
+
+
 async def test_set_dock_anchor_docked(hass, mapping_services):
     """[MSV-6]"""
     hass.states.async_set(_VAC, "docked")

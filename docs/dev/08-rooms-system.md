@@ -139,8 +139,10 @@ When `enabled_room_ids` is `None`, returns the managed room dict for every room 
 ### 3.2 `build_room_selection_summary`
 
 ```python
-build_room_selection_summary(managed_rooms: dict[str, dict]) -> dict
+build_room_selection_summary(*, managed_rooms: dict[str, dict]) -> dict
 ```
+
+`managed_rooms` is **keyword-only** — a positional call raises `TypeError`. The sole caller invokes it as `build_room_selection_summary(managed_rooms=managed_rooms)`.
 
 Returns:
 
@@ -208,14 +210,19 @@ manager.room_map.save_managed_rooms(
 ) -> dict   # summary {vacuum_entity_id, map_id, room_count, rooms, summary}
 ```
 
-1. Reads discovery cache from `data["discovery"][vacuum][str(map_id)]`.
-2. Reads existing rooms from `data["maps"][vacuum][str(map_id)]["rooms"]`.
-3. Calls `build_managed_rooms()` to merge.
-4. Ensures the map bucket exists via `map_manager.ensure_map_bucket()`.
-5. Writes the merged rooms to `data["maps"][vacuum][str(map_id)]["rooms"]`.
-6. Calls `onboarding.mark_rooms_discovered()`.
-7. Calls `onboarding.confirm_floor_type()` for each room.
-8. Fires `_notify_rooms_updated(vacuum, map_id)` so entity-platform callbacks rebuild HA entities.
+1. Ensures the vacuum record via `manager.ensure_vacuum_record()`.
+2. Reads discovery cache from `data["discovery"][vacuum][str(map_id)]`, then filters it down to rooms whose `map_id` matches.
+3. Ensures the map bucket exists via `ensure_map_bucket()` and reads existing rooms from it.
+4. Calls `build_managed_rooms()` to merge.
+5. Writes the merged rooms to `map_bucket["rooms"]`.
+6. Builds the summary via `build_room_selection_summary(managed_rooms=...)` and writes it to `map_bucket["summary"]`.
+7. Calls `manager._refresh_room_derived_state()` to re-run profile matching.
+8. Invalidates the room-history cache via `manager._room_history_cache_ready.discard(vacuum)`.
+9. Sets `runtime.selected_map_id = str(map_id)`.
+10. **If** `managed_rooms` is non-empty: calls `manager.mark_rooms_discovered()`, then `manager.confirm_floor_type()` for each room. These two calls are skipped on an empty result.
+11. Fires `_notify_rooms_updated(vacuum, map_id)` so entity-platform callbacks rebuild HA entities.
+
+Returns `{vacuum_entity_id, map_id, room_count, rooms, summary}`.
 
 ### 5.3 `remove_map`
 

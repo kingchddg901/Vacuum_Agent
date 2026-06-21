@@ -325,6 +325,76 @@ This means the **last matching rule wins** for any field that appears in more th
 
 Example: if Rule 1 sets `fan_speed: "Quiet"` and Rule 2 (later) sets `fan_speed: "Max"`, the result is `fan_speed: "Max"`.
 
+### Modifier fan-out (Pass 2)
+
+A modifier rule may declare an optional `fan_out_room_ids` list to apply its
+effect to **additional rooms beyond the one that owns the rule**. The rule is
+stored once on its owning room; no duplicate rule is created on the targets —
+the effect is computed at planning time. (Only modifier rules can fan out;
+blockers already cascade transitively through the access graph, so they have no
+fan-out mechanism. See the user-facing write-up in
+[advanced/06-room-rules](../advanced/06-room-rules.md#fan-out-apply-a-rule-to-additional-rooms).)
+
+After the per-room modifier loop (Step 3) and the blocked-room computation
+(Step 5), `_build_effective_start_plan` runs a dedicated **Pass 2 — rule
+fan-out expansion** (`planning/run_plan.py`). It iterates every room's rules in
+ascending source-room-id order and, for each enabled modifier rule with a
+non-empty `fan_out_room_ids`, evaluates the rule's condition via
+`_room_rule_matches` and merges its `changes` into each eligible target's
+`modifier_matches` entry:
+
+```python
+for source_room_id in sorted(all_rooms_by_id):
+    for rule in source_room.get("rules", []):
+        if rule.kind != "modifier": continue
+        if not rule.get("fan_out_room_ids"): continue
+        if not _room_rule_matches(rule): continue          # condition is
+
+        change_set = rule.effect.get("changes", {})
+        if not change_set: continue
+        for target_id in rule["fan_out_room_ids"]:
+            if target_id not in all_rooms_by_id: continue   # stale ref dropped
+            if target_id == source_room_id: continue        # self fan-out ignored
+            if target_id not in selected_set: continue       # unselected skipped
+            if target_id in blocked_set: continue            # blocked skipped
+
+            entry = modifier_matches.setdefault(
+                target_id,
+                _build_modified_room_entry(room_id=target_id, derived=True,
+                                           source_room_id=source_room_id, ...))
+            for field, value in change_set.items():
+                entry["changes"].setdefault(field, value)    # direct/earlier wins
+            entry["triggered_rule_ids"].append(rule.id)
+```
+
+Semantics, all enforced in this pass:
+
+- **Condition is evaluated independently of the owning room's selection.** If
+  the rule's condition is true, fan-out targets receive the modifier even when
+  the source room is excluded from the current run. The trigger is the watched
+  entity, not the owner's queue state.
+- **Direct rules (and earlier fan-out) win per field.** Merging uses
+  `dict.setdefault`, so a field already set on the target — by the target's own
+  direct modifier (Step 3) or by an earlier source room — is **not**
+  overwritten. This is the inverse of the direct-modifier merge (§5
+  last-write-wins): for fan-out it is first-write-wins per field. Because
+  sources are iterated in ascending room-id order, the merge is deterministic.
+- **Targets that are not selected, or are blocked, are skipped** — there is no
+  point modifying a room that will not be cleaned. Unknown / non-numeric target
+  IDs (e.g. stale references left after a room delete) are silently dropped, and
+  self-fan-out is ignored.
+- **Provenance.** When an entry is created purely by fan-out (no direct rule
+  contributed first), `_build_modified_room_entry` flags it `derived: True` and
+  records `source_room_id`, `source_room_name`, `source_rule_id`,
+  `source_rule_name`. If a direct rule already populated the entry, `derived`
+  stays `False` — direct rules win the entry-level attribution. Either way,
+  every contributing rule is appended to `triggered_rule_ids`. These fields let
+  the start-status panel show fan-out provenance (e.g. "via Bedroom 1's Quiet
+  Mode").
+
+Fan-out is one level, not transitive — a target room's own rules do not chain
+further on top of a fan-out it received.
+
 ---
 
 ## 6. The 20%/40% confirmation threshold
@@ -434,6 +504,38 @@ For a modifier:
 - `effect.reason` is `null` when empty (not an empty string).
 - `effect.changes` is built by iterating `draft.effect.changes`, skipping `null` values, and enforcing the 1-or-2 constraint on `clean_passes`.
 - `effect.changes` is only present on modifier rules.
+- `fan_out_room_ids` is an optional top-level array of integer room IDs to which a modifier rule's effect is fanned out (see §5, Pass 2). It is present only on modifier rules and only when non-empty.
+
+### `fan_out_room_ids` normalization
+
+`AccessGraphManager._normalize_room_rule` (`rooms/access_graph.py`) preserves
+`fan_out_room_ids` on persisted rules, but only for modifier rules. The list is
+sanitised on the way in: each entry is coerced to `int`, any value `<= 0` or any
+duplicate is dropped (dedup via a `seen` set, original order preserved), and the
+key is omitted from the normalized rule entirely when the cleaned list is empty.
+Blocker rules never carry `fan_out_room_ids`. The field must survive
+normalization because `_build_effective_start_plan` iterates the **normalized**
+rule dict — if it were stripped, the Pass-2 fan-out would never run. Stale IDs
+that survive normalization (e.g. a target room deleted later) are handled at
+plan time by the runtime filter in Pass 2, not here.
+
+A serialised modifier with fan-out:
+
+```json
+{
+  "id": "ghi789",
+  "entity_id": "input_boolean.quiet_mode",
+  "kind": "modifier",
+  "operator": "is_on",
+  "enabled": true,
+  "fan_out_room_ids": [3, 4],
+  "effect": {
+    "action": "mutate",
+    "reason": "Quiet mode",
+    "changes": { "fan_speed": "Quiet" }
+  }
+}
+```
 
 ### Conditions serialisation
 

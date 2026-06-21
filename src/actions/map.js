@@ -13,15 +13,55 @@ import {
   SERVICE_SET_SEGMENT_ROOM_LINK,
   SERVICE_SET_COMPANION_ANCHOR,
   SERVICE_SET_LIVE_MAP_ROTATION,
+  SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+  SERVICE_GET_MAP_RENDER_DATA,
+  SERVICE_GET_MAP_LIVE_POSE,
+  SERVICE_SET_HIDDEN_REGIONS,
+  SERVICE_SET_AREA_LABEL_ANCHOR,
   SERVICE_SET_SEGMENTATION_MODE,
   SERVICE_SET_CUSTOM_SEGMENTS,
   SERVICE_CREATE_CUSTOM_LAYOUT,
   SERVICE_RENAME_CUSTOM_LAYOUT,
   SERVICE_DELETE_CUSTOM_LAYOUT,
   SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+  SERVICE_START_ZONE_CLEAN,
 } from "../constants.js";
 
 export function applyMapActions(proto) {
+
+  /**
+   * Dispatch an ad-hoc free-form zone clean (draw a box on the live map → clean
+   * it). `zones` is a list of normalized rectangles [x0,y0,x1,y1] (fractions 0-1
+   * of the live-map image, top-left origin). Fire-and-forget: the backend bypasses
+   * the room-id job pipeline. Returns the service response (a status dict) or null.
+   *
+   * @param {number[][]} zones
+   * @param {number} [cleanTimes=1]
+   */
+  proto.cleanZone = async function (zones, cleanTimes = 1) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !Array.isArray(zones) || zones.length === 0) return null;
+    const data = { vacuum_entity_id: vacuum, zones, clean_times: cleanTimes };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    return await this.callService(DOMAIN, SERVICE_START_ZONE_CLEAN, data, true);
+  };
+
+  /**
+   * Set one of the vacuum's provider setting selects (suction/mode/intensity/water)
+   * to `option`. These are the device's current settings a zone clean runs off, so
+   * the zone panel edits the real entity directly via the HA `select` service.
+   *
+   * @param {string} entityId  a select.* entity id from settingEntities()
+   * @param {string} option    one of the entity's options
+   */
+  proto.setVacuumSetting = async function (entityId, option) {
+    if (!entityId || option == null) return null;
+    return await this.callService("select", "select_option", {
+      entity_id: entityId,
+      option,
+    });
+  };
 
   /**
    * Fetch map segments and store the result in state. Also drives the
@@ -253,6 +293,97 @@ export function applyMapActions(proto) {
       SERVICE_SET_LIVE_MAP_ROTATION,
       { vacuum_entity_id: vacuum, map_id: mapId, rotation: next },
       true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Toggle one map_state_source overlay layer's visibility (Wave 3c). Sends only the
+   * one layer as a partial `visibility` delta (the backend merges over the defaults);
+   * map_id auto-resolves server-side when omitted. Optimistic flip first so the
+   * checkbox + overlay update instantly; the snapshot reconciles on its next push.
+   */
+  /**
+   * Replace-all the per-map hidden regions (drawn rects that mask map noise). `regions` is a
+   * list of normalized [x0,y0,x1,y1]; an empty list clears them. Optimistic first so the mask
+   * appears/disappears instantly, then the (sanitized) backend list becomes authoritative.
+   */
+  proto.setHiddenRegions = async function (regions) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const list = Array.isArray(regions) ? regions : [];
+    this.state.setHiddenRegionsOptimistic?.(list);
+    const data = { vacuum_entity_id: vacuum, regions: list };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_HIDDEN_REGIONS, data, true,
+    );
+    const resp = result?.response ?? result ?? null;
+    if (resp && Array.isArray(resp.hidden_regions)) {
+      this.state.setHiddenRegionsOptimistic?.(resp.hidden_regions);
+    }
+    return resp;
+  };
+
+  /**
+   * Persist (or clear) a room's area-label (m²) position so the user can drag it off the
+   * room-name label. pct values are 0-100 of the map content box; pass null for both to reset
+   * to the room centre. Map_id auto-resolves. Returns the updated anchors map.
+   */
+  proto.setAreaLabelAnchor = async function (roomId, pctX, pctY) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || roomId == null) return null;
+    const payload = { vacuum_entity_id: vacuum, room_id: String(roomId) };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) payload.map_id = mapId;
+    if (pctX != null) payload.pct_x = Number(pctX);
+    if (pctY != null) payload.pct_y = Number(pctY);
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_AREA_LABEL_ANCHOR, payload, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  proto.setMapOverlayVisibility = async function (layer, visible) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !layer) return null;
+    this.state.setOverlayVisibilityOptimistic?.(layer, visible);
+    const data = { vacuum_entity_id: vacuum, visibility: { [layer]: Boolean(visible) } };
+    const mapId = this.state.activeMapId?.();
+    if (mapId) data.map_id = mapId;
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, data, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Fetch the raster + decode params for the VA's own client-side map render
+   * (Wave 1). Adapter-driven; the card caches the response by its `version` and only
+   * re-fetches when the map changes. Returns the render-data object or null.
+   */
+  proto.getMapRenderData = async function () {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_GET_MAP_RENDER_DATA, { vacuum_entity_id: vacuum }, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Read the fork's FRESH in-memory live pose (robot/dock anchors + current-room + live
+   * path) — the lightweight ~2s poll that overrides the lagged snapshot overlays while
+   * the robot is cleaning (Phase B). Adapter-driven; returns the response (which may be
+   * `{present:false, reason:"not_configured"}` for a brand without a live_pose block —
+   * the caller latches that off so it never polls a frame-fresh brand). null on failure.
+   */
+  proto.getMapLivePose = async function () {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum) return null;
+    const result = await this.callService(
+      DOMAIN, SERVICE_GET_MAP_LIVE_POSE, { vacuum_entity_id: vacuum }, true,
     );
     return result?.response ?? result ?? null;
   };

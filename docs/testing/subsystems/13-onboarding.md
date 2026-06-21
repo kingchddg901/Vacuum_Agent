@@ -3,7 +3,7 @@
 The onboarding subsystem tracks per-map setup completeness: whether rooms have
 been discovered and whether every enabled room has a confirmed floor type. It
 feeds the start-status `onboarding_required` gate and the onboarding sensor.
-Covered by **6 tests in 1 file** (plus the onboarding sensor in
+Covered by **7 tests in 1 file** (plus the onboarding sensor in
 [18 — platforms](18-platforms.md)).
 
 Source: `custom_components/eufy_vacuum/onboarding/`
@@ -15,7 +15,7 @@ Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboard
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 73 | 98% | `test_onboarding_manager.py` | integration |
+| `manager.py` | 81 | 95% | `test_onboarding_manager.py` | integration |
 
 ---
 
@@ -25,6 +25,11 @@ Architecture reference: [docs/dev/18-onboarding-manager.md](../../dev/18-onboard
   `floor_types_complete`, the `enabled_rooms_needing_floor_type` list, and the
   overall status (`complete` / `floor_type_needed` / `rooms_needed`).
 - **Mutations** — `mark_rooms_discovered`, `confirm_floor_type`, `reset_onboarding`.
+- **Floor-type re-key after re-segment** (`remap_confirmed_floor_types`, OB-6) —
+  carries existing floor-type confirmations onto re-segmented room ids via the
+  old→new `id_remap` (and drops the old keys) so a renumbered-but-already-confirmed
+  room isn't re-prompted after a reconcile migrate, which would otherwise re-block
+  cleaning with `onboarding_required`. No-op when `id_remap` is empty.
 - **New-room check** — `check_for_new_rooms` against the vacuum entity's segment
   attribute count.
 
@@ -49,11 +54,13 @@ tests, but not this one.)
 
 `manager.py` (98%) has one uncovered line, narrow:
 
-- **Non-list segments guard** (`check_for_new_rooms`, line 188) — the
+- **Non-list segments guard** (`check_for_new_rooms`, line 211) — the
   `return False` when the source entity's segments attribute isn't a list.
-  The no-state path (line 184) is tested; this is the malformed-attribute
+  The no-state path (line 207) is tested; this is the malformed-attribute
   defensive guard. Defensive-by-design, intentionally uncovered.
 
-`get_rooms_onboarding_summary` is statement-covered (`test_summary`, OB-4) but
-not 100% branch-covered — the all-complete loop continuation (`211->205`) is
-unexercised because the test seeds only an incomplete map.
+`get_rooms_onboarding_summary` (lines 218-241) is statement-covered
+(`test_summary`, OB-4) but not 100% branch-covered — the all-complete loop
+continuation (`234->228`, the per-map `if not state["onboarding_complete"]:`
+falling through to the next iteration) is unexercised because the test seeds
+only an incomplete map.

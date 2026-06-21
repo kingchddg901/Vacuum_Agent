@@ -33,7 +33,7 @@ The card renders using the _resolved_ result of merging active theme + working d
 
 Groups are editor-only metadata. They organize the token editor UI and have no effect on backend persistence, which remains a flat dictionary.
 
-The static groups below are the fixed editor order. Between **Modals & Overlays** and **Shared Foundations** the registry combiner (`src/theme-tokens/index.js:144-145`) splices in a dynamic **Animal Companion** section: an "Animal Companion" parent group plus one "Animal Companion — &lt;Name&gt;" sub-group per registered animal, sourced from the live AnimalSVG registry (`src/theme-tokens/animals.js`) rather than hand-listed — mirroring the Floor Textures parent/sub-group treatment. So the real editor list is the 19 static groups plus the per-animal section, not a fixed 19.
+The static groups below are the fixed editor order. Between **Modals & Overlays** and **Shared Foundations** the registry combiner (`src/theme-tokens/index.js:137-142`, inside `rebuild()`) splices in a dynamic **Animal Companion** section: an "Animal Companion" parent group plus one "Animal Companion — &lt;Name&gt;" sub-group per registered animal, sourced from the live AnimalSVG registry (`src/theme-tokens/animals.js`) rather than hand-listed — mirroring the Floor Textures parent/sub-group treatment. So the real editor list is the 19 static groups plus the per-animal section, not a fixed 19.
 
 | Group | Purpose |
 |---|---|
@@ -233,7 +233,7 @@ CVD gate validates.
 
 **How they're distinguished:** Preloaded theme IDs use the `theme_` prefix followed by a short slug (e.g. `theme_core_slate`). User-saved themes use the `theme_` prefix followed by a timestamp (e.g. `theme_20240612T103045123456`). There is no explicit `is_preloaded` flag.
 
-**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`theme.js:313`, `id !== defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
+**Why preloaded themes can't be deleted or overwritten in the normal workflow:** The seeding logic in `ensure_preloaded_theme_library()` only adds an entry if the ID is not already present. If a user deletes or overwrites `theme_core_slate` through the service layer (there is no guard in `delete_theme()` preventing it), the original value will be gone until the next HA restart re-seeds it. The card UI only hides the delete button for the current default theme (`src/renderers/theme.js:492`, `id !== state.defaultThemeId`); every other built-in still renders a delete button and is UI-deletable, and the backend enforces nothing.
 
 **The `theme_follow_ha` default:** If `default_theme_id` is missing or points to a nonexistent entry, it is reset to `theme_follow_ha` at seeding time. `theme_follow_ha` has empty `colors` and `tokens`, which means no `--evcc-` variables are injected — the card's CSS falls through to its static defaults.
 
@@ -493,7 +493,7 @@ and adds it as a **new** library theme — a malformed payload is rejected whole
    .my-component { background: var(--evcc-surface-new-thing); }
    ```
 
-4. **Provide a default** in every built-in theme's token set (in `manager.py`, update `_build_release_theme_tokens()` or the `BASE_PRELOADED_THEME_SPEC`) so the token has a sensible value out of the box. For tokens that should fall back gracefully when absent, add a CSS fallback in the `var()` call: `var(--evcc-surface-new-thing, #1c2127)`.
+4. **Provide a default** in every built-in theme's token set (in `themes/preloaded.py`, update `_build_release_theme_tokens()` or the `BASE_PRELOADED_THEME_SPEC`) so the token has a sensible value out of the box. For tokens that should fall back gracefully when absent, add a CSS fallback in the `var()` call: `var(--evcc-surface-new-thing, #1c2127)`.
 
 5. **Regenerate the reference docs** so the catalog + usage trace stay current:
    ```
@@ -553,15 +553,22 @@ Files:
 ```
 custom_components/eufy_vacuum/frontend/animal-svg/
 ├── animal-svg.js     custom element + registry + shared keyframes
-├── manifest.js       loads animal-svg.js then each animal file
+├── manifest.js       loads animal-svg.js then each animal listed in index.json
 ├── animals/
 │   ├── cat.js
 │   ├── dog.js
 │   ├── raccoon.js
 │   ├── parrot.js
-│   └── snake.js
+│   ├── snake.js
+│   ├── mittens.js    memorial mascot (registers with memorial: true)
+│   └── index.json    auto-generated manifest of the .js files above
 └── demo.html         open in a browser to verify everything works
 ```
+
+`animals/index.json` is **not** hand-maintained — the integration regenerates it at
+startup from whatever `.js` files exist in `animals/` (`__init__.py:129-137`, a sorted
+`os.listdir` filtered to `.js`), and `manifest.js` `fetch`es it to decide which animal
+files to load.
 
 Usage from the card (or anywhere in HA):
 
@@ -569,13 +576,13 @@ Usage from the card (or anywhere in HA):
 <animal-svg animal="cat" pose="walking"></animal-svg>
 ```
 
-**Attributes (observed):** `animal`, `pose`, `width`, `height`. Poses: `animating | standing | curled | alert | walking | warning`. Adding a new animal = a self-registering JS file in `animals/` plus a line in `manifest.js`.
+**Attributes (observed):** `animal`, `pose`, `width`, `height`. Poses: `animating | standing | curled | alert | walking | warning`. Adding a new animal = drop a self-registering JS file in `animals/` (one that calls `AnimalSVG.register(...)`) and restart HA — `manifest.js` reads the auto-generated `animals/index.json`, so **no manifest edit is required**.
 
-**Why it's a separate resource:** the component is a self-registering standalone module rather than part of the card bundle, so adding an animal (a new file in `animals/` plus a line in `manifest.js`) does not force a card rebuild. It ships under the integration's `frontend/` directory and is served at `/eufy_vacuum/frontend/animal-svg/`.
+**Why it's a separate resource:** the component is a self-registering standalone module rather than part of the card bundle, so adding an animal (a new file in `animals/`, picked up via the auto-generated `index.json`) does not force a card rebuild. It ships under the integration's `frontend/` directory and is served at `/eufy_vacuum/frontend/animal-svg/`.
 
 ### How it's wired today
 
-The map view renders the companion live. `src/renderers/map.js:306` emits `<animal-svg animal="${animal}" pose="${pose}" width=... height=... battery-state=...>` at the room anchor, and `_vacuumStateToPose()` (`src/renderers/map.js:21-31`) derives the pose from the canonical HA vacuum state:
+The map view renders the companion live. `src/renderers/map.js:726-727` emits `<animal-svg animal="${animal}" pose="${pose}" width=... height=... battery-state=...>` at the room anchor, and `_vacuumStateToPose()` (`src/renderers/map.js:21-31`) derives the pose from the canonical HA vacuum state:
 
 - `cleaning → alert`
 - `returning → walking`
@@ -583,6 +590,18 @@ The map view renders the companion live. `src/renderers/map.js:306` emits `<anim
 - `error → warning`
 - `docked` / `idle` (and the default) `→ curled`
 
-The Animal Companion token group (parent + per-animal sub-groups, with `--evcc-animal-*` keys) lives in `src/theme-tokens/animals.js` and is spliced into the live registry by `src/theme-tokens/index.js` `rebuild()` (lines 129-158).
+The Animal Companion token group (parent + per-animal sub-groups, with `--evcc-animal-*` keys) lives in `src/theme-tokens/animals.js` and is spliced into the live registry by `src/theme-tokens/index.js` `rebuild()` (lines 132-161).
+
+### Memorial animals (the Rainbow Bridge section)
+
+An animal file may register with `memorial: true` (e.g. `mittens.js`). The flag is
+orthogonal to `type` (body plan), so a memorial can be any animal shape. Memorial
+animals are grouped separately in the editor: `buildAnimalGroupOrder()`
+(`src/theme-tokens/animals.js:242-253`) partitions the registered animals into the
+everyday companions under the **Animal Companion** parent and the memorials under a
+dedicated **Rainbow Bridge** parent group (`MEMORIAL_PARENT_GROUP`,
+`animals.js:66`), appended after the everyday companions with one
+"Rainbow Bridge — &lt;Name&gt;" sub-group each. The parent is heading-only — the
+editor renders it because it has children.
 
 The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.

@@ -27,7 +27,10 @@ collection.
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
+
+_LOGGER = logging.getLogger(__name__)
 
 # All sensors are event-driven; centralised callbacks handle data fetching.
 PARALLEL_UPDATES = 0
@@ -48,6 +51,7 @@ from .dock_event import EufyVacuumDockEventSensor
 from .error import EufyVacuumActiveRunErrorSensor, EufyVacuumLastDeviceErrorSensor
 from .lifecycle import EufyVacuumActiveJobSensor
 from .maintenance import EufyVacuumMaintenanceRemainingSensor
+from .map_overlays import EufyVacuumMapOverlaysSensor
 from .onboarding import EufyVacuumOnboardingSensor
 from .profile import EufyVacuumProfileSensor
 from .room_history import EufyVacuumRoomCleaningHistorySensor
@@ -87,6 +91,8 @@ async def async_setup_entry(
     # active_job_entities keyed by (vacuum_entity_id, map_id) so the
     # job-finished handler can refresh the right sensor directly.
     active_job_entities: dict[tuple[str, str], EufyVacuumActiveJobSensor] = {}
+    # map_overlays sensor per vacuum — refreshed on a timer (below).
+    map_overlays_by_vacuum: dict[str, EufyVacuumMapOverlaysSensor] = {}
 
     maps = manager.data.get("maps", {})
     for vacuum_entity_id in maps.keys():
@@ -141,6 +147,14 @@ async def async_setup_entry(
                 vacuum_entity_id=vacuum_entity_id,
             )
         )
+
+        # Map-overlays sensor — the VA's read of the device's own map as attributes.
+        _map_overlays_sensor = EufyVacuumMapOverlaysSensor(
+            manager=manager,
+            vacuum_entity_id=vacuum_entity_id,
+        )
+        entities.append(_map_overlays_sensor)
+        map_overlays_by_vacuum[vacuum_entity_id] = _map_overlays_sensor
 
         # Battery health sensors — six per vacuum (cycles + 3 rates +
         # last-charge duration + health %). Backed by BatteryHealthManager.
@@ -405,3 +419,43 @@ async def async_setup_entry(
         timedelta(hours=1),
     )
     entry.async_on_unload(unsub_hourly)
+
+    async def _refresh_map_overlays(_now=None) -> None:
+        """Pre-warm the map_state_source cache + push state to the overlay sensors.
+
+        The dashboard snapshot warms the cache when the card is open; this timer keeps
+        it fresh for automations/templates when it isn't. The Eufy read is mtime-cached
+        (cheap when unchanged) and the Roborock introspect is in-memory, so a modest
+        cadence is fine. Per-vacuum failures are isolated.
+        """
+        from ..rooms.room_discovery import get_active_map_id
+
+        for vac, entity in map_overlays_by_vacuum.items():
+            try:
+                # Prefer the live active map; fall back to the first STORED map so the
+                # cache warms even before the active-map entity is ready / when it's
+                # unresolvable (else the sensor sticks at present:false with no cache).
+                map_id = None
+                try:
+                    map_id = get_active_map_id(hass, vac)
+                except Exception:  # noqa: BLE001
+                    map_id = None
+                if not map_id:
+                    vac_maps = manager.data.get("maps", {}).get(vac, {})
+                    map_id = next(iter(vac_maps), None)
+                if map_id:
+                    await manager.async_refresh_map_state_source(
+                        vacuum_entity_id=vac, map_id=map_id,
+                    )
+            except Exception:  # noqa: BLE001 - never let one vacuum break the tick
+                _LOGGER.debug("map_overlays refresh failed for %s", vac, exc_info=True)
+            _request_entity_state_write(entity)
+
+    # Initial warm shortly after setup, then on a steady cadence.
+    hass.async_create_task(_refresh_map_overlays())
+    unsub_map_overlays = async_track_time_interval(
+        hass,
+        _refresh_map_overlays,
+        timedelta(seconds=60),
+    )
+    entry.async_on_unload(unsub_map_overlays)

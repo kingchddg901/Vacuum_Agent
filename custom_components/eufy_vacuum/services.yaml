@@ -668,6 +668,51 @@ start_selected_rooms:
             - label: Cancel and event
               value: cancel_and_event
 
+start_zone_clean:
+  name: Start zone clean
+  description: >
+    Clean one or more free-form rectangular zones instead of whole rooms.
+    Fire-and-forget (no room-id job tracking). Each zone is normalized
+    [x0, y0, x1, y1] — fractions 0-1 of the live-map image with (0,0) at the
+    top-left; the provider converts them to the device's world frame. Requires
+    a provider that supports zone cleaning (capability supports_zone_clean).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    zones:
+      name: Zones
+      description: >
+        List of rectangles, each [x0, y0, x1, y1] as fractions 0-1 of the live
+        map image (top-left origin). Example: [[0.05, 0.70, 0.35, 0.95]].
+      required: true
+      example: "[[0.05, 0.70, 0.35, 0.95]]"
+      selector:
+        object: {}
+    clean_times:
+      name: Clean times
+      description: Number of cleaning passes per zone (1-10).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+    map_id:
+      name: Map ID
+      description: >
+        Leave blank to use the current active map. Zone clean always targets the
+        provider's currently-loaded map regardless, so this is informational only.
+      required: false
+      selector:
+        text: {}
+
 # ============================================================
 # BATTERY HEALTH
 # ============================================================
@@ -2219,6 +2264,79 @@ set_companion_anchor:
           step: 0.01
           mode: box
 
+set_hidden_regions:
+  name: Set hidden regions
+  description: >
+    Replace the per-map "hidden regions" — rectangles you draw on the map to mask out
+    render noise (e.g. a porch the vacuum picked up off a room). Each region is a
+    normalized [x0, y0, x1, y1] (0-1 of the map image). Send an empty list to clear.
+    Stored per map so it follows you across devices. Normally driven by the card's
+    "Hide area" draw tool, not called by hand.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    regions:
+      name: Regions
+      description: List of [x0, y0, x1, y1] normalized rectangles. Empty clears all.
+      required: false
+      selector:
+        object: {}
+
+set_area_label_anchor:
+  name: Set area-label position
+  description: >
+    Move a room's area (m²) chip off its name label. pct_x/pct_y are 0-100 percentages
+    of the map content box; omit both to reset to the room centre. Stored per map so it
+    follows you across devices. Normally driven by dragging the chip on the card.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        text: {}
+    pct_x:
+      name: X position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
+          mode: box
+    pct_y:
+      name: Y position (0-100%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.01
+          mode: box
+
 set_live_map_rotation:
   name: Set live map rotation
   description: >
@@ -2249,6 +2367,133 @@ set_live_map_rotation:
             - "90"
             - "180"
             - "270"
+
+set_map_overlay_visibility:
+  name: Set map overlay visibility
+  description: >
+    Show or hide individual map overlay layers (room labels, room area, current room,
+    robot, dock, no-go / no-mop zones, virtual walls, saved zones, cleaning path,
+    obstacles) in the card's Map view. Stored per map (only your changes are kept,
+    merged over the defaults). Display only — never affects cleaning.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    visibility:
+      name: Visibility
+      description: >
+        Map of overlay layer -> true/false (partial; only the layers you list change).
+        Layers: room_labels, room_area, current_room, robot, dock, no_go, no_mop,
+        walls, zones, path, obstacles.
+      required: false
+      selector:
+        object: {}
+    reset:
+      name: Reset to defaults
+      description: Clear all saved overrides and fall back to the default visibility.
+      required: false
+      default: false
+      selector:
+        boolean: {}
+
+get_map_render_data:
+  name: Get map render data
+  description: >
+    Return the raw room raster + decode params the card uses to draw its OWN map
+    backdrop (no server-side image rendering). Adapter-driven; the card fetches this
+    on demand and caches it by the returned version. Brands without a map_render
+    config return present:false.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
+get_map_live_pose:
+  name: Get map live pose
+  description: >
+    Return the live moving-overlay pose (robot + dock anchors, current room, heading)
+    from the provider's in-memory coordinator — fresher than the .storage-derived pose.
+    The card polls this on the live cadence so the robot overlay isn't stale. Brands
+    without a live_pose config return present:false.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
+compare_map_sources:
+  name: Compare map sources (diagnostic)
+  description: >
+    Verify probe: compare the provider's IN-MEMORY map data against the .storage copy
+    and report whether the raster + geometry are byte-identical (normalization_safe). Run
+    this once before repointing the map source to the fresher, loop-safe in-memory data —
+    a true result means the validated overlay alignment is preserved. Diagnostic only.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+
+debug_log_live_room:
+  name: "Debug: log live current_room (THROWAWAY)"
+  description: >
+    Wave 0 validation probe (docs/dev/eufy-native-transition.md) — TEMPORARY, remove after use.
+    Logs the live current_room signal server-side, one line per tick, to
+    config/eufy_current_room_probe_<vacuum>.jsonl. Run it, then start a multi-room clean with
+    the map tab CLOSED (so the card's UI poll isn't keeping the signal warm). Read the file for
+    (1) is the signal refreshing server-side, (2) doorway/transit flicker rate,
+    (3) None-while-cleaning frequency. Call again with stop:true to end early; otherwise it
+    auto-stops after duration_minutes.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    interval_seconds:
+      name: Sample interval (s)
+      default: 2.0
+      selector:
+        number:
+          min: 0.5
+          max: 60
+          step: 0.5
+          unit_of_measurement: s
+    duration_minutes:
+      name: Max duration (min)
+      default: 30
+      selector:
+        number:
+          min: 1
+          max: 180
+          unit_of_measurement: min
+    stop:
+      name: Stop the running probe
+      default: false
+      selector:
+        boolean:
 
 create_custom_layout:
   name: Create custom layout

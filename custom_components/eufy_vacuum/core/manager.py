@@ -20,7 +20,7 @@ from .charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
-from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_SKIPPED, EVENT_ROOM_STARTED, EVENT_STALL_DETECTED
+from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
 from ..entity_helpers import get_floor_type_label
 from ..jobs.job_monitor import (
     build_job_metadata_from_payload,
@@ -35,7 +35,6 @@ from ..maps.map_manager import (
 )
 from ..models.models import VacuumRuntimeState
 from ..queue.queue_engine import (
-    advance_active_job_phase,
     build_active_job_state,
     build_queue_from_managed_rooms,
     build_room_clean_payload,
@@ -304,6 +303,16 @@ class EufyVacuumManager:
         self.data: dict[str, Any] = {}
         self.runtime: dict[str, VacuumRuntimeState] = {}
         self._room_history_cache_ready: set[str] = set()
+        # map_state_source cache (Wave 1): the normalized, VA-owned read of the
+        # provider's OWN segmentation, keyed by vacuum_entity_id. Populated by the
+        # async pre-warm (async_refresh_map_state_source) so the on-loop sync
+        # snapshot never does the blocking .storage read itself. Value shape:
+        # {"mtime": float|None, "map_id": str, "result": <map_source result dict>}.
+        # Written by the MapSourceCoordinator pre-warm and READ on-loop by the dashboard
+        # snapshot composer + the map-overlays sensor — kept here (not on the coordinator) so
+        # those readers don't reach across a subsystem. The coordinator-internal caches
+        # (per-room scan, live-pose geometry) live on the coordinator itself.
+        self._map_state_source_cache: dict[str, dict[str, Any]] = {}
 
     async def async_initialize(self) -> None:
         """Load persistent storage and bring all data structures up to the current schema.
@@ -363,11 +372,30 @@ class EufyVacuumManager:
         from ..jobs import ActiveJobTracker
         self.active_job = ActiveJobTracker(manager=self)
 
+        # Construct PhaseRunner - owns strict-order (sequenced) phase execution: the
+        # per-phase watchdog (settle/dispatch/verify/retry) + per-phase timing capture.
+        # Constructed after ActiveJobTracker (the watchdog reads manager.active_job).
+        from ..jobs import PhaseRunner
+        self.phase_runner = PhaseRunner(manager=self)
+
         from ..planning import RunPlanManager
         self.run_plan = RunPlanManager(manager=self)
 
         from ..rooms import RoomMapManager
         self.room_map = RoomMapManager(manager=self)
+
+        # Construct LiveRoomRefreshManager (Lever B) - owns the contiguous-run live
+        # current-room refresh: adapter-config resolution, the per-vacuum rate-limit +
+        # sticky-disable state, the local-connection probe, and the fire-and-forget pulse.
+        from ..live_refresh import LiveRoomRefreshManager
+        self.live_room_refresh = LiveRoomRefreshManager(manager=self)
+
+        # Construct MapSourceCoordinator - owns the map_state_source backend dispatch
+        # (the provider's own segmentation + live-pose reads). Writes the normalized
+        # result to self._map_state_source_cache (read on-loop by the snapshot composer
+        # + the map-overlays sensor); shares self._resolve_live_map_image_entity.
+        from ..mapping.map_source_coordinator import MapSourceCoordinator
+        self.map_source = MapSourceCoordinator(manager=self)
 
         # Backfill fields added after initial release; rooms that already have
         # the key are untouched by setdefault.
@@ -2537,6 +2565,10 @@ class EufyVacuumManager:
         """Append a counter sample to in-flight jobs — delegates to ActiveJobTracker."""
         return self.active_job.record_counter_sample(**kwargs)
 
+    def record_pose_sample(self, **kwargs) -> bool:
+        """Append a pose sample to an external run (W5b) — delegates to ActiveJobTracker."""
+        return self.active_job.record_pose_sample(**kwargs)
+
     def clear_active_job(self, **kwargs) -> dict:
         """Clear active job state — delegates to ActiveJobTracker."""
         return self.active_job.clear_active_job(**kwargs)
@@ -2757,6 +2789,10 @@ class EufyVacuumManager:
         """Segment a finished external capture into a pending record + clear the slot."""
         counter_samples = list(slot.get("counter_samples", []) or [])
         settings_samples = list(slot.get("settings_samples", []) or [])
+        # W5c: the run-active pose stream (pose_sampler) — drives room attribution in
+        # build_pending_record (pre-fills the wizard / stands up a pose-only record). Empty
+        # for a non-map brand or a run with no live map → attribution is skipped downstream.
+        pose_samples = list(slot.get("pose_samples", []) or [])
         detection_ts = slot.get("started_at")
         rooms = (
             self.get_managed_rooms(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
@@ -2788,9 +2824,10 @@ class EufyVacuumManager:
             except (OSError, ValueError):
                 baselines = []
             # The v2 record embeds the raw samples so the run can be re-segmented
-            # server-side (the review wizard's room-count / split-here); they are
-            # stripped before serving to the card. Bounded by _MAX_COUNTER_SAMPLES
-            # (active_job.py), so the persisted record stays ~100-200 KB worst case.
+            # (counter) and re-attributed (pose) server-side; both are stripped before
+            # serving to the card. Bounded by _MAX_COUNTER_SAMPLES + _MAX_POSE_SAMPLES
+            # (active_job.py) — a normal run is small (~50-150 KB); the pose worst case
+            # is the 3000-sample cap (a long stall, which the stall-detector fix prevents).
             record = build_pending_record(
                 detection_ts=detection_ts,
                 map_id=map_id,
@@ -2799,6 +2836,7 @@ class EufyVacuumManager:
                 rooms=rooms,
                 baselines=baselines,
                 vacuum_entity_id=vacuum_entity_id,
+                pose_samples=pose_samples,
             )
             if record is None:
                 return None
@@ -2811,8 +2849,20 @@ class EufyVacuumManager:
             store.write_json(path, record)
             return {"path": str(path), "segment_count": record.get("segment_count")}
 
-        result = await self.hass.async_add_executor_job(_build_and_write)
-        self.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        # Always clear the slot, even if the build raises — otherwise a build error leaves a
+        # zombie status="external" slot that the pose sampler keeps writing into and that wedges
+        # this (vacuum, map)'s future grace handling. (_attribute already degrades a failed
+        # attribution to None on its own, so the common case still writes a counter record.)
+        try:
+            result = await self.hass.async_add_executor_job(_build_and_write)
+        except Exception:
+            _LOGGER.exception(
+                "eufy_vacuum: external-run finalize failed for %s/%s — clearing the slot",
+                vacuum_entity_id, map_id,
+            )
+            result = None
+        finally:
+            self.clear_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
         if result is not None:
             from ..const import EVENT_EXTERNAL_RUN_PENDING
 
@@ -3143,130 +3193,30 @@ class EufyVacuumManager:
                     awaiting_bounds_exit = True
 
         # ------------------------------------------------------------------
-        # Stall detection
+        # Run anomalies: stall (hard) + running_long (soft) + skipped
         # ------------------------------------------------------------------
-        # A stall is when the bounds gate is already blocking rollover AND
-        # the robot has been in the room for >= 2x the timing threshold.
-        # Fire EVENT_STALL_DETECTED once per room per job (tracked in the
-        # active job dict so the event doesn't re-fire on every snapshot call).
-        # ------------------------------------------------------------------
-        _anomaly_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("anomaly", {})
-        _STALL_RATIO = _safe_float(_anomaly_cfg.get("stall_ratio"), 2.0)
-        _RUNNING_LONG_RATIO = _safe_float(_anomaly_cfg.get("running_long_ratio"), 1.5)
-        stall_detected = False
-        stall_elapsed_minutes: float | None = None
-        stall_expected_minutes: float | None = None
-        stall_ratio: float | None = None
-
-        if awaiting_bounds_exit and current_room_id is not None:
-            _stall_entry = next(
-                (
-                    r for r in raw_timeline
-                    if _safe_int(r.get("room_id", -1), -1) == current_room_id
-                ),
-                None,
-            )
-            if _stall_entry is not None:
-                _stall_threshold = self._timing_completion_threshold_minutes(_stall_entry)
-                if _stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO:
-                    stall_detected = True
-                    stall_elapsed_minutes = round(current_room_elapsed_minutes, 1)
-                    stall_expected_minutes = round(_stall_threshold, 1)
-                    stall_ratio = round(current_room_elapsed_minutes / _stall_threshold, 2)
-
-                    # Fire event exactly once per room per job.
-                    # The set is bounded to one entry per unique room ID; cap
-                    # mirrors the job's own room count as a safety valve.
-                    _notified = set(active_job.get("_stall_notified_room_ids") or [])
-                    if current_room_id not in _notified:
-                        _notified.add(current_room_id)
-                        _stall_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
-                        active_job["_stall_notified_room_ids"] = list(_notified)[-_stall_cap:]
-                        self.data.setdefault("active_jobs", {}) \
-                            .setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
-                        _stall_room_name = (
-                            self._room_name_from_active_job(active_job, current_room_id)
-                            or f"Room {current_room_id}"
-                        )
-                        self.hass.bus.async_fire(
-                            EVENT_STALL_DETECTED,
-                            {
-                                "vacuum_entity_id": vacuum_entity_id,
-                                "map_id": str(map_id),
-                                "room_id": current_room_id,
-                                "room_name": _stall_room_name,
-                                "elapsed_minutes": stall_elapsed_minutes,
-                                "expected_minutes": stall_expected_minutes,
-                                "stall_ratio": stall_ratio,
-                            },
-                        )
-
-        # ------------------------------------------------------------------
-        # Anomaly: running_long (soft) + skipped (conservative)
-        # ------------------------------------------------------------------
-        # running_long is the soft tier BELOW the 2x stall: the current room has run
-        # _RUNNING_LONG_RATIO..stall x its estimate with no pending counter transition
-        # (genuinely stuck in the room, not a missed roll). Disjoint from stall by band.
-        running_long = False
-        running_long_ratio: float | None = None
-        running_long_room_id: int | None = None
-        if (not stall_detected) and current_room_id is not None and active_job.get("status") == "started":
-            _rl_entry = next(
-                (r for r in raw_timeline if _safe_int(r.get("room_id", -1), -1) == current_room_id),
-                None,
-            )
-            if _rl_entry is not None:
-                _rl_threshold = self._timing_completion_threshold_minutes(_rl_entry)
-                _pending_transition = (
-                    self.active_job._live_boundary_count(vacuum_entity_id, active_job, raw_timeline)
-                    > len(completed_room_ids)
-                )
-                if (
-                    _rl_threshold > 0
-                    and not _pending_transition
-                    and current_room_elapsed_minutes >= _rl_threshold * _RUNNING_LONG_RATIO
-                    and current_room_elapsed_minutes < _rl_threshold * _STALL_RATIO
-                ):
-                    running_long = True
-                    running_long_ratio = round(current_room_elapsed_minutes / _rl_threshold, 2)
-                    running_long_room_id = current_room_id
-
-        # skipped (conservative): a queued room the live tracking has provably advanced
-        # PAST (strictly before the current room in queue order) that is not completed.
-        # Eufy's sequential counter rollover keeps completed_room_ids a queue prefix, so
-        # this is ~empty live for Eufy (a mid-run skip can't be attributed from counters
-        # — the reliable "missed rooms" is the post-run incomplete_run_log). It fires on
-        # a non-sequential advance (position-reliable brands / transition detection) and
-        # future-proofs the hook. No false-positive heuristic.
-        skipped_room_ids: list[int] = []
-        if current_room_id is not None:
-            _queue_order = [_safe_int(r.get("room_id", -1), -1) for r in raw_timeline]
-            if current_room_id in _queue_order:
-                _cur_idx = _queue_order.index(current_room_id)
-                skipped_room_ids = [
-                    rid for rid in _queue_order[:_cur_idx]
-                    if rid >= 0 and rid not in completed_room_ids
-                ]
-        if skipped_room_ids:
-            _skip_notified = set(active_job.get("_skipped_notified_room_ids") or [])
-            _new_skips = [rid for rid in skipped_room_ids if rid not in _skip_notified]
-            if _new_skips:
-                _skip_notified.update(_new_skips)
-                _skip_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
-                active_job["_skipped_notified_room_ids"] = list(_skip_notified)[-_skip_cap:]
-                self.data.setdefault("active_jobs", {}).setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
-                for _rid in _new_skips:
-                    self.hass.bus.async_fire(
-                        EVENT_ROOM_SKIPPED,
-                        {
-                            "vacuum_entity_id": vacuum_entity_id,
-                            "map_id": str(map_id),
-                            "job_id": active_job.get("job_id"),
-                            "room_id": _rid,
-                            "room_name": self._room_name_from_active_job(active_job, _rid) or f"Room {_rid}",
-                            "completed_room_ids": list(completed_room_ids),
-                        },
-                    )
+        # Detection + one-shot event emission (EVENT_STALL_DETECTED /
+        # EVENT_ROOM_SKIPPED, deduped per room per job) live in ActiveJobTracker,
+        # which owns the active-job dict + the dedup state. The composer hands it the
+        # already-resolved locals and reads the anomaly fields back for the snapshot.
+        _anomalies = self.active_job.detect_run_anomalies(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            active_job=active_job,
+            raw_timeline=raw_timeline,
+            current_room_id=current_room_id,
+            current_room_elapsed_minutes=current_room_elapsed_minutes,
+            completed_room_ids=completed_room_ids,
+            awaiting_bounds_exit=awaiting_bounds_exit,
+        )
+        stall_detected = _anomalies["stall_detected"]
+        stall_elapsed_minutes = _anomalies["stall_elapsed_minutes"]
+        stall_expected_minutes = _anomalies["stall_expected_minutes"]
+        stall_ratio = _anomalies["stall_ratio"]
+        running_long = _anomalies["running_long"]
+        running_long_ratio = _anomalies["running_long_ratio"]
+        running_long_room_id = _anomalies["running_long_room_id"]
+        skipped_room_ids = _anomalies["skipped_room_ids"]
 
         # ------------------------------------------------------------------
         # Transition-room detection (snapshot-only — does not modify storage)
@@ -3619,6 +3569,24 @@ class EufyVacuumManager:
         supports_map_bounds = bool(
             _segmenter_engine and _segmenter_engine != "noop_fallback"
         )
+        # Ad-hoc free-form zone cleaning (draw a box on the live map → clean it).
+        # Brand capability flag (adapter dispatch.zone_command provides the verb).
+        # The card ADDITIONALLY requires a resolved live-map image before exposing
+        # the zone-draw control — you draw the box on that image, and the live map
+        # only exists on the fork that also accepts zone_clean.
+        supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
+        # The vacuum's provider setting entities (suction / mode / intensity / water
+        # level selects), resolved + existence-checked from the adapter's
+        # `settings_selects` (the same block the external-run capture uses). Surfaced
+        # so the card's zone-clean panel can render them as LIVE controls — a zone
+        # clean runs off the device's current settings, so the panel edits these real
+        # entities (select.select_option) rather than holding a parallel store.
+        _settings_selects = _adapter_cfg.get("settings_selects", {}) or {}
+        setting_entities: dict[str, str] = {}
+        for _skey, _scfg in _settings_selects.items():
+            _seid = (_scfg or {}).get("entity_id")
+            if _seid and self.hass.states.get(_seid) is not None:
+                setting_entities[_skey] = _seid
         # Optional CV libraries (numpy / Pillow / scipy) power Auto (CV) map
         # segmentation but are NOT a hard dependency (manifest requirements = []).
         # Surface RUNTIME availability so the card can hide/disable Auto (CV) and
@@ -3648,24 +3616,9 @@ class EufyVacuumManager:
         #      {map_slug} = the slugified map id).
         # Either source is existence-checked; absent -> no live backdrop (byte-identical
         # to before for brands that declare no pattern and have no override).
-        live_map_image_entity = None
-        _vac_record = self.data.get("vacuums", {}).get(vacuum_entity_id, {}) or {}
-        _override = _vac_record.get("live_map_image_entity")
-        if _override and self.hass.states.get(_override) is not None:
-            live_map_image_entity = _override
-        if live_map_image_entity is None:
-            _live_pattern = _mapping_cfg.get("live_map_image_entity_pattern")
-            if _live_pattern:
-                from homeassistant.util import slugify as _slugify
-                try:
-                    _candidate = str(_live_pattern).format(
-                        object_id=vacuum_entity_id.split(".", 1)[-1],
-                        map_slug=_slugify(str(map_id)),
-                    )
-                except (KeyError, IndexError, ValueError):
-                    _candidate = None
-                if _candidate and self.hass.states.get(_candidate) is not None:
-                    live_map_image_entity = _candidate
+        live_map_image_entity = self._resolve_live_map_image_entity(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=_adapter_cfg
+        )
         # User's chosen live-map display rotation (0/90/180/270), stored per map so
         # it follows them across devices. Surfaced even at 0 so the card has a value.
         _live_map_bucket = (
@@ -3675,6 +3628,17 @@ class EufyVacuumManager:
             live_map_rotation = int(_live_map_bucket.get("live_map_rotation", 0) or 0) % 360
         except (TypeError, ValueError):
             live_map_rotation = 0
+        # Per-map overlay-layer visibility (Wave 3b): the user's stored deltas merged
+        # over the defaults, so the card knows which map_state_source layers to draw.
+        # Independent of map_state_source presence (prefs exist even when no map data).
+        from ..mapping.map_source import resolve_overlay_visibility
+        map_overlay_visibility = resolve_overlay_visibility(
+            _live_map_bucket.get("overlay_visibility")
+        )
+        # Adapter declares a `map_render` block iff it can supply the raster for the
+        # card's OWN map render → the card offers the "VA-rendered map" backdrop source.
+        # Static per brand (Eufy yes, Roborock no — its HA image is already frame-matched).
+        supports_va_render = isinstance(_adapter_cfg.get("map_render"), dict)
 
         return {
             "vacuum_entity_id": vacuum_entity_id,
@@ -3694,12 +3658,104 @@ class EufyVacuumManager:
             "passes_is_global": passes_is_global,
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
+            "supports_zone_clean": supports_zone_clean,
+            "setting_entities": setting_entities,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,
             "live_map_rotation": live_map_rotation,
+            "map_overlay_visibility": map_overlay_visibility,
+            # Map-level display data the DASHBOARD map needs (the live map renders the m²
+            # chips + noise masks outside the editor, where get_map_segments isn't fetched).
+            # Surfaced here from the same bucket as map_overlay_visibility so a dragged label
+            # position + a drawn mask PERSIST on the plain dashboard, not only in the editor.
+            "area_label_anchors": (
+                dict(_live_map_bucket.get("area_label_anchors") or {})
+                if isinstance(_live_map_bucket.get("area_label_anchors"), dict) else {}
+            ),
+            "hidden_regions": (
+                list(_live_map_bucket.get("hidden_regions") or [])
+                if isinstance(_live_map_bucket.get("hidden_regions"), list) else []
+            ),
+            "supports_va_render": supports_va_render,
+            # VA-owned read of the provider's OWN segmentation (map_state_source,
+            # Wave 1: per-room bbox+name + dock/robot anchors, normalized to the
+            # rendered image). Read from the cache the async pre-warm populates — the
+            # on-loop snapshot never does the blocking .storage read. Absent marker
+            # when not configured / not yet warmed / source not present. No consumer
+            # wiring yet (Wave 1 = expose + verify); see docs/dev/map-state-source.md.
+            "map_state_source": (
+                (self._map_state_source_cache.get(vacuum_entity_id) or {}).get("result")
+                or {"present": False, "reason": "not_loaded"}
+            ),
             "updated_at": _iso_now(),
         }
+
+    def _resolve_live_map_image_entity(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        adapter_cfg: dict[str, Any] | None = None,
+    ) -> str | None:
+        """Resolve the live map-image backdrop entity for a vacuum/map, or None.
+
+        Two sources, OVERRIDE-FIRST (see get_dashboard_snapshot for the full why):
+          1) the per-VACUUM user override (data["vacuums"][vid]["live_map_image_entity"]),
+          2) else the ADAPTER's live_map_image_entity_pattern ({object_id}/{map_slug}).
+        Either is existence-checked; absent → None. Shared by the snapshot and the
+        map_state_source presence gate so both agree on "is the live map present?".
+        """
+        adapter_cfg = adapter_cfg if adapter_cfg is not None else (
+            _get_adapter_config(vacuum_entity_id) or {}
+        )
+        mapping_cfg = adapter_cfg.get("mapping", {}) or {}
+        vac_record = self.data.get("vacuums", {}).get(vacuum_entity_id, {}) or {}
+        override = vac_record.get("live_map_image_entity")
+        if override and self.hass.states.get(override) is not None:
+            return override
+        pattern = mapping_cfg.get("live_map_image_entity_pattern")
+        if not pattern:
+            return None
+        from homeassistant.util import slugify as _slugify
+        try:
+            candidate = str(pattern).format(
+                object_id=vacuum_entity_id.split(".", 1)[-1],
+                map_slug=_slugify(str(map_id)),
+            )
+        except (KeyError, IndexError, ValueError):
+            return None
+        if candidate and self.hass.states.get(candidate) is not None:
+            return candidate
+        return None
+
+    async def async_refresh_map_state_source(
+        self, *, vacuum_entity_id: str, map_id: str
+    ) -> dict[str, Any]:
+        """Pre-warm the map_state_source cache — delegate to MapSourceCoordinator.
+        Called by the dashboard-snapshot service handler before the sync snapshot.
+        See mapping/map_source_coordinator.py."""
+        return await self.map_source.async_refresh_map_state_source(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id
+        )
+
+    async def async_get_map_live_pose(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Lightweight live-pose poll — delegate to MapSourceCoordinator."""
+        return await self.map_source.async_get_map_live_pose(
+            vacuum_entity_id=vacuum_entity_id
+        )
+
+    async def async_compare_map_sources(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """In-memory-vs-storage verify probe — delegate to MapSourceCoordinator."""
+        return await self.map_source.async_compare_map_sources(
+            vacuum_entity_id=vacuum_entity_id
+        )
+
+    async def async_get_map_render_data(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Card own-render raster fetch — delegate to MapSourceCoordinator."""
+        return await self.map_source.async_get_map_render_data(
+            vacuum_entity_id=vacuum_entity_id
+        )
 
 
     # Job finalization — delegates to ActiveJobTracker
@@ -3925,6 +3981,7 @@ class EufyVacuumManager:
         *,
         vacuum_entity_id: str,
         payload: dict[str, Any],
+        command_override: str | None = None,
     ) -> None:
         """Send one clean payload to the vacuum service using the adapter's envelope.
 
@@ -3932,11 +3989,15 @@ class EufyVacuumManager:
         envelope shapes: wrapped ``{command, params}`` (Eufy/Roborock/Ecovacs
         send_command) when a ``command`` is declared, else direct merge-into-data
         (Dreame's vacuum_clean_segment). Shared by job start and phase advance.
+
+        ``command_override`` forces a specific send_command verb (e.g. an ad-hoc
+        ``zone_clean``) in place of the adapter's default clean command; the
+        domain/name and params-shaping still come from the adapter dispatch config.
         """
         cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
         domain = cfg.get("service_domain", "vacuum")
         name = cfg.get("service_name", "send_command")
-        command = cfg.get("command", "room_clean")
+        command = command_override or cfg.get("command", "room_clean")
         # Some brands wrap the params payload in a single-element list on the wire
         # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others
         # pass the bare dict (Eufy room_clean). Adapter-declared, default bare.
@@ -3946,6 +4007,59 @@ class EufyVacuumManager:
         else:
             data = {"entity_id": vacuum_entity_id, **payload}
         await self.hass.services.async_call(domain, name, data, blocking=True)
+
+    async def dispatch_zone_clean(
+        self,
+        *,
+        vacuum_entity_id: str,
+        zones: list[list[float]],
+        clean_times: int = 1,
+        map_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Dispatch an ad-hoc free-form zone clean (fire-and-forget).
+
+        ``zones`` is a list of normalized rectangles ``[x0, y0, x1, y1]`` (fractions
+        0-1 of the live-map image, top-left origin); the provider converts them to
+        the device world frame on its side. Unlike room cleans this carries no room
+        ids, so it deliberately BYPASSES the job/queue/learning pipeline — there is
+        nothing to track or roll over per-room. The send verb comes from the
+        adapter's ``dispatch.zone_command`` (only declared by brands whose provider
+        accepts a zone clean, and gated in the UI by ``supports_zone_clean``).
+
+        ``map_id`` is accepted because the service layer auto-resolves it, but it is
+        intentionally NOT sent: the provider uses its own currently-loaded map (the
+        same map the live image was drawn on), which avoids a stale-id mismatch.
+        """
+        if not zones:
+            raise ValueError("zone clean requires at least one zone rectangle")
+        # Defense-in-depth: reject malformed / near-zero-area rectangles before they
+        # reach the device (the card's converter is otherwise the only validator).
+        _MIN_SIDE = 0.01
+        for _z in zones:
+            if not isinstance(_z, (list, tuple)) or len(_z) != 4:
+                raise ValueError(f"zone must be [x0, y0, x1, y1], got {_z!r}")
+            _x0, _y0, _x1, _y1 = _z
+            if abs(_x1 - _x0) < _MIN_SIDE or abs(_y1 - _y0) < _MIN_SIDE:
+                raise ValueError(f"zone {_z!r} is degenerate (near-zero area)")
+        cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("dispatch", {})
+        zone_command = cfg.get("zone_command")
+        if not zone_command:
+            raise ValueError(
+                f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
+                "(zone cleaning is not supported for this brand/provider)"
+            )
+        payload = {"zones": zones, "clean_times": int(clean_times)}
+        await self._dispatch_clean_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            payload=payload,
+            command_override=zone_command,
+        )
+        return {
+            "status": "dispatched",
+            "vacuum_entity_id": vacuum_entity_id,
+            "zone_count": len(zones),
+            "clean_times": int(clean_times),
+        }
 
     async def _resolve_live_dispatch_payload(
         self,
@@ -4095,56 +4209,13 @@ class EufyVacuumManager:
         vacuum_entity_id: str,
         map_id: str,
     ) -> bool:
-        """For a sequenced job at phase completion, advance + re-dispatch instead
-        of finalizing.
-
-        Returns True when the job advanced to a next phase (the caller must skip
-        finalization); False for an atomic job or the final phase (the caller
-        finalizes exactly as today). The completion hook calls this right before
-        it would finalize.
-        """
-        active_job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-        advanced = advance_active_job_phase(active_job)
-        if advanced is None:
-            return False
-
-        advanced["current_room_started_at"] = _iso_now()
-        self.data.setdefault("active_jobs", {})
-        self.data["active_jobs"].setdefault(vacuum_entity_id, {})
-        self.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
-
-        # Re-dispatch the next room from a background task: the device just docked
-        # after the previous room and ignores a clean sent at that instant, so we
-        # settle, dispatch, verify it actually started, and retry if not (the retry
-        # loop is also the per-phase watchdog). Spawned (not awaited) so the
-        # completion listener returns promptly. See _run_advanced_phase.
-        self.hass.async_create_task(
-            self._run_advanced_phase(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                phase_index=int(advanced.get("current_phase_index", 0)),
-            )
+        """Strict-order phase advance (the completion hook's entry point) — delegate to
+        the PhaseRunner subsystem. Kept on the manager because production
+        (listeners/lifecycle) and the listener tests reference manager.maybe_advance_phase.
+        See jobs/phase_runner.py."""
+        return await self.phase_runner.maybe_advance_phase(
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id
         )
-        return True
-
-    def _phase_target_is_dock_room(
-        self, vacuum_entity_id: str, map_id: str, room_id: int | str | None
-    ) -> bool:
-        """True when ``room_id`` is the room the charging dock physically sits in
-        (the map's per-room is_dock_room flag). Used to extend the post-dock settle
-        for a dock-room strict-order phase. Safe on missing data → False."""
-        if room_id in (None, ""):
-            return False
-        rooms = (
-            self.data.get("maps", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id), {})
-            .get("rooms", {})
-        )
-        room = rooms.get(str(room_id))
-        if room is None:
-            room = rooms.get(room_id)
-        return bool(isinstance(room, dict) and room.get("is_dock_room", False))
 
     def _phase_timing(self, vacuum_entity_id: str) -> dict[str, int]:
         """Resolve the strict-order phase watchdog timing for this vacuum: the
@@ -4172,264 +4243,11 @@ class EufyVacuumManager:
                     pass
         return pt
 
-    async def _run_advanced_phase(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        phase_index: int,
-        initial: bool = False,
-    ) -> None:
-        """Dispatch/confirm a sequenced phase: settle, send, verify, retry.
-
-        ADVANCED phase: a path-optimizing device (Roborock S6) returns to the dock
-        + starts charging at the end of each single-room phase and ignores an
-        app_segment_clean sent at that instant — so we settle, send the room,
-        verify it actually started THIS room, and re-send if not. When the target
-        IS the dock room (the robot is parked + charging right on it) the settle is
-        extended (_PHASE_DOCK_SETTLE_SECONDS) so the longer ignore-transient passes
-        before the first dispatch.
-
-        INITIAL phase (``initial=True``): phase 0 was already dispatched by
-        start_selected_rooms, so we skip the settle and the first dispatch and just
-        VERIFY, then clear the dispatch-pending guard. The device may sit parked on
-        the dock at start (its current_room == the dock room, which can itself be a
-        target), so until it is confirmed ACTUALLY cleaning room 0 the completion
-        gate must not finalize it. A retry re-dispatches only if it ignored the
-        initial send.
-
-        Either way the retry cap is the per-phase watchdog — after it the run is
-        left stalled (recoverable via Cancel Run) rather than silently hung.
-        """
-        pt = self._phase_timing(vacuum_entity_id)
-        if not initial:
-            job0 = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            settle = pt["settle_seconds"]
-            if self._phase_target_is_dock_room(
-                vacuum_entity_id, map_id, (job0 or {}).get("current_room_id")
-            ):
-                settle = pt["dock_settle_seconds"]
-                _LOGGER.info(
-                    "Strict-order: phase %s on %s targets the dock room — extending "
-                    "the post-dock settle to %ss before dispatch so the device's "
-                    "ignore-transient passes.",
-                    phase_index, vacuum_entity_id, settle,
-                )
-            await asyncio.sleep(settle)
-        for attempt in range(1, pt["max_attempts"] + 1):
-            job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            # The job advanced past this phase, finalized, paused (status flips), or is
-            # being cancelled — async_cancel sets _cancel_in_flight up front, BEFORE the
-            # status flips, so the watchdog stops before it can re-dispatch during the
-            # return-to-base window. In every case the phase is no longer ours, so bail.
-            if (
-                not job
-                or job.get("status") != "started"
-                or int(job.get("current_phase_index", -1)) != phase_index
-                or job.get("_cancel_in_flight")
-            ):
-                _LOGGER.info(
-                    "Strict-order: phase %s on %s not (re)dispatched — the job is no "
-                    "longer on this phase (status=%s, phase=%s); it finalized, "
-                    "advanced, was cancelled, or the guard was released.",
-                    phase_index, vacuum_entity_id,
-                    (job or {}).get("status"), (job or {}).get("current_phase_index"),
-                )
-                return
-            # The initial phase's first send already happened at job start — just
-            # verify it; a re-dispatch only happens on a retry (device ignored it).
-            if not (initial and attempt == 1):
-                await self._dispatch_active_phase(
-                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, job=job, attempt=attempt
-                )
-            if await self._await_phase_started(
-                vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
-            ):
-                # Confirmed the device started THIS room — clear the dispatch-pending
-                # guard so its real completion can finalize/advance normally.
-                self._clear_phase_dispatch_pending(
-                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, phase_index=phase_index
-                )
-                return  # the target room actually started — phase under way
-            if attempt < pt["max_attempts"]:
-                _LOGGER.warning(
-                    "Strict-order: phase %s on %s hadn't started %ss after dispatch; "
-                    "retrying (%s/%s)",
-                    phase_index, vacuum_entity_id, pt["verify_seconds"],
-                    attempt + 1, pt["max_attempts"],
-                )
-        _LOGGER.warning(
-            "Strict-order: phase %s on %s failed to start after %s attempts; run "
-            "stalled — Cancel Run to recover",
-            phase_index, vacuum_entity_id, pt["max_attempts"],
-        )
-
-    def _clear_phase_dispatch_pending(
-        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
-    ) -> None:
-        """Clear the dispatch-pending guard once the watchdog has confirmed this
-        phase's room actually started, so its real completion can finalize/advance.
-        Only clears when the job is still on this exact phase — a later advance owns
-        its own pending flag. Writes straight to the stored record + best-effort save."""
-        job = (
-            self.data.get("active_jobs", {})
-            .get(vacuum_entity_id, {})
-            .get(str(map_id))
-        )
-        if (
-            isinstance(job, dict)
-            and job.get("status") == "started"
-            and int(job.get("current_phase_index", -1)) == phase_index
-            and job.get("_phase_dispatch_pending")
-        ):
-            job["_phase_dispatch_pending"] = False
-            self.hass.async_create_task(self._async_save_logged())
-
-    async def _await_phase_started(
-        self, *, vacuum_entity_id: str, map_id: str, phase_index: int
-    ) -> bool:
-        """Poll for the device to actually start — and stay on — THIS phase's TARGET
-        room. True once it has been observed cleaning the target for
-        _PHASE_CONFIRM_SECONDS cumulative (or if the phase advanced/finalized
-        meanwhile); False once it has gone _PHASE_VERIFY_SECONDS with NO observed
-        cleaning of the target — it ignored the dispatch / is still docked / is still
-        finishing the previous room — which triggers a re-dispatch.
-
-        The previous check ("is the vacuum cleaning at all" / the job-active binary)
-        false-passed: the device's inCleaning flag stays on across the whole job, so
-        a clean it IGNORED at the dock looked like success and the watchdog never
-        retried (only ~1 room in 4 actually fired). The strong signal is the brand's
-        NATIVE current-room matching the phase's target while actually cleaning,
-        SUSTAINED:
-
-          - vacuum.state == cleaning rules out the docked-in-the-target-room case
-            (when the dock physically sits in a target room the device reports
-            current_room == that room whenever parked).
-          - We accumulate cleaning-of-the-target seconds rather than confirm on a
-            single sample, because the live current-room signal dips in and out — a
-            dip just doesn't add to the tally (we don't require strict continuity).
-          - We bound an attempt by NO-PROGRESS time (idle), not a fixed overall
-            window: a long cross-room transit merely delays when the tally starts,
-            so it can't falsely fail a device that is genuinely on its way, while a
-            device that never reaches the room accrues idle and retries promptly.
-
-        Brands with no native current-room signal fall back to the coarse cleaning
-        check (immediate, unchanged)."""
-        cfg = _get_adapter_config(vacuum_entity_id) or {}
-        has_native = bool(cfg.get("entities", {}).get("active_cleaning_target"))
-        pt = self._phase_timing(vacuum_entity_id)
-        _poll = float(pt["poll_seconds"])
-        cleaning_in_target = 0.0  # cumulative seconds observed cleaning the target
-        idle = 0.0                # consecutive seconds with NO cleaning of the target
-        while True:
-            job = self.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
-            # Phase advanced / finalized / paused, or a cancel is in flight
-            # (_cancel_in_flight set up front) — nothing to retry.
-            if (
-                not job
-                or job.get("status") != "started"
-                or int(job.get("current_phase_index", -1)) != phase_index
-                or job.get("_cancel_in_flight")
-            ):
-                return True
-            progressed = False
-            if has_native:
-                target = job.get("current_room_id")
-                signal = self.active_job.native_current_room_target_id(
-                    vacuum_entity_id, job
-                )
-                st = self.hass.states.get(vacuum_entity_id)
-                is_cleaning = (
-                    st is not None and str(st.state).strip().lower() == "cleaning"
-                )
-                if (
-                    is_cleaning
-                    and signal is not None
-                    and target is not None
-                    and signal == target
-                ):
-                    cleaning_in_target += _poll
-                    if cleaning_in_target >= pt["confirm_seconds"]:
-                        return True
-                    progressed = True
-            elif self._vacuum_started_cleaning(vacuum_entity_id):
-                return True
-            # Reset the no-progress budget whenever we saw cleaning-of-the-target;
-            # otherwise accrue it and give up the attempt (re-dispatch) once the
-            # device has gone the whole budget without touching the target room.
-            idle = 0.0 if progressed else idle + _poll
-            if idle >= pt["verify_seconds"]:
-                # No progress for the whole budget. If we DID observe genuine cleaning
-                # of the target at some point (cleaning_in_target only accrues while
-                # vacuum.state==cleaning AND the native current_room==target — a parked
-                # robot can't accrue it), the device started this room and has since
-                # finished/docked: a small room that completes in under confirm_seconds.
-                # Treat that as confirmed, NOT a no-show — re-dispatching an already-
-                # cleaned room is ignored by the device, which would leave the phase
-                # stalled forever (_phase_dispatch_pending never clears). Only a true
-                # no-show (never cleaned the target) returns False to retry.
-                return cleaning_in_target > 0
-            await asyncio.sleep(_poll)
-
-    async def _dispatch_active_phase(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        job: dict[str, Any],
-        attempt: int = 1,
-    ) -> None:
-        """Apply this phase's per-room live settings (fan) then dispatch its segment.
-
-        Fan is set BEFORE the dispatch so the room starts at its own value with no
-        current_room poll lag. Segment ids are live-resolved by slug per phase so a
-        re-segment between rooms can't clean the wrong room (no-op without
-        dispatch.resolve_live_ids_by_slug). Per-room passes already ride the phase
-        payload.
-        """
-        await self.active_job.apply_per_room_live_settings_awaited(
-            vacuum_entity_id,
-            list(job.get("resolved_rooms", [])),
-            job.get("current_room_id"),
-        )
-        wire_payload = await self._resolve_live_dispatch_payload(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            payload=job.get("payload", {}),
-            resolved_rooms=list(job.get("resolved_rooms", [])),
-        )
-        await self._dispatch_clean_payload(
-            vacuum_entity_id=vacuum_entity_id, payload=wire_payload
-        )
-        # INFO so a strict-order run is diagnosable without enabling debug: shows
-        # the exact payload re-dispatched (an empty segment list = the next room
-        # was skipped, e.g. a slug that didn't resolve to a live id) + the attempt.
-        _LOGGER.info(
-            "Strict-order advance: %s map %s -> phase %s/%s, re-dispatched %s (attempt %s)",
-            vacuum_entity_id, map_id,
-            job.get("current_phase_index"), job.get("phase_count"),
-            wire_payload, attempt,
-        )
-
-    def _vacuum_started_cleaning(self, vacuum_entity_id: str) -> bool:
-        """Whether the vacuum is in an active cleaning session (a dispatch took).
-
-        True when the vacuum entity reports ``cleaning`` OR the adapter's job-active
-        binary (entities.job_active — the device 'inCleaning' flag) is on. Used to
-        verify a re-dispatched phase actually started before retrying.
-        """
-        st = self.hass.states.get(vacuum_entity_id)
-        if st is not None and str(st.state).strip().lower() == "cleaning":
-            return True
-        job_active_entity = (
-            (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
-            .get("job_active")
-        )
-        if job_active_entity:
-            js = self.hass.states.get(job_active_entity)
-            if js is not None and str(js.state).strip().lower() == "on":
-                return True
-        return False
+    def maybe_pulse_live_room_refresh(self, vacuum_entity_id: str) -> None:
+        """Lever B trigger — delegate to the live_refresh subsystem. Called from the
+        job-progress ticker for CONTIGUOUS runs (the caller excludes strict-order phased
+        runs). See live_refresh/manager.py for the full contract."""
+        self.live_room_refresh.maybe_pulse(vacuum_entity_id)
 
     async def start_selected_rooms(
         self,
@@ -4582,7 +4400,7 @@ class EufyVacuumManager:
         if active_job.get("phases"):
             active_job["_phase_dispatch_pending"] = True
             self.hass.async_create_task(
-                self._run_advanced_phase(
+                self.phase_runner._run_advanced_phase(
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=str(map_id),
                     phase_index=0,

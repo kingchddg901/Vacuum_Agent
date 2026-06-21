@@ -5,8 +5,10 @@ A separate test track from the Python suite: JS/Playwright tests that render the
 distinguishability, and theme-intake safety. Architecture lives in
 [dev/27-render-harness](../dev/27-render-harness.md); this is how to run it.
 
-The harness is the only place the **frontend** is tested — the ~1,900 Python
-cases stop at the backend contract; these pick up at the shadow-DOM boundary.
+The harness is where the **rendered card** is tested — the ~1,900 Python cases
+stop at the backend contract; these pick up at the shadow-DOM boundary. (A small
+set of pure-JS tooling units — the gallery-submission bot and the gallery-HTML
+builder — are tested separately with `node --test`; see [CI](#ci).)
 
 ---
 
@@ -33,6 +35,8 @@ cases stop at the backend contract; these pick up at the shadow-DOM boundary.
 | `cvd.spec.mjs` | the `cvd-safe` theme separates all 30 group pairs on the real card (ΔE2000 ≥ 15) + the 5-override cascade resolves | everywhere |
 | `shape-marks.spec.mjs` | the six badge marks are distinguishable in flat grayscale at dot size | everywhere |
 | `intake.spec.mjs` | the ingest gate skips malformed / unknown-namespace exports and clamps every value | everywhere |
+| `device-theme.spec.mjs` | per-device theme resolution: the real `VacuumCardState.effectiveActiveThemeId()` fallback chain keeps a device pin through a pre-load, resolves it once the library loads, and clears it only when genuinely stale | everywhere (also re-run in `card-visual` CI) |
+| `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station + Map Bounds nav tabs when `supportsBaseStation()` / `supportsMapBounds()` are false (the S6 case), default-shown otherwise (Eufy-safe) | everywhere |
 
 `npm run test:harness` runs all of them (visual auto-skips off-CI).
 
@@ -93,13 +97,18 @@ failing screenshots are the blast radius — then re-run with it to accept.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `.github/workflows/card-visual.yml` | push / PR touching `src/**`, `harness/**` | runs `visual` in the pinned image; uploads the diff report on failure |
-| `.github/workflows/theme-intake.yml` | `workflow_dispatch`, or push/PR to `gallery/themes/*.json` | renders each theme export through the ingest gate; uploads PNG artifacts (PR/dispatch) and **publishes the gallery to GitHub Pages on push to master** — one-time: enable Pages → *GitHub Actions* source |
+| `.github/workflows/card-visual.yml` | PR (any branch) or push **to `master`** touching `src/**`, `harness/**`, `package.json`, `package-lock.json`, or the workflow file | runs `visual` + `device-theme` in the pinned image; uploads the diff report on failure |
+| `.github/workflows/theme-intake.yml` | `workflow_dispatch`, or push/PR to `gallery/themes/*.json`, `docs/**`, `mkdocs.yml`, or `harness/**` (push also on the workflow file) | four jobs (gallery / docs / publish / deploy): renders each theme export through the ingest gate **and** builds the MkDocs docs site (`mkdocs build --strict`); uploads PNG + docs artifacts (PR/dispatch) and **on push to master publishes both to the one GitHub Pages site — gallery at `/`, docs at `/docs`** — one-time: enable Pages → *GitHub Actions* source |
 | `.github/workflows/theme-submission.yml` | a `theme-submission`-labelled issue is opened | validates a pasted export, renders its preview, and opens a reviewable PR with the preview inline ([dev/27 §8](../dev/27-render-harness.md#8-theme-submission-issue--pr)) — not a gate, no spec; one-time: a `theme-submission` label + "Allow Actions to create PRs" |
 
-Both run in the pinned image, so local-Docker and CI agree byte-for-byte. They're
-separate from the Python `tests.yml` job and require `package-lock.json` to be
-committed (for `npm ci`).
+Both run in the pinned image, so local-Docker and CI agree byte-for-byte. They
+require `package-lock.json` to be committed (for `npm ci`).
+
+`tests.yml` is the separate Python gate — but it now has a second `node scripts`
+job (node-24, no `npm install`) that runs the dependency-free JS tooling units
+with `node --test scripts/process-submission.test.mjs harness/lib/gallery-html.test.mjs`.
+That guards the gallery-submission bot core (`scripts/process-submission.mjs`) and
+the gallery-HTML builder — a non-Playwright track outside the harness specs above.
 
 ---
 

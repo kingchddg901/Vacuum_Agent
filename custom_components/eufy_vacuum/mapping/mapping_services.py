@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import json
 import logging
+import math
 import os
+import time
 from datetime import datetime
 from typing import Any
 
@@ -20,8 +24,14 @@ from ..const import (
     SERVICE_ADJUST_MAP_SEGMENT,
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
+    SERVICE_GET_MAP_RENDER_DATA,
+    SERVICE_GET_MAP_LIVE_POSE,
+    SERVICE_COMPARE_MAP_SOURCES,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_HIDDEN_REGIONS,
+    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_SET_MAP_OVERLAY_VISIBILITY,
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -35,6 +45,7 @@ from ..const import (
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
 from .manager import MappingManager
+from .map_source import OVERLAY_VISIBILITY_DEFAULTS, resolve_overlay_visibility
 from .segment_primitives import polygon_area, rasterize_primitives
 from .tracker import EVENT_BOUNDARY_SAVED
 
@@ -102,10 +113,16 @@ ALL_MAPPING_SERVICES = (
     SERVICE_ANALYZE_MAP_IMAGE,
     SERVICE_GET_MAP_SEGMENTS,
     SERVICE_ADJUST_MAP_SEGMENT,
-    # Map UI overlay state (segment→room links, companion anchors)
+    # Map UI overlay state (segment→room links, companion anchors, hidden regions)
     SERVICE_SET_SEGMENT_ROOM_LINK,
     SERVICE_SET_COMPANION_ANCHOR,
+    SERVICE_SET_HIDDEN_REGIONS,
+    SERVICE_SET_AREA_LABEL_ANCHOR,
     SERVICE_SET_LIVE_MAP_ROTATION,
+    SERVICE_SET_MAP_OVERLAY_VISIBILITY,
+    SERVICE_GET_MAP_RENDER_DATA,
+    SERVICE_GET_MAP_LIVE_POSE,
+    SERVICE_COMPARE_MAP_SOURCES,
     # CV/Custom toggle + custom-segment authoring + named custom layouts
     SERVICE_SET_SEGMENTATION_MODE,
     SERVICE_SET_CUSTOM_SEGMENTS,
@@ -483,12 +500,57 @@ SET_COMPANION_ANCHOR_SCHEMA = vol.Schema(
     }
 )
 
+# Replace-all the per-map HIDDEN REGIONS (drawn rects that mask map noise). The handler
+# sanitizes each entry, so the schema only needs the list shape; an empty/omitted list clears.
+SET_HIDDEN_REGIONS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Optional("regions", default=list): list,
+    }
+)
+
+# Per-room AREA-LABEL position (the m² chip), so the user can drag it off the room-name label.
+# Same shape as the companion anchor; null pct_x AND pct_y resets to the default (room centre).
+SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
+        vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
 
 SET_LIVE_MAP_ROTATION_SCHEMA = vol.Schema(
     {
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("rotation"): vol.All(vol.Coerce(int), vol.In([0, 90, 180, 270])),
+    }
+)
+
+SET_MAP_OVERLAY_VISIBILITY_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        # Optional — blank/absent auto-resolves to the active map (then the first
+        # stored map), like the dashboard-snapshot service.
+        vol.Optional("map_id"): cv.string,
+        # Partial map of overlay-layer -> bool, merged over the stored deltas. Keys
+        # are validated against the known layers so a typo is rejected, not silently
+        # stored. Omitted entirely on a reset.
+        vol.Optional("visibility"): vol.Schema(
+            {vol.In(tuple(OVERLAY_VISIBILITY_DEFAULTS)): cv.boolean}
+        ),
+        # Clear all stored deltas -> fall back to the defaults.
+        vol.Optional("reset", default=False): cv.boolean,
+    }
+)
+
+GET_MAP_RENDER_DATA_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
     }
 )
 
@@ -1103,6 +1165,12 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         "segments": adjusted_segments,
         "adjustments": adjustments,
         "companion_anchors": dict(anchors) if isinstance(anchors, dict) else {},
+        # Hidden regions are MAP-LEVEL (mode-independent physical masks), not scope-resolved.
+        "hidden_regions": list(map_bucket.get("hidden_regions") or [])
+        if isinstance(map_bucket.get("hidden_regions"), list) else [],
+        # Area-label positions are MAP-LEVEL too (the device rooms are mode-independent).
+        "area_label_anchors": dict(map_bucket.get("area_label_anchors") or {})
+        if isinstance(map_bucket.get("area_label_anchors"), dict) else {},
     }
 
 
@@ -1601,6 +1669,93 @@ async def _handle_set_companion_anchor(
     }
 
 
+async def _handle_set_hidden_regions(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Replace-all the per-map HIDDEN REGIONS — normalized ``[x0, y0, x1, y1]`` rects (0-1 of
+    the rendered image, top-left origin) the card draws to MASK map noise (e.g. porch noise off
+    a room). Stored at the MAP-BUCKET level (NOT per segmentation scope): a hidden area is a
+    physical region, mode-independent, and only drawable over the device-frame backdrop — so it
+    follows the map regardless of CV/custom layout. An empty/omitted ``regions`` clears them.
+    Each entry is sanitized (4 FINITE numbers, clamped 0-1, ordered min<max, degenerate dropped).
+    Returns the updated list."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    raw = call.data.get("regions") or []
+
+    cleaned: list[list[float]] = []
+    for rect in raw:
+        if not (isinstance(rect, (list, tuple)) and len(rect) == 4):
+            continue
+        if not all(
+            isinstance(c, (int, float)) and not isinstance(c, bool) and math.isfinite(c)
+            for c in rect
+        ):
+            continue  # reject non-numeric / bool / NaN / inf (NaN would clamp to an edge, not drop)
+        x0, y0, x1, y1 = (max(0.0, min(1.0, float(c))) for c in rect)
+        lo_x, hi_x = sorted((x0, x1))
+        lo_y, hi_y = sorted((y0, y1))
+        if hi_x - lo_x > 0.001 and hi_y - lo_y > 0.001:  # drop degenerate / stray taps
+            cleaned.append([round(lo_x, 5), round(lo_y, 5), round(hi_x, 5), round(hi_y, 5)])
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    regions: list = map_bucket.setdefault("hidden_regions", [])
+    regions.clear()
+    regions.extend(cleaned)
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_hidden_regions: %d region(s) on %s/%s", len(cleaned), vacuum_entity_id, map_id,
+    )
+    return {"saved": True, "hidden_regions": list(regions)}
+
+
+async def _handle_set_area_label_anchor(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear the per-room AREA-LABEL position (the m² chip), so it can be dragged off
+    the room-name label. Stored MAP-LEVEL (the device rooms are segmentation-mode-independent),
+    keyed by room id, as ``{pct_x, pct_y}`` (0-100 of the map content box — the same frame the
+    mascot anchor uses). Null both pct_x and pct_y to reset to the default (room centre).
+    Returns the updated map."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    room_id: str = str(call.data["room_id"]).strip()
+    pct_x = call.data.get("pct_x")
+    pct_y = call.data.get("pct_y")
+
+    if not room_id:
+        return {"saved": False, "reason": "missing_room_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    anchors: dict = map_bucket.setdefault("area_label_anchors", {})
+
+    if pct_x is None and pct_y is None:
+        anchors.pop(room_id, None)
+        action = "cleared"
+    else:
+        x = max(0.0, min(100.0, float(pct_x))) if pct_x is not None else 50.0
+        y = max(0.0, min(100.0, float(pct_y))) if pct_y is not None else 50.0
+        anchors[room_id] = {"pct_x": round(x, 4), "pct_y": round(y, 4)}
+        action = "set"
+
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_area_label_anchor: %s on %s/%s room %s",
+        action, vacuum_entity_id, map_id, room_id,
+    )
+    return {
+        "saved": True, "room_id": room_id, "action": action,
+        "area_label_anchors": dict(anchors),
+    }
+
+
 async def _handle_set_live_map_rotation(
     hass: HomeAssistant, call: ServiceCall,
 ) -> dict:
@@ -1628,6 +1783,226 @@ async def _handle_set_live_map_rotation(
         rotation, vacuum_entity_id, map_id,
     )
     return {"saved": True, "live_map_rotation": rotation}
+
+
+async def _handle_set_map_overlay_visibility(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist per-map overlay-layer visibility (Wave 3b). Display only.
+
+    Stores only the user's DELTAS as ``overlay_visibility`` on the map bucket (a partial
+    dict merged over the defaults at read time via ``resolve_overlay_visibility``), so the
+    defaults can evolve without rewriting stored prefs. ``reset:true`` clears the deltas.
+    Returns the fully-resolved visibility for the card. Like rotation, this never touches
+    cleaning/dispatch — the card reads it to show/hide overlay layers on the backdrop.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    # Resolve map_id when omitted: active map, then the first stored map.
+    map_id = call.data.get("map_id")
+    if not map_id:
+        from ..rooms.room_discovery import get_active_map_id
+        try:
+            map_id = get_active_map_id(hass, vacuum_entity_id)
+        except Exception:  # noqa: BLE001
+            map_id = None
+    if not map_id:
+        vac_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
+        map_id = next(iter(vac_maps), None)
+    if not map_id:
+        return {
+            "saved": False,
+            "error": "no_map",
+            "message": f"No map found for '{vacuum_entity_id}'; pass map_id explicitly.",
+        }
+    map_bucket = ensure_map_bucket(
+        data=manager.data,
+        vacuum_entity_id=vacuum_entity_id,
+        map_id=map_id,
+    )
+    if call.data.get("reset"):
+        map_bucket.pop("overlay_visibility", None)
+    else:
+        stored = map_bucket.get("overlay_visibility")
+        if not isinstance(stored, dict):
+            stored = {}
+        stored.update({k: bool(v) for k, v in (call.data.get("visibility") or {}).items()})
+        map_bucket["overlay_visibility"] = stored
+    await manager.async_save()
+    resolved = resolve_overlay_visibility(map_bucket.get("overlay_visibility"))
+    _LOGGER.debug(
+        "set_map_overlay_visibility: %s/%s -> %s",
+        vacuum_entity_id, map_id, resolved,
+    )
+    return {"saved": True, "map_id": map_id, "overlay_visibility": resolved}
+
+
+async def _handle_get_map_render_data(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return the raster + decode params for the card's OWN map render (Wave 1).
+
+    Adapter-driven, off-loop .storage read — delegates to
+    manager.async_get_map_render_data. The card calls this on demand (VA-rendered
+    backdrop selected) and caches by the returned `version`.
+    """
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_get_map_render_data(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
+async def _handle_get_map_live_pose(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Return the live moving-overlay pose (robot/dock/current-room) from the fork's
+    in-memory coordinator — the lightweight payload the card polls at the ~2s cadence."""
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_get_map_live_pose(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
+async def _handle_compare_map_sources(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Verify probe: compare the fork's in-memory _map_data against the .storage map_data
+    (byte-identical check) before repointing the map source to memory."""
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    return await manager.async_compare_map_sources(
+        vacuum_entity_id=call.data["vacuum_entity_id"]
+    )
+
+
+# ===========================================================================
+# THROWAWAY DIAGNOSTIC — Wave 0 of the native-transition design
+# (docs/dev/eufy-native-transition.md). REMOVE after the validation recording.
+#
+# Question it answers: is the inferred live `current_room` fresh + non-flickering
+# during a real run WITH NO CARD OPEN? It runs server-side (so the card's ~2s UI
+# poll is NOT keeping the signal warm) and logs the SAME `async_get_map_live_pose`
+# payload the card reads, one line per tick, to a JSONL file in the config dir.
+# Read three numbers off it: (1) refresh actually happening server-side,
+# (2) doorway/transit flicker rate, (3) None-while-cleaning frequency.
+# ===========================================================================
+
+# Active probe tasks, keyed by vacuum entity id (so a second call can stop/restart).
+_LIVE_ROOM_PROBE_TASKS: dict[str, asyncio.Task] = {}
+
+DEBUG_LOG_LIVE_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("interval_seconds", default=2.0): vol.All(
+            vol.Coerce(float), vol.Range(min=0.5, max=60.0)
+        ),
+        vol.Optional("duration_minutes", default=30): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=180)
+        ),
+        vol.Optional("stop", default=False): cv.boolean,
+    }
+)
+
+
+def _append_jsonl(path: str, obj: dict) -> None:
+    """Append one JSON line (sync — runs in the executor, never on the loop)."""
+    with open(path, "a", encoding="utf-8") as fh:
+        fh.write(json.dumps(obj) + "\n")
+
+
+async def _handle_debug_log_live_room(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Start (or stop) a server-side per-tick logger of the live current_room signal.
+
+    THROWAWAY — see the banner above. Call with stop: true to cancel early; otherwise it
+    auto-stops after duration_minutes. Restarting cancels any prior probe for the vacuum.
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    stop: bool = call.data["stop"]
+
+    # Cancel any in-flight probe for this vacuum first (restart or stop both want this).
+    existing = _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
+    if existing is not None and not existing.done():
+        existing.cancel()
+    if stop:
+        return {"stopped": True, "vacuum_entity_id": vacuum_entity_id}
+
+    interval: float = float(call.data["interval_seconds"])
+    duration_minutes: int = int(call.data["duration_minutes"])
+    duration_s = duration_minutes * 60
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    path = hass.config.path(
+        f"eufy_current_room_probe_{vacuum_entity_id.replace('.', '_')}.jsonl"
+    )
+    oid = vacuum_entity_id.split(".", 1)[-1]   # for the device sensors below
+
+    def _sensor_num(suffix):
+        s = hass.states.get(f"sensor.{oid}_{suffix}")
+        try:
+            return float(s.state) if s is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _sensor_str(suffix):
+        s = hass.states.get(f"sensor.{oid}_{suffix}")
+        return s.state if s is not None else None
+
+    await hass.async_add_executor_job(
+        _append_jsonl, path,
+        {
+            "kind": "meta", "vacuum": vacuum_entity_id, "started": utc_now_iso(),
+            "interval_seconds": interval, "duration_minutes": duration_minutes,
+            "note": "tab-CLOSED validation; read freshness/flicker/None-rate",
+        },
+    )
+
+    async def _loop() -> None:
+        start = time.monotonic()
+        n = 0
+        try:
+            while time.monotonic() - start < duration_s:
+                tick = utc_now_iso()
+                try:
+                    pose = await manager.async_get_map_live_pose(
+                        vacuum_entity_id=vacuum_entity_id
+                    )
+                except Exception as err:  # a probe must never crash a real run
+                    pose = {"present": False, "reason": f"probe_error:{err!r}"}
+                # Log only the small fields (skip the verbose `path` trail).
+                await hass.async_add_executor_job(
+                    _append_jsonl, path,
+                    {
+                        "kind": "sample", "t": tick, "i": n,
+                        "present": bool(pose.get("present")),
+                        "reason": pose.get("reason"),
+                        "current_room": pose.get("current_room"),
+                        "robot_docked": pose.get("robot_docked", False),
+                        "robot_anchor": pose.get("robot_anchor"),
+                        "robot_heading": pose.get("robot_heading"),
+                        # Device signals for the room-attribution classifier: swept-area is the
+                        # REQUIRED clean-vs-parked separator (a wash/park sweeps ~0 m^2); the
+                        # status fields timestamp the washes. See room_attribution.py.
+                        "cleaning_area": _sensor_num("cleaning_area"),
+                        "cleaning_time": _sensor_num("cleaning_time"),
+                        "task_status": _sensor_str("task_status"),
+                        "dock_status": _sensor_str("dock_status"),
+                        "diagnostics": pose.get("diagnostics"),
+                    },
+                )
+                n += 1
+                await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            _LIVE_ROOM_PROBE_TASKS.pop(vacuum_entity_id, None)
+            try:
+                await hass.async_add_executor_job(
+                    _append_jsonl, path,
+                    {"kind": "end", "ended": utc_now_iso(), "samples": n},
+                )
+            except Exception:  # executor may be gone on shutdown — best-effort
+                pass
+
+    task = hass.async_create_background_task(
+        _loop(), name=f"eufy_live_room_probe:{vacuum_entity_id}"
+    )
+    _LIVE_ROOM_PROBE_TASKS[vacuum_entity_id] = task
+    return {
+        "started": True, "vacuum_entity_id": vacuum_entity_id, "path": path,
+        "interval_seconds": interval, "duration_minutes": duration_minutes,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -2125,8 +2500,26 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_companion_anchor(call: ServiceCall) -> dict:
         return await _handle_set_companion_anchor(hass, call)
 
+    async def set_hidden_regions(call: ServiceCall) -> dict:
+        return await _handle_set_hidden_regions(hass, call)
+
+    async def set_area_label_anchor(call: ServiceCall) -> dict:
+        return await _handle_set_area_label_anchor(hass, call)
+
     async def set_live_map_rotation(call: ServiceCall) -> dict:
         return await _handle_set_live_map_rotation(hass, call)
+
+    async def set_map_overlay_visibility(call: ServiceCall) -> dict:
+        return await _handle_set_map_overlay_visibility(hass, call)
+
+    async def get_map_render_data(call: ServiceCall) -> dict:
+        return await _handle_get_map_render_data(hass, call)
+
+    async def get_map_live_pose(call: ServiceCall) -> dict:
+        return await _handle_get_map_live_pose(hass, call)
+
+    async def compare_map_sources(call: ServiceCall) -> dict:
+        return await _handle_compare_map_sources(hass, call)
 
     async def set_segmentation_mode(call: ServiceCall) -> dict:
         return await _handle_set_segmentation_mode(hass, call)
@@ -2186,8 +2579,41 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
         schema=SET_COMPANION_ANCHOR_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
+        DOMAIN, SERVICE_SET_HIDDEN_REGIONS, set_hidden_regions,
+        schema=SET_HIDDEN_REGIONS_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_AREA_LABEL_ANCHOR, set_area_label_anchor,
+        schema=SET_AREA_LABEL_ANCHOR_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
         DOMAIN, SERVICE_SET_LIVE_MAP_ROTATION, set_live_map_rotation,
         schema=SET_LIVE_MAP_ROTATION_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_MAP_OVERLAY_VISIBILITY, set_map_overlay_visibility,
+        schema=SET_MAP_OVERLAY_VISIBILITY_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAP_RENDER_DATA, get_map_render_data,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_MAP_LIVE_POSE, get_map_live_pose,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_COMPARE_MAP_SOURCES, compare_map_sources,
+        schema=GET_MAP_RENDER_DATA_SCHEMA, supports_response=True,
+    )
+
+    # THROWAWAY DIAGNOSTIC (Wave 0, eufy-native-transition) — remove after validation.
+    async def debug_log_live_room(call: ServiceCall) -> dict:
+        return await _handle_debug_log_live_room(hass, call)
+
+    hass.services.async_register(
+        DOMAIN, "debug_log_live_room", debug_log_live_room,
+        schema=DEBUG_LOG_LIVE_ROOM_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_CREATE_CUSTOM_LAYOUT, create_custom_layout,

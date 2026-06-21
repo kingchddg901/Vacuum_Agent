@@ -91,6 +91,15 @@ export const mapStyles = `
     -webkit-user-drag:  none;
   }
 
+  /* VA-rendered backdrop (Wave 1): the card draws the device room raster to this
+     canvas. Shares .evcc-map-image (object-fit:contain → letterboxes the same as the
+     live image, so the overlays align). Non-room pixels stay transparent → the
+     container's themed background reads as floor. The canvas intrinsic size is set on
+     draw (grid dims), so the contain ratio matches the device frame. */
+  .evcc-map-render-canvas {
+    image-rendering: auto;
+  }
+
   /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
      segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
      90° step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with
@@ -173,6 +182,300 @@ export const mapStyles = `
   }
 
   /* =========================================================
+     ZONE CLEAN (ad-hoc draw-a-box → clean)
+     ========================================================= */
+
+  /* Toolbar toggle, active state. */
+  .evcc-map-zoom-btn--on {
+    background:   var(--evcc-accent, #3b82f6);
+    border-color: var(--evcc-accent, #3b82f6);
+    color:        #fff;
+  }
+
+  /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
+     the press so the rubber-band handler owns the drag. */
+  .evcc-map-container--zone,
+  .evcc-map-container--hide { cursor: crosshair; }
+  /* The segment polygons + companion set pointer-events:all, which stays hittable
+     even under a parent svg's pointer-events:none — so suppress the ACTUAL targets
+     (higher specificity wins) so the rubber-band owns the press. */
+  .evcc-map-container--zone .evcc-map-svg,
+  .evcc-map-container--zone .evcc-map-polygon,
+  .evcc-map-container--zone .evcc-map-animal,
+  .evcc-map-container--zone .evcc-map-label,
+  .evcc-map-container--hide .evcc-map-svg,
+  .evcc-map-container--hide .evcc-map-polygon,
+  .evcc-map-container--hide .evcc-map-animal,
+  .evcc-map-container--hide .evcc-map-label { pointer-events: none !important; }
+
+  /* The in-progress drag box (dashed), positioned in pct of .evcc-map-layers. */
+  .evcc-zone-draft {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px dashed var(--evcc-accent, #3b82f6);
+    background:     rgba(59, 130, 246, 0.18);
+    border-radius:  2px;
+    pointer-events: none;
+    z-index:        4;
+  }
+  /* Committed zones (display-only; pointer-events off so more can be drawn over). */
+  .evcc-zone-rect {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px solid var(--evcc-accent, #3b82f6);
+    background:     rgba(59, 130, 246, 0.12);
+    border-radius:  2px;
+    pointer-events: none;
+    z-index:        3;
+  }
+  .evcc-zone-rect-num {
+    position:      absolute;
+    top:           1px;
+    left:          2px;
+    font-size:     10px;
+    font-weight:   700;
+    line-height:   1;
+    color:         #fff;
+    background:     var(--evcc-accent, #3b82f6);
+    border-radius: 3px;
+    padding:       1px 3px;
+  }
+
+  /* HIDDEN REGIONS — user-drawn masks covering map noise (a porch off a room). Opaque map-bg
+     fill so the area reads as "not mapped"; z-index 5 (rendered after labels) keeps it above
+     the static map + labels but below the live robot/dock markers (z-index 6). */
+  .evcc-hidden-region {
+    position:       absolute;
+    box-sizing:     border-box;
+    background:     var(--evcc-surface-panel, #1c2127);
+    z-index:        5;
+    pointer-events: none;
+  }
+  /* While editing: a translucent tinted box (so you see what's under + that it's editable). */
+  .evcc-hidden-region--edit {
+    background:     rgba(59, 130, 246, 0.20);
+    border:         2px dashed var(--evcc-accent, #3b82f6);
+    border-radius:  2px;
+  }
+  .evcc-hidden-region-del {
+    position:        absolute;
+    top:             -9px;
+    right:           -9px;
+    width:           18px;
+    height:          18px;
+    padding:         0;
+    font-size:       13px;
+    line-height:     1;
+    border:          none;
+    border-radius:   50%;
+    background:      var(--evcc-accent, #3b82f6);
+    color:           #fff;
+    cursor:          pointer;
+    pointer-events:  auto;       /* the × stays clickable even though the mask isn't */
+    display:         flex;
+    align-items:     center;
+    justify-content: center;
+  }
+  /* In-progress hide-draw box (dashed), in pct of .evcc-map-layers like the zone draft. */
+  .evcc-hide-draft {
+    position:       absolute;
+    box-sizing:     border-box;
+    border:         2px dashed var(--evcc-accent, #3b82f6);
+    background:     rgba(120, 120, 130, 0.35);
+    border-radius:  2px;
+    pointer-events: none;
+    z-index:        6;
+  }
+  /* Hide-area tools row in the Map Layers panel. */
+  .evcc-map-hide-tools {
+    display:    flex;
+    gap:        6px;
+    margin-top: 8px;
+  }
+  .evcc-map-hide-btn {
+    flex:          1;
+    padding:       5px 8px;
+    font-size:     12px;
+    border:        1px solid var(--evcc-border, #2d333b);
+    border-radius: 6px;
+    background:    var(--evcc-surface-raised, #232a31);
+    color:         var(--evcc-text, #e6edf3);
+    cursor:        pointer;
+  }
+  .evcc-map-hide-btn--on {
+    background:   var(--evcc-accent, #3b82f6);
+    color:        #fff;
+    border-color: var(--evcc-accent, #3b82f6);
+  }
+  .evcc-map-hide-btn--clear { flex: 0 0 auto; }
+
+  /* Floating action bar over the map while drawing. */
+  .evcc-zone-bar {
+    position:      absolute;
+    left:          50%;
+    bottom:        10px;
+    transform:     translateX(-50%);
+    display:       flex;
+    align-items:   center;
+    gap:           8px;
+    padding:       6px 10px;
+    border-radius: 8px;
+    background:    var(--evcc-surface-panel, rgba(20, 24, 30, 0.92));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+    box-shadow:    0 2px 10px rgba(0, 0, 0, 0.35);
+    z-index:       5;
+    max-width:     calc(100% - 20px);
+  }
+  .evcc-zone-bar-hint {
+    font-size:   12px;
+    color:       var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+    white-space: nowrap;
+  }
+  .evcc-zone-bar-btn {
+    font-size:     12px;
+    font-weight:   600;
+    padding:       5px 10px;
+    border-radius: 6px;
+    cursor:        pointer;
+    color:         var(--evcc-map-tooltip-text, #fff);
+    background:    var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+  }
+  .evcc-zone-bar-btn:hover {
+    background:    var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+  .evcc-zone-bar-btn--primary {
+    background:    var(--evcc-accent, #3b82f6);
+    border-color:  var(--evcc-accent, #3b82f6);
+    color:         #fff;
+  }
+  .evcc-zone-bar-btn[disabled] {
+    opacity: 0.45;
+    cursor:  default;
+  }
+
+  /* Zone-clean panel lives in the right column under Run Profiles. The side column
+     stacks the Run Profiles panel + the zone panel; the run-profiles panel keeps its
+     natural height there (its workspace flex would otherwise stretch it vertically). */
+  .evcc-rooms-sidecol {
+    flex:           1 1 300px;
+    min-width:      0;
+    display:        flex;
+    flex-direction: column;
+    gap:            16px;
+  }
+  .evcc-rooms-sidecol > .evcc-run-profiles-panel {
+    flex: 0 0 auto;
+  }
+  .evcc-zone-panel {
+    box-sizing:     border-box;
+    display:        flex;
+    flex-direction: column;
+    gap:            10px;
+    padding:        12px;
+    border-radius:  var(--evcc-radius-card, 12px);
+    background:     var(--evcc-surface-panel, rgba(28, 33, 39, 0.92));
+    border:         1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
+  }
+  .evcc-zone-panel-title {
+    font-size:   13px;
+    font-weight: 700;
+    color:       var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-panel-section {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+  }
+  .evcc-zone-panel-section-title {
+    font-size:      11px;
+    font-weight:    600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color:          var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+  }
+  .evcc-zone-panel-note {
+    font-weight:    400;
+    text-transform: none;
+    letter-spacing: 0;
+    opacity:        0.7;
+  }
+  .evcc-zone-panel-empty {
+    font-size: 12px;
+    color:     var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.6));
+  }
+  .evcc-zone-setting {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+  }
+  .evcc-zone-setting-label {
+    font-size: 12px;
+    color:     var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-setting-select {
+    flex:          0 1 auto;
+    max-width:     60%;
+    font-size:     12px;
+    padding:       3px 6px;
+    border-radius: 6px;
+    color:         var(--evcc-map-tooltip-text, #fff);
+    background:    var(--evcc-surface-action, rgba(255, 255, 255, 0.08));
+    border:        1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.15));
+  }
+  .evcc-zone-list {
+    list-style:     none;
+    margin:         0;
+    padding:        0;
+    display:        flex;
+    flex-direction: column;
+    gap:            3px;
+    max-height:     160px;
+    overflow-y:     auto;
+  }
+  .evcc-zone-list-item {
+    display:         flex;
+    align-items:     center;
+    justify-content: space-between;
+    gap:             8px;
+    font-size:       12px;
+    color:           var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-zone-list-num {
+    display:         inline-flex;
+    align-items:     center;
+    justify-content: center;
+    min-width:       18px;
+    height:          18px;
+    font-size:       10px;
+    font-weight:     700;
+    color:           #fff;
+    background:      var(--evcc-accent, #3b82f6);
+    border-radius:   4px;
+  }
+  .evcc-zone-list-del {
+    font-size:     12px;
+    line-height:   1;
+    cursor:        pointer;
+    color:         var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.7));
+    background:    transparent;
+    border:        none;
+    padding:       2px 5px;
+    border-radius: 4px;
+  }
+  .evcc-zone-list-del:hover {
+    color:      #fff;
+    background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
+  }
+  .evcc-zone-panel-actions {
+    display:    flex;
+    flex-wrap:  wrap;
+    gap:        6px;
+    margin-top: auto;
+  }
+
+  /* =========================================================
      ANIMAL SVG COMPANION
      =========================================================
      Positioned absolutely in .evcc-map-layers (same space as
@@ -199,6 +502,14 @@ export const mapStyles = `
   .evcc-map-animal--dragging {
     cursor:     grabbing;
     transition: none;   /* suppress filter transition while moving */
+  }
+
+  /* Follow-robot mode: rides the live robot pixel. Ease left/top so it GLIDES to each
+     new position instead of teleporting (esp. Roborock's ~16-30s polls — a smooth ~1s
+     hop reads as intentional). Not draggable (it's tracking, not placeable). */
+  .evcc-map-animal--following {
+    cursor:     default;
+    transition: filter 400ms ease, opacity 400ms ease, left 900ms ease, top 900ms ease;
   }
 
   /* Docked / charging — gentle luminance + alpha breath pulse */
@@ -288,6 +599,188 @@ export const mapStyles = `
     line-height:     1;
     box-shadow:      0 1px 4px rgba(0, 0, 0, 0.55);
   }
+
+  /* =========================================================
+     MAP_STATE_SOURCE DEVICE OVERLAYS (Wave 3c)
+     ========================================================= */
+
+  /* SVG layers — non-scaling-stroke keeps lines crisp under the 0–100 viewBox. */
+  .evcc-map-ov-current {
+    fill:          var(--evcc-map-ov-current, rgba(0, 229, 255, 0.85));
+    fill-opacity:  0.18;
+    stroke:        var(--evcc-map-ov-current, rgba(0, 229, 255, 0.85));
+    stroke-width:  2;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-nogo, .evcc-map-ov-nomop, .evcc-map-ov-zone {
+    fill-opacity:  0.18;
+    stroke-width:  1.5;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-nogo {
+    fill:   var(--evcc-map-ov-nogo, rgba(255, 59, 48, 0.85));
+    stroke: var(--evcc-map-ov-nogo, rgba(255, 59, 48, 0.85));
+  }
+  .evcc-map-ov-nomop {
+    fill:   var(--evcc-map-ov-nomop, rgba(10, 132, 255, 0.85));
+    stroke: var(--evcc-map-ov-nomop, rgba(10, 132, 255, 0.85));
+  }
+  .evcc-map-ov-zone {
+    fill:             var(--evcc-map-ov-zone, rgba(52, 211, 153, 0.85));
+    stroke:           var(--evcc-map-ov-zone, rgba(52, 211, 153, 0.85));
+    stroke-dasharray: 4 2;
+  }
+  .evcc-map-ov-wall {
+    stroke:         var(--evcc-map-ov-wall, rgba(255, 214, 10, 0.9));
+    stroke-width:   3;
+    stroke-linecap: round;
+    vector-effect:  non-scaling-stroke;
+    pointer-events: none;
+  }
+  .evcc-map-ov-path {
+    fill:            none;
+    stroke:          var(--evcc-map-ov-path, rgba(255, 255, 255, 0.8));
+    stroke-width:    1.5;
+    stroke-linejoin: round;
+    stroke-linecap:  round;
+    opacity:         0.8;
+    vector-effect:   non-scaling-stroke;
+    pointer-events:  none;
+  }
+
+  /* HTML markers — absolutely positioned in the rotator (turn with the map). */
+  .evcc-map-ov-robot, .evcc-map-ov-dock, .evcc-map-ov-obstacle {
+    position:       absolute;
+    transform:      translate(-50%, -50%);
+    pointer-events: none;
+    z-index:        6;
+  }
+  .evcc-map-ov-dock {
+    width:         10px;
+    height:        10px;
+    border-radius: 3px;
+    background:    var(--evcc-map-ov-dock, #a3e635);
+    box-shadow:    0 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+  .evcc-map-ov-robot {
+    width:         14px;
+    height:        14px;
+    border-radius: 50%;
+    background:    var(--evcc-map-ov-robot, #00e5ff);
+    box-shadow:    0 0 0 2px rgba(0, 0, 0, 0.5);
+  }
+  /* Heading triangle: points up at heading 0; the inline transform rotates it. */
+  .evcc-map-ov-robot-arrow {
+    display:           block;
+    width:             0;
+    height:            0;
+    margin:            -9px 0 0 -6px;
+    border-left:       6px solid transparent;
+    border-right:      6px solid transparent;
+    border-bottom:     12px solid var(--evcc-map-ov-robot, #00e5ff);
+    transform-origin:  50% 100%;
+    filter:            drop-shadow(0 0 2px rgba(0, 0, 0, 0.8));
+  }
+  .evcc-map-ov-obstacle {
+    width:         8px;
+    height:        8px;
+    border-radius: 50%;
+    background:    var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+    box-shadow:    0 0 0 1.5px rgba(0, 0, 0, 0.6);
+  }
+  .evcc-map-ov-obstacle--photo {
+    box-shadow: 0 0 0 1.5px #fff, 0 0 5px var(--evcc-map-ov-obstacle, rgba(251, 191, 36, 0.95));
+  }
+  /* Area chips counter-rotate (like room labels) so the text stays upright. Draggable — pull
+     the m² chip off the room-name label (saved per room, per map). */
+  .evcc-map-ov-area {
+    position:      absolute;
+    transform:     translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    font-size:     0.66rem;
+    font-weight:   600;
+    color:         var(--evcc-map-ov-area-text, #ffffff);
+    background:    var(--evcc-map-label-bg, rgba(15, 18, 22, 0.60));
+    padding:       0 5px;
+    border-radius: 6px;
+    text-shadow:   0 0 2px rgba(0, 0, 0, 0.85);
+    white-space:   nowrap;
+    pointer-events: auto;       /* draggable */
+    cursor:        move;
+    touch-action:  none;        /* pointer drag on touch without page scroll */
+    z-index:       5;
+  }
+  .evcc-map-ov-area--dragging { opacity: 0.85; cursor: grabbing; z-index: 7; }
+
+  /* Auto-derived click-target SELECTION (subtractive): the scrim canvas dims UN-selected rooms
+     per-pixel (exact shapes) right over the backdrop, so selected rooms stay bright with no
+     overlap. Positioned like the backdrop (.evcc-map-image); just needs to be click-through. */
+  .evcc-map-selection-canvas {
+    position:       absolute;
+    inset:          0;
+    pointer-events: none;
+    /* No z-index: as a positioned element emitted right after the backdrop and before the
+       SVG, DOM order paints it ABOVE the (in-flow) backdrop and BELOW the SVG/labels. The
+       backdrop .evcc-map-image is NOT positioned, so the scrim MUST be absolute+inset:0 to
+       overlay it (else it lays out as a second in-flow block and gets clipped off-map). */
+  }
+  /* Clean-order badge on each selected room (bbox top-left); counter-rotates upright. */
+  .evcc-map-ov-selnum {
+    position:       absolute;
+    transform:      translate(-2px, -2px) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    min-width:      16px;
+    height:         16px;
+    padding:        0 3px;
+    box-sizing:     border-box;
+    font-size:      10px;
+    font-weight:    700;
+    line-height:    16px;
+    text-align:     center;
+    color:          #fff;
+    background:      var(--evcc-accent, #3b82f6);
+    border-radius:  8px;
+    pointer-events: none;
+    z-index:        5;
+  }
+  /* =========================================================
+     MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
+     ========================================================= */
+
+  .evcc-map-layers-panel {
+    flex:           0 0 auto;
+    box-sizing:     border-box;
+    display:        flex;
+    flex-direction: column;
+    gap:            8px;
+    padding:        12px;
+    border-radius:  var(--evcc-radius-card, 12px);
+    background:     var(--evcc-surface-panel, rgba(28, 33, 39, 0.92));
+    border:         1px solid var(--evcc-map-tooltip-border, rgba(255, 255, 255, 0.12));
+  }
+  .evcc-map-layers-title {
+    font-size:   13px;
+    font-weight: 700;
+    color:       var(--evcc-map-tooltip-text, #fff);
+  }
+  .evcc-map-layers-hint {
+    font-size: 11px;
+    color:     var(--evcc-map-tooltip-hint, rgba(255, 255, 255, 0.6));
+  }
+  .evcc-map-layers-list {
+    display:        flex;
+    flex-direction: column;
+    gap:            6px;
+  }
+  .evcc-map-layers-row {
+    display:     flex;
+    align-items: center;
+    gap:         8px;
+    font-size:   12.5px;
+    color:       var(--evcc-map-tooltip-text, #fff);
+    cursor:      pointer;
+  }
+  .evcc-map-layers-row input { cursor: pointer; margin: 0; }
 
   /* =========================================================
      MAP TOOLTIP

@@ -25,8 +25,9 @@ The system is entirely optional. The core integration runs without it; the learn
 | `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. |
 | `services.py` | HA service registration only. No math. Each handler validates inputs and delegates to `LearningManager`. |
 | `utils.py` | Shared helpers (`_safe_int`, `_safe_float`, `_safe_bool`, etc.) used across the learning package. |
-| `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. |
+| `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. Also runs **pose-based room attribution** (via `room_attribution_engines.py`) to pre-fill the cleaned-room set, and builds a stand-alone attributed record when counter segmentation yields nothing. |
 | `job_segmenter_engines.py` | The pluggable `JobSegmenter` engine seam (`eufy_counter_v1`) over the counter-plateau primitives; selected by adapter config, with an Eufy fallback. |
+| `room_attribution_engines.py` | Pluggable room-attribution seam — recovers the cleaned-room *set* of an undispatched (app-started) run from a pose stream (counter owns time/area, this owns *which managed room*); Eufy engine `eufy_anchor_winding_v1`; selected via the adapter's `room_attribution.engine`, with an Eufy fallback. |
 
 ---
 
@@ -220,6 +221,26 @@ field (Eufy: unchanged `60.0`) now sources from the resolved engine tuning rathe
 the module constant — same value, moved provenance. See
 [28-external-run-ingestion](28-external-run-ingestion.md).
 
+**Pose-based room attribution (W5c).** An app-started run carries no dispatched queue,
+so the counter segmenter can only split *time/area* — it can't name *which managed room*
+each segment is. A second pluggable seam — the room-attribution engine
+(`learning/room_attribution_engines.py`, Eufy `eufy_anchor_winding_v1`; resolved by
+`external_ingest._resolve_attribution` from the adapter's `room_attribution.engine`, Eufy
+fallback) — recovers the cleaned-room **set** from the run's per-tick pose stream
+(`pose_samples`). It runs in two modes: **robust** (uses the `cleaning_area` swept-area
+delta as the clean-vs-parked-dock separator) and **anchor_only** (a best-effort fallback
+when `cleaning_area` is absent, which may false-positive a parked dock — callers gate on
+`mode`). The classifier is used two ways at finalize: (1) **enrich** — when counter
+segmentation produced segments, label each with its dominant cleaned room and promote that
+room to `shortlist[0]` (robust mode only), so the review card opens *pre-answered*; and
+(2) **stand-alone** — when counter segmentation produces nothing (the common app-run case),
+`build_attributed_job` stands up a pending record straight from the pose attribution (one
+segment per cleaned room, swept-m² area, identity pre-filled), tagged with
+`attribution_mode` so the card can flag anchor-only results. The raw `pose_samples` are
+embedded so the run can be **re-attributed** server-side after an engine fix — the pose-path
+sibling of re-segmentation. When there is no pose stream (non-map brand / no live map) every
+branch behaves exactly as pre-W5c.
+
 The same segmenter also drives **live** room-transition detection: in
 `jobs/active_job._maybe_roll_current_room_by_timing`, when the per-vacuum boundary
 count (`_live_boundary_count`, via the resolved engine's `find_candidates` + framework
@@ -231,12 +252,24 @@ frame-invariant boundary. Geometry/bounds confirmation is **capability-gated**
 drifts), so on Eufy the plateau + timing carry the rollover and the bounds check
 never wrongly blocks it, while a brand with a stable lock re-enables it.
 
-At finalization, `_build_transit_blocks` (`learning/history_store.py`) resolves the
-job-segmenter engine from the adapter (optional `vacuum_entity_id` param; absent/unknown
-→ the Eufy fallback) and calls `engine.segment_legacy(...)` — byte-identical to the
-legacy `segment_counters` — then maps the segments onto the dispatched queue order
-(internal: segment K → queue room K) and writes three additive blocks to the job
-record's `job` object:
+At finalization there are **two paths** to the per-room timing blocks, chosen by
+`build_completed_job_payload` (`learning/history_store.py`):
+
+- **Strict-order (sequenced) jobs** — each phase cleaned one room and docked, so the
+  whole-run counter stream can't be segmented across the per-room dock trips against a
+  single last-phase queue. Instead each phase captured its **own** `room_timing` from its
+  own counter slice at advance time (`jobs/PhaseRunner._capture_finishing_phase_timing` →
+  `_phase_room_timing`, `jobs/phase_runner.py`). `build_completed_job_payload` concatenates
+  those per-phase timings in phase order, sets `transitions = []` (the inter-phase gaps are
+  dock overhead, not room-to-room transit), and `transit_capture_valid` is `True` only when
+  **every** phase captured a timing.
+- **Atomic / legacy jobs** (`phases` absent) — `_build_transit_blocks`
+  (`learning/history_store.py`) resolves the job-segmenter engine from the adapter (optional
+  `vacuum_entity_id` param; absent/unknown → the Eufy fallback) and calls
+  `engine.segment_legacy(...)` — byte-identical to the legacy `segment_counters` — then maps
+  the segments onto the dispatched queue order (internal: segment K → queue room K).
+
+Either path writes three additive blocks to the job record's `job` object:
 
 | Field | Shape | Meaning |
 |---|---|---|

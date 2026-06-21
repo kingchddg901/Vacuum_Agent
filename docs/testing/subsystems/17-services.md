@@ -3,10 +3,22 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **164 tests across 14 files**.
+contract). Covered by **166 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
+
+**Scope.** This doc covers only the `services/` package — the handlers wired by
+`async_register_services`. The integration registers many more `eufy_vacuum.*`
+services from sibling packages, and those are tested under their own subsystem
+docs, not here:
+
+- Map/segment/layout/live-pose services in `mapping/mapping_services.py`
+  (registered via `async_register_mapping_services`) — see
+  [07-mapping.md](07-mapping.md).
+- Learning + external-run services in `learning/services.py` — see
+  [06-learning.md](06-learning.md).
+- Theme services in `themes/services.py` — see [14-themes.md](14-themes.md).
 
 ---
 
@@ -14,16 +26,16 @@ Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integrat
 
 | Source module | Stmts | Cov | Test file |
 |---------------|------:|----:|-----------|
-| `job_control.py` | 115 | 100% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
+| `job_control.py` | 127 | 95% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
 | `run_profiles.py` | 89 | 100% | `test_services_run_profiles.py` |
 | `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
-| `setup.py` | 108 | 91% | `test_services_errors_setup.py` |
+| `setup.py` | 124 | 91% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
 | `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
 | `rooms.py` | 80 | 95% | `test_services_rooms.py` |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
 | `queue.py` | 43 | 100% | `test_services_queue.py` |
-| `snapshots.py` | 40 | 100% | `test_services_snapshots.py` |
+| `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` |
 | `access_graph.py` | 25 | 100% | `test_services_access_graph.py` |
 | `_common.py` | 35 | 89% | `test_services_common.py`, `test_services_misc.py` |
@@ -56,9 +68,12 @@ manager method to raise and assert the wrapped exception type.
 
 The remaining misses are almost all defensive, not untested behavior:
 
-- **`manager is None` early-returns (defensive)** — `setup.py:147, 174, 204, 232`
-  and `adapter_config.py:64-65, 103` are runtime-not-available guards that return
-  a `{"status": "error"}` stub or log-and-return. Unreachable in the
+- **`manager is None` early-returns (defensive)** — the runtime-not-available
+  guards at the top of `setup.py`'s `setup_get_map_rooms` / `setup_save_rooms` /
+  `setup_reject_rooms` / `setup_force_remove_room` / `setup_set_panel_title` /
+  `setup_set_map_camera` handlers, plus `adapter_config.py`'s
+  `_handle_save_adapter_config` / `_handle_delete_adapter_config`, return a
+  `{"status": "error"}` stub or log-and-return. Unreachable in the
   fixture-registered service set, intentionally uncovered.
 - **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
   `except` → default 20), `_common.py:96` (non-dict `completed_job` guard) and

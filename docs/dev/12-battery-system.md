@@ -74,7 +74,7 @@ Cross-file hooks:
 
 - `const.py` — `DATA_BATTERY = "battery"`
 - `__init__.py` (root) — instantiates manager in `async_setup_entry`, calls `.start(known_vacuum_ids)`, calls `.stop()` in `async_unload_entry`
-- `sensor/__init__.py` — calls `build_battery_sensors(manager, vacuum_entity_id)` per vacuum and adds to entity list
+- `sensor/__init__.py` — calls `build_battery_sensors(manager=..., vacuum_entity_id=...)` per vacuum and adds to entity list (the function is keyword-only)
 - `learning/job_finalizer.py` — imports `compute_job_battery_metrics` and `DATA_BATTERY`; computes metrics after `cleaning_area_m2` is set; calls `battery_manager.record_job_metrics(...)` for completed and used-for-learning jobs
 
 ---
@@ -124,6 +124,14 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
                     "rate_min": 0.32,
                     "rate_max": 0.68,
                     "kind": "mid_job" | "post_job" | "idle",
+                    # Per-regime accumulators (init 0.0 at open), populated by
+                    # the CC/CV attribution block in _process_sample. They roll
+                    # into the closed-session summary as cc_min_per_pct /
+                    # cv_min_per_pct (= duration / delta within each window).
+                    "cc_duration_min": 0.0,
+                    "cc_delta_pct": 0.0,
+                    "cv_duration_min": 0.0,
+                    "cv_delta_pct": 0.0,
                 },
                 "stats": {
                     "rate_overall_per_min": 0.42,
@@ -198,7 +206,7 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
 
 For each vacuum entity passed to `start(...)`, the manager:
 
-1. Computes `battery_sensor_id = f"sensor.{object_id}_battery"`.
+1. Resolves `battery_sensor_id` from the adapter's declared battery entity — `get_adapter_config(vacuum_entity_id).entities.battery` — falling back to the Eufy suffix convention `f"sensor.{object_id}_battery"` only when the adapter isn't registered yet (setup ordering) or declares none. For a Roborock / non-Eufy adapter the battery sensor id is whatever the adapter declares, not the f-string.
 2. Maps both `battery_sensor_id` and `vacuum_entity_id` → `vacuum_entity_id` in `_battery_to_vacuum`.
 3. Subscribes to state-change events on both entities via `async_track_state_change_event`.
 4. Calls `_sample_now(vacuum_entity_id)` once to capture an initial sample.
@@ -266,6 +274,12 @@ if not prev_charging and charging:
         "rate_min": None,
         "rate_max": None,
         "kind": _classify_session_kind(vacuum_entity_id),
+        # Per-regime accumulators, filled as charging intervals cross the
+        # CC (50→80) and CV (80→90) windows in _process_sample.
+        "cc_duration_min": 0.0,
+        "cc_delta_pct": 0.0,
+        "cv_duration_min": 0.0,
+        "cv_delta_pct": 0.0,
     }
 ```
 
@@ -350,38 +364,64 @@ Each regime keeps its own baseline anchor (`baseline.cc_min_per_pct` / `baseline
 
 ### 7.2 Baseline lock-in
 
+The baseline is anchored **per regime**, not as one session-wide `min_per_pct`. `_new_record()` deliberately omits the legacy session-wide field (`baseline.cc_min_per_pct` / `baseline.cv_min_per_pct` only), so the anchor must come from a single session that has *both* regime spans populated:
+
 ```python
 qualifying = [
     s for s in session_history_recent
     if s.start_battery <= HEALTH_QUALIFY_START_MAX   # 50
     and s.end_battery >= HEALTH_QUALIFY_END_MIN       # 90
-    and s.delta_pct > 0 and s.duration_min > 0
+    and s.delta_pct and s.duration_min
 ]
-if record.baseline.min_per_pct is None and len(qualifying) >= BASELINE_SAMPLE_COUNT:
-    seeds = qualifying[:BASELINE_SAMPLE_COUNT]
-    avg = mean(s.duration_min / s.delta_pct for s in seeds)
-    record.baseline.min_per_pct = avg
-    record.baseline.session_count = len(seeds)
+
+# Anchor only if a regime is still unset.
+if baseline.cc_min_per_pct is None or baseline.cv_min_per_pct is None:
+    for seed in qualifying:
+        # Require BOTH regimes populated on the same session. A 51→89
+        # charge qualifies session-wide but only fills cc_min_per_pct
+        # (CV span = 0), which would split the anchor across sessions.
+        if seed.cc_min_per_pct is not None and seed.cv_min_per_pct is not None:
+            baseline.cc_min_per_pct = seed.cc_min_per_pct
+            baseline.cv_min_per_pct = seed.cv_min_per_pct
+            baseline.session_count = 1
+            baseline.anchored_at = seed.end_ts
+            break
 ```
+
+`BASELINE_SAMPLE_COUNT` (=1) is the per-install intent: the first qualifying session that fills both regimes locks the anchor. The per-regime `cc_min_per_pct` / `cv_min_per_pct` on each session summary are min/pct ratios computed at close time (see §6.4): `cc_duration_min / cc_delta_pct` and `cv_duration_min / cv_delta_pct`, each `None` if that regime window was never crossed.
 
 ### 7.3 Health computation
 
+After anchoring, `_update_health` computes **two regime indices** via `_compute_regime_pct`, one per regime, then aliases the headline `health_pct` to the CV index:
+
 ```python
-if record.baseline.min_per_pct is None:
-    record.stats.health_pct = None
-    return
-
-cutoff = now - CURRENT_WINDOW_DAYS days
-recent = [s.duration_min / s.delta_pct for s in qualifying if s.end_ts >= cutoff]
-if not recent:
-    recent = [last_qualifying_session.duration_min / .delta_pct]   # fallback
-
-current_min_per_pct = mean(recent)
-if current_min_per_pct <= 0:
-    health_pct = None
-else:
-    health_pct = round(baseline.min_per_pct / current_min_per_pct * 100, 1)
+record.stats.cc_charge_speed_pct = _compute_regime_pct(
+    qualifying, baseline.cc_min_per_pct, "cc_min_per_pct")
+record.stats.cv_charge_speed_pct = _compute_regime_pct(
+    qualifying, baseline.cv_min_per_pct, "cv_min_per_pct")
+record.stats.health_pct = record.stats.cv_charge_speed_pct   # CV alias
 ```
+
+`_compute_regime_pct(qualifying, baseline_value, field)` reads each session's own per-regime ratio (`field` = `cc_min_per_pct` or `cv_min_per_pct`) — **not** a session-wide `duration_min / delta_pct`:
+
+```python
+if baseline_value is None:
+    return None
+
+cutoff = now - CURRENT_WINDOW_DAYS days   # 14
+recent = [s[field] for s in qualifying
+          if s[field] is not None and s.end_ts >= cutoff]
+if not recent:
+    # Fallback: the most recent qualifying session that has this regime.
+    recent = [most_recent_qualifying_with(field)]   # or None → return None
+
+current = mean(recent)
+if current <= 0:
+    return None
+return round(baseline_value / current * 100, 1)
+```
+
+Both indices are "higher = healthier" ratios of baseline-to-current. There is no longer a single `baseline.min_per_pct` path. The headline `_battery_health` sensor surfaces the CV index under its legacy entity_id. This matches the per-regime formula in [advanced/09-battery-health.md](../advanced/09-battery-health.md).
 
 ---
 
@@ -565,7 +605,7 @@ Note `kind` is in the in-memory ring buffer but **not** in the CSV (added after 
 
 ## 13. Sensors (`battery/sensors.py`)
 
-`build_battery_sensors(manager, vacuum_entity_id)` returns a list of **12** `SensorEntity` instances (built from 7 subclasses, several of which are parameterized and instantiated more than once). All inherit from `_BatteryBase`:
+`build_battery_sensors(*, manager, vacuum_entity_id)` (keyword-only) returns a list of **12** `SensorEntity` instances (built from 7 subclasses, several of which are parameterized and instantiated more than once). All inherit from `_BatteryBase`:
 
 | # | Class | `unique_suffix` | Reads |
 |---|---|---|---|

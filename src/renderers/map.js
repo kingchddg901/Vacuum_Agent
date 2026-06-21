@@ -78,21 +78,31 @@ export function applyMapRenderers(proto) {
     const segmentsData = state.mapSegmentsData();
     const imageUrl = state.mapImageUrl();
     const hasLiveImage = Boolean(state.liveMapImageEntity?.());
+    // VA-rendered backdrop (Wave 1): the card draws its OWN full-grid canvas from the
+    // device raster (the binding fetches via get_map_render_data + draws). When on, we
+    // proceed even without a camera URL — the canvas is the backdrop.
+    const wantVa = Boolean(state.useVaRender?.() && state.supportsVaRender?.());
+    const vaActive = state.isVaRenderActive?.() ?? false;
 
-    // A live-image brand (Roborock) has no CV/custom segments — render the picture
-    // alone as soon as we have its URL; the segment/label SVG below is a safe no-op
-    // on an empty segment list. Other modes still require an analyzed/authored map.
-    if (!imageUrl || (!segmentsData?.available && !hasLiveImage)) {
+    // Empty state ONLY when there's genuinely no usable backdrop: not the VA render
+    // (gate on vaActive, not the mere intent wantVa), no live/CV image, no custom
+    // segments. A live-image brand (Roborock) renders the picture alone once its URL is
+    // ready; the segment/label SVG below is a safe no-op on an empty segment list.
+    if (!vaActive && (!imageUrl || (!segmentsData?.available && !hasLiveImage))) {
       const isCustom = (state.segmentationMode?.() ?? "cv") === "custom";
-      const hint = hasLiveImage
-        ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
-        : isCustom
-          ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
-          : "Upload and analyze a map image to enable map view.";
+      // VA render selected but its raster hasn't loaded yet -> "rendering", not "no map".
+      const title = wantVa ? "Rendering the map…" : "No map image available.";
+      const hint = wantVa
+        ? "Drawing the map from the device's room data — one moment."
+        : hasLiveImage
+          ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
+          : isCustom
+            ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
+            : "Upload and analyze a map image to enable map view.";
       return `
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">
-            <p>No map image available.</p>
+            <p>${title}</p>
             <p class="evcc-map-unavailable-hint">${hint}</p>
           </div>
         </div>
@@ -116,12 +126,29 @@ export function applyMapRenderers(proto) {
     const zoom         = state.mapZoom?.() ?? 1;
     const tx           = state.mapTranslateX?.() ?? 0;
     const ty           = state.mapTranslateY?.() ?? 0;
-    // Live-map rotation is display only and applies ONLY to the live image (no
-    // segment overlay to keep aligned); CV/custom maps stay at 0.
-    const rot          = hasLiveImage ? (state.mapRotation?.() ?? 0) : 0;
+    // Display-only rotation of the whole content block (backdrop + co-rotated overlays). Applied
+    // to the contain backdrops (VA self-render canvas + live image), not uploaded CV/custom
+    // (--fill). Single source so the mascot/area-label drags convert in the same frame.
+    const rot          = state.effectiveMapRotation?.() ?? 0;
+    // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
+    // only when the provider supports it, and only at rotation 0 for now — a
+    // rotated map letterboxes on the swapped axis (Wave 2 handles rotation).
+    const canZone   = state.canDrawZone?.() ?? false;
+    // zoneMode is gated by canZone so the overlay, action bar, and container
+    // class can never be live while the gate is false (e.g. after a rotate).
+    const zoneMode   = canZone && (state.zoneDrawMode?.() ?? false);
+    const zoneDrafts = zoneMode ? (state.zoneDrafts?.() ?? []) : [];
+    const zoneCount  = zoneDrafts.length;
+    const zoneMax    = state.zoneMax?.() ?? 10;
+    // Hide-area draw: same gate spirit as zones (overlay-aligned backdrop + rotation 0).
+    const hideMode   = (state.canDrawHideArea?.() ?? false) && (state.hideDrawMode?.() ?? false);
+    // map_state_source overlay layers (no-go/walls/path/robot/etc.) render over any
+    // GRID-frame backdrop their normalized coords align to: the live device image OR
+    // the VA-rendered canvas (Wave 3c overlays; Wave 1 self-render).
+    const deviceOverlays = state.overlaysAligned?.() ?? false;
     return `
       <div class="evcc-map-view">
-        <div class="evcc-map-container">
+        <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}">
 
           <div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
             <!-- Rotation turns this whole content layer (image + polygons + labels
@@ -129,12 +156,12 @@ export function applyMapRenderers(proto) {
                  stays on .evcc-map-layers above. --evcc-map-rotation lets labels +
                  mascot counter-rotate upright (see styles/map.js). -->
             <div class="evcc-map-content-rotator" style="transform:rotate(${rot}deg);--evcc-map-rotation:${rot}deg">
-            <img
-              class="evcc-map-image"
-              src="${this.escapeHtml(imageUrl)}"
-              alt="Floor plan"
-              draggable="false"
-            >
+            ${vaActive
+              ? `<canvas class="evcc-map-image evcc-map-render-canvas" data-render-version="${this.escapeHtml(String(state.mapRenderVersion?.() ?? ""))}"></canvas>`
+              : (imageUrl
+                  ? `<img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
+                  : "")}
+            ${this._renderSelectionScrim(state)}
             <svg
               class="evcc-map-svg"
               viewBox="0 0 100 100"
@@ -155,6 +182,7 @@ export function applyMapRenderers(proto) {
                     this._renderFloorTexturePolygon(seg, segFloorTypes[i])
                   ).join("")
                 : ""}
+              ${deviceOverlays ? this._renderDeviceOverlaySvg(state) : ""}
             </svg>
             ${this._renderMapAnimal(state, vacuumStatus)}
             ${(state.mapRoomLabelsEnabled?.() ?? true) ? segments.map((seg) => {
@@ -174,7 +202,14 @@ export function applyMapRenderers(proto) {
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;
             }).join("") : ""}
+            ${deviceOverlays ? this._renderDeviceOverlayHtml(state) : ""}
+            ${this._renderRoomSelection(state)}
+            ${this._renderHiddenRegions(state, hideMode)}
             </div>
+            ${zoneMode ? `
+              ${zoneDrafts.map((d, i) => `<div class="evcc-zone-rect" style="left:${Math.min(d.x, d.x + d.w)}%;top:${Math.min(d.y, d.y + d.h)}%;width:${Math.abs(d.w)}%;height:${Math.abs(d.h)}%"><span class="evcc-zone-rect-num">${i + 1}</span></div>`).join("")}
+              <div class="evcc-zone-draft" style="display:none"></div>` : ""}
+            ${hideMode ? `<div class="evcc-hide-draft" style="display:none"></div>` : ""}
 
           </div>
 
@@ -189,9 +224,17 @@ export function applyMapRenderers(proto) {
                     title="Fit map to screen" aria-label="Fit to screen">⤢</button>
             <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
                     title="Zoom in" aria-label="Zoom in">+</button>
-            ${hasLiveImage ? `
+            ${(hasLiveImage || vaActive) ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
                     title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
+            ${(state.supportsVaRender?.() ?? false) ? `
+            <button class="evcc-map-zoom-btn${(state.useVaRender?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-va-render"
+                    title="Toggle VA-rendered map" aria-label="Toggle VA-rendered map">▦</button>` : ""}
+            ${canZone ? `
+            <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-zone-draw"
+                    title="Draw a zone to clean" aria-label="Draw a zone to clean">▢</button>` : ""}
             <span class="evcc-map-zoom-readout"
                   aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
           </div>
@@ -200,6 +243,338 @@ export function applyMapRenderers(proto) {
 
       </div>
     `;
+  };
+
+  /* =========================================================
+     MAP_STATE_SOURCE DEVICE OVERLAYS (Wave 3c)
+     =========================================================
+     The VA's read of the device's own map, normalized 0–1 of the LIVE rendered
+     image -> ×100 into the same 0–100 SVG / pct space the room polygons use, inside
+     the rotator so they turn with the map. SVG layers (polygons/lines/rects) here;
+     HTML markers + area labels in _renderDeviceOverlayHtml. Each layer is gated by
+     its own visibility toggle (state.isOverlayVisible). Every array is guarded.
+     ========================================================= */
+
+  /**
+   * Letterbox transform: the backend normalizes overlay coords to the 0–1 IMAGE
+   * frame, but the live <img> is object-fit:contain inside a SQUARE box, so a
+   * non-square image gets centered bars. This maps image-normalized (0–1) to
+   * container space (0–100, the SVG viewBox + HTML %) the SAME way the zone-clean
+   * path does (state._rectToNormalized, inverted). Identity when the size is unknown
+   * (assumes square). Returns {tx, ty, sx, sy} in container-% units.
+   */
+  proto._overlayTransform = function (state) {
+    const size = state.mapImageSize?.();
+    let sx = 100, sy = 100, offX = 0, offY = 0;
+    if (Array.isArray(size) && size.length === 2 && size[0] > 0 && size[1] > 0) {
+      const W = Number(size[0]), H = Number(size[1]);
+      sx = W >= H ? 100 : (100 * W) / H;
+      sy = H >= W ? 100 : (100 * H) / W;
+      offX = (100 - sx) / 2;
+      offY = (100 - sy) / 2;
+    }
+    return {
+      sx, sy,
+      tx: (v) => offX + Number(v) * sx,
+      ty: (v) => offY + Number(v) * sy,
+    };
+  };
+
+  proto._renderDeviceOverlaySvg = function (state) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present) return "";
+    const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
+    const { tx, ty, sx, sy } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    const pts = (poly) => poly.map((p) => `${f(tx(p[0]))},${f(ty(p[1]))}`).join(" ");
+    const rect = (cls, x0, y0, x1, y1) => {
+      const ax = tx(Math.min(x0, x1)), ay = ty(Math.min(y0, y1));
+      return `<rect class="${cls}" x="${f(ax)}" y="${f(ay)}" `
+           + `width="${f(Math.abs(x1 - x0) * sx)}" height="${f(Math.abs(y1 - y0) * sy)}" />`;
+    };
+    let out = "";
+
+    if (vis("current_room") && mss.current_room != null) {
+      const r = (mss.rooms || []).find((rm) => rm.number === mss.current_room);
+      if (r && Array.isArray(r.bbox) && r.bbox.length === 4) {
+        out += rect("evcc-map-ov-current", r.bbox[0], r.bbox[1], r.bbox[2], r.bbox[3]);
+      }
+    }
+    if (vis("no_go")) {
+      for (const poly of (mss.no_go || [])) {
+        if (Array.isArray(poly) && poly.length >= 3) out += `<polygon class="evcc-map-ov-nogo" points="${pts(poly)}" />`;
+      }
+    }
+    if (vis("no_mop")) {
+      for (const poly of (mss.no_mop || [])) {
+        if (Array.isArray(poly) && poly.length >= 3) out += `<polygon class="evcc-map-ov-nomop" points="${pts(poly)}" />`;
+      }
+    }
+    if (vis("zones")) {
+      for (const z of (mss.zones || [])) {
+        if (Array.isArray(z) && z.length === 4) out += rect("evcc-map-ov-zone", z[0], z[1], z[2], z[3]);
+      }
+    }
+    if (vis("walls")) {
+      for (const w of (mss.walls || [])) {
+        if (Array.isArray(w) && w.length === 2 && Array.isArray(w[0]) && Array.isArray(w[1])) {
+          out += `<line class="evcc-map-ov-wall" x1="${f(tx(w[0][0]))}" y1="${f(ty(w[0][1]))}" `
+               + `x2="${f(tx(w[1][0]))}" y2="${f(ty(w[1][1]))}" />`;
+        }
+      }
+    }
+    if (vis("path") && Array.isArray(mss.path) && mss.path.length >= 2) {
+      out += `<polyline class="evcc-map-ov-path" points="${pts(mss.path)}" />`;
+    }
+    return out;
+  };
+
+  proto._renderDeviceOverlayHtml = function (state) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present) return "";
+    const vis = (layer) => state.isOverlayVisible?.(layer) ?? false;
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    let out = "";
+
+    // The mascot REPLACES the dot when "follow robot" is on (and the companion is shown).
+    const _followActive = (state.mapAnimalFollowsRobot?.() ?? false) && (state.mapAnimalEnabled?.() ?? true);
+    if (vis("robot") && !_followActive && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+      const [x, y] = mss.robot_anchor;
+      const h = Number(mss.robot_heading ?? 0);
+      out += `<div class="evcc-map-ov-robot" style="left:${f(tx(x))}%;top:${f(ty(y))}%">`
+           + `<span class="evcc-map-ov-robot-arrow" style="transform:rotate(${h}deg)"></span></div>`;
+    }
+    if (vis("dock") && Array.isArray(mss.dock_anchor) && mss.dock_anchor.length === 2) {
+      const [x, y] = mss.dock_anchor;
+      out += `<div class="evcc-map-ov-dock" style="left:${f(tx(x))}%;top:${f(ty(y))}%" title="Dock"></div>`;
+    }
+    if (vis("obstacles")) {
+      for (const o of (mss.obstacles || [])) {
+        if (!o || !Array.isArray(o.pos) || o.pos.length !== 2) continue;
+        const cls = o.has_photo ? " evcc-map-ov-obstacle--photo" : "";
+        out += `<div class="evcc-map-ov-obstacle${cls}" style="left:${f(tx(o.pos[0]))}%;top:${f(ty(o.pos[1]))}%" `
+             + `title="${this.escapeHtml(String(o.type ?? "obstacle"))}"></div>`;
+      }
+    }
+    if (vis("room_area")) {
+      for (const r of (mss.rooms || [])) {
+        if (r.area_m2 == null || !Array.isArray(r.bbox) || r.bbox.length !== 4) continue;
+        const [x0, y0, x1, y1] = r.bbox;
+        // Draggable: a saved anchor (map-content-box %) wins over the default room centre, so
+        // the user can pull the m² chip off the room-name label. Same % frame as tx/ty output.
+        const anchor = state.areaLabelAnchor?.(r.number);
+        const lx = anchor ? Number(anchor.pct_x) : tx((x0 + x1) / 2);
+        const ly = anchor ? Number(anchor.pct_y) : ty((y0 + y1) / 2);
+        out += `<div class="evcc-map-ov-area" data-action="area-label-drag" `
+             + `data-room="${this.escapeHtml(String(r.number))}" `
+             + `style="left:${f(lx)}%;top:${f(ly)}%">`
+             + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
+      }
+    }
+    return out;
+  };
+
+  /**
+   * User-drawn HIDDEN REGIONS — background-colored rects that mask map noise (a porch off a
+   * room). Rendered INSIDE the rotator (so they rotate with the map), emitted LAST in the DOM
+   * but at z-index 5 — so they cover every static z5 layer (room labels AND the area chips,
+   * which also live in the device-overlay HTML) while the z6 robot/dock markers stay on top.
+   * Each region is normalized [x0,y0,x1,y1]; positioned with the same letterbox transform the
+   * device overlays use. Hidden by the "Hidden areas" toggle (unless editing, so you can still
+   * see + delete them). In edit mode each gets a × delete + reads semi-transparent.
+   */
+  proto._renderHiddenRegions = function (state, editMode) {
+    const regions = state.hiddenRegions?.() ?? [];
+    if (!regions.length) return "";
+    const visible = state.isOverlayVisible?.("hidden_regions") ?? true;
+    if (!visible && !editMode) return "";   // toggled off + not editing -> reveal what's under
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    const cls = "evcc-hidden-region" + (editMode ? " evcc-hidden-region--edit" : "");
+    let out = "";
+    for (let i = 0; i < regions.length; i++) {
+      const r = regions[i];
+      if (!Array.isArray(r) || r.length !== 4) continue;
+      const left = tx(r[0]), top = ty(r[1]);
+      const w = tx(r[2]) - left, h = ty(r[3]) - top;
+      out += `<div class="${cls}" style="left:${f(left)}%;top:${f(top)}%;width:${f(w)}%;height:${f(h)}%">`
+           + (editMode
+               ? `<button class="evcc-hidden-region-del" data-action="delete-hidden-region" `
+                 + `data-index="${i}" title="Remove this hidden area" aria-label="Remove hidden area">×</button>`
+               : "")
+           + `</div>`;
+    }
+    return out;
+  };
+
+  // The enabled (tapped) device rooms + their clean-order (sorted by the order field).
+  // Map(deviceNumber -> orderPosition). Empty when nothing's selected.
+  proto._selectedRoomOrder = function (state) {
+    const enabled = (state.getRoomsForActiveMap?.() ?? []).filter((r) => r.enabled);
+    const order = new Map();
+    [...enabled].sort((a, b) => (a.order ?? 999) - (b.order ?? 999))
+      .forEach((r, i) => order.set(Number(r.id), i + 1));
+    return order;
+  };
+
+  /**
+   * SUBTRACTIVE selection canvas: dims the UN-selected device rooms (per-pixel, exact room
+   * shapes from the raster) so selected rooms stay bright with no bbox overlap. Rendered right
+   * over the backdrop, inside the rotator (co-rotates). Drawn by the binding; only present when a
+   * raster + a partial selection exist (all-selected => nothing to dim => no canvas).
+   */
+  proto._renderSelectionScrim = function (state) {
+    if (!(state.overlaysAligned?.() ?? false)) return "";   // only over a co-registered backdrop
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return "";
+    const order = this._selectedRoomOrder(state);
+    const total = (state.getRoomsForActiveMap?.() ?? []).length;
+    if (order.size === 0 || order.size >= total) return "";   // none or all selected => no dim
+    return `<canvas class="evcc-map-image evcc-map-selection-canvas" `
+         + `data-sel-key="${this.escapeHtml(String(rd.version) + ":" + [...order.keys()].sort((a, b) => a - b).join(","))}"></canvas>`;
+  };
+
+  /**
+   * Clean-ORDER badges for the selected rooms (HTML, at each room's bbox top-left). The exact
+   * highlight is the subtractive scrim above; this just shows the sequence. Co-rotates; the badge
+   * counter-rotates upright. Keyed by device room number (== managed room id).
+   */
+  proto._renderRoomSelection = function (state) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present || !Array.isArray(mss.rooms)) return "";
+    const order = this._selectedRoomOrder(state);
+    if (order.size === 0) return "";
+    const { tx, ty } = this._overlayTransform(state);
+    const f = (v) => v.toFixed(2);
+    let out = "";
+    for (const room of mss.rooms) {
+      const pos = order.get(Number(room.number));
+      if (pos == null || !Array.isArray(room.bbox) || room.bbox.length !== 4) continue;
+      const [x0, y0, x1, y1] = room.bbox;
+      out += `<div class="evcc-map-ov-selnum" style="left:${f(tx(Math.min(x0, x1)))}%;top:${f(ty(Math.min(y0, y1)))}%">${pos}</div>`;
+    }
+    return out;
+  };
+
+  /* =========================================================
+     MAP LAYERS PANEL (right column; Wave 3c visibility toggles)
+     ========================================================= */
+
+  proto._renderMapLayersPanel = function (state) {
+    const vis = state.mapOverlayVisibility?.() ?? {};
+    const live = state.isLiveImageDisplayed?.() ?? false;
+    const LAYERS = [
+      { key: "current_room", label: "Current room" },
+      { key: "robot",        label: "Robot + heading" },
+      { key: "dock",         label: "Dock" },
+      { key: "room_area",    label: "Room area (m²)" },
+      { key: "no_go",        label: "No-go zones" },
+      { key: "no_mop",       label: "No-mop zones" },
+      { key: "walls",        label: "Virtual walls" },
+      { key: "zones",        label: "Saved zones" },
+      { key: "path",         label: "Cleaning path" },
+      { key: "obstacles",    label: "Obstacles" },
+      { key: "hidden_regions", label: "Hidden areas" },
+    ];
+    // Hide-area draw control. Available wherever a device-overlay-aligned backdrop is shown at
+    // rotation 0 (same gate as the masks). In draw mode: drag to add a mask, × to delete one.
+    const canHide  = state.canDrawHideArea?.() ?? false;
+    const hideMode = canHide && (state.hideDrawMode?.() ?? false);
+    const regionCount = (state.hiddenRegions?.() ?? []).length;
+    return `
+      <div class="evcc-map-layers-panel">
+        <div class="evcc-map-layers-title">Map Layers</div>
+        ${live ? "" : `<div class="evcc-map-layers-hint">Overlays appear on the live-map backdrop.</div>`}
+        <div class="evcc-map-layers-list">
+          ${LAYERS.map((l) => `
+            <label class="evcc-map-layers-row">
+              <input type="checkbox" data-action="toggle-map-overlay" data-layer="${l.key}"${vis[l.key] ? " checked" : ""}>
+              <span>${this.escapeHtml(l.label)}</span>
+            </label>`).join("")}
+        </div>
+        ${canHide ? `
+        <div class="evcc-map-hide-tools">
+          <button class="evcc-map-hide-btn${hideMode ? " evcc-map-hide-btn--on" : ""}"
+                  data-action="toggle-hide-draw">
+            ${hideMode ? "Done" : "Hide area…"}
+          </button>
+          ${regionCount > 0 ? `
+          <button class="evcc-map-hide-btn evcc-map-hide-btn--clear" data-action="clear-hidden-regions">
+            Clear (${regionCount})
+          </button>` : ""}
+        </div>
+        ${hideMode ? `<div class="evcc-map-layers-hint">Drag a box over the map to hide it; × removes one.</div>` : ""}
+        ` : ""}
+      </div>`;
+  };
+
+  /* =========================================================
+     ZONE-CLEAN PANEL (rendered in the right column, under Run Profiles)
+     ========================================================= */
+
+  proto._renderZonePanel = function (state, zoneDrafts, zoneCount, zoneMax) {
+    const esc = (s) => this.escapeHtml(String(s));
+    const settingEntities = state.settingEntities?.() ?? {};
+
+    // The vacuum's setting selects, in display order. Each is rendered live from
+    // the real provider entity (current value + options); changing it calls
+    // select.select_option — a zone clean runs off these current settings.
+    const SETTINGS = [
+      { key: "fan_speed",       label: "Suction" },
+      { key: "clean_mode",      label: "Mode" },
+      { key: "clean_intensity", label: "Intensity" },
+      { key: "water_level",     label: "Water" },
+    ];
+    const settingRows = SETTINGS.map(({ key, label }) => {
+      const eid = settingEntities[key];
+      if (!eid) return "";
+      const ent = state.entity?.(eid);
+      const opts = ent?.attributes?.options ?? [];
+      if (!ent || !opts.length) return "";
+      const cur = ent.state;
+      return `
+        <label class="evcc-zone-setting">
+          <span class="evcc-zone-setting-label">${esc(label)}</span>
+          <select class="evcc-zone-setting-select" data-action="zone-setting"
+                  data-entity-id="${esc(eid)}">
+            ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}
+          </select>
+        </label>`;
+    }).join("");
+
+    const zoneList = zoneDrafts.map((_, i) => `
+      <li class="evcc-zone-list-item">
+        <span class="evcc-zone-list-num">${i + 1}</span>
+        <button class="evcc-zone-list-del" data-action="zone-remove" data-zone-index="${i}"
+                title="Remove zone ${i + 1}" aria-label="Remove zone ${i + 1}">✕</button>
+      </li>`).join("");
+
+    return `
+      <div class="evcc-zone-panel" role="group" aria-label="Zone clean">
+        <div class="evcc-zone-panel-title">Zone clean</div>
+        ${settingRows ? `
+        <div class="evcc-zone-panel-section">
+          <div class="evcc-zone-panel-section-title">Settings
+            <span class="evcc-zone-panel-note">apply to the whole clean</span></div>
+          ${settingRows}
+        </div>` : ""}
+        <div class="evcc-zone-panel-section">
+          <div class="evcc-zone-panel-section-title">Zones
+            <span class="evcc-zone-panel-note">${zoneCount}/${zoneMax}</span></div>
+          ${zoneCount
+            ? `<ul class="evcc-zone-list">${zoneList}</ul>`
+            : `<div class="evcc-zone-panel-empty">Drag a box on the map to add a zone.</div>`}
+        </div>
+        <div class="evcc-zone-panel-actions">
+          <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
+                  data-action="zone-clean-confirm"${zoneCount ? "" : " disabled"}>${
+            zoneCount > 1 ? `Clean ${zoneCount} zones` : "Clean zone"
+          }</button>
+          ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">Clear</button>` : ""}
+          <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
+        </div>
+      </div>`;
   };
 
   /* =========================================================
@@ -243,6 +618,20 @@ export function applyMapRenderers(proto) {
 
   proto._renderMapAnimal = function (state, vacuumStatus) {
     if (!(state.mapAnimalEnabled?.() ?? true)) return "";   // mascot toggled off
+
+    const isAtDock = (vacuumStatus === "docked" || vacuumStatus === "idle");
+    // Follow-robot mode: ride the live robot pixel (replacing the position dot). When
+    // docked we fall through to the dock-spot homing below, so the calm parked placement
+    // and dragging both survive. Reads the live anchor + transform exactly as the dot does.
+    if ((state.mapAnimalFollowsRobot?.() ?? false) && !isAtDock) {
+      const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+      if (mss && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+        const { tx, ty } = this._overlayTransform(state);
+        const [rx, ry] = mss.robot_anchor;
+        return this._animalDivHtml(state, vacuumStatus, (+tx(rx)).toFixed(2), (+ty(ry)).toFixed(2), null);
+      }
+    }
+
     const allSegments = state.mapSegments();
     const rooms       = state.getRoomsForActiveMap?.() ?? [];
 
@@ -264,7 +653,6 @@ export function applyMapRenderers(proto) {
       return allSegments.find((s) => String(s.segment_id) === String(segId)) ?? null;
     };
 
-    const isAtDock = (vacuumStatus === "docked" || vacuumStatus === "idle");
     if (isAtDock) {
       const dockRoom = rooms.find((r) => r.isDockRoom);
       targetSeg = _segForRoom(dockRoom?.id);
@@ -309,31 +697,34 @@ export function applyMapRenderers(proto) {
       [pct_x, pct_y] = _polygonCentroid(poly);
     }
 
-    const pose     = _vacuumStateToPose(vacuumStatus ?? "");
-    const isDocked = pose === "curled";
-    const animal   = state.mapAnimalSelection?.() ?? "cat";
-    const scale    = state.mapAnimalScale?.()     ?? 1.0;
-    // Battery state is an auxiliary visual signal orthogonal to pose. The
-    // five-band resolution (charging/good/mid/warn/low) lives in
-    // state.batteryState(); the animal renders the corresponding eye color
-    // via :host([battery-state="X"]) rules, plus a charging pulse.
-    const batteryState = state.batteryState?.() ?? "good";
-
     // Anchor key matches the lookup key — so dragging the DOCKED mascot writes
     // the shared "dock" spot, while dragging it mid-clean writes the per-room
     // anchor as before.
-    const anchorKey = lookupKey;
+    return this._animalDivHtml(state, vacuumStatus, pct_x, pct_y, lookupKey);
+  };
 
+  /* Render the <animal-svg> companion div at a map-content-box % position.
+     anchorKey != null → draggable (writes that per-room / "dock" anchor on drag);
+     anchorKey == null → follow-robot mode: NO drag (it's tracking the live pixel).
+     Battery state is an auxiliary visual signal orthogonal to pose (five-band
+     charging/good/mid/warn/low → eye color via :host([battery-state]) + charge pulse). */
+  proto._animalDivHtml = function (state, vacuumStatus, pct_x, pct_y, anchorKey) {
+    const pose         = _vacuumStateToPose(vacuumStatus ?? "");
+    const isDocked     = pose === "curled";
+    const animal       = state.mapAnimalSelection?.() ?? "cat";
+    const scale        = state.mapAnimalScale?.()     ?? 1.0;
+    const batteryState = state.batteryState?.()       ?? "good";
     const W = Math.round(64 * scale);
     const H = Math.round(44 * scale);
-
-    return `<div
-      class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}"
-      style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"
-      data-action="map-dot-click"
-      data-anchor-key="${this.escapeHtml(anchorKey)}"
-      title="${isAtDock ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"
-    ><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}" width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
+    const drag = anchorKey != null
+      ? ` data-action="map-dot-click" data-anchor-key="${this.escapeHtml(String(anchorKey))}"`
+        + ` title="${isDocked ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"`
+      : ` title="Following the robot"`;
+    return `<div class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}`
+         + `${anchorKey == null ? " evcc-map-animal--following" : ""}"`
+         + ` style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"${drag}`
+         + `><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}"`
+         + ` width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;
   };
 
   /* =========================================================

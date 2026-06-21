@@ -9,7 +9,12 @@ A second authoring path lets a human draw rooms directly: `segment_primitives`
 rasterises composer shapes into polygons, and `mapping_services` holds many named
 **custom layouts** per map alongside the CV store, selected by a `segmentation_mode`
 pointer flip.
-Covered by **358 tests across 15 files** — the trace/image primitives are
+A third path skips authoring entirely: the **`map_state_source` reader**
+(`map_source`, `map_source_runtime`, `map_source_coordinator`) normalizes the
+provider's OWN segmentation + live pose into VA-owned room data (bbox/name, dock/robot
+anchors, area, current room, overlay layers), so rooms are auto-derived from the device's
+authoritative map rather than learned from drifting samples or hand-drawn.
+Covered by **479 tests across 20 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -30,9 +35,12 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
-| `tracker.py` | 344 | 93% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `tracker.py` | 403 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 904 | 95% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `mapping_services.py` | 1069 | 90% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `map_source.py` | 334 | 95% | `tests/unit/test_map_source.py` | unit (pure) |
+| `map_source_runtime.py` | 456 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
+| `map_source_coordinator.py` | 189 | 52% | `tests/integration/test_manager_compare_sources.py` + `tests/integration/test_manager_live_pose.py` | integration |
 
 ---
 
@@ -102,6 +110,38 @@ The human-authored alternative to CV, exercised end to end through the services.
   two layouts (`test_per_layout_segment_isolation`), and companion anchors including
   the reserved `dock` spot are per-layout (`LAYOUT-6`) — neither bleeds across.
 
+### The map_state_source reader
+The brand-agnostic read of the **provider's own** segmentation + live pose into
+VA-owned room data (architecture: [docs/dev/map-state-source.md](../../dev/map-state-source.md)).
+The pure extraction/normalization is unit-tested without Home Assistant; the
+manager-facing seams (delegators into `MapSourceCoordinator`) are integration-tested.
+
+- **`map_source`** (`MS-*`, unit, `test_map_source.py`) — the pure core:
+  `rooms_from_room_pixels` (per-room bbox+name, Y-flip, catch-all rid 32 filtered,
+  malformed/short buffers degrade to `[]`), `normalize_rendered` clamp+flip,
+  `anchors_from_storage` (dock/robot normalize, non-numeric coords skipped),
+  `rooms_from_parsed_map` (Roborock parser path, flagged approximate), per-room area
+  (`pixel_count × (res_cm/100)²`), and `build_map_source_result`'s presence gate
+  (absent-with-reason vs populated, with `extra` overlay layers merged in).
+- **`map_source_runtime`** (`MSR-*` + `MSC-*`, unit,
+  `test_map_source_runtime.py` + `test_map_source_collectors.py`) — the HA-aware
+  glue tested with injected plain data: `eufy_result_from_store` (the `#136` version
+  guard, presence gate, extraction, degradation), the Roborock `find_mapdata` /
+  `find_roomlike_collection` defensive introspector (duck-typing, cycle-safety, attr
+  denylist), and the candidate collectors (`eufy_inmem_candidates`,
+  `roborock_candidates`, `image_entity_object`) that gather roots from
+  `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
+  cleanly when a source is absent.
+- **`map_source_coordinator`** (`CMP-*` + `LP-*`, integration,
+  `test_manager_compare_sources.py` + `test_manager_live_pose.py`) — the manager
+  delegators into `MapSourceCoordinator`: `async_compare_map_sources` (the verify
+  probe — not_configured / memory_not_configured guards, flags-only when only one
+  source is present, `compare_map_data` reached when both are, diagnostics breadcrumb
+  passthrough) and the live-pose seam `async_get_map_live_pose` /
+  `_apply_inmem_pose_to_result` (robot/dock/heading/trail overlaid on present pose,
+  base overlays preserved when pose is absent or its read raises, `no_geom` reason
+  when geometry is missing).
+
 ---
 
 ## How it's tested
@@ -160,11 +200,12 @@ per the ~90% held-ceiling policy — defensive guards, not coverage debt:
   package/dock/roster normalizers, except-on-parse blocks, and not-taken partial
   branches.
 - **`mapping_services.py`** (94%) — the `_handle_analyze_map_image` tuning-override /
-  light-assist wiring (834-846) is **deferred**: a robust test fights the dual image
-  store (`save_map_image` writes the per-map JSON store while the handler probes the
-  filesystem) plus phac's shared config dir — not worth a fragile test. The rest is
-  defensive (the `OSError` delete branch 693-695, non-dict guards, the tracker-absent
-  else, and schema-unreachable coerce guards like 1110-1111).
+  light-assist wiring (the `tuning` dict + `assist_image_path` block inside that handler)
+  is **deferred**: a robust test fights the dual image store (`save_map_image` writes the
+  per-map JSON store while the handler probes the filesystem) plus phac's shared config dir
+  — not worth a fragile test. The rest is defensive (the `OSError` delete branch in
+  `_handle_delete_map_image`, non-dict guards, the tracker-absent else, and the
+  schema-unreachable coerce guards in `_build_segments_response`).
 - **`tracker.py`** (93%) — `# pragma: no cover` I/O / manager except-blocks,
   malformed-line resilience, and trivial early-return guards. The transition-room
   skip at 707 is a redundant defensive short-circuit (its normal path is covered by

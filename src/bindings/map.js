@@ -12,6 +12,14 @@
 
 import { VIEWS } from "../render-cycle.js";
 
+// Per-room fill palette for the VA-rendered backdrop (indexed by room id). Mirrors the
+// renderer's segment palette; Wave 2 will move these to themeable --evcc-map-ov-* tokens.
+const _VA_ROOM_COLORS = [
+  "#00e5ff", "#ff6b35", "#a3e635", "#e879f9",
+  "#fbbf24", "#a78bfa", "#fb7185", "#34d399",
+  "#60a5fa", "#f472b6", "#4ade80", "#f97316",
+];
+
 /**
  * Mix map binding methods onto the given prototype.
  *
@@ -37,12 +45,245 @@ export function applyMapBindings(proto) {
     this._bindMapConfig(root);
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
+    this._bindAreaLabelDrag(root);
     this._bindMapAnimalSelect(root);
+    this._bindMapLayersPanel(root);
+    this._bindMapRenderToggle(root);
+    this._bindMapRenderCanvas(root);
+    this._bindSelectionScrim(root);
 
     const view = this.card._view;
     if (view === VIEWS.MAP_CONFIG || this.card._state.isMapViewActive?.()) {
       this._ensureMapSegments();
     }
+  };
+
+  /* =========================================================
+     MAP LAYERS PANEL (Wave 3c overlay visibility toggles)
+     ========================================================= */
+
+  proto._bindMapLayersPanel = function (root) {
+    root.querySelectorAll("[data-action='toggle-map-overlay']").forEach((el) => {
+      this.card._on(el, "change", () => {
+        const layer = el.dataset.layer;
+        if (!layer) return;
+        this.card._actions
+          .setMapOverlayVisibility(layer, el.checked)
+          .then(() => this.card._scheduleRender())
+          .catch((err) => {
+            // Service failed — roll back the optimistic flip so the checkbox +
+            // overlay revert to the backend value instead of sticking unsaved.
+            console.error("[eufy-vacuum-command-center] Overlay toggle failed:", err);
+            this.card._state.clearOverlayVisibilityOptimistic?.(layer);
+            this.card._scheduleRender();
+          });
+        // Optimistic flip already applied in state; re-render now for instant feedback.
+        this.card._scheduleRender();
+      });
+    });
+
+    // Hide-area draw: enter/exit the draw+edit mode (the rubber-band drag lives in the
+    // map-container pointerdown handler).
+    root.querySelectorAll("[data-action='toggle-hide-draw']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.setHideDrawMode?.(!(this.card._state.hideDrawMode?.() ?? false));
+        this.card._scheduleRender();
+      });
+    });
+    // Delete ONE hidden region (the × on a mask while editing).
+    root.querySelectorAll("[data-action='delete-hidden-region']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        const idx = Number(btn.dataset.index);
+        const cur = this.card._state.hiddenRegions?.() ?? [];
+        if (!Number.isInteger(idx) || idx < 0 || idx >= cur.length) return;
+        const next = cur.filter((_, i) => i !== idx);
+        this.card._actions?.setHiddenRegions?.(next);
+        this.card._scheduleRender();
+      });
+    });
+    // Clear ALL hidden regions.
+    root.querySelectorAll("[data-action='clear-hidden-regions']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._actions?.setHiddenRegions?.([]);
+        this.card._scheduleRender();
+      });
+    });
+  };
+
+  /* =========================================================
+     VA-RENDERED MAP BACKDROP (Wave 1 — client-side canvas)
+     ========================================================= */
+
+  proto._bindMapRenderToggle = function (root) {
+    root.querySelectorAll("[data-action='toggle-va-render']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleUseVaRender?.();
+        this.card._scheduleRender();
+      });
+    });
+  };
+
+  /**
+   * When the VA-rendered backdrop is selected: fetch the raster ONCE (cached by
+   * version), then draw it to the <canvas> backdrop — redrawing only when the map
+   * version changes. The raster is static, so this is cheap.
+   */
+  proto._bindMapRenderCanvas = function (root) {
+    const state = this.card._state;
+    // Fetch the render raster whenever overlays are shown over a render-capable map — the canvas
+    // draws it for the VA backdrop AND the room hit-test (auto-derived click targets) needs it on
+    // the live backdrop too. Drawing below is a no-op when the canvas element isn't rendered
+    // (i.e. the VA backdrop isn't active). Fetch-once, cached by version.
+    if (!(state.supportsVaRender?.() && state.overlaysAligned?.())) return;
+
+    // Invalidate a raster fetched for a DIFFERENT map — we only auto-fetch when rd is null
+    // (below), so without this a map/layout switch would keep hit-testing + dimming against the
+    // previous map's frame. The version-keyed derived caches (raster/vaImage/scrim) self-clear
+    // once the new map's render data (new version) lands.
+    const mapId = state.activeMapId?.() ?? null;
+    if (state.mapRenderData?.() && this._renderDataMapId != null && this._renderDataMapId !== mapId) {
+      state.setMapRenderData?.(null);
+    }
+    const rd = state.mapRenderData?.();
+    if (!rd && !this._vaRenderFetching) {
+      this._vaRenderFetching = true;
+      this._renderDataMapId = mapId;   // tag the map this fetch belongs to (stale-on-switch guard)
+      this.card._actions
+        .getMapRenderData()
+        .then((data) => {
+          // Store a TRUTHY sentinel on a null/failed resolve so the binding doesn't
+          // re-fetch on every render (a transient WS drop returns null). Re-flipping the
+          // toggle clears the cache to retry.
+          state.setMapRenderData?.(
+            (data && typeof data === "object")
+              ? data
+              : { present: false, reason: "fetch_failed" });
+          this.card._scheduleRender();
+        })
+        .catch((err) => {
+          console.error("[eufy-vacuum-command-center] map render fetch failed:", err);
+          state.setMapRenderData?.({ present: false, reason: "fetch_failed" });
+        })
+        .finally(() => { this._vaRenderFetching = false; });
+      return;
+    }
+
+    const canvas = root.querySelector("canvas.evcc-map-render-canvas");
+    if (!canvas || !rd || !rd.present) return;
+    if (canvas._evccDrawnVersion === rd.version) return; // already drawn this version
+    try {
+      this._drawVaRender(canvas, rd);
+      canvas._evccDrawnVersion = rd.version;
+    } catch (err) {
+      console.error("[eufy-vacuum-command-center] map render draw failed:", err);
+    }
+  };
+
+  /**
+   * SUBTRACTIVE room selection: draw a per-pixel dark scrim over the UN-selected device rooms
+   * (exact room shapes from the raster) so selected rooms stay bright with no bbox overlap. The
+   * scrim ImageData is cached on the binding by (version + selection) and re-stamped onto each
+   * freshly-rendered canvas (cheap), mirroring _drawVaRender.
+   */
+  proto._bindSelectionScrim = function (root) {
+    const state = this.card._state;
+    const canvas = root.querySelector("canvas.evcc-map-selection-canvas");
+    if (!canvas) return;
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return;
+    const W = rd.width | 0, H = rd.height | 0;
+    if (W <= 0 || H <= 0) return;
+    const selKey = canvas.dataset.selKey || "";
+    let cache = this._scrimCache;
+    if (!cache || cache.key !== selKey || cache.w !== W || cache.h !== H) {
+      const bin = state._roomRasterBin?.(rd);
+      if (!bin) return;
+      const selected = new Set(
+        (state.getRoomsForActiveMap?.() ?? []).filter((r) => r.enabled).map((r) => Number(r.id)),
+      );
+      const ctx0 = canvas.getContext("2d");
+      if (!ctx0) return;
+      const img = ctx0.createImageData(W, H);
+      const data = img.data;
+      const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+      const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+      const shift = rd.rid_shift | 0, catchAll = rd.catch_all_rid | 0;
+      const flip = rd.flip_y !== false;
+      for (let py = 0; py < H; py++) {
+        for (let px = 0; px < W; px++) {
+          const rx = px - dx, ry = py - dy;
+          if (rx < 0 || rx >= roW || ry < 0 || ry >= roH) continue;
+          const idx = ry * roW + rx;
+          if (idx >= bin.length) continue;
+          const rid = bin.charCodeAt(idx) >> shift;
+          if (!(rid > 0 && rid < catchAll)) continue;   // not a room -> never dim
+          if (selected.has(rid)) continue;              // selected -> stays bright
+          const iy = flip ? (H - 1 - py) : py;
+          const o = (iy * W + px) * 4;
+          data[o] = 8; data[o + 1] = 10; data[o + 2] = 14; data[o + 3] = 168;  // ~0.66 dark scrim
+        }
+      }
+      cache = { key: selKey, w: W, h: H, img };
+      this._scrimCache = cache;
+    }
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.putImageData(cache.img, 0, 0);
+  };
+
+  /**
+   * Decode the room-id raster into the canvas: per pixel, room id = byte>>rid_shift;
+   * map the room_outline raster coord to the main grid (+ro_dx/dy), apply the Y-flip,
+   * and paint the room's palette colour. All decode params come from the service
+   * response (no brand assumptions). Wave 1 = rooms only (walls/floor are Wave 2).
+   */
+  proto._drawVaRender = function (canvas, rd) {
+    const W = rd.width | 0, H = rd.height | 0;
+    if (W <= 0 || H <= 0) return;
+    canvas.width = W;
+    canvas.height = H;
+    const cctx = canvas.getContext("2d");
+    if (!cctx) return;
+    // The canvas element is recreated on every view re-render (zoom/select/etc.), but
+    // the raster is static — decode ONCE per map version into an ImageData cached on
+    // the binding instance, then just putImageData onto each fresh canvas (cheap).
+    let cache = this._vaImageCache;
+    if (!cache || cache.version !== rd.version || cache.w !== W || cache.h !== H) {
+      const img = cctx.createImageData(W, H);
+      const data = img.data;
+      const bin = atob(rd.room_pixels || "");
+      const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+      const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+      const shift = rd.rid_shift | 0;
+      const catchAll = rd.catch_all_rid | 0;
+      const flip = rd.flip_y !== false;
+      for (let ry = 0; ry < roH; ry++) {
+        const rowOff = ry * roW;
+        for (let rx = 0; rx < roW; rx++) {
+          const idx = rowOff + rx;
+          if (idx >= bin.length) break;
+          const rid = bin.charCodeAt(idx) >> shift;
+          if (!(rid > 0 && rid < catchAll)) continue;
+          const px = rx + dx, py = ry + dy;
+          if (px < 0 || px >= W || py < 0 || py >= H) continue;
+          const iy = flip ? (H - 1 - py) : py;
+          const o = (iy * W + px) * 4;
+          const c = this._vaRoomColor(rid);
+          data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+        }
+      }
+      cache = { version: rd.version, w: W, h: H, img };
+      this._vaImageCache = cache;
+    }
+    cctx.putImageData(cache.img, 0, 0);
+  };
+
+  proto._vaRoomColor = function (rid) {
+    const hex = _VA_ROOM_COLORS[(rid - 1 + _VA_ROOM_COLORS.length) % _VA_ROOM_COLORS.length];
+    const n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
 
   /* =========================================================
@@ -88,6 +329,9 @@ export function applyMapBindings(proto) {
       let _clickTimer = null;
 
       this.card._on(el, "click", (e) => {
+        // In zone-draw mode the rubber-band owns the map — a tap must not toggle a
+        // room (belt-and-suspenders to the CSS pointer-events suppression).
+        if (this.card._state.zoneDrawMode?.()) return;
         e.stopPropagation();
         if (this.card._mapDragOccurred) {
           this.card._mapDragOccurred = false;
@@ -1010,6 +1254,13 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    // Mascot follows the live robot position (replaces the dot) vs. room/dock homing.
+    root.querySelectorAll("[data-action='map-animal-follow-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMapAnimalFollowsRobot?.();
+        this.card._scheduleRender();
+      });
+    });
     // Floor textures on/off — map polygons and room cards toggle independently.
     root.querySelectorAll("[data-action='map-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {
@@ -1063,6 +1314,9 @@ export function applyMapBindings(proto) {
 
       this.card._on(el, "pointerdown", (e) => {
         if (e.button !== 0) return;
+        // In zone-draw mode the rubber-band owns the press — don't let the mascot
+        // swallow a drag that happens to start over the floating animal.
+        if (this.card._state.zoneDrawMode?.()) return;
         e.stopPropagation();   // prevent the pan handler from starting a drag
         e.preventDefault();    // prevent text selection, browser scroll takeover
 
@@ -1083,7 +1337,7 @@ export function applyMapBindings(proto) {
         // rotation), but the pointer is in the unrotated .evcc-map-layers frame. Convert
         // pointer% -> CONTENT% via unrotatePct before placing/storing the anchor —
         // otherwise a 90/270 drag tracks (and persists) at the wrong spot. Identity at 0.
-        const rot = this.card._state.mapRotation?.() ?? 0;
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
         const ptrContentPct = (clientX, clientY) =>
           this.card._state.unrotatePct(
             (clientX - layerRect.left) / layerRect.width  * 100,
@@ -1133,6 +1387,106 @@ export function applyMapBindings(proto) {
         el.addEventListener("pointercancel", finish);
       });
     });
+  };
+
+  /**
+   * Drag a room's area (m²) chip off its name label. Mirrors the mascot-anchor drag exactly:
+   * rotation-aware pointer→content% conversion, grab offset so it doesn't snap, optimistic
+   * local update + backend persist on drop. The chip is positioned in map-content-box % (the
+   * same frame the renderer uses), keyed by room number, stored map-level.
+   */
+  proto._bindAreaLabelDrag = function (root) {
+    root.querySelectorAll("[data-action='area-label-drag']").forEach((el) => {
+      const layers = root.querySelector(".evcc-map-layers");
+      if (!layers) return;
+
+      this.card._on(el, "pointerdown", (e) => {
+        if (e.button !== 0) return;
+        // Don't swallow a rubber-band (zone/hide draw) that starts over a chip.
+        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.()) return;
+        e.stopPropagation();   // keep the pan handler from starting a drag
+        e.preventDefault();
+
+        const roomKey = el.dataset.room;
+        if (roomKey == null || roomKey === "") return;
+
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("evcc-map-ov-area--dragging");
+
+        const layerRect = layers.getBoundingClientRect();
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        const curPctX = parseFloat(el.style.left) || 0;
+        const curPctY = parseFloat(el.style.top)  || 0;
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        const grabOffX = grabX - curPctX;
+        const grabOffY = grabY - curPctY;
+        let livePctX = curPctX;
+        let livePctY = curPctY;
+        let moved = false;
+
+        const onMove = (ev) => {
+          const [cx, cy] = ptrContentPct(ev.clientX, ev.clientY);
+          livePctX = Math.max(0, Math.min(100, cx - grabOffX));
+          livePctY = Math.max(0, Math.min(100, cy - grabOffY));
+          moved = true;
+          el.style.left = `${livePctX}%`;
+          el.style.top  = `${livePctY}%`;
+        };
+
+        const finish = () => {
+          el.removeEventListener("pointermove",   onMove);
+          el.removeEventListener("pointerup",     finish);
+          el.removeEventListener("pointercancel", finish);
+          el.classList.remove("evcc-map-ov-area--dragging");
+          if (!moved) return;   // a tap (no drag) shouldn't pin the chip at its default spot
+          this.card._state.setAreaLabelAnchorLocal?.(roomKey, livePctX, livePctY);
+          this.card._actions?.setAreaLabelAnchor?.(roomKey, livePctX, livePctY);
+          this.card._scheduleRender();
+        };
+
+        el.addEventListener("pointermove",   onMove);
+        el.addEventListener("pointerup",     finish);
+        el.addEventListener("pointercancel", finish);
+      });
+    });
+  };
+
+  /**
+   * Auto-derived click target: a clean tap on a room region toggles it into the clean selection.
+   * Pixel-exact — convert the tap (screen) through pan/zoom -> un-rotate -> the room raster to a
+   * DEVICE ROOM ID (== the managed room id), then toggle that room's enabled switch. No-op while
+   * drawing/anchoring or when the raster isn't available (no map_render / not yet fetched).
+   */
+  proto._handleRoomTap = function (container, clientX, clientY) {
+    const state = this.card._state;
+    if (state.zoneDrawMode?.() || state.hideDrawMode?.() || state.isMapAnchorMode?.()) return;
+    // Only hit-test over a backdrop the device-frame raster is registered to (VA render or live
+    // image). On an uploaded/CV --fill backdrop the raster doesn't co-register, so a tap would
+    // toggle the wrong room. Mirrors the deviceOverlays / scrim gate.
+    if (!(state.overlaysAligned?.() ?? false)) return;
+    const rd = state.mapRenderData?.();
+    if (!rd || !rd.present) return;
+    const layers = container.querySelector(".evcc-map-layers");
+    if (!layers) return;
+    const r = layers.getBoundingClientRect();
+    if (!r.width || !r.height) return;
+    const fx = (clientX - r.left) / r.width  * 100;
+    const fy = (clientY - r.top)  / r.height * 100;
+    const rot = state.effectiveMapRotation?.() ?? 0;
+    const [cx, cy] = state.unrotatePct(fx, fy, rot);
+    const rid = state.roomIdAtContentPct(cx, cy, rd);
+    if (rid == null) return;
+    const mapId = state.activeMapId?.();
+    const room = (state.getRoomsForActiveMap?.() ?? []).find((rm) => Number(rm.id) === Number(rid));
+    this.card._actions?.toggleRoomEnabled?.(mapId, rid, room?.enabled ?? false);
+    this.card._scheduleRender?.();
   };
 
 /* =========================================================
@@ -1193,9 +1547,85 @@ export function applyMapBindings(proto) {
     root.querySelectorAll("[data-action='map-rotate']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
         e.stopPropagation();
+        // Rotation invalidates the draw gates (zone + hide-area are rot-0 only) — tear down any
+        // in-progress draw so a rotated box can never be confirmed.
+        this.card._state.setZoneDrawMode?.(false);
+        this.card._state.setHideDrawMode?.(false);
         const mapId = this.card._state.mapSegmentsData?.()?.map_id
           ?? this.card._state.activeMapId?.() ?? null;
         this.card._actions.rotateLiveMap?.(mapId);
+        this.card._scheduleRender?.();
+      });
+    });
+
+    // Ad-hoc zone clean: toggle draw mode / dispatch the drawn box / cancel.
+    root.querySelectorAll("[data-action='toggle-zone-draw']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.setZoneDrawMode?.(!this.card._state.zoneDrawMode?.());
+        this.card._scheduleRender?.();
+      });
+    });
+    root.querySelectorAll("[data-action='zone-clean-cancel']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.setZoneDrawMode?.(false);
+        this.card._scheduleRender?.();
+      });
+    });
+    root.querySelectorAll("[data-action='zone-clear']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        this.card._state.clearZoneDrafts?.();
+        this.card._scheduleRender?.();
+      });
+    });
+    // Live setting selects in the zone panel — set the real provider entity. The
+    // HA state push re-renders with the confirmed value; no local render needed.
+    root.querySelectorAll("[data-action='zone-setting']").forEach((sel) => {
+      this.card._on(sel, "change", (e) => {
+        e.stopPropagation();
+        this.card._actions.setVacuumSetting?.(sel.dataset.entityId, sel.value);
+      });
+    });
+    // Per-zone remove in the zone panel.
+    root.querySelectorAll("[data-action='zone-remove']").forEach((btn) => {
+      this.card._on(btn, "click", (e) => {
+        e.stopPropagation();
+        const i = Number(btn.dataset.zoneIndex);
+        if (!Number.isNaN(i)) this.card._state.removeZoneDraft?.(i);
+        this.card._scheduleRender?.();
+      });
+    });
+    root.querySelectorAll("[data-action='zone-clean-confirm']").forEach((btn) => {
+      this.card._on(btn, "click", async (e) => {
+        e.stopPropagation();
+        // Refuse to dispatch if the gate no longer holds (e.g. rotated mid-draw).
+        if (!this.card._state.canDrawZone?.()) {
+          this.card._state.setZoneDrawMode?.(false);
+          this.card._scheduleRender?.();
+          return;
+        }
+        // The live image's natural pixel size lets us letterbox-correct the pct
+        // draft into the image's normalized frame (object-fit:contain on a square
+        // container letterboxes a non-square map).
+        const liveImg = root.querySelector(".evcc-map-image");
+        const dims = (liveImg && liveImg.naturalWidth > 0)
+          ? { width: liveImg.naturalWidth, height: liveImg.naturalHeight }
+          : null;
+        const rects = this.card._state.zoneDraftsToNormalizedRects?.(dims) ?? [];
+        if (!rects.length) {
+          console.warn(
+            "[eufy-vacuum-command-center] zone clean: nothing drawn or live image not ready",
+          );
+          return;
+        }
+        try {
+          await this.card._actions.cleanZone?.(rects, 1);
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] zone clean failed:", err);
+        }
+        this.card._state.setZoneDrawMode?.(false); // exit + clear the drafts
         this.card._scheduleRender?.();
       });
     });
@@ -1229,15 +1659,118 @@ export function applyMapBindings(proto) {
 
     this.card._on(container, "pointerdown", (e) => {
       if (e.button !== 0) return;
+      // Zone-draw mode owns the press: paint a rubber-band rectangle instead of
+      // panning. This MUST live inside this one handler — _on() is idempotent per
+      // element+event (core.js), so a second pointerdown bind on the container is
+      // silently dropped. (That dropped-bind was the "drag does nothing" bug.)
+      if (this.card._state.zoneDrawMode?.() && this.card._state.canDrawZone?.()) {
+        const layers = container.querySelector(".evcc-map-layers");
+        if (!layers) return;
+        const zr = layers.getBoundingClientRect();
+        if (!zr.width || !zr.height) return;
+        e.preventDefault();
+        const zclamp = (v) => Math.min(Math.max(v, 0), 100);
+        const zsx = zclamp(((e.clientX - zr.left) / zr.width)  * 100);
+        const zsy = zclamp(((e.clientY - zr.top)  / zr.height) * 100);
+        let zcur = { x: zsx, y: zsy, w: 0, h: 0 };
+        const zpaint = () => {
+          // Re-query each paint so a mid-drag re-render doesn't strand a detached node.
+          const box = container.querySelector(".evcc-zone-draft");
+          if (!box) return;
+          box.style.left    = Math.min(zcur.x, zcur.x + zcur.w) + "%";
+          box.style.top     = Math.min(zcur.y, zcur.y + zcur.h) + "%";
+          box.style.width   = Math.abs(zcur.w) + "%";
+          box.style.height  = Math.abs(zcur.h) + "%";
+          box.style.display = "block";
+        };
+        zpaint();
+        const zMove = (ev) => {
+          zcur = {
+            x: zsx, y: zsy,
+            w: zclamp(((ev.clientX - zr.left) / zr.width)  * 100) - zsx,
+            h: zclamp(((ev.clientY - zr.top)  / zr.height) * 100) - zsy,
+          };
+          zpaint();
+        };
+        const zUp = () => {
+          document.removeEventListener("pointermove", zMove);
+          document.removeEventListener("pointerup",     zUp);
+          document.removeEventListener("pointercancel", zUp);
+          if (Math.abs(zcur.w) < 1 || Math.abs(zcur.h) < 1) return; // ignore a stray click
+          // Commit this box to the list (no-op at the 10-zone cap); re-render shows
+          // it as a persistent overlay and the in-progress box resets to hidden.
+          this.card._state.addZoneDraft?.(zcur);
+          this.card._scheduleRender?.();
+        };
+        document.addEventListener("pointermove", zMove);
+        document.addEventListener("pointerup",     zUp);
+        document.addEventListener("pointercancel", zUp);
+        return;
+      }
+      // Hide-area draw owns the press the same way (mirrors the zone rubber-band): drag a box,
+      // convert it to a normalized image rect (letterbox-corrected), and append it to the
+      // persisted hidden regions. Like zones, this MUST live in this one pointerdown handler.
+      if (this.card._state.hideDrawMode?.() && this.card._state.canDrawHideArea?.()) {
+        // Don't start a rubber-band when the press is on the × delete button (its own click
+        // handler owns it) — else a tiny move while deleting would paint a stray draft.
+        if (e.target.closest("[data-action='delete-hidden-region']")) return;
+        const layers = container.querySelector(".evcc-map-layers");
+        if (!layers) return;
+        const hr = layers.getBoundingClientRect();
+        if (!hr.width || !hr.height) return;
+        e.preventDefault();
+        const hclamp = (v) => Math.min(Math.max(v, 0), 100);
+        const hsx = hclamp(((e.clientX - hr.left) / hr.width)  * 100);
+        const hsy = hclamp(((e.clientY - hr.top)  / hr.height) * 100);
+        let hcur = { x: hsx, y: hsy, w: 0, h: 0 };
+        const hpaint = () => {
+          const box = container.querySelector(".evcc-hide-draft");
+          if (!box) return;
+          box.style.left    = Math.min(hcur.x, hcur.x + hcur.w) + "%";
+          box.style.top     = Math.min(hcur.y, hcur.y + hcur.h) + "%";
+          box.style.width   = Math.abs(hcur.w) + "%";
+          box.style.height  = Math.abs(hcur.h) + "%";
+          box.style.display = "block";
+        };
+        hpaint();
+        const hMove = (ev) => {
+          hcur = {
+            x: hsx, y: hsy,
+            w: hclamp(((ev.clientX - hr.left) / hr.width)  * 100) - hsx,
+            h: hclamp(((ev.clientY - hr.top)  / hr.height) * 100) - hsy,
+          };
+          hpaint();
+        };
+        const hUp = () => {
+          document.removeEventListener("pointermove", hMove);
+          document.removeEventListener("pointerup",     hUp);
+          document.removeEventListener("pointercancel", hUp);
+          if (Math.abs(hcur.w) < 1 || Math.abs(hcur.h) < 1) return; // ignore a stray click
+          const size = this.card._state.mapImageSize?.();
+          const dims = (Array.isArray(size) && size.length === 2)
+            ? { width: size[0], height: size[1] } : null;
+          const norm = this.card._state._rectToNormalized?.(hcur, dims);
+          if (!norm) return;
+          const next = [...(this.card._state.hiddenRegions?.() ?? []), norm];
+          this.card._actions?.setHiddenRegions?.(next);   // optimistic + persist
+          this.card._scheduleRender?.();
+        };
+        document.addEventListener("pointermove", hMove);
+        document.addEventListener("pointerup",     hUp);
+        document.addEventListener("pointercancel", hUp);
+        return;
+      }
       // Always reset drag flag so the next click starts clean.
       this.card._mapDragOccurred = false;
-      // Don't start a pan drag when the press originates on the
-      // animal icon — let its own click handler deal with it.
+      // Don't start a pan drag when the press originates on a draggable element (the animal
+      // icon or a room-area chip) — let its own drag handler deal with it.
       if (e.target.closest("[data-action='map-dot-click']")) return;
+      if (e.target.closest("[data-action='area-label-drag']")) return;
       _dragging = true;
       _moved    = false;
       _lastX    = e.clientX;
       _lastY    = e.clientY;
+      const downX = e.clientX, downY = e.clientY;
 
       const onMove = (ev) => {
         if (!_dragging) return;
@@ -1257,6 +1790,8 @@ export function applyMapBindings(proto) {
         document.removeEventListener("pointermove", onMove);
         document.removeEventListener("pointerup",     onUp);
         document.removeEventListener("pointercancel", onUp);
+        // A clean tap (no drag) on a room region -> toggle it into the clean selection.
+        if (!_moved) this._handleRoomTap(container, downX, downY);
       };
 
       document.addEventListener("pointermove", onMove);

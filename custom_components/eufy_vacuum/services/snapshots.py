@@ -53,10 +53,17 @@ _PAUSE_TIMEOUT_SETTINGS_SCHEMA = vol.Schema(
 
 async def _handle_get_dashboard_snapshot(hass: HomeAssistant, call: ServiceCall) -> dict:
     """Return unified dashboard snapshot for one vacuum/map."""
+    manager = get_manager(hass)
+    resolved = resolved_call_data(hass, call)
+    # Pre-warm the map_state_source cache ASYNC (off-loop .storage read for the Eufy
+    # backend; in-memory introspect for Roborock) so the sync snapshot below can
+    # include the VA-owned read of the provider's segmentation without doing the
+    # blocking read itself. Degrades to an absent marker on any failure.
+    await manager.async_refresh_map_state_source(**resolved)
     # Must NOT use async_add_executor_job here — get_dashboard_snapshot calls
     # hass.bus.async_fire internally (via _maybe_roll_current_room_by_timing),
     # which requires the event loop thread.
-    payload = get_manager(hass).get_dashboard_snapshot(**resolved_call_data(hass, call))
+    payload = manager.get_dashboard_snapshot(**resolved)
     _LOGGER.debug("get_dashboard_snapshot complete: %s", payload)
     return payload
 

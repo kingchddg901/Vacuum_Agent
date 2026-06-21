@@ -25,7 +25,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `registry.py` | 141 | 94% | `test_adapters.py` | integration |
+| `registry.py` | 154 | 92% | `test_adapters.py` | integration |
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter |
@@ -39,9 +39,18 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
-| `eufy/water_config.py` | 2 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/water_config.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/maintenance_components.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/upkeep_guides.py` | 1 | 100% | `tests/adapters/eufy/` | adapter |
+
+The Eufy adapter also pins two pluggable **engine seams** that live under
+`learning/` (the adapter *declares* the engine; the engine itself is
+brand-agnostic — see [06 — learning](06-learning.md)):
+
+| Engine seam (under `learning/`) | Test file | Layer |
+|---------------------------------|-----------|-------|
+| `room_attribution_engines.py` (`EufyAnchorWindingAttributor`) | `test_room_attribution.py` | adapter |
+| `job_segmenter_engines.py` (`EufyCounterSegmenter`) | `test_job_segmenter_config.py` | adapter |
 
 (Adapter-config *services* are in [17 — services](17-services.md) via
 `test_services_adapter_config.py`.)
@@ -60,6 +69,15 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
   `buttons`/`entities` candidate-data shape, and the CV `segmentor` wrapper +
   splitter helpers. (Charging reads are brand-agnostic now and tested in
   `tests/unit/test_charging.py` — see [01 — core](01-core.md).)
+- **Eufy engine seams** (also in `tests/adapters/eufy/`) — the two pluggable
+  engines the Eufy adapter declares. `test_room_attribution.py` pins the ported
+  `EufyAnchorWindingAttributor` (`learning/room_attribution_engines.py`) against
+  the 3 adversarial external-run fixtures (the 9/9 dwell + spread + winding +
+  swept-area attribution, dock-trap exclusion included). `test_job_segmenter_config.py`
+  asserts the Eufy adapter declares `job_segmenter.engine = "eufy_counter_v1"`,
+  that its `job_segmenter.tuning` equals `EufyCounterSegmenter.DEFAULT_TUNING`
+  (no threshold drift after the move out of `live_transition`), and that the
+  declared engine resolves and validates clean.
 
 ---
 
@@ -73,7 +91,7 @@ is now **91%** — the splitter helpers, recovery / scoring / issue-tag paths, a
 (via two map fixtures) the localized-bins SPLIT + child-handling are all covered;
 its remaining tail is the splitter-internal *alternative* sub-branches (see Known
 gaps), the natural place a second-brand effort would invest. `adapter.py` (95%) is missing
-only line 110 — the `return None` guard in the small helper `_button_block_or_none`
+only line 110 — the `return None` guard in the small helper `_build_button_block`
 when a button key is absent from both candidates and tokens maps. See
 [01 — overview](../01-overview.md) for the three-layer split.
 
@@ -88,7 +106,7 @@ when a button key is absent from both candidates and tokens maps. See
 (not-a-dict / missing / unknown engine) are now covered — `test_adapters.py`
 asserts that contract so an unknown engine can't silently fall back. The rest are
 error paths for invalid storage, not real behavior holes. `adapter.py` (95%)
-is missing one line (110), the `return None` guard in `_button_block_or_none`
+is missing one line (110), the `return None` guard in `_build_button_block`
 for a component with no reset button — likewise defensive.
 
 The one remaining thin spot is **CV `segmentor` depth** (91%, up from 70% — first

@@ -80,9 +80,23 @@ export function applyRoomsRenderers(proto) {
                  </div>`}
           </div>
 
-          ${typeof this.renderRunProfilesPanel === "function"
-            ? this.renderRunProfilesPanel(state)
-            : ""}
+          <div class="evcc-rooms-sidecol">
+            ${typeof this.renderRunProfilesPanel === "function"
+              ? this.renderRunProfilesPanel(state)
+              : ""}
+            ${(state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
+              ? this._renderZonePanel(
+                  state,
+                  state.zoneDrafts?.() ?? [],
+                  state.zoneCount?.() ?? 0,
+                  state.zoneMax?.() ?? 10,
+                )
+              : ""}
+            ${(state.isMapViewActive?.() && (state.overlaysAligned?.() ?? false)
+               && typeof this._renderMapLayersPanel === "function")
+              ? this._renderMapLayersPanel(state)
+              : ""}
+          </div>
         </div>
 
       </div>
@@ -159,12 +173,23 @@ export function applyRoomsRenderers(proto) {
           title="Companion animal"
           aria-label="Companion animal"
         >
-          ${(window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"]).map((a) => {
-            const def     = window.AnimalSVG?.get?.(a);
-            const label   = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
+          ${(() => {
+            const list    = window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"];
             const current = state.mapAnimalSelection?.() ?? "cat";
-            return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
-          }).join("")}
+            const opt = (a) => {
+              const def   = window.AnimalSVG?.get?.(a);
+              const label = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
+              return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
+            };
+            // Memorial companions sit in their own "Rainbow Bridge" optgroup, set
+            // apart from the everyday animals.
+            const memorial = list.filter((a) => window.AnimalSVG?.get?.(a)?.memorial);
+            const regular  = list.filter((a) => !window.AnimalSVG?.get?.(a)?.memorial);
+            return regular.map(opt).join("")
+              + (memorial.length
+                  ? `<optgroup label="🌈 Rainbow Bridge">${memorial.map(opt).join("")}</optgroup>`
+                  : "");
+          })()}
         </select>
         <input
           type="range"
@@ -188,6 +213,19 @@ export function applyRoomsRenderers(proto) {
             <circle cx="6.5" cy="4.8" r="1.3"/>
             <circle cx="9.5" cy="4.8" r="1.3"/>
             <circle cx="12.2" cy="7" r="1.3"/>
+          </svg>
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.mapAnimalFollowsRobot?.() ?? false) ? " active" : ""}"
+          data-action="map-animal-follow-toggle"
+          title="${(state.mapAnimalFollowsRobot?.() ?? false) ? "Mascot follows the live robot position — tap for room/dock mode" : "Make the mascot ride the live robot position (replaces the dot)"}"
+          aria-label="Mascot follows robot"
+          aria-pressed="${(state.mapAnimalFollowsRobot?.() ?? false) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="8" cy="8" r="3"/>
+            <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
+            <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
           </svg>
         </button>
         <button

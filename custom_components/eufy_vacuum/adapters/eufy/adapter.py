@@ -468,6 +468,11 @@ def register_eufy_adapter_for_vacuum(
             "service_domain": "vacuum",
             "service_name": "send_command",
             "command": "room_clean",
+            # Ad-hoc free-form zone clean (smcneece eufy-clean fork). Same
+            # vacuum.send_command service, command=zone_clean, bare payload
+            # {zones:[[x0,y0,x1,y1],...], clean_times}. manager.dispatch_zone_clean
+            # reads this verb; absence => zone cleaning unsupported for the brand.
+            "zone_command": "zone_clean",
             "map_id_field": "map_id",
             "map_id_type": "int",
             "room_id_field": "id",
@@ -505,9 +510,11 @@ def register_eufy_adapter_for_vacuum(
                 # engine's validate_tuning() rejects unknown keys at
                 # registration time.
                 "min_area_pixels": 1200,
-                # simplify_epsilon: None means "no polygon simplification"
-                # (default from detect_room_segments). Set a small positive
-                # float (e.g. 2.5) to merge near-collinear vertices.
+                # simplify_epsilon: None AUTO-DERIVES the RDP epsilon from the
+                # polygon's vertex count (~max(1.0, sqrt(points) * 0.42); see
+                # segment_primitives.mask_to_polygon). Set a positive float to
+                # FORCE a fixed epsilon (larger = more aggressive vertex merging);
+                # 0 keeps every vertex (no simplification).
                 "simplify_epsilon": None,
                 # expected_room_count: None lets the engine infer; set an
                 # int to bias the candidate-scoring pass toward that count.
@@ -521,6 +528,77 @@ def register_eufy_adapter_for_vacuum(
             # If the vacuum entity was renamed and this guess misses, the per-vacuum
             # override set from the Setup tab wins (see manager.get_dashboard_snapshot).
             "live_map_image_entity_pattern": "camera.{object_id}_map",
+        },
+
+        "map_state_source": {
+            # Read the eufy-clean fork's OWN map segmentation (the device's
+            # authoritative room data) into normalized, VA-owned room bboxes +
+            # dock/robot anchors — so room regions / current-room / mascots are
+            # AUTO-DERIVED, not hand-composed, and immune to the per-session raw
+            # coordinate drift (reference_eufy_intersession_coord_drift). See
+            # docs/dev/map-state-source.md.
+            #
+            # STORAGE backend: the fork persists the DECODED map to its HA Store
+            # file (.storage/robovac_mqtt.<serial>). store_key fills {device_id}
+            # from the (robovac_mqtt, <serial>) device-registry identifier. The
+            # store wraps {version, data:{map_data:{room_pixels,...}, dock_pixel,
+            # robot_trail}} — store_version guards that wrapper (the fork may bump
+            # it at the pending #136 merge → re-point this number, don't rewrite).
+            #
+            # Presence-gated on the live-map camera artifact (same gate as the
+            # live backdrop): plain non-fork eufy-clean has no camera.<device>_map,
+            # so this resolves to "not present" and segmentation features hide —
+            # exactly like the model/CV presence gates.
+            "backend": "storage",
+            "identifier_domain": "robovac_mqtt",
+            "store_key": "robovac_mqtt.{device_id}",
+            "store_version": 1,
+            "present_requires_live_map_image": True,
+            # IN-MEMORY live pose (the moving overlays, fresh ~2s). The .storage robot
+            # position (robot_trail[-1]) lags the fork's save-throttle; the fork's live
+            # EufyCleanCoordinator holds a fresh pixel for its own render. We read THAT for
+            # robot/dock/current-room/path and keep .storage for the static segmentation.
+            # Attr path CONFIRMED on the live device (2026-06-19 structure dump):
+            # hass.data["robovac_mqtt"][<entry>]["coordinators"][0] (an EufyCleanCoordinator)
+            # exposes `_robot_pixel` (tuple, but NULLED while docked), `_dock_pixel` (tuple),
+            # `_robot_trail` (list of pixel tuples = the path). So the holder is matched on
+            # the robot+dock attrs EXISTING, not on the robot pixel currently being a pair —
+            # a docked robot resolves its anchor to the dock (mirrors the fork's render).
+            # There is NO in-memory heading attr (the fork bakes orientation into the
+            # rendered image bytes); heading_attrs is kept future-proof but matches nothing
+            # today. attr lists are tried in order; absence => no override (stays on
+            # .storage). Roborock doesn't need this (its in-memory MapData is frame-fresh).
+            "live_pose": {
+                "hass_data_domain": "robovac_mqtt",
+                "robot_pixel_attrs": ["_robot_pixel", "robot_pixel"],
+                "dock_pixel_attrs": ["_dock_pixel", "dock_pixel"],
+                "trail_pixel_attrs": ["_robot_trail", "robot_trail"],
+                "heading_attrs": ["_robot_angle", "robot_angle", "_robot_heading"],
+            },
+            # IN-MEMORY MapData source (the SAME EufyCleanCoordinator the live pose reads also
+            # holds `_map_data`, a full MapData object: room_pixels/raw_pixels bytes + dims +
+            # room_outline_* + room_names + virtual_walls/forbidden_zones/ban_mop_zones). It is
+            # FRESHER than .storage (no save-throttle lag) and loop-safe (no file read). The
+            # compare_map_sources probe verifies its bytes are byte-identical to .storage before
+            # we repoint the source to it (P2). mapdata_attrs locate the object; field_attrs
+            # (optional) remap a field if the fork renames one across the pending #136 merge.
+            "memory": {
+                "hass_data_domain": "robovac_mqtt",
+                "mapdata_attrs": ["_map_data", "map_data"],
+            },
+        },
+
+        "map_render": {
+            # VA-OWNED client-side map render (no server dependency). Declares HOW the
+            # card sources the raster to draw its own full-grid backdrop — so the
+            # overlays align perfectly (no fork-camera crop) and the look is themeable.
+            # `format` names the decode (the card applies the explicit params the
+            # get_map_render_data service returns; core/card stay brand-agnostic). The
+            # source pointer (store_key/identifier_domain/store_version) is REUSED from
+            # `map_state_source` above — no duplicate schema. Roborock omits this block
+            # (its HA-core image render is already frame-matched); absence => the card's
+            # "VA-rendered map" backdrop source is hidden for that brand.
+            "format": "eufy_room_pixels_v1",
         },
 
         "job_segmenter": {
@@ -541,6 +619,27 @@ def register_eufy_adapter_for_vacuum(
                 "gap_plateau_s": 90.0,
                 "area_jump_m2": 2.0,
                 "cadence_s": 30.0,
+            },
+        },
+
+        "room_attribution": {
+            # Selects the pluggable ROOM-ATTRIBUTION engine — recovers WHICH managed
+            # rooms an EXTERNAL (undispatched) run cleaned, from a per-tick pose
+            # time-series (current_room + anchor + cleaning_area). A DIFFERENT axis from
+            # job_segmenter (which owns time/area boundaries); this owns room identity.
+            # Looked up in learning.room_attribution_engines._ROOM_ATTRIBUTION_ENGINES;
+            # absent/unknown falls back to eufy_anchor_winding_v1 (NOT noop).
+            # DORMANT until the run-active pose sampler (W5b) + finalize wiring (W5c) land
+            # — declared now so the engine selection is validated + explicit.
+            # eufy_anchor_winding_v1 segments by current_room, drops transit by
+            # path-winding, and separates cleaned vs parked-dock by the cleaning_area
+            # (swept m²) delta. See docs/dev/eufy-native-transition.md.
+            "engine": "eufy_anchor_winding_v1",
+            "tuning": {
+                "wind_transit": 1.5,
+                "dwell_min_s": 25.0,
+                "swept_area_min_m2": 0.5,
+                "interval_s": 2.0,
             },
         },
 
@@ -593,6 +692,13 @@ def register_eufy_adapter_for_vacuum(
             "supports_empty_dust": caps.get("supports_empty_dust", False),
             "supports_robot_position": caps.get("supports_robot_position", False),
             "supports_station_water": caps.get("supports_station_water", False),
+            # Ad-hoc free-form zone cleaning (draw a box on the live map, clean it).
+            # No runtime probe distinguishes the smcneece fork (which accepts
+            # zone_clean — see dispatch.zone_command) from stock eufy-clean, so this
+            # is True for Eufy and the card gates the zone-draw control on a RESOLVED
+            # live-map image: the fork that adds zone_clean is the same one exposing
+            # camera.<device>_map, so stock installs (no live map) never see it.
+            "supports_zone_clean": True,
             # Eufy firmware re-bases the raw coordinate frame every session, so
             # cross-session bounds geometry is unusable for room detection. The
             # room detector only trusts position/bounds when this is True (core
@@ -638,6 +744,11 @@ def register_eufy_adapter_for_vacuum(
         },
 
         "water_model_configs": WATER_MODEL_CONFIGS,
+
+        # Mop-wash cadence interval bounds (minutes) from the X10 firmware — brand-owned
+        # here so the planning core carries no Eufy-specific range (planning/run_plan.py
+        # _derive_wash_frequency_config reads this and otherwise stays generic).
+        "wash_frequency_bounds": {"default": 20.0, "min": 15.0, "max": 25.0},
     }
 
     register_adapter_config(vacuum_entity_id, config)
