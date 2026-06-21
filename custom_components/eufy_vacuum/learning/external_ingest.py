@@ -345,10 +345,11 @@ def _enrich_segments(
 
 def strip_samples(rec: dict[str, Any]) -> dict[str, Any]:
     """Remove the embedded raw samples (mutates + returns rec) before serving a
-    pending record to the card — it never needs them; re-segmentation reads them
-    server-side. A no-op on v1 records (the keys are absent)."""
+    pending record to the card — it never needs them; re-segmentation (counter) and
+    re-attribution (pose) read them server-side. A no-op on v1 records (keys absent)."""
     rec.pop("counter_samples", None)
     rec.pop("settings_samples", None)
+    rec.pop("pose_samples", None)
     return rec
 
 
@@ -503,7 +504,9 @@ def build_attributed_job(
     there is no usable attribution (so finalize writes nothing, exactly as pre-W5c).
 
     NOT counter-resegmentable (no counter samples embedded → the card hides the room-count /
-    split-here controls); the user can still re-assign or merge rooms in the wizard. ``time_active_s``
+    split-here controls); the user can still re-assign or merge rooms in the wizard. The raw
+    ``pose_samples`` ARE embedded, though, so the run can be re-ATTRIBUTED server-side after an
+    engine fix (the pose-path sibling of re-segmentation). ``time_active_s``
     is the real per-room cleaning time even when the ``[t_start, t_end]`` windows of interleaved
     rooms overlap (the windows are display-only). Assumes ``pose_samples`` are time-ordered —
     guaranteed by the single ``async_track_time_interval`` sampler (one append per tick); the
@@ -582,6 +585,10 @@ def build_attributed_job(
         "gap_transit_s": 60.0,  # schema field; unused (no counter resegment for pose-only)
         "candidates": [],  # no counter candidates → resegmentable=False at the service
         "active_boundaries": [],
+        # Raw pose embedded so the run can be RE-ATTRIBUTED server-side after an engine fix
+        # (the pose-path sibling of counter re-segmentation). Stripped before serving to the
+        # card. Bounded by _MAX_POSE_SAMPLES (active_job.py).
+        "pose_samples": list(pose_samples or []),
         "segments": segments,
     }
 
@@ -668,6 +675,10 @@ def build_pending_record(
         "active_boundaries": active_ids,
         "counter_samples": counter,
         "settings_samples": settings,
+        # Raw pose embedded (when a pose stream was captured) so the run can be RE-ATTRIBUTED
+        # server-side after an engine fix — the pose-path sibling of counter re-segmentation.
+        # Stripped before serving to the card. Bounded by _MAX_POSE_SAMPLES (active_job.py).
+        "pose_samples": list(pose_samples or []),
         "segments": out_segments,
     }
 

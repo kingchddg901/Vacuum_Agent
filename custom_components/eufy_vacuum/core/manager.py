@@ -2818,9 +2818,10 @@ class EufyVacuumManager:
             except (OSError, ValueError):
                 baselines = []
             # The v2 record embeds the raw samples so the run can be re-segmented
-            # server-side (the review wizard's room-count / split-here); they are
-            # stripped before serving to the card. Bounded by _MAX_COUNTER_SAMPLES
-            # (active_job.py), so the persisted record stays ~100-200 KB worst case.
+            # (counter) and re-attributed (pose) server-side; both are stripped before
+            # serving to the card. Bounded by _MAX_COUNTER_SAMPLES + _MAX_POSE_SAMPLES
+            # (active_job.py) — a normal run is small (~50-150 KB); the pose worst case
+            # is the 3000-sample cap (a long stall, which the stall-detector fix prevents).
             record = build_pending_record(
                 detection_ts=detection_ts,
                 map_id=map_id,
@@ -3884,8 +3885,9 @@ class EufyVacuumManager:
                         source_cfg=source_cfg, present=present,
                     )
                     # Verify line (symmetric with the memory branch): present/reason + room
-                    # count, so the live deploy is visible in the log without a service call.
-                    _LOGGER.info(
+                    # count. DEBUG, not INFO — it rides the 60s pre-warm, so at INFO it floods
+                    # the log over a long run; enable debug logging to see it after a deploy.
+                    _LOGGER.debug(
                         "map_state_source[%s] storage read: present=%s reason=%s rooms=%d",
                         vacuum_entity_id, result.get("present"), result.get("reason"),
                         len(result.get("rooms") or []),
@@ -3897,7 +3899,7 @@ class EufyVacuumManager:
                 )
                 result = _msr.roborock_result_from_candidates(candidates, present=present)
                 if result.get("diagnostics") is not None:
-                    _LOGGER.info(
+                    _LOGGER.debug(
                         "map_state_source[%s] memory introspect: present=%s reason=%s diag=%s",
                         vacuum_entity_id, result.get("present"),
                         result.get("reason"), result.get("diagnostics"),
@@ -4094,7 +4096,7 @@ class EufyVacuumManager:
         self._apply_inmem_pose_to_result(
             result, map_data, vacuum_entity_id, source_cfg.get("live_pose"),
         )
-        _LOGGER.info(
+        _LOGGER.debug(
             "map_state_source[%s] memory read: present=%s rooms=%d (version=%s)",
             vacuum_entity_id, result.get("present"),
             len(result.get("rooms") or []), version,

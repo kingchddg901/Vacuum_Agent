@@ -139,6 +139,7 @@ def test_build_attributed_job_stands_up_pose_only_record():
     assert rec["segments"][0]["area_m2"] == 6.0 and rec["segments"][1]["area_m2"] == 2.0
     assert all(s["boundary"] == "pose_attribution" for s in rec["segments"])
     assert "counter_samples" not in rec and rec["candidates"] == []  # not counter-resegmentable
+    assert len(rec["pose_samples"]) == len(pose)  # raw pose embedded for re-attribution
 
 
 def test_build_attributed_job_none_when_nothing_cleaned():
@@ -171,6 +172,46 @@ def test_build_pending_record_stand_alone_from_pose():
     assert rec["segments"][0]["shortlist"][0]["room_id"] == 5
     assert rec["segments"][0]["area_m2"] > 0.5
     assert "counter_samples" not in rec
+
+
+def test_records_embed_pose_and_strip_removes_it():
+    """Pose is embedded in BOTH record shapes (for server-side re-attribution) and stripped
+    before the card ever sees it (mirrors counter_samples)."""
+    from custom_components.eufy_vacuum.learning.external_ingest import strip_samples
+
+    pose = _clean(5, 0, 14, 0.0, 0.2) + _park(8, 28, 30, 2.6)
+
+    # stand-alone (pose-only) record embeds pose
+    standalone = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=[], settings_samples=[], rooms=_ROOMS, baselines=[],
+        vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert standalone["source"] == "pose_attribution"
+    assert len(standalone["pose_samples"]) == len(pose)
+    assert "pose_samples" not in strip_samples(dict(standalone))  # stripped for the card
+
+    # counter record (enrich) embeds pose alongside counter_samples
+    counter = [_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)]
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=counter, settings_samples=[_ss(30, {"clean_mode": "vacuum"})],
+        rooms=_ROOMS, baselines=[], vacuum_entity_id=None, pose_samples=pose,
+    )
+    assert len(rec["pose_samples"]) == len(pose) and rec["counter_samples"]
+    stripped = strip_samples(dict(rec))
+    assert "pose_samples" not in stripped and "counter_samples" not in stripped
+
+
+def test_no_pose_means_empty_pose_samples_list():
+    """No pose stream → pose_samples is an empty list (stable key), not a missing key."""
+    counter = [_c(0, 0, 0), _c(30, 30, 1), _c(60, 60, 2), _c(90, 90, 3)]
+    rec = build_pending_record(
+        detection_ts=_BASE.isoformat(), map_id="6",
+        counter_samples=counter, settings_samples=[_ss(30, {"clean_mode": "vacuum"})],
+        rooms=_ROOMS, baselines=[], vacuum_entity_id=None, pose_samples=None,
+    )
+    assert rec["pose_samples"] == []
 
 
 def test_build_pending_record_no_pose_is_pre_w5c():
