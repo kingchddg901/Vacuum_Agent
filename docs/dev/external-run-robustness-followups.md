@@ -78,6 +78,57 @@ swept area across all rooms), set an explicit low-confidence marker on the recor
 the card can show "pose attribution unavailable for this run — pick rooms manually" instead of
 silently defaulting all segments to the same settings-ranked room.
 
+> **Partially addressed by Item 4's fix (2026-06-20).** `_apply_pose_identity` no longer
+> early-returns on an empty `cleaned` set — it now **presence-names** each counter segment by its
+> dominant pose room. So a segment that *has* pose coverage gets a real (low-confidence) room
+> instead of the settings-ranked default. The freeze evidence run is still defeated because its
+> buffer was rotated (Item 1) — the early segments had *no* pose coverage, so the fallback returns
+> `None` for them. The explicit "attribution unavailable" marker is still worth adding for the
+> truly-no-pose case.
+
+---
+
+## Item 4 — stale `cleaning_area` drops the run's FIRST cleaned room  ✅ FIXED 2026-06-20
+
+**Where:** `learning/external_ingest._apply_pose_identity` + the swept-area engine
+(`room_attribution_engines`).
+
+**Symptom (live, vacuum.alfred 2026-06-20, NOT a freeze):** a normal multi-room run cleaned
+Kitchen(5) first, then Dining(8). The Eufy `cleaning_area` sensor was **stuck stale** through the
+whole Kitchen clean — flat at 26 m², then reset to 2 m² with **zero positive steps** across
+Kitchen's ~2 minutes (confirmed by `scratch stale_area_timeline.py`). The swept-area engine
+credits area first-to-last per room, so Kitchen got ~0 swept → `cleaned={8}` only, and the
+attribution **dropped the first room**. The counter segmenter still split *both* windows
+(`cleaning_time` tracked fine), so the record kept 2 segments but Kitchen's segment fell back to
+the settings-ranked `shortlist[0]` (a wrong room: `2:Bathroom`). Captured **[8]** instead of **[5,8]**.
+
+**Why the obvious fixes don't work** (both ruled out against the raw 562-tick capture):
+- *Anchor fallback* (rescue a swept~0 room by dwell/spread/winding): a real stale-masked clean is
+  **not separable** from a genuinely parked dock on anchors alone (Kitchen spread 0.050 / winding
+  6.85 vs a morning parked dock 0.043 / 1.50 — only ~1.2× apart, winding non-monotonic). This is the
+  original F1 rationale for making swept-area authoritative; re-admitting anchors re-admits parked docks.
+- *Consecutive-delta sum* (sum only positive `cleaning_area` steps to survive a mid-run reset):
+  Kitchen had **0 positive steps** — the sensor was flat-stuck, not rising-then-reset — so there is
+  no area signal to recover. Sum = 0.
+
+**Fix (cross-signal via the counter):** when the **counter** found a real cleaning segment but pose
+attribution can't confirm a *cleaned* room in its window, **name that segment by the dominant
+`current_room`** the robot physically dwelt in (`_dominant_room` with `cleaned=None`), tagged
+`pose_confidence="presence"`. Safe because the counter (a `cleaning_time`/area plateau) has already
+vouched the window *is* a clean — the only open question is *which* room, and dwell answers it. A
+swept-confirmed room still wins first and is tagged `pose_confidence="cleaned"`. Verified on the real
+capture ([8] → [5,8]); regression-pinned at
+`tests/fixtures/external_run/alfred_stale_area_first_room_2026-06-20.json` +
+`tests/unit/test_external_ingest_attribution.py::test_stale_area_first_room_rescued_real_capture`.
+
+**Residual risk / interaction with Item 2:** the presence fallback will also name a *phantom* counter
+segment (e.g. the freeze 0 m² segment) if it has pose coverage — but it's tagged low-confidence
+`presence` and the user reviews it, and once Item 2 excludes phantom segments the fallback never sees
+them. **Not** fixed for the STAND-ALONE pose-only path (`build_attributed_job`, no counter to vouch):
+a fully stale-masked first room with no counter signal still needs the deeper fix — capture
+`cleaning_time` in the pose stream so the engine can tell active-clean (time rising) from parked
+(time flat) even when `cleaning_area` glitches.
+
 ---
 
 ## Appendix — evidence record (`job_2026-06-20T17-57-45Z.json`)

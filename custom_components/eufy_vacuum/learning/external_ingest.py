@@ -410,20 +410,24 @@ def _attribute(
     return result
 
 
-def _dominant_cleaned_room(
+def _dominant_room(
     pose_samples: list[dict[str, Any]],
     t_start: Any,
     t_end: Any,
-    cleaned: set[int],
+    cleaned: set[int] | None = None,
 ) -> int | None:
-    """The cleaned room with the most pose ticks inside ``[t_start, t_end]`` — a counter
-    segment's identity. Only rooms in ``cleaned`` count (so transit / parked-dock ticks in
-    the window never win). ``None`` when no cleaned room appears in the window."""
+    """The room with the most pose ticks inside ``[t_start, t_end]`` — a counter segment's
+    identity. When ``cleaned`` is given, only those rooms count (so transit / parked-dock
+    ticks in the window never win); when ``None``, ANY room is eligible — used to NAME a
+    counter segment the swept-area couldn't confirm (e.g. the run's first room cleaned while
+    ``cleaning_area`` was stale), since the counter has already vouched it IS a real cleaning
+    segment, so the only question left is which room the robot physically dwelt in. ``None``
+    when no eligible room appears in the window."""
     s0, s1 = _dt(t_start), _dt(t_end)
     counts: dict[int, int] = {}
     for sample in pose_samples or []:
         rid = sample.get("current_room")
-        if rid is None or rid not in cleaned:
+        if rid is None or (cleaned is not None and rid not in cleaned):
             continue
         t = _dt(sample.get("t"))
         if t is None or (s0 is not None and t < s0) or (s1 is not None and t > s1):
@@ -470,21 +474,35 @@ def _apply_pose_identity(
     attribution: dict[str, Any],
     rooms: dict[str, Any],
 ) -> None:
-    """Label each counter segment with its dominant cleaned room and promote it to
-    ``shortlist[0]`` (mutates). ROBUST mode only — see the section note."""
+    """Label each counter segment with its dominant room and promote it to ``shortlist[0]``
+    (mutates). ROBUST mode only — see the section note.
+
+    A swept-area-CONFIRMED room (one in ``cleaned``) is preferred; but when no cleaned room
+    dominates a segment — e.g. ``cleaning_area`` was stale through the run's FIRST room, so the
+    engine never credited it any swept area — we fall back to the dominant room of ANY identity.
+    That fallback is safe precisely because the COUNTER already vouched this window is a real
+    cleaning segment (a time/area plateau the segmenter split out): the only open question is
+    *which* room, and the room the robot dwelt in answers it. Without the fallback the segment
+    keeps its settings-ranked ``shortlist[0]`` (a wrong room) and the dropped first room is lost.
+    ``pose_confidence`` records which path named the segment (``cleaned`` vs ``presence``)."""
     if attribution.get("mode") != "robust":
         return
     cleaned = attribution.get("cleaned") or set()
-    if not cleaned:
-        return
     mode = attribution.get("mode")
     for seg in out_segments:
-        rid = _dominant_cleaned_room(
-            pose_samples, seg.get("t_start"), seg.get("t_end"), cleaned
+        rid = (
+            _dominant_room(pose_samples, seg.get("t_start"), seg.get("t_end"), cleaned)
+            if cleaned
+            else None
         )
+        confidence = "cleaned"
+        if rid is None:
+            rid = _dominant_room(pose_samples, seg.get("t_start"), seg.get("t_end"))
+            confidence = "presence"
         if rid is not None:
             _promote_pose_room(seg, rid, rooms)
             seg["pose_mode"] = mode
+            seg["pose_confidence"] = confidence
 
 
 def build_attributed_job(

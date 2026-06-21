@@ -1,8 +1,10 @@
 """Unit tests for W5c pose-attribution in learning.external_ingest — pure, HA-free.
 
 Covers the two ways the room-attribution classifier feeds the external-review wizard:
-  - ENRICH (`_apply_pose_identity`): label each counter segment with its dominant cleaned
-    room and promote it to shortlist[0] (robust mode only; the card pre-selects shortlist[0]).
+  - ENRICH (`_apply_pose_identity`): label each counter segment with its dominant room and
+    promote it to shortlist[0] (robust mode only; the card pre-selects shortlist[0]). Prefers a
+    swept-area-confirmed room, but falls back to the dominant room of ANY identity when stale
+    `cleaning_area` left a real counter segment with no confirmed room (the first-room-dropped bug).
   - STAND ALONE (`build_attributed_job` / `build_pending_record` with no counter signal):
     build a pending record straight from pose when the counter segmenter found nothing —
     this morning's live scenario (clean a room, park at the dock; dock excluded).
@@ -10,11 +12,13 @@ Covers the two ways the room-attribution classifier feeds the external-review wi
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from custom_components.eufy_vacuum.learning.external_ingest import (
     _apply_pose_identity,
-    _dominant_cleaned_room,
+    _dominant_room,
     build_attributed_job,
     build_pending_record,
 )
@@ -67,18 +71,20 @@ def _park(rid: int, start_sec: int, n: int, area: float) -> list[dict]:
     ]
 
 
-# --- _dominant_cleaned_room (window identity) -------------------------------
+# --- _dominant_room (window identity) ---------------------------------------
 
 
-def test_dominant_cleaned_room_majority_in_window():
+def test_dominant_room_majority_in_window():
     pose = (
         [{"t": _pose_t(s), "current_room": 5} for s in range(60, 101, 2)]
         + [{"t": _pose_t(s), "current_room": 8} for s in range(102, 121, 2)]
     )
-    # room 5 has the most ticks in [60,120]; only cleaned rooms are eligible.
-    assert _dominant_cleaned_room(pose, _seg_t(60), _seg_t(120), {5, 8}) == 5
-    assert _dominant_cleaned_room(pose, _seg_t(60), _seg_t(120), {8}) == 8  # 5 not cleaned -> 8
-    assert _dominant_cleaned_room(pose, _seg_t(300), _seg_t(360), {5, 8}) is None  # none in window
+    # room 5 has the most ticks in [60,120]; when a cleaned set is given only it is eligible.
+    assert _dominant_room(pose, _seg_t(60), _seg_t(120), {5, 8}) == 5
+    assert _dominant_room(pose, _seg_t(60), _seg_t(120), {8}) == 8  # 5 not cleaned -> 8
+    assert _dominant_room(pose, _seg_t(60), _seg_t(120), set()) is None  # nothing cleaned
+    assert _dominant_room(pose, _seg_t(60), _seg_t(120)) == 5  # cleaned=None -> any room, 5 wins
+    assert _dominant_room(pose, _seg_t(300), _seg_t(360), {5, 8}) is None  # none in window
 
 
 # --- _apply_pose_identity (enrich counter segments) -------------------------
@@ -101,6 +107,45 @@ def test_apply_pose_identity_promotes_room_robust():
     assert segs[0]["shortlist"][0]["from_pose"] is True
     assert segs[1]["shortlist"][0]["room_id"] == 9 and segs[1]["pose_room_id"] == 9
     assert segs[0]["pose_mode"] == "robust"
+    assert segs[0]["pose_confidence"] == "cleaned"  # both rooms were swept-confirmed
+
+
+def test_apply_pose_identity_rescues_stale_masked_first_room():
+    """The stale-`cleaning_area` bug: the run's FIRST room is cleaned but its swept area is
+    masked (the sensor was stuck/flat), so the engine never credits it — `cleaned` holds only
+    the LATER room. The counter still split BOTH windows (cleaning_time tracked), so the first
+    segment must be named by its dominant room (presence) instead of keeping its wrong
+    settings-ranked shortlist[0]. This is attempt #4: Kitchen=5 dropped, Dining=8 confirmed."""
+    segs = [
+        # First room's window: shortlist[0] is a WRONG settings guess (hallway=4, not shown in
+        # _ROOMS on purpose — the bug pre-fills a room that was never cleaned).
+        {"order": 0, "t_start": _seg_t(60), "t_end": _seg_t(120),
+         "shortlist": [{"room_id": 4, "slug": "hallway"}, {"room_id": 5, "slug": "kitchen"}]},
+        {"order": 1, "t_start": _seg_t(540), "t_end": _seg_t(600),
+         "shortlist": [{"room_id": 8, "slug": "dining_room"}]},
+    ]
+    pose = (
+        [{"t": _pose_t(s), "current_room": 5} for s in range(60, 121, 2)]   # Kitchen, area-masked
+        + [{"t": _pose_t(s), "current_room": 8} for s in range(540, 601, 2)]  # Dining, swept-confirmed
+    )
+    attribution = {"cleaned": {8}, "mode": "robust", "per_room": {}, "verdicts": {}}
+    _apply_pose_identity(segs, pose, attribution, _ROOMS)
+    # Kitchen rescued by presence (no cleaned room dominates its window) ...
+    assert segs[0]["shortlist"][0]["room_id"] == 5 and segs[0]["pose_room_id"] == 5
+    assert segs[0]["pose_confidence"] == "presence"
+    # ... while the swept-confirmed Dining room stays a high-confidence label.
+    assert segs[1]["shortlist"][0]["room_id"] == 8 and segs[1]["pose_confidence"] == "cleaned"
+
+
+def test_apply_pose_identity_presence_fallback_when_nothing_cleaned():
+    """All rooms area-masked (cleaned empty) but the counter split real segments: every segment
+    is still named by presence rather than left with its settings guess."""
+    segs = [{"order": 0, "t_start": _seg_t(60), "t_end": _seg_t(120),
+             "shortlist": [{"room_id": 4, "slug": "hallway"}]}]
+    pose = [{"t": _pose_t(s), "current_room": 5} for s in range(60, 121, 2)]
+    attribution = {"cleaned": set(), "mode": "robust", "per_room": {}, "verdicts": {}}
+    _apply_pose_identity(segs, pose, attribution, _ROOMS)
+    assert segs[0]["shortlist"][0]["room_id"] == 5 and segs[0]["pose_confidence"] == "presence"
 
 
 def test_apply_pose_identity_skipped_in_anchor_only():
@@ -300,3 +345,34 @@ def test_build_pending_record_enrich_counter_with_pose():
     assert rec["segments"][1]["pose_room_id"] == 9
     assert rec["segments"][1]["shortlist"][0]["room_id"] == 9
     assert rec["counter_samples"]  # still a counter record (resegmentable)
+
+
+# --- REAL-DATA regression: stale cleaning_area drops the first room ----------
+
+_FIXTURES = Path(__file__).parent.parent / "fixtures" / "external_run"
+
+
+def test_stale_area_first_room_rescued_real_capture():
+    """REAL run captured live 2026-06-20 (vacuum.alfred): Kitchen(5) cleaned first while
+    cleaning_area was stuck stale, so the engine credited swept area only to Dining(8)
+    (cleaned={8}) and the first room was dropped. The counter split both windows, so the
+    presence fallback must name segment 0 Kitchen. Pins the [8] -> [5,8] fix against the raw
+    562-tick pose stream — a consecutive-delta or anchor-only fix would NOT recover it (the
+    sensor was flat-stuck through the whole Kitchen clean; see scratch stale_area_timeline)."""
+    fx = json.loads(
+        (_FIXTURES / "alfred_stale_area_first_room_2026-06-20.json").read_text(encoding="utf-8")
+    )
+    rec = build_pending_record(
+        detection_ts=fx["started_at"], map_id=fx["map_id"],
+        counter_samples=fx["counter_samples"], settings_samples=fx["settings_samples"],
+        rooms=fx["rooms"], baselines=[], vacuum_entity_id=fx["vacuum_entity_id"],
+        pose_samples=fx["pose_samples"],
+    )
+    assert rec is not None and rec["attribution_mode"] == "robust"
+    segs = rec["segments"]
+    captured = {s["shortlist"][0]["room_id"] for s in segs}
+    assert {5, 8} <= captured, f"expected Kitchen+Dining, got {sorted(captured)}"
+    # segment 0 = Kitchen, rescued by presence (swept-area masked) ...
+    assert segs[0]["pose_room_id"] == 5 and segs[0]["pose_confidence"] == "presence"
+    # ... segment 1 = Dining, swept-area confirmed.
+    assert segs[1]["pose_room_id"] == 8 and segs[1]["pose_confidence"] == "cleaned"

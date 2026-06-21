@@ -1,0 +1,5457 @@
+{
+  "_note": "REAL external run captured live 2026-06-20 (vacuum.alfred map 6). Kitchen(5) was cleaned FIRST while cleaning_area was stuck stale (flat at 26 then reset to 2, 0 positive steps through the whole Kitchen clean) -> the attribution engine credited swept area only to Dining(8), so cleaned={8} and the first room was dropped. The counter segmenter still split BOTH windows (cleaning_time tracked), so the presence fallback in _apply_pose_identity must NAME the first segment Kitchen. Regression fixture for the stale-cleaning_area first-room-dropped bug; pins [8] -> [5,8].",
+  "vacuum_entity_id": "vacuum.alfred",
+  "map_id": 6,
+  "started_at": "2026-06-20T20:33:52Z",
+  "pose_samples": [
+    {
+      "t": "2026-06-20T20:33:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:33:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:33:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:34:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.74167,
+        0.34
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.74167,
+        0.34
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:35:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.74722,
+        0.34333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.74722,
+        0.34333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.34
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.34
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.34
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.76389,
+        0.34333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.36667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.4
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.43667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.47
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.50333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:34Z",
+      "current_room": 5,
+      "anchor": [
+        0.77222,
+        0.52667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:36Z",
+      "current_room": 5,
+      "anchor": [
+        0.77222,
+        0.52667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:38Z",
+      "current_room": 5,
+      "anchor": [
+        0.77222,
+        0.52333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:40Z",
+      "current_room": 5,
+      "anchor": [
+        0.76944,
+        0.52
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:42Z",
+      "current_room": 5,
+      "anchor": [
+        0.79722,
+        0.52
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:44Z",
+      "current_room": 5,
+      "anchor": [
+        0.80833,
+        0.52
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:46Z",
+      "current_room": 5,
+      "anchor": [
+        0.80833,
+        0.52
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:48Z",
+      "current_room": 5,
+      "anchor": [
+        0.79444,
+        0.52333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:50Z",
+      "current_room": 5,
+      "anchor": [
+        0.76944,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:52Z",
+      "current_room": 5,
+      "anchor": [
+        0.76944,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:54Z",
+      "current_room": 5,
+      "anchor": [
+        0.78333,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:56Z",
+      "current_room": 5,
+      "anchor": [
+        0.81111,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:36:58Z",
+      "current_room": 5,
+      "anchor": [
+        0.85278,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:00Z",
+      "current_room": 5,
+      "anchor": [
+        0.88056,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:02Z",
+      "current_room": 5,
+      "anchor": [
+        0.88611,
+        0.53
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:04Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.53333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:06Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.54333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:08Z",
+      "current_room": 5,
+      "anchor": [
+        0.87222,
+        0.54333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:10Z",
+      "current_room": 5,
+      "anchor": [
+        0.84444,
+        0.54333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:12Z",
+      "current_room": 5,
+      "anchor": [
+        0.81667,
+        0.54333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:14Z",
+      "current_room": 5,
+      "anchor": [
+        0.775,
+        0.54333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:16Z",
+      "current_room": 5,
+      "anchor": [
+        0.775,
+        0.55333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:18Z",
+      "current_room": 5,
+      "anchor": [
+        0.80556,
+        0.55333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:20Z",
+      "current_room": 5,
+      "anchor": [
+        0.83333,
+        0.55333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:22Z",
+      "current_room": 5,
+      "anchor": [
+        0.86389,
+        0.55333
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:24Z",
+      "current_room": 5,
+      "anchor": [
+        0.88611,
+        0.55667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:26Z",
+      "current_room": 5,
+      "anchor": [
+        0.88333,
+        0.56667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:28Z",
+      "current_room": 5,
+      "anchor": [
+        0.85556,
+        0.56667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:30Z",
+      "current_room": 5,
+      "anchor": [
+        0.81389,
+        0.56667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:32Z",
+      "current_room": 5,
+      "anchor": [
+        0.78611,
+        0.56667
+      ],
+      "cleaning_area": 26.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:34Z",
+      "current_room": 5,
+      "anchor": [
+        0.77222,
+        0.57333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:36Z",
+      "current_room": 5,
+      "anchor": [
+        0.79167,
+        0.58
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:38Z",
+      "current_room": 5,
+      "anchor": [
+        0.81944,
+        0.58
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:40Z",
+      "current_room": 5,
+      "anchor": [
+        0.84722,
+        0.58
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:42Z",
+      "current_room": 5,
+      "anchor": [
+        0.88333,
+        0.58
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:44Z",
+      "current_room": 5,
+      "anchor": [
+        0.88333,
+        0.59
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:46Z",
+      "current_room": 5,
+      "anchor": [
+        0.85556,
+        0.59
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:48Z",
+      "current_room": 5,
+      "anchor": [
+        0.82778,
+        0.59
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:50Z",
+      "current_room": 5,
+      "anchor": [
+        0.8,
+        0.59
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:52Z",
+      "current_room": 5,
+      "anchor": [
+        0.77222,
+        0.59333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:54Z",
+      "current_room": 5,
+      "anchor": [
+        0.78056,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:56Z",
+      "current_room": 5,
+      "anchor": [
+        0.78333,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:37:58Z",
+      "current_room": 5,
+      "anchor": [
+        0.80556,
+        0.59
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:00Z",
+      "current_room": 5,
+      "anchor": [
+        0.83333,
+        0.58333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:02Z",
+      "current_room": 5,
+      "anchor": [
+        0.83889,
+        0.59333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:04Z",
+      "current_room": 5,
+      "anchor": [
+        0.86111,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:06Z",
+      "current_room": 5,
+      "anchor": [
+        0.88611,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:38:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:39:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:40:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.74167,
+        0.34
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.74722,
+        0.34333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.76111,
+        0.34
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.76111,
+        0.34
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.36
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.78333,
+        0.38333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.78333,
+        0.42
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.78611,
+        0.47
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.78611,
+        0.50333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:28Z",
+      "current_room": 5,
+      "anchor": [
+        0.8,
+        0.52333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:30Z",
+      "current_room": 5,
+      "anchor": [
+        0.81944,
+        0.54333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:32Z",
+      "current_room": 5,
+      "anchor": [
+        0.85556,
+        0.57333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:34Z",
+      "current_room": 5,
+      "anchor": [
+        0.87778,
+        0.59333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:36Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:38Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:40Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:42Z",
+      "current_room": 5,
+      "anchor": [
+        0.88889,
+        0.60333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:44Z",
+      "current_room": 5,
+      "anchor": [
+        0.88056,
+        0.59333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:46Z",
+      "current_room": 5,
+      "anchor": [
+        0.86111,
+        0.57667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:48Z",
+      "current_room": 5,
+      "anchor": [
+        0.825,
+        0.54667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:50Z",
+      "current_room": 5,
+      "anchor": [
+        0.80278,
+        0.52667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.51
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.50333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.50333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:41:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.79444,
+        0.50667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.79444,
+        0.50667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.50333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.49333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.48667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.77222,
+        0.48333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.74444,
+        0.48333
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.72778,
+        0.47667
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.73611,
+        0.47
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.47
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.79444,
+        0.47
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.80833,
+        0.46
+      ],
+      "cleaning_area": 2.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.45667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.46
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.76389,
+        0.46
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.725,
+        0.46
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.71944,
+        0.46
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.71667,
+        0.45333
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.71667,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.73333,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.44667
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.86389,
+        0.43333
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.87222,
+        0.45333
+      ],
+      "cleaning_area": 4.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.87222,
+        0.45
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.87778,
+        0.45333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.88333,
+        0.45333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:42:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.88611,
+        0.45
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.88611,
+        0.44333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.88611,
+        0.44333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.89444,
+        0.44333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.44333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.44
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.90556,
+        0.44
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.91389,
+        0.43333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.43333
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.93056,
+        0.43667
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.93056,
+        0.43
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.92778,
+        0.43
+      ],
+      "cleaning_area": 5.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.93056,
+        0.43
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.93056,
+        0.42
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.93333,
+        0.4
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.93056,
+        0.4
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.92778,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.91389,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.88333,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.84167,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.81389,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.78611,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.77222,
+        0.41
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.76389,
+        0.42
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.73889,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.73611,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.73611,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.76111,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:43:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.86111,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.88889,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.91944,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.92222,
+        0.42333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.90833,
+        0.43
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.89167,
+        0.43333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.87222,
+        0.43333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.86944,
+        0.43333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.86667,
+        0.43333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.86389,
+        0.43
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.43333
+      ],
+      "cleaning_area": 6.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.83333,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.80556,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.77778,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.75,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.71667,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.71667,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.71944,
+        0.43333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.75556,
+        0.42333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.40667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.4
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.4
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.4
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.4
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.4
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.37
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.83333,
+        0.36667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.83333,
+        0.36333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.35667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:44:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.35667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.35
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.83056,
+        0.35
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.82778,
+        0.34667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.32667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.83333,
+        0.32
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.84167,
+        0.32667
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.33333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.33333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.33333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.85,
+        0.33333
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.33
+      ],
+      "cleaning_area": 7.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.76389,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.84722,
+        0.33
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.83611,
+        0.32
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.32333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.80833,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.80833,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.81667,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.81667,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.77222,
+        0.32667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:45:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.82778,
+        0.35333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.36
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.82778,
+        0.37
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.38333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.38333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.80833,
+        0.36667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.36333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.80556,
+        0.35
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.81111,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.81667,
+        0.33667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.80833,
+        0.34
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.34667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.35
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.35333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.36333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.8,
+        0.36333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.79444,
+        0.37333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.37333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.37333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.38667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.79167,
+        0.38667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.80556,
+        0.38667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.39667
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.83889,
+        0.41333
+      ],
+      "cleaning_area": 8.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.85,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:46:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.85556,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.85556,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.86111,
+        0.40667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.86111,
+        0.40667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.40333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.82778,
+        0.39667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.38333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.38333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.38333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.82222,
+        0.38667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.39333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.84167,
+        0.41333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.86389,
+        0.42
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.88333,
+        0.41667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.88056,
+        0.4
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.88056,
+        0.4
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.89444,
+        0.4
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.39667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.92222,
+        0.38667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:47:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.38667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.38667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.38667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.36333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.88889,
+        0.35333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.89167,
+        0.35333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.89167,
+        0.35333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.89167,
+        0.35333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.89444,
+        0.34667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.89444,
+        0.34
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.89444,
+        0.32667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.88889,
+        0.31667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.88333,
+        0.31667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.88056,
+        0.31
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.86944,
+        0.31
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.86667,
+        0.31333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.31
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.31667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.32333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.84444,
+        0.32
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.84167,
+        0.32
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.82778,
+        0.32
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.32667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.33333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.81944,
+        0.33333
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.76111,
+        0.34
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.81389,
+        0.32667
+      ],
+      "cleaning_area": 9.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.82222,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:48:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.78056,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.30667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.77222,
+        0.30333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.30333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.73333,
+        0.3
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.73889,
+        0.29
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.29
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.76389,
+        0.28
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.73611,
+        0.28
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.73333,
+        0.28
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.73333,
+        0.28333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.3
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.78333,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.81389,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.83889,
+        0.31333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.85833,
+        0.30333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.87222,
+        0.30333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.88889,
+        0.30333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.89167,
+        0.31
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.32667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.32667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.32667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.91944,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.91667,
+        0.34667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.91944,
+        0.35333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.91944,
+        0.37
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.90556,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.9,
+        0.36
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.35333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.35333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:49:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.89722,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.90278,
+        0.33
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.91389,
+        0.32333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.33667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.92778,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:10Z",
+      "current_room": 8,
+      "anchor": [
+        0.92778,
+        0.35
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:12Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.35
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:14Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.35333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:16Z",
+      "current_room": 8,
+      "anchor": [
+        0.92222,
+        0.37
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:18Z",
+      "current_room": 8,
+      "anchor": [
+        0.92222,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:20Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:22Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:24Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:26Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:28Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:30Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:32Z",
+      "current_room": 8,
+      "anchor": [
+        0.925,
+        0.37667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:34Z",
+      "current_room": 8,
+      "anchor": [
+        0.91389,
+        0.40667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:36Z",
+      "current_room": 8,
+      "anchor": [
+        0.9,
+        0.42333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:38Z",
+      "current_room": 8,
+      "anchor": [
+        0.86944,
+        0.42333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:40Z",
+      "current_room": 8,
+      "anchor": [
+        0.85278,
+        0.41333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:42Z",
+      "current_room": 8,
+      "anchor": [
+        0.825,
+        0.41333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:44Z",
+      "current_room": 8,
+      "anchor": [
+        0.80278,
+        0.39667
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:46Z",
+      "current_room": 8,
+      "anchor": [
+        0.78611,
+        0.37
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:48Z",
+      "current_room": 8,
+      "anchor": [
+        0.775,
+        0.35
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:50Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:52Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:54Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:56Z",
+      "current_room": 8,
+      "anchor": [
+        0.76944,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:50:58Z",
+      "current_room": 8,
+      "anchor": [
+        0.76667,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:00Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:02Z",
+      "current_room": 8,
+      "anchor": [
+        0.75833,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:04Z",
+      "current_room": 8,
+      "anchor": [
+        0.75,
+        0.34333
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:06Z",
+      "current_room": 8,
+      "anchor": [
+        0.74444,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:08Z",
+      "current_room": 8,
+      "anchor": [
+        0.74167,
+        0.34
+      ],
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:36Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:38Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:40Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:42Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:44Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:46Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:48Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:50Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:52Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:54Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:56Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:51:58Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:00Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:02Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:04Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:06Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:08Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:10Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:12Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:14Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:16Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:18Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:20Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:22Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:24Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:26Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:28Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:30Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:32Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:34Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    },
+    {
+      "t": "2026-06-20T20:52:37Z",
+      "current_room": null,
+      "anchor": null,
+      "cleaning_area": 10.0,
+      "heading": null
+    }
+  ],
+  "counter_samples": [
+    {
+      "t": "2026-06-20T20:33:52Z",
+      "cleaning_time": 0,
+      "cleaning_area": null,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:37:04Z",
+      "cleaning_time": 30,
+      "cleaning_area": null,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:37:34Z",
+      "cleaning_time": 60,
+      "cleaning_area": null,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:37:34Z",
+      "cleaning_time": 60,
+      "cleaning_area": 2.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:38:04Z",
+      "cleaning_time": 90,
+      "cleaning_area": 2.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:42:21Z",
+      "cleaning_time": 120,
+      "cleaning_area": 2.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:42:21Z",
+      "cleaning_time": 120,
+      "cleaning_area": 4.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:42:51Z",
+      "cleaning_time": 150,
+      "cleaning_area": 4.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:42:51Z",
+      "cleaning_time": 150,
+      "cleaning_area": 5.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:43:21Z",
+      "cleaning_time": 180,
+      "cleaning_area": 5.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:43:21Z",
+      "cleaning_time": 180,
+      "cleaning_area": 6.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:43:51Z",
+      "cleaning_time": 210,
+      "cleaning_area": 6.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:44:21Z",
+      "cleaning_time": 240,
+      "cleaning_area": 6.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:44:21Z",
+      "cleaning_time": 240,
+      "cleaning_area": 7.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:44:51Z",
+      "cleaning_time": 270,
+      "cleaning_area": 7.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:45:21Z",
+      "cleaning_time": 300,
+      "cleaning_area": 7.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:45:21Z",
+      "cleaning_time": 300,
+      "cleaning_area": 8.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:45:51Z",
+      "cleaning_time": 330,
+      "cleaning_area": 8.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:46:21Z",
+      "cleaning_time": 360,
+      "cleaning_area": 8.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:46:51Z",
+      "cleaning_time": 390,
+      "cleaning_area": 8.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:46:51Z",
+      "cleaning_time": 390,
+      "cleaning_area": 9.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:47:21Z",
+      "cleaning_time": 420,
+      "cleaning_area": 9.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:47:51Z",
+      "cleaning_time": 450,
+      "cleaning_area": 9.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:48:21Z",
+      "cleaning_time": 480,
+      "cleaning_area": 9.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:48:51Z",
+      "cleaning_time": 510,
+      "cleaning_area": 9.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:48:51Z",
+      "cleaning_time": 510,
+      "cleaning_area": 10.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:49:21Z",
+      "cleaning_time": 540,
+      "cleaning_area": 10.0,
+      "battery": null
+    },
+    {
+      "t": "2026-06-20T20:49:51Z",
+      "cleaning_time": 570,
+      "cleaning_area": 10.0,
+      "battery": null
+    }
+  ],
+  "settings_samples": [
+    {
+      "t": "2026-06-20T20:33:52Z",
+      "settings": {
+        "clean_mode": "vacuum_mop",
+        "fan_speed": "Quiet",
+        "water_level": "Low",
+        "clean_intensity": "Quick",
+        "mop_intensity": "Quiet"
+      }
+    }
+  ],
+  "rooms": {
+    "1": {
+      "room_id": 1,
+      "map_id": "6",
+      "name": "Heidi and Chris",
+      "slug": "heidi_and_chris",
+      "enabled": false,
+      "order": 2,
+      "profile_name": "custom",
+      "floor_type": "carpet_low_pile",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Max",
+      "water_level": "Off",
+      "clean_intensity": "Narrow",
+      "clean_passes": 2,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "2": {
+      "room_id": 2,
+      "map_id": "6",
+      "name": "Bathroom",
+      "slug": "bathroom",
+      "enabled": false,
+      "order": 3,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Standard",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "3": {
+      "room_id": 3,
+      "map_id": "6",
+      "name": "Bryan",
+      "slug": "bryan",
+      "enabled": false,
+      "order": 4,
+      "profile_name": "custom",
+      "floor_type": "carpet_low_pile",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Standard",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "4": {
+      "room_id": 4,
+      "map_id": "6",
+      "name": "Hallway",
+      "slug": "hallway",
+      "enabled": false,
+      "order": 5,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Max",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [
+        1,
+        3,
+        2,
+        11
+      ],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "5": {
+      "room_id": 5,
+      "map_id": "6",
+      "name": "Kitchen",
+      "slug": "kitchen",
+      "enabled": false,
+      "order": 6,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Standard",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "6": {
+      "room_id": 6,
+      "map_id": "6",
+      "name": "Entryway",
+      "slug": "entryway",
+      "enabled": false,
+      "order": 7,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Max",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "7": {
+      "room_id": 7,
+      "map_id": "6",
+      "name": "Living Room",
+      "slug": "living_room",
+      "enabled": false,
+      "order": 1,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum and mop",
+      "fan_speed": "Max",
+      "water_level": "Off",
+      "clean_intensity": "Narrow",
+      "clean_passes": 2,
+      "edge_mopping": true,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [
+        4,
+        9
+      ],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "8": {
+      "room_id": 8,
+      "map_id": "6",
+      "name": "Dining Room",
+      "slug": "dining_room",
+      "enabled": false,
+      "order": 8,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum",
+      "fan_speed": "Max",
+      "water_level": "Off",
+      "clean_intensity": "Quick",
+      "clean_passes": 1,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": true,
+      "grants_access_to": [
+        7,
+        5
+      ],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "9": {
+      "room_id": 9,
+      "map_id": "6",
+      "name": "Office",
+      "slug": "office",
+      "enabled": false,
+      "order": 9,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum and mop",
+      "fan_speed": "Quiet",
+      "water_level": "Medium",
+      "clean_intensity": "Narrow",
+      "clean_passes": 2,
+      "edge_mopping": false,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [
+        6
+      ],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    },
+    "11": {
+      "room_id": 11,
+      "map_id": "6",
+      "name": "Cat Room",
+      "slug": "cat_room",
+      "enabled": false,
+      "order": 10,
+      "profile_name": "custom",
+      "floor_type": "hardwood",
+      "clean_mode": "Vacuum and mop",
+      "fan_speed": "Max",
+      "water_level": "High",
+      "clean_intensity": "Deep",
+      "clean_passes": 2,
+      "edge_mopping": true,
+      "path_type": "None",
+      "is_dock_room": false,
+      "grants_access_to": [],
+      "rules": [],
+      "is_configured": true,
+      "configured_at": "2026-05-17T12:30:01Z",
+      "is_transition": false
+    }
+  },
+  "expected": {
+    "captured_rooms": [
+      5,
+      8
+    ],
+    "first_segment_room": 5,
+    "first_segment_confidence": "presence"
+  }
+}
