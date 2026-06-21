@@ -128,6 +128,11 @@ def test_clear_room_bounds(mapping_manager):
 
 def test_exclude_restore_job_bounds(mapping_manager):
     """[MGR-4] two job entries → exclude the newest (index 0, not baseline)."""
+    # Clean slate: the config_dir is shared across pytest runs, so a prior run's
+    # map_excl.json already holds room "3"'s job_bounds_history. Removing the file
+    # resets that history to empty so the two appends below land at index 0/1 and
+    # job_index=1 is genuinely the protected baseline (re-run-clean).
+    mapping_manager._map_json_path(_VAC, "excl").unlink(missing_ok=True)
     for _ in range(2):
         mapping_manager.update_room_bounds(
             vacuum_entity_id=_VAC, map_id="excl", samples=[(0.0, 0.0), (8.0, 8.0)],
@@ -350,6 +355,11 @@ def test_set_dock_room(mapping_manager):
 
 def test_append_trace_evidence(mapping_manager):
     """[MGR-17]"""
+    # Clean slate: the config_dir persists across pytest runs, so a prior run's
+    # map_evmgr.json already holds one trace-evidence entry. Removing the file
+    # resets the package's trace_evidence list to empty so this first append
+    # yields trace_count == 1 on both a first and a repeated run (re-run-clean).
+    mapping_manager._map_json_path(_VAC, "evmgr").unlink(missing_ok=True)
     result = mapping_manager.append_mapping_trace_evidence(
         vacuum_entity_id=_VAC, map_id="evmgr", evidence={"label": "doorway", "x": 1})
     assert result["saved"] is True

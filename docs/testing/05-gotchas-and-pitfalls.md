@@ -165,3 +165,39 @@ satisfy the earlier one — e.g. build a **complete** access graph (a dock room
 granting access to the others) so the rule-bearing rooms clear the graph gate,
 *then* assert `all_selected_rooms_blocked`. If a gate test returns an unexpected
 reason, it's usually an earlier gate firing first — check the order.
+
+## 11. Fire-and-forget executor file writes — drain, clean-slate, and watch for read-modify-write races
+
+`test_dock_drift_log` cost a red CI run after a clean local pass. It's the
+cautionary tale for three traps that compound:
+
+- **The write is fire-and-forget on the executor.** `_handle_position_update`
+  schedules `_append_dock_drift` via `hass.async_add_executor_job(...)` *without*
+  awaiting it. A test that fires two updates back-to-back must
+  `await hass.async_block_till_done()` **between** them — not just at the end — or
+  the two executor jobs run concurrently: non-deterministic order, and (next
+  point) a lost write.
+
+- **It read-modify-writes the whole file.** `_append_dock_drift` reads the JSONL,
+  appends, rolls off old lines, and rewrites atomically. Two concurrent appends
+  both read the old contents and one overwrites the other → lost update. CI's
+  thread scheduling dropped the second record (`len == 1` instead of `2`);
+  locally the two happened to serialize, so it passed. The fix is a
+  `threading.Lock` around the read-modify-write. Writes that **append**
+  (`open(path, "a")`, e.g. `battery/store.py`) or write a **full snapshot**
+  (e.g. `_flush_samples_to_disk`) are race-free and need no lock — the trap is
+  *read-modify-rewrite reached by a rapid fire-and-forget path*.
+
+- **The file persists across runs** (gotcha 2). The dock-drift JSONL lives under
+  the shared `config_dir`, so on a *re-run* it already exists and the count climbs
+  (`2 → 4 → …`). When you must assert an **exact** count on a file the test
+  writes, clear it first:
+
+  ```python
+  drift_path = tracker._dock_drift_path(_VAC)
+  if drift_path.exists():
+      drift_path.unlink()
+  ```
+
+  Otherwise prefer `>=` / presence checks (gotcha 2). `pytest tests; pytest tests`
+  in one container is the cheap check for this whole class of re-run flake.

@@ -363,6 +363,13 @@ async def test_get_incomplete_run_log_empty(hass, learning_services):
 
 async def test_get_trouble_rooms_log_empty(hass, learning_services):
     """[LS-3] Returns {} when no trouble rooms log exists for the vacuum."""
+    # Clean slate: the test config_dir is shared/persistent across pytest runs, so
+    # a prior run's finalize (e.g. LS-20) leaves a trouble_rooms.json behind that
+    # makes the service return a populated log instead of {}. Remove only THIS
+    # vacuum's single-overwrite trouble-rooms file so the "no log exists" path runs.
+    trouble_path = LearningHistoryStore(hass).get_trouble_rooms_path(vacuum_entity_id=_VAC)
+    trouble_path.unlink(missing_ok=True)
+
     result = await hass.services.async_call(
         DOMAIN,
         SERVICE_GET_TROUBLE_ROOMS_LOG,
@@ -1815,6 +1822,18 @@ async def test_history_snapshot_room_profile_filters_prune(hass, learning_servic
     discover the live profile_key values (the key string is deterministic but built
     from the full settings signature, so observing it is more robust than hardcoding).
     """
+    # Clean slate: the test config_dir is shared/persistent across pytest runs, so
+    # completed-job files seeded by OTHER tests (e.g. LS-70 seeds learning-eligible
+    # 'study' jobs j-excl-yes/j-excl-no) survive into a repeat run. rebuild_learning_stats
+    # below reads EVERY job file in jobs_dir, so those leftovers would push study's
+    # learning_run_count above 0 and break the `== 0` assertion. Wipe this vacuum's
+    # completed-job files + the derived jobs_index so the rebuild sees only the three
+    # jobs this test seeds next.
+    _store = LearningHistoryStore(hass)
+    for _job_path in _store.list_job_files(vacuum_entity_id=_VAC):
+        _job_path.unlink(missing_ok=True)
+    _store.get_jobs_index_path(vacuum_entity_id=_VAC).unlink(missing_ok=True)
+
     _seed_completed_job(hass, _VAC, "j-pf-kitchen", room_slugs=["kitchen"], used_for_learning=True)
     _seed_completed_job(hass, _VAC, "j-pf-bedroom", room_slugs=["bedroom"], used_for_learning=True)
     # study: excluded from learning → its room_profiles row has learning_run_count == 0
