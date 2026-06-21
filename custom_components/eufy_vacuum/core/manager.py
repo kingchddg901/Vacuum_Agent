@@ -21,7 +21,7 @@ from .charging import (
     is_charging as _is_charging_impl,
     is_low_battery_return_state as _is_low_battery_return_state_impl,
 )
-from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_SKIPPED, EVENT_ROOM_STARTED, EVENT_STALL_DETECTED
+from ..const import DATA_LEARNING, DOMAIN, EVENT_ROOM_FINISHED, EVENT_ROOM_STARTED
 from ..entity_helpers import get_floor_type_label
 from ..jobs.job_monitor import (
     build_job_metadata_from_payload,
@@ -3193,130 +3193,30 @@ class EufyVacuumManager:
                     awaiting_bounds_exit = True
 
         # ------------------------------------------------------------------
-        # Stall detection
+        # Run anomalies: stall (hard) + running_long (soft) + skipped
         # ------------------------------------------------------------------
-        # A stall is when the bounds gate is already blocking rollover AND
-        # the robot has been in the room for >= 2x the timing threshold.
-        # Fire EVENT_STALL_DETECTED once per room per job (tracked in the
-        # active job dict so the event doesn't re-fire on every snapshot call).
-        # ------------------------------------------------------------------
-        _anomaly_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("anomaly", {})
-        _STALL_RATIO = _safe_float(_anomaly_cfg.get("stall_ratio"), 2.0)
-        _RUNNING_LONG_RATIO = _safe_float(_anomaly_cfg.get("running_long_ratio"), 1.5)
-        stall_detected = False
-        stall_elapsed_minutes: float | None = None
-        stall_expected_minutes: float | None = None
-        stall_ratio: float | None = None
-
-        if awaiting_bounds_exit and current_room_id is not None:
-            _stall_entry = next(
-                (
-                    r for r in raw_timeline
-                    if _safe_int(r.get("room_id", -1), -1) == current_room_id
-                ),
-                None,
-            )
-            if _stall_entry is not None:
-                _stall_threshold = self._timing_completion_threshold_minutes(_stall_entry)
-                if _stall_threshold > 0 and current_room_elapsed_minutes >= _stall_threshold * _STALL_RATIO:
-                    stall_detected = True
-                    stall_elapsed_minutes = round(current_room_elapsed_minutes, 1)
-                    stall_expected_minutes = round(_stall_threshold, 1)
-                    stall_ratio = round(current_room_elapsed_minutes / _stall_threshold, 2)
-
-                    # Fire event exactly once per room per job.
-                    # The set is bounded to one entry per unique room ID; cap
-                    # mirrors the job's own room count as a safety valve.
-                    _notified = set(active_job.get("_stall_notified_room_ids") or [])
-                    if current_room_id not in _notified:
-                        _notified.add(current_room_id)
-                        _stall_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
-                        active_job["_stall_notified_room_ids"] = list(_notified)[-_stall_cap:]
-                        self.data.setdefault("active_jobs", {}) \
-                            .setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
-                        _stall_room_name = (
-                            self._room_name_from_active_job(active_job, current_room_id)
-                            or f"Room {current_room_id}"
-                        )
-                        self.hass.bus.async_fire(
-                            EVENT_STALL_DETECTED,
-                            {
-                                "vacuum_entity_id": vacuum_entity_id,
-                                "map_id": str(map_id),
-                                "room_id": current_room_id,
-                                "room_name": _stall_room_name,
-                                "elapsed_minutes": stall_elapsed_minutes,
-                                "expected_minutes": stall_expected_minutes,
-                                "stall_ratio": stall_ratio,
-                            },
-                        )
-
-        # ------------------------------------------------------------------
-        # Anomaly: running_long (soft) + skipped (conservative)
-        # ------------------------------------------------------------------
-        # running_long is the soft tier BELOW the 2x stall: the current room has run
-        # _RUNNING_LONG_RATIO..stall x its estimate with no pending counter transition
-        # (genuinely stuck in the room, not a missed roll). Disjoint from stall by band.
-        running_long = False
-        running_long_ratio: float | None = None
-        running_long_room_id: int | None = None
-        if (not stall_detected) and current_room_id is not None and active_job.get("status") == "started":
-            _rl_entry = next(
-                (r for r in raw_timeline if _safe_int(r.get("room_id", -1), -1) == current_room_id),
-                None,
-            )
-            if _rl_entry is not None:
-                _rl_threshold = self._timing_completion_threshold_minutes(_rl_entry)
-                _pending_transition = (
-                    self.active_job._live_boundary_count(vacuum_entity_id, active_job, raw_timeline)
-                    > len(completed_room_ids)
-                )
-                if (
-                    _rl_threshold > 0
-                    and not _pending_transition
-                    and current_room_elapsed_minutes >= _rl_threshold * _RUNNING_LONG_RATIO
-                    and current_room_elapsed_minutes < _rl_threshold * _STALL_RATIO
-                ):
-                    running_long = True
-                    running_long_ratio = round(current_room_elapsed_minutes / _rl_threshold, 2)
-                    running_long_room_id = current_room_id
-
-        # skipped (conservative): a queued room the live tracking has provably advanced
-        # PAST (strictly before the current room in queue order) that is not completed.
-        # Eufy's sequential counter rollover keeps completed_room_ids a queue prefix, so
-        # this is ~empty live for Eufy (a mid-run skip can't be attributed from counters
-        # — the reliable "missed rooms" is the post-run incomplete_run_log). It fires on
-        # a non-sequential advance (position-reliable brands / transition detection) and
-        # future-proofs the hook. No false-positive heuristic.
-        skipped_room_ids: list[int] = []
-        if current_room_id is not None:
-            _queue_order = [_safe_int(r.get("room_id", -1), -1) for r in raw_timeline]
-            if current_room_id in _queue_order:
-                _cur_idx = _queue_order.index(current_room_id)
-                skipped_room_ids = [
-                    rid for rid in _queue_order[:_cur_idx]
-                    if rid >= 0 and rid not in completed_room_ids
-                ]
-        if skipped_room_ids:
-            _skip_notified = set(active_job.get("_skipped_notified_room_ids") or [])
-            _new_skips = [rid for rid in skipped_room_ids if rid not in _skip_notified]
-            if _new_skips:
-                _skip_notified.update(_new_skips)
-                _skip_cap = max(len(active_job.get("queue_room_ids") or []) + 1, 20)
-                active_job["_skipped_notified_room_ids"] = list(_skip_notified)[-_skip_cap:]
-                self.data.setdefault("active_jobs", {}).setdefault(vacuum_entity_id, {})[str(map_id)] = active_job
-                for _rid in _new_skips:
-                    self.hass.bus.async_fire(
-                        EVENT_ROOM_SKIPPED,
-                        {
-                            "vacuum_entity_id": vacuum_entity_id,
-                            "map_id": str(map_id),
-                            "job_id": active_job.get("job_id"),
-                            "room_id": _rid,
-                            "room_name": self._room_name_from_active_job(active_job, _rid) or f"Room {_rid}",
-                            "completed_room_ids": list(completed_room_ids),
-                        },
-                    )
+        # Detection + one-shot event emission (EVENT_STALL_DETECTED /
+        # EVENT_ROOM_SKIPPED, deduped per room per job) live in ActiveJobTracker,
+        # which owns the active-job dict + the dedup state. The composer hands it the
+        # already-resolved locals and reads the anomaly fields back for the snapshot.
+        _anomalies = self.active_job.detect_run_anomalies(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            active_job=active_job,
+            raw_timeline=raw_timeline,
+            current_room_id=current_room_id,
+            current_room_elapsed_minutes=current_room_elapsed_minutes,
+            completed_room_ids=completed_room_ids,
+            awaiting_bounds_exit=awaiting_bounds_exit,
+        )
+        stall_detected = _anomalies["stall_detected"]
+        stall_elapsed_minutes = _anomalies["stall_elapsed_minutes"]
+        stall_expected_minutes = _anomalies["stall_expected_minutes"]
+        stall_ratio = _anomalies["stall_ratio"]
+        running_long = _anomalies["running_long"]
+        running_long_ratio = _anomalies["running_long_ratio"]
+        running_long_room_id = _anomalies["running_long_room_id"]
+        skipped_room_ids = _anomalies["skipped_room_ids"]
 
         # ------------------------------------------------------------------
         # Transition-room detection (snapshot-only — does not modify storage)
