@@ -442,9 +442,15 @@ export function applyMapRenderers(proto) {
     const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
     if (!mss || !mss.present || !Array.isArray(mss.rooms)) return "";
     const { tx, ty } = this._overlayTransform(state);
+    const managed = state.getRoomsForActiveMap?.() ?? [];
     return mss.rooms.map((r) => {
-      const name = r?.name;
-      if (!name || !Array.isArray(r.bbox) || r.bbox.length !== 4) return "";
+      if (!Array.isArray(r.bbox) || r.bbox.length !== 4) return "";
+      // Prefer the user's CONFIGURED room name (the managed room keyed by the device
+      // number == managed room id — the mapping tap-to-select uses), falling back to the
+      // device's own name ("Room N") for a device room the user hasn't named yet.
+      const mr = managed.find((m) => String(m.id) === String(r.number));
+      const name = mr?.name ?? r?.name;
+      if (!name) return "";
       const lx = Math.min(Math.max(+tx((r.bbox[0] + r.bbox[2]) / 2), 5), 95);
       const ly = Math.min(Math.max(+ty((r.bbox[1] + r.bbox[3]) / 2), 6), 94);
       return `<div class="evcc-map-label" style="left:${lx}%;top:${ly}%">`
