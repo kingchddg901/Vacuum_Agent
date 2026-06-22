@@ -54,6 +54,23 @@ A complete worked example is the Fox, at `gallery/animals/fox.json`. The shape:
 You can submit the bare `animal` object (above) or wrap it in an envelope
 (`{ "version": 1, "kind": "animal", "animal": { ... } }`) — the intake accepts both.
 
+### Already have a `.js` animal?
+
+If you wrote one as a module (the old format — `const` colour aliases and
+backtick `parts` with `${...}` interpolation, like the bundled
+`raccoon.js`), **don't hand-translate it.** The converter runs your module to
+capture the definition with every `${FUR}` interpolation already resolved,
+tidies the SVG (and switches attributes to single quotes), and writes the
+descriptor for you:
+
+```sh
+node scripts/animal-js-to-descriptor.mjs your-animal.js --license CC-BY-4.0 -o your-animal.json
+```
+
+Then add author/description if you like and validate it like any other
+descriptor (below). Procedural (`type: "custom"`) modules can't be converted —
+they're code, not data.
+
 ### Colours
 
 Every key you declare in `colors` becomes a **themeable token**: the framework

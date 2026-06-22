@@ -101,7 +101,7 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
       // then-re-adds on every pass. Neither is a real content removal — filter
       // both so the report is meaningful AND so re-sanitising a stored animal
       // (the PR gate) is idempotent.
-      const WRAPPERS = new Set(["template", "body", "html", "head", "#document-fragment"]);
+      const WRAPPERS = new Set(["template", "body", "html", "head", "#document-fragment", "#text"]);
       const removed = (D.removed || [])
         .map((r) => {
           if (r.element || r.node) {
