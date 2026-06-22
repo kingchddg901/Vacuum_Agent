@@ -302,6 +302,11 @@ def rooms_from_room_pixels(map_data: dict[str, Any]) -> list[dict[str, Any]]:
             "bbox": bbox,           # [x0,y0,x1,y1] normalized, top-left origin
             "pixel_count": cnt,
             "area_m2": _area_m2(cnt, res),
+            # Real-world bbox dimensions (metres) = pixel extent × resolution (res is
+            # cm/cell) — a to-scale guide for the furnished render. The bbox over-estimates
+            # non-rectangular rooms; area_m2 (pixel count) is the true floor area.
+            "width_m": round((max_px - min_px + 1) * res / 100.0, 2),
+            "height_m": round((max_py - min_py + 1) * res / 100.0, 2),
         })
     return rooms
 
