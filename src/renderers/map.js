@@ -212,6 +212,7 @@ export function applyMapRenderers(proto) {
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;
             }).join("") : ""}
+            ${(segments.length === 0 && (state.mapRoomLabelsEnabled?.() ?? true)) ? this._renderDeviceRoomLabels(state) : ""}
             ${deviceOverlays ? this._renderDeviceOverlayHtml(state) : ""}
             ${this._renderRoomSelection(state)}
             ${this._renderHiddenRegions(state, hideMode)}
@@ -429,6 +430,26 @@ export function applyMapRenderers(proto) {
       }
     }
     return out;
+  };
+
+  /* Room-NAME labels for the live map's OWN rooms (map_state_source) — the fallback when the
+     layout has no drawn segments (a bare Roborock/Eufy live map). Names come from the device's
+     rooms (e.g. "Room 18", or a reconciled name); positioned at each room's bbox centre via the
+     same overlay transform the m² chips use, so they sit with those chips and ride the rotator
+     upright (reusing .evcc-map-label). Gated by the room-labels toggle + only when there are no
+     segments (else the segment labels own the names). */
+  proto._renderDeviceRoomLabels = function (state) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present || !Array.isArray(mss.rooms)) return "";
+    const { tx, ty } = this._overlayTransform(state);
+    return mss.rooms.map((r) => {
+      const name = r?.name;
+      if (!name || !Array.isArray(r.bbox) || r.bbox.length !== 4) return "";
+      const lx = Math.min(Math.max(+tx((r.bbox[0] + r.bbox[2]) / 2), 5), 95);
+      const ly = Math.min(Math.max(+ty((r.bbox[1] + r.bbox[3]) / 2), 6), 94);
+      return `<div class="evcc-map-label" style="left:${lx}%;top:${ly}%">`
+           + `<span class="evcc-map-label-name">${this.escapeHtml(String(name))}</span></div>`;
+    }).join("");
   };
 
   /**
@@ -729,7 +750,9 @@ export function applyMapRenderers(proto) {
       targetSeg = allSegments[0] ?? null;
     }
 
-    if (!targetSeg) return "";
+    // No drawn/CV segment to anchor to (a bare live map) — fall back to the device's own
+    // rooms / dock / robot from map_state_source so the mascot still shows.
+    if (!targetSeg) return this._mapAnimalDeviceFallback(state, vacuumStatus, isAtDock);
 
     // Resolve position: stored user anchor OR polygon centroid.
     // Anchor is keyed by room ID when available, else by segment ID
@@ -757,6 +780,39 @@ export function applyMapRenderers(proto) {
     // the shared "dock" spot, while dragging it mid-clean writes the per-room
     // anchor as before.
     return this._animalDivHtml(state, vacuumStatus, pct_x, pct_y, lookupKey);
+  };
+
+  /* Mascot fallback for a bare live map (no drawn segments to anchor to): home to the
+     user's dragged "dock" spot or the device dock anchor when docked, else ride the current
+     device room's centre (or the robot). Positions via the overlay transform (normalized ->
+     content %), the same frame the device markers use. "" when no live pose is available. */
+  proto._mapAnimalDeviceFallback = function (state, vacuumStatus, isAtDock) {
+    const mss = state.mapOverlayData?.() ?? state.mapStateSource?.();
+    if (!mss || !mss.present) return "";
+    const { tx, ty } = this._overlayTransform(state);
+    if (isAtDock) {
+      const stored = state.roomDotAnchor?.("dock");
+      if (stored) return this._animalDivHtml(state, vacuumStatus, stored.pct_x, stored.pct_y, "dock");
+      if (Array.isArray(mss.dock_anchor) && mss.dock_anchor.length === 2) {
+        return this._animalDivHtml(
+          state, vacuumStatus, (+tx(mss.dock_anchor[0])).toFixed(2),
+          (+ty(mss.dock_anchor[1])).toFixed(2), "dock");
+      }
+    }
+    const cur = mss.current_room;
+    const room = (cur != null && Array.isArray(mss.rooms))
+      ? mss.rooms.find((r) => String(r.number) === String(cur)) : null;
+    if (room && Array.isArray(room.bbox) && room.bbox.length === 4) {
+      const cx = (room.bbox[0] + room.bbox[2]) / 2;
+      const cy = (room.bbox[1] + room.bbox[3]) / 2;
+      return this._animalDivHtml(state, vacuumStatus, (+tx(cx)).toFixed(2), (+ty(cy)).toFixed(2), null);
+    }
+    if (Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
+      return this._animalDivHtml(
+        state, vacuumStatus, (+tx(mss.robot_anchor[0])).toFixed(2),
+        (+ty(mss.robot_anchor[1])).toFixed(2), null);
+    }
+    return "";
   };
 
   /* Render the <animal-svg> companion div at a map-content-box % position.
