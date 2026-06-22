@@ -130,6 +130,10 @@ export const mapStyles = `
     touch-action:   none;           /* pointer-drag on touch without page scroll */
   }
   .evcc-map-art--dragging { cursor: grabbing; }
+  /* While a compose shape is selected for placement, the editable art goes click-through so
+     the empty-space tap reaches the compose layer (else the full-frame art blocks every
+     segment placement). */
+  .evcc-map-art--passthrough { pointer-events: none; }
 
   /* Base-fade by render mode: the live <img> stays MOUNTED always (D4 — anchors the
      overlay frame + keeps the camera poll alive); only its opacity changes. 'art' fades

@@ -30,6 +30,10 @@ Coverage targets
           art_url resolved from image_variants.
 [FURN-13] delete_custom_layout sweeps the furnished-art variants from image_variants.
 [FURN-14] per-layout isolation: two layouts' furnished art don't leak.
+[FURN-15] set_furnished_render_mode with a blank/whitespace room_id → layout level, no
+          junk rooms[""] entry (regression for the `if room_id is None` gap).
+[FURN-16] set_furnished_art_placement clamps scale to the card's [0.05, 20] range so a
+          degenerate 0 (renderer coerces it back to 1x) can't round-trip verbatim.
 """
 
 from __future__ import annotations
@@ -188,6 +192,37 @@ async def test_set_render_mode_layout_and_room(hass, mapping_services):
     lay = _layout_summary(await _segments(hass, map_id), lid)
     assert lay["render_mode"] == "blend"
     assert lay["rooms"]["2"]["render_mode"] == "art"
+
+
+async def test_set_render_mode_blank_room_id_is_layout_level(hass, mapping_services):
+    """[FURN-15] a blank/whitespace room_id is treated as the LAYOUT level (like None) and
+    must NOT mint a junk rooms[""] entry. Regression: the handler used `if room_id is None`
+    so an empty string fell into the per-room branch (the sibling services guard it)."""
+    map_id = "furn_mode_blank"
+    lid = await _create_layout(hass, map_id)
+    res = await _svc(hass, SERVICE_SET_FURNISHED_RENDER_MODE, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "mode": "art", "room_id": "  "})
+    assert res["saved"] is True
+    assert res["room_id"] is None              # reported as layout-level, not ""
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    assert lay["render_mode"] == "art"
+    assert lay["rooms"] == {}                   # no phantom empty-key room
+
+
+async def test_set_home_art_placement_scale_clamped(hass, mapping_services):
+    """[FURN-16] scale is clamped to the card's [0.05, 20] range, so a degenerate 0 (which
+    the renderer coerces back to 1x via `Number(scale) || 1`) or an absurd value can't be
+    persisted verbatim and leave state/render disagreeing."""
+    map_id = "furn_scale_clamp"
+    lid = await _create_layout(hass, map_id)
+    await _svc(hass, SERVICE_SET_FURNISHED_ART_PLACEMENT, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "scope": "home", "scale": 0})
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    assert lay["home_art"]["art_placement_transform"]["scale"] == 0.05
+    await _svc(hass, SERVICE_SET_FURNISHED_ART_PLACEMENT, {
+        "vacuum_entity_id": _VAC, "map_id": map_id, "scope": "home", "scale": 100})
+    lay = _layout_summary(await _segments(hass, map_id), lid)
+    assert lay["home_art"]["art_placement_transform"]["scale"] == 20.0
 
 
 async def test_set_room_viewport_roundtrip_and_clear(hass, mapping_services):

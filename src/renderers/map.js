@@ -170,7 +170,7 @@ export function applyMapRenderers(proto) {
               : (imageUrl
                   ? `<img class="evcc-map-image${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
                   : "")}
-            ${furnishedOn ? this._renderFurnishedArt(state, false) : ""}
+            ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, false) : ""}
             ${this._renderSelectionScrim(state)}
             <svg
               class="evcc-map-svg"
@@ -323,8 +323,15 @@ export function applyMapRenderers(proto) {
     // translate is in the element's own % (matches the pct-offset contract); rotate then
     // scale about the centre. transform-origin 50% 50% (set in CSS) keeps it centred.
     const xform = `translate(${tx.toFixed(3)}%, ${ty.toFixed(3)}%) rotate(${rot}deg) scale(${sc})`;
-    const cls = "evcc-map-art" + (editable ? " evcc-map-art--editable" : "");
-    const drag = editable ? ` data-action="furnished-art-drag"` : "";
+    // When a compose shape is selected for placement, the full-frame art must be
+    // click-through so the empty-space tap reaches the compose layer underneath — otherwise
+    // the art swallows every tap and segment placement is silently dead. The user deselects
+    // the shape to drag the art again. (Room-view art is already pointer-events:none.)
+    const composeActive = editable && (state.composeSelectedId?.() != null);
+    const cls = "evcc-map-art"
+      + (editable ? " evcc-map-art--editable" : "")
+      + (composeActive ? " evcc-map-art--passthrough" : "");
+    const drag = (editable && !composeActive) ? ` data-action="furnished-art-drag"` : "";
     return `<img class="${cls}" src="${this.escapeHtml(url)}" alt="Furnished home render" `
          + `draggable="false" style="transform:${xform}"${drag}>`;
   };
@@ -882,7 +889,7 @@ export function applyMapRenderers(proto) {
               ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
                  <div class="evcc-map-content-rotator" style="transform:rotate(${configRot}deg);--evcc-map-rotation:${configRot}deg">
                    <img class="evcc-map-image${isCustom && !liveBackdrop ? " evcc-map-image--fill" : ""}${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
-                   ${furnishedOn ? this._renderFurnishedArt(state, true) : ""}
+                   ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, true) : ""}
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                      ${isCustom
                        ? this._renderComposerShapes(state)

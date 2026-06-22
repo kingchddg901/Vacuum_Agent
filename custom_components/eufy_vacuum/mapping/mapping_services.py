@@ -1836,7 +1836,13 @@ async def _handle_set_furnished_art_placement(
         target["art_placement_transform"] = {
             "tx": _round4(tx, 0.0),
             "ty": _round4(ty, 0.0),
-            "scale": _round4(scale, 1.0),
+            # Clamp scale to the same [0.05, 20] floor/ceiling the card enforces. A raw 0
+            # (or negative) would persist as 0.0 but the renderer coerces it back to 1x
+            # (`Number(scale) || 1`), so state and render would silently disagree; clamp here
+            # so the stored value is always renderable and matches what the UI allows.
+            "scale": _round4(
+                None if scale is None else min(max(float(scale), 0.05), 20.0), 1.0,
+            ),
             "rotation": _round4(rotation, 0.0),
         }
         action = "set"
@@ -1875,22 +1881,26 @@ async def _handle_set_furnished_render_mode(
     if layout is None:
         return {"saved": False, "reason": "no_active_layout"}
 
-    if room_id is None:
+    # A blank/whitespace room_id means "layout-level default", same as None — never mint a
+    # junk rooms[""] entry. (The placement/viewport handlers REJECT blank with missing_room_id
+    # because a transform/viewport with no room is meaningless; a render_mode legitimately
+    # defaults to the layout level, so route blank there instead of rejecting.)
+    room_id = str(room_id).strip() if room_id is not None else ""
+    if not room_id:
         layout["render_mode"] = mode
     else:
-        room_id = str(room_id).strip()
         layout.setdefault("rooms", {}).setdefault(room_id, {})["render_mode"] = mode
 
     layout["updated_at"] = utc_now_iso()
     await manager.async_save()
     _LOGGER.debug(
         "set_furnished_render_mode: %s on %s/%s room=%s",
-        mode, vacuum_entity_id, map_id, room_id,
+        mode, vacuum_entity_id, map_id, room_id or None,
     )
     return {
         "saved": True,
         "mode": mode,
-        "room_id": room_id,
+        "room_id": room_id or None,
         "furnished_render": resolve_furnished_render(map_bucket),
     }
 

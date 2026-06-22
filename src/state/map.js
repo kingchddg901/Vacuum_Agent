@@ -445,7 +445,8 @@ export function applyMapState(proto) {
   // raw float (backend rounds to 4 dp), so sub-degree alignment is lossless.
   proto.rotateFurnishedArt = function (deg) {
     const d = this.ensureFurnishedArtDraft();
-    d.rotation = ((((Number(d.rotation) || 0) + (Number(deg) || 0)) % 360) + 360) % 360;
+    const r = ((((Number(d.rotation) || 0) + (Number(deg) || 0)) % 360) + 360) % 360;
+    d.rotation = Math.round(r * 10000) / 10000;   // 4dp — matches the backend, no float-drift accrual
     return d;
   };
 
@@ -454,7 +455,8 @@ export function applyMapState(proto) {
   // resulting absolute angle on release. Returns the draft.
   proto.setFurnishedArtRotationAbsolute = function (deg) {
     const d = this.ensureFurnishedArtDraft();
-    d.rotation = (((Number(deg) || 0) % 360) + 360) % 360;
+    const r = (((Number(deg) || 0) % 360) + 360) % 360;
+    d.rotation = Math.round(r * 10000) / 10000;   // 4dp — matches the backend, no float-drift accrual
     return d;
   };
 
