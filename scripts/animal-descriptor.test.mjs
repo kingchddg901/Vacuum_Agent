@@ -307,3 +307,13 @@ test("[AD-29] description accepted + length-capped; submitted_by carried", () =>
   const long = validateDescriptor(baseAnimal({ description: "x".repeat(500) }));
   assert.equal(long.animal.description.length, 280);
 });
+
+test("[AD-30] reserved ids only build first-party (allowReservedIds); source override", () => {
+  // community submission can't claim a built-in id
+  assert.equal(validateDescriptor(baseAnimal({ id: "cat" })).ok, false);
+  assert.equal(validateDescriptor(baseAnimal({ id: "dog" })).ok, false);
+  // first-party build of a bundled animal is allowed, and stamps source:core
+  const fp = validateDescriptor(baseAnimal({ id: "cat" }), { allowReservedIds: true, source: "core" });
+  assert.equal(fp.ok, true, errs(fp));
+  assert.equal(fp.animal.source, "core");
+});

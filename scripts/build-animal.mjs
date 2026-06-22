@@ -49,9 +49,10 @@ export function existingAnimalIds() {
  * Compile a descriptor (the `animal` object, or an envelope wrapping one) into
  * the sanitised envelope + generated module. Pure of disk writes.
  */
-export async function buildAnimal(descriptorInput, { existingIds } = {}) {
+export async function buildAnimal(descriptorInput, { existingIds, firstParty } = {}) {
   const animalIn = descriptorInput && descriptorInput.animal ? descriptorInput.animal : descriptorInput;
-  const v = validateDescriptor(animalIn, { existingIds: existingIds ?? [] });
+  // firstParty = building a BUNDLED animal (cat/dog/…): allow its reserved id.
+  const v = validateDescriptor(animalIn, { existingIds: existingIds ?? [], allowReservedIds: !!firstParty, source: firstParty ? "core" : undefined });
   if (!v.ok) return { ok: false, errors: v.errors };
 
   const san = await sanitizeParts(v.animal.parts);
@@ -78,7 +79,8 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
   // Rebuilding the SAME animal is always fine — only a collision with a
   // DIFFERENT existing id should block. So drop this descriptor's own id.
   const ownId = (input && input.animal ? input.animal.id : input && input.id) || "";
-  const r = await buildAnimal(input, { existingIds: existingAnimalIds().filter((x) => x !== ownId) });
+  const firstParty = process.argv.includes("--first-party");
+  const r = await buildAnimal(input, { existingIds: existingAnimalIds().filter((x) => x !== ownId), firstParty });
   if (!r.ok) {
     console.error("INVALID descriptor:\n" + r.errors.map((e) => "  - " + e).join("\n"));
     process.exit(1);

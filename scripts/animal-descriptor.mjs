@@ -232,7 +232,7 @@ export function validateDescriptor(input, opts = {}) {
   const id = String(input.id || "");
   if (!ID_RE.test(id)) {
     errors.push('id must match ^[a-z][a-z0-9-]{1,30}$ (lowercase letters, digits, hyphens; start with a letter).');
-  } else if (RESERVED_IDS.has(id)) {
+  } else if (RESERVED_IDS.has(id) && !opts.allowReservedIds) {
     errors.push(`id "${id}" is a built-in animal — choose a different id.`);
   } else if (existing.has(id)) {
     errors.push(`id "${id}" already exists in the gallery — choose a different id.`);
@@ -357,7 +357,7 @@ export function validateDescriptor(input, opts = {}) {
     id,
     name,
     type,
-    source: "community",
+    source: opts.source || "community",
     license,
     colors: { ...colors },
     parts: { ...parts },
