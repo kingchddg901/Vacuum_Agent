@@ -82,6 +82,44 @@ plus optional `warning` (a spooked overlay) and `extra`.
 **Parrot**: `body`, `frontLeftLeg`, `frontRightLeg`, `tail`, `head`, `eyes`,
 `face` (no hind legs) plus optional `warning` / `extra`.
 
+#### From your drawing to the JSON
+
+Once you have the SVG, turning it into the descriptor is mechanical:
+
+1. **Split it into the slots.** Each anatomical group above becomes one entry in
+   `parts` — just the markup that draws that piece (a `<g>`, some `<path>`s).
+   Leave out the outer `<svg>` wrapper; the framework supplies it.
+2. **Use single quotes for attributes.** JSON strings are double-quoted, and so
+   is SVG by convention — so pasting `<path d="…" fill="…"/>` into JSON means
+   escaping every quote as `\"`. Instead write your SVG with **single-quoted**
+   attributes — `<path d='…' fill='…'/>` — and the JSON needs no escaping at all.
+   SVG accepts single quotes, and the sanitiser normalises everything back to
+   double quotes on the way out. *(The Fox's source is written exactly this way.)*
+3. **Swap literal colours for tokens.** Replace each `fill='#e0742a'` with
+   `fill='hsl(var(--animal-fur))'` and declare `--animal-fur` in `colors` — now
+   it's themeable. (Or keep it a literal `hsl(...)` and make the animal a
+   memorial — see the rule up top.)
+
+So one slot ends up looking like:
+
+```json
+"body": "<path d='M145,160 C155,145 280,130 348,162 Z' fill='hsl(var(--animal-fur))'/>"
+```
+
+#### Check it before you submit
+
+Compile your descriptor locally — it validates, sanitises, and generates the
+module — then render every pose to eyeball it (both use a headless browser, so
+run `npm ci` first):
+
+```sh
+node scripts/build-animal.mjs path/to/your-animal.json   # validate + sanitise + codegen
+node scripts/preview-animal.mjs <id>                      # 6-pose contact sheet
+```
+
+`build-animal` refuses anything the contract gate or sanitiser rejects and tells
+you exactly what to fix — the same checks the intake runs.
+
 #### Make the legs animate
 
 The framework's knee-bend animations (for the *curled*, *walking*, and
