@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-31 numbered files covering the integration's architecture, subsystems, and porting contract.
+32 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -103,6 +103,7 @@ Cross-cutting features that span several subsystems.
 | # | File | What it covers |
 |---|---|---|
 | 28 | [external-run-ingestion](28-external-run-ingestion.md) | App-started (external) runs: detection, capture, blind segmentation, the review card + confirm wizard, the tier-1 identity gate, and graduating into the learned baselines |
+| 32 | [furnished-render](32-furnished-render.md) | Furnished custom render: overlay a to-scale home render over the live map (no georeference — the light path), the per-layout data model, the three services, `resolve_furnished_render`, and the frontend art layer / render modes |
 
 ---
 

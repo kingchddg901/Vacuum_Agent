@@ -19,6 +19,7 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 - **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces twelve sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
+- **Live map & furnished render** — show your robot's live map as the dashboard backdrop and draw rooms over it. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
 
@@ -200,7 +201,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - [Automation examples](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/04-automation-examples/)
 - [Map configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) — enable the interactive room map (optional)
 - [Battery health (advanced)](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/09-battery-health/) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/) — reading-order index for all 28 dev docs
+- [Developer docs](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/) — reading-order index for all 32 dev docs
 - [Render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) — headless visual-regression, colorblind validation, and theme previews ([how to run](https://kingchddg901.github.io/Vacuum_Agent/docs/testing/07-render-harness/))
 - [Adapter config reference](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/22-adapter-config-reference/) — the schema for per-vacuum brand config
 - [Porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)

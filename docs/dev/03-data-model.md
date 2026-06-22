@@ -189,11 +189,15 @@ fully self-contained custom segmentation.
   "id":                 str                  # == the dict key
   "name":               str                  # user label; default "Custom"
   "backdrop_variant":   str                  # this layout's image variant; "custom_<id>" for new layouts
+  "backdrop_source":    str                  # "custom" (uploaded backdrop) | "live" (rides the live map frame)
   "custom_segments":    SegmentationResult   # authored store (replace-all by set_custom_segments)
   "segment_room_links": dict[segment_id_str, room_id_str]   # 1:1, PER-LAYOUT
   "companion_anchors":  dict[anchor_key, AnchorRecord]       # PER-LAYOUT (incl. the reserved "dock" key)
+  "render_mode":        str                  # furnished render: "live"|"art"|"blend" (absent ⇒ "live")
+  "home_art":           dict                 # furnished whole-home art: {art_variant, art_placement_transform:{tx,ty,scale,rotation}}
+  "rooms":              dict[room_id_str, dict]   # per-room furnished overrides: {art_variant?, art_placement_transform?, viewport?:{cx,cy,zoom}, render_mode?}
   "created_at":         str                  # ISO timestamp
-  "updated_at":         str                  # ISO timestamp; bumped on author/upload/rename
+  "updated_at":         str                  # ISO timestamp; bumped on author/upload/rename/furnished write
 }
 ```
 
@@ -202,6 +206,14 @@ segment id `"living"` linked to **different** rooms — impossible in the old
 single-store model where the links lived once at the map-bucket level. The
 `"dock"` mascot-home anchor (see `AnchorRecord` below) is likewise owned by each
 custom layout in custom mode, while CV keeps the map-bucket dicts.
+
+The furnished-render members (`render_mode`, `home_art`, `rooms`) are written by
+`set_furnished_art_placement` / `set_furnished_render_mode` / `set_room_viewport`
+and `upload_map_image(art_scope=…)`, all scoped to the active layout. Their
+transforms/viewports are resolution-independent percentage floats (`scale`
+clamped `[0.05, 20]`). They are schema-free and minted lazily — `rooms` starts
+`{}`; `home_art`/`render_mode` appear on first write. See
+[Furnished render](../advanced/08-map-configuration.md#furnished-render).
 
 #### SegmentationResult
 
@@ -519,9 +531,10 @@ untouched. The lazy `_migrate_custom_layouts` runs first.
 ```
 
 Each `CustomLayoutSummary` in `custom_layouts` is the layout shorn of its heavy
-stores — `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}`
-(`segment_count` is `len(custom_segments.segments)`). The card renders one picker
-chip per entry.
+stores — `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at, render_mode, home_art, rooms}`
+(`segment_count` is `len(custom_segments.segments)`; the last three carry the
+per-layout **furnished-render** state so the card renders the furnished panel
+without a second fetch). The card renders one picker chip per entry.
 
 Each served `Segment` is the stored segment enriched at read time:
 

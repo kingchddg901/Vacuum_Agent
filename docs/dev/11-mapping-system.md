@@ -406,6 +406,7 @@ The `upload_map_image` service validates the `variant` field through the `_image
 | `"light"` | `"boundary"` | Assist input for wall cutting; light theme captures have near-white walls that are easy to detect |
 | `"custom"` | `"manual"` | Legacy single-custom backdrop and the default backdrop for a migrated `"Custom"` layout (§10). Stored and served like any other variant, but the segmenter **never** reads it — `_handle_analyze_map_image` only probes `dark`/`default` (primary) and `light` (assist), so a custom-only map is never auto-segmented. |
 | `"custom_<layout_id>"` | `"manual"` | Per-layout backdrop for a named custom layout (§10). Written when `upload_map_image` is called with a `layout_id` — the server forces the variant key to `custom_<layout_id>` and repoints that layout's `backdrop_variant`. Like `"custom"`, never auto-segmented. Its recorded `image_width`/`image_height` define the pixel space `set_custom_segments` rasterises that layout's authored polygons against. |
+| `"custom_<id>_home_art"` / `"custom_<id>_room_<rid>"` | `"manual"` | **Furnished-art** variant for a live-map layout — a to-scale home render composited *over* the live map (whole-home, or per-room). Written when `upload_map_image` is called with `art_scope` (`home`/`room`); points the layout's `home_art.art_variant` / `rooms[<rid>].art_variant`, **not** its `backdrop_variant`. Display-only (never segmented). See the [furnished render reference](../advanced/08-map-configuration.md#furnished-render). |
 
 Variant names are normalised to lowercase, spaces and hyphens replaced by underscores.
 
@@ -493,7 +494,7 @@ The same per-map bucket also carries the CV/Custom toggle state, the named custo
 
 - `segmentation_mode` — `"cv"` or `"custom"`. Defaults to `"cv"` when absent. Selects which segment store `get_map_segments` serves; flipping it never re-runs the segmenter. In `custom` mode it serves the **active** layout.
 - `image_segments` — the CV base `SegmentationResult` cache (engine-derived). Special at the map-bucket level — there is exactly one.
-- `custom_layouts` — `{layout_id: layout}` dict of named custom layouts. Each layout is `{id, name, backdrop_variant, custom_segments, segment_room_links, companion_anchors, created_at, updated_at}` — its own backdrop, authored segments, room links, and companion anchors (see §10.1).
+- `custom_layouts` — `{layout_id: layout}` dict of named custom layouts. Each layout is `{id, name, backdrop_variant, backdrop_source, custom_segments, segment_room_links, companion_anchors, render_mode, home_art, rooms, created_at, updated_at}` — its own backdrop, authored segments, room links, companion anchors, and (on a live-map layout) the furnished-render state `render_mode`/`home_art`/`rooms` (see §10.1 and the [data model](03-data-model.md)).
 - `active_custom_layout_id` — id of the layout served in `custom` mode (or `null`).
 - `custom_segments` — **legacy** single user-authored store, in the same `SegmentationResult` shape as `image_segments`. Migrated lazily and non-destructively into a `"Custom"` layout under `custom_layouts` (§10.2); kept, never deleted.
 - `segment_room_links` — `{segment_id: room_id}` user-assigned 1:1 segment→room mapping. At the map-bucket level this is **CV's** link store; each custom layout owns its own `segment_room_links`.

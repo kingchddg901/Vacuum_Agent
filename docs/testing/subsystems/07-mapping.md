@@ -109,6 +109,14 @@ The human-authored alternative to CV, exercised end to end through the services.
 - **Per-layout isolation** — the same segment id may link to *different* rooms on
   two layouts (`test_per_layout_segment_isolation`), and companion anchors including
   the reserved `dock` spot are per-layout (`LAYOUT-6`) — neither bleeds across.
+- **Furnished render** (`FURN-*`, `test_mapping_furnished_render.py`) — the per-layout
+  furnished-art contract end to end: `set_furnished_art_placement` (home/room scope,
+  4dp round-trip, scale clamp to `[0.05, 20]`, clear-on-all-null, missing-room-id
+  guard), `set_furnished_render_mode` (layout vs per-room, blank room_id → layout
+  level), `set_room_viewport`, the `upload_map_image` `art_scope` variant routing
+  (`custom_<id>_home_art` / `_room_<rid>` onto `home_art`/`rooms`, never the backdrop),
+  the `resolve_furnished_render` projection, the `delete_custom_layout` art sweep, and
+  per-layout isolation — all through the real service registry.
 
 ### The map_state_source reader
 The brand-agnostic read of the **provider's own** segmentation + live pose into

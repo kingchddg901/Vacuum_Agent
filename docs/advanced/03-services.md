@@ -222,6 +222,8 @@ Uploads a map background image variant. The `default`, `dark`, and `light` varia
 | `image_base64` | Yes | Base64-encoded image. Converted to PNG if not already. |
 | `variant` | No | `default`, `dark`, `light`, `custom`, or a per-layout `custom_<layout_id>`. Default `default`. |
 | `layout_id` | No | Targets a named custom layout's backdrop. When supplied, the server **forces** `variant` to `custom_<layout_id>` (ignoring any `variant` you pass) and repoints that layout's `backdrop_variant`. The layout must already exist — returns `{"saved": false, "reason": "layout_not_found"}` otherwise. |
+| `art_scope` | No | `home` or `room`. Switches the upload from a **backdrop** to a **furnished-art** image: it writes variant `custom_<layout_id>_home_art` (scope `home`) or `custom_<layout_id>_room_<room_id>` (scope `room`) and points the active layout's `home_art.art_variant` / `rooms[<room_id>].art_variant` at it — the layout's `backdrop_variant` is **left untouched**. Requires `layout_id`; scope `room` also requires `room_id`. See [Furnished Render](#furnished-render). |
+| `room_id` | When `art_scope=room` | The room the per-room furnished art belongs to. |
 | `image_width` | No | Declared pixel width. The stored variant records the image's actual measured dimensions; for a custom/per-layout backdrop these define the rasterise canvas. |
 | `image_height` | No | Declared pixel height. |
 
@@ -266,7 +268,7 @@ Returns the active segmentation for a map — whichever store `segmentation_mode
 | `vacuum_entity_id` | Yes | |
 | `map_id` | Yes | Required — not auto-resolved. |
 
-Supports response. Returns `segmentation_mode` (`cv` or `custom`), `available`, `analyzed_at`, `image`, `image_variants`, a `summary` (with `segment_count` and `adjusted_count`), `segments` (each carrying `polygon_pct` and, when linked, `room_id`), `adjustments`, and `companion_anchors` (all scoped to the active store). It also returns `active_custom_layout_id`, `segment_room_links` (the active scope's link dict), and `custom_layouts` — a list of layout summaries, each `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}` — so the card can render the layout picker without a second fetch.
+Supports response. Returns `segmentation_mode` (`cv` or `custom`), `available`, `analyzed_at`, `image`, `image_variants`, a `summary` (with `segment_count` and `adjusted_count`), `segments` (each carrying `polygon_pct` and, when linked, `room_id`), `adjustments`, and `companion_anchors` (all scoped to the active store). It also returns `active_custom_layout_id`, `segment_room_links` (the active scope's link dict), and `custom_layouts` — a list of layout summaries, each `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at, render_mode, home_art, rooms}` (the last three carry the per-layout **furnished-render** state — see [Furnished Render](#furnished-render)) — so the card can render the layout picker and the furnished panel without a second fetch.
 
 #### `set_segmentation_mode`
 
@@ -490,6 +492,48 @@ Diagnostic verify probe: compares the fork's in-memory `_map_data` against the `
 | Parameter | Required |
 |---|---|
 | `vacuum_entity_id` | Yes |
+
+### Furnished Render
+
+These three write services back the **Furnished render** panel — a user-uploaded, to-scale home render aligned over the live map so the live robot/dock/path/room overlays ride on top (see the [Furnished render user guide](../user-guide/18-furnished-render.md)). They all operate on the map's **active custom layout** (returning `{"saved": false, "reason": "no_active_layout"}` when none is active) and, like the rest of this section, **require `map_id` explicitly**. The placement transform and viewport are resolution-independent percentage floats stored per-layout; each returns the resolved `furnished_render` so the card refreshes. All support response.
+
+#### `set_furnished_art_placement`
+
+Persists (or clears) the furnished-art placement transform `{tx, ty, scale, rotation}` on the active layout — the whole-home art (`scope: home`) or a per-room override (`scope: room`).
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `scope` | Yes | `home` or `room`. |
+| `room_id` | When `scope=room` | Returns `{"saved": false, "reason": "missing_room_id"}` if blank for a room scope. |
+| `tx`, `ty` | No | Percentage offset of the art over the live frame. |
+| `scale` | No | Multiplies the contain-fit size; clamped to `[0.05, 20]`. |
+| `rotation` | No | Degrees. Stored in the natural (pre-live-rotation) frame so the art co-rotates with the overlays. |
+
+Pass **all** of `tx`/`ty`/`scale`/`rotation` null (or omit them) to **clear** the placement (`{"action": "cleared"}`).
+
+#### `set_furnished_render_mode`
+
+Sets the render mode: `live` (art hidden, live map full), `art` (art full, live map faded to a ghost), or `blend` (art over a faded live map — the alignment view). Omit `room_id` (or pass it blank) for the **layout-level** default; pass it for a per-room override. An absent layout `render_mode` implies `live`.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `mode` | Yes | `live`, `art`, or `blend`. |
+| `room_id` | No | Omit/blank = layout-level default; set = per-room override. |
+
+#### `set_room_viewport`
+
+Persists (or clears) a saved per-room viewport `{cx, cy, zoom}` (percentage floats) on the active layout, used to frame a single room.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `room_id` | Yes | Returns `{"saved": false, "reason": "missing_room_id"}` if blank. |
+| `cx`, `cy`, `zoom` | No | Pass all three null (or omit) to clear the saved viewport. |
 
 ---
 

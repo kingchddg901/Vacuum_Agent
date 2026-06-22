@@ -32,6 +32,7 @@ The `upload_map_image` service accepts a `variant` field. The validator allows t
 | **Light** | Assist | Wall and boundary detection, used alongside the dark variant |
 | **Default** | Fallback | Used when no dark variant is available |
 | **Custom** / **custom_&lt;layout_id&gt;** | Backdrop | The tracing image for a custom layout. **Never** auto-segmented — the analyser only ever reads the dark/default/light variants. Each named layout owns its own backdrop, stored under its own `custom_<layout_id>` key; the legacy single `custom` variant is the backdrop of a migrated default layout. The active backdrop's recorded pixel dimensions become the canvas the custom-segment writer rasterises against. |
+| **custom_&lt;id&gt;_home_art** / **custom_&lt;id&gt;_room_&lt;rid&gt;** | Furnished art | A user's to-scale home render composited **over** the live map — whole-home, or per-room (`_room_<rid>`). Written by `upload_map_image` with `art_scope`; distinct from the backdrop variant, which it never replaces. See [Furnished render](#furnished-render). |
 
 The Image Variants section (CV mode) shows the dark, light, and default variants' current upload status. Uploaded variants display their pixel dimensions (width × height); missing variants show "not uploaded". Each layout's backdrop is uploaded and managed separately, from the **Custom backdrop** section shown in custom mode — and it always targets the **active** layout.
 
@@ -193,7 +194,7 @@ The layout services are all `supports_response`. Their behaviour:
 | `rename_custom_layout(layout_id, name)` | Renames the layout in place. |
 | `delete_custom_layout(layout_id)` | Deletes the layout and best-effort removes its backdrop file. If it was the active layout, the next remaining layout (by name) is activated; if it was the **last**, the map flips back to `cv`. |
 
-`get_map_segments` now reports the collection alongside the segments: its response carries `custom_layouts` (a list of `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at}`), `active_custom_layout_id`, and the active store's `segment_room_links`.
+`get_map_segments` now reports the collection alongside the segments: its response carries `custom_layouts` (a list of `{id, name, backdrop_variant, backdrop_source, segment_count, created_at, updated_at, render_mode, home_art, rooms}` — the last three carry the per-layout [furnished-render](#furnished-render) state), `active_custom_layout_id`, and the active store's `segment_room_links`.
 
 #### When to use custom layouts
 
@@ -253,9 +254,24 @@ Everything above assumes you supply the backdrop yourself — a CV screenshot pa
 
 **Display rotation.** A live map arrives in whatever orientation the brand renders it, which may not match how you picture your home. You can set a backend-stored display rotation — **0 / 90 / 180 / 270** — with the `set_live_map_rotation` service. It is stored on the map bucket (surfaced on the snapshot as `live_map_rotation`, present even at 0 so the card always has a value) so the orientation **follows you across devices**, and it rotates the **whole layer** — backdrop, segments, and mascot together. Rotation is **display only**: cleaning and dispatch are by room id and are never affected by it.
 
-**Rooms over the live map.** You still draw and save rooms as segments — but they are drawn directly **over the live map** and saved without uploading any backdrop image, since the live image is the backdrop. The mascot follows the robot's **live room** (dwell-debounced so it doesn't flicker between adjacent rooms) and stays **draggable on a rotated map**, so you can place it where it reads naturally regardless of the chosen rotation.
+**Rooms over the live map.** You still draw and save rooms as segments — but they are drawn directly **over the live map** and saved without uploading any backdrop image, since the live image is the backdrop. The mascot follows the robot's **live room** (dwell-debounced so it doesn't flicker between adjacent rooms) and stays **draggable on a rotated map**, so you can place it where it reads naturally regardless of the chosen rotation. Each room in `map_state_source` also reports its real-world box size as `width_m` / `height_m` (metres — Eufy derives them from the map resolution, Roborock from the raw mm coordinates), used for per-room framing.
 
 For the hands-on walkthrough of setting rooms up over a live map, see **[Making your own maps](../user-guide/16-making-your-own-maps.md)** in the user guide.
+
+#### Furnished render
+
+On a live-map layout (`backdrop_source: live`) the Map **config** view shows a **Furnished render** panel that overlays a to-scale render of your actual home on the live map, so the live robot, dock, path, and room overlays drive across your real furniture. There is **no georeference** — you align the art over the live frame once and that alignment *is* the reconciliation (the art is anchored to the live pixels, so the overlays come for free).
+
+The panel offers:
+
+- **Save map image** — downloads the current live map frame so you can trace your furnished art over it in an external editor (the result is then already registered to the map pixels).
+- **Upload art** — `upload_map_image` with `art_scope` (`home` for one whole-home image, or `room` + `room_id` for per-room art).
+- **Render mode** — `Live` (art hidden), `Blend` (art over a faded live map — best for aligning), or `Art` (art full, live map a ghost), via `set_furnished_render_mode`.
+- **Align** — drag the art, nudge/scale it, and rotate it (coarse ±90° / fine ±1° / micro ±0.1° buttons plus a ±15° fine-trim slider), persisted with `set_furnished_art_placement`. A saved per-room viewport (`set_room_viewport`) can frame a single room.
+
+The art is stored per-layout as resolution-independent percentage floats (`home_art` + per-room `rooms` + a layout-level `render_mode`); the services are detailed in [Services → Furnished Render](03-services.md#furnished-render) and the persisted shape in [Data model → CustomLayout](../dev/03-data-model.md). It is brand-agnostic — it rides any live-map backdrop (Eufy via the community camera fork, Roborock, etc.). One caveat: Eufy re-localizes its map origin each session, so the art may need an occasional re-nudge between sessions; within a session the frame is stable. Because zone-draw rides one layer above the art (and is gated on map rotation 0), you can even draw a zone-clean directly over your furniture on Eufy.
+
+For the step-by-step, see **[Furnished render](../user-guide/18-furnished-render.md)** in the user guide.
 
 ---
 

@@ -6,7 +6,7 @@ You have a few ways to put rooms on the map, and you can use more than one on th
 
 - **Auto (CV)** — upload a screenshot of your Eufy app's map and let the integration **detect the rooms for you**. Best when your app map has clean, solid room colours.
 - **Custom layouts** — **draw the rooms yourself** from rectangles and circles on top of any background picture. Best when auto-detection struggles, or when you want a themed map (a blueprint, a solar system, a tree) with rooms exactly where you put them.
-- **Live map** *(Roborock and other live-map brands — and Eufy via a community fork)* — **skip the upload entirely** and draw rooms straight over the map image your vacuum streams. See [Roborock and other live-map brands](#roborock-and-other-live-map-brands) below, and [Eufy live map (community fork)](#eufy-live-map-community-fork) for the Eufy route.
+- **Live map** *(Roborock and other live-map brands — and Eufy via a community fork)* — **skip the upload entirely** and draw rooms straight over the map image your vacuum streams. See [Roborock and other live-map brands](#roborock-and-other-live-map-brands) below, and [Eufy live map (community fork)](#eufy-live-map-community-fork) for the Eufy route. On a live map you can also **trace a to-scale render of your real home** over it so the robot drives across your actual furniture — see [Furnished render](18-furnished-render.md).
 
 > **Not sure which?** Start with Auto (CV) — it's the least work. If the detected rooms come out wrong and won't nudge into shape, switch to a custom layout. Trying a custom layout never destroys your Auto (CV) result; they live side by side.
 
@@ -157,6 +157,10 @@ If your vacuum streams a live map (Roborock S6, for example), there's **nothing 
 ### Rotating the live map
 
 If the live map comes in sideways relative to how you picture your home, use the **Rotate** control on the map-view toolbar to turn it in 90° steps until it matches. The rotation is stored in the backend, so it **follows you across devices** — set it once and every dashboard and phone sees the same orientation. The whole layer turns together: the image, your room polygons, the labels, and the mascot all rotate as one, so your drawn rooms stay aligned no matter which way you face the map.
+
+### Furnished render: trace your real rooms
+
+Once you have a live map, you can go further than coloured room shapes: overlay a **to-scale render of your actual home** so the live robot, dock, and cleaning path drive across your real furniture. Save the live map image, trace your furniture over it, upload it, then blend and align it once. See **[Furnished render](18-furnished-render.md)** for the full walkthrough.
 
 ---
 
