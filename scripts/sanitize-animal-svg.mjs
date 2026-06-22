@@ -96,8 +96,11 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
         // injects the fragment (inside <svg>…</svg>).
         NAMESPACE: "http://www.w3.org/2000/svg",
       });
-      // DOMPurify reports its internal parse wrappers (template/body/…) in
-      // `removed`; those aren't real content removals, so filter them out.
+      // DOMPurify reports its own serialisation churn in `removed`: internal
+      // parse wrappers (template/body/…) and the SVG-namespace xmlns it strips-
+      // then-re-adds on every pass. Neither is a real content removal — filter
+      // both so the report is meaningful AND so re-sanitising a stored animal
+      // (the PR gate) is idempotent.
       const WRAPPERS = new Set(["template", "body", "html", "head", "#document-fragment"]);
       const removed = (D.removed || [])
         .map((r) => {
@@ -110,7 +113,8 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
           }
           return { kind: "node", name: "?" };
         })
-        .filter((r) => !(r.kind === "element" && WRAPPERS.has(r.name)));
+        .filter((r) => !(r.kind === "element" && WRAPPERS.has(r.name)))
+        .filter((r) => !(r.kind === "attribute" && /^xmlns(:|$)/.test(r.name)));
       D.removeAllHooks();
       return { clean, removed };
     },

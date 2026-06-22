@@ -1,0 +1,74 @@
+name: Animal submission
+description: Share a companion animal for the public gallery
+title: "[Animal] "
+labels: ["animal-submission"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Share an animal companion you authored.
+
+        Animals are submitted as a **declarative JSON descriptor** — colours +
+        SVG path data, no JavaScript. See the **[animal authoring
+        guide](https://github.com/kingchddg901/Vacuum_Agent/blob/master/docs/contributing/animal-authoring.md)**
+        for the format (the body plan, the anatomical slots, the themeable
+        `--animal-*` colour tokens, and how to reuse the leg-animation classes).
+
+        A bot validates it, **sanitises the SVG**, renders a preview across every
+        pose, and opens a pull request — commenting the full report back here.
+        A maintainer reviews and merges it; then your animal appears in the
+        gallery and the in-card companion picker. Nothing is published
+        automatically.
+
+        **Two rules worth knowing up front:**
+        - It must be **declarative** — `type` is `quadruped` or `parrot`, and any
+          JavaScript / `custom` renderer is rejected (those are maintainer-only).
+        - If your animal **bakes its colours in** (only the eye stays themeable,
+          like a true-to-life tribute), it must set `"memorial": true` and it
+          joins the **Rainbow Bridge** group. Otherwise expose a themeable
+          `--animal-*` colour block so it recolours in the theme editor.
+  - type: textarea
+    id: descriptor
+    attributes:
+      label: Animal descriptor JSON
+      description: >
+        Paste the full descriptor JSON (the `animal` object, or an envelope
+        wrapping it). It carries the id, name, type, licence, themeable colours,
+        and the SVG parts.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: author
+    attributes:
+      label: Author
+      description: Optional. Your display name, for credit in the gallery.
+      placeholder: Your name or handle
+    validations:
+      required: false
+  - type: input
+    id: author-url
+    attributes:
+      label: Author URL
+      description: >
+        Optional. A direct http(s) profile or project link. URL shorteners are
+        not accepted for gallery author credits.
+      placeholder: https://github.com/you
+    validations:
+      required: false
+  - type: input
+    id: submitted-by
+    attributes:
+      label: Submitted by
+      description: Optional — only if you're submitting on behalf of someone else.
+    validations:
+      required: false
+  - type: checkboxes
+    id: ack
+    attributes:
+      label: Before you submit
+      options:
+        - label: I have the right to share this artwork under the licence named in the descriptor.
+          required: true
+        - label: The descriptor is declarative (SVG + colours only) — no JavaScript or custom renderer.
+          required: true

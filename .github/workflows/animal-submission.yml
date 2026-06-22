@@ -1,0 +1,167 @@
+name: animal submission
+
+# An "animal-submission" issue (a declarative descriptor pasted into the form)
+# is processed by scripts/process-animal-submission.mjs — the SAME validate →
+# DOMPurify-sanitise → codegen core the fork-PR check uses — into the gallery
+# artifacts:
+#   parse + contract gate + SVG sanitise -> write gallery/animals/<slug>.json
+#   + the generated animals/<slug>.js -> render a 6-pose preview -> open/UPDATE a
+#   pull request -> comment the full report on the issue.
+#
+# Like theme-submission, validation runs HERE (on the issue), not on a PR: a
+# token-opened PR can't trigger CI. So a broken descriptor never becomes a PR —
+# it gets a comment to fix and reopen. The whole job runs in the pinned
+# Playwright image because the sanitiser + preview need a real browser.
+#
+# ONE-TIME SETUP: an "animal-submission" label must exist (the form applies it),
+# and Settings -> Actions -> "Allow GitHub Actions to create and approve pull
+# requests" must be enabled.
+
+on:
+  issues:
+    types: [opened, reopened, edited]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  intake:
+    if: contains(join(github.event.issue.labels.*.name, ','), 'animal-submission')
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v5
+
+      # The processor needs dompurify + playwright at processing time (the
+      # sanitiser runs in-browser), so install BEFORE processing.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Process the submission
+        id: extract
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const { pathToFileURL } = require("url");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+
+            const mod = await import(pathToFileURL(path.resolve("scripts/process-animal-submission.mjs")).href);
+            const result = await mod.processAnimalSubmission(context.payload.issue.body || "", issue_number);
+
+            if (!result.ok) {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body: result.report });
+              core.setOutput("ok", "false");
+              return;
+            }
+
+            fs.mkdirSync("gallery/animals", { recursive: true });
+            fs.writeFileSync(`gallery/animals/${result.slug}.json`, JSON.stringify(result.envelope, null, 2) + "\n");
+            fs.writeFileSync(
+              `custom_components/eufy_vacuum/frontend/animal-svg/animals/${result.slug}.js`,
+              result.moduleJs,
+            );
+            fs.writeFileSync(path.join(process.env.RUNNER_TEMP, "animal-report.md"), result.report);
+            core.setOutput("ok", "true");
+            core.setOutput("slug", result.slug);
+            core.setOutput("animalName", result.name);
+
+      - name: Render pose preview
+        if: steps.extract.outputs.ok == 'true'
+        run: node scripts/preview-animal.mjs "${{ steps.extract.outputs.slug }}"
+
+      - name: Upload preview artifact
+        if: steps.extract.outputs.ok == 'true'
+        uses: actions/upload-artifact@v6
+        with:
+          name: animal-preview-${{ steps.extract.outputs.slug }}
+          path: harness/out/animals/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Open/update PR + comment
+        if: steps.extract.outputs.ok == 'true'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require("fs");
+            const path = require("path");
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const slug = "${{ steps.extract.outputs.slug }}";
+            const animalName = ${{ toJSON(steps.extract.outputs.animalName) }};
+            const report = fs.readFileSync(path.join(process.env.RUNNER_TEMP, "animal-report.md"), "utf8");
+            const branch = `animal-submission/${slug}`;
+            const previewBranch = "gallery-previews";
+            const jsonPath = `gallery/animals/${slug}.json`;
+            const jsPath = `custom_components/eufy_vacuum/frontend/animal-svg/animals/${slug}.js`;
+            try {
+              const base = (await github.rest.repos.get({ owner, repo })).data.default_branch;
+              const sha = (await github.rest.git.getRef({ owner, repo, ref: `heads/${base}` })).data.object.sha;
+
+              // Reuse the branch across reopen/edit re-runs (create once).
+              let branchExists = true;
+              try { await github.rest.git.getRef({ owner, repo, ref: `heads/${branch}` }); }
+              catch { branchExists = false; }
+              if (!branchExists) {
+                await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${branch}`, sha });
+              }
+
+              // Create or update both artifacts on the branch.
+              for (const p of [jsonPath, jsPath]) {
+                let fileSha;
+                try { fileSha = (await github.rest.repos.getContent({ owner, repo, path: p, ref: branch })).data.sha; } catch {}
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner, repo, path: p, branch,
+                  message: `gallery: add animal "${animalName}" (#${issue_number})`,
+                  content: Buffer.from(fs.readFileSync(p, "utf8"), "utf8").toString("base64"),
+                  sha: fileSha,
+                });
+              }
+
+              // Preview contact sheet -> off-master branch -> raw URL (inline).
+              const sheet = `harness/out/animals/${slug}-contact.png`;
+              let previewMd = "";
+              if (fs.existsSync(sheet)) {
+                try { await github.rest.git.getRef({ owner, repo, ref: `heads/${previewBranch}` }); }
+                catch { await github.rest.git.createRef({ owner, repo, ref: `refs/heads/${previewBranch}`, sha }); }
+                const remote = `animals/${slug}/contact-sheet.png`;
+                let fileSha;
+                try { fileSha = (await github.rest.repos.getContent({ owner, repo, path: remote, ref: previewBranch })).data.sha; } catch {}
+                await github.rest.repos.createOrUpdateFileContents({
+                  owner, repo, path: remote, branch: previewBranch,
+                  message: `preview: ${slug} (#${issue_number})`,
+                  content: fs.readFileSync(sheet).toString("base64"),
+                  sha: fileSha,
+                });
+                previewMd = `\n\n### Preview\n\n![${animalName}](https://raw.githubusercontent.com/${owner}/${repo}/${previewBranch}/${remote})\n`;
+              }
+
+              // Reuse an open PR for the branch (create once; re-runs update it).
+              const open = await github.rest.pulls.list({ owner, repo, head: `${owner}:${branch}`, base, state: "open" });
+              let pr = open.data[0];
+              if (!pr) {
+                pr = (await github.rest.pulls.create({
+                  owner, repo, head: branch, base,
+                  title: `Add animal: ${animalName}`,
+                  body: `Animal submission from #${issue_number}.${previewMd}\n\nMerging publishes it to the gallery + the companion picker.\n\nCloses #${issue_number}`,
+                })).data;
+              }
+
+              const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: `${report}${previewMd}\n\nOpened/updated #${pr.number}. Full pose sheet: the **animal-preview-${slug}** artifact on [this run](${runUrl}). A maintainer will review and merge.`,
+              });
+            } catch (e) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number,
+                body: `The descriptor validated, but I couldn't finish opening the PR (\`${e.message}\`). A maintainer can pick it up from the **animal-preview-${slug}** artifact on this run.`,
+              });
+              core.setFailed(e.message);
+            }
