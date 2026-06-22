@@ -1,0 +1,41 @@
+name: node tests
+
+# Runs the Node-based test suites (scripts/*.test.mjs) — the theme + animal
+# submission cores. These are NOT covered by tests.yml (that's pytest) or
+# card-visual.yml (that's the Playwright visual harness), so without this job
+# the security-critical animal contract gate + DOMPurify sanitiser would have
+# no CI. Runs in the pinned Playwright image because the sanitiser/processor/
+# PR-gate tests drive real Chromium.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "scripts/**"
+      - "src/theme-tags/**"
+      - "custom_components/eufy_vacuum/frontend/animal-svg/**"
+      - "gallery/animals/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/node-tests.yml"
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "src/theme-tags/**"
+      - "custom_components/eufy_vacuum/frontend/animal-svg/**"
+      - "gallery/animals/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/node-tests.yml"
+
+jobs:
+  node-test:
+    runs-on: ubuntu-latest
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: npm ci
+      - name: Run node test suites
+        run: node --test scripts/*.test.mjs
