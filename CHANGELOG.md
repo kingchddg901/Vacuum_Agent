@@ -31,11 +31,14 @@ since the integration began.
   scale, rotate (coarse ±90°, fine ±1°/±0.1°, ±15° trim slider). No georeference — the
   alignment is the reconciliation, so the live overlays ride on top for free. Brand-agnostic
   (Eufy fork + Roborock).
-- **Zone cleaning (draw a box).** Spot-clean an area you draw on the live map — up to 10
-  zones per run, with suction/mop settings. (Eufy via the fork; the Roborock S6 firmware
-  doesn't expose zone cleaning.)
+- **Zone cleaning (draw a box).** Spot-clean an area you draw on the live map, at any map
+  rotation, with suction/mop settings — on **Eufy** (via the fork) **and Roborock** (stock
+  integration, no fork/PR). Per-clean caps: Eufy up to 10 zones; Roborock up to 5, each
+  1–32.8 ft² (enforced in the card + at dispatch).
 - **More map interactions.** Tap rooms on the map to build a clean selection (unpicked
-  rooms dim), **Hide area** to mask map noise, and draggable room-area (m²) labels.
+  rooms dim), **Hide area** to mask map noise, and draggable room-area (m²) labels. On a
+  **bare Roborock live map** (no drawn rooms), the room names, the mascot, and tap-to-select
+  now work from the device's own rooms (selected rooms light up).
 - **Smarter external-run learning.** App-started runs now use the robot's recorded path to
   work out which rooms were actually cleaned, feeding the external-run review wizard.
 

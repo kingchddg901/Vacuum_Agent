@@ -63,6 +63,6 @@ In every mode the **live robot, dock, cleaning path, and room overlays ride on t
 - **No calibration, ever.** The alignment you do by eye *is* the reconciliation — the art is pinned to the live map's pixels, so the overlays land correctly for free.
 - **Between sessions (Eufy):** the vacuum rebuilds its map each session and may shift the frame slightly, so your art can drift a touch — just re-drag and **Save alignment** again. Within a session it's stable. Roborock is steadier.
 - **It's per layout.** Each custom layout has its own art, so you can keep a plain "rooms only" layout and a "furnished" one and switch between them.
-- **Zone clean over your furniture (Eufy):** because zone-draw sits a layer above the art, you can draw a zone-clean straight onto your furnished room and it cleans the right spot (the map must be at rotation 0).
+- **Zone clean over your furniture:** because zone-draw sits a layer above the art, you can draw a zone-clean straight onto your furnished room and it cleans the right spot — on Eufy and Roborock, at any map rotation.
 
 For the services behind the panel, see [Services → Furnished Render](../advanced/03-services.md#furnished-render); for the technical design, see the [developer deep-dive](../dev/32-furnished-render.md).

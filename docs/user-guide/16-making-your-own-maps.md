@@ -154,6 +154,8 @@ If your vacuum streams a live map (Roborock S6, for example), there's **nothing 
 
 > **Tip:** Let the live map finish loading before you save — the save reads its current pixel dimensions. If you save while it's still blank, the card waits and asks you to try again (see [Link each room and save](#4-link-each-room-and-save)).
 
+> **Don't want to draw rooms?** A live-map layout with **no drawn rooms** uses the vacuum's **own rooms** directly — their names (your configured names), the mascot, and tap-to-select all work from the device's built-in rooms, and zone cleaning works over them. Draw your own only when you want a different split or shapes the device doesn't expose.
+
 ### Rotating the live map
 
 If the live map comes in sideways relative to how you picture your home, use the **Rotate** control on the map-view toolbar to turn it in 90° steps until it matches. The rotation is stored in the backend, so it **follows you across devices** — set it once and every dashboard and phone sees the same orientation. The whole layer turns together: the image, your room polygons, the labels, and the mascot all rotate as one, so your drawn rooms stay aligned no matter which way you face the map.
