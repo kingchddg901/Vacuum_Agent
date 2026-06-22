@@ -83,16 +83,21 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
         // injects the fragment (inside <svg>…</svg>).
         NAMESPACE: "http://www.w3.org/2000/svg",
       });
-      const removed = (D.removed || []).map((r) => {
-        if (r.element || r.node) {
-          const el = r.element || r.node;
-          return { kind: "element", name: (el.nodeName || String(el)).toLowerCase() };
-        }
-        if (r.attribute) {
-          return { kind: "attribute", name: (r.attribute.name || "").toLowerCase(), on: (r.from && r.from.nodeName || "").toLowerCase() };
-        }
-        return { kind: "node", name: "?" };
-      });
+      // DOMPurify reports its internal parse wrappers (template/body/…) in
+      // `removed`; those aren't real content removals, so filter them out.
+      const WRAPPERS = new Set(["template", "body", "html", "head", "#document-fragment"]);
+      const removed = (D.removed || [])
+        .map((r) => {
+          if (r.element || r.node) {
+            const el = r.element || r.node;
+            return { kind: "element", name: (el.nodeName || String(el)).toLowerCase() };
+          }
+          if (r.attribute) {
+            return { kind: "attribute", name: (r.attribute.name || "").toLowerCase(), on: ((r.from && r.from.nodeName) || "").toLowerCase() };
+          }
+          return { kind: "node", name: "?" };
+        })
+        .filter((r) => !(r.kind === "element" && WRAPPERS.has(r.name)));
       D.removeAllHooks();
       return { clean, removed };
     },
