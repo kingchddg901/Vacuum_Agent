@@ -7,6 +7,7 @@ Coverage targets
 [BS-3]  ChargeRateSensor: overall/low/high zone read the right stat key.
 [BS-4]  LastChargeDurationSensor: native value + delta attribute.
 [BS-5]  BatteryHealthSensor: native value + baseline attributes.
+[BS-5b] BatteryHealthSensor: native value clamps to 100%; uncapped_pct attr keeps raw.
 [BS-6]  RegimeChargeSpeedSensor: cc/cv native + baseline_min_per_pct.
 [BS-7]  LastJobMetricSensor: native + aggregate attributes (all_jobs/by-bucket).
 [BS-8]  MidJobRechargeRateSensor: native + sample-count attributes.
@@ -137,6 +138,20 @@ def test_battery_health():
     attrs = s.extra_state_attributes
     assert attrs["baseline_cv_min_per_pct"] == 1.2
     assert attrs["completed_sessions"] == 3
+    assert attrs["uncapped_pct"] == pytest.approx(92.0)
+
+
+def test_battery_health_capped_at_100():
+    """[BS-5b] Health clamps to 100% (never 'healthier than new'); the raw
+    value survives on uncapped_pct (and on the _cv_charge_speed sensor)."""
+    mgr = _mgr({
+        "stats": {"health_pct": 117.6, "cv_charge_speed_pct": 117.6},
+        "baseline": {"cv_min_per_pct": 1.2},
+        "session_history_recent": [],
+    })
+    s = BatteryHealthSensor(manager=mgr, vacuum_entity_id=_VAC)
+    assert s.native_value == pytest.approx(100.0)
+    assert s.extra_state_attributes["uncapped_pct"] == pytest.approx(117.6)
 
 
 def test_regime_charge_speed():
