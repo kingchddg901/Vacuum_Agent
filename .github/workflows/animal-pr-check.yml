@@ -15,6 +15,12 @@ on:
     paths:
       - "gallery/animals/**"
       - "custom_components/eufy_vacuum/frontend/animal-svg/animals/**"
+      - "custom_components/eufy_vacuum/frontend/animal-svg/src/**"
+      - "scripts/check-animal-pr.mjs"
+      - "scripts/animal-descriptor.mjs"
+      - "scripts/build-animal.mjs"
+      - "scripts/sanitize-animal-svg.mjs"
+      - ".github/workflows/animal-pr-check.yml"
 
 permissions:
   contents: read
