@@ -1,4 +1,4 @@
-# The Eufy Adapter — Worked Example & Pattern Guide
+# 25 — The Eufy Adapter — Worked Example & Pattern Guide
 
 > **Scope:** A field-by-field walkthrough of the one shipping concrete adapter,
 > `adapters/eufy/` (everything except the CV segmentor, which has its own doc).

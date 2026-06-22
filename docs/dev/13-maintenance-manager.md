@@ -1,4 +1,4 @@
-# Maintenance Manager — Developer Reference
+# 13 — Maintenance Manager
 
 > **Scope:** Complete implementation reference for `maintenance/manager.py`. Every method, formula, constant, adapter dependency, and storage path is derived directly from the source. A developer should be able to re-implement the maintenance manager from this document alone.
 

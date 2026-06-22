@@ -1,4 +1,4 @@
-# Rooms System — Developer Reference
+# 08 — Rooms System
 
 > **Scope:** Complete implementation reference for the rooms subsystem: `rooms/room_crud.py` (RoomMapManager), `rooms/room_manager.py` (pure functions), `rooms/room_discovery.py` (adapter-driven discovery), `rooms/reconciliation.py` (slug-based identity-shift detection + migration planning), `rooms/source_refresh.py` (the `service_response` room-source refresh/flatten cache), and `rooms/utils.py`. Every method, adapter dependency, storage path, and inter-module relationship is derived directly from the source.
 

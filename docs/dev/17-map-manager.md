@@ -1,4 +1,4 @@
-# Map Manager — Developer Reference
+# 17 — Map Manager
 
 > **Scope:** Complete implementation reference for `maps/map_manager.py`. Every function signature, storage path, and behavior is derived directly from the source. A developer should be able to re-implement the map manager from this document alone.
 

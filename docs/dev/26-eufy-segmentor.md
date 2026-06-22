@@ -1,4 +1,4 @@
-# The Eufy CV Segmentor — Implementation & Segmenter-Engine Pattern
+# 26 — The Eufy CV Segmentor — Implementation & Segmenter-Engine Pattern
 
 > **Scope:** The concrete computer-vision room segmenter
 > (`adapters/eufy/segmentor.py`, ~1600 lines) and the engine contract it

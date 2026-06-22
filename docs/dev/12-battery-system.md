@@ -1,4 +1,4 @@
-# Battery Health System — Developer Reference
+# 12 — Battery Health System
 
 > **Scope:** This document is a complete implementation reference for the `eufy_vacuum` battery health subsystem. Every formula, constant, threshold, file path, and storage shape is derived directly from the source. A developer should be able to re-implement the system from this document alone.
 

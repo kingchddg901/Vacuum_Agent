@@ -1,4 +1,4 @@
-# Battery Health Tracking
+# 09 — Battery Health Tracking
 
 The battery health subsystem records every battery sample, classifies charge sessions, computes per-job drain rates, and surfaces twelve sensors plus a Metrics sub-tab. This document covers the math, the zone-definition rationale, the per-bucket aggregation rules, and how to use the data in automations.
 

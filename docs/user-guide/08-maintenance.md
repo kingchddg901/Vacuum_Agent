@@ -1,4 +1,4 @@
-## Maintenance
+# 08 — Maintenance
 
 The Maintenance tab gives you a single place to see the health of all consumable parts on your vacuum. It separates items into two categories — maintenance items managed by the integration and replacement items reported directly by the device — and flags anything that needs your attention.
 

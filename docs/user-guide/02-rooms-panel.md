@@ -1,4 +1,4 @@
-# Rooms Panel
+# 02 — Rooms Panel
 
 The Rooms panel is the main day-to-day screen. From here you choose which rooms to clean, set how you want each room cleaned, reorder the cleaning sequence, and start a run.
 

@@ -1,4 +1,4 @@
-# Adapter Config Reference
+# 22 — Adapter Config Reference
 
 This is the canonical reference for the per-vacuum **adapter config** —
 the single dict the framework reads to learn everything brand-specific

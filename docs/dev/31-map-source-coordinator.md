@@ -1,4 +1,4 @@
-# MapSourceCoordinator — Developer Reference
+# 31 — MapSourceCoordinator
 
 > **Scope:** Implementation reference for `mapping/map_source_coordinator.py` — the bundled subsystem that owns the **`map_state_source`** backend dispatch (the VA's read of the *provider's own* room segmentation + live pose). It is the runtime brain behind the seam; the pure decode/normalization lives in `mapping/map_source.py` and `mapping/map_source_runtime.py`, and the *design* rationale lives in [map-state-source](map-state-source.md). This doc is the ownership anchor — several older docs still attribute these four `async_*` readers to `core/manager.py`; they are **delegators**, the work is here.
 

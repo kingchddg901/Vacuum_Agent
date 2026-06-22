@@ -1,4 +1,4 @@
-# core/manager.py — Central Orchestrator
+# 05 — Core Manager — Central Orchestrator
 
 `EufyVacuumManager` is the single integration-wide runtime object. Every
 service call, every entity state read, and every card data request passes

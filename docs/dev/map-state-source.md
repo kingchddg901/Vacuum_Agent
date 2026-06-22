@@ -1,4 +1,4 @@
-# map_state_source — auto-derived room data from the provider's own segmentation
+# Map State Source — Auto-Derived Room Data
 
 **Status:** design approved 2026-06-18. **Wave 1 COMPLETE + LIVE-VERIFIED on both brands
 (2026-06-19).** Eufy (storage backend) returns 10 rooms + dock/robot anchors, presence-gated on

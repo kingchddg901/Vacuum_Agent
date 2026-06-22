@@ -1,4 +1,4 @@
-# Onboarding Manager — Developer Reference
+# 18 — Onboarding Manager
 
 > **Scope:** Complete implementation reference for `onboarding/manager.py`. Every state machine, storage path, predicate, and public method is derived directly from the source. A developer should be able to re-implement the onboarding manager from this document alone.
 

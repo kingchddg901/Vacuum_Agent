@@ -1,4 +1,4 @@
-# HA Integration Layer
+# 02 — HA Integration Layer
 
 Covers the Home Assistant-specific plumbing of `eufy_vacuum`: config entry
 lifecycle, entity platforms, services, storage, event bus, and the background

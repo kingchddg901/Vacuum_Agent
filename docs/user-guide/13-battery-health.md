@@ -1,4 +1,4 @@
-# Battery health
+# 13 — Battery Health
 
 The integration includes a battery-health subsystem that tracks battery wear, charge speed, and per-job efficiency over time. It samples the vacuum's battery level on every state change, classifies each charge session, and rolls everything into twelve Home Assistant sensors plus a per-job battery_metrics block on every completed job.
 

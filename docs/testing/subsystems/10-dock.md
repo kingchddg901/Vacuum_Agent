@@ -1,4 +1,4 @@
-# Dock — Subsystem Test Map
+# 10 — Dock — Subsystem Test Map
 
 The dock subsystem owns mop-wash / mop-dry / dust-empty actions: it resolves the
 upstream button entity per action, **gates** each action against capability,

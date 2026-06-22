@@ -1,4 +1,4 @@
-# Learning System — Developer Reference
+# 10 — Learning System
 
 > **Scope:** This document is a complete implementation reference for the eufy_vacuum learning system. Every formula, constant, threshold, and file path is derived directly from the source. A developer should be able to re-implement the system from this document alone.
 

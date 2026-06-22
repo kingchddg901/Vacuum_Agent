@@ -1,4 +1,4 @@
-# Theme System
+# 20 — Theme System
 
 The eufy_vacuum Lovelace card ships a fully independent per-card theming layer. Themes are not HA global themes — they are token dictionaries stored in the integration and applied directly to the card's shadow DOM.
 

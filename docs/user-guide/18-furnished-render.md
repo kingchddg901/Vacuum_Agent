@@ -1,4 +1,4 @@
-# Furnished render — trace your real rooms
+# 18 — Furnished Render
 
 Furnished render lets you put a **to-scale picture of your actual home** — with its real furniture — under the live map, so when the robot cleans you watch it drive across your living room, not an abstract blob map. The live robot, dock, cleaning path, and room overlays always ride on top.
 

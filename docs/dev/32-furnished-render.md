@@ -1,4 +1,4 @@
-# 32 · Furnished render
+# 32 — Furnished Render
 
 Furnished render overlays a user-supplied, to-scale image of the home **over the live map**, with the live robot/dock/path/room overlays composited on top. It is a **light path**: no georeference, no coordinate solve. The art is aligned by the user over the live frame once, and that placement *is* the registration — the overlays already ride the live frame (via `_overlayTransform`, keyed off `map_state_source.image_size`), so they land correctly regardless of what backdrop is painted underneath.
 

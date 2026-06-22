@@ -1,4 +1,4 @@
-# Eufy native current-room transition detection (hybrid)
+# Eufy Native Current-Room Transition Detection (Hybrid)
 
 **Status:** design proposed 2026-06-19; **Wave 0 validation CAPTURED 2026-06-20.** The freshness gate
 **PASSED** (signal is live server-side with the map tab fully closed), and a **blind** room-attribution

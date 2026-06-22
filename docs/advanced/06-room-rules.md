@@ -1,4 +1,4 @@
-# Room Rules
+# 06 — Room Rules
 
 Room rules are per-room conditional logic that tell the integration what to do with a room based on the live state of a Home Assistant entity at the moment a job starts. Each rule watches one entity, evaluates a condition against its current state, and either skips the room entirely or temporarily overrides its cleaning settings.
 

@@ -1,4 +1,4 @@
-# Sharing Themes
+# 15 — Sharing Themes
 
 The themes you build in the card (see [Theme system](../advanced/05-theme-system.md))
 are portable — pure visual styling, with no reference to your rooms, entities, or

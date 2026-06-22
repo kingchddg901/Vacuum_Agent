@@ -1,4 +1,4 @@
-# Profiles
+# 10 — Profiles
 
 There are two independent profile systems in eufy_vacuum: **room profiles** and **run profiles**. They solve different problems and work at different levels of the card.
 

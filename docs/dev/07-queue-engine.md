@@ -1,4 +1,4 @@
-# Queue Engine
+# 07 — Queue Engine
 
 The queue engine translates the user's room configuration into the exact JSON
 payload the Eufy vacuum API accepts. It lives in

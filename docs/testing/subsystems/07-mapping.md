@@ -1,4 +1,4 @@
-# Mapping — Subsystem Test Map
+# 07 — Mapping — Subsystem Test Map
 
 The mapping subsystem turns robot-position traces and map images into room
 boundaries: a capture/trace pipeline (`trace_capture` → `trace_store` →

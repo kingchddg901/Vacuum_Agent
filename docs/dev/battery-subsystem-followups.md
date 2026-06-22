@@ -1,4 +1,4 @@
-# Battery subsystem — accounting follow-ups
+# Battery Subsystem — Accounting Follow-ups
 
 Two tracked items surfaced 2026-06-20 while reviewing `battery/` against a **mid-job
 recharge run** (an external Vac+Mop clean that returned to dock at 9% and recharged).

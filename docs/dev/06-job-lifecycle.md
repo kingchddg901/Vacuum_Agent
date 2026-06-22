@@ -1,4 +1,4 @@
-# Cleaning Job Lifecycle
+# 06 — Cleaning Job Lifecycle
 
 Traces every state, transition, side effect, and event across the full life of
 a room-cleaning job — from queue build through finalization. A developer should

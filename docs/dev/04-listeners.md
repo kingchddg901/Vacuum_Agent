@@ -1,4 +1,4 @@
-# Listeners Package — Developer Reference
+# 04 — Listeners Package
 
 > **Scope:** Complete implementation reference for `listeners/`. Every module's register/remove surface, event triggers, vocabulary dependencies, timers, and side effects are derived directly from the source. A developer should be able to re-implement the listeners package from this document alone.
 

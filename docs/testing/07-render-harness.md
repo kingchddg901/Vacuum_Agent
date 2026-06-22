@@ -1,4 +1,4 @@
-# Render Harness Tests (frontend)
+# 07 — Render Harness Tests (frontend)
 
 A separate test track from the Python suite: JS/Playwright tests that render the
 **real card** headless and gate it for crashes, visual regressions, colorblind

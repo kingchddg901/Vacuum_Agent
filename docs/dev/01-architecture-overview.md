@@ -1,4 +1,4 @@
-# Architecture Overview
+# 01 — Architecture Overview
 
 This document describes the full system architecture of `eufy_vacuum` (the Home
 Assistant custom integration) and `eufy-vacuum-command-center` (the companion

@@ -1,4 +1,4 @@
-# Error Tracker — Developer Reference
+# 23 — Error Tracker
 
 > **Scope:** Complete implementation reference for `core/error_tracker.py`. Every constant, buffer, edge-detection rule, and lifecycle hook is derived directly from the source. A developer should be able to re-implement the error tracker from this document alone.
 

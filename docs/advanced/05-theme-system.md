@@ -1,4 +1,4 @@
-# Theme System
+# 05 — Theme System
 
 The theme system gives you per-card visual customization through CSS custom properties called design tokens. This is separate from Home Assistant's global theme system — your card theme has no effect on the rest of your dashboard, and HA global themes do not override the card's own token values.
 

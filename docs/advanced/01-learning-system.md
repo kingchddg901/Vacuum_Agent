@@ -1,4 +1,4 @@
-# The Learning System
+# 01 — The Learning System
 
 The learning system watches your vacuum's cleaning runs over time and builds per-room timing data from them. As it accumulates more runs, it produces increasingly accurate time estimates, ETA chips, and progress percentages in the card. The system is optional — the integration works without it, but you lose all estimate and ETA features.
 

@@ -1,4 +1,4 @@
-## Map Bounds Review
+# 07 — Map Bounds Review
 
 The **Map Bounds** tab gives you a live view of what the integration has learned about each room's spatial extent. You can audit individual job runs, remove outliers, and rebuild bounds from archived data — all without touching any configuration files.
 

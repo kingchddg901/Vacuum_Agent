@@ -1,4 +1,4 @@
-# Services Reference
+# 03 — Services Reference
 
 All services are registered under the `eufy_vacuum` domain. Call them as `eufy_vacuum.<service_name>`.
 

@@ -1,4 +1,4 @@
-# Learning — Subsystem Test Map
+# 06 — Learning — Subsystem Test Map
 
 > **This is the template.** Learning is the most completely tested subsystem, so
 > its test map is the model for documenting the others. Copy this structure

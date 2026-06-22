@@ -1,4 +1,4 @@
-## Room Access Graph
+# 07 — Room Access Graph
 
 The room access graph describes which rooms the vacuum must pass through on its way to other rooms. Think of it as a map of doorways: if the vacuum has to go through the hallway to reach the bedroom, the hallway "grants access to" the bedroom. The card uses this information when building a cleaning queue so it can order rooms in a sequence that the vacuum can actually reach without backtracking through locked paths.
 

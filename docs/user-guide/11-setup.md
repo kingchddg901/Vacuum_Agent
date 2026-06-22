@@ -1,4 +1,4 @@
-# Setup
+# 11 — Setup
 
 The Setup tab walks you through getting your vacuum registered with the
 integration and configuring its rooms. After the initial pass it stays

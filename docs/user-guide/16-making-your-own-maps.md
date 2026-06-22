@@ -1,4 +1,4 @@
-# Making your own maps
+# 16 — Making Your Own Maps
 
 The card can show your floor plan as an interactive map: each room is a coloured shape you can tap to add to a clean — tap again to remove it, and the rooms you haven't picked dim so you can see exactly what's queued — and your vacuum's mascot wanders across it. This guide walks you through getting that map set up — from a first screenshot to hand-drawn themed layouts.
 

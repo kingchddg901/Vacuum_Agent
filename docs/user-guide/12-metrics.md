@@ -1,4 +1,4 @@
-# Metrics
+# 12 — Metrics
 
 The Metrics tab shows aggregated data the integration has collected across all cleaning jobs for your vacuum. It covers how much cleaning time has been logged, how the integration's learning system is performing, how water is being used, and what the dock has been doing. You can filter all of this data by room, cleaning profile, job status, or whether a job was used by the learning system.
 

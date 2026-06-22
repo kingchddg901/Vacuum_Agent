@@ -1,4 +1,4 @@
-# Accessibility
+# 14 — Accessibility
 
 A short guide to the card's accessibility features. The deeper theme mechanics
 are in [Theme system](../advanced/05-theme-system.md); how the colorblind palette

@@ -1,4 +1,4 @@
-# Render Harness
+# 27 — Render Harness
 
 The render harness is a headless tool that renders the **real card** outside
 Home Assistant — for visual-regression, colorblind validation, and theme

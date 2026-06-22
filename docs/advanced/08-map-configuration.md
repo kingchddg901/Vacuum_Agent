@@ -1,4 +1,4 @@
-## Map Configuration
+# 08 — Map Configuration
 
 The **Map Configuration** view lets you upload map image variants and define the segment polygons that the integration uses to render the interactive floor plan. There are two ways to get those polygons: **Auto (CV)**, where the integration detects rooms from an uploaded map screenshot, and one or more named **custom layouts**, where you draw the rooms by hand from primitive shapes. A single map can hold **many** custom layouts — for example a "solar system" image and a "tree" image as two separate layouts on the same physical map — each with its own backdrop, hand-drawn rooms, room links, and mascot dock spot. A **Segmentation** picker selects between Auto (CV) and any of the named layouts; all of them persist independently, so switching never loses any of them.
 

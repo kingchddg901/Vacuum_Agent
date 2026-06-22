@@ -1,4 +1,4 @@
-# Data Model Reference
+# 03 — Data Model Reference
 
 Canonical shape reference for every major object in `eufy_vacuum`. All field
 names, types, and constraints are derived directly from source. A developer

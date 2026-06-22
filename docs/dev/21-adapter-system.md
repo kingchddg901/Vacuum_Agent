@@ -1,4 +1,4 @@
-# Adapter System — Developer Reference
+# 21 — Adapter System
 
 > **Scope:** Complete implementation reference for the adapter subsystem: `adapters/registry.py` (AdapterCoordinator + shim functions), `adapters/config_schema.py` (ADAPTER_CONFIG_SCHEMA), `adapters/config_loader.py` (stored adapter loading), and `adapters/eufy/adapter.py` (Eufy reference implementation). Every registry pattern, schema block, and config-loading path is derived directly from the source.
 

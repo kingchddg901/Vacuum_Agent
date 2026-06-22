@@ -1,4 +1,4 @@
-## Base Station
+# 09 — Base Station
 
 The Base Station tab shows you the current state of the dock and lets you trigger dock-side actions such as washing the mop, drying the mop, and emptying the dust bin. It also lets you set the default pause timeout used when a cleaning run is paused.
 

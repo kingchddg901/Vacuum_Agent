@@ -1,4 +1,4 @@
-# HA Events Reference
+# 02 — HA Events Reference
 
 The integration fires events on the Home Assistant event bus at specific points in a cleaning job's lifecycle. You can listen to any of these events in an automation using the `event` trigger platform. All payloads are plain dictionaries — no custom objects to unwrap.
 

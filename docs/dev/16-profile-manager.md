@@ -1,4 +1,4 @@
-# Profile Manager — Developer Reference
+# 16 — Profile Manager
 
 > **Scope:** Complete implementation reference for `profiles/manager.py`. Every ID format, CRUD operation, protection rule, finalization pipeline, and storage path is derived directly from the source. A developer should be able to re-implement the profile manager from this document alone.
 

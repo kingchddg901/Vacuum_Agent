@@ -1,4 +1,4 @@
-# Dock Manager — Developer Reference
+# 14 — Dock Manager
 
 > **Scope:** Complete implementation reference for `dock/manager.py`. Every constant, gating rule, entity discovery strategy, event recording path, and public method is derived directly from the source. A developer should be able to re-implement the dock manager from this document alone.
 

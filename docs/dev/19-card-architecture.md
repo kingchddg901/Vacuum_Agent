@@ -1,4 +1,4 @@
-# Card Architecture Reference
+# 19 — Card Architecture Reference
 
 This document defines the backend as a **contract**, not just a description of the current card. Everything in section 1 — the services, events, and entities — is what any UI must consume to drive a eufy_vacuum installation. Sections 2–6 describe the current card's implementation of that contract, then explain how to extend it.
 

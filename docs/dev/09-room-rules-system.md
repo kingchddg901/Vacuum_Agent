@@ -1,4 +1,4 @@
-# Room Rules System
+# 09 — Room Rules System
 
 Room rules let you automate what happens to each room at job start. A rule watches a Home Assistant entity and, when its condition is true, either blocks the room entirely (a **Blocker**) or overrides its cleaning settings (a **Modifier**).
 

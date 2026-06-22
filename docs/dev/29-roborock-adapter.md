@@ -1,4 +1,4 @@
-# The Roborock Adapter — The Second-Brand Proof
+# 29 — The Roborock Adapter — The Second-Brand Proof
 
 > **Scope:** A field-by-field walkthrough of the second shipping adapter,
 > `adapters/roborock/`, written as the **foil to Eufy**. Where

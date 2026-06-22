@@ -1,4 +1,4 @@
-# Mapping System — Developer Reference
+# 11 — Mapping System
 
 This document covers the complete mapping subsystem: image segment analysis, trace capture, room bounds learning, segment adjustments, and all on-disk storage. It is intended to expose the full algorithms and mathematics so a developer can understand, modify, or port the system.
 

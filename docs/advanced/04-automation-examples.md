@@ -1,4 +1,4 @@
-# Automation Examples
+# 04 — Automation Examples
 
 This section gives ready-to-use Home Assistant automation YAML for the most common
 eufy_vacuum patterns. Every example is built from the actual event names, service

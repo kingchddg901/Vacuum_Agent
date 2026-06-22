@@ -1,4 +1,4 @@
-# Theme system
+# 17 — Theme System
 
 The card has a built-in **theme system** — per-card visual styling (colors,
 typography, surfaces, floor textures, even the map companion) driven by design

@@ -1,4 +1,4 @@
-# Setup System — Developer Reference
+# 15 — Setup System
 
 > **Scope:** Complete implementation reference for the `setup/` package: `workflow.py` (add_vacuum / import_active_map), `drift.py` (step tracking + room drift), `status.py` (setup status response), `protection.py` (delete protection evaluation), and `delete.py` (protected map delete). Every ActionResult shape, protection level rule, drift predicate, and storage path is derived directly from the source.
 

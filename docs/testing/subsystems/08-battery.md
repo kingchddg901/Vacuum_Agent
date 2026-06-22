@@ -1,4 +1,4 @@
-# Battery — Subsystem Test Map
+# 08 — Battery — Subsystem Test Map
 
 The battery subsystem tracks cell wear: it accumulates battery samples into
 charge cycles, summarizes charge sessions, derives a CC/CV regime health proxy

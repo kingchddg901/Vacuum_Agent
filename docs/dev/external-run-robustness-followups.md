@@ -1,4 +1,4 @@
-# External-run robustness — long-pause / freeze tolerance
+# External-Run Robustness — Long-Pause / Freeze Tolerance
 
 Three tracked items surfaced 2026-06-20 from an overnight external (app-started) run where the
 **robot froze mid-clean for hours**. The freeze corrupted the finalized review record on both
