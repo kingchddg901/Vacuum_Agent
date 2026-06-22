@@ -1,4 +1,4 @@
-**The Map view goes from a static backdrop to a live, interactive surface.** Your robot is now tracked across the map in real time — and you can lay a render of your *actual furnished home* over the live map — the robot and overlays ride on top — then draw a box to zone-clean, and more. The biggest map release since the integration began.
+**The Map view goes from a static backdrop to a live, interactive surface.** Your robot is now tracked across the map in real time — and you can lay a render of your *actual furnished home* over the live map (the robot and overlays ride on top), then draw a box to zone-clean, and more. The biggest map release since the integration began.
 
 ### Added
 - **Mittens joins the map.** A new **Rainbow Bridge** animal group — companions for remembered pets — debuts with **Mittens**. Unlike the themeable animals, she's painted true to life: her real markings stay fixed whatever theme you run, and only her eyes shift with battery state. *In loving memory.*
