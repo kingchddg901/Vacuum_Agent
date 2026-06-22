@@ -71,6 +71,32 @@ Then add author/description if you like and validate it like any other
 descriptor (below). Procedural (`type: "custom"`) modules can't be converted —
 they're code, not data.
 
+### Prefer to draw one SVG?
+
+You can author the whole animal as a single SVG and let the tool split it — no
+hand-writing JSON-with-embedded-SVG. The contract (this is what makes it work,
+so follow it):
+
+- **Tag each part** with `data-slot` — `<g data-slot="head">…</g>`,
+  `<g data-slot="frontLeftLeg">…</g>`, etc. (slot names are under
+  [Parts](#parts-the-anatomy)). The tool splits on these; the wrapper is dropped.
+- **You place the leg-animation class** on the lower-leg subgroup yourself —
+  `<g data-slot="frontLeftLeg"><g class="cat-fl-lower" style="transform-origin: 170px 236px">…</g></g>`
+  (the tool won't add it — see [Make the legs animate](#make-the-legs-animate)).
+- **Use `hsl(var(--animal-X))`** for any colour you want themeable.
+
+Then split + sanitise it into a descriptor (real-browser parse; needs `npm ci`):
+
+```sh
+node scripts/svg-to-descriptor.mjs your-animal.svg --id fox2 --name "Fox 2" --license CC0-1.0 -o fox2.json
+```
+
+It hands back the **safe version** — every slot run through the same sanitiser
+the intake uses, plus a report of anything stripped — and scaffolds a `colors`
+block from the tokens it found (fill in the real default HSL values; the SVG
+carries the token *name*, not its default). Validate with `build-animal.mjs` as
+above. An untagged SVG is refused — the tool can't guess which path is a leg.
+
 ### Colours
 
 Every key you declare in `colors` becomes a **themeable token**: the framework
