@@ -35,12 +35,12 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
-| `tracker.py` | 403 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `tracker.py` | 406 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 1069 | 90% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `map_source.py` | 334 | 95% | `tests/unit/test_map_source.py` | unit (pure) |
-| `map_source_runtime.py` | 456 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 189 | 52% | `tests/integration/test_manager_compare_sources.py` + `tests/integration/test_manager_live_pose.py` | integration |
+| `mapping_services.py` | 1198 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `map_source.py` | 371 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
+| `map_source_runtime.py` | 479 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
+| `map_source_coordinator.py` | 214 | 45% | `tests/integration/test_manager_compare_sources.py` + `tests/integration/test_manager_live_pose.py` | integration |
 
 ---
 

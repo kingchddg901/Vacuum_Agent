@@ -19,7 +19,8 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 - **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces twelve sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
-- **Live map & furnished render** — show your robot's live map as the dashboard backdrop and draw rooms over it. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
+- **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs an eufy-clean build with zone-clean support. (A repeat-passes count is available via the `start_zone_clean` service for automations.)
+- **Live map, furnished render & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
 
@@ -103,7 +104,7 @@ Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/
 
 ### Maintenance
 
-Track filter, brush, mop, and dock-water status against the integration's maintenance intervals.
+Track filter, brush, mop, and dock-water status against the integration's maintenance intervals — plus, on devices that report them, lifetime usage totals (area, time, cleans) and the dock firmware version.
 
 ![Maintenance tab](docs/screenshots/maintenance.png)
 
@@ -177,6 +178,8 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 
 - Room selection and targeted clean jobs
 - Cleaning queue — build, reorder, inspect before starting
+- Zone cleaning — draw boxes on the live map and clean just those areas
+- Live map — live backdrop, tap-to-queue rooms, map rotation, hide-areas, and a to-scale furnished-render overlay
 - Room profiles — per-room suction, mop, and pass settings
 - Run profiles — named full-run configurations, triggerable from automations
 - Room rules — conditional per-room behavior
@@ -186,7 +189,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Battery health — cycle counter, zone-aware charge rates, per-job drain efficiency, baseline-relative health proxy
 - Automation events — job, room, stall, path-blocked, and incomplete-run events
 - Dock actions — wash mop, dry mop, empty dust bin (model-dependent)
-- Maintenance tracking — reset maintenance counters from the UI
+- Maintenance tracking — reset maintenance counters from the UI; lifetime usage totals and dock firmware where the device reports them
 - Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
 - Theme system — full theme editor with clipboard and file-based import/export
 - Accessibility — a validated colorblind-safe theme plus always-on shape-coded status badges

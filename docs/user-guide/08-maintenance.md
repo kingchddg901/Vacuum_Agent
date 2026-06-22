@@ -13,11 +13,19 @@ At the top of the tab, two summary panels give you a quick read on overall healt
 - **Items** — the total number of integration-managed maintenance items
 - **Water** — the current station water reservoir level
 
-If your vacuum model is known to the integration, the model name and the time the snapshot was last updated appear beneath the panel title.
+If your vacuum model is known to the integration, the model name, the **dock firmware version** (when the device reports it), and the time the snapshot was last updated appear beneath the panel title.
 
 !!! note "Roborock (S6): Water stat"
 
     The **Water** stat is only meaningful on vacuums that have a base-station water reservoir. On no-station models (such as the Roborock S6) there is nothing to report, so it reads Unknown or Empty.
+
+On vacuums that report lifetime usage totals (newer Eufy models on the robovac_mqtt v1.11.0+ integration), a second **Lifetime** row appears under the stats:
+
+- **Total cleaned** — the area the robot has cleaned over its lifetime (m²)
+- **Total time** — the total time it has spent cleaning (shown in hours)
+- **Cleans** — the number of cleaning jobs it has run
+
+This row, and the dock firmware line above, are simply hidden on devices that don't report those values.
 
 **Replacement Overview** shows:
 

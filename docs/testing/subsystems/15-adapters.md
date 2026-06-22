@@ -31,7 +31,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter |
 | `eufy/adapter.py` | 40 | 95% | `tests/adapters/eufy/` | adapter |
 | `eufy/discovery.py` | 54 | 100% | `test_discovery.py` | adapter |
-| `eufy/entities.py` | 24 | 100% | `test_buttons_entities.py` | adapter |
+| `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter |
