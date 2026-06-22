@@ -131,8 +131,8 @@ export function applyMapRenderers(proto) {
     // (--fill). Single source so the mascot/area-label drags convert in the same frame.
     const rot          = state.effectiveMapRotation?.() ?? 0;
     // Ad-hoc zone clean: only over a live-map backdrop (you draw on that image),
-    // only when the provider supports it, and only at rotation 0 for now — a
-    // rotated map letterboxes on the swapped axis (Wave 2 handles rotation).
+    // only when the provider supports it. Rotation IS handled — the drawn rect is
+    // un-rotated to the content frame at dispatch (state.zoneDraftsToNormalizedRects).
     const canZone   = state.canDrawZone?.() ?? false;
     // zoneMode is gated by canZone so the overlay, action bar, and container
     // class can never be live while the gate is false (e.g. after a rotate).

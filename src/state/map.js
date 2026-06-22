@@ -586,24 +586,38 @@ export function applyMapState(proto) {
     return [x0, y0, x1, y1];
   };
 
-  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped).
+  // Un-rotate a drawn pct rect {x,y,w,h} from the displayed (rotated) .evcc-map-layers box
+  // back to the CONTENT frame the device coordinates live in, so a zone drawn on a rotated
+  // live map dispatches to the right place. 90/180/270 swap/flip the corners (square
+  // container — see unrotatePct); identity at rotation 0. Re-min/maxed.
+  proto._unrotateRectPct = function (d, rot) {
+    if (!d) return d;
+    const [ax, ay] = this.unrotatePct(d.x, d.y, rot);
+    const [bx, by] = this.unrotatePct(d.x + d.w, d.y + d.h, rot);
+    return { x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(bx - ax), h: Math.abs(by - ay) };
+  };
+
+  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped). Each
+  // drawn rect is un-rotated to the content frame first, so a zone drawn on a rotated live
+  // map maps to the correct device region (identity when rotation is 0).
   proto.zoneDraftsToNormalizedRects = function (backdropDims) {
+    const rot = this.mapRotation?.() ?? 0;
     return this.zoneDrafts()
-      .map((d) => this._rectToNormalized(d, backdropDims))
+      .map((d) => this._rectToNormalized(this._unrotateRectPct(d, rot), backdropDims))
       .filter(Boolean);
   };
 
   /**
    * Single source of truth for whether the ad-hoc zone-draw control may be
-   * shown AND used right now: the provider supports zone clean, a live-map
-   * backdrop is active (you draw on that image), and rotation is 0 (Wave 1 — a
-   * rotated map letterboxes on the swapped axis, not yet handled). The renderer
-   * gate and the drag/confirm guards both call this so they can never drift.
+   * shown AND used right now: the provider supports zone clean and a live-map
+   * backdrop is active (you draw on that image). Map rotation IS supported — the
+   * drawn rect is un-rotated to the content frame in zoneDraftsToNormalizedRects
+   * (the square container makes a 90/180/270 turn a clean corner swap). The
+   * renderer gate and the drag/confirm guards both call this so they never drift.
    */
   proto.canDrawZone = function () {
     return (this.supportsZoneClean?.() ?? false)
-        && (this.isLiveBackdropActive?.() ?? false)
-        && (this.mapRotation?.() ?? 0) === 0;
+        && (this.isLiveBackdropActive?.() ?? false);
   };
 
   /* =========================================================
