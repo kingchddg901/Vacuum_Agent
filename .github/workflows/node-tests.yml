@@ -13,6 +13,7 @@ on:
     paths:
       - "scripts/**"
       - "src/theme-tags/**"
+      - "harness/lib/**"
       - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "gallery/animals/**"
       - "package.json"
@@ -22,6 +23,7 @@ on:
     paths:
       - "scripts/**"
       - "src/theme-tags/**"
+      - "harness/lib/**"
       - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "gallery/animals/**"
       - "package.json"
@@ -38,4 +40,4 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run node test suites
-        run: node --test scripts/*.test.mjs
+        run: node --test scripts/*.test.mjs harness/lib/*.test.mjs
