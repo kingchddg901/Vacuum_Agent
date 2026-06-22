@@ -1779,7 +1779,8 @@ export function applyMapBindings(proto) {
    * Auto-derived click target: a clean tap on a room region toggles it into the clean selection.
    * Pixel-exact — convert the tap (screen) through pan/zoom -> un-rotate -> the room raster to a
    * DEVICE ROOM ID (== the managed room id), then toggle that room's enabled switch. No-op while
-   * drawing/anchoring or when the raster isn't available (no map_render / not yet fetched).
+   * drawing/anchoring. When there's no render raster (a bare Roborock/Eufy live map) it falls back
+   * to an approximate bbox hit-test against the map_state_source rooms (deviceRoomIdAtContentPct).
    */
   proto._handleRoomTap = function (container, clientX, clientY) {
     const state = this.card._state;
@@ -1788,8 +1789,6 @@ export function applyMapBindings(proto) {
     // image). On an uploaded/CV --fill backdrop the raster doesn't co-register, so a tap would
     // toggle the wrong room. Mirrors the deviceOverlays / scrim gate.
     if (!(state.overlaysAligned?.() ?? false)) return;
-    const rd = state.mapRenderData?.();
-    if (!rd || !rd.present) return;
     const layers = container.querySelector(".evcc-map-layers");
     if (!layers) return;
     const r = layers.getBoundingClientRect();
@@ -1798,7 +1797,12 @@ export function applyMapBindings(proto) {
     const fy = (clientY - r.top)  / r.height * 100;
     const rot = state.effectiveMapRotation?.() ?? 0;
     const [cx, cy] = state.unrotatePct(fx, fy, rot);
-    const rid = state.roomIdAtContentPct(cx, cy, rd);
+    // Pixel-exact raster hit-test (Eufy CV / VA self-render); fall back to the device rooms'
+    // approximate bboxes when there's no raster (a bare Roborock/Eufy live map).
+    const rd = state.mapRenderData?.();
+    const rid = (rd && rd.present)
+      ? state.roomIdAtContentPct(cx, cy, rd)
+      : state.deviceRoomIdAtContentPct?.(cx, cy);
     if (rid == null) return;
     const mapId = state.activeMapId?.();
     const room = (state.getRoomsForActiveMap?.() ?? []).find((rm) => Number(rm.id) === Number(rid));

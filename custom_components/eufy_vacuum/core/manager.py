@@ -3575,6 +3575,9 @@ class EufyVacuumManager:
         # the zone-draw control — you draw the box on that image, and the live map
         # only exists on the fork that also accepts zone_clean.
         supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
+        # Per-clean zone cap surfaced to the card so the draw stops at the brand limit
+        # (Eufy 10, Roborock S6 5). Per-zone SIZE limits are enforced server-side at dispatch.
+        zone_max = int(_caps_cfg.get("zone_max", 10) or 10)
         # The vacuum's provider setting entities (suction / mode / intensity / water
         # level selects), resolved + existence-checked from the adapter's
         # `settings_selects` (the same block the external-run capture uses). Surfaced
@@ -3662,6 +3665,7 @@ class EufyVacuumManager:
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
+            "zone_max": zone_max,
             "setting_entities": setting_entities,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
@@ -3988,8 +3992,9 @@ class EufyVacuumManager:
         self,
         *,
         vacuum_entity_id: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | list[Any],
         command_override: str | None = None,
+        params_as_list_override: bool | None = None,
     ) -> None:
         """Send one clean payload to the vacuum service using the adapter's envelope.
 
@@ -4009,7 +4014,15 @@ class EufyVacuumManager:
         # Some brands wrap the params payload in a single-element list on the wire
         # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others
         # pass the bare dict (Eufy room_clean). Adapter-declared, default bare.
-        params = [payload] if cfg.get("params_as_list") else payload
+        # ``params_as_list_override`` lets a specific dispatch opt out of the adapter
+        # default — e.g. app_zoned_clean's payload is ALREADY the params list
+        # ([[x0,y0,x1,y1,repeat],...]) and must NOT be re-wrapped.
+        _as_list = (
+            params_as_list_override
+            if params_as_list_override is not None
+            else cfg.get("params_as_list")
+        )
+        params = [payload] if _as_list else payload
         if command:
             data = {"entity_id": vacuum_entity_id, "command": command, "params": params}
         else:
@@ -4056,12 +4069,77 @@ class EufyVacuumManager:
                 f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
                 "(zone cleaning is not supported for this brand/provider)"
             )
-        payload = {"zones": zones, "clean_times": int(clean_times)}
-        await self._dispatch_clean_payload(
-            vacuum_entity_id=vacuum_entity_id,
-            payload=payload,
-            command_override=zone_command,
-        )
+        # Device limits (from capabilities): a per-clean zone COUNT cap (defence-in-depth —
+        # the card also caps the draw) plus per-zone SIZE bounds checked after the device-mm
+        # conversion below. Absent => unconstrained for that brand.
+        _zone_caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        _zone_max = _zone_caps.get("zone_max")
+        if _zone_max is not None and len(zones) > int(_zone_max):
+            raise ValueError(
+                f"{vacuum_entity_id}: too many zones ({len(zones)}) — this vacuum allows at "
+                f"most {int(_zone_max)} per clean"
+            )
+        # Coordinate frame: most providers de-normalize on their side, so we ship the
+        # 0-1 image rects verbatim (Eufy's fork zone_clean). Brands whose command wants
+        # WORLD millimetres (Roborock app_zoned_clean) declare ``zone_coords: device_mm``;
+        # we convert here via the live map's own projection and REFUSE rather than
+        # dispatch if the conversion can't be validated (a wrong inverse cleans the
+        # wrong area — see mapping/zone_dispatch.py).
+        if cfg.get("zone_coords") == "device_mm":
+            from ..mapping import map_source_runtime as _msr
+            from ..mapping import zone_dispatch as _zd
+
+            map_obj = self.map_source.get_live_mapdata_obj(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id or ""),
+            )
+            if map_obj is None:
+                raise ValueError(
+                    f"{vacuum_entity_id}: no live map available to convert the zone to "
+                    "device coordinates — open the robot's map and try again"
+                )
+            corr = _msr.correspondences_from_mapdata(map_obj)
+            mm_rects = _zd.normalized_rects_to_mm(corr, zones)
+            if mm_rects is None:
+                raise ValueError(
+                    f"{vacuum_entity_id}: could not place the drawn zone on the device "
+                    "coordinate frame (map projection failed validation) — refusing to "
+                    "dispatch rather than risk cleaning the wrong area"
+                )
+            # Per-zone size bounds (device mm² -> m²). The device rejects zones outside its
+            # range, so refuse with a clear message rather than a silent device failure.
+            _min_a = _zone_caps.get("zone_min_area_m2")
+            _max_a = _zone_caps.get("zone_max_area_m2")
+            for _x0, _y0, _x1, _y1 in mm_rects:
+                _area = abs(_x1 - _x0) * abs(_y1 - _y0) / 1_000_000.0
+                if _min_a is not None and _area < float(_min_a):
+                    raise ValueError(
+                        f"{vacuum_entity_id}: a zone is too small ({_area:.2f} m²) — the "
+                        f"minimum is {float(_min_a):.2f} m² (~1 ft²); draw a bigger box"
+                    )
+                if _max_a is not None and _area > float(_max_a):
+                    raise ValueError(
+                        f"{vacuum_entity_id}: a zone is too large ({_area:.2f} m²) — the "
+                        f"maximum is {float(_max_a):.2f} m² (~32.8 ft²); draw a smaller box"
+                    )
+            repeat = max(1, min(int(clean_times), 3))
+            # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
+            payload: dict[str, Any] | list[Any] = [
+                [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1)), repeat]
+                for (x0, y0, x1, y1) in mm_rects
+            ]
+            await self._dispatch_clean_payload(
+                vacuum_entity_id=vacuum_entity_id,
+                payload=payload,
+                command_override=zone_command,
+                params_as_list_override=False,  # payload is already the params list
+            )
+        else:
+            payload = {"zones": zones, "clean_times": int(clean_times)}
+            await self._dispatch_clean_payload(
+                vacuum_entity_id=vacuum_entity_id,
+                payload=payload,
+                command_override=zone_command,
+            )
         return {
             "status": "dispatched",
             "vacuum_entity_id": vacuum_entity_id,

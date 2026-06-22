@@ -58,7 +58,7 @@ test("[ZD-7] a rect drawn entirely inside a letterbox bar -> null (degenerate)",
   assert.equal(conv({ x: 20, y: 0, w: 30, h: 5 }, { width: 360, height: 301 }), null);
 });
 
-test("[ZD-8] canDrawZone requires support + live backdrop + rotation 0", () => {
+test("[ZD-8] canDrawZone requires support + live backdrop (rotation no longer blocks)", () => {
   const base = () => {
     const s = makeState();
     s.supportsZoneClean = () => true;
@@ -71,8 +71,9 @@ test("[ZD-8] canDrawZone requires support + live backdrop + rotation 0", () => {
   assert.equal(s.canDrawZone(), false);
   s = base(); s.isLiveBackdropActive = () => false;
   assert.equal(s.canDrawZone(), false);
+  // Rotation is handled now (un-rotated at dispatch) — a rotated map still draws.
   s = base(); s.mapRotation = () => 90;
-  assert.equal(s.canDrawZone(), false);
+  assert.equal(s.canDrawZone(), true);
 });
 
 test("[ZD-9] multi-zone: addZoneDraft accumulates and caps at 10", () => {
@@ -89,9 +90,24 @@ test("[ZD-9] multi-zone: addZoneDraft accumulates and caps at 10", () => {
 
 test("[ZD-10] zoneDraftsToNormalizedRects converts all + drops degenerate", () => {
   const s = makeState();
+  s.mapRotation = () => 0;
   s.addZoneDraft({ x: 25, y: 40, w: 25, h: 20 }); // valid
   s.addZoneDraft({ x: 20, y: 0, w: 30, h: 5 });   // degenerate (top letterbox bar)
   const rects = s.zoneDraftsToNormalizedRects({ width: 360, height: 301 });
   assert.equal(rects.length, 1);
   assert.equal(rects[0].length, 4);
+});
+
+test("[ZD-11] zoneDraftsToNormalizedRects un-rotates the drawn rect at 90°", () => {
+  // A box drawn on a 90°-rotated square map maps to the swapped content region.
+  // unrotatePct(.,.,90)=[fy,100-fx]: (25,40)->(40,75), (50,60)->(60,50) ->
+  // {x:40,y:50,w:20,h:25} -> square 500 normalized [0.4,0.5,0.6,0.75].
+  const s = makeState();
+  s.supportsZoneClean = () => true;
+  s.isLiveBackdropActive = () => true;
+  s.mapRotation = () => 90;
+  s.addZoneDraft({ x: 25, y: 40, w: 25, h: 20 });
+  const [r] = s.zoneDraftsToNormalizedRects({ width: 500, height: 500 });
+  assert.ok(approx(r[0], 0.4) && approx(r[1], 0.5));
+  assert.ok(approx(r[2], 0.6) && approx(r[3], 0.75));
 });

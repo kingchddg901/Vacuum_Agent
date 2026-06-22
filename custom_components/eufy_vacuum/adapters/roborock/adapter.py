@@ -224,6 +224,14 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "dispatch": {
+            # Ad-hoc zone clean: Roborock's app_zoned_clean wants WORLD millimetres
+            # ([[x0,y0,x1,y1,repeat], ...]) via stock vacuum.send_command — no fork/PR.
+            # zone_coords="device_mm" makes dispatch_zone_clean invert the drawn 0-1 rects
+            # to device-mm through the live map's own projection (mapping/zone_dispatch.py)
+            # and REFUSE if it can't validate. The payload IS the params list, so dispatch
+            # sets params_as_list_override=False (not the app_segment_clean single-wrap).
+            "zone_command": "app_zoned_clean",
+            "zone_coords": "device_mm",
             # Strict-order phase watchdog timing (seconds), tuned for the S6: it
             # finishes a room, re-docks + charges, and IGNORES an app_segment_clean
             # sent at that instant — so the watchdog settles, dispatches, verifies the
@@ -466,6 +474,17 @@ def register_roborock_adapter_for_vacuum(
             # in the Roborock app. So the card's queue order is advisory — surfaced
             # at run start. (Eufy honors order via send_command -> default True.)
             "honors_clean_order": False,
+            # Zone clean (draw-a-box) via app_zoned_clean (device-mm; see dispatch.
+            # zone_command). The S6 supports zoned cleaning through stock send_command; the
+            # card un-rotates the drawn rect so it works at any display rotation.
+            "supports_zone_clean": True,
+            # app_zoned_clean device limits (S6, likely all Roborock): at most 5 zones per
+            # call, each between 1 ft² and 32.8 ft². Count is enforced in the card (zoneMax
+            # via the snapshot) + dispatch (defence-in-depth); size in dispatch_zone_clean
+            # after the mm conversion (the card draws in % and can't know the mm size).
+            "zone_max": 5,
+            "zone_min_area_m2": 0.0929,   # 1 ft²
+            "zone_max_area_m2": 3.05,     # 32.8 ft²
         },
 
         "maintenance_components": {

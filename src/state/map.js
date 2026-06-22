@@ -519,7 +519,9 @@ export function applyMapState(proto) {
   // pct (0-100) of the square map container, drawn → dispatched → discarded.
   // Never persisted. _zoneDrawMode toggles the draw interaction; _zoneDrafts holds
   // the committed rectangles ({x,y,w,h} pct). The in-progress drag box is painted
-  // straight to the DOM and pushed here on release. App cap = 10 zones per clean.
+  // straight to the DOM and pushed here on release. The per-clean zone cap is
+  // brand-specific (snapshot.zone_max via zoneMax(); e.g. Eufy 10, Roborock S6 5);
+  // this constant is the fallback before the snapshot loads.
   proto._ZONE_MAX = 10;
   proto._zoneDrawMode = false;
   proto._zoneDrafts = null; // lazily []
@@ -530,19 +532,22 @@ export function applyMapState(proto) {
     return this._zoneDrafts;
   };
   proto.zoneCount = function () { return this.zoneDrafts().length; };
-  proto.zoneMax = function () { return this._ZONE_MAX; };
-  proto.zoneAtCap = function () { return this.zoneCount() >= this._ZONE_MAX; };
+  proto.zoneMax = function () {
+    const m = this.dashboardSnapshot?.()?.zone_max;
+    return (typeof m === "number" && m > 0) ? m : this._ZONE_MAX;
+  };
+  proto.zoneAtCap = function () { return this.zoneCount() >= this.zoneMax(); };
 
   proto.setZoneDrawMode = function (on) {
     this._zoneDrawMode = Boolean(on);
     if (!this._zoneDrawMode) this._zoneDrafts = [];
   };
 
-  // Commit one drawn rectangle. Returns false (ignored) once at the 10-zone cap.
+  // Commit one drawn rectangle. Returns false (ignored) once at the brand zone cap.
   proto.addZoneDraft = function (rect) {
     if (!rect) return false;
     const list = this.zoneDrafts();
-    if (list.length >= this._ZONE_MAX) return false;
+    if (list.length >= this.zoneMax()) return false;
     list.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
     return true;
   };
@@ -586,24 +591,38 @@ export function applyMapState(proto) {
     return [x0, y0, x1, y1];
   };
 
-  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped).
+  // Un-rotate a drawn pct rect {x,y,w,h} from the displayed (rotated) .evcc-map-layers box
+  // back to the CONTENT frame the device coordinates live in, so a zone drawn on a rotated
+  // live map dispatches to the right place. 90/180/270 swap/flip the corners (square
+  // container — see unrotatePct); identity at rotation 0. Re-min/maxed.
+  proto._unrotateRectPct = function (d, rot) {
+    if (!d) return d;
+    const [ax, ay] = this.unrotatePct(d.x, d.y, rot);
+    const [bx, by] = this.unrotatePct(d.x + d.w, d.y + d.h, rot);
+    return { x: Math.min(ax, bx), y: Math.min(ay, by), w: Math.abs(bx - ax), h: Math.abs(by - ay) };
+  };
+
+  // All committed zones as normalized [x0,y0,x1,y1] rects (degenerate ones dropped). Each
+  // drawn rect is un-rotated to the content frame first, so a zone drawn on a rotated live
+  // map maps to the correct device region (identity when rotation is 0).
   proto.zoneDraftsToNormalizedRects = function (backdropDims) {
+    const rot = this.mapRotation?.() ?? 0;
     return this.zoneDrafts()
-      .map((d) => this._rectToNormalized(d, backdropDims))
+      .map((d) => this._rectToNormalized(this._unrotateRectPct(d, rot), backdropDims))
       .filter(Boolean);
   };
 
   /**
    * Single source of truth for whether the ad-hoc zone-draw control may be
-   * shown AND used right now: the provider supports zone clean, a live-map
-   * backdrop is active (you draw on that image), and rotation is 0 (Wave 1 — a
-   * rotated map letterboxes on the swapped axis, not yet handled). The renderer
-   * gate and the drag/confirm guards both call this so they can never drift.
+   * shown AND used right now: the provider supports zone clean and a live-map
+   * backdrop is active (you draw on that image). Map rotation IS supported — the
+   * drawn rect is un-rotated to the content frame in zoneDraftsToNormalizedRects
+   * (the square container makes a 90/180/270 turn a clean corner swap). The
+   * renderer gate and the drag/confirm guards both call this so they never drift.
    */
   proto.canDrawZone = function () {
     return (this.supportsZoneClean?.() ?? false)
-        && (this.isLiveBackdropActive?.() ?? false)
-        && (this.mapRotation?.() ?? 0) === 0;
+        && (this.isLiveBackdropActive?.() ?? false);
   };
 
   /* =========================================================
@@ -747,6 +766,36 @@ export function applyMapState(proto) {
     const rid = bin.charCodeAt(idx) >> (rd.rid_shift | 0);
     const catchAll = rd.catch_all_rid | 0;
     return (rid > 0 && rid < catchAll) ? rid : null;
+  };
+
+  /* Bbox hit-test for the auto-derived click target when there's NO render raster — a bare
+     live map (Roborock; or Eufy live map with no drawn rooms). A CONTENT-box % point -> the
+     device room NUMBER (== managed room id) whose map_state_source bbox contains it. The
+     bboxes are already in the rendered-image normalized frame (proj applied the Y-flip), so
+     content% -> normalized uses the same contain-letterbox as roomIdAtContentPct, with NO
+     extra flip. Smallest containing bbox wins (L-shaped rooms overlap). null when outside
+     every room / no live rooms. Approximate (bbox, not pixel-exact) — matches `approximate`. */
+  proto.deviceRoomIdAtContentPct = function (contentX, contentY) {
+    const mss = this.mapOverlayData?.() ?? this.mapStateSource?.();
+    if (!mss || !mss.present || !Array.isArray(mss.rooms)) return null;
+    const size = this.mapImageSize?.();
+    if (!(Array.isArray(size) && size[0] > 0 && size[1] > 0)) return null;
+    const iw = size[0], ih = size[1];
+    const sx = iw >= ih ? 100 : (100 * iw) / ih;
+    const sy = ih >= iw ? 100 : (100 * ih) / iw;
+    const nx = (contentX - (100 - sx) / 2) / sx;
+    const ny = (contentY - (100 - sy) / 2) / sy;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;   // letterbox bar
+    let best = null, bestArea = Infinity;
+    for (const r of mss.rooms) {
+      const b = r?.bbox;
+      if (!Array.isArray(b) || b.length !== 4) continue;
+      if (nx >= b[0] && nx <= b[2] && ny >= b[1] && ny <= b[3]) {
+        const area = (b[2] - b[0]) * (b[3] - b[1]);
+        if (area < bestArea) { bestArea = area; best = r.number; }
+      }
+    }
+    return best;
   };
 
   /* -- Live pose (Phase B) ------------------------------------------------------
