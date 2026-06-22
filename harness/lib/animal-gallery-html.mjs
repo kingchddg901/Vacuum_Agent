@@ -229,7 +229,7 @@ ${TAG_CSS}
   <header>
     <h1>Vacuum Agent — animal gallery</h1>
     <p>${entries.length} companion${entries.length === 1 ? "" : "s"}, each rendered through the real animal-svg framework. Click one to see every pose, or <strong>⤓ Download</strong> its descriptor. Baked tributes live in <span class="a-memorial">🌈 Rainbow Bridge</span>.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit an animal</a> <a class="submit" href="../docs/contributing/animal-authoring/">📖 Authoring guide</a></p>
+    <p><a class="submit" href="${submitUrl}">+ Submit an animal</a> <a class="submit" href="../">🎨 Theme gallery</a> <a class="submit" href="../docs/contributing/animal-authoring/">📖 Authoring guide</a></p>
   </header>
   <nav class="toolbar">
     <div class="searchrow">

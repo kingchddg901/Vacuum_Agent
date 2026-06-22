@@ -260,7 +260,7 @@ ${TAG_CSS}
   <header>
     <h1>EVCC theme gallery</h1>
     <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview, or <strong>⤓ Download</strong> any theme and import it via the card's Upload button.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="docs/">📖 Documentation</a></p>
+    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="animals/">🦊 Animal gallery</a> <a class="submit" href="docs/">📖 Documentation</a></p>
   </header>
   <nav class="toolbar">
     <div class="searchrow">
