@@ -3988,8 +3988,9 @@ class EufyVacuumManager:
         self,
         *,
         vacuum_entity_id: str,
-        payload: dict[str, Any],
+        payload: dict[str, Any] | list[Any],
         command_override: str | None = None,
+        params_as_list_override: bool | None = None,
     ) -> None:
         """Send one clean payload to the vacuum service using the adapter's envelope.
 
@@ -4009,7 +4010,15 @@ class EufyVacuumManager:
         # Some brands wrap the params payload in a single-element list on the wire
         # (Roborock app_segment_clean: params=[{segments:[...],repeat:n}]); others
         # pass the bare dict (Eufy room_clean). Adapter-declared, default bare.
-        params = [payload] if cfg.get("params_as_list") else payload
+        # ``params_as_list_override`` lets a specific dispatch opt out of the adapter
+        # default — e.g. app_zoned_clean's payload is ALREADY the params list
+        # ([[x0,y0,x1,y1,repeat],...]) and must NOT be re-wrapped.
+        _as_list = (
+            params_as_list_override
+            if params_as_list_override is not None
+            else cfg.get("params_as_list")
+        )
+        params = [payload] if _as_list else payload
         if command:
             data = {"entity_id": vacuum_entity_id, "command": command, "params": params}
         else:
@@ -4056,12 +4065,51 @@ class EufyVacuumManager:
                 f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
                 "(zone cleaning is not supported for this brand/provider)"
             )
-        payload = {"zones": zones, "clean_times": int(clean_times)}
-        await self._dispatch_clean_payload(
-            vacuum_entity_id=vacuum_entity_id,
-            payload=payload,
-            command_override=zone_command,
-        )
+        # Coordinate frame: most providers de-normalize on their side, so we ship the
+        # 0-1 image rects verbatim (Eufy's fork zone_clean). Brands whose command wants
+        # WORLD millimetres (Roborock app_zoned_clean) declare ``zone_coords: device_mm``;
+        # we convert here via the live map's own projection and REFUSE rather than
+        # dispatch if the conversion can't be validated (a wrong inverse cleans the
+        # wrong area — see mapping/zone_dispatch.py).
+        if cfg.get("zone_coords") == "device_mm":
+            from ..mapping import map_source_runtime as _msr
+            from ..mapping import zone_dispatch as _zd
+
+            map_obj = self.map_source.get_live_mapdata_obj(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id or ""),
+            )
+            if map_obj is None:
+                raise ValueError(
+                    f"{vacuum_entity_id}: no live map available to convert the zone to "
+                    "device coordinates — open the robot's map and try again"
+                )
+            corr = _msr.correspondences_from_mapdata(map_obj)
+            mm_rects = _zd.normalized_rects_to_mm(corr, zones)
+            if mm_rects is None:
+                raise ValueError(
+                    f"{vacuum_entity_id}: could not place the drawn zone on the device "
+                    "coordinate frame (map projection failed validation) — refusing to "
+                    "dispatch rather than risk cleaning the wrong area"
+                )
+            repeat = max(1, min(int(clean_times), 3))
+            # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
+            payload: dict[str, Any] | list[Any] = [
+                [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1)), repeat]
+                for (x0, y0, x1, y1) in mm_rects
+            ]
+            await self._dispatch_clean_payload(
+                vacuum_entity_id=vacuum_entity_id,
+                payload=payload,
+                command_override=zone_command,
+                params_as_list_override=False,  # payload is already the params list
+            )
+        else:
+            payload = {"zones": zones, "clean_times": int(clean_times)}
+            await self._dispatch_clean_payload(
+                vacuum_entity_id=vacuum_entity_id,
+                payload=payload,
+                command_override=zone_command,
+            )
         return {
             "status": "dispatched",
             "vacuum_entity_id": vacuum_entity_id,

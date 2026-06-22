@@ -261,6 +261,51 @@ class MapSourceCoordinator:
                 vacuum_entity_id, exc_info=True,
             )
 
+    def get_live_mapdata_obj(self, *, vacuum_entity_id: str, map_id: str):
+        """Locate the live parser MapData OBJECT (not the normalized dict) for a vacuum.
+
+        Zone dispatch needs the object — it projects a drawn zone back to device-mm via the
+        parser's OWN transform (the same ``_mapdata_projector`` the overlays use), which the
+        converted dict has lost. Routes by the adapter's ``map_state_source`` backend;
+        in-memory introspection only (no IO, loop-safe). Returns the object, or ``None`` when
+        no live map is available — the caller MUST then refuse to dispatch. Never raises.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        source_cfg = adapter_cfg.get("map_state_source")
+        if not isinstance(source_cfg, dict):
+            return None
+        backend = source_cfg.get("backend")
+        try:
+            if backend == "memory":
+                live_img = self._manager._resolve_live_map_image_entity(
+                    vacuum_entity_id=vacuum_entity_id, map_id=map_id, adapter_cfg=adapter_cfg,
+                )
+                candidates = _msr.roborock_candidates(
+                    self._manager.hass, source_cfg, image_entity_id=live_img,
+                )
+                for cand in candidates or []:
+                    root = cand[2] if isinstance(cand, (list, tuple)) and len(cand) >= 3 else cand
+                    md, _path = _msr.find_mapdata(root)
+                    if md is not None:
+                        return md
+            elif backend == "storage" and isinstance(source_cfg.get("memory"), dict):
+                mem_cfg = source_cfg["memory"]
+                candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+                found = _msr.eufy_mapdata_obj_from_candidates(
+                    candidates,
+                    mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                    field_attrs=mem_cfg.get("field_attrs"),
+                )
+                if found.get("present"):
+                    return found.get("obj")
+        except Exception:  # noqa: BLE001 - never break dispatch; caller refuses on None
+            _LOGGER.debug(
+                "get_live_mapdata_obj failed for %s", vacuum_entity_id, exc_info=True,
+            )
+        return None
+
     async def _refresh_eufy_map_source(
         self,
         *,

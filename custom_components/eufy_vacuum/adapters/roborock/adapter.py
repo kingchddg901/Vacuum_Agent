@@ -224,6 +224,14 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "dispatch": {
+            # Ad-hoc zone clean: Roborock's app_zoned_clean wants WORLD millimetres
+            # ([[x0,y0,x1,y1,repeat], ...]) via stock vacuum.send_command — no fork/PR.
+            # zone_coords="device_mm" makes dispatch_zone_clean invert the drawn 0-1 rects
+            # to device-mm through the live map's own projection (mapping/zone_dispatch.py)
+            # and REFUSE if it can't validate. The payload IS the params list, so dispatch
+            # sets params_as_list_override=False (not the app_segment_clean single-wrap).
+            "zone_command": "app_zoned_clean",
+            "zone_coords": "device_mm",
             # Strict-order phase watchdog timing (seconds), tuned for the S6: it
             # finishes a room, re-docks + charges, and IGNORES an app_segment_clean
             # sent at that instant — so the watchdog settles, dispatches, verifies the
@@ -466,6 +474,11 @@ def register_roborock_adapter_for_vacuum(
             # in the Roborock app. So the card's queue order is advisory — surfaced
             # at run start. (Eufy honors order via send_command -> default True.)
             "honors_clean_order": False,
+            # Zone clean (draw-a-box) via app_zoned_clean (device-mm; see dispatch.
+            # zone_command). The S6 supports zoned cleaning through stock send_command;
+            # the card's zone-draw stays gated on a live backdrop + map rotation 0
+            # (canDrawZone) — rotated-map dispatch is the follow-up TODO.
+            "supports_zone_clean": True,
         },
 
         "maintenance_components": {
