@@ -8,6 +8,56 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [1.2.0] - 2026-06-21
+
+**The map comes alive.** The Map view goes from a static backdrop to a live, interactive
+surface: the robot is tracked across it in real time, you can lay a render of your actual
+furnished home underneath it, draw a box to spot-clean, and more. The biggest map release
+since the integration began.
+
+### Added
+- **Mittens joins the map.** A new **Rainbow Bridge** animal group — companions for
+  remembered pets — debuts with **Mittens**. Unlike the themeable animals, she's painted
+  true to life: her real markings stay fixed whatever theme you run, and only her eyes
+  shift with battery state. *In loving memory.*
+- **Live robot tracking & map overlays.** A new VA-owned read of the device's own map
+  (`map_state_source`) puts the live robot position, heading, dock, current room, cleaning
+  path, and hazards (no-go / no-mop / walls) on the map in real time — plus native
+  current-room rollover and a faster live room/fan refresh on Roborock. A **Mascot follows
+  robot** toggle lets your companion ride the robot's live position.
+- **Furnished render.** Lay a to-scale render of your real home over the live map so the
+  robot drives across your actual furniture. **Save map image** to trace over, upload art
+  (whole-home or per-room), pick a view mode (Live / Blend / Art), and align by eye — drag,
+  scale, rotate (coarse ±90°, fine ±1°/±0.1°, ±15° trim slider). No georeference — the
+  alignment is the reconciliation, so the live overlays ride on top for free. Brand-agnostic
+  (Eufy fork + Roborock).
+- **Zone cleaning (draw a box).** Spot-clean an area you draw on the live map — up to 10
+  zones per run, with suction/mop settings. (Eufy via the fork; the Roborock S6 firmware
+  doesn't expose zone cleaning.)
+- **More map interactions.** Tap rooms on the map to build a clean selection (unpicked
+  rooms dim), **Hide area** to mask map noise, and draggable room-area (m²) labels.
+- **Smarter external-run learning.** App-started runs now use the robot's recorded path to
+  work out which rooms were actually cleaned, feeding the external-run review wizard.
+
+### Changed
+- New user guides for furnished render, zone cleaning, hide-area, and the live map, plus
+  reconciled services/data-model references and consistent "NN — Title" nav titles across
+  the docs site.
+- Eufy-measured planning defaults moved into the Eufy adapter (cleaner brand boundary).
+- Internal: the core manager was re-bundled into focused subsystems — `PhaseRunner`
+  (strict-order phases), `ActiveJobTracker` run-anomaly detection, a `live_refresh`
+  subsystem (Roborock live room/fan), and `MapSourceCoordinator` (the `map_state_source`
+  backend). No behavior change.
+
+### Fixed
+- Strict-order finalization records every phase's timing, not just the last.
+- Learning guards: recharge-drain bias, attribution-confidence marker, and rescuing the
+  first cleaned room when `cleaning_area` is stale.
+- Roborock live-room refresh targets `roborock.*` (not `vacuum.*`) and sticky-disables on a
+  missing service.
+- CI flakes: serialized the dock-drift append + isolated its test; closed re-run
+  config-dir/executor leaks.
+
 ## [1.1.1] - 2026-06-16
 
 **Optional CV stack, handled cleanly.** The CV libraries (numpy, Pillow, scipy) that
