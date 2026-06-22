@@ -443,6 +443,7 @@ export function applyMapRenderers(proto) {
     if (!mss || !mss.present || !Array.isArray(mss.rooms)) return "";
     const { tx, ty } = this._overlayTransform(state);
     const managed = state.getRoomsForActiveMap?.() ?? [];
+    const order = this._selectedRoomOrder(state);   // Map(device number -> 1-based clean order)
     return mss.rooms.map((r) => {
       if (!Array.isArray(r.bbox) || r.bbox.length !== 4) return "";
       // Prefer the user's CONFIGURED room name (the managed room keyed by the device
@@ -451,9 +452,13 @@ export function applyMapRenderers(proto) {
       const mr = managed.find((m) => String(m.id) === String(r.number));
       const name = mr?.name ?? r?.name;
       if (!name) return "";
+      // Selected rooms light up via --selected (the raster scrim that dims rooms can't run
+      // without a raster). The clean order is shown by the separate number markers, so no
+      // order chip on the label to avoid doubling it.
+      const isSel = order.has(Number(r.number));
       const lx = Math.min(Math.max(+tx((r.bbox[0] + r.bbox[2]) / 2), 5), 95);
       const ly = Math.min(Math.max(+ty((r.bbox[1] + r.bbox[3]) / 2), 6), 94);
-      return `<div class="evcc-map-label" style="left:${lx}%;top:${ly}%">`
+      return `<div class="evcc-map-label${isSel ? " evcc-map-label--selected" : ""}" style="left:${lx}%;top:${ly}%">`
            + `<span class="evcc-map-label-name">${this.escapeHtml(String(name))}</span></div>`;
     }).join("");
   };
