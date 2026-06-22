@@ -468,6 +468,40 @@ def rooms_from_mapdata(map_data: Any) -> list[dict[str, Any]]:
     return out
 
 
+def correspondences_from_mapdata(map_data: Any) -> list[tuple[float, float, float, float]]:
+    """``(nx, ny, mmx, mmy)`` pairs from the live map's room-bbox corners.
+
+    This is the input the zone-dispatch affine fit needs to invert the normalized->mm
+    mapping for brands (Roborock) whose zone command wants device millimetres. Each room
+    contributes its four axis-aligned corners, projected device-mm -> normalized via the
+    shared ``_mapdata_projector`` (the parser's OWN transform — same source of truth as
+    ``rooms_from_mapdata``). Returns ``[]`` when geometry is unavailable; bad/clamped
+    corners are simply skipped (the converter's round-trip check guards the rest).
+    """
+    rooms_attr = getattr(map_data, "rooms", None)
+    if rooms_attr is None:
+        return []
+    proj_geom = _mapdata_projector(map_data)
+    if proj_geom is None:
+        return []
+    proj = proj_geom[0]
+    items = rooms_attr.values() if hasattr(rooms_attr, "values") else rooms_attr
+    out: list[tuple[float, float, float, float]] = []
+    for r in items:
+        x0 = getattr(r, "x0", None); y0 = getattr(r, "y0", None)
+        x1 = getattr(r, "x1", None); y1 = getattr(r, "y1", None)
+        if None in (x0, y0, x1, y1):
+            continue
+        for mx, my in ((x0, y0), (x1, y0), (x1, y1), (x0, y1)):
+            p = proj(mx, my)
+            if p:
+                try:
+                    out.append((p[0], p[1], float(mx), float(my)))
+                except (TypeError, ValueError):
+                    continue
+    return out
+
+
 def _proj_areas(areas: Any, proj) -> list[list[list[float]]]:
     """Project quadrilateral Areas (x0,y0..x3,y3 — no-go/no-mop) to 4-point polygons."""
     out: list[list[list[float]]] = []

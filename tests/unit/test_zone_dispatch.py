@@ -76,3 +76,64 @@ def test_zdm6_reversed_corners_ordered():
     assert x0 < x1 and y0 < y1
     assert x0 == pytest.approx(27500, abs=1.0)
     assert y1 == pytest.approx(37500, abs=1.0)
+
+
+# --- bridge: correspondences_from_mapdata + converter, end to end -------------
+# A fake parser MapData whose to_img reproduces the same Y-flipped affine as _fwd
+# above, so correspondences extracted from its rooms must invert back to mm.
+from custom_components.eufy_vacuum.mapping import map_source_runtime as msr  # noqa: E402
+
+
+class _FP:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+
+
+class _FakeDims:
+    rotation = 0
+
+    def to_img(self, pt):  # mm -> image px, matching _fwd (Y-flipped), img 1000x1000
+        return _FP((pt.x - 20000) * 1000 / 30000.0, (45000 - pt.y) * 1000 / 30000.0)
+
+
+class _FakeData:
+    size = (1000, 1000)
+
+
+class _FakeImage:
+    dimensions = _FakeDims()
+    data = _FakeData()
+
+
+class _FakeRoom:
+    def __init__(self, n, x0, y0, x1, y1):
+        self.number, self.name = n, None
+        self.x0, self.y0, self.x1, self.y1 = x0, y0, x1, y1
+
+
+class _FakeMapData:
+    image = _FakeImage()
+    rooms = {
+        1: _FakeRoom(1, 20000, 15000, 35000, 30000),
+        2: _FakeRoom(2, 35000, 30000, 50000, 45000),
+    }
+
+
+def test_zdm7_correspondences_bridge_roundtrip():
+    corr = msr.correspondences_from_mapdata(_FakeMapData())
+    assert len(corr) == 8  # two rooms x four corners
+    out = zd.normalized_rects_to_mm(corr, [[0.25, 0.25, 0.75, 0.75]])
+    assert out is not None
+    x0, y0, x1, y1 = out[0]
+    assert x0 == pytest.approx(27500, abs=1.0)
+    assert x1 == pytest.approx(42500, abs=1.0)
+    assert y0 == pytest.approx(22500, abs=1.0)
+    assert y1 == pytest.approx(37500, abs=1.0)
+
+
+def test_zdm8_correspondences_empty_when_no_rooms():
+    class _NoRooms:
+        image = _FakeImage()
+        rooms = None
+    assert msr.correspondences_from_mapdata(_NoRooms()) == []
