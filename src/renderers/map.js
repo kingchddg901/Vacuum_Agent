@@ -146,6 +146,15 @@ export function applyMapRenderers(proto) {
     // GRID-frame backdrop their normalized coords align to: the live device image OR
     // the VA-rendered canvas (Wave 3c overlays; Wave 1 self-render).
     const deviceOverlays = state.overlaysAligned?.() ?? false;
+    // Furnished render (Wave 1): the whole-home art layer + the base-fade mode. The art
+    // is only live on the "Live map" custom layout; the base live <img> stays MOUNTED
+    // always (opacity-faded, never unmounted — it anchors the overlay frame + keeps the
+    // camera poll alive). render_mode: live → base full / art hidden; art → base ~0 / art
+    // full; blend → base ~0.45 / art full (alignment view). See styles/map.js.
+    const furnishedOn = state.isFurnishedLayoutActive?.() ?? false;
+    const furnishedMode = furnishedOn ? (state.furnishedRenderMode?.() ?? "live") : "live";
+    const baseFadeCls = furnishedOn && furnishedMode !== "live"
+      ? ` evcc-map-image--furnished-${furnishedMode}` : "";
     return `
       <div class="evcc-map-view">
         <div class="evcc-map-container${zoneMode ? " evcc-map-container--zone" : ""}${hideMode ? " evcc-map-container--hide" : ""}">
@@ -159,8 +168,9 @@ export function applyMapRenderers(proto) {
             ${vaActive
               ? `<canvas class="evcc-map-image evcc-map-render-canvas" data-render-version="${this.escapeHtml(String(state.mapRenderVersion?.() ?? ""))}"></canvas>`
               : (imageUrl
-                  ? `<img class="evcc-map-image" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
+                  ? `<img class="evcc-map-image${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
                   : "")}
+            ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, false) : ""}
             ${this._renderSelectionScrim(state)}
             <svg
               class="evcc-map-svg"
@@ -278,6 +288,52 @@ export function applyMapRenderers(proto) {
       tx: (v) => offX + Number(v) * sx,
       ty: (v) => offY + Number(v) * sy,
     };
+  };
+
+  /* =========================================================
+     FURNISHED ART LAYER (Wave 1 — whole-home art over the live map)
+     =========================================================
+     The user's to-scale home render, placed as ONE rotated rect over the faded live
+     base, UNDER the overlay SVG/markers (so the robot/dock/path ride on top). Rendered
+     as an <img class="evcc-map-art"> — a DISTINCT class from .evcc-map-image (D3), so the
+     zone-confirm naturalWidth selector + selection scrim + hit-test never grab it.
+
+     The element is absolute/inset:0/object-fit:contain (the SAME letterbox the overlays
+     assume), so an UNTRANSFORMED art exactly fills the overlay frame. The placement
+     transform {tx,ty,scale,rotation} is applied to the art element ONLY (the overlays
+     keep riding the live frame via _overlayTransform, untouched). tx/ty are a pct offset
+     in the content frame; scale multiplies the contain size; rotation is degrees. Stored
+     in the natural (pre-live_map_rotation) frame — the rotator applies live_map_rotation
+     last, so the art co-rotates with the overlays (D2).
+
+     `editable` (config view only) adds the drag-handle data-action; the room view layer is
+     display-only + click-through. */
+  proto._renderFurnishedArt = function (state, editable) {
+    const url = state.furnishedHomeArtUrl?.();
+    if (!url) return "";
+    // In the editor use the live draft (seeded from the saved transform); in the room view
+    // use the saved transform straight.
+    const t = editable
+      ? (state.furnishedArtTransform?.() ?? { tx: 0, ty: 0, scale: 1, rotation: 0 })
+      : (state.furnishedHomeArtTransform?.() ?? null);
+    const tx  = Number(t?.tx ?? 0);
+    const ty  = Number(t?.ty ?? 0);
+    const sc  = Number(t?.scale ?? 1) || 1;
+    const rot = Number(t?.rotation ?? 0);
+    // translate is in the element's own % (matches the pct-offset contract); rotate then
+    // scale about the centre. transform-origin 50% 50% (set in CSS) keeps it centred.
+    const xform = `translate(${tx.toFixed(3)}%, ${ty.toFixed(3)}%) rotate(${rot}deg) scale(${sc})`;
+    // When a compose shape is selected for placement, the full-frame art must be
+    // click-through so the empty-space tap reaches the compose layer underneath — otherwise
+    // the art swallows every tap and segment placement is silently dead. The user deselects
+    // the shape to drag the art again. (Room-view art is already pointer-events:none.)
+    const composeActive = editable && (state.composeSelectedId?.() != null);
+    const cls = "evcc-map-art"
+      + (editable ? " evcc-map-art--editable" : "")
+      + (composeActive ? " evcc-map-art--passthrough" : "");
+    const drag = (editable && !composeActive) ? ` data-action="furnished-art-drag"` : "";
+    return `<img class="${cls}" src="${this.escapeHtml(url)}" alt="Furnished home render" `
+         + `draggable="false" style="transform:${xform}"${drag}>`;
   };
 
   proto._renderDeviceOverlaySvg = function (state) {
@@ -798,6 +854,21 @@ export function applyMapRenderers(proto) {
     const tx   = state.mapTranslateX?.() ?? 0;
     const ty   = state.mapTranslateY?.() ?? 0;
 
+    // D5 — fix the composer-rotation gap: wrap the config content in
+    // .evcc-map-content-rotator (like the room view) so art authored here is WYSIWYG vs
+    // the rotated room view. Rotate ONLY over a live-CONTAIN backdrop (isLiveBackdropActive
+    // — the "Live map" layout or a per-layout backdrop not yet uploaded); an uploaded
+    // --fill backdrop must NOT rotate (its polygons would drift, same rule as
+    // effectiveMapRotation). The drag handler routes pointer→content through unrotatePct
+    // with this same value so authoring stays correct across rotation.
+    const liveBackdrop = state.isLiveBackdropActive?.() ?? false;
+    const configRot = liveBackdrop ? (state.effectiveMapRotation?.() ?? 0) : 0;
+    // Furnished art authoring is live only on the "Live map" custom layout.
+    const furnishedOn = state.isFurnishedLayoutActive?.() ?? false;
+    const furnishedMode = furnishedOn ? (state.furnishedRenderMode?.() ?? "live") : "live";
+    const baseFadeCls = furnishedOn && furnishedMode !== "live"
+      ? ` evcc-map-image--furnished-${furnishedMode}` : "";
+
     return `
       <div class="evcc-map-config-view">
 
@@ -816,7 +887,9 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-container evcc-map-container--config">
             ${imageUrl
               ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
-                   <img class="evcc-map-image${isCustom && !state.isLiveBackdropActive?.() ? " evcc-map-image--fill" : ""}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                 <div class="evcc-map-content-rotator" style="transform:rotate(${configRot}deg);--evcc-map-rotation:${configRot}deg">
+                   <img class="evcc-map-image${isCustom && !liveBackdrop ? " evcc-map-image--fill" : ""}${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                   ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, true) : ""}
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                      ${isCustom
                        ? this._renderComposerShapes(state)
@@ -825,6 +898,7 @@ export function applyMapRenderers(proto) {
                            return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null, zoom);
                          }).join("")}
                    </svg>
+                 </div>
                  </div>
                  <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-out"
@@ -842,6 +916,7 @@ export function applyMapRenderers(proto) {
           </div>
 
           <div class="evcc-map-config-side-panel">
+            ${furnishedOn ? this._renderFurnishedToolbar(state, actionStatus) : ""}
             ${isCustom
               ? this._renderComposerToolbar(state)
               : (selectedSeg
@@ -1143,6 +1218,110 @@ export function applyMapRenderers(proto) {
           ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(status.message ?? "Save failed")}</span>`
           : ""}
       </div>
+    `;
+  };
+
+  /* =========================================================
+     FURNISHED ART TOOLBAR (config view; "Live map" layout only)
+     =========================================================
+     Upload a to-scale home render, pick a render mode (live/art/blend), and align the
+     art over the live map (nudge/scale/rotate; pointer-drag on the art itself). Matches
+     the composer toolbar UX. Only shown when the furnished layout is active. */
+  proto._renderFurnishedToolbar = function (state, actionStatus) {
+    const hasArt = Boolean(state.furnishedHomeArtUrl?.());
+    const mode   = state.furnishedRenderMode?.() ?? "live";
+    const t      = state.furnishedArtTransform?.() ?? { scale: 1, rotation: 0 };
+    const isBusy = actionStatus?.type === "upload" && actionStatus?.variant === "furnished-art"
+                   && actionStatus?.status === "busy";
+    const isErr  = actionStatus?.type === "upload" && actionStatus?.variant === "furnished-art"
+                   && actionStatus?.status === "error";
+    const isExportErr = actionStatus?.type === "export" && actionStatus?.variant === "furnished-map"
+                   && actionStatus?.status === "error";
+    const noSize = !(state.mapImageSize?.());
+
+    const modeBtn = (key, label, hint) => `
+      <button class="evcc-map-config-btn${mode === key ? " evcc-map-config-btn--primary" : ""}"
+        data-action="furnished-render-mode" data-mode="${key}" title="${this.escapeHtml(hint)}"
+        ${hasArt || key === "live" ? "" : "disabled"}>${this.escapeHtml(label)}</button>`;
+
+    return `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Furnished render</div>
+        <div class="evcc-map-config-adj-meta">
+          Upload a to-scale render of your home, then align it over the live map — the
+          live robot, dock, and cleaning path ride on top.
+        </div>
+        <div class="evcc-map-config-adj-meta">
+          Tip: save the current map image, draw your furniture over it, then upload that —
+          it'll line up almost perfectly (the art is already registered to the map pixels).
+          The live robot may show in the saved frame on some maps — just ignore it when tracing.
+        </div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="furnished-export-map"
+            title="Download the current live map image to trace your furniture over">⬇ Save map image</button>
+        </div>
+        ${isExportErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Couldn't save the map image")}</span>` : ""}
+        ${noSize ? `<div class="evcc-map-action-status evcc-map-action-status--error">
+          The live map has no image size yet — start a clean or open the robot's app so it
+          publishes a map frame, then align.</div>` : ""}
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn${isBusy ? " evcc-map-config-btn--busy" : ""}"
+            data-action="upload-furnished-art" ${isBusy ? "disabled" : ""}>
+            ${isBusy ? "Uploading…" : hasArt ? "Replace art" : "Upload art"}</button>
+          ${hasArt ? `<button class="evcc-map-config-btn evcc-map-config-btn--danger"
+            data-action="furnished-art-clear" title="Remove the placement (keeps the uploaded image)">Reset placement</button>` : ""}
+        </div>
+        ${isErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Upload failed")}</span>` : ""}
+      </div>
+      ${hasArt ? `
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Render mode</div>
+        <div class="evcc-compose-tools">
+          ${modeBtn("live", "Live", "Show the live map only (art hidden)")}
+          ${modeBtn("blend", "Blend", "Art over a faded live map — best for aligning")}
+          ${modeBtn("art", "Art", "Show your furnished art (live map hidden)")}
+        </div>
+      </div>
+      <div class="evcc-map-config-section">
+        <div class="evcc-map-config-section-title">Align art</div>
+        <div class="evcc-map-config-adj-meta">Drag the art on the map, or nudge it here. Scale + rotate to match.</div>
+        <div class="evcc-map-nudge-pad">
+          <div class="evcc-map-nudge-row">
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="-1" title="Up">↑</button>
+          </div>
+          <div class="evcc-map-nudge-row">
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="-1" data-dy="0" title="Left">←</button>
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="1" data-dy="0" title="Right">→</button>
+          </div>
+          <div class="evcc-map-nudge-row">
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="1" title="Down">↓</button>
+          </div>
+        </div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="0.9" title="Shrink">－ Scale</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="Grow">＋ Scale</button>
+          <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}%</span>
+        </div>
+        <div class="evcc-map-furnished-rotate">
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="Rotate left 90°">↺ 90°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-1" title="Rotate left 1°">−1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-0.1" title="Rotate left 0.1°">−0.1°</button>
+          <span class="evcc-map-config-adj-meta evcc-map-furnished-rotate-readout">${(Number(t.rotation) || 0).toFixed(1)}°</span>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="0.1" title="Rotate right 0.1°">+0.1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="1" title="Rotate right 1°">+1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="90" title="Rotate right 90°">↻ 90°</button>
+        </div>
+        <div class="evcc-map-furnished-trim">
+          <span class="evcc-map-config-adj-meta">Fine trim ±15°</span>
+          <input type="range" class="evcc-map-furnished-rotate-slider"
+                 data-action="furnished-art-rotate-slider"
+                 min="-15" max="15" step="0.1" value="0"
+                 aria-label="Fine rotation trim, plus or minus 15 degrees">
+        </div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="furnished-art-save" title="Save this alignment">Save alignment</button>
+        </div>
+      </div>` : ""}
     `;
   };
 

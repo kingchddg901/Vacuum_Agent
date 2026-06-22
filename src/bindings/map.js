@@ -46,6 +46,7 @@ export function applyMapBindings(proto) {
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
     this._bindAreaLabelDrag(root);
+    this._bindFurnishedArt(root);
     this._bindMapAnimalSelect(root);
     this._bindMapLayersPanel(root);
     this._bindMapRenderToggle(root);
@@ -1033,14 +1034,24 @@ export function applyMapBindings(proto) {
         const id = this.card._state.composeSelectedId?.();
         if (!id) return;
         if (e.target?.closest?.("[data-action='compose-select']")) return;
+        // A press that landed on the furnished-art drag layer is an art move, not a
+        // shape placement — let its own handler own it.
+        if (e.target?.closest?.("[data-action='furnished-art-drag']")) return;
         if (this.card._mapDragOccurred) { this.card._mapDragOccurred = false; return; }
         const r = composeLayers.getBoundingClientRect();
         if (!r.width || !r.height) return;
-        this.card._state.placeComposeScoped(
-          id,
+        // Config content is now wrapped in .evcc-map-content-rotator (D5), so convert the
+        // pointer% -> CONTENT% via unrotatePct (matches the room-view tap + the art drag);
+        // identity at rotation 0 (the prior un-rotated behaviour).
+        const rot = this.card._state.effectiveMapRotation?.()
+          ? (this.card._state.isLiveBackdropActive?.() ? this.card._state.effectiveMapRotation() : 0)
+          : 0;
+        const [pcx, pcy] = this.card._state.unrotatePct(
           ((e.clientX - r.left) / r.width) * 100,
           ((e.clientY - r.top) / r.height) * 100,
+          rot,
         );
+        this.card._state.placeComposeScoped(id, pcx, pcy);
         this.card._scheduleRender();
       });
     }
@@ -1451,6 +1462,312 @@ export function applyMapBindings(proto) {
           this.card._scheduleRender();
         };
 
+        el.addEventListener("pointermove",   onMove);
+        el.addEventListener("pointerup",     finish);
+        el.addEventListener("pointercancel", finish);
+      });
+    });
+  };
+
+  /* =========================================================
+     FURNISHED ART (Wave 1 — config view; "Live map" layout only)
+     =========================================================
+     Upload / render-mode toggle / align (nudge/scale/rotate + pointer-drag) the
+     whole-home art. The alignment uses an art-only DRAFT transform {tx,ty,scale,rotation}
+     (separate from the segment composer — no group/op/room_id, no polygon bake); Save
+     persists it via set_furnished_art_placement (scope home). The drag converts
+     pointer→content% through unrotatePct (the mascot/area-label pattern) so it stays
+     correct on a rotated live map. */
+  proto._bindFurnishedArt = function (root) {
+    const _mapId = () =>
+      this.card._state.mapSegmentsData()?.map_id ?? this.card._state.activeMapId?.() ?? null;
+
+    // --- Render-mode toggle (live / blend / art) ---
+    root.querySelectorAll("[data-action='furnished-render-mode']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        const mode = btn.dataset.mode;
+        if (!mapId || !mode) return;
+        // Optimistic flip is set inside the action; refetch to settle the saved value.
+        this.card._scheduleRender();
+        try {
+          await this.card._actions.setFurnishedRenderMode(mapId, mode);
+        } catch (err) {
+          // The mode-set itself failed → revert the optimistic overlay to the saved value.
+          console.error("[eufy-vacuum-command-center] set furnished render mode failed:", err);
+          this.card._state.clearFurnishedRenderModeOptimistic?.();
+          this.card._scheduleRender();
+          return;
+        }
+        // Mode is saved server-side; refresh segments to settle it. If the REFRESH fails the
+        // optimistic overlay STAYS (it reflects what the server saved) and self-corrects on
+        // the next successful fetch — don't clear it here or the toggle snaps back to stale.
+        try {
+          await this.card._actions.getMapSegments(mapId);
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] segments refresh after render-mode set failed (mode was saved):", err);
+        }
+        this.card._scheduleRender();
+      });
+    });
+
+    // --- Upload furnished art (websocket-safe; whole-home scope) ---
+    root.querySelectorAll("[data-action='upload-furnished-art']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png,image/jpeg,image/webp,image/bmp";
+        const handleChange = async () => {
+          input.removeEventListener("change", handleChange);
+          const file = input.files?.[0];
+          if (!file) return;
+          const mapId = _mapId();
+          const layoutId = this.card._state.activeCustomLayoutId?.();
+          if (!mapId || !layoutId) {
+            this.card._state.setMapActionStatus({
+              type: "upload", variant: "furnished-art", status: "error",
+              message: "No active Live-map layout found",
+            });
+            this.card._scheduleRender();
+            return;
+          }
+          this.card._state.setMapActionStatus({ type: "upload", variant: "furnished-art", status: "busy" });
+          this.card._scheduleRender();
+          try {
+            // Display-only art: downscale + recompress (alpha-safe) to fit HA's WS frame.
+            const fitted = await _imageFileToFittedBase64(file, { maxDim: 2048, allowDownscale: true });
+            if (!fitted) throw new Error("Could not prepare the image for upload");
+            await this.card._actions.uploadMapImage(mapId, fitted.base64, {
+              variant: "custom",        // ignored when art_scope is set (server derives the key)
+              layout_id: layoutId,
+              art_scope: "home",
+            });
+            // Surface the freshly-uploaded art for alignment: if the layout is still in
+            // "live" mode (art hidden — the default), flip to "blend" so the user sees the
+            // art over a faded live map immediately, not an apparently-no-op upload.
+            if ((this.card._state.furnishedRenderMode?.() ?? "live") === "live") {
+              try { await this.card._actions.setFurnishedRenderMode(mapId, "blend"); }
+              catch (_e) { /* non-fatal: art uploaded; user can pick a mode manually */ }
+            }
+            await this.card._actions.getMapSegments(mapId);
+            this.card._state.clearMapActionStatus();
+            this.card._scheduleRender();
+          } catch (err) {
+            console.error("[eufy-vacuum-command-center] furnished art upload failed:", err);
+            this.card._state.setMapActionStatus({
+              type: "upload", variant: "furnished-art", status: "error",
+              message: _uploadErrorMessage(err),
+            });
+            this.card._scheduleRender();
+          }
+        };
+        input.addEventListener("change", handleChange);
+        input.click();
+      });
+    });
+
+    // --- Export the current map image (download it to trace furniture over) ---
+    // Fetches the exact live-map frame the card is showing (the same bytes a right-click →
+    // Save image would grab) and downloads it. The user draws their furniture over THAT in an
+    // external editor, then uploads it as the art — already registered to the map pixels, so
+    // in-card placement is near-identity. Pure client-side: no service call. Reads the src off
+    // the displayed <img> (most reliable — it's exactly what loaded), with a VA-render <canvas>
+    // fallback for the (non-live) self-render case.
+    root.querySelectorAll("[data-action='furnished-export-map']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        this.card._state.clearMapActionStatus?.();   // fresh action → drop any prior status (incl. a stale export error)
+        try {
+          const objId = (this.card._state.vacuumEntityId?.() ?? "vacuum").replace(/^.*\./, "");
+          const nameBase = `${objId}_${_mapId() ?? "map"}_map`;
+          // The button only renders when the furnished (live-backdrop) layout is active, which
+          // requires a present live image — so the base <img> is always mounted. Guard anyway.
+          const url = root
+            .querySelector(".evcc-map-container--config img.evcc-map-image")
+            ?.getAttribute("src") || null;
+          if (!url) throw new Error("no map image to export");
+          const resp = await fetch(url, { credentials: "same-origin" });
+          if (!resp.ok) throw new Error(`fetch ${resp.status}`);
+          const blob = await resp.blob();
+          if (!blob || !blob.size) throw new Error("empty image");
+          // Prefer the served Content-Type; fall back to the extension on the URL path (strip
+          // the cache-bust query) so a generic/empty type doesn't mislabel a JPEG/WebP as .png.
+          const byType = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp",
+                           "image/png": "png", "image/bmp": "bmp" }[blob.type];
+          const byPath = (url.split("?")[0].match(/\.(png|jpe?g|webp|bmp)$/i)?.[1] || "")
+            .toLowerCase().replace("jpeg", "jpg");
+          const ext = byType || byPath || "png";
+          const href = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = href;
+          a.download = `${nameBase}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(href), 1000);
+          this.card._scheduleRender();   // reflect the cleared status (drop any prior error span)
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] export map image failed:", err);
+          this.card._state.setMapActionStatus?.({
+            type: "export", variant: "furnished-map", status: "error",
+            message: "Couldn't save the map image — try right-click → Save image on the map.",
+          });
+          this.card._scheduleRender();
+        }
+      });
+    });
+
+    // --- Align: nudge / scale / rotate the draft (local; persisted on Save) ---
+    root.querySelectorAll("[data-action='furnished-art-nudge']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.nudgeFurnishedArt?.(Number(btn.dataset.dx ?? 0), Number(btn.dataset.dy ?? 0));
+        this.card._scheduleRender();
+      });
+    });
+    root.querySelectorAll("[data-action='furnished-art-scale']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.scaleFurnishedArt?.(Number(btn.dataset.factor ?? 1));
+        this.card._scheduleRender();
+      });
+    });
+    root.querySelectorAll("[data-action='furnished-art-rotate']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.rotateFurnishedArt?.(Number(btn.dataset.deg ?? 0));
+        this.card._scheduleRender();
+      });
+    });
+
+    // --- Fine rotation-trim slider (±15° around the current angle, commit on release) ---
+    // Previews a RELATIVE trim inline (no re-render mid-drag, like the pointer-drag), then
+    // commits the resulting ABSOLUTE angle on 'change'. `base` is the draft rotation captured
+    // at the start of the gesture; the slider snaps back to 0 after commit. Works for both
+    // pointer-drag and keyboard (base is lazily captured on the first 'input').
+    root.querySelectorAll("[data-action='furnished-art-rotate-slider']").forEach((slider) => {
+      let base = null;   // draft rotation captured at gesture start; the trim is RELATIVE to it
+      const artEl   = () => root.querySelector(".evcc-map-art--editable");
+      const readout = () => root.querySelector(".evcc-map-furnished-rotate-readout");
+      const applyInline = (rot) => {
+        const el = artEl();
+        if (el) {
+          const t = this.card._state.furnishedArtTransform?.() ?? { tx: 0, ty: 0, scale: 1 };
+          const tx = Number(t.tx) || 0, ty = Number(t.ty) || 0, sc = Number(t.scale) || 1;
+          el.style.transform = `translate(${tx.toFixed(3)}%, ${ty.toFixed(3)}%) rotate(${rot}deg) scale(${sc})`;
+        }
+        const r = readout();
+        if (r) r.textContent = `${((((rot % 360) + 360) % 360)).toFixed(1)}°`;
+      };
+      // Pointer-drag is a multi-second gesture → suppress re-renders for its duration so the
+      // slider/art aren't rebuilt mid-drag (which would lose the gesture). Each input applies
+      // the trim ABSOLUTELY (base + value) to the draft, so re-applying never compounds and
+      // there's no fragile separate-commit step. Release just recenters the slider + re-enables
+      // rendering. Keyboard arrows fire input+change instantly per press (base re-captured each
+      // time), so they don't depend on the pointer bracket.
+      this.card._on(slider, "pointerdown", () => {
+        this.card._furnishedGestureActive = true;
+        base = Number(this.card._state.furnishedArtTransform?.()?.rotation ?? 0);
+      });
+      this.card._on(slider, "input", () => {
+        if (base == null) base = Number(this.card._state.furnishedArtTransform?.()?.rotation ?? 0);
+        const target = base + (Number(slider.value) || 0);
+        this.card._state.setFurnishedArtRotationAbsolute?.(target);  // mutate draft (absolute → no compounding)
+        applyInline(target);                                         // live visual (renders are suppressed)
+      });
+      const release = () => {
+        base = null;
+        slider.value = 0;                            // the trim recenters after each gesture
+        this.card._furnishedGestureActive = false;
+        this.card._scheduleRender();                 // settles the committed draft + resets the slider DOM
+      };
+      this.card._on(slider, "change", release);
+      this.card._on(slider, "pointerup", release);
+      this.card._on(slider, "pointercancel", release);
+    });
+
+    // --- Save the draft alignment ---
+    root.querySelectorAll("[data-action='furnished-art-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        const t = this.card._state.furnishedArtTransform?.();
+        try {
+          await this.card._actions.setFurnishedArtPlacement(mapId, t);
+          await this.card._actions.getMapSegments(mapId);  // refresh FIRST so the layout holds the new transform
+          this.card._state.clearFurnishedArtDraft?.();     // THEN drop the draft — no fall-back-to-old-transform flicker window
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] save furnished art placement failed:", err);
+        }
+      });
+    });
+
+    // --- Reset placement (clear the saved transform; keeps the uploaded image) ---
+    root.querySelectorAll("[data-action='furnished-art-clear']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        try {
+          await this.card._actions.setFurnishedArtPlacement(mapId, null);
+          this.card._state.clearFurnishedArtDraft?.();
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] clear furnished art placement failed:", err);
+        }
+      });
+    });
+
+    // --- Pointer-drag the art over the map (mascot/area-label pattern) ---
+    root.querySelectorAll("[data-action='furnished-art-drag']").forEach((el) => {
+      const layers = el.closest(".evcc-map-layers")
+        ?? root.querySelector(".evcc-map-container--config .evcc-map-layers");
+      if (!layers) return;
+      this.card._on(el, "pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();   // don't let the pan handler start a drag
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("evcc-map-art--dragging");
+        this.card._furnishedGestureActive = true;   // suppress re-renders so this element survives the drag
+
+        const layerRect = layers.getBoundingClientRect();
+        // The art lives INSIDE .evcc-map-content-rotator; the pointer is in the unrotated
+        // .evcc-map-layers frame. Convert pointer% -> CONTENT% via unrotatePct so a 90/270
+        // drag tracks (and stores) at the right spot. Identity at 0.
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        // Drag by the CONTENT-frame delta added to the current draft offset, so the art
+        // doesn't snap its centre to the grab point (it's translate(tx%,ty%) about centre).
+        const t0 = this.card._state.furnishedArtTransform?.() ?? { tx: 0, ty: 0, scale: 1, rotation: 0 };
+        const baseTx = Number(t0.tx) || 0, baseTy = Number(t0.ty) || 0;
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        let liveTx = baseTx, liveTy = baseTy, moved = false;
+
+        const applyInline = () => {
+          const sc = Number(this.card._state.furnishedArtTransform?.()?.scale ?? t0.scale ?? 1) || 1;
+          const r  = Number(this.card._state.furnishedArtTransform?.()?.rotation ?? t0.rotation ?? 0);
+          el.style.transform = `translate(${liveTx.toFixed(3)}%, ${liveTy.toFixed(3)}%) rotate(${r}deg) scale(${sc})`;
+        };
+        const onMove = (ev) => {
+          const [cx, cy] = ptrContentPct(ev.clientX, ev.clientY);
+          liveTx = baseTx + (cx - grabX);
+          liveTy = baseTy + (cy - grabY);
+          moved = true;
+          applyInline();   // optimistic, no re-render mid-drag
+        };
+        const finish = () => {
+          el.removeEventListener("pointermove",   onMove);
+          el.removeEventListener("pointerup",     finish);
+          el.removeEventListener("pointercancel", finish);
+          el.classList.remove("evcc-map-art--dragging");
+          this.card._furnishedGestureActive = false;   // re-enable renders
+          if (moved) this.card._state.setFurnishedArtOffset?.(liveTx, liveTy);
+          this.card._scheduleRender();   // settle: commit the move (if any) + restore normal rendering
+        };
         el.addEventListener("pointermove",   onMove);
         el.addEventListener("pointerup",     finish);
         el.addEventListener("pointercancel", finish);

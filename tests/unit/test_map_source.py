@@ -70,6 +70,8 @@ def test_rooms_from_room_pixels():
     # rid 1 covers px 0-2, py 0-2; Y-flip -> image y in [0.7, 0.9]
     assert by_id[1]["bbox"] == [0.0, 0.7, 0.2, 0.9]
     assert by_id[2]["bbox"] == [0.5, 0.2, 0.7, 0.4]
+    # Real-world box dims from the pixel extent x resolution (res=5cm): 3 cells -> 0.15 m.
+    assert by_id[1]["width_m"] == 0.15 and by_id[1]["height_m"] == 0.15
 
 
 def test_rooms_from_room_pixels_empty():

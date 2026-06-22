@@ -122,6 +122,10 @@ export const SERVICE_RENAME_CUSTOM_LAYOUT     = "rename_custom_layout";
 export const SERVICE_DELETE_CUSTOM_LAYOUT     = "delete_custom_layout";
 export const SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout";
 
+// --- Furnished custom render (Wave 1: whole-home art over the live map) ---
+export const SERVICE_SET_FURNISHED_ART_PLACEMENT = "set_furnished_art_placement";
+export const SERVICE_SET_FURNISHED_RENDER_MODE   = "set_furnished_render_mode";
+
 // --- Map UI overlays (segment↔room links, companion anchors) ---
 // Backend-persisted equivalents of what used to live in browser
 // localStorage. Card writes through the service; reads ride along on

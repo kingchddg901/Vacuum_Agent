@@ -3631,7 +3631,10 @@ class EufyVacuumManager:
         # Per-map overlay-layer visibility (Wave 3b): the user's stored deltas merged
         # over the defaults, so the card knows which map_state_source layers to draw.
         # Independent of map_state_source presence (prefs exist even when no map data).
-        from ..mapping.map_source import resolve_overlay_visibility
+        from ..mapping.map_source import (
+            resolve_furnished_render,
+            resolve_overlay_visibility,
+        )
         map_overlay_visibility = resolve_overlay_visibility(
             _live_map_bucket.get("overlay_visibility")
         )
@@ -3677,6 +3680,11 @@ class EufyVacuumManager:
                 list(_live_map_bucket.get("hidden_regions") or [])
                 if isinstance(_live_map_bucket.get("hidden_regions"), list) else []
             ),
+            # Furnished custom render (Wave 0): the active custom layout's furnished-art
+            # placements + per-room viewports, resolved to browser_urls, so a later
+            # frontend wave can composite user art over the plain dashboard live map.
+            # None unless custom mode + an active layout carrying furnished data.
+            "furnished_render": resolve_furnished_render(_live_map_bucket),
             "supports_va_render": supports_va_render,
             # VA-owned read of the provider's OWN segmentation (map_state_source,
             # Wave 1: per-room bbox+name + dock/robot anchors, normalized to the

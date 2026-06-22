@@ -989,6 +989,13 @@ class EufyVacuumCommandCenter extends HTMLElement {
      RENDER SCHEDULING
      ========================================================= */
   _scheduleRender() {
+    // A furnished-art alignment gesture (pointer-drag or fine-trim slider) updates the art
+    // element's transform INLINE and must not be interrupted by a re-render: the live-map
+    // poll AND frequent `set hass` updates would otherwise rebuild the DOM mid-gesture,
+    // detach the dragged element, and lose the move (its pointer listeners die on the
+    // detached node). Suppress renders for the gesture's duration; the gesture's finish
+    // handler clears the flag and calls _scheduleRender once to settle the committed result.
+    if (this._furnishedGestureActive) return;
     if (this._renderScheduled) return;
     this._renderScheduled = true;
 

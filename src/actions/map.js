@@ -24,6 +24,8 @@ import {
   SERVICE_RENAME_CUSTOM_LAYOUT,
   SERVICE_DELETE_CUSTOM_LAYOUT,
   SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+  SERVICE_SET_FURNISHED_ART_PLACEMENT,
+  SERVICE_SET_FURNISHED_RENDER_MODE,
   SERVICE_START_ZONE_CLEAN,
 } from "../constants.js";
 
@@ -478,6 +480,51 @@ export function applyMapActions(proto) {
     const result = await this.callService(
       DOMAIN, SERVICE_DELETE_CUSTOM_LAYOUT,
       { vacuum_entity_id: vacuum, map_id: mapId, layout_id: layoutId },
+      true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /* =========================================================
+     FURNISHED CUSTOM RENDER (Wave 1 — whole-home art over the live map)
+     ========================================================= */
+
+  /**
+   * Persist (or clear) the WHOLE-HOME furnished-art placement transform on the active
+   * custom layout. Pass an object {tx,ty,scale,rotation} to set; pass null (or omit it) to
+   * CLEAR the placement (all four params null → the backend pops the transform). scope is
+   * always "home" in Wave 1 (per-room is Wave 2). Returns the resolved furnished_render.
+   */
+  proto.setFurnishedArtPlacement = async function (mapId, transform) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    const payload = { vacuum_entity_id: vacuum, map_id: mapId, scope: "home" };
+    if (transform == null) {
+      payload.tx = null; payload.ty = null; payload.scale = null; payload.rotation = null;
+    } else {
+      payload.tx = Number(transform.tx ?? 0);
+      payload.ty = Number(transform.ty ?? 0);
+      payload.scale = Number(transform.scale ?? 1);
+      payload.rotation = Number(transform.rotation ?? 0);
+    }
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, payload, true,
+    );
+    return result?.response ?? result ?? null;
+  };
+
+  /**
+   * Set the layout-level furnished render mode (live | art | blend). room_id is omitted in
+   * Wave 1 (the layout-level default). Optimistic flip first so the toggle is instant; the
+   * snapshot/segments fetch reconciles it. Returns the resolved furnished_render.
+   */
+  proto.setFurnishedRenderMode = async function (mapId, mode) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || !mapId) return null;
+    this.state.setFurnishedRenderModeOptimistic?.(mode);
+    const result = await this.callService(
+      DOMAIN, SERVICE_SET_FURNISHED_RENDER_MODE,
+      { vacuum_entity_id: vacuum, map_id: mapId, mode },
       true,
     );
     return result?.response ?? result ?? null;

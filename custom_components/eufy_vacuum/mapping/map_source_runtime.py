@@ -458,6 +458,11 @@ def rooms_from_mapdata(map_data: Any) -> list[dict[str, Any]]:
                 f"Room {num}" if num is not None else "Room ?"),
             "bbox": [ax0, ay0, ax1, ay1],
             "area_m2": _rb_area_m2(x0, y0, x1, y1),
+            # Real-world bbox dimensions (the room's axis-aligned extent in metres) from
+            # the raw vacuum-mm corners — a to-scale guide for the furnished render. The
+            # bbox over-estimates non-rectangular rooms (matches `approximate`).
+            "width_m": round(abs(x1 - x0) / 1000.0, 2),
+            "height_m": round(abs(y1 - y0) / 1000.0, 2),
             "approximate": True,
         })
     return out

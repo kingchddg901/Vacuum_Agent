@@ -164,6 +164,9 @@ export function applyMapState(proto) {
       this._zoneDrawMode = false;      // exit ad-hoc zone-draw on any map/layout switch
       this._zoneDrafts = [];
       this._mascotDwellState = null;   // fresh dwell tracking for the new map/layout
+      this._furnishedArtDraft = null;  // new map/layout → reseed the art draft from its saved transform
+      this._furnishedArtDraftKey = null;
+      this._furnishedModeOverlay = null;
       if (data?.map_id !== oldMapId) {
         this.resetMapTransform();
         // Rotation is stored per-map; drop a pending optimistic overlay so a freshly
@@ -177,6 +180,7 @@ export function applyMapState(proto) {
       // backend payload or were rejected (rare; the action would log).
       this._segmentRoomOverlay = null;
       this._dotAnchorOverlay = null;
+      this._furnishedModeOverlay = null;   // fresh segments carry the saved render_mode now
     }
     // Legacy localStorage migration is driven by the action layer
     // (`getMapSegments` in actions/map.js) — state has no card
@@ -300,6 +304,179 @@ export function applyMapState(proto) {
     const v = this.activeCustomLayout()?.backdrop_variant || "custom";
     if (variants[v]) return false; // an uploaded backdrop exists -> not live-backed
     return Boolean(this._liveMapImageUrl());
+  };
+
+  /* =========================================================
+     FURNISHED CUSTOM RENDER (Wave 1 — WHOLE-HOME art over the live map)
+     =========================================================
+     The user uploads a to-scale render of their home, aligns it ONCE over the live
+     map (drag/scale/rotate), and the live robot/dock/path/room overlays ride on top.
+     The art is one rotated rect {tx,ty,scale,rotation} in the live image's NATURAL
+     (pre-live_map_rotation) pct frame (D1/D2); it renders as an <img class="evcc-map-art">
+     INSIDE .evcc-map-content-rotator (so it inherits zoom + rotation for free), over the
+     faded live base, UNDER the overlay SVG/markers. Brand-agnostic — it rides
+     liveMapImageEntity()/mapImageSize(), no brand strings.
+
+     TWO READ PATHS (mirrors area_label_anchors / hidden_regions):
+       • Room view (plain dashboard): dashboardSnapshot().furnished_render (resolved
+         server-side: home_art.art_url already a browser_url + transform).
+       • Editor (config view): the ACTIVE custom layout's summary from get_map_segments
+         carries render_mode + home_art ({art_variant, art_placement_transform}); the
+         art_variant resolves to a browser_url via image_variants. The optimistic draft
+         transform (below) overrides both while the user is dragging.
+
+     Per-room art / sub-tabs / saved viewport are Wave 2 — NOT read or written here. */
+
+  // Resolved furnished_render from the dashboard snapshot (room view). null when the map
+  // isn't in custom mode / no active layout / no furnished data.
+  proto.furnishedRender = function () {
+    return this.dashboardSnapshot?.()?.furnished_render ?? null;
+  };
+
+  // The whole-home art URL to paint, resolving the editor read-path when segments are
+  // loaded (custom mode authoring) and the snapshot otherwise. Editor: resolve the active
+  // layout's home_art.art_variant through image_variants → browser_url. Snapshot:
+  // furnished_render.home_art.art_url is already a browser_url. null = nothing to paint.
+  proto.furnishedHomeArtUrl = function () {
+    // Editor path: the active layout summary carries home_art {art_variant, ...}; resolve
+    // it via the variants store (the same store mapImageUrl reads). Authoritative while the
+    // config view's segments are loaded, so a freshly-uploaded art shows before a snapshot push.
+    if (this.segmentationMode?.() === "custom") {
+      const variant = this.activeCustomLayout?.()?.home_art?.art_variant;
+      if (variant) {
+        const entry = (this._mapSegmentsData?.image_variants ?? {})[variant];
+        const url = entry?.browser_url;
+        if (url) return url;
+      }
+    }
+    const snapUrl = this.furnishedRender()?.home_art?.art_url;
+    return snapUrl || null;
+  };
+
+  // The saved whole-home art placement transform {tx,ty,scale,rotation} (pct, natural
+  // frame). Editor read-path first (active layout home_art.art_placement_transform), else
+  // the snapshot. null when the art has no saved placement yet (renderer uses identity).
+  proto.furnishedHomeArtTransform = function () {
+    if (this.segmentationMode?.() === "custom") {
+      const t = this.activeCustomLayout?.()?.home_art?.art_placement_transform;
+      if (t && typeof t === "object") return t;
+    }
+    const snap = this.furnishedRender()?.home_art?.transform;
+    return (snap && typeof snap === "object") ? snap : null;
+  };
+
+  // The layout-level render mode (live | art | blend). Editor read-path first (active
+  // layout render_mode), else the snapshot, else "live" (art hidden, base full).
+  proto.furnishedRenderMode = function () {
+    if (this._furnishedModeOverlay != null) return this._furnishedModeOverlay;
+    let mode = null;
+    if (this.segmentationMode?.() === "custom") {
+      mode = this.activeCustomLayout?.()?.render_mode ?? null;
+    }
+    if (mode == null) mode = this.furnishedRender()?.render_mode ?? null;
+    return (mode === "art" || mode === "blend" || mode === "live") ? mode : "live";
+  };
+
+  // Optimistic render-mode flip (cleared once a fresh snapshot/segments fetch carries it),
+  // so the live/art/blend toggle is instant across the click → service-ack → refresh window.
+  proto._furnishedModeOverlay = null;
+  proto.setFurnishedRenderModeOptimistic = function (mode) {
+    this._furnishedModeOverlay = (mode === "art" || mode === "blend" || mode === "live") ? mode : null;
+  };
+  proto.clearFurnishedRenderModeOptimistic = function () { this._furnishedModeOverlay = null; };
+
+  // ---- Art-only alignment DRAFT (one transform, separate from the segment composer) ----
+  // A single {tx,ty,scale,rotation} the user nudges/drags while aligning. NO group/op/
+  // room_id, NO composeToSegments / polygon bake (that path destroys the editable angle —
+  // D8). Seeded lazily from the saved transform; persisted via set_furnished_art_placement
+  // on drop. Cleared on map/layout switch (setMapSegmentsData) so it reloads per layout.
+  proto._furnishedArtDraft = null;          // {tx,ty,scale,rotation} | null (not yet seeded)
+  proto._furnishedArtDraftKey = null;       // map:layout the draft was seeded for
+
+  // The transform the renderer/drag should use: the live draft if seeded, else the saved
+  // transform, else identity (centered, full-frame, no rotation). tx/ty are a pct offset
+  // (0 = centred in the letterbox), scale multiplies the contain size, rotation is degrees.
+  proto.furnishedArtTransform = function () {
+    if (this._furnishedArtDraft) return this._furnishedArtDraft;
+    const saved = this.furnishedHomeArtTransform();
+    return {
+      tx: Number(saved?.tx ?? 0),
+      ty: Number(saved?.ty ?? 0),
+      scale: Number(saved?.scale ?? 1),
+      rotation: Number(saved?.rotation ?? 0),
+    };
+  };
+
+  // Seed (once per map/layout) the editable draft from the saved transform, so the first
+  // nudge/drag starts from where the art currently sits. Idempotent within a layout.
+  proto.ensureFurnishedArtDraft = function () {
+    const key = `${this._mapSegmentsData?.map_id ?? ""}:${this.activeCustomLayoutId?.() ?? ""}`;
+    if (this._furnishedArtDraft && this._furnishedArtDraftKey === key) return this._furnishedArtDraft;
+    const t = this.furnishedArtTransform();
+    this._furnishedArtDraft = { tx: t.tx, ty: t.ty, scale: t.scale, rotation: t.rotation };
+    this._furnishedArtDraftKey = key;
+    return this._furnishedArtDraft;
+  };
+
+  proto.clearFurnishedArtDraft = function () {
+    this._furnishedArtDraft = null;
+    this._furnishedArtDraftKey = null;
+  };
+
+  // Set the draft offset directly (CONTENT-frame pct, already unrotated by the caller).
+  // No on-canvas clamp — the art legitimately overhangs the frame (D8). Returns the draft.
+  proto.setFurnishedArtOffset = function (tx, ty) {
+    const d = this.ensureFurnishedArtDraft();
+    d.tx = Number(tx) || 0;
+    d.ty = Number(ty) || 0;
+    return d;
+  };
+
+  // Multiply the draft scale (about the art centre). Clamp only to sane floors/ceilings —
+  // the art may scale well past the frame (D8). Returns the draft.
+  proto.scaleFurnishedArt = function (factor) {
+    const d = this.ensureFurnishedArtDraft();
+    d.scale = Math.max(0.05, Math.min(20, (Number(d.scale) || 1) * (Number(factor) || 1)));
+    return d;
+  };
+
+  // Rotate the draft by `deg` (wraps 0-360). Returns the draft. Fractional deg is fine —
+  // the coarse/fine/micro buttons pass ±90 / ±1 / ±0.1; the transform + backend store the
+  // raw float (backend rounds to 4 dp), so sub-degree alignment is lossless.
+  proto.rotateFurnishedArt = function (deg) {
+    const d = this.ensureFurnishedArtDraft();
+    const r = ((((Number(d.rotation) || 0) + (Number(deg) || 0)) % 360) + 360) % 360;
+    d.rotation = Math.round(r * 10000) / 10000;   // 4dp — matches the backend, no float-drift accrual
+    return d;
+  };
+
+  // Set the draft rotation to an ABSOLUTE angle in degrees (wraps 0-360). Used by the
+  // fine-trim slider, which previews a relative trim inline during the drag and commits the
+  // resulting absolute angle on release. Returns the draft.
+  proto.setFurnishedArtRotationAbsolute = function (deg) {
+    const d = this.ensureFurnishedArtDraft();
+    const r = (((Number(deg) || 0) % 360) + 360) % 360;
+    d.rotation = Math.round(r * 10000) / 10000;   // 4dp — matches the backend, no float-drift accrual
+    return d;
+  };
+
+  // Nudge the draft offset by a pct delta (button pad; CONTENT-frame, no unrotate needed —
+  // the buttons are axis-aligned in the rotated content frame). Returns the draft.
+  proto.nudgeFurnishedArt = function (dx, dy) {
+    const d = this.ensureFurnishedArtDraft();
+    d.tx = (Number(d.tx) || 0) + (Number(dx) || 0);
+    d.ty = (Number(d.ty) || 0) + (Number(dy) || 0);
+    return d;
+  };
+
+  // True when the furnished-art authoring affordances + the art layer should be live: an
+  // active custom layout pinned to the live backdrop (the "Live map" layout, D7) with a
+  // present live image. Gated HARD on a present image_size in the renderer (null → square
+  // assumed → the transform is the user's reconciliation; we still allow it, see §6).
+  proto.isFurnishedLayoutActive = function () {
+    return (this.segmentationMode?.() === "custom")
+        && this.activeCustomLayout?.()?.backdrop_source === "live"
+        && Boolean(this._liveMapImageUrl?.());
   };
 
   // ---- Custom-segment composer draft (in-progress shapes, not yet saved) ----

@@ -182,6 +182,17 @@ SERVICE_RENAME_CUSTOM_LAYOUT = "rename_custom_layout"
 SERVICE_DELETE_CUSTOM_LAYOUT = "delete_custom_layout"
 SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout"
 
+# Furnished custom render (Wave 0) — per-layout furnished-art overlay data so a
+# later frontend wave can composite user art over the live map. All three write
+# onto the ACTIVE custom layout (whole-home `home_art` + per-room `rooms[*]`
+# overrides), resolution-independent (pct floats); never map-bucket level.
+# `set_furnished_art_placement` writes/clears the {tx,ty,scale,rotation} transform;
+# `set_furnished_render_mode` sets live|art|blend at the layout or room level;
+# `set_room_viewport` writes/clears the saved {cx,cy,zoom} per-room framing.
+SERVICE_SET_FURNISHED_ART_PLACEMENT = "set_furnished_art_placement"
+SERVICE_SET_FURNISHED_RENDER_MODE = "set_furnished_render_mode"
+SERVICE_SET_ROOM_VIEWPORT = "set_room_viewport"
+
 # ----------------------
 # Theme services
 # ----------------------

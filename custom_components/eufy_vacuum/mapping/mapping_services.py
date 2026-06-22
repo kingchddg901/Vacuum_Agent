@@ -39,13 +39,20 @@ from ..const import (
     SERVICE_RENAME_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+    SERVICE_SET_FURNISHED_ART_PLACEMENT,
+    SERVICE_SET_FURNISHED_RENDER_MODE,
+    SERVICE_SET_ROOM_VIEWPORT,
     SERVICE_UPLOAD_MAP_IMAGE,
     SERVICE_DELETE_MAP_IMAGE,
 )
 from ..maps.map_manager import ensure_map_bucket
 from ..timestamp_utils import utc_now_iso
 from .manager import MappingManager
-from .map_source import OVERLAY_VISIBILITY_DEFAULTS, resolve_overlay_visibility
+from .map_source import (
+    OVERLAY_VISIBILITY_DEFAULTS,
+    resolve_furnished_render,
+    resolve_overlay_visibility,
+)
 from .segment_primitives import polygon_area, rasterize_primitives
 from .tracker import EVENT_BOUNDARY_SAVED
 
@@ -130,6 +137,10 @@ ALL_MAPPING_SERVICES = (
     SERVICE_RENAME_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+    # Furnished custom render
+    SERVICE_SET_FURNISHED_ART_PLACEMENT,
+    SERVICE_SET_FURNISHED_RENDER_MODE,
+    SERVICE_SET_ROOM_VIEWPORT,
 )
 
 # ---------------------------------------------------------------------------
@@ -358,6 +369,12 @@ UPLOAD_MAP_IMAGE_SCHEMA = vol.Schema(
         vol.Optional("layout_id"): cv.string,
         vol.Optional("image_width"): vol.Coerce(int),
         vol.Optional("image_height"): vol.Coerce(int),
+        # Furnished custom render (Wave 0): when set, the upload is furnished ART (not a
+        # backdrop). The variant key is DERIVED from layout_id + scope (custom_<id>_home_art
+        # or custom_<id>_room_<room_id>) and written onto the layout's home_art / rooms[*],
+        # never onto backdrop_variant. Requires layout_id; "room" requires room_id.
+        vol.Optional("art_scope"): vol.In(["home", "room"]),
+        vol.Optional("room_id"): vol.Any(cv.string, vol.Coerce(int)),
     }
 )
 
@@ -519,6 +536,49 @@ SET_AREA_LABEL_ANCHOR_SCHEMA = vol.Schema(
         vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
         vol.Optional("pct_x"): vol.Any(None, vol.Coerce(float)),
         vol.Optional("pct_y"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
+# Furnished custom render (Wave 0). All three write onto the ACTIVE custom layout.
+#
+# Furnished-art placement transform — the rotated-rect placement {tx,ty,scale,rotation}
+# (pct floats, resolution-independent) applied to the art element only. scope "home" =
+# the layout's whole-home art; "room" = a per-room override (room_id required). Pass all
+# of tx/ty/scale/rotation null (or omit them) to CLEAR the placement.
+SET_FURNISHED_ART_PLACEMENT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("scope"): vol.In(["home", "room"]),
+        vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
+        vol.Optional("tx"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("ty"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("scale"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("rotation"): vol.Any(None, vol.Coerce(float)),
+    }
+)
+
+# Furnished render mode — live | art | blend. room_id null/omitted = the layout-level
+# default; otherwise the per-room override.
+SET_FURNISHED_RENDER_MODE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("mode"): vol.In(["live", "art", "blend"]),
+        vol.Optional("room_id"): vol.Any(None, cv.string, vol.Coerce(int)),
+    }
+)
+
+# Saved per-room viewport (framing) — {cx,cy,zoom} (pct floats). Pass all of cx/cy/zoom
+# null (or omit them) to CLEAR the saved viewport.
+SET_ROOM_VIEWPORT_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("room_id"): vol.Any(cv.string, vol.Coerce(int)),
+        vol.Optional("cx"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("cy"): vol.Any(None, vol.Coerce(float)),
+        vol.Optional("zoom"): vol.Any(None, vol.Coerce(float)),
     }
 )
 
@@ -751,10 +811,34 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
     image_b64: str = call.data["image_base64"]
     declared_width: int | None = call.data.get("image_width")
     declared_height: int | None = call.data.get("image_height")
+    # Furnished custom render (Wave 0): art_scope ("home"/"room") routes the upload as
+    # furnished ART for the active-or-targeted layout (NOT a backdrop). room_id is the
+    # per-room target (str) when scope is "room".
+    art_scope: str | None = call.data.get("art_scope")
+    art_room_id = call.data.get("room_id")
 
+    if art_scope is not None:
+        # Furnished art is layout-scoped: the variant key + the layout field it writes
+        # are both DERIVED from layout_id, so it's required. The layout must already exist.
+        if layout_id is None:
+            return {"saved": False, "reason": "layout_id_required"}
+        if art_scope == "room":
+            art_room_id = str(art_room_id).strip() if art_room_id is not None else ""
+            if not art_room_id:
+                return {"saved": False, "reason": "missing_room_id"}
+            variant = f"custom_{layout_id}_room_{art_room_id}"
+        else:
+            variant = f"custom_{layout_id}_home_art"
+        _mgr = hass.data[DOMAIN][DATA_RUNTIME]
+        _bucket = ensure_map_bucket(
+            data=_mgr.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+        )
+        _migrate_custom_layouts(_bucket)
+        if not isinstance((_bucket.get("custom_layouts") or {}).get(layout_id), dict):
+            return {"saved": False, "reason": "layout_not_found"}
     # Per-layout backdrop: the layout_id forces the variant key (custom_<id>) and
     # the layout must already exist (validate before writing any file).
-    if layout_id is not None:
+    elif layout_id is not None:
         variant = f"custom_{layout_id}"
         _mgr = hass.data[DOMAIN][DATA_RUNTIME]
         _bucket = ensure_map_bucket(
@@ -828,7 +912,19 @@ async def _handle_upload_map_image(hass: HomeAssistant, call: ServiceCall) -> di
             "width": result["actual_width"],
             "height": result["actual_height"],
         }
-        if layout_id is not None:
+        if art_scope is not None:
+            # Furnished ART: write the derived variant onto the layout's home_art /
+            # rooms[*] (lazily created), NOT backdrop_variant (that stays the layout's
+            # whole-map backdrop). Bumps updated_at like the backdrop branch.
+            layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
+            if isinstance(layout, dict):
+                if art_scope == "room":
+                    rooms = layout.setdefault("rooms", {})
+                    rooms.setdefault(str(art_room_id), {})["art_variant"] = variant
+                else:
+                    layout.setdefault("home_art", {})["art_variant"] = variant
+                layout["updated_at"] = utc_now_iso()
+        elif layout_id is not None:
             layout = (map_bucket.get("custom_layouts") or {}).get(layout_id)
             if isinstance(layout, dict):
                 layout["backdrop_variant"] = variant
@@ -1136,6 +1232,11 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
             "segment_count": len((lay.get("custom_segments") or {}).get("segments") or []),
             "created_at": lay.get("created_at"),
             "updated_at": lay.get("updated_at"),
+            # Furnished custom render (Wave 0) — this fixed whitelist is the ONLY way the
+            # per-layout furnished keys reach the editor, so surface them here.
+            "render_mode": lay.get("render_mode"),
+            "home_art": lay.get("home_art"),
+            "rooms": lay.get("rooms") or {},
         }
         for lay in layouts.values()
         if isinstance(lay, dict)
@@ -1279,6 +1380,9 @@ def _migrate_custom_layouts(map_bucket: dict) -> None:
         "custom_segments": legacy,
         "segment_room_links": dict(links),
         "companion_anchors": dict(anchors),
+        # Furnished custom render (Wave 0): per-room furnished-art + viewport overrides.
+        # Empty at mint; home_art / render_mode stay absent until set (parity w/ _create_layout).
+        "rooms": {},
         "created_at": now,
         "updated_at": now,
     }
@@ -1336,6 +1440,9 @@ def _create_layout(
         "custom_segments": {},
         "segment_room_links": {},
         "companion_anchors": {},
+        # Furnished custom render (Wave 0): per-room furnished-art + viewport overrides.
+        # Empty at mint; home_art / render_mode stay absent until set.
+        "rooms": {},
         "created_at": now,
         "updated_at": now,
     }
@@ -1666,6 +1773,185 @@ async def _handle_set_companion_anchor(
         "room_id": room_id,
         "action": action,
         "companion_anchors": dict(anchors),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Furnished custom render (Wave 0) — per-layout furnished-art overlay state
+# ---------------------------------------------------------------------------
+#
+# All three write onto the ACTIVE custom layout (resolved via _active_custom_layout):
+# never the map bucket, so furnished data can't leak across CV / other layouts. The
+# whole-home art lives at layout["home_art"]; per-room overrides at
+# layout["rooms"][room_id]. Each bumps updated_at + async_saves + returns the resolved
+# furnished_render projection so the card refreshes without a second fetch. Transforms
+# and viewports are stored resolution-independent (pct floats).
+
+
+def _round4(value: Any, default: float) -> float:
+    """Coerce to float (schema already did) rounded to 4dp; ``default`` for None."""
+    return round(float(value), 4) if value is not None else default
+
+
+async def _handle_set_furnished_art_placement(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear the furnished-art placement transform {tx,ty,scale,rotation}
+    on the active custom layout. scope "home" = the whole-home art; "room" = a per-room
+    override (room_id required). Pass all of tx/ty/scale/rotation null (or omit them) to
+    clear the placement. Returns the resolved furnished_render so the card refreshes."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    scope: str = call.data["scope"]
+    room_id = call.data.get("room_id")
+    tx = call.data.get("tx")
+    ty = call.data.get("ty")
+    scale = call.data.get("scale")
+    rotation = call.data.get("rotation")
+
+    if scope == "room":
+        room_id = str(room_id).strip() if room_id is not None else ""
+        if not room_id:
+            return {"saved": False, "reason": "missing_room_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layout = _active_custom_layout(map_bucket)
+    if layout is None:
+        return {"saved": False, "reason": "no_active_layout"}
+
+    # The target dict the transform lives on: the home art, or the per-room override.
+    if scope == "room":
+        target = layout.setdefault("rooms", {}).setdefault(room_id, {})
+    else:
+        target = layout.setdefault("home_art", {})
+
+    if tx is None and ty is None and scale is None and rotation is None:
+        target.pop("art_placement_transform", None)
+        action = "cleared"
+    else:
+        target["art_placement_transform"] = {
+            "tx": _round4(tx, 0.0),
+            "ty": _round4(ty, 0.0),
+            # Clamp scale to the same [0.05, 20] floor/ceiling the card enforces. A raw 0
+            # (or negative) would persist as 0.0 but the renderer coerces it back to 1x
+            # (`Number(scale) || 1`), so state and render would silently disagree; clamp here
+            # so the stored value is always renderable and matches what the UI allows.
+            "scale": _round4(
+                None if scale is None else min(max(float(scale), 0.05), 20.0), 1.0,
+            ),
+            "rotation": _round4(rotation, 0.0),
+        }
+        action = "set"
+
+    layout["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_furnished_art_placement: %s scope=%s on %s/%s room=%s",
+        action, scope, vacuum_entity_id, map_id, room_id,
+    )
+    return {
+        "saved": True,
+        "scope": scope,
+        "room_id": room_id if scope == "room" else None,
+        "action": action,
+        "furnished_render": resolve_furnished_render(map_bucket),
+    }
+
+
+async def _handle_set_furnished_render_mode(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Set the furnished render mode (live | art | blend) at the layout level (room_id
+    omitted) or as a per-room override (room_id set) on the active custom layout."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    mode: str = call.data["mode"]
+    room_id = call.data.get("room_id")
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layout = _active_custom_layout(map_bucket)
+    if layout is None:
+        return {"saved": False, "reason": "no_active_layout"}
+
+    # A blank/whitespace room_id means "layout-level default", same as None — never mint a
+    # junk rooms[""] entry. (The placement/viewport handlers REJECT blank with missing_room_id
+    # because a transform/viewport with no room is meaningless; a render_mode legitimately
+    # defaults to the layout level, so route blank there instead of rejecting.)
+    room_id = str(room_id).strip() if room_id is not None else ""
+    if not room_id:
+        layout["render_mode"] = mode
+    else:
+        layout.setdefault("rooms", {}).setdefault(room_id, {})["render_mode"] = mode
+
+    layout["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_furnished_render_mode: %s on %s/%s room=%s",
+        mode, vacuum_entity_id, map_id, room_id or None,
+    )
+    return {
+        "saved": True,
+        "mode": mode,
+        "room_id": room_id or None,
+        "furnished_render": resolve_furnished_render(map_bucket),
+    }
+
+
+async def _handle_set_room_viewport(
+    hass: HomeAssistant, call: ServiceCall,
+) -> dict:
+    """Persist or clear a saved per-room viewport {cx,cy,zoom} (pct floats) on the
+    active custom layout. Pass all of cx/cy/zoom null (or omit them) to clear it."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    room_id = str(call.data["room_id"]).strip()
+    cx = call.data.get("cx")
+    cy = call.data.get("cy")
+    zoom = call.data.get("zoom")
+
+    if not room_id:
+        return {"saved": False, "reason": "missing_room_id"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_custom_layouts(map_bucket)
+    layout = _active_custom_layout(map_bucket)
+    if layout is None:
+        return {"saved": False, "reason": "no_active_layout"}
+
+    target = layout.setdefault("rooms", {}).setdefault(room_id, {})
+    if cx is None and cy is None and zoom is None:
+        target.pop("viewport", None)
+        action = "cleared"
+    else:
+        target["viewport"] = {
+            "cx": _round4(cx, 0.0),
+            "cy": _round4(cy, 0.0),
+            "zoom": _round4(zoom, 1.0),
+        }
+        action = "set"
+
+    layout["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    _LOGGER.debug(
+        "set_room_viewport: %s on %s/%s room %s",
+        action, vacuum_entity_id, map_id, room_id,
+    )
+    return {
+        "saved": True,
+        "room_id": room_id,
+        "action": action,
+        "furnished_render": resolve_furnished_render(map_bucket),
     }
 
 
@@ -2077,6 +2363,26 @@ async def _handle_delete_custom_layout(hass: HomeAssistant, call: ServiceCall) -
             await hass.async_add_executor_job(os.remove, meta["path"])
         except OSError:
             pass
+
+    # Furnished custom render (Wave 0): also sweep the layout's furnished-art files (the
+    # whole-home art + each per-room art) so they don't orphan on disk. Best-effort, same
+    # try/except as the backdrop removal above.
+    art_variants: list[str] = []
+    home_art = layout.get("home_art")
+    if isinstance(home_art, dict) and home_art.get("art_variant"):
+        art_variants.append(home_art["art_variant"])
+    rooms = layout.get("rooms")
+    if isinstance(rooms, dict):
+        for room in rooms.values():
+            if isinstance(room, dict) and room.get("art_variant"):
+                art_variants.append(room["art_variant"])
+    for art_variant in art_variants:
+        art_meta = (map_bucket.get("image_variants") or {}).pop(art_variant, None)
+        if isinstance(art_meta, dict) and art_meta.get("path"):
+            try:
+                await hass.async_add_executor_job(os.remove, art_meta["path"])
+            except OSError:
+                pass
 
     layouts.pop(layout_id, None)
 
@@ -2539,6 +2845,15 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_active_custom_layout(call: ServiceCall) -> dict:
         return await _handle_set_active_custom_layout(hass, call)
 
+    async def set_furnished_art_placement(call: ServiceCall) -> dict:
+        return await _handle_set_furnished_art_placement(hass, call)
+
+    async def set_furnished_render_mode(call: ServiceCall) -> dict:
+        return await _handle_set_furnished_render_mode(hass, call)
+
+    async def set_room_viewport(call: ServiceCall) -> dict:
+        return await _handle_set_room_viewport(hass, call)
+
     async def delete_map_image(call: ServiceCall) -> dict:
         return await _handle_delete_map_image(hass, call)
 
@@ -2630,6 +2945,18 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT, set_active_custom_layout,
         schema=SET_ACTIVE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, set_furnished_art_placement,
+        schema=SET_FURNISHED_ART_PLACEMENT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_FURNISHED_RENDER_MODE, set_furnished_render_mode,
+        schema=SET_FURNISHED_RENDER_MODE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_ROOM_VIEWPORT, set_room_viewport,
+        schema=SET_ROOM_VIEWPORT_SCHEMA, supports_response=True,
     )
 
 

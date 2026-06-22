@@ -197,6 +197,8 @@ def test_rooms_from_mapdata_transform():
     assert r["bbox"] == [0.1, 0.09, 0.5, 0.89]
     # vacuum units = mm: dx=2000mm=2m, dy=4000mm=4m -> 8.0 m^2 (bbox)
     assert r["area_m2"] == 8.0
+    # Real-world box dims in metres from the raw vacuum-mm corners (2000mm x 4000mm).
+    assert r["width_m"] == 2.0 and r["height_m"] == 4.0
 
 
 # --- Wave 3a Roborock overlay layers (overlays_from_mapdata) --------------------
