@@ -1,6 +1,6 @@
 /* GENERATED — do not edit by hand.
- * Community animal "mittens" — Mittens.
- * Source of truth: gallery/animals/mittens.json.
+ * Bundled animal "mittens" — Mittens.
+ * Source of truth: custom_components/eufy_vacuum/frontend/animal-svg/src/mittens.json.
  * Regenerate via the animal intake (scripts/animal-descriptor.mjs); never hand-edit.
  */
 (function () {

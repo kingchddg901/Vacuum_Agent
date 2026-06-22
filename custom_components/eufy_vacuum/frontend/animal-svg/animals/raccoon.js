@@ -1,6 +1,6 @@
 /* GENERATED — do not edit by hand.
- * Community animal "raccoon" — Raccoon.
- * Source of truth: gallery/animals/raccoon.json.
+ * Bundled animal "raccoon" — Raccoon.
+ * Source of truth: custom_components/eufy_vacuum/frontend/animal-svg/src/raccoon.json.
  * Regenerate via the animal intake (scripts/animal-descriptor.mjs); never hand-edit.
  */
 (function () {

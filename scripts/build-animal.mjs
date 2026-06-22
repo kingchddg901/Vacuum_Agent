@@ -86,8 +86,13 @@ if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) 
     process.exit(1);
   }
   if (write) {
-    mkdirSync(GALLERY_DIR, { recursive: true });
-    writeFileSync(resolve(GALLERY_DIR, `${r.animal.id}.json`), JSON.stringify(r.envelope, null, 2) + "\n");
+    // First-party (bundled) animals are hand-maintained as descriptors under
+    // animal-svg/src/, so a --first-party rebuild emits ONLY the generated
+    // module. Community builds also stamp the sanitised envelope into gallery/.
+    if (!firstParty) {
+      mkdirSync(GALLERY_DIR, { recursive: true });
+      writeFileSync(resolve(GALLERY_DIR, `${r.animal.id}.json`), JSON.stringify(r.envelope, null, 2) + "\n");
+    }
     writeFileSync(resolve(ANIMALS_DIR, `${r.animal.id}.js`), r.moduleJs);
   }
   console.log(`Built "${r.animal.id}" (${r.animal.name})${write ? "" : " [dry-run]"}`);

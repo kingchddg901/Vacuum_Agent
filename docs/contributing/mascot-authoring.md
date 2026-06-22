@@ -200,6 +200,9 @@ node scripts/build-animal.mjs \
   custom_components/eufy_vacuum/frontend/animal-svg/src/<id>.json --first-party
 ```
 
+That rebuilds only the `animals/<id>.js` module — a first-party rebuild leaves
+`gallery/animals/` alone (that's the home of community submissions like the Fox).
+
 The `bundled-animals` test guards that each committed `.js` is the faithful
 codegen of its descriptor, so **don't hand-edit the `.js`** — change the
 descriptor and rebuild. The cleanest submissions touch only one animal and

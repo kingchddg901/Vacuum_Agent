@@ -1,6 +1,6 @@
 /* GENERATED — do not edit by hand.
- * Community animal "cat" — Cat.
- * Source of truth: gallery/animals/cat.json.
+ * Bundled animal "cat" — Cat.
+ * Source of truth: custom_components/eufy_vacuum/frontend/animal-svg/src/cat.json.
  * Regenerate via the animal intake (scripts/animal-descriptor.mjs); never hand-edit.
  */
 (function () {

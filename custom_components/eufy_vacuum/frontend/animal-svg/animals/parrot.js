@@ -1,6 +1,6 @@
 /* GENERATED — do not edit by hand.
- * Community animal "parrot" — Parrot.
- * Source of truth: gallery/animals/parrot.json.
+ * Bundled animal "parrot" — Parrot.
+ * Source of truth: custom_components/eufy_vacuum/frontend/animal-svg/src/parrot.json.
  * Regenerate via the animal intake (scripts/animal-descriptor.mjs); never hand-edit.
  */
 (function () {

@@ -428,10 +428,17 @@ export function codegenAnimalModule(animal) {
     ...(wingLeft ? { wingLeft } : {}),
     ...(wingRight ? { wingRight } : {}),
   };
+  // First-party/bundled animals are authored as descriptors under animal-svg/src/;
+  // community submissions live in gallery/animals/. Name the real source either way.
+  const isCore = animal.source === "core";
+  const kind = isCore ? "Bundled" : "Community";
+  const sourcePath = isCore
+    ? `custom_components/eufy_vacuum/frontend/animal-svg/src/${animal.id}.json`
+    : `gallery/animals/${animal.id}.json`;
   return (
     `/* GENERATED — do not edit by hand.\n` +
-    ` * Community animal "${animal.id}" — ${animal.name}.\n` +
-    ` * Source of truth: gallery/animals/${animal.id}.json.\n` +
+    ` * ${kind} animal "${animal.id}" — ${animal.name}.\n` +
+    ` * Source of truth: ${sourcePath}.\n` +
     ` * Regenerate via the animal intake (scripts/animal-descriptor.mjs); never hand-edit.\n` +
     ` */\n` +
     `(function () {\n` +
