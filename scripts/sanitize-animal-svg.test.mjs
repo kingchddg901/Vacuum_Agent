@@ -106,3 +106,9 @@ test("[SAN-10] a clean benign part is preserved (idempotent-ish)", async () => {
   assert.ok(/stroke-width="11"/.test(out), out);
   assert.ok(/transform-origin/.test(out), out);
 });
+
+test("[SAN-11] inline style clamped to allowed props (transform-origin kept, rest dropped)", async () => {
+  const out = await clean('<g style="transform-origin: 170px 236px; background: red; position: fixed"><path d="M0 0"/></g>');
+  assert.ok(/transform-origin/.test(out), out);
+  assert.ok(!/background|position:\s*fixed/i.test(out), out);
+});

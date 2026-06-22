@@ -53,9 +53,10 @@ async function ensurePurify(page) {
 export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
   await ensurePurify(page);
   return page.evaluate(
-    ({ svg, tags, attrs, classAllow }) => {
+    ({ svg, tags, attrs, classAllow, styleProps }) => {
       const D = window.DOMPurify;
       const allowClasses = new Set(classAllow);
+      const allowStyle = new Set(styleProps);
       D.removeAllHooks();
       D.addHook("uponSanitizeAttribute", (node, data) => {
         const n = (data.attrName || "").toLowerCase();
@@ -66,6 +67,18 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
             .split(/\s+/)
             .filter((c) => c && allowClasses.has(c));
           data.attrValue = kept.join(" ");
+          if (!kept.length) data.keepAttr = false;
+        } else if (n === "style") {
+          // Clamp inline style to the few CSS properties animals need (the
+          // framework sets transform/transition itself; submitters mainly want
+          // transform-origin for the leg pivots). Everything else is dropped —
+          // DOMPurify already removed anything dangerous; this enforces intent.
+          const kept = String(data.attrValue || "")
+            .split(";")
+            .map((d) => d.trim())
+            .filter(Boolean)
+            .filter((d) => allowStyle.has((d.split(":")[0] || "").trim().toLowerCase()));
+          data.attrValue = kept.join("; ");
           if (!kept.length) data.keepAttr = false;
         }
       });
@@ -106,6 +119,7 @@ export async function sanitizePart(page, svg, allowlist = SVG_ALLOWLIST) {
       tags: allowlist.tags,
       attrs: allowlist.attrs,
       classAllow: [...allowlist.classAllow],
+      styleProps: allowlist.styleProps,
     },
   );
 }

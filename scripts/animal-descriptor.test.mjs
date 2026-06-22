@@ -298,3 +298,12 @@ test("[AD-28] HOSTILE fixture — the scary path is rejected, every dangerous ve
   // sanitiser (covered by that module's tests), not a rejection vector here.
   assert.ok(r.errors.length >= 5, `expected one rejection per hostile part, got ${r.errors.length}`);
 });
+
+test("[AD-29] description accepted + length-capped; submitted_by carried", () => {
+  const r = validateDescriptor(baseAnimal({ description: "A themeable red fox.", submitted_by: "Pat" }));
+  assert.equal(r.ok, true, errs(r));
+  assert.equal(r.animal.description, "A themeable red fox.");
+  assert.equal(r.animal.submitted_by, "Pat");
+  const long = validateDescriptor(baseAnimal({ description: "x".repeat(500) }));
+  assert.equal(long.animal.description.length, 280);
+});

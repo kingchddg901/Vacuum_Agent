@@ -63,6 +63,7 @@ export const RESERVED_IDS = new Set(["cat", "dog", "raccoon", "parrot", "snake",
 const ID_RE = /^[a-z][a-z0-9-]{1,30}$/;
 const NAME_MAX = 60;
 const META_MAX = 200;
+const DESC_MAX = 280;
 const TAG_MAX = 32;
 const MAX_TAGS = 12;
 const MAX_PART_BYTES = 32 * 1024;
@@ -331,6 +332,7 @@ export function validateDescriptor(input, opts = {}) {
   const authorUrl = isAcceptableAuthorUrl(rawUrl) ? rawUrl : "";
   const authorUrlRejected = rawUrl !== "" && authorUrl === "";
   const submittedBy = String(input.submitted_by || "").slice(0, META_MAX).trim();
+  const description = String(input.description || "").slice(0, DESC_MAX).trim();
 
   let tags = [];
   if (input.tags != null) {
@@ -361,6 +363,7 @@ export function validateDescriptor(input, opts = {}) {
     parts: { ...parts },
   };
   if (memorial) animal.memorial = true;
+  if (description) animal.description = description;
   if (author) animal.author = author;
   if (authorUrl) animal.author_url = authorUrl;
   if (submittedBy) animal.submitted_by = submittedBy;
