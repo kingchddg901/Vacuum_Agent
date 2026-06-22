@@ -8,7 +8,7 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
-## [1.2.0] - 2026-06-21
+## [1.2.0] - 2026-06-22
 
 **The map comes alive.** The Map view goes from a static backdrop to a live, interactive
 surface: the robot is tracked across it in real time, you can lay a render of your actual
