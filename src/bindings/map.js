@@ -1566,6 +1566,56 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // --- Export the current map image (download it to trace furniture over) ---
+    // Fetches the exact live-map frame the card is showing (the same bytes a right-click →
+    // Save image would grab) and downloads it. The user draws their furniture over THAT in an
+    // external editor, then uploads it as the art — already registered to the map pixels, so
+    // in-card placement is near-identity. Pure client-side: no service call. Reads the src off
+    // the displayed <img> (most reliable — it's exactly what loaded), with a VA-render <canvas>
+    // fallback for the (non-live) self-render case.
+    root.querySelectorAll("[data-action='furnished-export-map']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        this.card._state.clearMapActionStatus?.();   // fresh action → drop any prior status (incl. a stale export error)
+        try {
+          const objId = (this.card._state.vacuumEntityId?.() ?? "vacuum").replace(/^.*\./, "");
+          const nameBase = `${objId}_${_mapId() ?? "map"}_map`;
+          // The button only renders when the furnished (live-backdrop) layout is active, which
+          // requires a present live image — so the base <img> is always mounted. Guard anyway.
+          const url = root
+            .querySelector(".evcc-map-container--config img.evcc-map-image")
+            ?.getAttribute("src") || null;
+          if (!url) throw new Error("no map image to export");
+          const resp = await fetch(url, { credentials: "same-origin" });
+          if (!resp.ok) throw new Error(`fetch ${resp.status}`);
+          const blob = await resp.blob();
+          if (!blob || !blob.size) throw new Error("empty image");
+          // Prefer the served Content-Type; fall back to the extension on the URL path (strip
+          // the cache-bust query) so a generic/empty type doesn't mislabel a JPEG/WebP as .png.
+          const byType = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/webp": "webp",
+                           "image/png": "png", "image/bmp": "bmp" }[blob.type];
+          const byPath = (url.split("?")[0].match(/\.(png|jpe?g|webp|bmp)$/i)?.[1] || "")
+            .toLowerCase().replace("jpeg", "jpg");
+          const ext = byType || byPath || "png";
+          const href = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = href;
+          a.download = `${nameBase}.${ext}`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          setTimeout(() => URL.revokeObjectURL(href), 1000);
+          this.card._scheduleRender();   // reflect the cleared status (drop any prior error span)
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] export map image failed:", err);
+          this.card._state.setMapActionStatus?.({
+            type: "export", variant: "furnished-map", status: "error",
+            message: "Couldn't save the map image — try right-click → Save image on the map.",
+          });
+          this.card._scheduleRender();
+        }
+      });
+    });
+
     // --- Align: nudge / scale / rotate the draft (local; persisted on Save) ---
     root.querySelectorAll("[data-action='furnished-art-nudge']").forEach((btn) => {
       this.card._on(btn, "click", () => {

@@ -1235,6 +1235,8 @@ export function applyMapRenderers(proto) {
                    && actionStatus?.status === "busy";
     const isErr  = actionStatus?.type === "upload" && actionStatus?.variant === "furnished-art"
                    && actionStatus?.status === "error";
+    const isExportErr = actionStatus?.type === "export" && actionStatus?.variant === "furnished-map"
+                   && actionStatus?.status === "error";
     const noSize = !(state.mapImageSize?.());
 
     const modeBtn = (key, label, hint) => `
@@ -1249,6 +1251,16 @@ export function applyMapRenderers(proto) {
           Upload a to-scale render of your home, then align it over the live map — the
           live robot, dock, and cleaning path ride on top.
         </div>
+        <div class="evcc-map-config-adj-meta">
+          Tip: save the current map image, draw your furniture over it, then upload that —
+          it'll line up almost perfectly (the art is already registered to the map pixels).
+          The live robot may show in the saved frame on some maps — just ignore it when tracing.
+        </div>
+        <div class="evcc-compose-tools">
+          <button class="evcc-map-config-btn" data-action="furnished-export-map"
+            title="Download the current live map image to trace your furniture over">⬇ Save map image</button>
+        </div>
+        ${isExportErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Couldn't save the map image")}</span>` : ""}
         ${noSize ? `<div class="evcc-map-action-status evcc-map-action-status--error">
           The live map has no image size yet — start a clean or open the robot's app so it
           publishes a map frame, then align.</div>` : ""}
