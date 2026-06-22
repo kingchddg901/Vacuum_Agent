@@ -35,6 +35,12 @@ const SRC_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/src\/([a-
 const ANIMAL_JS_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/animals\/([a-z0-9-]+)\.js$/;
 const ANIMAL_SVG_DIR = "custom_components/eufy_vacuum/frontend/animal-svg/";
 
+// Compare codegen against the committed module by CONTENT, not line endings:
+// codegen emits LF, but a Windows checkout (no .gitattributes) may hold the
+// committed .js as CRLF. Stripping CR keeps the tamper-check honest there —
+// real tampering changes content, which survives this normalization.
+const codeEq = (a, b) => a.replace(/\r/g, "").trim() === b.replace(/\r/g, "").trim();
+
 /**
  * @param {string[]} changed  file paths the PR changes (repo-relative, /-separated)
  * @returns {Promise<{ok:boolean, problems:string[], galleryIds:string[]}>}
@@ -94,7 +100,7 @@ export async function checkAnimalPr(changed) {
     const jsPath = resolve(ANIMALS_DIR, `${id}.js`);
     if (!existsSync(jsPath)) {
       problems.push(`${f}: missing the generated module animals/${id}.js — run \`node scripts/build-animal.mjs ${f}${firstParty ? " --first-party" : ""}\`.`);
-    } else if (readFileSync(jsPath, "utf8").trim() !== codegenAnimalModule(v.animal).trim()) {
+    } else if (!codeEq(readFileSync(jsPath, "utf8"), codegenAnimalModule(v.animal))) {
       problems.push(`animals/${id}.js doesn't match its descriptor — regenerate with \`node scripts/build-animal.mjs ${f}${firstParty ? " --first-party" : ""}\`.`);
     }
   };

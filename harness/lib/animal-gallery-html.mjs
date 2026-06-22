@@ -10,6 +10,7 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { siteNav, SITE_NAV_CSS } from "./site-nav.mjs";
 
 export const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -122,9 +123,11 @@ export function writeAnimalPage(dir, animal, poses, meta = {}) {
   img { display:block; width:100%; height:auto; border:1px solid #232a32; border-radius:8px; background:#0b0d10; }
   footer { padding:0 24px 36px; color:#6b7480; font-size:.8rem; }
 ${TAG_CSS}
+${SITE_NAV_CSS}
 </style>
 </head>
 <body>
+  ${siteNav(2, "animals")}
   <header>
     <a class="back" href="../index.html">← all animals</a>
     <h1>${esc(animal.name)}${animal.memorial ? ` <span class="a-memorial">· 🌈 Rainbow Bridge</span>` : ""}</h1>
@@ -223,13 +226,15 @@ export function writeAnimalIndex(entries, outDir) {
   footer { padding:0 24px 36px; color:#6b7480; font-size:.8rem; }
   footer code { color:#99a2ad; }
 ${TAG_CSS}
+${SITE_NAV_CSS}
 </style>
 </head>
 <body>
+  ${siteNav(1, "animals")}
   <header>
     <h1>Vacuum Agent — animal gallery</h1>
     <p>${entries.length} companion${entries.length === 1 ? "" : "s"}, each rendered through the real animal-svg framework. Click one to see every pose, or <strong>⤓ Download</strong> its descriptor. Baked tributes live in <span class="a-memorial">🌈 Rainbow Bridge</span>.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit an animal</a> <a class="submit" href="../">🎨 Theme gallery</a> <a class="submit" href="../docs/contributing/animal-authoring/">📖 Authoring guide</a></p>
+    <p><a class="submit" href="${submitUrl}">+ Submit an animal</a> <a class="submit" href="../docs/contributing/animal-authoring/">📖 Authoring guide</a></p>
   </header>
   <nav class="toolbar">
     <div class="searchrow">

@@ -123,7 +123,7 @@ jobs:
               });
 
               // Preview contact sheet -> off-master branch -> raw URL (inline).
-              const sheet = `harness/out/preview/${slug}/_contact-sheet.png`;
+              const sheet = `harness/out/preview/themes/${slug}/_contact-sheet.png`;
               let previewMd = "";
               if (fs.existsSync(sheet)) {
                 try { await github.rest.git.getRef({ owner, repo, ref: `heads/${previewBranch}` }); }

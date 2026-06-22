@@ -27,7 +27,9 @@ import { writeThemePage, writeIndex } from "./lib/gallery-html.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repo = join(here, "..");
-const OUT = join(repo, "harness", "out", "preview");
+// The theme gallery now lives under /themes/ on the site (the root is the
+// landing page); animals are at /animals/, docs at /docs/.
+const OUT = join(repo, "harness", "out", "preview", "themes");
 // Full-surface galleries previewed per theme (the dot-* header clips are
 // excluded — too small to be theme-expressive). Includes the External Jobs
 // subtab + the two review-wizard steps so a theme is shown on the modal too.
@@ -186,13 +188,13 @@ for (const file of files) {
   processed.push({ name, themeName: envelope.theme?.name || name, scope, report, tags: themeTags, attr, filterTokens, download: downloadFile });
   console.log(
     `✓ ${name}: ${report.keyCount} keys, scope=[${scope.join(",") || "full"}], ` +
-      `${report.clamped} clamped, ${report.skippedKeys.length} skipped -> harness/out/preview/${name}/`,
+      `${report.clamped} clamped, ${report.skippedKeys.length} skipped -> harness/out/preview/themes/${name}/`,
   );
 }
 
 if (processed.length) {
   writeIndex(processed, OUT);
-  console.log(`index -> harness/out/preview/index.html (${processed.length} theme${processed.length === 1 ? "" : "s"})`);
+  console.log(`index -> harness/out/preview/themes/index.html (${processed.length} theme${processed.length === 1 ? "" : "s"})`);
 }
 
 await browser.close();

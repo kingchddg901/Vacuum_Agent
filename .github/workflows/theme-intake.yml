@@ -74,6 +74,9 @@ jobs:
       - name: Render animal gallery (/animals)
         run: node harness/preview-animals.mjs
 
+      - name: Build the landing page (site root)
+        run: node harness/build-landing.mjs
+
       - name: Upload gallery (artifact)
         uses: actions/upload-artifact@v6
         with:

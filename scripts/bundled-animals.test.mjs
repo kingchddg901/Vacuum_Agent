@@ -38,10 +38,13 @@ for (const id of ids) {
     assert.equal(v.animal.id, id);
     assert.equal(v.animal.source, "core");
 
+    // Compare by content, not line endings: codegen emits LF, but a Windows
+    // checkout (no .gitattributes) may hold the committed .js as CRLF.
+    const norm = (s) => s.replace(/\r/g, "").trim();
     const committed = readFileSync(resolve(ANIMALS, `${id}.js`), "utf8");
     assert.equal(
-      committed.trim(),
-      codegenAnimalModule(v.animal).trim(),
+      norm(committed),
+      norm(codegenAnimalModule(v.animal)),
       `animals/${id}.js is out of sync with src/${id}.json — regenerate: node scripts/build-animal.mjs custom_components/eufy_vacuum/frontend/animal-svg/src/${id}.json --first-party`,
     );
   });

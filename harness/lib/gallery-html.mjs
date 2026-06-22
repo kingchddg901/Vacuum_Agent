@@ -11,6 +11,7 @@
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { FACETS, facetOf, orderTags } from "../../src/theme-tags/index.mjs";
+import { siteNav, SITE_NAV_CSS } from "./site-nav.mjs";
 
 export const esc = (s) =>
   String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -144,9 +145,11 @@ ${list
   img { display:block; width:100%; height:auto; border:1px solid #232a32; border-radius:8px; background:#0b0d10; }
   footer { padding:0 24px 36px; color:#6b7480; font-size:.8rem; }
 ${TAG_CSS}
+${SITE_NAV_CSS}
 </style>
 </head>
 <body>
+  ${siteNav(2, "themes")}
   <header>
     <a class="back" href="../index.html">← all themes</a>
     <h1>${esc(themeName)}</h1>
@@ -254,13 +257,15 @@ export function writeIndex(entries, outDir) {
   footer { padding: 0 24px 36px; color: #6b7480; font-size: 0.8rem; }
   footer code { color: #99a2ad; }
 ${TAG_CSS}
+${SITE_NAV_CSS}
 </style>
 </head>
 <body>
+  ${siteNav(1, "themes")}
   <header>
     <h1>EVCC theme gallery</h1>
     <p>${entries.length} theme${entries.length === 1 ? "" : "s"} rendered through the harness ingest gate — each is the real card recolored by a committed export. Click a theme to open its full preview, or <strong>⤓ Download</strong> any theme and import it via the card's Upload button.</p>
-    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a> <a class="submit" href="animals/">🦊 Animal gallery</a> <a class="submit" href="docs/">📖 Documentation</a></p>
+    <p><a class="submit" href="${submitUrl}">+ Submit a theme</a></p>
   </header>
   <nav class="toolbar">
     <div class="searchrow">
