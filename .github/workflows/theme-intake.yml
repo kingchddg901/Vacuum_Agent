@@ -29,6 +29,8 @@ on:
   push:
     paths:
       - "gallery/themes/*.json"
+      - "gallery/animals/*.json"
+      - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "harness/**"
       - "docs/**"
       - "mkdocs.yml"
@@ -36,6 +38,8 @@ on:
   pull_request:
     paths:
       - "gallery/themes/*.json"
+      - "gallery/animals/*.json"
+      - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "docs/**"
       - "mkdocs.yml"
 
@@ -66,6 +70,9 @@ jobs:
 
       - name: Render theme preview(s)
         run: node harness/preview.mjs "${{ github.event.inputs.path }}"
+
+      - name: Render animal gallery (/animals)
+        run: node harness/preview-animals.mjs
 
       - name: Upload gallery (artifact)
         uses: actions/upload-artifact@v6
