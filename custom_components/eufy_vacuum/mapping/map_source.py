@@ -66,6 +66,84 @@ def resolve_overlay_visibility(stored: Any) -> dict[str, bool]:
     return out
 
 
+def _furnished_art_url(map_bucket: Any, variant: Any) -> str | None:
+    """Resolve a furnished-art image variant to its browser_url, or None.
+
+    Tolerates a missing image_variants store / unknown variant / malformed entry —
+    this is a never-raise resolver on the on-loop snapshot path."""
+    if not variant:
+        return None
+    variants = map_bucket.get("image_variants") if isinstance(map_bucket, dict) else None
+    if not isinstance(variants, dict):
+        return None
+    entry = variants.get(variant)
+    if not isinstance(entry, dict):
+        return None
+    url = entry.get("browser_url")
+    return url if isinstance(url, str) and url else None
+
+
+def resolve_furnished_render(map_bucket: Any) -> dict | None:
+    """PURE: project the ACTIVE custom layout's furnished-art data into the resolved
+    shape the card's furnished render consumes (Wave 0).
+
+    Returns None when the map isn't in custom mode, has no active custom layout, or the
+    active layout carries no furnished data (no whole-home art AND no per-room furnished
+    field). Otherwise returns the layout-level render_mode + the whole-home art (its
+    image variant resolved to a browser_url) + per-room entries for any room that has at
+    least one furnished field (art_variant / art_placement_transform / viewport /
+    render_mode). Transforms/viewports are stored resolution-independent (pct floats) and
+    passed through untouched. Never raises; tolerates every missing/malformed key.
+
+    Read locally (no import from mapping_services) to keep this a pure, cycle-free fn:
+    the active layout is map_bucket['custom_layouts'][map_bucket['active_custom_layout_id']],
+    exactly as ``_active_custom_layout`` resolves it."""
+    if not isinstance(map_bucket, dict):
+        return None
+    if (map_bucket.get("segmentation_mode") or "cv") != "custom":
+        return None
+    layouts = map_bucket.get("custom_layouts")
+    layout_id = map_bucket.get("active_custom_layout_id")
+    layout = layouts.get(layout_id) if isinstance(layouts, dict) and layout_id else None
+    if not isinstance(layout, dict):
+        return None
+
+    home_art_raw = layout.get("home_art") if isinstance(layout.get("home_art"), dict) else None
+    rooms_raw = layout.get("rooms") if isinstance(layout.get("rooms"), dict) else {}
+
+    # Per-room: include any room with at least one furnished field present.
+    _FURNISHED_FIELDS = ("art_variant", "art_placement_transform", "viewport", "render_mode")
+    rooms_out: dict[str, Any] = {}
+    for rid, entry in rooms_raw.items():
+        if not isinstance(entry, dict):
+            continue
+        if not any(entry.get(f) is not None for f in _FURNISHED_FIELDS):
+            continue
+        rooms_out[str(rid)] = {
+            "art_url": _furnished_art_url(map_bucket, entry.get("art_variant")),
+            "transform": entry.get("art_placement_transform"),
+            "viewport": entry.get("viewport"),
+            "render_mode": entry.get("render_mode"),
+        }
+
+    if home_art_raw is None and not rooms_out:
+        return None
+
+    home_out = None
+    if home_art_raw is not None:
+        home_out = {
+            "art_url": _furnished_art_url(map_bucket, home_art_raw.get("art_variant")),
+            "transform": home_art_raw.get("art_placement_transform"),
+        }
+
+    return {
+        "active_layout_id": layout_id,
+        "render_mode": layout.get("render_mode") or "live",
+        "home_art": home_out,
+        "rooms": rooms_out,
+    }
+
+
 def _decimate_step(n: int, max_points: int) -> int:
     """Ceil-division stride so a sampled sequence is HARD-capped at ~max_points.
 

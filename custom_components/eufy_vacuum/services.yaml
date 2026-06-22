@@ -2596,3 +2596,152 @@ set_active_custom_layout:
       selector:
         text: {}
 
+set_furnished_art_placement:
+  name: Set furnished art placement
+  description: >
+    Persist (or clear) the furnished-art placement transform on the active custom
+    layout. scope "home" places the whole-home art; "room" places a per-room override
+    (room_id required). tx/ty/scale/rotation are resolution-independent (pct of the
+    live image). Pass all four null (or omit them) to clear the placement. Normally
+    driven by the card's furnished-art aligner, not called by hand.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    scope:
+      name: Scope
+      required: true
+      selector:
+        select:
+          options:
+            - home
+            - room
+    room_id:
+      name: Room ID
+      description: Required when scope is "room".
+      required: false
+      selector:
+        text: {}
+    tx:
+      name: Offset X (pct)
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+    ty:
+      name: Offset Y (pct)
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+    scale:
+      name: Scale
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+    rotation:
+      name: Rotation (deg)
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+
+set_furnished_render_mode:
+  name: Set furnished render mode
+  description: >
+    Set how the furnished view composites on the active custom layout — "live" (live map
+    only), "art" (art only), or "blend" (art faded over the live map). Omit room_id for the
+    layout-level default; pass it for a per-room override.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    mode:
+      name: Render mode
+      required: true
+      selector:
+        select:
+          options:
+            - live
+            - art
+            - blend
+    room_id:
+      name: Room ID
+      description: Omit for the layout-level default; set for a per-room override.
+      required: false
+      selector:
+        text: {}
+
+set_room_viewport:
+  name: Set room viewport
+  description: >
+    Persist (or clear) a saved per-room viewport (framing) on the active custom layout.
+    cx/cy/zoom are resolution-independent (pct of the live image). Pass all three null
+    (or omit them) to clear the saved viewport. Normally driven by the card's per-room
+    sub-tabs, not called by hand.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    room_id:
+      name: Room ID
+      required: true
+      selector:
+        text: {}
+    cx:
+      name: Center X (pct)
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+    cy:
+      name: Center Y (pct)
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+    zoom:
+      name: Zoom
+      required: false
+      selector:
+        number:
+          step: 0.0001
+          mode: box
+
