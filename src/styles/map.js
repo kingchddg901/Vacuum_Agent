@@ -100,6 +100,44 @@ export const mapStyles = `
     image-rendering: auto;
   }
 
+  /* =========================================================
+     FURNISHED ART LAYER (Wave 1 — whole-home render over the live map)
+     =========================================================
+     The user's to-scale home art, placed as ONE rotated rect over the live base. A
+     DISTINCT class from .evcc-map-image (D3) so the zone-confirm naturalWidth selector +
+     selection scrim + hit-test never grab it. Like .evcc-map-selection-canvas it is
+     absolute+inset:0 with NO z-index: emitted right AFTER the in-flow base <img> and
+     BEFORE the .evcc-map-svg, so DOM paint order lands it ABOVE the base and BELOW the
+     overlay SVG + robot/dock/path markers (z 6). object-fit:contain = the SAME letterbox
+     the overlays assume, so an untransformed art exactly fills the overlay frame; the
+     placement transform (translate/rotate/scale) is applied inline to THIS element only,
+     about its centre, and rides the rotator's live_map_rotation for free. */
+  .evcc-map-art {
+    position:          absolute;
+    inset:             0;
+    width:             100%;
+    height:            100%;
+    object-fit:        contain;
+    transform-origin:  50% 50%;
+    pointer-events:    none;        /* display-only in the room view */
+    user-select:       none;
+    -webkit-user-drag: none;
+  }
+  /* Config view: the art is the alignment target — make it grabbable. */
+  .evcc-map-art--editable {
+    pointer-events: auto;
+    cursor:         grab;
+    touch-action:   none;           /* pointer-drag on touch without page scroll */
+  }
+  .evcc-map-art--dragging { cursor: grabbing; }
+
+  /* Base-fade by render mode: the live <img> stays MOUNTED always (D4 — anchors the
+     overlay frame + keeps the camera poll alive); only its opacity changes. 'art' fades
+     the base to ~0 (art full); 'blend' to ~0.45 (art over a ghost of the live map, the
+     alignment view). 'live' leaves the base untouched (no class). */
+  .evcc-map-image--furnished-art   { opacity: 0.02; }
+  .evcc-map-image--furnished-blend { opacity: 0.45; }
+
   /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
      segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
      90° step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with

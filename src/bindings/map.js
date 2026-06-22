@@ -46,6 +46,7 @@ export function applyMapBindings(proto) {
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
     this._bindAreaLabelDrag(root);
+    this._bindFurnishedArt(root);
     this._bindMapAnimalSelect(root);
     this._bindMapLayersPanel(root);
     this._bindMapRenderToggle(root);
@@ -1033,14 +1034,24 @@ export function applyMapBindings(proto) {
         const id = this.card._state.composeSelectedId?.();
         if (!id) return;
         if (e.target?.closest?.("[data-action='compose-select']")) return;
+        // A press that landed on the furnished-art drag layer is an art move, not a
+        // shape placement — let its own handler own it.
+        if (e.target?.closest?.("[data-action='furnished-art-drag']")) return;
         if (this.card._mapDragOccurred) { this.card._mapDragOccurred = false; return; }
         const r = composeLayers.getBoundingClientRect();
         if (!r.width || !r.height) return;
-        this.card._state.placeComposeScoped(
-          id,
+        // Config content is now wrapped in .evcc-map-content-rotator (D5), so convert the
+        // pointer% -> CONTENT% via unrotatePct (matches the room-view tap + the art drag);
+        // identity at rotation 0 (the prior un-rotated behaviour).
+        const rot = this.card._state.effectiveMapRotation?.()
+          ? (this.card._state.isLiveBackdropActive?.() ? this.card._state.effectiveMapRotation() : 0)
+          : 0;
+        const [pcx, pcy] = this.card._state.unrotatePct(
           ((e.clientX - r.left) / r.width) * 100,
           ((e.clientY - r.top) / r.height) * 100,
+          rot,
         );
+        this.card._state.placeComposeScoped(id, pcx, pcy);
         this.card._scheduleRender();
       });
     }
@@ -1451,6 +1462,199 @@ export function applyMapBindings(proto) {
           this.card._scheduleRender();
         };
 
+        el.addEventListener("pointermove",   onMove);
+        el.addEventListener("pointerup",     finish);
+        el.addEventListener("pointercancel", finish);
+      });
+    });
+  };
+
+  /* =========================================================
+     FURNISHED ART (Wave 1 — config view; "Live map" layout only)
+     =========================================================
+     Upload / render-mode toggle / align (nudge/scale/rotate + pointer-drag) the
+     whole-home art. The alignment uses an art-only DRAFT transform {tx,ty,scale,rotation}
+     (separate from the segment composer — no group/op/room_id, no polygon bake); Save
+     persists it via set_furnished_art_placement (scope home). The drag converts
+     pointer→content% through unrotatePct (the mascot/area-label pattern) so it stays
+     correct on a rotated live map. */
+  proto._bindFurnishedArt = function (root) {
+    const _mapId = () =>
+      this.card._state.mapSegmentsData()?.map_id ?? this.card._state.activeMapId?.() ?? null;
+
+    // --- Render-mode toggle (live / blend / art) ---
+    root.querySelectorAll("[data-action='furnished-render-mode']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        const mode = btn.dataset.mode;
+        if (!mapId || !mode) return;
+        // Optimistic flip is set inside the action; refetch to settle the saved value.
+        this.card._scheduleRender();
+        try {
+          await this.card._actions.setFurnishedRenderMode(mapId, mode);
+          await this.card._actions.getMapSegments(mapId);
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] set furnished render mode failed:", err);
+          this.card._state.clearFurnishedRenderModeOptimistic?.();
+        }
+        this.card._scheduleRender();
+      });
+    });
+
+    // --- Upload furnished art (websocket-safe; whole-home scope) ---
+    root.querySelectorAll("[data-action='upload-furnished-art']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = "image/png,image/jpeg,image/webp,image/bmp";
+        const handleChange = async () => {
+          input.removeEventListener("change", handleChange);
+          const file = input.files?.[0];
+          if (!file) return;
+          const mapId = _mapId();
+          const layoutId = this.card._state.activeCustomLayoutId?.();
+          if (!mapId || !layoutId) {
+            this.card._state.setMapActionStatus({
+              type: "upload", variant: "furnished-art", status: "error",
+              message: "No active Live-map layout found",
+            });
+            this.card._scheduleRender();
+            return;
+          }
+          this.card._state.setMapActionStatus({ type: "upload", variant: "furnished-art", status: "busy" });
+          this.card._scheduleRender();
+          try {
+            // Display-only art: downscale + recompress (alpha-safe) to fit HA's WS frame.
+            const fitted = await _imageFileToFittedBase64(file, { maxDim: 2048, allowDownscale: true });
+            if (!fitted) throw new Error("Could not prepare the image for upload");
+            await this.card._actions.uploadMapImage(mapId, fitted.base64, {
+              variant: "custom",        // ignored when art_scope is set (server derives the key)
+              layout_id: layoutId,
+              art_scope: "home",
+            });
+            await this.card._actions.getMapSegments(mapId);
+            this.card._state.clearMapActionStatus();
+            this.card._scheduleRender();
+          } catch (err) {
+            console.error("[eufy-vacuum-command-center] furnished art upload failed:", err);
+            this.card._state.setMapActionStatus({
+              type: "upload", variant: "furnished-art", status: "error",
+              message: _uploadErrorMessage(err),
+            });
+            this.card._scheduleRender();
+          }
+        };
+        input.addEventListener("change", handleChange);
+        input.click();
+      });
+    });
+
+    // --- Align: nudge / scale / rotate the draft (local; persisted on Save) ---
+    root.querySelectorAll("[data-action='furnished-art-nudge']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.nudgeFurnishedArt?.(Number(btn.dataset.dx ?? 0), Number(btn.dataset.dy ?? 0));
+        this.card._scheduleRender();
+      });
+    });
+    root.querySelectorAll("[data-action='furnished-art-scale']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.scaleFurnishedArt?.(Number(btn.dataset.factor ?? 1));
+        this.card._scheduleRender();
+      });
+    });
+    root.querySelectorAll("[data-action='furnished-art-rotate']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.rotateFurnishedArt?.(Number(btn.dataset.deg ?? 0));
+        this.card._scheduleRender();
+      });
+    });
+
+    // --- Save the draft alignment ---
+    root.querySelectorAll("[data-action='furnished-art-save']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        const t = this.card._state.furnishedArtTransform?.();
+        try {
+          await this.card._actions.setFurnishedArtPlacement(mapId, t);
+          this.card._state.clearFurnishedArtDraft?.();   // saved value is now authoritative
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] save furnished art placement failed:", err);
+        }
+      });
+    });
+
+    // --- Reset placement (clear the saved transform; keeps the uploaded image) ---
+    root.querySelectorAll("[data-action='furnished-art-clear']").forEach((btn) => {
+      this.card._on(btn, "click", async () => {
+        const mapId = _mapId();
+        if (!mapId) return;
+        try {
+          await this.card._actions.setFurnishedArtPlacement(mapId, null);
+          this.card._state.clearFurnishedArtDraft?.();
+          await this.card._actions.getMapSegments(mapId);
+          this.card._scheduleRender();
+        } catch (err) {
+          console.error("[eufy-vacuum-command-center] clear furnished art placement failed:", err);
+        }
+      });
+    });
+
+    // --- Pointer-drag the art over the map (mascot/area-label pattern) ---
+    root.querySelectorAll("[data-action='furnished-art-drag']").forEach((el) => {
+      const layers = el.closest(".evcc-map-layers")
+        ?? root.querySelector(".evcc-map-container--config .evcc-map-layers");
+      if (!layers) return;
+      this.card._on(el, "pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();   // don't let the pan handler start a drag
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add("evcc-map-art--dragging");
+
+        const layerRect = layers.getBoundingClientRect();
+        // The art lives INSIDE .evcc-map-content-rotator; the pointer is in the unrotated
+        // .evcc-map-layers frame. Convert pointer% -> CONTENT% via unrotatePct so a 90/270
+        // drag tracks (and stores) at the right spot. Identity at 0.
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        // Drag by the CONTENT-frame delta added to the current draft offset, so the art
+        // doesn't snap its centre to the grab point (it's translate(tx%,ty%) about centre).
+        const t0 = this.card._state.furnishedArtTransform?.() ?? { tx: 0, ty: 0, scale: 1, rotation: 0 };
+        const baseTx = Number(t0.tx) || 0, baseTy = Number(t0.ty) || 0;
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        let liveTx = baseTx, liveTy = baseTy, moved = false;
+
+        const applyInline = () => {
+          const sc = Number(this.card._state.furnishedArtTransform?.()?.scale ?? t0.scale ?? 1) || 1;
+          const r  = Number(this.card._state.furnishedArtTransform?.()?.rotation ?? t0.rotation ?? 0);
+          el.style.transform = `translate(${liveTx.toFixed(3)}%, ${liveTy.toFixed(3)}%) rotate(${r}deg) scale(${sc})`;
+        };
+        const onMove = (ev) => {
+          const [cx, cy] = ptrContentPct(ev.clientX, ev.clientY);
+          liveTx = baseTx + (cx - grabX);
+          liveTy = baseTy + (cy - grabY);
+          moved = true;
+          applyInline();   // optimistic, no re-render mid-drag
+        };
+        const finish = () => {
+          el.removeEventListener("pointermove",   onMove);
+          el.removeEventListener("pointerup",     finish);
+          el.removeEventListener("pointercancel", finish);
+          el.classList.remove("evcc-map-art--dragging");
+          if (moved) {
+            this.card._state.setFurnishedArtOffset?.(liveTx, liveTy);
+            this.card._scheduleRender();
+          }
+        };
         el.addEventListener("pointermove",   onMove);
         el.addEventListener("pointerup",     finish);
         el.addEventListener("pointercancel", finish);
