@@ -32,12 +32,84 @@ body:
     attributes:
       label: Animal descriptor JSON
       description: >
-        Paste the full descriptor JSON (the `animal` object, or an envelope
-        wrapping it). It carries the id, name, type, licence, themeable colours,
-        and the SVG parts.
+        **Path A.** Paste the full descriptor JSON (the `animal` object, or an
+        envelope wrapping it) — id, name, type, licence, themeable colours, and
+        the SVG parts. Fill this **or** the Full SVG below (this wins if both).
       render: json
     validations:
-      required: true
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        **Path B — submit a full SVG instead.** Draw the whole animal as one SVG,
+        tag each part with `data-slot`, and place the leg-animation classes
+        yourself (see the
+        [authoring guide](https://github.com/kingchddg901/Vacuum_Agent/blob/master/docs/contributing/animal-authoring.md)).
+        Paste it below and fill the id / name / licence. The bot splits it,
+        sanitises it, and comments the **safe descriptor** back.
+  - type: textarea
+    id: full-svg
+    attributes:
+      label: Full SVG
+      description: A single <svg> with data-slot on each part. Use hsl(var(--animal-X)) for any colour you want themeable.
+      placeholder: "<svg viewBox=\"-10 -10 500 340\"> <g data-slot=\"body\">…</g> … </svg>"
+    validations:
+      required: false
+  - type: input
+    id: animal-id
+    attributes:
+      label: Animal id
+      description: Full-SVG path. Lowercase letters / digits / hyphens, e.g. "fennec".
+    validations:
+      required: false
+  - type: input
+    id: animal-name
+    attributes:
+      label: Animal name
+      description: Full-SVG path. The display name.
+    validations:
+      required: false
+  - type: dropdown
+    id: body-plan
+    attributes:
+      label: Body plan
+      description: Full-SVG path.
+      options:
+        - quadruped
+        - parrot
+    validations:
+      required: false
+  - type: dropdown
+    id: licence
+    attributes:
+      label: Licence
+      description: Full-SVG path (required there — an SVG drawing is copyrightable art).
+      options:
+        - CC0-1.0
+        - CC-BY-4.0
+        - MIT
+        - Apache-2.0
+    validations:
+      required: false
+  - type: checkboxes
+    id: memorial
+    attributes:
+      label: Memorial (Rainbow Bridge)
+      description: Tick if your colours are baked in (a tribute to one specific animal).
+      options:
+        - label: This is a memorial — baked colours, joins Rainbow Bridge.
+          required: false
+  - type: textarea
+    id: colour-defaults
+    attributes:
+      label: Colour defaults (JSON)
+      description: >
+        Optional (full-SVG path). Default values for your --animal-* tokens, e.g.
+        {"--animal-eye":"40 30% 20%","--animal-fur":"30 60% 70%"}. If omitted, they're
+        scaffolded for a maintainer to fill in on the PR.
+    validations:
+      required: false
   - type: input
     id: author
     attributes:
