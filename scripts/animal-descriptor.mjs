@@ -118,6 +118,8 @@ export const SVG_ALLOWLIST = {
   // but kept tidy + predictable).
   classAllow: new Set([
     "animal-eyes",
+    "f-wing-l", // parrot wing-flap (flight pose) — authored in the wing parts
+    "f-wing-r",
     ...["cat", "dog", "rac"].flatMap((p) => ["fl", "fr", "bl", "br"].map((leg) => `${p}-${leg}-lower`)),
   ]),
 };
@@ -215,7 +217,11 @@ export function validateDescriptor(input, opts = {}) {
   // 1. No JS / forbidden keys / function-valued fields.
   for (const k of Object.keys(input)) {
     if (FORBIDDEN_DEF_KEYS.has(k)) {
-      errors.push(`Field "${k}" isn't allowed — community animals are declarative-only (no procedural \`${k}\`).`);
+      if (k === "wingLeft" || k === "wingRight") {
+        errors.push(`Put "${k}" inside \`parts\` (e.g. parts.${k}), not at the top level — it's a parrot slot.`);
+      } else {
+        errors.push(`Field "${k}" isn't allowed — community animals are declarative-only (no procedural \`${k}\`).`);
+      }
     }
     if (typeof input[k] === "function") {
       errors.push(`Field "${k}" is a function; only data is accepted.`);
@@ -295,7 +301,8 @@ export function validateDescriptor(input, opts = {}) {
     errors.push("parts must be an object of SVG markup strings, one per anatomical slot.");
   } else {
     const required = REQUIRED_PARTS[type] || REQUIRED_PARTS.quadruped;
-    const allowed = new Set([...required, ...OPTIONAL_PARTS]);
+    // Parrots may carry optional wingLeft/wingRight slots (shown in flight).
+    const allowed = new Set([...required, ...OPTIONAL_PARTS, ...(type === "parrot" ? ["wingLeft", "wingRight"] : [])]);
     for (const slot of required) {
       const v = parts[slot];
       if (typeof v !== "string" || v.trim() === "") {
@@ -409,12 +416,17 @@ function jsSafeJson(value) {
  * write this file — the intake regenerates it from the .json source of truth.
  */
 export function codegenAnimalModule(animal) {
+  // Parrot wings ride in `parts` in the descriptor (so they're sanitised like
+  // any slot), but the framework reads them at def-level — lift them back out.
+  const { wingLeft, wingRight, ...parts } = animal.parts;
   const def = {
     label: animal.name,
     type: animal.type,
     ...(animal.memorial ? { memorial: true } : {}),
     colors: animal.colors,
-    parts: animal.parts,
+    parts,
+    ...(wingLeft ? { wingLeft } : {}),
+    ...(wingRight ? { wingRight } : {}),
   };
   return (
     `/* GENERATED — do not edit by hand.\n` +

@@ -57,6 +57,16 @@ export function convertModule(src, opts = {}) {
   const tidy = (s) => String(s).replace(/\s+/g, " ").trim().replace(/"/g, "'");
   const parts = {};
   for (const [slot, svg] of Object.entries(def.parts || {})) parts[slot] = tidy(svg);
+  // Parrot wings are def-level in the old module; in the descriptor they're
+  // parts slots (the codegen lifts them back to def-level on the way out).
+  if (def.wingLeft) parts.wingLeft = tidy(def.wingLeft);
+  if (def.wingRight) parts.wingRight = tidy(def.wingRight);
+  // The parrot renderer has no hind legs — drop any vestigial ones the old
+  // module carried (they were never rendered).
+  if (def.type === "parrot") {
+    delete parts.backLeftLeg;
+    delete parts.backRightLeg;
+  }
 
   const id = opts.id || srcId;
   const animal = {

@@ -41,7 +41,11 @@ const TOKEN_RE = /var\(\s*(--animal-[a-z0-9-]+)/gi;
  */
 export async function svgToDescriptor(svg, meta = {}) {
   const type = meta.type || "quadruped";
-  const allowedSlots = new Set([...(REQUIRED_PARTS[type] || REQUIRED_PARTS.quadruped), ...OPTIONAL_PARTS]);
+  const allowedSlots = new Set([
+    ...(REQUIRED_PARTS[type] || REQUIRED_PARTS.quadruped),
+    ...OPTIONAL_PARTS,
+    ...(type === "parrot" ? ["wingLeft", "wingRight"] : []),
+  ]);
 
   const { chromium } = await import("playwright");
   const browser = await chromium.launch();
