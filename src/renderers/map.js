@@ -1283,10 +1283,21 @@ export function applyMapRenderers(proto) {
           <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="Grow">＋ Scale</button>
           <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}%</span>
         </div>
-        <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-5" title="Rotate left">↺ Rotate</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="5" title="Rotate right">↻ Rotate</button>
-          <span class="evcc-map-config-adj-meta">${Math.round(Number(t.rotation) || 0)}°</span>
+        <div class="evcc-map-furnished-rotate">
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="Rotate left 90°">↺ 90°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-1" title="Rotate left 1°">−1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-0.1" title="Rotate left 0.1°">−0.1°</button>
+          <span class="evcc-map-config-adj-meta evcc-map-furnished-rotate-readout">${(Number(t.rotation) || 0).toFixed(1)}°</span>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="0.1" title="Rotate right 0.1°">+0.1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="1" title="Rotate right 1°">+1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="90" title="Rotate right 90°">↻ 90°</button>
+        </div>
+        <div class="evcc-map-furnished-trim">
+          <span class="evcc-map-config-adj-meta">Fine trim ±15°</span>
+          <input type="range" class="evcc-map-furnished-rotate-slider"
+                 data-action="furnished-art-rotate-slider"
+                 min="-15" max="15" step="0.1" value="0"
+                 aria-label="Fine rotation trim, plus or minus 15 degrees">
         </div>
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="furnished-art-save" title="Save this alignment">Save alignment</button>

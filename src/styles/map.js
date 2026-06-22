@@ -138,6 +138,31 @@ export const mapStyles = `
   .evcc-map-image--furnished-art   { opacity: 0.02; }
   .evcc-map-image--furnished-blend { opacity: 0.45; }
 
+  /* Furnished-art rotate controls: coarse (±90°) / fine (±1°) / micro (±0.1°) buttons
+     around a one-decimal readout, plus a fine-trim slider (±15° around the current angle).
+     A wrap-flex row keeps all seven buttons in frame in the narrow side panel. */
+  .evcc-map-furnished-rotate {
+    display:     flex;
+    flex-wrap:   wrap;
+    align-items: center;
+    gap:         4px;
+  }
+  .evcc-map-furnished-rotate-readout {
+    min-width:  44px;
+    text-align: center;
+  }
+  .evcc-map-furnished-trim {
+    display:       flex;
+    align-items:   center;
+    gap:           8px;
+    margin-top:    6px;
+  }
+  .evcc-map-furnished-rotate-slider {
+    flex:         1 1 auto;
+    min-width:    0;
+    touch-action: none;   /* drag the trim on touch without scrolling the page */
+  }
+
   /* Live-map rotation wrapper: turns the whole content layer (backdrop image +
      segment SVG + labels + mascot) TOGETHER so overlays stay registered at every
      90° step. Sits INSIDE .evcc-map-layers (which owns zoom/pan, origin 0 0) with

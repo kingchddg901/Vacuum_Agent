@@ -440,10 +440,21 @@ export function applyMapState(proto) {
     return d;
   };
 
-  // Rotate the draft by `deg` (wraps 0-360). Returns the draft.
+  // Rotate the draft by `deg` (wraps 0-360). Returns the draft. Fractional deg is fine —
+  // the coarse/fine/micro buttons pass ±90 / ±1 / ±0.1; the transform + backend store the
+  // raw float (backend rounds to 4 dp), so sub-degree alignment is lossless.
   proto.rotateFurnishedArt = function (deg) {
     const d = this.ensureFurnishedArtDraft();
     d.rotation = ((((Number(d.rotation) || 0) + (Number(deg) || 0)) % 360) + 360) % 360;
+    return d;
+  };
+
+  // Set the draft rotation to an ABSOLUTE angle in degrees (wraps 0-360). Used by the
+  // fine-trim slider, which previews a relative trim inline during the drag and commits the
+  // resulting absolute angle on release. Returns the draft.
+  proto.setFurnishedArtRotationAbsolute = function (deg) {
+    const d = this.ensureFurnishedArtDraft();
+    d.rotation = (((Number(deg) || 0) % 360) + 360) % 360;
     return d;
   };
 

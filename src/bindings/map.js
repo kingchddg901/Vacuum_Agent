@@ -1569,6 +1569,39 @@ export function applyMapBindings(proto) {
       });
     });
 
+    // --- Fine rotation-trim slider (±15° around the current angle, commit on release) ---
+    // Previews a RELATIVE trim inline (no re-render mid-drag, like the pointer-drag), then
+    // commits the resulting ABSOLUTE angle on 'change'. `base` is the draft rotation captured
+    // at the start of the gesture; the slider snaps back to 0 after commit. Works for both
+    // pointer-drag and keyboard (base is lazily captured on the first 'input').
+    root.querySelectorAll("[data-action='furnished-art-rotate-slider']").forEach((slider) => {
+      let base = null;
+      const artEl   = () => root.querySelector(".evcc-map-art--editable");
+      const readout = () => root.querySelector(".evcc-map-furnished-rotate-readout");
+      const applyInline = (rot) => {
+        const el = artEl();
+        if (el) {
+          const t = this.card._state.furnishedArtTransform?.() ?? { tx: 0, ty: 0, scale: 1 };
+          const tx = Number(t.tx) || 0, ty = Number(t.ty) || 0, sc = Number(t.scale) || 1;
+          el.style.transform = `translate(${tx.toFixed(3)}%, ${ty.toFixed(3)}%) rotate(${rot}deg) scale(${sc})`;
+        }
+        const r = readout();
+        if (r) r.textContent = `${((((rot % 360) + 360) % 360)).toFixed(1)}°`;
+      };
+      this.card._on(slider, "input", () => {
+        if (base == null) base = Number(this.card._state.furnishedArtTransform?.()?.rotation ?? 0);
+        applyInline(base + (Number(slider.value) || 0));
+      });
+      this.card._on(slider, "change", () => {
+        if (base == null) return;                 // no movement → nothing to commit
+        const final = base + (Number(slider.value) || 0);
+        base = null;
+        slider.value = 0;
+        this.card._state.setFurnishedArtRotationAbsolute?.(final);
+        this.card._scheduleRender();              // re-render settles the draft + resets the slider
+      });
+    });
+
     // --- Save the draft alignment ---
     root.querySelectorAll("[data-action='furnished-art-save']").forEach((btn) => {
       this.card._on(btn, "click", async () => {
