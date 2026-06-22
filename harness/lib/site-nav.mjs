@@ -25,11 +25,14 @@ export const SITE_NAV_CSS = `
  */
 export function siteNav(depth = 0, active = "") {
   const p = "../".repeat(depth);
+  // The site root (landing). `p` already ends in "/" at depth >= 1; at depth 0
+  // fall back to "./" so the href is never empty or a "..//" double-slash.
+  const root = p || "./";
   const link = (href, label, key) =>
     `<a href="${p}${href}"${active === key ? ' class="active"' : ""}>${label}</a>`;
   return `<nav class="site-nav">
-    <a class="brand" href="${p || "."}/">Vacuum Agent</a>
-    ${link("", "Home", "home")}
+    <a class="brand" href="${root}">Vacuum Agent</a>
+    <a href="${root}"${active === "home" ? ' class="active"' : ""}>Home</a>
     ${link("themes/", "🎨 Themes", "themes")}
     ${link("animals/", "🦊 Animals", "animals")}
     ${link("docs/", "📖 Docs", "docs")}
