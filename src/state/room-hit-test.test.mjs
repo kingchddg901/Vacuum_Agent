@@ -79,3 +79,33 @@ test("[CT-4] roomIdAtContentPct: letterbox aspect falls back to rd dims when map
   // a tap in the TOP letterbox bar (cy 10 < offY 25) is outside the image -> null
   assert.equal(s.roomIdAtContentPct(22, 10, rd), null);
 });
+
+test("[CT-5] deviceRoomIdAtContentPct: bbox fallback (no raster) — hit + outside->null", () => {
+  const s = makeState();
+  s.mapImageSize = () => [10, 10];                  // square -> content% == normalized*100
+  s.mapOverlayData = () => null;                    // force fall-through to mapStateSource
+  s.mapStateSource = () => ({
+    present: true,
+    rooms: [
+      { number: 5, bbox: [0.0, 0.0, 0.4, 0.4] },    // top-left (normalized, rendered frame)
+      { number: 7, bbox: [0.6, 0.6, 1.0, 1.0] },    // bottom-right
+    ],
+  });
+  assert.equal(s.deviceRoomIdAtContentPct(20, 20), 5);    // nx.2 ny.2 -> room 5
+  assert.equal(s.deviceRoomIdAtContentPct(80, 80), 7);    // nx.8 ny.8 -> room 7
+  assert.equal(s.deviceRoomIdAtContentPct(50, 50), null); // between the rooms -> null
+});
+
+test("[CT-6] deviceRoomIdAtContentPct: smallest bbox wins on overlap; not-present -> null", () => {
+  const s = makeState();
+  s.mapImageSize = () => [10, 10];
+  s.mapOverlayData = () => null;
+  s.mapStateSource = () => ({ present: true, rooms: [
+    { number: 1, bbox: [0.0, 0.0, 1.0, 1.0] },      // whole map
+    { number: 2, bbox: [0.1, 0.1, 0.3, 0.3] },      // small, inside room 1
+  ] });
+  assert.equal(s.deviceRoomIdAtContentPct(20, 20), 2);    // overlap -> smallest (2)
+  assert.equal(s.deviceRoomIdAtContentPct(50, 50), 1);    // only the big room
+  s.mapStateSource = () => ({ present: false });
+  assert.equal(s.deviceRoomIdAtContentPct(20, 20), null); // no live rooms -> null
+});

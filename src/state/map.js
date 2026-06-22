@@ -768,6 +768,36 @@ export function applyMapState(proto) {
     return (rid > 0 && rid < catchAll) ? rid : null;
   };
 
+  /* Bbox hit-test for the auto-derived click target when there's NO render raster — a bare
+     live map (Roborock; or Eufy live map with no drawn rooms). A CONTENT-box % point -> the
+     device room NUMBER (== managed room id) whose map_state_source bbox contains it. The
+     bboxes are already in the rendered-image normalized frame (proj applied the Y-flip), so
+     content% -> normalized uses the same contain-letterbox as roomIdAtContentPct, with NO
+     extra flip. Smallest containing bbox wins (L-shaped rooms overlap). null when outside
+     every room / no live rooms. Approximate (bbox, not pixel-exact) — matches `approximate`. */
+  proto.deviceRoomIdAtContentPct = function (contentX, contentY) {
+    const mss = this.mapOverlayData?.() ?? this.mapStateSource?.();
+    if (!mss || !mss.present || !Array.isArray(mss.rooms)) return null;
+    const size = this.mapImageSize?.();
+    if (!(Array.isArray(size) && size[0] > 0 && size[1] > 0)) return null;
+    const iw = size[0], ih = size[1];
+    const sx = iw >= ih ? 100 : (100 * iw) / ih;
+    const sy = ih >= iw ? 100 : (100 * ih) / iw;
+    const nx = (contentX - (100 - sx) / 2) / sx;
+    const ny = (contentY - (100 - sy) / 2) / sy;
+    if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return null;   // letterbox bar
+    let best = null, bestArea = Infinity;
+    for (const r of mss.rooms) {
+      const b = r?.bbox;
+      if (!Array.isArray(b) || b.length !== 4) continue;
+      if (nx >= b[0] && nx <= b[2] && ny >= b[1] && ny <= b[3]) {
+        const area = (b[2] - b[0]) * (b[3] - b[1]);
+        if (area < bestArea) { bestArea = area; best = r.number; }
+      }
+    }
+    return best;
+  };
+
   /* -- Live pose (Phase B) ------------------------------------------------------
      The snapshot's map_state_source carries the MOVING overlays (robot/dock/current-
      room/path) too, but only as fresh as the slow snapshot cadence — so a cleaning
