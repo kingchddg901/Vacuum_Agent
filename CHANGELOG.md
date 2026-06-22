@@ -8,6 +8,17 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [1.2.1] - 2026-06-22
+
+### Fixed
+- `services.yaml`: the furnished-render services (`set_furnished_art_placement`,
+  `set_room_viewport`) declared a number-selector `step` of `0.0001`, below Home
+  Assistant's `1e-3` floor, which failed `hassfest` validation. Switched those
+  resolution-independent pct-float fields to `step: any`. No behavior change — these
+  services are driven by the card, not entered by hand.
+- CI: refreshed the map-configuration visual-regression baseline (the tab grew when
+  the furnished-render + align panels landed in v1.2.0).
+
 ## [1.2.0] - 2026-06-22
 
 **The map comes alive.** The Map view goes from a static backdrop to a live, interactive
