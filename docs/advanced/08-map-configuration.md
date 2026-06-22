@@ -265,9 +265,9 @@ On a live-map layout (`backdrop_source: live`) the Map **config** view shows a *
 The panel offers:
 
 - **Save map image** — downloads the current live map frame so you can trace your furnished art over it in an external editor (the result is then already registered to the map pixels).
-- **Upload art** — `upload_map_image` with `art_scope` (`home` for one whole-home image, or `room` + `room_id` for per-room art).
+- **Upload art** — uploads one **whole-home** image via `upload_map_image` (`art_scope: home`). The service also accepts `art_scope: room` + `room_id` to store **per-room** art, but the panel button doesn't expose that today — it's service-only.
 - **Render mode** — `Live` (art hidden), `Blend` (art over a faded live map — best for aligning), or `Art` (art full, live map a ghost), via `set_furnished_render_mode`.
-- **Align** — drag the art, nudge/scale it, and rotate it (coarse ±90° / fine ±1° / micro ±0.1° buttons plus a ±15° fine-trim slider), persisted with `set_furnished_art_placement`. A saved per-room viewport (`set_room_viewport`) can frame a single room.
+- **Align** — drag the art, nudge/scale it, and rotate it (coarse ±90° / fine ±1° / micro ±0.1° buttons plus a ±15° fine-trim slider), persisted with `set_furnished_art_placement`. (A per-room viewport can also be saved via the `set_room_viewport` service to frame a single room — service-only today, not yet a panel control.)
 
 The art is stored per-layout as resolution-independent percentage floats (`home_art` + per-room `rooms` + a layout-level `render_mode`); the services are detailed in [Services → Furnished Render](03-services.md#furnished-render) and the persisted shape in [Data model → CustomLayout](../dev/03-data-model.md). It is brand-agnostic — it rides any live-map backdrop (Eufy via the community camera fork, Roborock, etc.). One caveat: Eufy re-localizes its map origin each session, so the art may need an occasional re-nudge between sessions; within a session the frame is stable. Because zone-draw rides one layer above the art, you can even draw a zone-clean directly over your furniture (Eufy and Roborock, at any map rotation).
 

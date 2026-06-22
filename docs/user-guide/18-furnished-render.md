@@ -25,10 +25,7 @@ Because you traced over the real map, your art already lines up — it drops in 
 
 ## Uploading art
 
-Click **Upload art** and choose an image. Two scopes:
-
-- **Whole-home** (the default) — one image covering your entire floor.
-- **Per-room** — a separate image for a single room (handy if you only want to dress up one room, or want more detail per room).
+Click **Upload art** and choose an image — a single **whole-home** render covering your entire floor.
 
 The image is stored with the layout, not as the map backdrop — your drawn rooms and the live map are left untouched.
 
