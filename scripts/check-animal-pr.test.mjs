@@ -37,11 +37,30 @@ test("[APR-3] manifest.js edit is rejected too", async () => {
 test("[APR-4] an orphan generated module (no descriptor) is rejected", async () => {
   const r = await checkAnimalPr(["custom_components/eufy_vacuum/frontend/animal-svg/animals/wolf.js"]);
   assert.equal(r.ok, false);
-  assert.match(r.problems.join("\n"), /without gallery/i);
+  assert.match(r.problems.join("\n"), /without a descriptor/i);
 });
 
 test("[APR-5] a PR touching no animal files passes (nothing to check)", async () => {
   const r = await checkAnimalPr(["README.md", "src/state/map.js"]);
   assert.equal(r.ok, true);
   assert.deepEqual(r.galleryIds, []);
+});
+
+test("[APR-6] a first-party (src/) bundled animal + its .js passes the gate", async () => {
+  const r = await checkAnimalPr([
+    "custom_components/eufy_vacuum/frontend/animal-svg/src/cat.json",
+    "custom_components/eufy_vacuum/frontend/animal-svg/animals/cat.js",
+  ]);
+  assert.equal(r.ok, true, JSON.stringify(r.problems, null, 2));
+  assert.ok(r.galleryIds.includes("cat"));
+});
+
+test("[APR-7] the actual PR-14 shape (all bundled src + .js) passes", async () => {
+  const changed = [];
+  for (const id of ["cat", "dog", "raccoon", "mittens", "parrot"]) {
+    changed.push(`custom_components/eufy_vacuum/frontend/animal-svg/src/${id}.json`);
+    changed.push(`custom_components/eufy_vacuum/frontend/animal-svg/animals/${id}.js`);
+  }
+  const r = await checkAnimalPr(changed);
+  assert.equal(r.ok, true, JSON.stringify(r.problems, null, 2));
 });

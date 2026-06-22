@@ -3,24 +3,24 @@
  * CHECK ANIMAL PR  (fork-PR intake gate)
  * ============================================================
  *
- * The second intake path: a contributor opens a PR that adds/edits a community
- * animal (gallery/animals/<id>.json + the generated animals/<id>.js). This gate
- * runs in CI (animal-pr-check.yml) and enforces the same boundary the issue
- * intake does, plus PR-specific guards.
+ * A contributor opens a PR that adds/edits an animal. This gate runs in CI
+ * (animal-pr-check.yml) and enforces the boundary for BOTH descriptor homes:
+ *   gallery/animals/<id>.json — community submissions.
+ *   …/animal-svg/src/<id>.json — first-party / bundled animals (reserved ids,
+ *                                source:"core"); maintainer territory, but still
+ *                                checked for consistency so a hand-written .js
+ *                                can't sneak in beside a stub descriptor.
  *
- * Checks (per changed file set):
- *   1. No framework edits — only gallery/animals/<id>.json and
- *      …/animal-svg/animals/<id>.js may change, never the framework.
- *   2. Each changed descriptor passes the contract gate (validateDescriptor).
- *   3. Its committed SVG is already fully sanitised — re-running DOMPurify must
- *      strip nothing (catches raw/unsanitised parts smuggled into a PR).
- *   4. The committed animals/<id>.js is the FAITHFUL codegen of the descriptor
- *      (no hand-written / tampered module) — compared without re-sanitising, so
- *      DOMPurify idempotency can't cause a false mismatch.
- *   5. No orphan module (a changed .js without its descriptor).
+ * For every changed descriptor: validate (community vs first-party), confirm the
+ * committed SVG is already sanitised, and require the committed animals/<id>.js
+ * to be its faithful codegen. Framework files (animal-svg.js, manifest.js, …)
+ * may not change. A changed .js with no descriptor is an orphan. Whether a
+ * first-party/reserved change is *legitimate* is the maintainer's call on merge;
+ * this gate guarantees no arbitrary code (every .js is codegen of a sanitised
+ * descriptor) + no framework edits.
  *
- * checkAnimalPr(changedFiles) -> { ok, problems, galleryIds }. The CLI wrapper
- * reads CHANGED_FILES (newline-separated) and exits non-zero on any problem.
+ * checkAnimalPr(changedFiles) -> { ok, problems, galleryIds }. CLI reads
+ * CHANGED_FILES (newline-separated) and exits non-zero on any problem.
  * ============================================================
  */
 import { readFileSync, existsSync } from "node:fs";
@@ -31,6 +31,7 @@ import { sanitizeParts, summariseRemovals } from "./sanitize-animal-svg.mjs";
 import { existingAnimalIds, ANIMALS_DIR } from "./build-animal.mjs";
 
 const GALLERY_RE = /^gallery\/animals\/([a-z0-9-]+)\.json$/;
+const SRC_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/src\/([a-z0-9-]+)\.json$/;
 const ANIMAL_JS_RE = /^custom_components\/eufy_vacuum\/frontend\/animal-svg\/animals\/([a-z0-9-]+)\.js$/;
 const ANIMAL_SVG_DIR = "custom_components/eufy_vacuum/frontend/animal-svg/";
 
@@ -41,72 +42,83 @@ const ANIMAL_SVG_DIR = "custom_components/eufy_vacuum/frontend/animal-svg/";
 export async function checkAnimalPr(changed) {
   const files = (changed || []).map((s) => String(s).trim()).filter(Boolean);
   const problems = [];
-  const galleryIds = [];
+  const descriptorIds = new Set(); // ids with a changed descriptor (gallery OR src)
   const changedJsIds = new Set();
 
-  // 1. No framework edits (anything under animal-svg/ that isn't a community module).
+  // 1. Classify + framework check. Allowed under animal-svg/: animals/<id>.js
+  //    (generated modules) and src/<id>.json (first-party descriptors). Anything
+  //    else there (the framework itself) is off-limits.
   for (const f of files) {
-    const jm = f.match(ANIMAL_JS_RE);
-    if (jm) {
-      changedJsIds.add(jm[1]);
+    if (ANIMAL_JS_RE.test(f)) {
+      changedJsIds.add(f.match(ANIMAL_JS_RE)[1]);
       continue;
     }
+    if (GALLERY_RE.test(f) || SRC_RE.test(f)) continue;
     if (f.startsWith(ANIMAL_SVG_DIR)) {
       problems.push(`PR modifies the animal-svg framework (not allowed for an animal submission): ${f}`);
     }
   }
 
-  // 2–4. Validate + sanitise-check + tamper-check each changed descriptor.
-  for (const f of files) {
-    const m = f.match(GALLERY_RE);
-    if (!m) continue;
-    const id = m[1];
-    galleryIds.push(id);
-
+  // 2. Validate + sanitise-check + tamper-check each changed descriptor.
+  const checkDescriptor = async (f, id, firstParty) => {
+    descriptorIds.add(id);
     let parsed;
     try {
       parsed = JSON.parse(readFileSync(f, "utf8"));
     } catch (e) {
       problems.push(`${f}: not valid JSON (${e.message})`);
-      continue;
+      return;
     }
     const input = parsed && parsed.animal ? parsed.animal : parsed;
-
-    const existing = existingAnimalIds().filter((x) => x !== id); // updating an existing animal is fine
-    const v = validateDescriptor(input, { existingIds: existing });
+    const existing = existingAnimalIds().filter((x) => x !== id);
+    const v = validateDescriptor(input, {
+      existingIds: existing,
+      allowReservedIds: firstParty,
+      source: firstParty ? "core" : undefined,
+    });
     if (!v.ok) {
       problems.push(`${f}: invalid descriptor:\n` + v.errors.map((e) => "      - " + e).join("\n"));
-      continue;
+      return;
     }
     if (v.animal.id !== id) {
       problems.push(`${f}: descriptor id "${v.animal.id}" doesn't match the filename id "${id}".`);
-      continue;
+      return;
     }
-
     const san = await sanitizeParts(v.animal.parts);
     if (Object.keys(san.removed).length) {
       problems.push(
-        `${f}: the committed SVG isn't fully sanitised — rebuild with \`node scripts/build-animal.mjs\`. Would strip:\n` +
+        `${f}: the committed SVG isn't fully sanitised — rebuild with build-animal. Would strip:\n` +
           summariseRemovals(san.removed).replace(/^/gm, "      "),
       );
     }
-
     const jsPath = resolve(ANIMALS_DIR, `${id}.js`);
     if (!existsSync(jsPath)) {
-      problems.push(`${f}: missing the generated module animals/${id}.js — run \`node scripts/build-animal.mjs gallery/animals/${id}.json\`.`);
+      problems.push(`${f}: missing the generated module animals/${id}.js — run \`node scripts/build-animal.mjs ${f}${firstParty ? " --first-party" : ""}\`.`);
     } else if (readFileSync(jsPath, "utf8").trim() !== codegenAnimalModule(v.animal).trim()) {
-      problems.push(`animals/${id}.js doesn't match its descriptor — don't hand-edit it; regenerate with \`node scripts/build-animal.mjs gallery/animals/${id}.json\`.`);
+      problems.push(`animals/${id}.js doesn't match its descriptor — regenerate with \`node scripts/build-animal.mjs ${f}${firstParty ? " --first-party" : ""}\`.`);
+    }
+  };
+
+  for (const f of files) {
+    const g = f.match(GALLERY_RE);
+    if (g) {
+      await checkDescriptor(f, g[1], false);
+      continue;
+    }
+    const s = f.match(SRC_RE);
+    if (s) {
+      await checkDescriptor(f, s[1], true);
     }
   }
 
-  // 5. No orphan modules (a changed .js with no matching descriptor in the PR).
+  // 3. No orphan modules (a changed .js with no descriptor in the PR).
   for (const id of changedJsIds) {
-    if (!galleryIds.includes(id)) {
-      problems.push(`animals/${id}.js changed without gallery/animals/${id}.json — community modules are generated from a descriptor, not hand-written.`);
+    if (!descriptorIds.has(id)) {
+      problems.push(`animals/${id}.js changed without a descriptor (gallery/animals/${id}.json or src/${id}.json) — modules are generated from a descriptor, not hand-written.`);
     }
   }
 
-  return { ok: problems.length === 0, problems, galleryIds };
+  return { ok: problems.length === 0, problems, galleryIds: [...descriptorIds] };
 }
 
 // --- CLI ---------------------------------------------------------------------
