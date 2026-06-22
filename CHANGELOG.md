@@ -10,6 +10,15 @@ only.
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-06-22
+
+### Added
+- **Lifetime device stats on the Maintenance tab.** Total cleaned area (m²), total
+  cleaning time, and lifetime clean count — plus the **dock firmware version** — now
+  surface in the Maintenance overview, sourced from the robovac_mqtt v1.11.0+ Eufy
+  sensors. Each value is shown only on devices that report it (hidden otherwise), so
+  brands/models without these sensors are unaffected.
+
 ### Fixed
 - Battery health (`_battery_health` sensor) is now capped at **100%** — a battery is
   never "healthier than new". A raw reading above 100 (the cell charging faster than
