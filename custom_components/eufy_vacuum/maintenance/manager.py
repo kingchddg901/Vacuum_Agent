@@ -471,6 +471,39 @@ class MaintenanceManager:
             "dry_start_count": _safe_int(dock_events.get("dry_start_count"), 0),
         }
 
+        # Lifetime device totals + dock firmware (robovac_mqtt v1.11.0+). Brand-
+        # neutral: any adapter that declares these entities gets them surfaced. Each
+        # is omitted (None) when its entity is absent or reports a placeholder
+        # state, so older integrations / brands without them simply show nothing.
+        _device_entities = capabilities.get("entities", {})
+
+        def _device_total(key, cast):
+            eid = _device_entities.get(key)
+            st = self._manager.hass.states.get(eid) if eid else None
+            if st is None or st.state in {None, "", "unknown", "unavailable"}:
+                return None
+            try:
+                return cast(float(st.state))
+            except (TypeError, ValueError):
+                return None
+
+        _area_m2 = _device_total("total_cleaning_area", float)
+        _time_s = _device_total("total_cleaning_time", float)
+        _count = _device_total("total_cleaning_count", int)
+        device_totals = (
+            {"area_m2": _area_m2, "time_s": _time_s, "count": _count}
+            if any(v is not None for v in (_area_m2, _time_s, _count))
+            else None
+        )
+        _fw_entity = _device_entities.get("dock_firmware_version")
+        _fw_state = self._manager.hass.states.get(_fw_entity) if _fw_entity else None
+        dock_firmware = (
+            _fw_state.state
+            if _fw_state is not None
+            and _fw_state.state not in {None, "", "unknown", "unavailable"}
+            else None
+        )
+
         attention_summary = (
             f"{attention_count} upkeep item(s) need attention."
             if attention_count > 0
@@ -497,6 +530,8 @@ class MaintenanceManager:
                 **dock_counts,
             },
             "model_meta": model_meta,
+            "device_totals": device_totals,
+            "dock_firmware": dock_firmware,
             "replacement_items": replacement_items,
             "maintenance_items": maintenance_items,
             "attention_count": attention_count,

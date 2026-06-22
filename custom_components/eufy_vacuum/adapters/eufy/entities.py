@@ -43,6 +43,16 @@ SUFFIX_WASH_FREQUENCY_VALUE_TIME = "_wash_frequency_value_time"  # number domain
 SUFFIX_DRY_DURATION = "_dry_duration"                      # select domain
 SUFFIX_WATER_LEVEL = "_water_level"                        # sensor domain
 
+# === LIFETIME TOTALS / DIAGNOSTIC (robovac_mqtt v1.11.0+) =================
+# Device-reported lifetime usage totals + dock firmware. Absent on older
+# integration versions and on models that don't report them — the snapshot
+# reads each state and omits any that's missing, so the card degrades cleanly.
+
+SUFFIX_TOTAL_CLEANING_AREA = "_total_cleaning_area"        # sensor (lifetime m²)
+SUFFIX_TOTAL_CLEANING_TIME = "_total_cleaning_time"        # sensor (lifetime seconds)
+SUFFIX_TOTAL_CLEANING_COUNT = "_total_cleaning_count"      # sensor (lifetime job count)
+SUFFIX_DOCK_FIRMWARE_VERSION = "_dock_firmware_version"    # sensor (diagnostic)
+
 # === ENTITY DOMAINS ======================================================
 # HA entity domain prefixes used by build_entity_id().
 

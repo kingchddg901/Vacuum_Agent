@@ -3,7 +3,7 @@
 The maintenance subsystem tracks consumable wear (main brush, side brush, filter,
 sensors, mop) against adapter-declared components: it reads remaining-life
 sources, computes status tiers, builds the upkeep snapshot, resolves the
-care-guide metadata per component, and resets counters. Covered by **36 tests in 1 file**.
+care-guide metadata per component, and resets counters. Covered by **39 tests in 1 file**.
 
 Source: `custom_components/eufy_vacuum/maintenance/`
 Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-maintenance-manager.md)
@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-mainte
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 233 | 93% | `test_maintenance_manager.py` | integration |
+| `manager.py` | 250 | 93% | `test_maintenance_manager.py` | integration |
 
 (The reset / set-interval *services* are in [17 — services](17-services.md) via
 `test_services_maintenance_reset.py`; the remaining-life *sensors* are in
@@ -32,6 +32,10 @@ Architecture reference: [docs/dev/13-maintenance-manager.md](../../dev/13-mainte
   source model/family info and the maintenance / replacement sub-dicts, picking
   the display sub-dict by `item_kind`; returns None when no guide exists.
 - **Reset path** — counter reset given a source entity with usage hours.
+- **Device totals + dock firmware** (`MNT`) — `get_upkeep_snapshot` surfaces the
+  robovac_mqtt v1.11.0 lifetime sensors (`total_cleaning_area` / `_time` /
+  `_count`) as a `device_totals` block and the `dock_firmware` string, covering
+  the all-present, all-absent, and partial/placeholder paths.
 
 ---
 
@@ -54,7 +58,9 @@ attribute-coercion `except` blocks in `get_upkeep_snapshot` for
 315-316), the interval-override coercion fallback (387-388), and the
 `usage_hours` coercion `pass` in `get_maintenance_remaining` (600-601).
 The `_display_label` normalize-to-empty guard (71) is similarly a trivial
-near-unreachable branch. All intentionally uncovered.
+near-unreachable branch. The `device_totals` reader's `_device_total`
+`(TypeError, ValueError)` coercion guard in `get_upkeep_snapshot` (a non-numeric,
+non-placeholder sensor value) is the same kind of branch. All intentionally uncovered.
 
 `_get_replacement_reset_entity`'s `entity_suffixes` primary
 resolution path (247-252 — the states-table hit and the registry

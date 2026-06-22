@@ -53,6 +53,10 @@ from .entities import (
     SUFFIX_WASH_FREQUENCY_VALUE_TIME,
     SUFFIX_DRY_DURATION,
     SUFFIX_WATER_LEVEL,
+    SUFFIX_TOTAL_CLEANING_AREA,
+    SUFFIX_TOTAL_CLEANING_TIME,
+    SUFFIX_TOTAL_CLEANING_COUNT,
+    SUFFIX_DOCK_FIRMWARE_VERSION,
     DOMAIN_SENSOR,
     DOMAIN_BINARY_SENSOR,
     DOMAIN_SELECT,
@@ -223,6 +227,21 @@ def register_eufy_adapter_for_vacuum(
             vacuum_entity_id, SUFFIX_DRY_DURATION, DOMAIN_SELECT
         ),
         "water_level": build_entity_id(vacuum_entity_id, SUFFIX_WATER_LEVEL),
+        # Lifetime usage totals + dock firmware (robovac_mqtt v1.11.0+). Always
+        # declared; the upkeep snapshot reads each state and omits any that's
+        # absent, so older integration versions / models simply show nothing.
+        "total_cleaning_area": build_entity_id(
+            vacuum_entity_id, SUFFIX_TOTAL_CLEANING_AREA
+        ),
+        "total_cleaning_time": build_entity_id(
+            vacuum_entity_id, SUFFIX_TOTAL_CLEANING_TIME
+        ),
+        "total_cleaning_count": build_entity_id(
+            vacuum_entity_id, SUFFIX_TOTAL_CLEANING_COUNT
+        ),
+        "dock_firmware_version": build_entity_id(
+            vacuum_entity_id, SUFFIX_DOCK_FIRMWARE_VERSION
+        ),
         # Position entities sourced from capability detection — these use
         # robovac_mqtt-specific suffixes that are already resolved by
         # detect_capabilities().

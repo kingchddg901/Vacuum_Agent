@@ -166,6 +166,10 @@ depends on them — they never raise.
 | `robot_position_y` | Optional | Same as above; both X and Y must be present. |
 | `work_mode` | Optional | Work-mode block check in the start-blocker skipped. |
 | `cleaning_intensity` | Optional | Path-control capability inferred from model family only. |
+| `total_cleaning_area` | Optional | Lifetime "Total cleaned" tile hidden in the Maintenance tab. |
+| `total_cleaning_time` | Optional | Lifetime "Total time" tile hidden in the Maintenance tab. |
+| `total_cleaning_count` | Optional | Lifetime "Cleans" tile hidden in the Maintenance tab. |
+| `dock_firmware_version` | Optional | Dock firmware line hidden in the Maintenance overview. |
 
 ### Example (from Eufy adapter)
 
@@ -184,6 +188,10 @@ depends on them — they never raise.
     "wash_frequency_value_time": "number.alfred_wash_frequency_value_time",
     "dry_duration": "select.alfred_dry_duration",
     "water_level": "sensor.alfred_water_level",
+    "total_cleaning_area": "sensor.alfred_total_cleaning_area",
+    "total_cleaning_time": "sensor.alfred_total_cleaning_time",
+    "total_cleaning_count": "sensor.alfred_total_cleaning_count",
+    "dock_firmware_version": "sensor.alfred_dock_firmware_version",
     "robot_position_x": "sensor.alfred_robot_position_x_raw",
     "robot_position_y": "sensor.alfred_robot_position_y_raw",
     "work_mode": "sensor.alfred_work_mode",

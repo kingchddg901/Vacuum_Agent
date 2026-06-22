@@ -162,6 +162,12 @@ Keyword-only. Returns a composite snapshot used by the panel's maintenance tab:
         "dust_empty_count":  int,
         "dry_start_count":   int,
     },
+    "device_totals": {                    # lifetime usage (v1.11.0+); None when unreported
+        "area_m2": float | None,          #   total area cleaned (m²)
+        "time_s":  float | None,          #   total cleaning time (seconds)
+        "count":   int | None,            #   total cleaning jobs
+    },
+    "dock_firmware":            str | None,   # dock firmware version; None when unreported
     # ... plus vacuum_entity_id, dock_status[_label/_entity],
     #     model_meta, attention_summary, updated_at.
 }

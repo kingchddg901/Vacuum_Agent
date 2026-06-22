@@ -65,6 +65,19 @@ export function applyMaintenanceRenderers(proto) {
 
     const modelName = modelMeta.name ?? null;
     const guideFamilyName = modelMeta.guide_family_name ?? null;
+    const dockFirmware = upkeep.dock_firmware ?? null;
+
+    // Lifetime device totals (robovac_mqtt v1.11.0+ sensors). Absent → no tiles.
+    const deviceTotals = upkeep.device_totals ?? null;
+    const totalTiles = [];
+    if (deviceTotals) {
+      if (deviceTotals.area_m2 != null)
+        totalTiles.push(this._renderMaintenanceStat("Total cleaned", `${Math.round(deviceTotals.area_m2)} m²`));
+      if (deviceTotals.time_s != null)
+        totalTiles.push(this._renderMaintenanceStat("Total time", `${(deviceTotals.time_s / 3600).toFixed(1)} h`));
+      if (deviceTotals.count != null)
+        totalTiles.push(this._renderMaintenanceStat("Cleans", String(deviceTotals.count)));
+    }
     const replacementAttentionCount = replacementItems.filter((item) =>
       this._maintenanceItemNeedsAttention(item)
     ).length;
@@ -91,11 +104,11 @@ export function applyMaintenanceRenderers(proto) {
               ` : ""}
             </div>
 
-            ${modelName || updatedAt ? `
+            ${modelName || updatedAt || dockFirmware ? `
               <div class="evcc-maintenance-model-line">
                 ${this.escapeHtml(modelName ?? "")}
-                ${modelName && updatedAt ? " · " : ""}
-                ${updatedAt ? `Updated ${this.escapeHtml(this._formatMaintenanceTimestamp(updatedAt))}` : ""}
+                ${dockFirmware ? `${modelName ? " · " : ""}Dock fw ${this.escapeHtml(dockFirmware)}` : ""}
+                ${updatedAt ? `${(modelName || dockFirmware) ? " · " : ""}Updated ${this.escapeHtml(this._formatMaintenanceTimestamp(updatedAt))}` : ""}
               </div>
             ` : ""}
 
@@ -105,6 +118,11 @@ export function applyMaintenanceRenderers(proto) {
               ${this._renderMaintenanceStat("Items", maintenanceItems.length)}
               ${this._renderMaintenanceStat("Water", upkeep.station_water_label ?? stationWater ?? "Unknown")}
             </div>
+            ${totalTiles.length ? `
+              <div class="evcc-maintenance-stats">
+                ${totalTiles.join("")}
+              </div>
+            ` : ""}
           </section>
 
           <section class="evcc-maintenance-panel">

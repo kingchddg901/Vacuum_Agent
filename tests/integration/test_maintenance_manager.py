@@ -22,6 +22,9 @@ Coverage targets
 [MNT-14] _get_replacement_reset_entity: token_sets registry fallback resolves a differently-named reset button when no entity_suffix matches.
 [MNT-14c] _get_replacement_reset_entity: entity_suffixes primary route — states-table hit + unconfigured component → None.
 [MNT-14d] _get_replacement_reset_entity: entity_suffixes primary route — registry-only hit (no live state).
+[MNT-15] get_upkeep_snapshot surfaces v1.11.0 lifetime totals + dock firmware from device sensors.
+[MNT-16] get_upkeep_snapshot: no lifetime sensors → device_totals/dock_firmware None.
+[MNT-17] get_upkeep_snapshot: placeholder/absent sensor → that field None, the rest still surface.
 """
 
 from __future__ import annotations
@@ -190,6 +193,57 @@ def test_upkeep_snapshot_with_component(mnt, manager, hass, monkeypatch):
     assert "main_brush" in items
     assert items["main_brush"]["status"] == "warning"
     assert snap["highest_priority_status"] in {"warning", "replace_soon", "replace_now"}
+
+
+def _caps_with_entities(manager, monkeypatch, entities):
+    """Capabilities mock that also carries the adapter 'entities' map."""
+    monkeypatch.setattr(
+        manager, "get_vacuum_capabilities",
+        lambda **kw: {"maintenance_sources": {}, "sources": {}, "entities": entities},
+    )
+
+
+def test_upkeep_snapshot_device_totals_and_firmware(mnt, manager, hass, monkeypatch):
+    """[MNT-15]"""
+    _caps_with_entities(manager, monkeypatch, {
+        "total_cleaning_area": "sensor.alfred_total_cleaning_area",
+        "total_cleaning_time": "sensor.alfred_total_cleaning_time",
+        "total_cleaning_count": "sensor.alfred_total_cleaning_count",
+        "dock_firmware_version": "sensor.alfred_dock_firmware_version",
+    })
+    hass.states.async_set("sensor.alfred_total_cleaning_area", "152.5")
+    hass.states.async_set("sensor.alfred_total_cleaning_time", "36000")   # 10 h in seconds
+    hass.states.async_set("sensor.alfred_total_cleaning_count", "42")
+    hass.states.async_set("sensor.alfred_dock_firmware_version", "1.2.3")
+
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+    assert snap["device_totals"] == {"area_m2": 152.5, "time_s": 36000.0, "count": 42}
+    assert snap["dock_firmware"] == "1.2.3"
+
+
+def test_upkeep_snapshot_device_totals_absent(mnt, manager, monkeypatch):
+    """[MNT-16]"""
+    _caps_with_entities(manager, monkeypatch, {})
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+    assert snap["device_totals"] is None
+    assert snap["dock_firmware"] is None
+
+
+def test_upkeep_snapshot_device_totals_partial(mnt, manager, hass, monkeypatch):
+    """[MNT-17] a placeholder/absent sensor → that field None; present ones still surface."""
+    _caps_with_entities(manager, monkeypatch, {
+        "total_cleaning_area": "sensor.alfred_total_cleaning_area",
+        "total_cleaning_time": "sensor.alfred_total_cleaning_time",
+        "dock_firmware_version": "sensor.alfred_dock_firmware_version",
+    })
+    hass.states.async_set("sensor.alfred_total_cleaning_area", "200")
+    hass.states.async_set("sensor.alfred_total_cleaning_time", "unavailable")  # placeholder
+    hass.states.async_set("sensor.alfred_dock_firmware_version", "unknown")    # placeholder
+    # no total_cleaning_count entity declared at all
+
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+    assert snap["device_totals"] == {"area_m2": 200.0, "time_s": None, "count": None}
+    assert snap["dock_firmware"] is None
 
 
 def test_upkeep_item_guide_builds_sub_dicts(mnt):
