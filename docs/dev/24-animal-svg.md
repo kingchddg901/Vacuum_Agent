@@ -13,6 +13,11 @@ this document is the contract reference for two audiences:
 - **Integration authors** who use `<animal-svg>` to express device state.
 - **Creature-pack authors** who add new animals.
 
+**Sharing an animal in the gallery?** Start with the descriptor guide —
+[Authoring an animal](../contributing/animal-authoring.md) — submissions are
+**declarative data, not JavaScript**. This document is the runtime `register()`
+contract those descriptors compile down to (and the maintainer raw-JS path).
+
 If you are using or extending the eufy_vacuum panel's map view, jump to
 [Integration contract](#integration-contract) — it documents exactly what the
 panel passes to `<animal-svg>` (and what it does *not* pass).
@@ -244,6 +249,11 @@ content: |
 
 ## Adding / removing / editing an animal
 
+This is the runtime mechanic — how the integration *loads* animals. To **share**
+a companion in the gallery, author a declarative descriptor instead (no JS) — see
+[Authoring an animal](../contributing/animal-authoring.md); the raw-JS route below
+is for maintainers and your own install.
+
 Each animal is its own self-registering file in `animals/`. The integration
 generates `animals/index.json` at every HA startup by scanning that directory,
 so `manifest.js` never needs to be edited.
@@ -439,14 +449,22 @@ attribute inside your render callback.
 
 ## Contributing or making your own
 
-The five bundled animals are placeholder quality — built to validate the
-framework, not to look polished. A separate guide,
-[CONTRIBUTING.md](../contributing/mascot-authoring.md)
-(co-located with the animal source files), covers what "good" means here
-(pose silhouette, palette intent, stroke hierarchy, warning expression)
-and how to submit improvements or new animals. Read it before opening a
-PR or shipping a custom animal for your own install — this doc tells you
-what works; the contributing guide tells you what looks finished.
+The bundled animals are placeholder quality — built to validate the
+framework, not to look polished. Two guides cover making your own:
+
+- **[Authoring an animal](../contributing/animal-authoring.md)** — the public
+  path: a **declarative descriptor** (sanitised SVG + colour tokens) that the
+  intake validates and *generates* the runtime module from. This is how shared
+  gallery companions are submitted — no hand-written JavaScript.
+- **[Mascot authoring](../contributing/mascot-authoring.md)** — the maintainer /
+  runtime path: adding `animals/<id>.js` directly (`register()`,
+  `type: 'custom'`), reviewed as code. It also carries the **craft standards**
+  (pose silhouette, palette intent, stroke hierarchy, warning expression) that
+  apply to *both* paths.
+
+Read the relevant one before opening a PR or shipping a custom animal for your
+own install — this doc tells you what *works*; those tell you what looks
+*finished* and which path is safe to share.
 
 ## Debugging
 

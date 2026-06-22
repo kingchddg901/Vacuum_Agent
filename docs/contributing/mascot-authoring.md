@@ -1,10 +1,27 @@
-# Contributing mascots
+# Mascot authoring (maintainer path)
 
-Honest disclaimer up front: the five bundled animals (cat, dog, raccoon,
-parrot, snake) are **placeholder quality**. They were built to validate the
-framework — to prove the parts pipeline, the pose system, the registration
-model, and the custom-type escape hatch all work end-to-end. Polish was not
-the goal.
+!!! note "Two paths — pick the right one"
+    **Want to *share* an animal? This isn't the page (and that's the good news).**
+    Community companions are **declarative data**, not code: you write a JSON
+    **descriptor**, and the intake sanitises the SVG and *generates* the runtime
+    module for you — no JavaScript, no `register()`, nothing that can run on
+    someone else's dashboard. → **[Authoring an animal](animal-authoring.md)** is
+    the guide you want, and the only route the public gallery accepts.
+
+    **This page is the maintainer / runtime path.** It covers adding an
+    `animals/<id>.js` module *directly* — `AnimalSVG.register(...)`,
+    framework-level behaviour, and procedural `type: 'custom'` renderers. Those
+    ship **executable code** into the bundle, so they're reviewed *as code*, by
+    maintainers — never accepted through the gallery intake.
+
+    The **craft standards** below (what a *good* mascot looks like) apply to
+    **both** paths: a descriptor animal is held to exactly the same bar.
+
+Honest disclaimer up front: the bundled animals (cat, dog, raccoon, parrot,
+snake, plus the Mittens memorial) started as **placeholder quality**. They were
+built to validate the framework — to prove the parts pipeline, the pose system,
+the registration model, and the custom-type escape hatch all work end-to-end.
+Polish was not the goal.
 
 If you have any visual-design instinct at all, you can probably make a
 better one. This guide describes what "better" means here, so you have
@@ -12,12 +29,14 @@ something to aim at.
 
 The technical contract (definition shape, coordinate space, allowed poses,
 battery-state hook, theme tokens) lives in the integration's
-[animal-svg dev doc](../dev/24-animal-svg.md). This file is purely
-about *making them look good*.
+[animal-svg dev doc](../dev/24-animal-svg.md). This file is about *making them
+look good* (any animal) and the maintainer **runtime** path (raw-JS animals).
 
 ## What "good" means here
 
 A good mascot has these properties. The bundled placeholders mostly don't.
+This is craft guidance — it applies whether you're submitting a
+[descriptor](animal-authoring.md) or a maintainer adding a runtime module.
 
 ### 1. Anatomically coherent across all six poses
 
@@ -92,6 +111,9 @@ colors: {
 }
 ```
 
+(In a **descriptor**, the same block is JSON with bare `"H S% L%"` triples —
+identical values, no `hsl(...)` wrapper.)
+
 When picking colors, keep each band visually distinct at the 64×44 render
 size — green vs yellow is easy, but yellow vs orange can muddle if both
 are too saturated. The charging color should feel "active" (cool or
@@ -102,8 +124,24 @@ indistinguishable.
 
 The walking pose has separate `kneeFlexA` / `kneeFlexB` animations on
 alternating legs precisely so the animal doesn't move like a stiff toy.
-Use the namespaced lower-leg classes (`yourname-fl-lower`,
-`yourname-fr-lower`, etc.) for both walking and animating poses.
+
+The framework animates a **fixed set** of lower-leg class names — the `cat-`,
+`dog-`, and `rac-` prefixes, each with `-fl-/-fr-/-bl-/-br-lower`. Wrap each
+lower-leg subgroup in one of those (with a `transform-origin` at the knee) for
+both the walking and animating poses:
+
+```html
+<g class="cat-fl-lower" style="transform-origin: 170px 236px"> ... </g>
+```
+
+Reusing the `cat-` namespace is correct and intentional — only one animal
+renders per element, so there's no collision, and the knee-fold / walk cycle
+fire for free. A *brand-new* namespace (`myanimal-fl-lower`) animates **only**
+if you also add its keyframes to the framework's animation CSS — a framework
+change — so unless you're doing that deliberately, **reuse `cat-*-lower`**. This
+is the same rule the descriptor path follows (the sanitiser's class allowlist is
+exactly these names plus `animal-eyes` and the parrot's `f-wing-l`/`f-wing-r`) —
+see [Make the legs animate](animal-authoring.md#make-the-legs-animate).
 
 Placeholder animals sometimes skip this and end up with all four legs
 flexing in sync, which looks robotic.
@@ -139,38 +177,69 @@ A few non-goals worth stating:
   transforms pivot around those anchors regardless, so significant
   deviation produces strange motion.
 
-## Submitting changes
+## The runtime path (maintainer)
+
+Everything below is the **trusted, code-level** route. For a *shared* animal,
+none of this applies — submit a [descriptor](animal-authoring.md) and the intake
+generates the module for you. Use the raw-JS route only when an animal needs
+framework behaviour the declarative descriptor can't express, and expect it to
+be reviewed as code.
 
 ### Improving a bundled animal
 
-Edit the animal's file directly. The cleanest submissions touch only one
-animal at a time and explain in the PR description:
+Most bundled animals are now **descriptor-backed**: cat, dog, raccoon, parrot,
+and the Mittens memorial each have a source descriptor at
+`custom_components/eufy_vacuum/frontend/animal-svg/src/<id>.json`, and the
+committed `animals/<id>.js` is *generated* from it. (The exception is **snake** —
+a procedural `type: 'custom'` module with no descriptor, edited directly as
+code.) To improve a descriptor-backed animal, edit the descriptor and regenerate
+the module:
+
+```sh
+node scripts/build-animal.mjs \
+  custom_components/eufy_vacuum/frontend/animal-svg/src/<id>.json --first-party
+```
+
+The `bundled-animals` test guards that each committed `.js` is the faithful
+codegen of its descriptor, so **don't hand-edit the `.js`** — change the
+descriptor and rebuild. The cleanest submissions touch only one animal and
+explain in the PR description:
 
 - What looked wrong (the specific failure of the existing version)
 - What changed (a before/after screenshot at 64×44 if at all possible)
 - Whether the palette changed (and why)
 
-Don't reformat the surrounding code or other animals — keep the diff
-focused.
+For a change that needs **framework behaviour** the descriptor can't express (a
+new pose hook, a procedural renderer), edit the framework / a hand-written `.js`
+directly — see below.
 
-### Adding a new animal
+### Adding a runtime animal directly
 
-1. Drop `animals/<yourname>.js` that calls `AnimalSVG.register('yourname', {...})`.
+!!! warning "Maintainer / trusted path — not the public submission route"
+    For a **shared** animal, submit a descriptor:
+    **[Authoring an animal](animal-authoring.md)**. The raw-JS route here ships
+    executable code, so it's for maintainers adding framework-level behaviour or
+    a procedural renderer, reviewed as code — the gallery intake never accepts it.
+
+1. Drop `animals/<id>.js` that calls `AnimalSVG.register('<id>', {...})`.
 2. Restart Home Assistant.
 
-The integration generates `animals/index.json` at startup from whatever `.js` files are in that directory — no edit to `manifest.js` needed.
+The integration generates `animals/index.json` at startup from whatever `.js`
+files are in that directory — no edit to `manifest.js` needed.
 
-**The ID passed to `register()` must be unique.** Use the filename (minus `.js`) as the ID. If two files register the same ID the second silently overwrites the first.
+**The ID passed to `register()` must be unique.** Use the filename (minus `.js`)
+as the ID. If two files register the same ID the second silently overwrites the
+first.
 
 **That is the entire change.** No edits to `src/`. The integration's theme
 token registry and editor preview pane both auto-derive from the live
 AnimalSVG list — once your file's `register()` call fires, an event
 notifies the theme system, which rebuilds the registry and adds:
 
-- An "Animal Companion — `<Yourname>`" editor sub-group listing the tokens
+- An "Animal Companion — `<Id>`" editor sub-group listing the tokens
   your animal actually themes — derived from its `colors` block. A full
   palette is 9 palette + 5 battery-state = 14 tokens, all prefixed
-  `--evcc-animal-<yourname>-`; declare fewer keys and only those appear.
+  `--evcc-animal-<id>-`; declare fewer keys and only those appear.
 - A single-animal preview pane in the editor showing your animal in all
   five battery-state bands
 
@@ -181,10 +250,16 @@ PR description should include: a screenshot of all six poses (you can use
 `demo.html` for this), what the animal expresses (cat → reserved, parrot
 → flighty, etc.), and the palette rationale.
 
-If your animal needs procedural rendering (snake-like), use
-`type: 'custom'`. See `animals/snake.js` for the pattern. You are entirely
-responsible for the warning pose in custom animals — the framework hands
-you the pose name and walks away.
+### Procedural (`type: 'custom'`) animals — maintainer only
+
+If an animal needs procedural rendering (snake-like), use `type: 'custom'`.
+This **bypasses the parts pipeline and the sanitiser entirely** — you return a
+render function, i.e. arbitrary JavaScript that draws into the host — so it is a
+**maintainer-authored, code-reviewed** addition only. The public descriptor
+intake rejects `type: "custom"` for exactly this reason: there's no safe way to
+sanitise a renderer. See `animals/snake.js` for the pattern. You are entirely
+responsible for the warning pose in custom animals — the framework hands you the
+pose name and walks away.
 
 ### Memorial animals
 
@@ -192,7 +267,8 @@ A memorial mascot is a tribute to a real animal (e.g. `animals/mittens.js`,
 modelled from photos of the author's cat). The "placeholder quality" disclaimer
 at the top does **not** apply — a memorial is held to a *higher* bar than the
 bundled animals: it should read as that specific animal, with its real markings,
-not a generic shape.
+not a generic shape. (Memorials work on the [descriptor](animal-authoring.md)
+path too — the rule is the same; only the format differs.)
 
 Two things set a memorial apart from a normal animal:
 
@@ -235,12 +311,14 @@ established are sound:
   feature only shown in walking (flight) pose. Read for: how `type:
   'parrot'` differs from quadruped, optional `wingLeft`/`wingRight`,
   `parts.extra` for the perch.
-- **snake.js** — reference procedural (`type: 'custom'`) animal. Read for:
-  how to bypass the parts pipeline entirely, return a cleanup function,
-  handle each framework pose by mapping to your own internal modes.
+- **snake.js** — reference procedural (`type: 'custom'`) animal, **maintainer
+  path only**. Read for: how to bypass the parts pipeline entirely, return a
+  cleanup function, handle each framework pose by mapping to your own internal
+  modes.
 
 You don't need to study all three to add one new animal. Pick the one
-closest to your concept and copy its structure.
+closest to your concept and copy its structure. (For a descriptor animal, the
+worked example is the **Fox** at `gallery/animals/fox.json`.)
 
 ## A note on creative range
 

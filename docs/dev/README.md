@@ -112,7 +112,8 @@ Cross-cutting features that span several subsystems.
 Not numbered — separate audience.
 
 - [porting-guide](../contributing/porting-guide.md) — end-to-end workflow for adding a new vacuum brand
-- [mascot-authoring](../contributing/mascot-authoring.md) — visual standards for adding or improving animal companions
+- [animal-authoring](../contributing/animal-authoring.md) — public path: submit a declarative animal **descriptor** (sanitised + codegen'd) — the safe way to share a companion
+- [mascot-authoring](../contributing/mascot-authoring.md) — maintainer / runtime path: hand-written `animals/<id>.js` (`register()`, `type:'custom'`) plus the craft standards that apply to both paths
 
 ## Testing docs
 

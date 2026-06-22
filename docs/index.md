@@ -26,7 +26,7 @@ Room-level control for **robot vacuums** (Eufy and Roborock today) in Home Assis
 
 - **[Contributing](contributing/porting-guide.md)**
 
-    Porting the adapter to a new brand, and authoring mascots.
+    Porting the adapter to a new brand, and authoring or sharing animal companions.
 
 - **[Theme Gallery ↗](https://kingchddg901.github.io/Vacuum_Agent/)**
 

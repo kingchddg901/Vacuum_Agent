@@ -9,11 +9,16 @@ and making the result *good*.
 battery-state eyes — is covered in the user guide. This page is about building a
 new one.
 
+For what a *good* animal looks like — a readable silhouette, the six distinct
+poses, a consistent stroke hierarchy, a warning pose that actually warns — see
+the craft standards in [Mascot authoring](mascot-authoring.md#what-good-means-here).
+They're written against the bundled animals but apply to descriptor animals too.
+
 ## Two rules to know up front
 
 1. **It's declarative — never code.** An animal you submit is a JSON
    **descriptor**: colour tokens plus SVG path data. There is no JavaScript and
-   no procedural renderer (`type: "custom"` is maintainer-only). The intake
+   no procedural renderer (`type: "custom"` is [maintainer-only](mascot-authoring.md)). The intake
    **sanitises** every SVG part, then *generates* the runtime module from your
    validated data — so a submission can never run code on anyone's dashboard.
 2. **Baked colours ⟹ a tribute.** If you bake your colours in as literal
@@ -107,7 +112,9 @@ lists exactly the tokens you declared. Values are **bare HSL triples** —
 - In your `parts`, reference a token as `fill="hsl(var(--animal-fur))"`.
 - **Always declare `--animal-eye`.** The eye is recoloured by battery state
   (green when full, red when low, blue while charging), so it must stay on the
-  token. Tag the eye's group with `class="animal-eyes"` to get the charging pulse.
+  token. For `quadruped` and `parrot` animals the framework **auto-tags** the eye
+  group with `class="animal-eyes"` (so the charging pulse works automatically) —
+  you don't add that class yourself, and the Fox doesn't.
 - A **baked** animal declares *only* `--animal-eye` and hard-codes the rest as
   literal `hsl(...)` in the parts (the Mittens pattern) — and so must be `memorial`.
 
@@ -184,8 +191,8 @@ cycle fire for free with no framework change. (The Fox and Mittens both do this.
 Your SVG is run through DOMPurify in a real browser at intake. **Allowed:**
 geometry (`path`, `circle`, `ellipse`, `rect`, `line`, `polyline`, `polygon`,
 `g`), gradients/clips (`defs`, `linearGradient`, `radialGradient`, `stop`,
-`clipPath`, `use`), and presentation attributes (`fill`, `stroke`, `opacity`,
-`transform`, etc.). `style` is clamped to `transform-origin` (plus a few). `href`
+`clipPath`, `use`), accessibility (`title`, `desc`), and presentation attributes
+(`fill`, `stroke`, `opacity`, `transform`, etc.). `style` is clamped to `transform-origin` (plus a few). `href`
 must be an internal `#fragment` (e.g. `fill="url(#grad)"`). **Stripped or
 rejected:** `<script>`, `<foreignObject>`, `<image>`, event handlers
 (`onload=...`), external references, `javascript:` / `data:` URIs, and any
