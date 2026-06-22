@@ -6,7 +6,7 @@ Sensors per vacuum:
 - {object_id}_charge_rate_low_zone   — %/min while battery ≤ 29%
 - {object_id}_charge_rate_high_zone  — %/min while battery ≥ 80%
 - {object_id}_last_charge_duration   — minutes for the last completed session
-- {object_id}_battery_health     — % vs install baseline (CV regime — resistance proxy)
+- {object_id}_battery_health     — % vs install baseline (CV regime — resistance proxy), capped ≤100%
 - {object_id}_cc_charge_speed    — % vs install baseline, CC regime (capacity proxy)
 - {object_id}_cv_charge_speed    — % vs install baseline, CV regime (resistance proxy)
 - {object_id}_last_job_drain_per_min / per_hour / per_m2 — last-job drain rates
@@ -18,7 +18,9 @@ fans out state writes whenever the manager processes a new sample.
 The CC/CV regimes age in opposite directions — capacity loss raises %/min
 in the 50→80 CC region, resistance rise lowers %/min in the 80→90 CV taper —
 so they're tracked separately. _battery_health is an alias of _cv_charge_speed
-for entity_id continuity with installs that pre-date the regime split.
+for entity_id continuity with installs that pre-date the regime split, but
+capped at 100% (never "healthier than new") — the uncapped value stays on
+_cv_charge_speed and the health sensor's uncapped_pct attribute.
 """
 
 from __future__ import annotations
@@ -286,6 +288,12 @@ class BatteryHealthSensor(_BatteryBase):
     Headline alias of cv_charge_speed_pct (the resistance-proxy regime).
     Kept under the _battery_health entity_id for continuity with installs
     that pre-date the regime split. None until the baseline is anchored.
+
+    Capped at 100% — a battery is never "healthier than new". A raw reading
+    above 100 (the cell charging faster than its install baseline, common
+    while the baseline is young) is clamped for this headline; the uncapped
+    value stays on the _cv_charge_speed diagnostic sensor and in the
+    ``uncapped_pct`` attribute here.
     """
 
     _attr_state_class = "measurement"
@@ -304,7 +312,11 @@ class BatteryHealthSensor(_BatteryBase):
     def native_value(self) -> float | None:
         stats = self._record().get("stats", {})
         value = stats.get("health_pct")
-        return float(value) if value is not None else None
+        if value is None:
+            return None
+        # Health is capped at 100% (never "healthier than new"); the raw
+        # >100 charge-speed signal stays on _cv_charge_speed + uncapped_pct.
+        return min(float(value), 100.0)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
@@ -312,6 +324,9 @@ class BatteryHealthSensor(_BatteryBase):
         baseline = rec.get("baseline", {})
         history = rec.get("session_history_recent", [])
         return {
+            # The headline state is capped at 100%; expose the raw (possibly
+            # >100) value here so the underlying signal isn't hidden.
+            "uncapped_pct": rec.get("stats", {}).get("health_pct"),
             # The headline tracks the CV regime, so surface that anchor by
             # default. cc_min_per_pct is also exposed for visibility.
             "baseline_cv_min_per_pct": baseline.get("cv_min_per_pct"),

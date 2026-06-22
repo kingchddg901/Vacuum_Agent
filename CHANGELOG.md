@@ -8,6 +8,15 @@ Releases before 0.9.10 are recorded as
 [GitHub tags/releases](https://github.com/kingchddg901/Vacuum_Agent/releases)
 only.
 
+## [Unreleased]
+
+### Fixed
+- Battery health (`_battery_health` sensor) is now capped at **100%** — a battery is
+  never "healthier than new". A raw reading above 100 (the cell charging faster than
+  its install baseline, common while the baseline is young) looked odd; the uncapped
+  value stays on the `_cv_charge_speed` diagnostic sensor and the health sensor's
+  `uncapped_pct` attribute.
+
 ## [1.2.1] - 2026-06-22
 
 ### Fixed

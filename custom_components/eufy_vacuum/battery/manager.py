@@ -791,6 +791,8 @@ class BatteryHealthManager:
         - health_pct: alias of cv_charge_speed_pct. CV is the conventional
           "battery health" signal users expect; the headline keeps that
           framing while CC is exposed separately for the capacity story.
+          Stored uncapped here (== cv_charge_speed_pct); the _battery_health
+          SENSOR caps it at 100% for display (never "healthier than new").
         """
         history = record.get("session_history_recent", [])
         baseline = record.get("baseline", {})
