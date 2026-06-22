@@ -49,7 +49,7 @@ A **Rotate** control in the map toolbar turns the map in 90° steps. The rotatio
 
 You can also draw and save room segments directly over the live map; see [Making your own maps](16-making-your-own-maps.md) for the full workflow.
 
-The mascot follows the robot's current room (dwell-debounced so it does not jump on brief passes), and it stays draggable even when the map is rotated.
+The mascot follows the robot's current room (dwell-debounced so it does not jump on brief passes), and it stays draggable even when the map is rotated. If you'd rather watch it **track the robot's exact position**, tap the **Mascot follows robot** toggle in the map toolbar — the mascot then rides the live robot pixel (replacing the position dot) and moves with it in real time. Tap the toggle again to return it to room/dock mode.
 
 ---
 

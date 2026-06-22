@@ -1,6 +1,6 @@
 # Making your own maps
 
-The card can show your floor plan as an interactive map: each room is a coloured shape you can tap to queue, and your vacuum's mascot wanders across it. This guide walks you through getting that map set up — from a first screenshot to hand-drawn themed layouts.
+The card can show your floor plan as an interactive map: each room is a coloured shape you can tap to add to a clean — tap again to remove it, and the rooms you haven't picked dim so you can see exactly what's queued — and your vacuum's mascot wanders across it. This guide walks you through getting that map set up — from a first screenshot to hand-drawn themed layouts.
 
 You have a few ways to put rooms on the map, and you can use more than one on the same vacuum:
 
@@ -161,6 +161,10 @@ If the live map comes in sideways relative to how you picture your home, use the
 ### Furnished render: trace your real rooms
 
 Once you have a live map, you can go further than coloured room shapes: overlay a **to-scale render of your actual home** so the live robot, dock, and cleaning path drive across your real furniture. Save the live map image, trace your furniture over it, upload it, then blend and align it once. See **[Furnished render](18-furnished-render.md)** for the full walkthrough.
+
+### Hide map noise
+
+A live map sometimes shows clutter that isn't a room — a porch, a reflective strip, a sliver of the next floor. Tap **Hide area…** in the map toolbar, then **drag a box** over the clutter to mask it from view (add as many boxes as you need); tap **Done** when finished. Hidden regions are **display only** — they don't change cleaning, they just tidy the map — and they're saved with the map so they follow you across devices.
 
 ---
 

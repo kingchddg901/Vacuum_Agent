@@ -50,6 +50,21 @@ Once a job starts, the action bar updates to reflect the live state:
 
 ---
 
+## Zone cleaning (draw a box)
+
+Instead of cleaning whole rooms, you can clean **just an area you draw on the map** — handy for a spill, a high-traffic patch, or the spot under the table.
+
+Zone cleaning works on the **live map**: it needs the live image as the backdrop and the map at rotation 0, on brands that support it — **Eufy** (via the community fork). The path-optimizing **Roborock S6 doesn't expose zone cleaning**, so the control won't appear there.
+
+1. Open the **Map** view and tap the **▢ "Draw a zone to clean"** button in the map toolbar to enter zone mode.
+2. **Drag a box** on the map over the area you want cleaned. Repeat to add more boxes — up to **10 zones** in one clean (each is numbered).
+3. The **Zone clean** panel (right column) lists your zones. Remove one with its **✕**, or **Clear** to drop them all. Under **Settings**, choose the suction/mop options for the run — they apply to the whole clean.
+4. Press **Clean zone** (or **Clean *N* zones**) to send it. **Cancel** leaves zone mode without cleaning.
+
+Zones are one-off — they aren't saved between cleans. To clean by room instead, leave zone mode and use the normal [room queue](#starting-a-clean).
+
+---
+
 ## Strict Order (path-optimizing vacuums)
 
 By default the robot decides its own cleaning path and may visit the rooms in whatever order is most efficient for it, regardless of the order shown in your queue. When you turn on **Strict order** for a run, the integration instead cleans the rooms one at a time, in the order you set, returning to the dock between rooms before dispatching the next one. This is slower, but it guarantees the exact order. Each room dispatch is verified and retried if the vacuum doesn't pick it up, and the live progress banner advances as each room is dispatched and then completed.
