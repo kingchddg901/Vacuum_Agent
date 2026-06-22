@@ -3575,6 +3575,9 @@ class EufyVacuumManager:
         # the zone-draw control — you draw the box on that image, and the live map
         # only exists on the fork that also accepts zone_clean.
         supports_zone_clean = bool(_caps_cfg.get("supports_zone_clean", False))
+        # Per-clean zone cap surfaced to the card so the draw stops at the brand limit
+        # (Eufy 10, Roborock S6 5). Per-zone SIZE limits are enforced server-side at dispatch.
+        zone_max = int(_caps_cfg.get("zone_max", 10) or 10)
         # The vacuum's provider setting entities (suction / mode / intensity / water
         # level selects), resolved + existence-checked from the adapter's
         # `settings_selects` (the same block the external-run capture uses). Surfaced
@@ -3662,6 +3665,7 @@ class EufyVacuumManager:
             "supports_base_station": supports_base_station,
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
+            "zone_max": zone_max,
             "setting_entities": setting_entities,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
@@ -4065,6 +4069,16 @@ class EufyVacuumManager:
                 f"{vacuum_entity_id}: this vacuum's adapter declares no zone_command "
                 "(zone cleaning is not supported for this brand/provider)"
             )
+        # Device limits (from capabilities): a per-clean zone COUNT cap (defence-in-depth —
+        # the card also caps the draw) plus per-zone SIZE bounds checked after the device-mm
+        # conversion below. Absent => unconstrained for that brand.
+        _zone_caps = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        _zone_max = _zone_caps.get("zone_max")
+        if _zone_max is not None and len(zones) > int(_zone_max):
+            raise ValueError(
+                f"{vacuum_entity_id}: too many zones ({len(zones)}) — this vacuum allows at "
+                f"most {int(_zone_max)} per clean"
+            )
         # Coordinate frame: most providers de-normalize on their side, so we ship the
         # 0-1 image rects verbatim (Eufy's fork zone_clean). Brands whose command wants
         # WORLD millimetres (Roborock app_zoned_clean) declare ``zone_coords: device_mm``;
@@ -4091,6 +4105,22 @@ class EufyVacuumManager:
                     "coordinate frame (map projection failed validation) — refusing to "
                     "dispatch rather than risk cleaning the wrong area"
                 )
+            # Per-zone size bounds (device mm² -> m²). The device rejects zones outside its
+            # range, so refuse with a clear message rather than a silent device failure.
+            _min_a = _zone_caps.get("zone_min_area_m2")
+            _max_a = _zone_caps.get("zone_max_area_m2")
+            for _x0, _y0, _x1, _y1 in mm_rects:
+                _area = abs(_x1 - _x0) * abs(_y1 - _y0) / 1_000_000.0
+                if _min_a is not None and _area < float(_min_a):
+                    raise ValueError(
+                        f"{vacuum_entity_id}: a zone is too small ({_area:.2f} m²) — the "
+                        f"minimum is {float(_min_a):.2f} m² (~1 ft²); draw a bigger box"
+                    )
+                if _max_a is not None and _area > float(_max_a):
+                    raise ValueError(
+                        f"{vacuum_entity_id}: a zone is too large ({_area:.2f} m²) — the "
+                        f"maximum is {float(_max_a):.2f} m² (~32.8 ft²); draw a smaller box"
+                    )
             repeat = max(1, min(int(clean_times), 3))
             # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
             payload: dict[str, Any] | list[Any] = [

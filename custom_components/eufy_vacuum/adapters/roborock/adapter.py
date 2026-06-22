@@ -475,10 +475,16 @@ def register_roborock_adapter_for_vacuum(
             # at run start. (Eufy honors order via send_command -> default True.)
             "honors_clean_order": False,
             # Zone clean (draw-a-box) via app_zoned_clean (device-mm; see dispatch.
-            # zone_command). The S6 supports zoned cleaning through stock send_command;
-            # the card's zone-draw stays gated on a live backdrop + map rotation 0
-            # (canDrawZone) — rotated-map dispatch is the follow-up TODO.
+            # zone_command). The S6 supports zoned cleaning through stock send_command; the
+            # card un-rotates the drawn rect so it works at any display rotation.
             "supports_zone_clean": True,
+            # app_zoned_clean device limits (S6, likely all Roborock): at most 5 zones per
+            # call, each between 1 ft² and 32.8 ft². Count is enforced in the card (zoneMax
+            # via the snapshot) + dispatch (defence-in-depth); size in dispatch_zone_clean
+            # after the mm conversion (the card draws in % and can't know the mm size).
+            "zone_max": 5,
+            "zone_min_area_m2": 0.0929,   # 1 ft²
+            "zone_max_area_m2": 3.05,     # 32.8 ft²
         },
 
         "maintenance_components": {

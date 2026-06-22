@@ -519,7 +519,9 @@ export function applyMapState(proto) {
   // pct (0-100) of the square map container, drawn → dispatched → discarded.
   // Never persisted. _zoneDrawMode toggles the draw interaction; _zoneDrafts holds
   // the committed rectangles ({x,y,w,h} pct). The in-progress drag box is painted
-  // straight to the DOM and pushed here on release. App cap = 10 zones per clean.
+  // straight to the DOM and pushed here on release. The per-clean zone cap is
+  // brand-specific (snapshot.zone_max via zoneMax(); e.g. Eufy 10, Roborock S6 5);
+  // this constant is the fallback before the snapshot loads.
   proto._ZONE_MAX = 10;
   proto._zoneDrawMode = false;
   proto._zoneDrafts = null; // lazily []
@@ -530,19 +532,22 @@ export function applyMapState(proto) {
     return this._zoneDrafts;
   };
   proto.zoneCount = function () { return this.zoneDrafts().length; };
-  proto.zoneMax = function () { return this._ZONE_MAX; };
-  proto.zoneAtCap = function () { return this.zoneCount() >= this._ZONE_MAX; };
+  proto.zoneMax = function () {
+    const m = this.dashboardSnapshot?.()?.zone_max;
+    return (typeof m === "number" && m > 0) ? m : this._ZONE_MAX;
+  };
+  proto.zoneAtCap = function () { return this.zoneCount() >= this.zoneMax(); };
 
   proto.setZoneDrawMode = function (on) {
     this._zoneDrawMode = Boolean(on);
     if (!this._zoneDrawMode) this._zoneDrafts = [];
   };
 
-  // Commit one drawn rectangle. Returns false (ignored) once at the 10-zone cap.
+  // Commit one drawn rectangle. Returns false (ignored) once at the brand zone cap.
   proto.addZoneDraft = function (rect) {
     if (!rect) return false;
     const list = this.zoneDrafts();
-    if (list.length >= this._ZONE_MAX) return false;
+    if (list.length >= this.zoneMax()) return false;
     list.push({ x: rect.x, y: rect.y, w: rect.w, h: rect.h });
     return true;
   };
