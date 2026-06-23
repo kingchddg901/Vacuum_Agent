@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest an idea for Vacuum Agent
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What problem would it solve, and roughly how would it work?
+    validations:
+      required: true
+  - type: dropdown
+    id: brand
+    attributes:
+      label: Which brand(s) does this apply to?
+      multiple: true
+      options:
+        - Eufy
+        - Roborock
+        - All / brand-agnostic
+    validations:
+      required: false

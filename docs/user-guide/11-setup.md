@@ -80,6 +80,15 @@ The step badge fills with **✓** as soon as one map has been imported.
 You can come back later and import additional maps; the step stays
 checked.
 
+!!! tip "Stuck on this step? Download diagnostics"
+
+    If the import keeps failing — most commonly **"No active map detected"** —
+    download a diagnostics report and attach it when you ask for help:
+    **Settings → Devices & Services → Vacuum Agent → ⋮ → Download diagnostics**.
+    It shows how each entity resolves — including whether the active-map sensor
+    actually has a value — which usually pinpoints the cause at a glance.
+    Credentials are redacted.
+
 ---
 
 ## Step 3 — Configure Rooms
