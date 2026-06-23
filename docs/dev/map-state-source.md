@@ -62,7 +62,7 @@ provider coupling is isolated to one adapter-configured reader.
 
 ## Brand reality (why a pointer, not a hardcode)
 
-| | Eufy (smcneece fork) | Roborock (HA core) |
+| | Eufy (eufy-clean) | Roborock (HA core) |
 |---|---|---|
 | Source | `.storage/robovac_mqtt.<id>` (**decoded on disk**) | in-memory coordinator `MapData` |
 | Per-room bbox | from `room_pixels` extents | parser `Room.x0..y1` (**direct**) |

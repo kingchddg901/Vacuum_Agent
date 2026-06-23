@@ -560,7 +560,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
      entities self-bust (token rotates per frame) -> no poll needed. Idempotent: set hass is
      frequent, so we never reset a running timer (that would starve it). */
   _scheduleLiveMapRefresh() {
-    const REFRESH_MS = 2000; // smcneece eufy-clean fork pushes a new map frame ~every 2s
+    const REFRESH_MS = 2000; // eufy-clean pushes a new map frame ~every 2s
 
     const liveCamera =
       !!this._state?.isMapViewActive?.() &&

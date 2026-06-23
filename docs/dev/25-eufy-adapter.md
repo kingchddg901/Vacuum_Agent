@@ -181,7 +181,7 @@ for Eufy (defaults match) but is kept as the **copy template** a port edits.
 The block also declares `zone_command: "zone_clean"` — the ad-hoc free-form
 zone-clean verb (draw a box on the live map, clean it) via the same
 `vacuum.send_command` service with a bare `{zones:[[x0,y0,x1,y1],…], clean_times}`
-payload, supported by the smcneece eufy-clean fork. `manager.dispatch_zone_clean`
+payload, supported by eufy-clean v1.11.1+ (jeppesens mainline). `manager.dispatch_zone_clean`
 reads this verb; an **absent** `zone_command` means zone cleaning is unsupported for
 the brand (it raises rather than dispatching). It pairs with
 `capabilities.supports_zone_clean` below.
@@ -359,11 +359,11 @@ runtime entity probe: `position_lock_reliable = False` (Eufy re-bases the raw
 coordinate frame each session) and `rooms_unique_per_job = True` (no vacuum-then-mop
 whole-home mode, so a room is cleaned at most once per job) describe firmware
 behaviour an entity probe can't see; `supports_zone_clean = True` is a literal
-because no probe distinguishes the smcneece fork (which accepts `zone_clean` — see
-`dispatch.zone_command`) from stock eufy-clean. It is gated **downstream** rather
+because no probe distinguishes eufy-clean v1.11.1+ (which accepts `zone_clean` — see
+`dispatch.zone_command`) from older eufy-clean. It is gated **downstream** rather
 than at the probe: the card only shows the zone-draw control when a live-map image
-resolves, and the fork that adds `zone_clean` is the same one exposing
-`camera.<device>_map`, so stock (no-live-map) installs never see it. See
+resolves, and the version (v1.11.0+) that adds `zone_clean` is the same one exposing
+`camera.<device>_map`, so older (no-live-map) installs never see it. See
 [22-adapter-config-reference](22-adapter-config-reference.md).
 
 ### `settings_selects`

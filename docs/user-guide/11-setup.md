@@ -154,9 +154,9 @@ and "Downstairs") makes it obvious which panel you're opening.
 
 The Setup tab has a **Live map camera** dropdown that lets you pick a
 camera (or image) entity to use as this vacuum's live map backdrop —
-for example the `camera.<device>_map` entity exposed by the
-[eufy-clean fork](https://github.com/smcneece/eufy-clean), which renders
-the robot's live map and refreshes it every couple of seconds. The
+for example the `camera.<device>_map` entity exposed by
+[eufy-clean](https://github.com/jeppesens/eufy-clean) v1.11.1 or later,
+which renders the robot's live map and refreshes it every couple of seconds. The
 field only appears when at least one camera or image entity exists in
 Home Assistant, and your choice saves immediately on change — no button
 to press.

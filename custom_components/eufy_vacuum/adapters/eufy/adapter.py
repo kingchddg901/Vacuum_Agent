@@ -487,7 +487,7 @@ def register_eufy_adapter_for_vacuum(
             "service_domain": "vacuum",
             "service_name": "send_command",
             "command": "room_clean",
-            # Ad-hoc free-form zone clean (smcneece eufy-clean fork). Same
+            # Ad-hoc free-form zone clean (eufy-clean v1.11.1+). Same
             # vacuum.send_command service, command=zone_clean, bare payload
             # {zones:[[x0,y0,x1,y1],...], clean_times}. manager.dispatch_zone_clean
             # reads this verb; absence => zone cleaning unsupported for the brand.
@@ -539,11 +539,11 @@ def register_eufy_adapter_for_vacuum(
                 # int to bias the candidate-scoring pass toward that count.
                 "expected_room_count": None,
             },
-            # Best-effort live-map backdrop for installs running the eufy-clean fork
-            # (smcneece) that exposes a camera.<device>_map live-map entity. Core fills
+            # Best-effort live-map backdrop for installs running eufy-clean v1.11.0+
+            # that exposes a camera.<device>_map live-map entity. Core fills
             # {object_id} from the vacuum entity's object_id (the Eufy vacuum and that
             # camera usually share the device slug) and EXISTENCE-CHECKS the result, so
-            # plain eufy-clean / non-fork installs resolve to None and are unaffected.
+            # installs on older eufy-clean (no live map) resolve to None and are unaffected.
             # If the vacuum entity was renamed and this guess misses, the per-vacuum
             # override set from the Setup tab wins (see manager.get_dashboard_snapshot).
             "live_map_image_entity_pattern": "camera.{object_id}_map",
@@ -712,11 +712,11 @@ def register_eufy_adapter_for_vacuum(
             "supports_robot_position": caps.get("supports_robot_position", False),
             "supports_station_water": caps.get("supports_station_water", False),
             # Ad-hoc free-form zone cleaning (draw a box on the live map, clean it).
-            # No runtime probe distinguishes the smcneece fork (which accepts
-            # zone_clean — see dispatch.zone_command) from stock eufy-clean, so this
+            # No runtime probe distinguishes eufy-clean v1.11.1+ (which accepts
+            # zone_clean — see dispatch.zone_command) from older eufy-clean, so this
             # is True for Eufy and the card gates the zone-draw control on a RESOLVED
-            # live-map image: the fork that adds zone_clean is the same one exposing
-            # camera.<device>_map, so stock installs (no live map) never see it.
+            # live-map image: the version (v1.11.0+) that adds zone_clean is the same one
+            # exposing camera.<device>_map, so older installs (no live map) never see it.
             "supports_zone_clean": True,
             # Eufy firmware re-bases the raw coordinate frame every session, so
             # cross-session bounds geometry is unusable for room detection. The
