@@ -117,26 +117,39 @@ def _vacuum_diagnostics(
         }
 
     # Map + room resolution.
-    active_map_id = _resolve_active_map_id(entity_resolution)
-    out["active_map_id"] = active_map_id
+    # active_map_id is the ENTITY-derived active map (Eufy's active_map sensor) —
+    # it stays a top-level signal because a missing/blank one is the #1 onboarding
+    # tell. Room dumping below iterates EVERY stored map instead of just this one,
+    # so it's brand-agnostic: Roborock resolves its active map a different way and
+    # exposes no such sensor, but its rooms still surface here.
+    out["active_map_id"] = _resolve_active_map_id(entity_resolution)
 
+    map_ids: list[str] = []
     try:
-        out["maps"] = manager.get_vacuum_maps(vacuum_entity_id=vacuum_entity_id)
+        maps = manager.get_vacuum_maps(vacuum_entity_id=vacuum_entity_id)
+        out["maps"] = maps
+        map_ids = [
+            str(m["map_id"])
+            for m in (maps or {}).get("maps", [])
+            if isinstance(m, dict) and m.get("map_id") is not None
+        ]
     except Exception as err:  # pragma: no cover - defensive
         out["maps_error"] = repr(err)
 
-    if active_map_id:
+    managed_rooms_by_map: dict[str, Any] = {}
+    for map_id in map_ids:
         try:
-            out["managed_rooms"] = manager.get_managed_rooms(
-                vacuum_entity_id=vacuum_entity_id, map_id=active_map_id
+            managed_rooms_by_map[map_id] = manager.get_managed_rooms(
+                vacuum_entity_id=vacuum_entity_id, map_id=map_id
             )
         except Exception as err:  # pragma: no cover - defensive
-            out["managed_rooms_error"] = repr(err)
-    else:
-        out["managed_rooms"] = None
+            managed_rooms_by_map[map_id] = {"error": repr(err)}
+    out["managed_rooms_by_map"] = managed_rooms_by_map
+
+    if not map_ids:
         out["managed_rooms_note"] = (
-            "skipped — no active map resolved (the active_map sensor is missing or "
-            "blank). Import an active map first (Setup → Import Active Map)."
+            "no maps imported yet — once the vacuum has completed a mapping run, "
+            "run Setup → Import Active Map."
         )
 
     # Upkeep (maintenance / dock) — side-effect-free.

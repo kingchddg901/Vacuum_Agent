@@ -16,6 +16,8 @@ Coverage targets
 [DIAG-4]  Missing runtime manager → a clean error block, no crash.
 [DIAG-5]  Malformed (non-string) entity value in the adapter map → no crash; the
           role resolves to exists=False.
+[DIAG-6]  Brand-agnostic rooms: a vacuum with NO active_map sensor (Roborock) but
+          a stored map still dumps that map's rooms (managed_rooms_by_map).
 """
 
 from __future__ import annotations
@@ -88,7 +90,11 @@ def _caps() -> dict[str, Any]:
 def _make_manager() -> _FakeManager:
     return _FakeManager(
         caps=_caps(),
-        maps={"6": {"rooms": 5}},
+        maps={
+            "vacuum_entity_id": VACUUM,
+            "map_count": 1,
+            "maps": [{"map_id": "6", "room_count": 5}],
+        },
         rooms={"rooms": [{"room_id": 1, "name": "Kitchen"}]},
         upkeep={"highest_priority_status": "good"},
         dashboard={"snapshot": "ok"},
@@ -141,7 +147,9 @@ async def test_diagnostics_full(hass):
     assert res["live_map"]["exists"] is True
     assert vac["active_map_id"] == "6"
     assert vac["vacuum_state"]["segment_count"] == 2
-    assert vac["managed_rooms"] == {"rooms": [{"room_id": 1, "name": "Kitchen"}]}
+    assert vac["managed_rooms_by_map"] == {
+        "6": {"rooms": [{"room_id": 1, "name": "Kitchen"}]}
+    }
     assert vac["capabilities"]["supports_room_clean"] is True
 
     # [DIAG-1] read-only: the side-effecting dashboard snapshot is NOT collected,
@@ -157,8 +165,14 @@ async def test_diagnostics_full(hass):
 
 
 async def test_diagnostics_no_active_map(hass):
-    """[DIAG-2] The common onboarding failure: active_map sensor blank."""
-    manager = _make_manager()
+    """[DIAG-2] The common onboarding failure: active_map sensor blank, nothing imported."""
+    manager = _FakeManager(
+        caps=_caps(),
+        maps={"vacuum_entity_id": VACUUM, "map_count": 0, "maps": []},
+        rooms={},
+        upkeep={"highest_priority_status": "good"},
+        dashboard={},
+    )
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
 
     # active_map sensor reports a sentinel (eufy-clean hasn't received a map yet);
@@ -175,8 +189,8 @@ async def test_diagnostics_no_active_map(hass):
     assert vac["entity_resolution"]["active_map"]["state"] == "unknown"
     assert vac["entity_resolution"]["live_map"]["exists"] is False
     assert vac["active_map_id"] is None
-    assert vac["managed_rooms"] is None
-    assert "active_map" in vac["managed_rooms_note"]
+    assert vac["managed_rooms_by_map"] == {}
+    assert "managed_rooms_note" in vac
     # Read-only + no map: no dashboard snapshot key, no refresh, no event fire.
     assert "dashboard_snapshot" not in vac
     assert manager.dashboard_calls == 0
@@ -212,3 +226,32 @@ async def test_diagnostics_malformed_entities(hass):
     res = diag["vacuums"][0]["entity_resolution"]["active_map"]
     assert res == {"entity_id": None, "exists": False, "state": None}
     assert diag["vacuums"][0]["active_map_id"] is None
+
+
+async def test_diagnostics_rooms_without_active_map_sensor(hass):
+    """[DIAG-6] Roborock-style: no active_map sensor, but a stored map still dumps rooms."""
+    manager = _FakeManager(
+        caps={"entities": {"vacuum": VACUUM}},  # no active_map role at all
+        maps={
+            "vacuum_entity_id": VACUUM,
+            "map_count": 1,
+            "maps": [{"map_id": "Main floor", "room_count": 10}],
+        },
+        rooms={"room_count": 10},
+        upkeep={},
+        dashboard={},
+    )
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {})
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    vac = diag["vacuums"][0]
+
+    # No active_map sensor → active_map_id is None, but the stored map's rooms
+    # are still dumped (the brand-agnostic fix).
+    assert vac["active_map_id"] is None
+    assert vac["managed_rooms_by_map"] == {"Main floor": {"room_count": 10}}
+    assert "managed_rooms_note" not in vac
