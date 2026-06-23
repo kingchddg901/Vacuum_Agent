@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation
+    url: https://kingchddg901.github.io/Vacuum_Agent/docs/
+    about: Setup, troubleshooting, and the full user guide — worth a look first.
+  - name: Eufy vacuum (eufy-clean) issues
+    url: https://github.com/jeppesens/eufy-clean/issues
+    about: Problems with the underlying Eufy vacuum.* entity itself belong upstream.

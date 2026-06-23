@@ -1,0 +1,77 @@
+name: Bug report
+description: Something in Vacuum Agent isn't working right
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! The single most useful thing you can attach is a
+        **diagnostics download** — it shows how your vacuum's entities resolve and
+        usually pinpoints the problem on its own. Your HA version, the integration
+        version, and your installed integrations are all inside it, so you don't
+        need to type those out separately. Credentials are redacted automatically.
+  - type: textarea
+    id: what
+    attributes:
+      label: What's wrong?
+      description: What did you expect to happen, and what happened instead?
+      placeholder: e.g. "I set my rooms up but the Rooms tab still says 'No rooms found'."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations:
+      required: false
+  - type: dropdown
+    id: brand
+    attributes:
+      label: Vacuum brand
+      options:
+        - Eufy
+        - Roborock
+        - Other / not sure
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Vacuum model
+      placeholder: e.g. X10 Pro Omni, Roborock S6
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics download
+      description: >
+        **Settings → Devices & Services → Vacuum Agent → ⋮ → Download diagnostics**,
+        then drag the downloaded `.json` file into this box (or paste its contents).
+        Credentials are redacted automatically.
+      placeholder: Drag the diagnostics .json file here.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (optional)
+      description: Settings → System → Logs — anything mentioning `eufy_vacuum`.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I'm on the latest version of Vacuum Agent.
+          required: true
+        - label: I searched existing issues and didn't find a duplicate.
+          required: true
+        - label: I attached a diagnostics download (or explained why I can't).
+          required: true
