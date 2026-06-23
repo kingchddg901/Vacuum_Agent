@@ -97,7 +97,7 @@ Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/
 
 ## Screenshots
 
-> **Live gallery:** [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/) renders the real card under every community-submitted theme — each tab, the External Jobs subtab, and the review wizard — rebuilt automatically by the [render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) on every push to `master`.
+> **Live site — [kingchddg901.github.io/Vacuum_Agent](https://kingchddg901.github.io/Vacuum_Agent/):** the project's hub. A [**theme gallery**](https://kingchddg901.github.io/Vacuum_Agent/themes/) renders the *real* card under every community-submitted theme (each tab, the External Jobs subtab, the review wizard); an [**animal gallery**](https://kingchddg901.github.io/Vacuum_Agent/animals/) shows the map companions you can submit — or dedicate to a pet at Rainbow Bridge; and the full [**docs**](https://kingchddg901.github.io/Vacuum_Agent/docs/) live there too. The galleries are rebuilt by the [render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) on every push to `master`, so they never go stale — the static tour below is just a quick offline glance.
 
 <details>
 <summary><strong>Click to expand the full panel tour</strong></summary>
@@ -196,21 +196,30 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 
 ## Documentation
 
-- [User guide](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/01-overview/) — walk-through of every panel tab
-- [Setup tab](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/11-setup/) — initial setup wizard and ongoing drift review
+Full docs live at **[kingchddg901.github.io/Vacuum_Agent/docs](https://kingchddg901.github.io/Vacuum_Agent/docs/)** — part of the [project site](https://kingchddg901.github.io/Vacuum_Agent/) alongside the theme and animal galleries.
+
+**Using it**
+
+- [User guide](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/01-overview/) — a walk-through of every panel tab
+- [Setup](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/11-setup/) — the initial wizard and ongoing room-drift review
 - [Battery health](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/13-battery-health/) — what's tracked, the twelve sensors, charting, raw CSV/JSONL access
 - [Accessibility](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/14-accessibility/) — the colorblind-safe theme and shape-coded badges
-- [Services reference](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/03-services/) — for use in automations
-- [Automation examples](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/04-automation-examples/)
-- [Map configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) — enable the interactive room map (optional)
-- [Battery health (advanced)](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/09-battery-health/) — math, zone definitions, mid-job recharge significance, automation examples
-- [Developer docs](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/) — reading-order index for all 32 dev docs
-- [Render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) — headless visual-regression, colorblind validation, and theme previews ([how to run](https://kingchddg901.github.io/Vacuum_Agent/docs/testing/07-render-harness/))
-- [Adapter config reference](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/22-adapter-config-reference/) — the schema for per-vacuum brand config
-- [Porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) — workflow for adapting to other vacuum brands (Roborock, Dreame, Narwal, etc.)
-- [Mascot authoring guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/mascot-authoring/) — visual standards for adding or improving the map view's animal companions
-- [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual used before tagging any release
-- [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — standalone, domain-agnostic guide to the runtime-configurable adapter pattern this integration is built on. Useful if you want to apply the same approach to a non-vacuum HA integration.
+
+**Automations**
+
+- [Services reference](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/03-services/) · [Automation examples](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/04-automation-examples/)
+- [Map configuration](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/08-map-configuration/) — enable the optional interactive room map
+- [Battery health (advanced)](https://kingchddg901.github.io/Vacuum_Agent/docs/advanced/09-battery-health/) — the math, zone definitions, mid-job recharge significance, and automation examples
+
+**Contributing & internals**
+
+- [Developer docs](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/) — a reading-ordered index of every subsystem deep-dive
+- [Porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) — adapting the adapter to other brands (Roborock, Dreame, Narwal, …)
+- [Adapter config reference](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/22-adapter-config-reference/) — the per-vacuum brand-config schema
+- [Theme authoring](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/theme-authoring/) · [Animal authoring](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/animal-authoring/) — submit a card theme or a map companion
+- [Render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) — headless visual-regression + the live galleries ([how to run](https://kingchddg901.github.io/Vacuum_Agent/docs/testing/07-render-harness/))
+- [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — the runtime-configurable adapter pattern as a standalone, domain-agnostic guide
+- [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual
 
 ## For developers and porters
 
