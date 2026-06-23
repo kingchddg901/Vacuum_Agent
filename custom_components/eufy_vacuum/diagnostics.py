@@ -74,6 +74,29 @@ def _resolve_active_map_id(entity_resolution: dict[str, Any]) -> str | None:
     return str(state)
 
 
+def _slim_upkeep(upkeep: Any) -> Any:
+    """A diagnostic-sized copy of the upkeep snapshot.
+
+    Drops the per-item ``guide`` (static how-to-clean steps, repeated for
+    maintenance / replacement / display — model boilerplate, no diagnostic value
+    and the bulk of the dump's size) while keeping status / remaining / entity /
+    reset fields. Never mutates the input.
+    """
+    if not isinstance(upkeep, dict):
+        return upkeep
+    slim = dict(upkeep)
+    for key in ("replacement_items", "maintenance_items"):
+        items = slim.get(key)
+        if isinstance(items, list):
+            slim[key] = [
+                {k: v for k, v in item.items() if k != "guide"}
+                if isinstance(item, dict)
+                else item
+                for item in items
+            ]
+    return slim
+
+
 def _vacuum_diagnostics(
     hass: HomeAssistant, manager: Any, vacuum_entity_id: str
 ) -> dict[str, Any]:
@@ -107,13 +130,14 @@ def _vacuum_diagnostics(
     else:
         attrs = dict(v_state.attributes)
         segments = attrs.get("segments")
+        # `rooms` is byte-identical to `segments` on Eufy — keep one. attribute_keys
+        # still lists every attribute name so nothing is hidden.
         out["vacuum_state"] = {
             "exists": True,
             "state": v_state.state,
             "attribute_keys": sorted(attrs.keys()),
             "segment_count": len(segments) if isinstance(segments, list) else None,
             "segments": segments,
-            "rooms": attrs.get("rooms"),
         }
 
     # Map + room resolution.
@@ -139,9 +163,13 @@ def _vacuum_diagnostics(
     managed_rooms_by_map: dict[str, Any] = {}
     for map_id in map_ids:
         try:
-            managed_rooms_by_map[map_id] = manager.get_managed_rooms(
+            rooms = manager.get_managed_rooms(
                 vacuum_entity_id=vacuum_entity_id, map_id=map_id
             )
+            # Drop the `summary` block — it re-lists the rooms already dumped in full.
+            if isinstance(rooms, dict):
+                rooms = {k: v for k, v in rooms.items() if k != "summary"}
+            managed_rooms_by_map[map_id] = rooms
         except Exception as err:  # pragma: no cover - defensive
             managed_rooms_by_map[map_id] = {"error": repr(err)}
     out["managed_rooms_by_map"] = managed_rooms_by_map
@@ -152,10 +180,12 @@ def _vacuum_diagnostics(
             "run Setup → Import Active Map."
         )
 
-    # Upkeep (maintenance / dock) — side-effect-free.
+    # Upkeep (maintenance / dock) — side-effect-free. The per-item care guides
+    # (static how-to-clean steps) are stripped: model boilerplate with no
+    # diagnostic value that otherwise dominates the dump's size.
     try:
-        out["upkeep_snapshot"] = manager.get_upkeep_snapshot(
-            vacuum_entity_id=vacuum_entity_id
+        out["upkeep_snapshot"] = _slim_upkeep(
+            manager.get_upkeep_snapshot(vacuum_entity_id=vacuum_entity_id)
         )
     except Exception as err:  # pragma: no cover - defensive
         out["upkeep_snapshot_error"] = repr(err)

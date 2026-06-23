@@ -18,6 +18,8 @@ Coverage targets
           role resolves to exists=False.
 [DIAG-6]  Brand-agnostic rooms: a vacuum with NO active_map sensor (Roborock) but
           a stored map still dumps that map's rooms (managed_rooms_by_map).
+[DIAG-7]  Slimming: per-item upkeep `guide` stripped, managed-rooms `summary`
+          stripped, vacuum_state.rooms (== segments) dropped.
 """
 
 from __future__ import annotations
@@ -95,8 +97,21 @@ def _make_manager() -> _FakeManager:
             "map_count": 1,
             "maps": [{"map_id": "6", "room_count": 5}],
         },
-        rooms={"rooms": [{"room_id": 1, "name": "Kitchen"}]},
-        upkeep={"highest_priority_status": "good"},
+        # `summary` re-lists the rooms — the dump should strip it.
+        rooms={
+            "rooms": [{"room_id": 1, "name": "Kitchen"}],
+            "summary": {"enabled_count": 1},
+        },
+        # `guide` is static boilerplate — the dump should strip it per item.
+        upkeep={
+            "highest_priority_status": "good",
+            "replacement_items": [
+                {"component": "filter", "status": "good", "guide": {"steps": ["x"]}}
+            ],
+            "maintenance_items": [
+                {"component": "filter", "status": "good", "guide": {"steps": ["x"]}}
+            ],
+        },
         dashboard={"snapshot": "ok"},
     )
 
@@ -128,7 +143,11 @@ async def test_diagnostics_full(hass):
     hass.states.async_set(
         VACUUM,
         "docked",
-        {"segments": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}]},
+        {
+            "segments": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+            # byte-identical to segments — the dump should drop it.
+            "rooms": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+        },
     )
 
     entry = _entry()
@@ -147,9 +166,18 @@ async def test_diagnostics_full(hass):
     assert res["live_map"]["exists"] is True
     assert vac["active_map_id"] == "6"
     assert vac["vacuum_state"]["segment_count"] == 2
+    # [DIAG-7] slimming — the `summary` re-list is stripped (this equality excludes
+    # it), the per-item upkeep `guide` is gone, and vacuum_state.rooms is dropped.
     assert vac["managed_rooms_by_map"] == {
         "6": {"rooms": [{"room_id": 1, "name": "Kitchen"}]}
     }
+    up = vac["upkeep_snapshot"]
+    assert "guide" not in up["replacement_items"][0]
+    assert "guide" not in up["maintenance_items"][0]
+    assert up["replacement_items"][0]["status"] == "good"  # the useful bit stays
+    assert "rooms" not in vac["vacuum_state"]
+    assert "segments" in vac["vacuum_state"]
+
     assert vac["capabilities"]["supports_room_clean"] is True
 
     # [DIAG-1] read-only: the side-effecting dashboard snapshot is NOT collected,
