@@ -1,0 +1,21 @@
+{
+  "theme": {
+    "name": "Glacial",
+    "version": "1.0.0",
+    "tokens": {
+      "bg-primary": "#001a33",
+      "bg-secondary": "#003366",
+      "surface-default": "#004080",
+      "surface-accent": "#87cefa",
+      "text-main": "#ffffff",
+      "text-muted": "#cce6ff",
+      "border-default": "#005b99",
+      "border-highlight": "#ffffff"
+    },
+    "source": "community",
+    "tags": [
+      "ice"
+    ],
+    "author": "Kingchddg901"
+  }
+}
