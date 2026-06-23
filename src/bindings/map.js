@@ -395,9 +395,21 @@ export function applyMapBindings(proto) {
     const show = (el, e) => {
       const label = el.dataset.label ?? "";
       const hint  = el.dataset.hint  ?? "";
-      tooltip.innerHTML =
-        `<span class="evcc-map-tooltip-label">${label}</span>` +
-        (hint ? `<span class="evcc-map-tooltip-hint">${hint}</span>` : "");
+      // Build via textContent, NOT innerHTML. The renderer escapes these into the
+      // data-label/data-hint attributes, but reading them back through `.dataset`
+      // DECODES the entities — so a room named `<img src=x onerror=...>` would come
+      // back raw and execute if re-injected as innerHTML. textContent is inert.
+      tooltip.replaceChildren();
+      const labelEl = document.createElement("span");
+      labelEl.className = "evcc-map-tooltip-label";
+      labelEl.textContent = label;
+      tooltip.appendChild(labelEl);
+      if (hint) {
+        const hintEl = document.createElement("span");
+        hintEl.className = "evcc-map-tooltip-hint";
+        hintEl.textContent = hint;
+        tooltip.appendChild(hintEl);
+      }
       tooltip.classList.add("evcc-map-tooltip--visible");
       move(e);
     };
