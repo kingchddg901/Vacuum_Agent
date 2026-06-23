@@ -37,6 +37,7 @@ from custom_components.eufy_vacuum.const import (
     SERVICE_SETUP_FORCE_REMOVE_ROOM,
     SERVICE_SETUP_GET_MAP_ROOMS,
     SERVICE_SETUP_GET_STATUS,
+    SERVICE_SETUP_IMPORT_MAP,
     SERVICE_SETUP_REJECT_ROOMS,
     SERVICE_SETUP_SAVE_ROOMS,
     SERVICE_SETUP_SET_MAP_CAMERA,
@@ -203,9 +204,37 @@ async def test_setup_import_active_map(hass, manager_with_services, _no_panel):
         {"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Bath"}]})
     await _call(hass, SERVICE_SETUP_ADD_VACUUM, {"vacuum_entity_id": _VAC})
     hass.states.async_set("sensor.alfred_active_map", "svsimp")
-    result = await _call(hass, "setup_import_active_map", {"vacuum_entity_id": _VAC})
+    result = await _call(hass, SERVICE_SETUP_IMPORT_MAP, {"vacuum_entity_id": _VAC})
     assert result["status"] == "success"
     assert result["data"]["room_count"] == 2
+    steps = manager_with_services.data["setup_progress"][_VAC]["completed_steps"]
+    assert "import_active_map" in steps
+
+
+async def test_setup_import_active_map_blocked_does_not_complete_step(
+    hass, manager_with_services
+):
+    """[SVS-8b] a blocked import leaves the setup step incomplete."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "t", "source": "t",
+        "entities": {"active_map": "sensor.alfred_active_map"},
+        "discovery": {
+            "room_list_entity": "vacuum_entity", "room_list_attribute": "segments",
+            "room_id_key": "id", "room_name_key": "name"},
+    })
+    manager_with_services.ensure_vacuum_record(vacuum_entity_id=_VAC)
+    hass.states.async_set(_VAC, "docked", {"segments": []})
+    hass.states.async_set("sensor.alfred_active_map", "empty")
+
+    result = await _call(hass, SERVICE_SETUP_IMPORT_MAP, {"vacuum_entity_id": _VAC})
+
+    assert result["status"] == "blocked"
+    steps = (
+        manager_with_services.data.get("setup_progress", {})
+        .get(_VAC, {})
+        .get("completed_steps", [])
+    )
+    assert "import_active_map" not in steps
 
 
 async def test_setup_delete_map(hass, manager_with_services):

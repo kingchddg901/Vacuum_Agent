@@ -120,18 +120,41 @@ def _extract_maps_list(
     return []
 
 
+def _active_map_id_from_config(
+    hass: HomeAssistant,
+    config: dict[str, Any],
+    vacuum_entity_id: str,
+) -> str | None:
+    """Return the adapter-declared active map value if it is currently valid."""
+    active_map_entity = (config.get("entities") or {}).get("active_map")
+    if not active_map_entity:
+        return None
+
+    state = hass.states.get(active_map_entity)
+    if state is None:
+        return None
+
+    value = str(state.state).strip()
+    if value in {"", "unknown", "unavailable", "none", "None"}:
+        return None
+
+    return value
+
+
 def flatten_maps_response(
     response: Any,
     *,
     discovery: dict[str, Any],
     vacuum_entity_id: str | None = None,
+    active_map_id: str | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     """Flatten a get_maps response into per-map normalized room lists.
 
     Each map's ``rooms`` value is a ``{segment_id_str: name}`` mapping; this
     rewrites it into a list of ``{<room_id_key>: id, <room_name_key>: name}``
     dicts — exactly the list-of-dicts shape the attribute-source discovery path
-    already iterates. Map keys are the map NAME (matches ``entities.active_map``).
+    already iterates. Map keys are the map NAME when present, or the active-map
+    select value / map flag fallback when HA's Roborock response omits the name.
 
     Defensive against an already-list ``rooms`` value (returned as-is) and skips
     malformed entries. ``room_id_key``/``room_name_key`` default to the Roborock
@@ -145,12 +168,24 @@ def flatten_maps_response(
     maps = _extract_maps_list(response, vacuum_entity_id=vacuum_entity_id)
     out: dict[str, list[dict[str, Any]]] = {}
 
-    for map_entry in maps:
+    active_map_id = str(active_map_id).strip() if active_map_id else None
+
+    for index, map_entry in enumerate(maps):
         if not isinstance(map_entry, dict):
             continue
         map_name = str(map_entry.get(map_name_key, "")).strip()
         if not map_name:
-            continue
+            # HA's Roborock integration can return an unnamed map while the
+            # active-map select reports a synthetic name such as "Map 0".
+            # Keep the cache key aligned with the select so discovery can find
+            # the rooms it just refreshed. If there is no active-map value, use
+            # Roborock's numeric flag as the same "Map <flag>" fallback HA shows.
+            if active_map_id and len(maps) == 1:
+                map_name = active_map_id
+            elif map_entry.get("flag") is not None:
+                map_name = f"Map {map_entry['flag']}"
+            else:
+                map_name = f"Map {index}"
 
         rooms = map_entry.get(rooms_key)
         seg_list: list[dict[str, Any]] = []
@@ -240,6 +275,7 @@ async def async_refresh_room_source(
         response,
         discovery=discovery,
         vacuum_entity_id=vacuum_entity_id,
+        active_map_id=_active_map_id_from_config(hass, config, vacuum_entity_id),
     )
     set_cached_room_source(hass, vacuum_entity_id, per_map)
     _LOGGER.debug(

@@ -10,7 +10,7 @@ Coverage targets
 [SR-1]  flatten turns {id:name} rooms into list-of-dicts keyed by map name.
 [SR-2]  flatten unwraps a per-entity response wrapper.
 [SR-3]  flatten accepts a bare maps list + already-list rooms.
-[SR-4]  flatten skips malformed map entries / nameless maps.
+[SR-4]  flatten skips malformed map entries and names nameless maps.
 [SR-5]  cache get/set round-trips; empty -> {}.
 [SR-6]  async_refresh calls the service + caches for service_response sources.
 [SR-7]  async_refresh is a no-op for attribute sources / missing maps_service.
@@ -106,13 +106,26 @@ def test_flatten_bare_list_and_list_rooms():
     assert already_list["Up"] == [{"segment_id": "5", "name": "Loft"}]
 
 
-def test_flatten_skips_bad_entries():
-    """[SR-4] non-dict entries + nameless maps are skipped."""
+def test_flatten_skips_bad_entries_and_names_unnamed_maps():
+    """[SR-4] non-dict entries are skipped; nameless maps get a fallback key."""
     out = flatten_maps_response(
         {"maps": ["junk", {"rooms": {"1": "X"}}, {"name": "Real", "rooms": {"2": "Y"}}]},
         discovery=_DISCOVERY,
     )
-    assert set(out) == {"Real"}
+    assert set(out) == {"Map 1", "Real"}
+    assert out["Map 1"] == [{"segment_id": "1", "name": "X"}]
+
+
+def test_flatten_uses_active_map_for_single_unnamed_map():
+    """[SR-4] Roborock can return name="" while the active map select says Map 0."""
+    out = flatten_maps_response(
+        {_VAC: {"maps": [{"flag": 0, "name": "", "rooms": {"16": "Спальня"}}]}},
+        discovery=_DISCOVERY,
+        vacuum_entity_id=_VAC,
+        active_map_id="Map 0",
+    )
+    assert set(out) == {"Map 0"}
+    assert out["Map 0"] == [{"segment_id": "16", "name": "Спальня"}]
 
 
 def test_flatten_unrecognized_response_empty():
@@ -149,6 +162,27 @@ async def test_async_refresh_caches(hass):
     await async_refresh_room_source(hass, _VAC)
     cache = get_cached_room_source(hass, _VAC)
     assert {r["segment_id"] for r in cache["Main floor"]} == {"16", "17", "20"}
+
+
+async def test_async_refresh_caches_unnamed_map_by_active_select(hass):
+    """[SR-6] unnamed Roborock map is cached under the active-map select value."""
+    clear_registry()
+    _service_response_adapter()
+
+    async def _get_maps(call):
+        return {_VAC: {"maps": [{"flag": 0, "name": "", "rooms": {"16": "KITCHEN"}}]}}
+
+    hass.services.async_register(
+        "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY
+    )
+    hass.states.async_set(_VAC, "docked")
+    hass.states.async_set("select.ivy_selected_map", "Map 0")
+
+    await async_refresh_room_source(hass, _VAC)
+
+    cache = get_cached_room_source(hass, _VAC)
+    assert list(cache) == ["Map 0"]
+    assert cache["Map 0"] == [{"segment_id": "16", "name": "KITCHEN"}]
 
 
 async def test_async_refresh_skips_unavailable_entity(hass):
