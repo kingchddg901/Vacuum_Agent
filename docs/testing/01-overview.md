@@ -85,7 +85,7 @@ explicitly when you want it (see [02](02-running-tests.md)).
 
 ## Coverage status
 
-**Coverage: 95.4% statement** (94% combined with `--cov-branch`, which the
+**Coverage: 95.9% statement** (94% combined with `--cov-branch`, which the
 default `addopts` enables), across the brand-agnostic core **and** the Eufy
 adapter — the adapter is now counted in the number (see
 [subsystems/15-adapters](subsystems/15-adapters.md)). Most subsystems sit in the

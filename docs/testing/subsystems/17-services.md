@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **166 tests across 14 files**.
+contract). Covered by **169 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -38,7 +38,7 @@ docs, not here:
 | `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
 | `errors.py` | 37 | 95% | `test_services_errors_setup.py` |
 | `access_graph.py` | 25 | 100% | `test_services_access_graph.py` |
-| `_common.py` | 35 | 89% | `test_services_common.py`, `test_services_misc.py` |
+| `_common.py` | 35 | 100% | `test_services_common.py`, `test_services_misc.py` |
 
 ---
 
@@ -51,7 +51,9 @@ docs, not here:
 - **Error contract** — a manager-layer failure surfaces as `HomeAssistantError`
   (run-profile save/apply/rename/overwrite/delete, maintenance reset, set-interval
   save path), and not-found conditions raise `ServiceValidationError`.
-- **Call-data resolution** (`_common`) — `resolved_call_data` map-id defaulting.
+- **Call-data resolution + job-finished payload** (`_common`) — `resolved_call_data`
+  map-id defaulting (incl. the no-active-map pass-through), and
+  `job_finished_event_payload` built from a `finalize_result`-wrapped result.
 
 ---
 
@@ -76,8 +78,8 @@ The remaining misses are almost all defensive, not untested behavior:
   `{"status": "error"}` stub or log-and-return. Unreachable in the
   fixture-registered service set, intentionally uncovered.
 - **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
-  `except` → default 20), `_common.py:96` (non-dict `completed_job` guard) and
-  `:101` (alternate `finalize_result`-shaped `job_path` extraction).
+  `except` → default 20). (`_common.py`'s non-dict `completed_job` guard and its
+  `finalize_result`-shaped `job_path` extraction are now both covered.)
 - **Registered-wrapper closure (trivial)** — `rooms.py:165`, the `discover_rooms`
   inner async wrapper; the `_handle_discover_rooms` it delegates to is exercised
   directly.
@@ -85,7 +87,7 @@ The remaining misses are almost all defensive, not untested behavior:
 Note `adapter_config.py:68-78` (missing `adapter_id` / missing `dispatch.template`
 guards) are `# pragma: no cover` by design and so are excluded from the miss list.
 
-Module coverage: `setup.py` 90%, `adapter_config.py` 94%, `_common.py` 89%,
-`errors.py` 95%, `rooms.py` 97%; the remaining eight modules (including
-`run_profiles.py`, now at 100%) are at 100%. The handler success + error contracts
+Module coverage: `setup.py` 90%, `adapter_config.py` 94%, `errors.py` 95%,
+`rooms.py` 97%; the remaining nine modules (including `run_profiles.py` and
+`_common.py`, now at 100%) are at 100%. The handler success + error contracts
 are covered.

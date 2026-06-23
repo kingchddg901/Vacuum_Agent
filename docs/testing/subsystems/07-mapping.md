@@ -14,7 +14,7 @@ A third path skips authoring entirely: the **`map_state_source` reader**
 provider's OWN segmentation + live pose into VA-owned room data (bbox/name, dock/robot
 anchors, area, current room, overlay layers), so rooms are auto-derived from the device's
 authoritative map rather than learned from drifting samples or hand-drawn.
-Covered by **479 tests across 20 files** — the trace/image primitives are
+Covered by **505 tests across 21 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -40,7 +40,7 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `mapping_services.py` | 1198 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 | `map_source.py` | 371 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
 | `map_source_runtime.py` | 479 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 214 | 45% | `tests/integration/test_manager_compare_sources.py` + `tests/integration/test_manager_live_pose.py` | integration |
+| `map_source_coordinator.py` | 214 | 95% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
 
 ---
 
@@ -149,6 +149,19 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `_apply_inmem_pose_to_result` (robot/dock/heading/trail overlaid on present pose,
   base overlays preserved when pose is absent or its read raises, `no_geom` reason
   when geometry is missing).
+- **`map_source_coordinator`** dispatcher + backends (`MSD-*` / `GLM-*` / `RND-*` /
+  `RIP-*` / `LPG-*`, integration, `test_manager_map_source_refresh.py`) — the pre-warm
+  `async_refresh_map_state_source` routing (storage / memory-primary / memory /
+  unknown-backend / error-degrade, plus the live-image presence gate), the storage
+  backend's mtime-cache hit + version-mismatch warn + no-device marker, the
+  memory-primary scan with its content-version cache and the three `.storage` fallbacks
+  (memory miss / convert-None / present-False), `get_live_mapdata_obj` (the zone-dispatch
+  object locator across both backends, `None` on absence/raise),
+  `async_get_map_render_data` (memory-primary vs `.storage` vs unknown-format), and the
+  live-pose read layer (`_read_inmem_pose`, `_load_live_pose_geom` read + mtime cache +
+  no-map-data). The `_msr` parsers stay unit-tested; these pin the coordinator's own
+  dispatch / cache / fallback branching, each fallback asserted via an assert-not-called
+  guard so the intended branch is proven, not just non-crashing.
 
 ---
 
@@ -227,6 +240,11 @@ per the ~90% held-ceiling policy — defensive guards, not coverage debt:
   (99%) — empty-mask divide-by-zero returns, optional-dependency guards, unreachable
   malformed-edge artifacts, and the `<3-unique-point` hull fallback (boundary 269,
   unreachable through its only caller).
+- **`map_source_coordinator.py`** (95%, up from 45%) — `_stat_mtime`'s real `os.stat`
+  (monkeypatched in the dispatch tests), the `except OSError` stat-failure guard, the
+  memory-backend diagnostics-log branch, and a few `->` partials in the candidate loop /
+  render / geom-cache edges. Defensive guards + real-IO; the dispatch, cache, and
+  fallback behaviour is fully covered.
 
 ---
 

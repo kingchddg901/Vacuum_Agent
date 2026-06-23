@@ -14,7 +14,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 04 | Rooms (discovery, CRUD, access graph) | [04-rooms](04-rooms.md) | 94% |
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
 | 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 94% |
-| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 90% |
+| 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 93% |
 | 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 95% |
 | 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 93% |
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 98% |
@@ -24,7 +24,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 14 | Themes (card theme library) | [14-themes](14-themes.md) | 96% |
 | 15 | Adapters (brand abstraction boundary) | [15-adapters](15-adapters.md) | 93%¹ |
 | 16 | Listeners (HA event → manager wiring) | [16-listeners](16-listeners.md) | 95% |
-| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 96% |
+| 17 | Services (HA service-call layer) | [17-services](17-services.md) | 97% |
 | 18 | Platforms & entities (sensor/button/number/switch/…) | [18-platforms](18-platforms.md) | 96% |
 
 ¹ Includes the concrete Eufy adapter (`adapters/eufy/*`), now counted in the
@@ -39,7 +39,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 95.4% statement coverage** (94% combined with `--cov-branch`, adapters
+**Total: 95.9% statement coverage** (94% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 
