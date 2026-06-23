@@ -168,8 +168,8 @@ async def test_import_active_map_success(hass, manager, _no_panel):
 async def test_import_active_map_service_response(hass, manager, _no_panel):
     """[SW-9b] A service-response brand (Roborock get_maps): import_active_map
     refreshes the get_maps source first, discovers rooms, and creates the map
-    bucket — the path that makes Configure Rooms work for a brand whose room list
-    is a service response, not an entity attribute."""
+    bucket — including Roborock responses whose map name is blank while the HA
+    active-map select reports a synthetic name such as "Map 0"."""
     from homeassistant.core import SupportsResponse
 
     register_adapter_config(_VAC, {
@@ -184,21 +184,22 @@ async def test_import_active_map_service_response(hass, manager, _no_panel):
     })
 
     async def _get_maps(call):
-        return {"maps": [{"flag": 0, "name": "Main floor",
-                          "rooms": {"16": "KITCHEN", "17": "Dining Room"}}]}
+        return {_VAC: {"maps": [{"flag": 0, "name": "",
+                                 "rooms": {"16": "KITCHEN", "17": "Dining Room"}}]}}
 
     hass.services.async_register(
         "roborock", "get_maps", _get_maps, supports_response=SupportsResponse.ONLY,
     )
     hass.states.async_set(_VAC, "docked")
-    hass.states.async_set("select.alfred_selected_map", "Main floor")
+    hass.states.async_set("select.alfred_selected_map", "Map 0")
     await add_vacuum(hass, _VAC)
 
     result = await import_active_map(hass, _VAC)
 
     assert result["status"] == "success"
     assert result["data"]["room_count"] == 2
-    rooms = manager.data["maps"][_VAC]["Main floor"]["rooms"]
+    assert result["data"]["map_id"] == "Map 0"
+    rooms = manager.data["maps"][_VAC]["Map 0"]["rooms"]
     assert {r["name"] for r in rooms.values()} == {"KITCHEN", "Dining Room"}
 
 

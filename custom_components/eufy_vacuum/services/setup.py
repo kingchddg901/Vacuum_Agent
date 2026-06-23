@@ -53,6 +53,13 @@ SERVICES = (
 )
 
 
+def _completed_step_result(result: object) -> bool:
+    """Return true when a setup workflow result should advance progress."""
+    if not isinstance(result, dict):
+        return True
+    return result.get("status") in {"success", "already_done"}
+
+
 _SETUP_ADD_VACUUM_SCHEMA = vol.Schema(
     {vol.Required("vacuum_entity_id"): cv.entity_id}
 )
@@ -136,13 +143,11 @@ def register(hass: HomeAssistant) -> None:
 
     async def setup_add_vacuum(call: ServiceCall) -> dict:
         result = await _add_vacuum(hass, call.data["vacuum_entity_id"])
-        # Stamp step complete only on a non-error result. The workflow
-        # functions today don't return a uniform status key; treat
-        # any non-{"status": "error", ...} response as success.
+        # Stamp step complete only when the workflow genuinely completed.
+        # "blocked" means the user still needs to take action, so the setup
+        # panel should not render the step as done.
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
-        if manager is not None and (
-            not isinstance(result, dict) or result.get("status") != "error"
-        ):
+        if manager is not None and _completed_step_result(result):
             _record_setup_step(
                 manager, call.data["vacuum_entity_id"], "add_vacuum"
             )
@@ -165,9 +170,7 @@ def register(hass: HomeAssistant) -> None:
     async def setup_import_active_map(call: ServiceCall) -> dict:
         result = await _import_active_map(hass, call.data["vacuum_entity_id"])
         manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
-        if manager is not None and (
-            not isinstance(result, dict) or result.get("status") != "error"
-        ):
+        if manager is not None and _completed_step_result(result):
             _record_setup_step(
                 manager, call.data["vacuum_entity_id"], "import_active_map"
             )
