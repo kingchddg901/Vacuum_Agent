@@ -10,6 +10,21 @@ only.
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-06-22
+
+### Added
+- **Download Diagnostics.** The integration now answers Home Assistant's
+  *Download diagnostics* button (Settings → Devices & Services → Vacuum Agent →
+  ⋮). Per managed vacuum it reports how each adapter role resolves to a real
+  entity — the fastest way to spot a missing/blank `active_map` sensor, the most
+  common onboarding snag — plus the active map, every stored map and its per-room
+  config, capabilities, the raw provider vacuum state, and the maintenance
+  snapshot. Read-only, brand-agnostic (Eufy + Roborock), with credentials and the
+  free-text notes field redacted.
+- **Issue templates.** A bug-report form that asks for a diagnostics download up
+  front (so reports arrive with the data needed to triage them), plus a
+  feature-request form.
+
 ## [1.2.2] - 2026-06-22
 
 ### Added
