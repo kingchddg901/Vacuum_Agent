@@ -441,6 +441,16 @@ export const en = {
   "nav.unavailable_unknown": "Unknown view",
   "nav.vacuum_status": "Vacuum Status:",
 
+  // --- relative (shared "ago" timestamp formatter: formatRelativeAgo + map analyzed-at) ---
+  "relative.days_ago": "{n}d ago",  // plural
+  "relative.hours_ago": "{n}h ago",  // plural
+  "relative.just_now": "just now",
+  "relative.minutes_ago": "{n}m ago",  // plural
+  "relative.months_ago": "{n}mo ago",  // plural
+  "relative.weeks_ago": "{n}w ago",  // plural
+  "relative.years_ago": "{n}y ago",  // plural
+  "relative.yesterday": "yesterday",
+
   // --- room_access ---
   "room_access.accessed_from_help": "The room that grants access to this room. Read-only — set from the other room's editor.",
   "room_access.accessed_from_here_help": "Select the rooms this room unlocks. A room already claimed by another room cannot be selected here.",

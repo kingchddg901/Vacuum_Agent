@@ -1049,20 +1049,23 @@ export function applyMapRenderers(proto) {
      VARIANTS SECTION
      ========================================================= */
 
-  function _formatAnalyzedAt(isoStr) {
+  // A proto method (not a closure) so it can reach this.t — the relative-time
+  // strings come from the shared i18n `relative.*` catalog. Buckets/thresholds
+  // are unchanged; only >14d falls through to a locale-formatted date.
+  proto._formatAnalyzedAt = function (isoStr) {
     if (!isoStr) return null;
     const d = new Date(isoStr);
     if (isNaN(d)) return null;
     const diffMs  = Date.now() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
-    if (diffMin < 1)  return "just now";
-    if (diffMin < 60) return `${diffMin}m ago`;
+    if (diffMin < 1)  return this.t("relative.just_now");
+    if (diffMin < 60) return this.t("relative.minutes_ago", { n: diffMin });
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24)   return `${diffH}h ago`;
+    if (diffH < 24)   return this.t("relative.hours_ago", { n: diffH });
     const diffD = Math.floor(diffH / 24);
-    if (diffD < 14)   return `${diffD}d ago`;
+    if (diffD < 14)   return this.t("relative.days_ago", { n: diffD });
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  }
+  };
 
   /* =========================================================
      SEGMENTATION MODE TOGGLE (CV vs Custom)
@@ -1591,7 +1594,7 @@ export function applyMapRenderers(proto) {
                          actionStatus?.status === "busy";
     const analyzeError = actionStatus?.type === "analyze" &&
                          actionStatus?.status === "error";
-    const analyzedAt   = _formatAnalyzedAt(summary.analyzed_at);
+    const analyzedAt   = this._formatAnalyzedAt(summary.analyzed_at);
 
     return `
       <div class="evcc-map-config-section">

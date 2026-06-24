@@ -93,28 +93,31 @@ export function applySharedRenderers(proto) {
    * short "ago" string. Returns null when the input is missing or
    * unparseable so callers can hide the pill entirely.
    *
-   * Buckets: "<1m", "Nm", "Nh", "today", "yesterday", "Nd", "Nw", "Nmo".
+   * Buckets: just now / {n}m / {n}h / yesterday / {n}d / {n}w / {n}mo / {n}y ago.
+   * Strings come from the i18n `relative.*` catalog, so the pill localizes with
+   * the user's HA language (the buckets/thresholds stay fixed). The local parsed
+   * timestamp is `ts` (renamed from `t`) to keep it distinct from `this.t`.
    *
    * @param {string|number|null|undefined} value
    * @returns {string|null}
    */
   proto.formatRelativeAgo = function (value) {
     if (value == null || value === "") return null;
-    const t = Date.parse(String(value));
-    if (!Number.isFinite(t)) return null;
-    const diffMs = Date.now() - t;
+    const ts = Date.parse(String(value));
+    if (!Number.isFinite(ts)) return null;
+    const diffMs = Date.now() - ts;
     if (diffMs < 0) return null;
     const minutes = diffMs / 60000;
-    if (minutes < 1) return "just now";
-    if (minutes < 60) return `${Math.round(minutes)}m ago`;
+    if (minutes < 1) return this.t("relative.just_now");
+    if (minutes < 60) return this.t("relative.minutes_ago", { n: Math.round(minutes) });
     const hours = minutes / 60;
-    if (hours < 24) return `${Math.round(hours)}h ago`;
+    if (hours < 24) return this.t("relative.hours_ago", { n: Math.round(hours) });
     const days = hours / 24;
-    if (days < 1.5) return "yesterday";
-    if (days < 7) return `${Math.round(days)}d ago`;
-    if (days < 30) return `${Math.round(days / 7)}w ago`;
-    if (days < 365) return `${Math.round(days / 30)}mo ago`;
-    return `${Math.round(days / 365)}y ago`;
+    if (days < 1.5) return this.t("relative.yesterday");
+    if (days < 7) return this.t("relative.days_ago", { n: Math.round(days) });
+    if (days < 30) return this.t("relative.weeks_ago", { n: Math.round(days / 7) });
+    if (days < 365) return this.t("relative.months_ago", { n: Math.round(days / 30) });
+    return this.t("relative.years_ago", { n: Math.round(days / 365) });
   };
 
   /* =========================================================
