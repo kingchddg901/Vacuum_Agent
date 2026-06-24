@@ -164,7 +164,7 @@ export function renderHeader(ctx) {
 
         <div class="evcc-vacuum-status">
           <span class="evcc-status-dot ${getStatusClass(vacuumStatus)}"></span>
-          <span class="evcc-status-prefix">Vacuum Status:</span>
+          <span class="evcc-status-prefix">${renderers.t("nav.vacuum_status")}</span>
           <span>${renderers.escapeHtml(vacuumText)}</span>
           ${batteryText
             ? `<span class="evcc-battery">${renderers.escapeHtml(batteryText)}</span>`
@@ -174,7 +174,7 @@ export function renderHeader(ctx) {
         ${dockText ? `
           <div class="evcc-vacuum-status evcc-dock-status">
             <span class="evcc-status-dot ${getDockStatusClass(dockStatus)}"></span>
-            <span class="evcc-status-prefix">Dock Status:</span>
+            <span class="evcc-status-prefix">${renderers.t("nav.dock_status")}</span>
             <span>${renderers.escapeHtml(dockText)}</span>
           </div>
         ` : ""}
@@ -186,51 +186,51 @@ export function renderHeader(ctx) {
 
       <button class="evcc-nav-tab ${view === VIEWS.ROOMS ? "active" : ""}"
               data-view="${VIEWS.ROOMS}">
-        Rooms
+        ${renderers.t("nav.tab_rooms")}
       </button>
 
       <button class="evcc-nav-tab ${view === VIEWS.MAINTENANCE ? "active" : ""}"
               data-view="${VIEWS.MAINTENANCE}">
-        Maintenance
+        ${renderers.t("nav.tab_maintenance")}
       </button>
 
       ${isViewAvailable(VIEWS.BASE_STATION, state) ? `
       <button class="evcc-nav-tab ${view === VIEWS.BASE_STATION ? "active" : ""}"
               data-view="${VIEWS.BASE_STATION}">
-        Base Station
+        ${renderers.t("nav.tab_base_station")}
       </button>
       ` : ""}
 
       <button class="evcc-nav-tab ${view === VIEWS.METRICS ? "active" : ""}"
               data-view="${VIEWS.METRICS}">
-        Metrics
+        ${renderers.t("nav.tab_metrics")}
       </button>
 
       <button class="evcc-nav-tab ${view === VIEWS.LEARNING_REVIEW ? "active" : ""}"
               data-view="${VIEWS.LEARNING_REVIEW}">
-        Learning Review
+        ${renderers.t("nav.tab_learning_review")}
       </button>
 
       <button class="evcc-nav-tab ${view === VIEWS.ROOM_RULES ? "active" : ""}"
               data-view="${VIEWS.ROOM_RULES}">
-        Room Rules
+        ${renderers.t("nav.tab_room_rules")}
       </button>
 
       <button class="evcc-nav-tab ${view === VIEWS.THEME ? "active" : ""}"
               data-view="${VIEWS.THEME}">
-        Theme
+        ${renderers.t("nav.tab_theme")}
       </button>
 
       ${isViewAvailable(VIEWS.MAPPING_REVIEW, state) ? `
       <button class="evcc-nav-tab ${view === VIEWS.MAPPING_REVIEW ? "active" : ""}"
               data-view="${VIEWS.MAPPING_REVIEW}">
-        Map Bounds
+        ${renderers.t("nav.tab_mapping_review")}
       </button>
       ` : ""}
 
       <button class="evcc-nav-tab ${view === VIEWS.SETUP ? "active" : ""}"
               data-view="${VIEWS.SETUP}">
-        Setup
+        ${renderers.t("nav.tab_setup")}
       </button>
 
     </div>
@@ -252,46 +252,46 @@ export function renderView(ctx) {
   switch (view) {
     case VIEWS.ROOMS:
       return renderers.renderRoomsView?.(ctx)
-        ?? `<div class="evcc-empty">Rooms view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_rooms")}</div>`;
 
     case VIEWS.MAINTENANCE:
       return renderers.renderMaintenanceView?.(ctx)
-        ?? `<div class="evcc-empty">Maintenance view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_maintenance")}</div>`;
 
     case VIEWS.BASE_STATION:
       return renderers.renderBaseStationView?.(ctx)
-        ?? `<div class="evcc-empty">Base station view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_base_station")}</div>`;
 
     case VIEWS.METRICS:
       return renderers.renderMetricsView?.(ctx)
-        ?? `<div class="evcc-empty">Metrics view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_metrics")}</div>`;
 
     case VIEWS.LEARNING_REVIEW:
       return renderers.renderLearningReviewView?.(ctx)
-        ?? `<div class="evcc-empty">Learning review view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_learning_review")}</div>`;
 
     case VIEWS.ROOM_RULES:
       return renderers.renderRoomRulesView?.(ctx)
-        ?? `<div class="evcc-empty">Room rules view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_room_rules")}</div>`;
 
     case VIEWS.THEME:
       return renderers.renderThemeView?.(ctx)
-        ?? `<div class="evcc-empty">Theme view unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_theme")}</div>`;
 
     case VIEWS.MAP_CONFIG:
       return renderers.renderMapConfigView?.(ctx)
-        ?? `<div class="evcc-empty">Map config unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_map_config")}</div>`;
 
     case VIEWS.MAPPING_REVIEW:
       return renderers.renderMappingReviewView?.(ctx)
-        ?? `<div class="evcc-empty">Mapping bounds review unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_mapping_review")}</div>`;
 
     case VIEWS.SETUP:
       return renderers.renderSetupView?.(ctx)
-        ?? `<div class="evcc-empty">Setup unavailable</div>`;
+        ?? `<div class="evcc-empty">${renderers.t("nav.unavailable_setup")}</div>`;
 
     default:
-      return `<div class="evcc-empty">Unknown view</div>`;
+      return `<div class="evcc-empty">${renderers.t("nav.unavailable_unknown")}</div>`;
   }
 }
 

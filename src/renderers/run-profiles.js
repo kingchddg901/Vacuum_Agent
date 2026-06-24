@@ -32,9 +32,9 @@ export function applyRunProfilesRenderers(proto) {
       <aside class="evcc-run-profiles-panel">
         <div class="evcc-run-profiles-panel-header">
           <div>
-            <div class="evcc-run-profiles-title">Run Profiles</div>
+            <div class="evcc-run-profiles-title">${this.t("run_profiles.title")}</div>
             <div class="evcc-run-profiles-subtitle">
-              Save this room setup and reapply it later without rebuilding the queue by hand.
+              ${this.t("run_profiles.subtitle")}
             </div>
           </div>
 
@@ -42,22 +42,22 @@ export function applyRunProfilesRenderers(proto) {
             type="button"
             class="evcc-chip evcc-chip--save"
             data-action="open-new-run-profile"
-          >Save This Setup</button>
+          >${this.t("run_profiles.save_this_setup")}</button>
         </div>
 
         ${editorOpen ? `
           <div class="evcc-run-profiles-editor">
             <div class="evcc-run-profiles-editor-title">
-              ${editorMode === "edit" ? "Edit Saved Profile" : "Create Run Profile"}
+              ${editorMode === "edit" ? this.t("run_profiles.editor_title_edit") : this.t("run_profiles.editor_title_new")}
             </div>
 
             <label class="evcc-run-profiles-field">
-              <span class="evcc-run-profiles-label">Name</span>
+              <span class="evcc-run-profiles-label">${this.t("run_profiles.name_label")}</span>
               <input
                 type="text"
                 class="evcc-run-profiles-input"
                 value="${this.escapeHtml(draft.name ?? "")}"
-                placeholder="Morning Clean"
+                placeholder="${this.t("run_profiles.name_placeholder")}"
                 data-run-profile-field="name"
               />
             </label>
@@ -68,7 +68,7 @@ export function applyRunProfilesRenderers(proto) {
                 ${draft.expose_as_button ? "checked" : ""}
                 data-run-profile-field="expose_as_button"
               />
-              <span>Expose as Home Assistant Button</span>
+              <span>${this.t("run_profiles.expose_as_button")}</span>
             </label>
 
             <div class="evcc-run-profiles-editor-actions">
@@ -76,13 +76,13 @@ export function applyRunProfilesRenderers(proto) {
                 type="button"
                 class="evcc-chip evcc-chip--save"
                 data-action="${editorMode === "edit" ? "overwrite-run-profile" : "save-new-run-profile"}"
-              >${editorMode === "edit" ? "Save Over Profile" : "Create Profile"}</button>
+              >${editorMode === "edit" ? this.t("run_profiles.save_over") : this.t("run_profiles.create_profile")}</button>
 
               <button
                 type="button"
                 class="evcc-chip"
                 data-action="cancel-run-profile-editor"
-              >Cancel</button>
+              >${this.t("common.cancel")}</button>
             </div>
           </div>
         ` : ""}
@@ -101,7 +101,7 @@ export function applyRunProfilesRenderers(proto) {
           </div>
         ` : `
           <div class="evcc-run-profiles-empty">
-            No saved profiles yet.
+            ${this.t("run_profiles.empty")}
           </div>
         `}
 
@@ -112,8 +112,8 @@ export function applyRunProfilesRenderers(proto) {
             </div>
 
             <div class="evcc-run-profiles-selected-meta">
-              <span>${this.escapeHtml(String(selected.room_count || selected.room_ids?.length || 0))} rooms</span>
-              ${selected.expose_as_button ? `<span>· Exposed as button</span>` : ""}
+              <span>${this.t("run_profiles.room_count", { count: this.escapeHtml(String(selected.room_count || selected.room_ids?.length || 0)) })}</span>
+              ${selected.expose_as_button ? `<span>${this.t("run_profiles.exposed_as_button")}</span>` : ""}
             </div>
 
             ${selected.summary ? `
@@ -132,14 +132,14 @@ export function applyRunProfilesRenderers(proto) {
                 class="evcc-chip"
                 data-action="edit-run-profile"
                 data-profile-id="${this.escapeHtml(selected.id)}"
-              >Edit</button>
+              >${this.t("run_profiles.edit")}</button>
 
               <button
                 type="button"
                 class="evcc-chip"
                 data-action="delete-run-profile"
                 data-profile-id="${this.escapeHtml(selected.id)}"
-              >Delete</button>
+              >${this.t("common.delete")}</button>
             </div>
           </div>
         ` : ""}

@@ -1102,7 +1102,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
       viewHtml = renderView(ctx);
     } catch (err) {
       console.error("[eufy-vacuum-command-center] renderView threw for view:", ctx.view, err);
-      viewHtml = `<div class="evcc-empty">View error — check console (${ctx.view})</div>`;
+      viewHtml = `<div class="evcc-empty">${ctx.renderers.t("shell.view_error", { view: ctx.view })}</div>`;
     }
 
     // Mobile-only chrome regions: bottom nav and the overflow sheet

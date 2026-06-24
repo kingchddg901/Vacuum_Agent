@@ -51,7 +51,7 @@ export function applySharedRenderers(proto) {
    * Language is read live from `hass.locale.language`. Interpolation uses
    * `{name}` placeholders; interpolated values are inserted RAW and the caller
    * escapes user data at the sink as before:
-   * `this.t("rooms.exclude_room", { name: this.escapeHtml(room.name) })`.
+   * `this.t("rooms.exclude_room_aria", { name: this.escapeHtml(room.name) })`.
    *
    * For the short, AUDITED set of strings that carry authored markup, use
    * `this.tRaw` (below). Prefer keeping markup in the template and keying only

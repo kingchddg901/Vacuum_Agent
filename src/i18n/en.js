@@ -14,8 +14,9 @@
  *   - `// plural` marks count-driven keys whose grammar needs per-language
  *     plural variants when that mechanism lands (Slavic wants 3-4 forms).
  *
- * Coverage: Phase 1 (Setup + Rooms onboarding renderers). Shell/nav, bindings,
- * learning, theme, map, maintenance follow in later waves.
+ * Coverage: Phase 1 (Setup + Rooms onboarding renderers) + Phase 2 (shell
+ * nav/header, view-router empty states, run profiles). Bindings, learning,
+ * theme, map, maintenance follow in later waves.
  *
  * ============================================================
  */
@@ -42,6 +43,30 @@ export const en = {
   "mobile.tab_theme": "Theme",
   "mobile.tab_upkeep": "Upkeep",
   "mobile.vacuum_status_label": "Vacuum Status:",
+
+  // --- nav (desktop shell: header + tab bar + view-router empty states) ---
+  "nav.dock_status": "Dock Status:",
+  "nav.tab_base_station": "Base Station",
+  "nav.tab_learning_review": "Learning Review",
+  "nav.tab_maintenance": "Maintenance",
+  "nav.tab_mapping_review": "Map Bounds",
+  "nav.tab_metrics": "Metrics",
+  "nav.tab_room_rules": "Room Rules",
+  "nav.tab_rooms": "Rooms",
+  "nav.tab_setup": "Setup",
+  "nav.tab_theme": "Theme",
+  "nav.unavailable_base_station": "Base station view unavailable",
+  "nav.unavailable_learning_review": "Learning review view unavailable",
+  "nav.unavailable_maintenance": "Maintenance view unavailable",
+  "nav.unavailable_map_config": "Map config unavailable",
+  "nav.unavailable_mapping_review": "Mapping bounds review unavailable",
+  "nav.unavailable_metrics": "Metrics view unavailable",
+  "nav.unavailable_room_rules": "Room rules view unavailable",
+  "nav.unavailable_rooms": "Rooms view unavailable",
+  "nav.unavailable_setup": "Setup unavailable",
+  "nav.unavailable_theme": "Theme view unavailable",
+  "nav.unavailable_unknown": "Unknown view",
+  "nav.vacuum_status": "Vacuum Status:",
 
   // --- room_access ---
   "room_access.accessed_from_help": "The room that grants access to this room. Read-only — set from the other room's editor.",
@@ -217,6 +242,22 @@ export const en = {
   "rooms.water_label": "Water: {value}",
   "rooms.water_ml": "~{ml} ml water",
 
+  // --- run_profiles ---
+  "run_profiles.create_profile": "Create Profile",
+  "run_profiles.edit": "Edit",
+  "run_profiles.editor_title_edit": "Edit Saved Profile",
+  "run_profiles.editor_title_new": "Create Run Profile",
+  "run_profiles.empty": "No saved profiles yet.",
+  "run_profiles.expose_as_button": "Expose as Home Assistant Button",
+  "run_profiles.exposed_as_button": "· Exposed as button",
+  "run_profiles.name_label": "Name",
+  "run_profiles.name_placeholder": "Morning Clean",
+  "run_profiles.room_count": "{count} rooms",  // plural
+  "run_profiles.save_over": "Save Over Profile",
+  "run_profiles.save_this_setup": "Save This Setup",
+  "run_profiles.subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
+  "run_profiles.title": "Run Profiles",
+
   // --- setup ---
   "setup.add": "Add",
   "setup.add_another_vacuum": "Add another vacuum",
@@ -272,6 +313,9 @@ export const en = {
   "setup.unmanaged_vacuums_hint": "These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).",
   "setup.vacuum_registered": "Vacuum registered.",
   "setup.working": "Working…",
+
+  // --- shell (card-level render fallbacks) ---
+  "shell.view_error": "View error — check console ({view})",
 
   // --- toast ---
   "toast.dismiss": "Dismiss",
