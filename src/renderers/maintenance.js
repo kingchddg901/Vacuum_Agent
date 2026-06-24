@@ -50,14 +50,14 @@ export function applyMaintenanceRenderers(proto) {
       ? replacementItems
       : maintenanceItems;
     const tabTitle = activeTab === "replacements"
-      ? "Replacement Items"
-      : "Maintenance Items";
+      ? this.t("maintenance.tab_title_replacements")
+      : this.t("maintenance.tab_title_maintenance");
     const tabSubtitle = activeTab === "replacements"
-      ? "Upstream replacement-style items"
-      : "Integration-managed maintenance intervals";
+      ? this.t("maintenance.tab_subtitle_replacements")
+      : this.t("maintenance.tab_subtitle_maintenance");
     const attentionItems = [
-      ...maintenanceItems.map((item) => ({ ...item, _category: "Maintenance" })),
-      ...replacementItems.map((item) => ({ ...item, _category: "Replacement" })),
+      ...maintenanceItems.map((item) => ({ ...item, _category: this.t("maintenance.category_maintenance") })),
+      ...replacementItems.map((item) => ({ ...item, _category: this.t("maintenance.category_replacement") })),
     ].filter((item) => this._maintenanceItemNeedsAttention(item));
     const stationWater = upkeep.station_water ?? null;
     const plannedWaterEstimate = state.dashboardPlannedWaterEstimate?.() ?? null;
@@ -72,11 +72,11 @@ export function applyMaintenanceRenderers(proto) {
     const totalTiles = [];
     if (deviceTotals) {
       if (deviceTotals.area_m2 != null)
-        totalTiles.push(this._renderMaintenanceStat("Total cleaned", `${Math.round(deviceTotals.area_m2)} m²`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_cleaned"), `${Math.round(deviceTotals.area_m2)} m²`));
       if (deviceTotals.time_s != null)
-        totalTiles.push(this._renderMaintenanceStat("Total time", `${(deviceTotals.time_s / 3600).toFixed(1)} h`));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_total_time"), `${(deviceTotals.time_s / 3600).toFixed(1)} h`));
       if (deviceTotals.count != null)
-        totalTiles.push(this._renderMaintenanceStat("Cleans", String(deviceTotals.count)));
+        totalTiles.push(this._renderMaintenanceStat(this.t("maintenance.stat_cleans"), String(deviceTotals.count)));
     }
     const replacementAttentionCount = replacementItems.filter((item) =>
       this._maintenanceItemNeedsAttention(item)
@@ -92,9 +92,9 @@ export function applyMaintenanceRenderers(proto) {
           <section class="evcc-maintenance-panel">
             <div class="evcc-maintenance-panel-header">
               <div>
-                <div class="evcc-maintenance-panel-title">Maintenance Overview</div>
+                <div class="evcc-maintenance-panel-title">${this.t("maintenance.overview_title")}</div>
                 <div class="evcc-maintenance-panel-subtitle">
-                  ${this.escapeHtml(attentionSummary || statusSummary || "Backend maintenance snapshot")}
+                  ${attentionSummary || statusSummary ? this.escapeHtml(attentionSummary || statusSummary) : this.t("maintenance.overview_subtitle")}
                 </div>
               </div>
               ${guideFamilyName ? `
@@ -107,16 +107,16 @@ export function applyMaintenanceRenderers(proto) {
             ${modelName || updatedAt || dockFirmware ? `
               <div class="evcc-maintenance-model-line">
                 ${this.escapeHtml(modelName ?? "")}
-                ${dockFirmware ? `${modelName ? " · " : ""}Dock fw ${this.escapeHtml(dockFirmware)}` : ""}
-                ${updatedAt ? `${(modelName || dockFirmware) ? " · " : ""}Updated ${this.escapeHtml(this._formatMaintenanceTimestamp(updatedAt))}` : ""}
+                ${dockFirmware ? `${modelName ? " · " : ""}${this.t("maintenance.dock_fw", { version: this.escapeHtml(dockFirmware) })}` : ""}
+                ${updatedAt ? `${(modelName || dockFirmware) ? " · " : ""}${this.t("maintenance.updated", { time: this.escapeHtml(this._formatMaintenanceTimestamp(updatedAt)) })}` : ""}
               </div>
             ` : ""}
 
             <div class="evcc-maintenance-stats">
-              ${this._renderMaintenanceStat("Attention", attentionCount)}
-              ${this._renderMaintenanceStat("Priority", highestPriorityStatus || "Normal")}
-              ${this._renderMaintenanceStat("Items", maintenanceItems.length)}
-              ${this._renderMaintenanceStat("Water", upkeep.station_water_label ?? stationWater ?? "Unknown")}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_attention"), attentionCount)}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_priority"), highestPriorityStatus || this.t("maintenance.priority_normal"))}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_items"), maintenanceItems.length)}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_water"), upkeep.station_water_label ?? stationWater ?? this.t("maintenance.value_unknown"))}
             </div>
             ${totalTiles.length ? `
               <div class="evcc-maintenance-stats">
@@ -128,29 +128,29 @@ export function applyMaintenanceRenderers(proto) {
           <section class="evcc-maintenance-panel">
             <div class="evcc-maintenance-panel-header">
               <div>
-                <div class="evcc-maintenance-panel-title">Replacement Overview</div>
+                <div class="evcc-maintenance-panel-title">${this.t("maintenance.replacement_overview_title")}</div>
                 <div class="evcc-maintenance-panel-subtitle">
-                  Replacement inventory and lifecycle snapshot
+                  ${this.t("maintenance.replacement_overview_subtitle")}
                 </div>
               </div>
             </div>
 
             <div class="evcc-maintenance-stats">
-              ${this._renderMaintenanceStat("Items", replacementItems.length)}
-              ${this._renderMaintenanceStat("Attention", replacementAttentionCount)}
-              ${this._renderMaintenanceStat("Healthy", Math.max(replacementItems.length - replacementAttentionCount, 0))}
-              ${this._renderMaintenanceStat("Status", replacementItems.length ? "Tracked" : "Empty")}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_items"), replacementItems.length)}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_attention"), replacementAttentionCount)}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_healthy"), Math.max(replacementItems.length - replacementAttentionCount, 0))}
+              ${this._renderMaintenanceStat(this.t("maintenance.stat_status"), replacementItems.length ? this.t("maintenance.status_tracked") : this.t("maintenance.status_empty"))}
             </div>
           </section>
 
           <section class="evcc-maintenance-panel evcc-maintenance-panel--wide">
             <div class="evcc-maintenance-panel-header">
               <div>
-                <div class="evcc-maintenance-panel-title">Needs Attention</div>
+                <div class="evcc-maintenance-panel-title">${this.t("maintenance.attention_title")}</div>
                 <div class="evcc-maintenance-panel-subtitle">
-                  ${this.escapeHtml(attentionItems.length
-                    ? "Items currently flagged for service or replacement attention"
-                    : "No maintenance or replacement items currently need attention")}
+                  ${attentionItems.length
+                    ? this.t("maintenance.attention_subtitle_some")
+                    : this.t("maintenance.attention_subtitle_none")}
                 </div>
               </div>
             </div>
@@ -159,21 +159,21 @@ export function applyMaintenanceRenderers(proto) {
               ? `<div class="evcc-maintenance-list">
                   ${attentionItems.map((item) => this._renderMaintenanceAttentionItem(item)).join("")}
                  </div>`
-              : `<div class="evcc-maintenance-empty">Everything currently looks healthy.</div>`
+              : `<div class="evcc-maintenance-empty">${this.t("maintenance.attention_empty")}</div>`
             }
           </section>
 
           <section class="evcc-maintenance-panel evcc-maintenance-panel--wide">
             <div class="evcc-maintenance-panel-header">
               <div>
-                <div class="evcc-maintenance-panel-title">Items</div>
+                <div class="evcc-maintenance-panel-title">${this.t("maintenance.items_title")}</div>
                 <div class="evcc-maintenance-panel-subtitle">
-                  Switch between maintenance intervals and replacement items
+                  ${this.t("maintenance.items_subtitle")}
                 </div>
               </div>
             </div>
 
-            <div class="evcc-maintenance-tabs" role="tablist" aria-label="Maintenance item groups">
+            <div class="evcc-maintenance-tabs" role="tablist" aria-label="${this.t("maintenance.tabs_aria")}">
               <button
                 type="button"
                 class="evcc-chip evcc-maintenance-tab ${activeTab === "maintenance_items" ? "active" : ""}"
@@ -181,7 +181,7 @@ export function applyMaintenanceRenderers(proto) {
                 role="tab"
                 aria-selected="${activeTab === "maintenance_items" ? "true" : "false"}"
               >
-                Maintenance Items
+                ${this.t("maintenance.tab_maintenance_items")}
               </button>
 
               <button
@@ -191,14 +191,14 @@ export function applyMaintenanceRenderers(proto) {
                 role="tab"
                 aria-selected="${activeTab === "replacements" ? "true" : "false"}"
               >
-                Replacements
+                ${this.t("maintenance.tab_replacements")}
               </button>
             </div>
 
             <div class="evcc-maintenance-tab-panel">
               <div class="evcc-maintenance-tab-header">
-                <div class="evcc-maintenance-panel-title">${this.escapeHtml(tabTitle)}</div>
-                <div class="evcc-maintenance-panel-subtitle">${this.escapeHtml(tabSubtitle)}</div>
+                <div class="evcc-maintenance-panel-title">${tabTitle}</div>
+                <div class="evcc-maintenance-panel-subtitle">${tabSubtitle}</div>
               </div>
 
               ${tabItems.length
@@ -208,7 +208,7 @@ export function applyMaintenanceRenderers(proto) {
                       ? this._renderStationWaterCard(stationWater, availableCleanTankMl, upkeep.station_water_label)
                       : ""}
                    </div>`
-                : `<div class="evcc-maintenance-empty">No ${activeTab === "replacements" ? "replacement" : "maintenance"} items reported.</div>`
+                : `<div class="evcc-maintenance-empty">${activeTab === "replacements" ? this.t("maintenance.items_empty_replacements") : this.t("maintenance.items_empty_maintenance")}</div>`
               }
             </div>
           </section>
@@ -245,7 +245,7 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMaintenanceAttentionItem = function (item) {
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? "Unnamed item";
+    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
     const status = item?.status_label ?? this._formatMaintenanceStatus(item?.status ?? "warning");
     const detail =
       item?.remaining_summary ??
@@ -285,7 +285,7 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMaintenanceCard = function (item) {
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? "Unnamed item";
+    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
     const status = item?.status_label ?? this._formatMaintenanceStatus(statusKey);
@@ -356,7 +356,7 @@ export function applyMaintenanceRenderers(proto) {
     const isNumeric = Number.isFinite(numericValue);
     const rawValue = String(stationWaterLabel ?? "").trim() || (hasValue
       ? (isNumeric ? `${Math.round(numericValue)}%` : String(stationWater))
-      : "Unknown");
+      : this.t("maintenance.value_unknown"));
 
     const normalized = String(rawValue).trim().toLowerCase();
     let statusKey = "unknown";
@@ -381,12 +381,12 @@ export function applyMaintenanceRenderers(proto) {
 
     const statusLabel = isNumeric
       ? (numericValue >= 70
-          ? "High"
+          ? this.t("maintenance.water_high")
           : numericValue >= 35
-            ? "Medium"
+            ? this.t("maintenance.water_medium")
             : numericValue > 0
-              ? "Low"
-              : "Empty")
+              ? this.t("maintenance.water_low")
+              : this.t("maintenance.water_empty"))
       : (String(stationWaterLabel ?? "").trim() || this._formatMaintenanceStatus(statusKey));
     const fillPercent = isNumeric
       ? Math.max(0, Math.min(100, numericValue))
@@ -402,7 +402,7 @@ export function applyMaintenanceRenderers(proto) {
         style="--maintenance-remaining:${fillPercent}%;"
       >
         <div class="evcc-maintenance-card-header">
-          <div class="evcc-maintenance-card-title">Station Water</div>
+          <div class="evcc-maintenance-card-title">${this.t("maintenance.station_water_title")}</div>
           <div class="evcc-maintenance-card-status">${this.escapeHtml(statusLabel)}</div>
         </div>
 
@@ -411,12 +411,12 @@ export function applyMaintenanceRenderers(proto) {
         </div>
 
         <div class="evcc-maintenance-card-detail">
-          Base station water reservoir status
+          ${this.t("maintenance.station_water_detail")}
         </div>
 
         ${Number.isFinite(Number(availableCleanTankMl)) ? `
           <div class="evcc-maintenance-card-secondary">
-            ~${this.escapeHtml(String(Math.round(Number(availableCleanTankMl))))} ml remaining
+            ${this.t("maintenance.ml_remaining", { ml: this.escapeHtml(String(Math.round(Number(availableCleanTankMl)))) })}
           </div>
         ` : ""}
       </article>
@@ -445,7 +445,7 @@ export function applyMaintenanceRenderers(proto) {
     const item = state?.activeMaintenanceModalItem?.();
     if (!item) return "";
 
-    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? "Item details";
+    const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.modal_fallback_name");
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
     const status = item?.status_label ?? this._formatMaintenanceStatus(statusKey);
@@ -470,7 +470,7 @@ export function applyMaintenanceRenderers(proto) {
               type="button"
               class="evcc-chip evcc-chip--icon"
               data-action="close-maintenance-modal"
-              title="Close"
+              title="${this.t("common.close")}"
             >X</button>
           </div>
 
@@ -495,7 +495,7 @@ export function applyMaintenanceRenderers(proto) {
 
             ${guideSteps.length ? `
               <div class="evcc-editor-field-group">
-                <div class="evcc-field-label">Steps</div>
+                <div class="evcc-field-label">${this.t("maintenance.steps_label")}</div>
                 <ol class="evcc-maintenance-guide-list">
                   ${guideSteps.map((step) => `
                     <li class="evcc-maintenance-guide-item">${this.escapeHtml(step)}</li>
@@ -503,12 +503,12 @@ export function applyMaintenanceRenderers(proto) {
                 </ol>
               </div>
             ` : `
-              <div class="evcc-maintenance-empty">No model-aware steps were provided for this item.</div>
+              <div class="evcc-maintenance-empty">${this.t("maintenance.steps_empty")}</div>
             `}
 
             ${guideNotes.length ? `
               <div class="evcc-editor-field-group">
-                <div class="evcc-field-label">Notes</div>
+                <div class="evcc-field-label">${this.t("maintenance.notes_label")}</div>
                 <div class="evcc-maintenance-guide-notes">
                   ${guideNotes.map((note) => `
                     <div class="evcc-maintenance-guide-note">${this.escapeHtml(note)}</div>
@@ -527,11 +527,11 @@ export function applyMaintenanceRenderers(proto) {
                 ? currentInterval
                 : (Number.isFinite(defaultInterval) ? defaultInterval : "");
               const hintParts = [];
-              if (Number.isFinite(defaultInterval) && defaultInterval > 0) hintParts.push(`Default ${defaultInterval}h`);
-              if (Number.isFinite(maxInterval) && maxInterval > 0) hintParts.push(`Max ${maxInterval}h`);
+              if (Number.isFinite(defaultInterval) && defaultInterval > 0) hintParts.push(this.t("maintenance.interval_default_hint", { hours: defaultInterval }));
+              if (Number.isFinite(maxInterval) && maxInterval > 0) hintParts.push(this.t("maintenance.interval_max_hint", { hours: maxInterval }));
               return `
                 <div class="evcc-editor-field-group">
-                  <div class="evcc-field-label">Interval</div>
+                  <div class="evcc-field-label">${this.t("maintenance.interval_label")}</div>
                   <div class="evcc-maintenance-interval-row">
                     <input
                       type="number"
@@ -545,19 +545,19 @@ export function applyMaintenanceRenderers(proto) {
                       data-vacuum-entity-id="${this.escapeHtml(String(vacuumEntityId))}"
                       data-component="${this.escapeHtml(String(compKey))}"
                     />
-                    <span class="evcc-maintenance-interval-unit">hours</span>
+                    <span class="evcc-maintenance-interval-unit">${this.t("maintenance.interval_unit")}</span>
                     <button
                       type="button"
                       class="evcc-chip evcc-chip--save"
                       data-action="save-maintenance-interval"
-                    >Save</button>
+                    >${this.t("maintenance.interval_save")}</button>
                     ${Number.isFinite(defaultInterval) && defaultInterval > 0 ? `
                       <button
                         type="button"
                         class="evcc-chip"
                         data-action="reset-maintenance-interval-default"
-                        title="Restore manufacturer default (${defaultInterval}h)"
-                      >Default</button>
+                        title="${this.t("maintenance.interval_default_title", { hours: defaultInterval })}"
+                      >${this.t("maintenance.interval_default_button")}</button>
                     ` : ""}
                   </div>
                   ${hintParts.length ? `
@@ -569,7 +569,7 @@ export function applyMaintenanceRenderers(proto) {
 
             ${canInvokeReset ? `
               <div class="evcc-editor-field-group">
-                <div class="evcc-field-label">Reset</div>
+                <div class="evcc-field-label">${this.t("maintenance.reset_label")}</div>
 
                 ${resetSuccess ? `
                   <div class="evcc-maintenance-reset-hint evcc-maintenance-reset-hint--success">
@@ -585,11 +585,9 @@ export function applyMaintenanceRenderers(proto) {
 
                 ${resetConfirming ? `
                   <div class="evcc-maintenance-reset-hint">
-                    ${this.escapeHtml(
-                      resetKind === "integration"
-                        ? `This will reset the tracked maintenance interval for ${name}.`
-                        : `This will send the reset command to the device for ${name}.`
-                    )}
+                    ${resetKind === "integration"
+                      ? this.t("maintenance.reset_confirm_integration", { name: this.escapeHtml(name) })
+                      : this.t("maintenance.reset_confirm_device", { name: this.escapeHtml(name) })}
                   </div>
 
                   <div class="evcc-maintenance-reset-actions">
@@ -598,14 +596,14 @@ export function applyMaintenanceRenderers(proto) {
                       class="evcc-chip"
                       data-action="cancel-maintenance-reset"
                       ${resetPending ? "disabled" : ""}
-                    >Cancel</button>
+                    >${this.t("common.cancel")}</button>
 
                     <button
                       type="button"
                       class="evcc-chip evcc-chip--save"
                       data-action="confirm-maintenance-reset"
                       ${resetPending ? "disabled" : ""}
-                    >${resetPending ? "Resetting..." : "Confirm Reset"}</button>
+                    >${resetPending ? this.t("maintenance.resetting") : this.t("maintenance.confirm_reset")}</button>
                   </div>
                 ` : `
                   <div class="evcc-maintenance-reset-actions">
@@ -613,13 +611,11 @@ export function applyMaintenanceRenderers(proto) {
                       type="button"
                       class="evcc-chip"
                       data-action="begin-maintenance-reset"
-                      title="${this.escapeHtml(
-                        resetKind === "integration"
-                          ? "Reset this tracked maintenance interval and refresh the dashboard snapshot."
-                          : "Send the reset command to the device for this replacement item."
-                      )}"
+                      title="${resetKind === "integration"
+                        ? this.t("maintenance.begin_reset_title_integration")
+                        : this.t("maintenance.begin_reset_title_device")}"
                       ${resetPending ? "disabled" : ""}
-                    >Reset</button>
+                    >${this.t("maintenance.reset_button")}</button>
                   </div>
                 `}
               </div>
@@ -631,7 +627,7 @@ export function applyMaintenanceRenderers(proto) {
               type="button"
               class="evcc-chip"
               data-action="close-maintenance-modal"
-            >Close</button>
+            >${this.t("common.close")}</button>
           </div>
         </div>
       </div>
@@ -753,16 +749,16 @@ export function applyMaintenanceRenderers(proto) {
     const hoursPerDay = usedSinceReset / daysSinceReset;
     if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0.1) return null;
 
-    if (remainingHours <= 0) return "Overdue";
+    if (remainingHours <= 0) return this.t("maintenance.due_overdue");
 
     const daysRemaining = remainingHours / hoursPerDay;
     if (!Number.isFinite(daysRemaining)) return null;
 
-    if (daysRemaining < 1) return "Due today";
-    if (daysRemaining < 2) return "Due tomorrow";
-    if (daysRemaining < 14) return `Due in ~${Math.round(daysRemaining)} days`;
-    if (daysRemaining < 60) return `Due in ~${Math.round(daysRemaining / 7)} weeks`;
-    return `Due in ~${Math.round(daysRemaining / 30)} months`;
+    if (daysRemaining < 1) return this.t("maintenance.due_today");
+    if (daysRemaining < 2) return this.t("maintenance.due_tomorrow");
+    if (daysRemaining < 14) return this.t("maintenance.due_in_days", { count: Math.round(daysRemaining) });
+    if (daysRemaining < 60) return this.t("maintenance.due_in_weeks", { count: Math.round(daysRemaining / 7) });
+    return this.t("maintenance.due_in_months", { count: Math.round(daysRemaining / 30) });
   };
 
   proto._maintenancePrimaryValue = function (item) {
@@ -773,12 +769,12 @@ export function applyMaintenanceRenderers(proto) {
 
     const percent = this._maintenanceRemainingPercent(item);
     if (Number.isFinite(percent)) {
-      return `${Math.round(percent)}% remaining`;
+      return this.t("maintenance.percent_remaining", { percent: Math.round(percent) });
     }
 
     const remainingHours = Number(item?.remaining_hours);
     if (Number.isFinite(remainingHours)) {
-      return `${this._formatMaintenanceHours(remainingHours)} remaining`;
+      return this.t("maintenance.hours_remaining", { hours: this._formatMaintenanceHours(remainingHours) });
     }
 
     const rawValue = item?.remaining_value;
@@ -787,7 +783,7 @@ export function applyMaintenanceRenderers(proto) {
       return [rawValue, rawUnit].filter(Boolean).join(" ");
     }
 
-    return "Unknown remaining life";
+    return this.t("maintenance.unknown_remaining_life");
   };
 
   /**
@@ -807,7 +803,7 @@ export function applyMaintenanceRenderers(proto) {
       const maxHours = Number(item?.max_life_hours ?? item?.total_life_hours);
 
       if (Number.isFinite(usageHours) && Number.isFinite(maxHours)) {
-        return `${this._formatMaintenanceHours(usageHours)} used of ${this._formatMaintenanceHours(maxHours)}`;
+        return this.t("maintenance.used_of", { used: this._formatMaintenanceHours(usageHours), total: this._formatMaintenanceHours(maxHours) });
       }
     }
 
@@ -815,12 +811,12 @@ export function applyMaintenanceRenderers(proto) {
     const intervalHours = Number(item?.interval_hours);
 
     if (Number.isFinite(remainingHours) && Number.isFinite(intervalHours)) {
-      return `${this._formatMaintenanceHours(remainingHours)} left of ${this._formatMaintenanceHours(intervalHours)}`;
+      return this.t("maintenance.left_of", { remaining: this._formatMaintenanceHours(remainingHours), total: this._formatMaintenanceHours(intervalHours) });
     }
 
     const usedSinceResetHours = Number(item?.used_since_reset_hours ?? item?.current_usage_hours);
     if (Number.isFinite(usedSinceResetHours)) {
-      return `${this._formatMaintenanceHours(usedSinceResetHours)} used since reset`;
+      return this.t("maintenance.used_since_reset", { used: this._formatMaintenanceHours(usedSinceResetHours) });
     }
 
     return "";
@@ -838,11 +834,15 @@ export function applyMaintenanceRenderers(proto) {
    */
   proto._formatMaintenanceHours = function (value) {
     const hours = Number(value);
-    if (!Number.isFinite(hours)) return "0 hours";
+    if (!Number.isFinite(hours)) return this.t("maintenance.hours_many", { value: "0" });
     const normalized = hours.toFixed(1).replace(/\.0$/, "");
     const numeric = Number(normalized);
-    const unit = numeric === 1 ? "hour" : "hours";
-    return `${normalized} ${unit}`;
+    // Interim singular/plural selection via a one/many key pair (both // plural)
+    // until a full per-language plural mechanism lands — mirrors the established
+    // room_editor.pass_one / pass_many pattern. Keeps English "1 hour" correct.
+    return numeric === 1
+      ? this.t("maintenance.hours_one", { value: normalized })
+      : this.t("maintenance.hours_many", { value: normalized });
   };
 
   /**
@@ -881,11 +881,9 @@ export function applyMaintenanceRenderers(proto) {
   proto._formatMaintenanceStatus = function (status) {
     const normalized = String(status ?? "").trim().toLowerCase();
 
-    if (normalized === "replace_now") return "Replace Now";
-    if (normalized === "replace_soon") return "Replace Soon";
-    if (normalized === "warning") return "Warning";
-    if (normalized === "good") return "Good";
-    if (normalized === "unknown") return "Unknown";
+    if (["replace_now", "replace_soon", "warning", "good", "unknown"].includes(normalized)) {
+      return this.t(`maintenance.status_${normalized}`);
+    }
 
     return this._formatMaintenanceKind(normalized || "unknown");
   };

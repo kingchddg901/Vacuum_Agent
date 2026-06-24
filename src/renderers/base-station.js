@@ -45,10 +45,10 @@ export function applyBaseStationRenderers(proto) {
        are omitted entirely rather than rendered as disabled clutter.
        `stop_dry_mop` rides on supports_mop_dry. */
     const _DOCK_ACTIONS = [
-      { id: "wash_mop",     label: "Wash Mop"    },
-      { id: "dry_mop",      label: "Dry Mop"     },
-      { id: "stop_dry_mop", label: "Stop Drying" },
-      { id: "empty_dust",   label: "Empty Dust"  },
+      { id: "wash_mop",     label: this.t("base_station.action_wash_mop")     },
+      { id: "dry_mop",      label: this.t("base_station.action_dry_mop")      },
+      { id: "stop_dry_mop", label: this.t("base_station.action_stop_drying")  },
+      { id: "empty_dust",   label: this.t("base_station.action_empty_dust")   },
     ];
     const supportedActions = _DOCK_ACTIONS.filter(
       ({ id }) => state.dockActionGate?.(id)?.supported !== false,
@@ -73,28 +73,30 @@ export function applyBaseStationRenderers(proto) {
           <section class="evcc-base-station-panel">
             <div class="evcc-base-station-panel-header">
               <div>
-                <div class="evcc-base-station-panel-title">Station Status</div>
+                <div class="evcc-base-station-panel-title">${this.t("base_station.station_status_title")}</div>
                 <div class="evcc-base-station-panel-subtitle">
                   ${this.escapeHtml(
                     upkeep.attention_summary ||
-                    "Dock, lifecycle, and robot task state"
+                    this.t("base_station.station_status_subtitle")
                   )}
                 </div>
               </div>
             </div>
 
             <div class="evcc-base-station-stats">
-              ${this._renderBaseStationStat("Dock Status", dockStatus || "Unknown")}
-              ${this._renderBaseStationStat("Lifecycle", lifecycleState || "Unknown")}
-              ${this._renderBaseStationStat("Task", taskStatus || "Unknown")}
-              ${this._renderBaseStationStat("Docked", docked ? "Yes" : "No")}
+              ${this._renderBaseStationStat(this.t("base_station.stat_dock_status"), dockStatus || this.t("base_station.unknown"))}
+              ${this._renderBaseStationStat(this.t("base_station.stat_lifecycle"), lifecycleState || this.t("base_station.unknown"))}
+              ${this._renderBaseStationStat(this.t("base_station.stat_task"), taskStatus || this.t("base_station.unknown"))}
+              ${this._renderBaseStationStat(this.t("base_station.stat_docked"), docked ? this.t("base_station.yes") : this.t("base_station.no"))}
             </div>
 
             ${(upkeep.updated_at || actionStatus?.updated_at) ? `
               <div class="evcc-base-station-updated">
-                Updated ${this.escapeHtml(
-                  this._formatBaseStationTimestamp(actionStatus?.updated_at ?? upkeep.updated_at)
-                )}
+                ${this.t("base_station.updated_prefix", {
+                  timestamp: this.escapeHtml(
+                    this._formatBaseStationTimestamp(actionStatus?.updated_at ?? upkeep.updated_at)
+                  ),
+                })}
               </div>
             ` : ""}
           </section>
@@ -103,18 +105,18 @@ export function applyBaseStationRenderers(proto) {
             <section class="evcc-base-station-panel">
               <div class="evcc-base-station-panel-header">
                 <div>
-                  <div class="evcc-base-station-panel-title">Water</div>
+                  <div class="evcc-base-station-panel-title">${this.t("base_station.water_title")}</div>
                   <div class="evcc-base-station-panel-subtitle">
-                    Current dock water plus projected post-job tank level
+                    ${this.t("base_station.water_subtitle")}
                   </div>
                 </div>
               </div>
 
               <div class="evcc-base-station-stats">
-                ${this._renderBaseStationStat("Station Water", state.stationWaterLabel?.() || this._formatBaseStationWaterLevel(upkeep.station_water))}
-                ${this._renderBaseStationStat("Tank Now", this._formatBaseStationMilliliters(plannedWater?.available_clean_tank_ml))}
-                ${this._renderBaseStationStat("After Job", this._formatBaseStationProjectedTank(plannedWater))}
-                ${this._renderBaseStationStat("Job Use", this._formatBaseStationMilliliters(plannedWater?.estimated_total_dock_clean_water_used_ml))}
+                ${this._renderBaseStationStat(this.t("base_station.stat_station_water"), state.stationWaterLabel?.() || this._formatBaseStationWaterLevel(upkeep.station_water))}
+                ${this._renderBaseStationStat(this.t("base_station.stat_tank_now"), this._formatBaseStationMilliliters(plannedWater?.available_clean_tank_ml))}
+                ${this._renderBaseStationStat(this.t("base_station.stat_after_job"), this._formatBaseStationProjectedTank(plannedWater))}
+                ${this._renderBaseStationStat(this.t("base_station.stat_job_use"), this._formatBaseStationMilliliters(plannedWater?.estimated_total_dock_clean_water_used_ml))}
               </div>
             </section>
           ` : ""}
@@ -123,22 +125,22 @@ export function applyBaseStationRenderers(proto) {
             <section class="evcc-base-station-panel evcc-base-station-panel--wide">
               <div class="evcc-base-station-panel-header">
                 <div>
-                  <div class="evcc-base-station-panel-title">Recent Dock Activity</div>
+                  <div class="evcc-base-station-panel-title">${this.t("base_station.activity_title")}</div>
                   <div class="evcc-base-station-panel-subtitle">
-                    Last known dock service activity
+                    ${this.t("base_station.activity_subtitle")}
                   </div>
                 </div>
               </div>
 
               <div class="evcc-base-station-activity-grid">
                 ${state.dockActionGate?.("wash_mop")?.supported !== false
-                  ? this._renderBaseStationActivityCard("Mop Wash", events.last_mop_wash, events.mop_wash_count)
+                  ? this._renderBaseStationActivityCard(this.t("base_station.activity_mop_wash"), events.last_mop_wash, events.mop_wash_count)
                   : ""}
                 ${state.dockActionGate?.("empty_dust")?.supported !== false
-                  ? this._renderBaseStationActivityCard("Dust Empty", events.last_dust_empty, events.dust_empty_count)
+                  ? this._renderBaseStationActivityCard(this.t("base_station.activity_dust_empty"), events.last_dust_empty, events.dust_empty_count)
                   : ""}
                 ${state.dockActionGate?.("dry_mop")?.supported !== false
-                  ? this._renderBaseStationActivityCard("Dry Start", events.last_dry_start, events.dry_start_count, events.last_dry_duration)
+                  ? this._renderBaseStationActivityCard(this.t("base_station.activity_dry_start"), events.last_dry_start, events.dry_start_count, events.last_dry_duration)
                   : ""}
               </div>
             </section>
@@ -147,9 +149,9 @@ export function applyBaseStationRenderers(proto) {
           <section class="evcc-base-station-panel evcc-base-station-panel--wide">
             <div class="evcc-base-station-panel-header">
               <div>
-                <div class="evcc-base-station-panel-title">Pause Timeout</div>
+                <div class="evcc-base-station-panel-title">${this.t("base_station.pause_timeout_title")}</div>
                 <div class="evcc-base-station-panel-subtitle">
-                  Default pause timeout used when a run is paused
+                  ${this.t("base_station.pause_timeout_subtitle")}
                 </div>
               </div>
             </div>
@@ -160,7 +162,7 @@ export function applyBaseStationRenderers(proto) {
                   type="button"
                   class="evcc-chip ${pauseTimeoutMinutes === minutes ? "active" : ""}"
                   data-pause-timeout-minutes="${minutes}"
-                >${minutes} min</button>
+                >${this.t("base_station.minutes_short", { minutes })}</button>
               `).join("")}
             </div>
           </section>
@@ -169,9 +171,9 @@ export function applyBaseStationRenderers(proto) {
             <section class="evcc-base-station-panel evcc-base-station-panel--wide">
               <div class="evcc-base-station-panel-header">
                 <div>
-                  <div class="evcc-base-station-panel-title">Dock Actions</div>
+                  <div class="evcc-base-station-panel-title">${this.t("base_station.dock_actions_title")}</div>
                   <div class="evcc-base-station-panel-subtitle">
-                    Backend-gated dock controls
+                    ${this.t("base_station.dock_actions_subtitle")}
                   </div>
                 </div>
               </div>
@@ -220,9 +222,9 @@ export function applyBaseStationRenderers(proto) {
     return `
       <div class="evcc-base-station-activity-card">
         <div class="evcc-base-station-activity-title">${this.escapeHtml(label)}</div>
-        <div class="evcc-base-station-activity-time">${this.escapeHtml(this._formatBaseStationTimestamp(lastAt) || "No activity yet")}</div>
+        <div class="evcc-base-station-activity-time">${this.escapeHtml(this._formatBaseStationTimestamp(lastAt)) || this.t("base_station.no_activity_yet")}</div>
         <div class="evcc-base-station-activity-detail">
-          ${this.escapeHtml(`${Number(count ?? 0)} recorded`)}
+          ${this.t("base_station.recorded_count", { count: Number(count ?? 0) })}
           ${extra != null && extra !== "" ? ` · ${this.escapeHtml(this._formatBaseStationDuration(extra))}` : ""}
         </div>
       </div>
@@ -250,14 +252,14 @@ export function applyBaseStationRenderers(proto) {
         class="evcc-base-station-action-card ${allowed ? "evcc-base-station-action-card--allowed" : "evcc-base-station-action-card--blocked"}"
         data-dock-action="${this.escapeHtml(action)}"
         ${allowed && !pending ? "" : "disabled"}
-        title="${this.escapeHtml(message || reasonLabel || (allowed ? label : "Action unavailable"))}"
+        title="${this.escapeHtml(message || reasonLabel) || (allowed ? this.escapeHtml(label) : this.t("base_station.action_unavailable"))}"
       >
         <div class="evcc-base-station-action-title">${this.escapeHtml(label)}</div>
         <div class="evcc-base-station-action-state">
-          ${this.escapeHtml(pending ? "Running..." : allowed ? "Ready" : "Unavailable")}
+          ${pending ? this.t("base_station.state_running") : allowed ? this.t("base_station.state_ready") : this.t("base_station.state_unavailable")}
         </div>
         <div class="evcc-base-station-action-detail">
-          ${this.escapeHtml(message || reasonLabel || "Action available")}
+          ${this.escapeHtml(message || reasonLabel) || this.t("base_station.action_available")}
         </div>
       </button>
     `;
@@ -275,7 +277,7 @@ export function applyBaseStationRenderers(proto) {
    */
   proto._formatBaseStationLabel = function (value) {
     const raw = String(value ?? "").trim();
-    if (!raw) return "Unknown";
+    if (!raw) return this.t("base_station.unknown");
     return raw
       .replace(/[_-]+/g, " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
@@ -304,7 +306,7 @@ export function applyBaseStationRenderers(proto) {
    */
   proto._formatBaseStationMilliliters = function (value) {
     const amount = Number(value);
-    if (!Number.isFinite(amount)) return "Unknown";
+    if (!Number.isFinite(amount)) return this.t("base_station.unknown");
     return `${Math.round(amount)} ml`;
   };
 
@@ -317,7 +319,7 @@ export function applyBaseStationRenderers(proto) {
   proto._formatBaseStationProjectedTank = function (plannedWater) {
     const ml = Number(plannedWater?.estimated_clean_tank_remaining_ml);
     const percent = Number(plannedWater?.estimated_clean_tank_remaining_percent);
-    if (!Number.isFinite(ml)) return "Unknown";
+    if (!Number.isFinite(ml)) return this.t("base_station.unknown");
     if (Number.isFinite(percent)) {
       return `${Math.round(ml)} ml (${Math.round(percent)}%)`;
     }

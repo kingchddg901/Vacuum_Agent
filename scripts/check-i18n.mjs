@@ -138,6 +138,7 @@ console.log("\nB. key cross-check");
 // them. They are referenced dynamically and must be exempt from the dead check.
 //   - mobile-shell.js builds `mobile.tab_<id>` from the view list.
 //   - map.js builds `map.variant_<key>_label|_hint` from the image-variant key.
+//   - maintenance.js builds `maintenance.status_<state>` from a consumable status.
 const DYNAMIC_KEYS = new Set([
   "mobile.tab_dock", "mobile.tab_learning_review", "mobile.tab_map_bounds",
   "mobile.tab_map_config", "mobile.tab_room_rules", "mobile.tab_rooms",
@@ -145,6 +146,8 @@ const DYNAMIC_KEYS = new Set([
   "map.variant_dark_label", "map.variant_dark_hint",
   "map.variant_light_label", "map.variant_light_hint",
   "map.variant_default_label", "map.variant_default_hint",
+  "maintenance.status_good", "maintenance.status_warning", "maintenance.status_unknown",
+  "maintenance.status_replace_now", "maintenance.status_replace_soon",
 ]);
 
 // Collect every literal t()/tRaw() key across src/, skipping the i18n module.
