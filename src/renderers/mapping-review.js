@@ -30,13 +30,13 @@ export function applyMappingReviewRenderers(proto) {
     const snapshot = state.mappingBoundsSnapshot?.();
 
     if (!snapshot) {
-      return `<div class="evcc-empty">Loading mapping bounds...</div>`;
+      return `<div class="evcc-empty">${this.t("mapping_review.loading")}</div>`;
     }
 
     if (snapshot.available === false) {
       return `
         <div class="evcc-mrev-view">
-          <div class="evcc-empty">${this.escapeHtml(snapshot.message || "Mapping bounds unavailable.")}</div>
+          <div class="evcc-empty">${this.escapeHtml(snapshot.message) || this.t("mapping_review.unavailable")}</div>
         </div>`;
     }
 
@@ -69,23 +69,23 @@ export function applyMappingReviewRenderers(proto) {
         <section class="evcc-review-panel">
           <div class="evcc-review-panel-header">
             <div>
-              <div class="evcc-review-panel-title">Mapping Bounds Review</div>
+              <div class="evcc-review-panel-title">${this.t("mapping_review.title")}</div>
               <div class="evcc-review-panel-subtitle">
-                Per-run bounds derived from job history. Exclude runs to remove outliers from accumulated bounds.
+                ${this.t("mapping_review.subtitle")}
               </div>
             </div>
           </div>
           <div class="evcc-review-stats">
-            ${this._renderReviewStat("Rooms", allRoomIds.length)}
-            ${this._renderReviewStat("With Bounds", withBounds.length)}
-            ${this._renderReviewStat("No Bounds", noBounds.length)}
-            ${this._renderReviewStat("Total Runs", totalJobs)}
+            ${this._renderReviewStat(this.t("mapping_review.stat_rooms"), allRoomIds.length)}
+            ${this._renderReviewStat(this.t("mapping_review.stat_with_bounds"), withBounds.length)}
+            ${this._renderReviewStat(this.t("mapping_review.stat_no_bounds"), noBounds.length)}
+            ${this._renderReviewStat(this.t("mapping_review.stat_total_runs"), totalJobs)}
           </div>
         </section>
 
         <section class="evcc-review-panel evcc-review-panel--wide">
           <div class="evcc-review-chip-filter">
-            <div class="evcc-mrev-filter-label">Filter</div>
+            <div class="evcc-mrev-filter-label">${this.t("mapping_review.filter")}</div>
             <div class="evcc-chips evcc-review-filter-chips">
               ${filterOpts.map(opt => `
                 <button class="evcc-chip ${filter === opt.value ? "active" : ""}"
@@ -108,7 +108,7 @@ export function applyMappingReviewRenderers(proto) {
   };
 
   proto._renderMappingRoomCard = function (roomId, roomEntry, state) {
-    const name       = roomEntry?.name ?? `Room ${roomId}`;
+    const name       = roomEntry?.name ?? this.t("mapping_review.room_fallback", { id: roomId });
     const bounds     = roomEntry?.bounds ?? null;
     const history    = roomEntry?.job_bounds_history ?? [];
     const hasArchive = !!roomEntry?.has_archive;
@@ -122,19 +122,19 @@ export function applyMappingReviewRenderers(proto) {
 
     const statusBadge = bounds
       ? isConfident
-        ? `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}${activeCount} run${activeCount !== 1 ? "s" : ""} · ${bounds.sample_count ?? 0} samples</span>`
-        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${badgeMark("likely")}${activeCount} run${activeCount !== 1 ? "s" : ""} · Likely</span>`
-      : `<span class="evcc-mrev-badge evcc-mrev-badge--warn">${badgeMark("warn")}No bounds</span>`;
+        ? `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}${this.t("mapping_review.badge_runs_samples", { runs: activeCount, samples: bounds.sample_count ?? 0 })}</span>`
+        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${badgeMark("likely")}${this.t("mapping_review.badge_runs_likely", { runs: activeCount })}</span>`
+      : `<span class="evcc-mrev-badge evcc-mrev-badge--warn">${badgeMark("warn")}${this.t("mapping_review.badge_no_bounds")}</span>`;
 
     return `
       <div class="evcc-mrev-card">
         <div class="evcc-mrev-card-header">
           <div class="evcc-mrev-room-name">${this.escapeHtml(name)}</div>
           <div class="evcc-mrev-room-meta">
-            <span class="evcc-mrev-room-id">ID ${this.escapeHtml(roomId)}</span>
+            <span class="evcc-mrev-room-id">${this.t("mapping_review.room_id", { id: this.escapeHtml(roomId) })}</span>
             ${statusBadge}
             ${excludedCount > 0
-              ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}${excludedCount} excluded</span>`
+              ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}${this.t("mapping_review.badge_n_excluded", { count: excludedCount })}</span>`
               : ""}
           </div>
         </div>
@@ -144,13 +144,13 @@ export function applyMappingReviewRenderers(proto) {
                ${this._renderBoundsTable(bounds)}
              </div>`
           : hasArchive
-            ? `<div class="evcc-mrev-no-bounds">No active bounds — archive available for rebuild.</div>`
-            : `<div class="evcc-mrev-no-bounds">Run solo to establish bounds.</div>`
+            ? `<div class="evcc-mrev-no-bounds">${this.t("mapping_review.no_active_bounds_archive")}</div>`
+            : `<div class="evcc-mrev-no-bounds">${this.t("mapping_review.run_solo")}</div>`
         }
 
         ${history.length > 0 ? `
           <div class="evcc-mrev-history">
-            <div class="evcc-mrev-history-label">Run History (${history.length})</div>
+            <div class="evcc-mrev-history-label">${this.t("mapping_review.run_history", { count: history.length })}</div>
             ${history.map((entry, idx) =>
               this._renderJobBoundsEntry(entry, idx, roomId, bounds, history, state)
             ).join("")}
@@ -161,12 +161,12 @@ export function applyMappingReviewRenderers(proto) {
             <button class="evcc-chip evcc-mrev-rebuild-btn ${rebuildPending ? "evcc-mrev-clear-btn--disabled" : ""}"
                     data-mrev-rebuild="${this.escapeHtml(roomId)}"
                     ${rebuildPending ? "disabled" : ""}>
-              ${rebuildPending ? "Rebuilding…" : "Rebuild from Archive"}
+              ${rebuildPending ? this.t("mapping_review.rebuilding") : this.t("mapping_review.rebuild_from_archive")}
             </button>` : ""}
           <button class="evcc-chip evcc-mrev-clear-btn ${!bounds || pending ? "evcc-mrev-clear-btn--disabled" : ""}"
                   data-mrev-clear="${this.escapeHtml(roomId)}"
                   ${!bounds || pending ? "disabled" : ""}>
-            ${pending ? "Clearing…" : "Clear All"}
+            ${pending ? this.t("mapping_review.clearing") : this.t("mapping_review.clear_all")}
           </button>
         </div>
       </div>
@@ -182,16 +182,16 @@ export function applyMappingReviewRenderers(proto) {
         <div class="evcc-mrev-bounds-row">
           <span class="evcc-mrev-bounds-key">X</span>
           <span class="evcc-mrev-bounds-val">${fmt(bounds.min_x)} – ${fmt(bounds.max_x)}</span>
-          <span class="evcc-mrev-bounds-dim">w ${fmt(w)}</span>
+          <span class="evcc-mrev-bounds-dim">${this.t("mapping_review.dim_width", { value: fmt(w) })}</span>
         </div>
         <div class="evcc-mrev-bounds-row">
           <span class="evcc-mrev-bounds-key">Y</span>
           <span class="evcc-mrev-bounds-val">${fmt(bounds.min_y)} – ${fmt(bounds.max_y)}</span>
-          <span class="evcc-mrev-bounds-dim">h ${fmt(h)}</span>
+          <span class="evcc-mrev-bounds-dim">${this.t("mapping_review.dim_height", { value: fmt(h) })}</span>
         </div>
         ${bounds.updated_at ? `
         <div class="evcc-mrev-bounds-row evcc-mrev-bounds-row--sub">
-          <span class="evcc-mrev-bounds-key">Updated</span>
+          <span class="evcc-mrev-bounds-key">${this.t("mapping_review.updated")}</span>
           <span class="evcc-mrev-bounds-val">${this._mrevFmtDate(bounds.updated_at)}</span>
           <span class="evcc-mrev-bounds-dim"></span>
         </div>` : ""}
@@ -219,13 +219,16 @@ export function applyMappingReviewRenderers(proto) {
         };
         const tX = (ob.max_x - ob.min_x) * 0.10;
         const tY = (ob.max_y - ob.min_y) * 0.10;
-        if (job.max_x > ob.max_x + tX) outlierFlags.push("max X");
-        if (job.min_x < ob.min_x - tX) outlierFlags.push("min X");
-        if (job.max_y > ob.max_y + tY) outlierFlags.push("max Y");
-        if (job.min_y < ob.min_y - tY) outlierFlags.push("min Y");
+        if (job.max_x > ob.max_x + tX) outlierFlags.push(this.t("mapping_review.outlier_max_x"));
+        if (job.min_x < ob.min_x - tX) outlierFlags.push(this.t("mapping_review.outlier_min_x"));
+        if (job.max_y > ob.max_y + tY) outlierFlags.push(this.t("mapping_review.outlier_max_y"));
+        if (job.min_y < ob.min_y - tY) outlierFlags.push(this.t("mapping_review.outlier_min_y"));
       }
     }
 
+    // outlierFlags are this.t() results — already HTML-escaped by trust model B,
+    // and first-party catalog strings with no user data — so they interpolate into
+    // outlier_label raw; re-escaping here would double-encode a translated value.
     const isOutlier = outlierFlags.length > 0;
     const jobLabel  = this._mrevFmtJobId(job.job_id);
     const dateLabel = job.recorded_at ? this._mrevFmtDate(job.recorded_at) : "";
@@ -242,25 +245,25 @@ export function applyMappingReviewRenderers(proto) {
           <span class="evcc-mrev-job-id ${isExcluded ? "evcc-mrev-job-id--excluded" : ""}">${this.escapeHtml(jobLabel)}</span>
           ${dateLabel ? `<span class="evcc-mrev-job-date">${this.escapeHtml(dateLabel)}</span>` : ""}
           ${isExcluded
-            ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}Excluded</span>`
+            ? `<span class="evcc-mrev-badge evcc-mrev-badge--excluded">${badgeMark("excluded")}${this.t("mapping_review.excluded")}</span>`
             : isOutlier
-              ? `<span class="evcc-mrev-badge evcc-mrev-badge--outlier">${badgeMark("outlier")}Outlier: ${this.escapeHtml(outlierFlags.join(", "))}</span>`
-              : `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}OK</span>`}
-          ${isBaseline ? `<span class="evcc-mrev-badge evcc-mrev-badge--baseline">${badgeMark("baseline")}Baseline</span>` : ""}
+              ? `<span class="evcc-mrev-badge evcc-mrev-badge--outlier">${badgeMark("outlier")}${this.t("mapping_review.outlier_label", { flags: outlierFlags.join(", ") })}</span>`
+              : `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}${this.t("mapping_review.ok")}</span>`}
+          ${isBaseline ? `<span class="evcc-mrev-badge evcc-mrev-badge--baseline">${badgeMark("baseline")}${this.t("mapping_review.baseline")}</span>` : ""}
           <div class="evcc-mrev-job-actions">
             ${canExclude ? `
               <button class="evcc-chip evcc-chip--sm evcc-mrev-job-action-btn"
                       data-mrev-job-action="exclude"
                       data-mrev-room-id="${this.escapeHtml(roomId)}"
                       data-mrev-job-index="${jobIndex}">
-                Exclude
+                ${this.t("mapping_review.exclude")}
               </button>` : ""}
             ${canRestore ? `
               <button class="evcc-chip evcc-chip--sm evcc-mrev-job-action-btn"
                       data-mrev-job-action="restore"
                       data-mrev-room-id="${this.escapeHtml(roomId)}"
                       data-mrev-job-index="${jobIndex}">
-                Restore
+                ${this.t("mapping_review.restore")}
               </button>` : ""}
             ${isPending ? `<span class="evcc-mrev-job-pending">…</span>` : ""}
           </div>
@@ -269,15 +272,15 @@ export function applyMappingReviewRenderers(proto) {
           <div class="evcc-mrev-bounds-row">
             <span class="evcc-mrev-bounds-key">X</span>
             <span class="evcc-mrev-bounds-val">${fmt(job.min_x)} – ${fmt(job.max_x)}</span>
-            <span class="evcc-mrev-bounds-dim">w ${fmt(job.max_x - job.min_x)}</span>
+            <span class="evcc-mrev-bounds-dim">${this.t("mapping_review.dim_width", { value: fmt(job.max_x - job.min_x) })}</span>
           </div>
           <div class="evcc-mrev-bounds-row">
             <span class="evcc-mrev-bounds-key">Y</span>
             <span class="evcc-mrev-bounds-val">${fmt(job.min_y)} – ${fmt(job.max_y)}</span>
-            <span class="evcc-mrev-bounds-dim">h ${fmt(job.max_y - job.min_y)}</span>
+            <span class="evcc-mrev-bounds-dim">${this.t("mapping_review.dim_height", { value: fmt(job.max_y - job.min_y) })}</span>
           </div>
           <div class="evcc-mrev-bounds-row evcc-mrev-bounds-row--sub">
-            <span class="evcc-mrev-bounds-key">Samples</span>
+            <span class="evcc-mrev-bounds-key">${this.t("mapping_review.samples")}</span>
             <span class="evcc-mrev-bounds-val">${job.sample_count ?? "—"}</span>
             <span class="evcc-mrev-bounds-dim"></span>
           </div>
@@ -287,8 +290,8 @@ export function applyMappingReviewRenderers(proto) {
   };
 
   proto._mrevFmtJobId = function (jobId) {
-    if (!jobId) return "Unknown";
-    if (jobId === "pre_migration") return "Pre-migration";
+    if (!jobId) return this.t("mapping_review.job_unknown");
+    if (jobId === "pre_migration") return this.t("mapping_review.job_pre_migration");
     const m = String(jobId).match(/job_(\d{4}-\d{2}-\d{2})T(\d{2}-\d{2})/);
     return m ? `${m[1]} ${m[2].replace("-", ":")}` : String(jobId).slice(-16);
   };

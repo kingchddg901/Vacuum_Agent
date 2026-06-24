@@ -91,14 +91,14 @@ export function applyMapRenderers(proto) {
     if (!vaActive && (!imageUrl || (!segmentsData?.available && !hasLiveImage))) {
       const isCustom = (state.segmentationMode?.() ?? "cv") === "custom";
       // VA render selected but its raster hasn't loaded yet -> "rendering", not "no map".
-      const title = wantVa ? "Rendering the map…" : "No map image available.";
+      const title = wantVa ? this.t("map.empty_rendering_title") : this.t("map.empty_no_image_title");
       const hint = wantVa
-        ? "Drawing the map from the device's room data — one moment."
+        ? this.t("map.empty_rendering_hint")
         : hasLiveImage
-          ? "The live map appears once the robot has one — start a clean, or open the robot's app to build its map."
+          ? this.t("map.empty_live_hint")
           : isCustom
-            ? "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms."
-            : "Upload and analyze a map image to enable map view.";
+            ? this.t("map.empty_custom_hint")
+            : this.t("map.empty_upload_hint");
       return `
         <div class="evcc-map-view">
           <div class="evcc-map-unavailable">
@@ -168,7 +168,7 @@ export function applyMapRenderers(proto) {
             ${vaActive
               ? `<canvas class="evcc-map-image evcc-map-render-canvas" data-render-version="${this.escapeHtml(String(state.mapRenderVersion?.() ?? ""))}"></canvas>`
               : (imageUrl
-                  ? `<img class="evcc-map-image${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">`
+                  ? `<img class="evcc-map-image${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="${this.t("map.floor_plan_alt")}" draggable="false">`
                   : "")}
             ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, false) : ""}
             ${this._renderSelectionScrim(state)}
@@ -183,8 +183,8 @@ export function applyMapRenderers(proto) {
               ${segments.map((seg, i) => {
                 const roomId = state.roomIdForSegment(seg.segment_id);
                 const room   = roomId != null ? rooms.find((r) => String(r.id) === String(roomId)) : null;
-                const label  = room?.name ?? seg.name ?? seg.label ?? `Segment ${seg.segment_id}`;
-                const hint   = room ? "Tap to queue · Double-tap to configure" : "Tap to queue";
+                const label  = room?.name ?? seg.name ?? seg.label ?? this.t("map.segment_fallback", { id: seg.segment_id });
+                const hint   = room ? this.t("map.segment_hint_configurable") : this.t("map.segment_hint_queue");
                 return this._renderMapSegmentPolygon(seg, selectedIds, i, label, hint);
               }).join("")}
               ${typeof this._renderFloorTexturePolygon === "function"
@@ -228,26 +228,26 @@ export function applyMapRenderers(proto) {
 
           <!-- Zoom controls. Absolute-positioned over the map. CSS-styled
                as a small floating toolbar; see styles/map.js -->
-          <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
+          <div class="evcc-map-zoom-toolbar" aria-label="${this.t("map.zoom_controls_aria")}">
             <button class="evcc-map-zoom-btn" data-action="map-zoom-out"
-                    title="Zoom out" aria-label="Zoom out">−</button>
+                    title="${this.t("map.zoom_out")}" aria-label="${this.t("map.zoom_out")}">−</button>
             <button class="evcc-map-zoom-btn" data-action="map-zoom-fit"
-                    title="Fit map to screen" aria-label="Fit to screen">⤢</button>
+                    title="${this.t("map.zoom_fit")}" aria-label="${this.t("map.zoom_fit_aria")}">⤢</button>
             <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
-                    title="Zoom in" aria-label="Zoom in">+</button>
+                    title="${this.t("map.zoom_in")}" aria-label="${this.t("map.zoom_in")}">+</button>
             ${(hasLiveImage || vaActive) ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
-                    title="Rotate map 90°" aria-label="Rotate map 90 degrees">↻</button>` : ""}
+                    title="${this.t("map.rotate")}" aria-label="${this.t("map.rotate_aria")}">↻</button>` : ""}
             ${(state.supportsVaRender?.() ?? false) ? `
             <button class="evcc-map-zoom-btn${(state.useVaRender?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-va-render"
-                    title="Toggle VA-rendered map" aria-label="Toggle VA-rendered map">▦</button>` : ""}
+                    title="${this.t("map.toggle_va_render")}" aria-label="${this.t("map.toggle_va_render")}">▦</button>` : ""}
             ${canZone ? `
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"
-                    title="Draw a zone to clean" aria-label="Draw a zone to clean">▢</button>` : ""}
+                    title="${this.t("map.draw_zone")}" aria-label="${this.t("map.draw_zone")}">▢</button>` : ""}
             <span class="evcc-map-zoom-readout"
-                  aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
+                  aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
           </div>
 
         </div>
@@ -333,7 +333,7 @@ export function applyMapRenderers(proto) {
       + (editable ? " evcc-map-art--editable" : "")
       + (composeActive ? " evcc-map-art--passthrough" : "");
     const drag = (editable && !composeActive) ? ` data-action="furnished-art-drag"` : "";
-    return `<img class="${cls}" src="${this.escapeHtml(url)}" alt="Furnished home render" `
+    return `<img class="${cls}" src="${this.escapeHtml(url)}" alt="${this.t("map.furnished_art_alt")}" `
          + `draggable="false" style="transform:${xform}"${drag}>`;
   };
 
@@ -404,14 +404,14 @@ export function applyMapRenderers(proto) {
     }
     if (vis("dock") && Array.isArray(mss.dock_anchor) && mss.dock_anchor.length === 2) {
       const [x, y] = mss.dock_anchor;
-      out += `<div class="evcc-map-ov-dock" style="left:${f(tx(x))}%;top:${f(ty(y))}%" title="Dock"></div>`;
+      out += `<div class="evcc-map-ov-dock" style="left:${f(tx(x))}%;top:${f(ty(y))}%" title="${this.t("map.dock")}"></div>`;
     }
     if (vis("obstacles")) {
       for (const o of (mss.obstacles || [])) {
         if (!o || !Array.isArray(o.pos) || o.pos.length !== 2) continue;
         const cls = o.has_photo ? " evcc-map-ov-obstacle--photo" : "";
         out += `<div class="evcc-map-ov-obstacle${cls}" style="left:${f(tx(o.pos[0]))}%;top:${f(ty(o.pos[1]))}%" `
-             + `title="${this.escapeHtml(String(o.type ?? "obstacle"))}"></div>`;
+             + `title="${o.type != null ? this.escapeHtml(String(o.type)) : this.t("map.obstacle")}"></div>`;
       }
     }
     if (vis("room_area")) {
@@ -489,7 +489,7 @@ export function applyMapRenderers(proto) {
       out += `<div class="${cls}" style="left:${f(left)}%;top:${f(top)}%;width:${f(w)}%;height:${f(h)}%">`
            + (editMode
                ? `<button class="evcc-hidden-region-del" data-action="delete-hidden-region" `
-                 + `data-index="${i}" title="Remove this hidden area" aria-label="Remove hidden area">×</button>`
+                 + `data-index="${i}" title="${this.t("map.remove_hidden_area_title")}" aria-label="${this.t("map.remove_hidden_area_aria")}">×</button>`
                : "")
            + `</div>`;
     }
@@ -553,17 +553,17 @@ export function applyMapRenderers(proto) {
     const vis = state.mapOverlayVisibility?.() ?? {};
     const live = state.isLiveImageDisplayed?.() ?? false;
     const LAYERS = [
-      { key: "current_room", label: "Current room" },
-      { key: "robot",        label: "Robot + heading" },
-      { key: "dock",         label: "Dock" },
-      { key: "room_area",    label: "Room area (m²)" },
-      { key: "no_go",        label: "No-go zones" },
-      { key: "no_mop",       label: "No-mop zones" },
-      { key: "walls",        label: "Virtual walls" },
-      { key: "zones",        label: "Saved zones" },
-      { key: "path",         label: "Cleaning path" },
-      { key: "obstacles",    label: "Obstacles" },
-      { key: "hidden_regions", label: "Hidden areas" },
+      { key: "current_room", label: this.t("map.layer_current_room") },
+      { key: "robot",        label: this.t("map.layer_robot") },
+      { key: "dock",         label: this.t("map.layer_dock") },
+      { key: "room_area",    label: this.t("map.layer_room_area") },
+      { key: "no_go",        label: this.t("map.layer_no_go") },
+      { key: "no_mop",       label: this.t("map.layer_no_mop") },
+      { key: "walls",        label: this.t("map.layer_walls") },
+      { key: "zones",        label: this.t("map.layer_zones") },
+      { key: "path",         label: this.t("map.layer_path") },
+      { key: "obstacles",    label: this.t("map.layer_obstacles") },
+      { key: "hidden_regions", label: this.t("map.layer_hidden_areas") },
     ];
     // Hide-area draw control. Available wherever a device-overlay-aligned backdrop is shown at
     // rotation 0 (same gate as the masks). In draw mode: drag to add a mask, × to delete one.
@@ -572,27 +572,27 @@ export function applyMapRenderers(proto) {
     const regionCount = (state.hiddenRegions?.() ?? []).length;
     return `
       <div class="evcc-map-layers-panel">
-        <div class="evcc-map-layers-title">Map Layers</div>
-        ${live ? "" : `<div class="evcc-map-layers-hint">Overlays appear on the live-map backdrop.</div>`}
+        <div class="evcc-map-layers-title">${this.t("map.layers_title")}</div>
+        ${live ? "" : `<div class="evcc-map-layers-hint">${this.t("map.layers_hint")}</div>`}
         <div class="evcc-map-layers-list">
           ${LAYERS.map((l) => `
             <label class="evcc-map-layers-row">
               <input type="checkbox" data-action="toggle-map-overlay" data-layer="${l.key}"${vis[l.key] ? " checked" : ""}>
-              <span>${this.escapeHtml(l.label)}</span>
+              <span>${l.label}</span>
             </label>`).join("")}
         </div>
         ${canHide ? `
         <div class="evcc-map-hide-tools">
           <button class="evcc-map-hide-btn${hideMode ? " evcc-map-hide-btn--on" : ""}"
                   data-action="toggle-hide-draw">
-            ${hideMode ? "Done" : "Hide area…"}
+            ${hideMode ? this.t("map.hide_done") : this.t("map.hide_area")}
           </button>
           ${regionCount > 0 ? `
           <button class="evcc-map-hide-btn evcc-map-hide-btn--clear" data-action="clear-hidden-regions">
-            Clear (${regionCount})
+            ${this.t("map.hide_clear", { count: regionCount })}
           </button>` : ""}
         </div>
-        ${hideMode ? `<div class="evcc-map-layers-hint">Drag a box over the map to hide it; × removes one.</div>` : ""}
+        ${hideMode ? `<div class="evcc-map-layers-hint">${this.t("map.hide_draw_hint")}</div>` : ""}
         ` : ""}
       </div>`;
   };
@@ -609,10 +609,10 @@ export function applyMapRenderers(proto) {
     // the real provider entity (current value + options); changing it calls
     // select.select_option — a zone clean runs off these current settings.
     const SETTINGS = [
-      { key: "fan_speed",       label: "Suction" },
-      { key: "clean_mode",      label: "Mode" },
-      { key: "clean_intensity", label: "Intensity" },
-      { key: "water_level",     label: "Water" },
+      { key: "fan_speed",       label: this.t("map.zone_setting_suction") },
+      { key: "clean_mode",      label: this.t("map.zone_setting_mode") },
+      { key: "clean_intensity", label: this.t("map.zone_setting_intensity") },
+      { key: "water_level",     label: this.t("map.zone_setting_water") },
     ];
     const settingRows = SETTINGS.map(({ key, label }) => {
       const eid = settingEntities[key];
@@ -623,7 +623,7 @@ export function applyMapRenderers(proto) {
       const cur = ent.state;
       return `
         <label class="evcc-zone-setting">
-          <span class="evcc-zone-setting-label">${esc(label)}</span>
+          <span class="evcc-zone-setting-label">${label}</span>
           <select class="evcc-zone-setting-select" data-action="zone-setting"
                   data-entity-id="${esc(eid)}">
             ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}
@@ -635,32 +635,32 @@ export function applyMapRenderers(proto) {
       <li class="evcc-zone-list-item">
         <span class="evcc-zone-list-num">${i + 1}</span>
         <button class="evcc-zone-list-del" data-action="zone-remove" data-zone-index="${i}"
-                title="Remove zone ${i + 1}" aria-label="Remove zone ${i + 1}">✕</button>
+                title="${this.t("map.zone_remove", { num: i + 1 })}" aria-label="${this.t("map.zone_remove", { num: i + 1 })}">✕</button>
       </li>`).join("");
 
     return `
-      <div class="evcc-zone-panel" role="group" aria-label="Zone clean">
-        <div class="evcc-zone-panel-title">Zone clean</div>
+      <div class="evcc-zone-panel" role="group" aria-label="${this.t("map.zone_clean")}">
+        <div class="evcc-zone-panel-title">${this.t("map.zone_clean")}</div>
         ${settingRows ? `
         <div class="evcc-zone-panel-section">
-          <div class="evcc-zone-panel-section-title">Settings
-            <span class="evcc-zone-panel-note">apply to the whole clean</span></div>
+          <div class="evcc-zone-panel-section-title">${this.t("map.zone_settings")}
+            <span class="evcc-zone-panel-note">${this.t("map.zone_settings_note")}</span></div>
           ${settingRows}
         </div>` : ""}
         <div class="evcc-zone-panel-section">
-          <div class="evcc-zone-panel-section-title">Zones
+          <div class="evcc-zone-panel-section-title">${this.t("map.zone_zones")}
             <span class="evcc-zone-panel-note">${zoneCount}/${zoneMax}</span></div>
           ${zoneCount
             ? `<ul class="evcc-zone-list">${zoneList}</ul>`
-            : `<div class="evcc-zone-panel-empty">Drag a box on the map to add a zone.</div>`}
+            : `<div class="evcc-zone-panel-empty">${this.t("map.zone_empty")}</div>`}
         </div>
         <div class="evcc-zone-panel-actions">
           <button class="evcc-zone-bar-btn evcc-zone-bar-btn--primary"
                   data-action="zone-clean-confirm"${zoneCount ? "" : " disabled"}>${
-            zoneCount > 1 ? `Clean ${zoneCount} zones` : "Clean zone"
+            zoneCount > 1 ? this.t("map.zone_clean_n", { count: zoneCount }) : this.t("map.zone_clean_one")
           }</button>
-          ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">Clear</button>` : ""}
-          <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">Cancel</button>
+          ${zoneCount ? `<button class="evcc-zone-bar-btn" data-action="zone-clear">${this.t("map.zone_clear")}</button>` : ""}
+          <button class="evcc-zone-bar-btn" data-action="zone-clean-cancel">${this.t("common.cancel")}</button>
         </div>
       </div>`;
   };
@@ -841,8 +841,8 @@ export function applyMapRenderers(proto) {
     const H = Math.round(44 * scale);
     const drag = anchorKey != null
       ? ` data-action="map-dot-click" data-anchor-key="${this.escapeHtml(String(anchorKey))}"`
-        + ` title="${isDocked ? "Drag to set the mascot's docked home spot" : "Drag to reposition"}"`
-      : ` title="Following the robot"`;
+        + ` title="${isDocked ? this.t("map.mascot_dock_home") : this.t("map.mascot_reposition")}"`
+      : ` title="${this.t("map.mascot_following")}"`;
     return `<div class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}`
          + `${anchorKey == null ? " evcc-map-animal--following" : ""}"`
          + ` style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"${drag}`
@@ -864,7 +864,7 @@ export function applyMapRenderers(proto) {
         : null;
 
       const label   = room?.name ?? seg.name ?? seg.label
-        ?? `Segment ${seg.segment_id}`;
+        ?? this.t("map.segment_fallback", { id: seg.segment_id });
       const summary = room ? this._mapRoomSettingsSummary(room) : "";
 
       return `
@@ -940,13 +940,13 @@ export function applyMapRenderers(proto) {
       <div class="evcc-map-config-view">
 
         <div class="evcc-map-config-header">
-          <button class="evcc-map-config-back" data-action="map-config-back" aria-label="Back to rooms">
+          <button class="evcc-map-config-back" data-action="map-config-back" aria-label="${this.t("map.config_back_aria")}">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="10,3 4,8 10,13"/>
             </svg>
-            Rooms
+            ${this.t("map.config_back")}
           </button>
-          <span class="evcc-map-config-title">Map Configuration</span>
+          <span class="evcc-map-config-title">${this.t("map.config_title")}</span>
         </div>
 
         <div class="evcc-map-config-body">
@@ -955,7 +955,7 @@ export function applyMapRenderers(proto) {
             ${imageUrl
               ? `<div class="evcc-map-layers" style="transform:translate(${tx}px,${ty}px) scale(${zoom});transform-origin:0 0">
                  <div class="evcc-map-content-rotator" style="transform:rotate(${configRot}deg);--evcc-map-rotation:${configRot}deg">
-                   <img class="evcc-map-image${isCustom && !liveBackdrop ? " evcc-map-image--fill" : ""}${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="Floor plan" draggable="false">
+                   <img class="evcc-map-image${isCustom && !liveBackdrop ? " evcc-map-image--fill" : ""}${baseFadeCls}" src="${this.escapeHtml(imageUrl)}" alt="${this.t("map.floor_plan_alt")}" draggable="false">
                    ${(furnishedOn && furnishedMode !== "live") ? this._renderFurnishedArt(state, true) : ""}
                    <svg class="evcc-map-svg" viewBox="0 0 100 100" preserveAspectRatio="none">
                      ${isCustom
@@ -967,18 +967,18 @@ export function applyMapRenderers(proto) {
                    </svg>
                  </div>
                  </div>
-                 <div class="evcc-map-zoom-toolbar" aria-label="Map zoom controls">
+                 <div class="evcc-map-zoom-toolbar" aria-label="${this.t("map.zoom_controls_aria")}">
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-out"
-                           title="Zoom out" aria-label="Zoom out">−</button>
+                           title="${this.t("map.zoom_out")}" aria-label="${this.t("map.zoom_out")}">−</button>
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-fit"
-                           title="Fit map to screen" aria-label="Fit to screen">⤢</button>
+                           title="${this.t("map.zoom_fit")}" aria-label="${this.t("map.zoom_fit_aria")}">⤢</button>
                    <button class="evcc-map-zoom-btn" data-action="map-zoom-in"
-                           title="Zoom in" aria-label="Zoom in">+</button>
+                           title="${this.t("map.zoom_in")}" aria-label="${this.t("map.zoom_in")}">+</button>
                    <span class="evcc-map-zoom-readout"
-                         aria-label="Current zoom level">${Math.round(zoom * 100)}%</span>
+                         aria-label="${this.t("map.zoom_level_aria")}">${Math.round(zoom * 100)}%</span>
                  </div>`
               : `<div class="evcc-map-unavailable">
-                   <p>No map image uploaded yet.</p>
+                   <p>${this.t("map.config_no_image")}</p>
                  </div>`}
           </div>
 
@@ -989,7 +989,7 @@ export function applyMapRenderers(proto) {
               : (selectedSeg
                 ? this._renderSegmentAdjustSection(selectedSeg, state)
                 : `<div class="evcc-map-config-section evcc-map-config-section--hint">
-                     <p>Click a segment on the map to adjust it.</p>
+                     <p>${this.t("map.config_click_segment")}</p>
                    </div>`)}
           </div>
 
@@ -1091,7 +1091,7 @@ export function applyMapRenderers(proto) {
     const cvChip = cvOk ? `
       <button class="evcc-map-mode-btn${mode === "cv" ? " evcc-map-mode-btn--active" : ""}"
         data-action="set-segmentation-mode" data-mode="cv"
-        title="Detect rooms automatically from the map image">Auto (CV)</button>` : "";
+        title="${this.t("map.seg_cv_title")}">${this.t("map.seg_cv")}</button>` : "";
     // The live-pinned layout is represented by the dedicated "Live map" chip below,
     // not as a regular named layout chip — filter it out here to avoid a duplicate.
     const layoutChips = layouts
@@ -1099,7 +1099,7 @@ export function applyMapRenderers(proto) {
       .map((l) => `
       <button class="evcc-map-mode-btn${mode === "custom" && String(l.id) === String(activeId) ? " evcc-map-mode-btn--active" : ""}"
         data-action="set-active-custom-layout" data-layout-id="${esc(l.id)}"
-        title="Custom layout: ${esc(l.name)}">${esc(l.name)}</button>`).join("");
+        title="${this.t("map.seg_custom_layout_title", { name: esc(l.name) })}">${esc(l.name)}</button>`).join("");
     // "Live map" chip — only when a live-map entity is available. Selects (or creates)
     // the layout pinned to the live backdrop, so the composer draws rooms straight over
     // the live camera/image. Active when that layout is current.
@@ -1108,38 +1108,34 @@ export function applyMapRenderers(proto) {
     const liveChip = hasLive ? `
       <button class="evcc-map-mode-btn${liveActive ? " evcc-map-mode-btn--active" : ""}"
         data-action="select-or-create-live-layout"
-        title="Draw rooms over your vacuum's live map">Live map</button>` : "";
+        title="${this.t("map.seg_live_title")}">${this.t("map.seg_live")}</button>` : "";
     const newChip = `
       <button class="evcc-map-mode-btn" data-action="open-new-layout"
-        title="Add a custom layout (its own backdrop + rooms)">＋ New</button>`;
+        title="${this.t("map.seg_new_title")}">${this.t("map.seg_new")}</button>`;
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Segmentation</div>
+        <div class="evcc-map-config-section-title">${this.t("map.seg_title")}</div>
         <div class="evcc-map-mode-toggle">
           ${liveChip}${cvChip}${layoutChips}${newChip}
         </div>
         ${!cvOk ? `
         <div class="evcc-map-cv-unavailable">
-          <strong>Auto (CV)</strong> map segmentation needs optional packages
-          (${esc(cvMissingText)}) that aren't installed in this Home Assistant.
-          Use <strong>Live map</strong>, a <strong>custom layout</strong>, or manual
-          bounds instead — see the
-          <a href="https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/16-making-your-own-maps/" target="_blank" rel="noopener">map setup guide</a>.
+          ${this.tRaw("map.seg_cv_unavailable", { packages: esc(cvMissingText) })}
         </div>` : ""}
         ${editing ? `
         <div class="evcc-compose-tools">
           <input type="text" class="evcc-map-config-input" data-layout-field="name"
-            value="${esc(draftName)}" placeholder="Layout name" />
+            value="${esc(draftName)}" placeholder="${this.t("map.layout_name_placeholder")}" />
           <button class="evcc-map-config-btn evcc-map-config-btn--primary"
             data-action="${editMode === "rename" ? "rename-layout-save" : "create-layout-save"}"
-          >${editMode === "rename" ? "Save" : "Create"}</button>
-          <button class="evcc-map-config-btn" data-action="cancel-layout-editor">Cancel</button>
+          >${editMode === "rename" ? this.t("map.layout_save") : this.t("map.layout_create")}</button>
+          <button class="evcc-map-config-btn" data-action="cancel-layout-editor">${this.t("common.cancel")}</button>
         </div>` : ""}
         ${mode === "custom" && activeId ? `
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="open-rename-layout">Rename</button>
-          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="delete-layout">Delete layout</button>
+          <button class="evcc-map-config-btn" data-action="open-rename-layout">${this.t("map.layout_rename")}</button>
+          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="delete-layout">${this.t("map.layout_delete")}</button>
         </div>` : ""}
       </div>
     `;
@@ -1164,29 +1160,29 @@ export function applyMapRenderers(proto) {
                     && actionStatus?.status === "busy";
     const isError = actionStatus?.type === "upload" && actionStatus?.variant === variantKey
                     && actionStatus?.status === "error";
-    const statusText = custom ? `${custom.width} × ${custom.height}` : "no backdrop yet";
+    const statusText = custom ? `${custom.width} × ${custom.height}` : this.t("map.backdrop_none");
     const statusCls  = custom
       ? "evcc-map-variant-status--ok"
       : "evcc-map-variant-status--missing";
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Custom backdrop</div>
+        <div class="evcc-map-config-section-title">${this.t("map.backdrop_title")}</div>
         <div class="evcc-map-variant-row">
           <div class="evcc-map-variant-info">
-            <span class="evcc-map-variant-label">Backdrop image</span>
-            <span class="evcc-map-variant-hint">any map picture — drawn on, never auto-segmented</span>
+            <span class="evcc-map-variant-label">${this.t("map.backdrop_image_label")}</span>
+            <span class="evcc-map-variant-hint">${this.t("map.backdrop_image_hint")}</span>
           </div>
           <span class="evcc-map-variant-status ${statusCls}">${statusText}</span>
           ${isError
-            ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Upload failed")}</span>`
+            ? `<span class="evcc-map-action-status evcc-map-action-status--error">${actionStatus.message ? this.escapeHtml(actionStatus.message) : this.t("map.upload_failed")}</span>`
             : ""}
           <button
             class="evcc-map-config-btn${isBusy ? " evcc-map-config-btn--busy" : ""}"
             data-action="upload-map-variant"
             data-variant="${this.escapeHtml(variantKey)}"
             ${isBusy ? "disabled" : ""}
-          >${isBusy ? "Uploading…" : custom ? "Replace" : "Upload"}</button>
+          >${isBusy ? this.t("map.uploading") : custom ? this.t("map.replace") : this.t("map.upload")}</button>
         </div>
       </div>
     `;
@@ -1262,27 +1258,27 @@ export function applyMapRenderers(proto) {
     const saveErr  = status?.type === "compose-save" && status?.status === "error";
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Compose rooms</div>
+        <div class="evcc-map-config-section-title">${this.t("map.compose_rooms")}</div>
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="rect">＋ Rectangle</button>
-          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="circle">＋ Circle</button>
+          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="rect">${this.t("map.compose_add_rect")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-add" data-shape-type="circle">${this.t("map.compose_add_circle")}</button>
         </div>
-        <div class="evcc-map-config-adj-meta">${count} shape${count === 1 ? "" : "s"}${hasSel ? "" : (count ? " · tap one to edit" : " · add a shape to start")}</div>
+        <div class="evcc-map-config-adj-meta">${this.t("map.compose_shape_count", { count })}${hasSel ? "" : (count ? this.t("map.compose_tap_to_edit") : this.t("map.compose_add_to_start"))}</div>
       </div>
       ${this._renderComposerSelectedControls(state)}
       ${this._renderComposerRoomAssign(state)}
       <div class="evcc-map-config-section">
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="compose-delete" ${hasSel ? "" : "disabled"}>Delete</button>
-          <button class="evcc-map-config-btn" data-action="compose-clear" ${count ? "" : "disabled"}>Clear all</button>
+          <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="compose-delete" ${hasSel ? "" : "disabled"}>${this.t("common.delete")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-clear" ${count ? "" : "disabled"}>${this.t("map.compose_clear_all")}</button>
         </div>
         <button
           class="evcc-map-config-btn evcc-map-config-btn--primary${saveBusy ? " evcc-map-config-btn--busy" : ""}"
           data-action="compose-save"
           ${(count && !saveBusy) ? "" : "disabled"}
-        >${saveBusy ? "Saving…" : "Save rooms"}</button>
+        >${saveBusy ? this.t("map.saving") : this.t("map.compose_save")}</button>
         ${saveErr
-          ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(status.message ?? "Save failed")}</span>`
+          ? `<span class="evcc-map-action-status evcc-map-action-status--error">${status.message ? this.escapeHtml(status.message) : this.t("map.save_failed")}</span>`
           : ""}
       </div>
     `;
@@ -1308,85 +1304,81 @@ export function applyMapRenderers(proto) {
 
     const modeBtn = (key, label, hint) => `
       <button class="evcc-map-config-btn${mode === key ? " evcc-map-config-btn--primary" : ""}"
-        data-action="furnished-render-mode" data-mode="${key}" title="${this.escapeHtml(hint)}"
-        ${hasArt || key === "live" ? "" : "disabled"}>${this.escapeHtml(label)}</button>`;
+        data-action="furnished-render-mode" data-mode="${key}" title="${hint}"
+        ${hasArt || key === "live" ? "" : "disabled"}>${label}</button>`;
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Furnished render</div>
+        <div class="evcc-map-config-section-title">${this.t("map.furnished_title")}</div>
         <div class="evcc-map-config-adj-meta">
-          Upload a to-scale render of your home, then align it over the live map — the
-          live robot, dock, and cleaning path ride on top.
+          ${this.t("map.furnished_intro")}
         </div>
         <div class="evcc-map-config-adj-meta">
-          Tip: save the current map image, draw your furniture over it, then upload that —
-          it'll line up almost perfectly (the art is already registered to the map pixels).
-          The live robot may show in the saved frame on some maps — just ignore it when tracing.
+          ${this.t("map.furnished_tip")}
         </div>
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn" data-action="furnished-export-map"
-            title="Download the current live map image to trace your furniture over">⬇ Save map image</button>
+            title="${this.t("map.furnished_export_title")}">${this.t("map.furnished_export")}</button>
         </div>
-        ${isExportErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Couldn't save the map image")}</span>` : ""}
+        ${isExportErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${actionStatus.message ? this.escapeHtml(actionStatus.message) : this.t("map.furnished_export_failed")}</span>` : ""}
         ${noSize ? `<div class="evcc-map-action-status evcc-map-action-status--error">
-          The live map has no image size yet — start a clean or open the robot's app so it
-          publishes a map frame, then align.</div>` : ""}
+          ${this.t("map.furnished_no_size")}</div>` : ""}
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn${isBusy ? " evcc-map-config-btn--busy" : ""}"
             data-action="upload-furnished-art" ${isBusy ? "disabled" : ""}>
-            ${isBusy ? "Uploading…" : hasArt ? "Replace art" : "Upload art"}</button>
+            ${isBusy ? this.t("map.uploading") : hasArt ? this.t("map.furnished_replace_art") : this.t("map.furnished_upload_art")}</button>
           ${hasArt ? `<button class="evcc-map-config-btn evcc-map-config-btn--danger"
-            data-action="furnished-art-clear" title="Remove the placement (keeps the uploaded image)">Reset placement</button>` : ""}
+            data-action="furnished-art-clear" title="${this.t("map.furnished_reset_title")}">${this.t("map.furnished_reset")}</button>` : ""}
         </div>
-        ${isErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${this.escapeHtml(actionStatus.message ?? "Upload failed")}</span>` : ""}
+        ${isErr ? `<span class="evcc-map-action-status evcc-map-action-status--error">${actionStatus.message ? this.escapeHtml(actionStatus.message) : this.t("map.upload_failed")}</span>` : ""}
       </div>
       ${hasArt ? `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Render mode</div>
+        <div class="evcc-map-config-section-title">${this.t("map.furnished_render_mode")}</div>
         <div class="evcc-compose-tools">
-          ${modeBtn("live", "Live", "Show the live map only (art hidden)")}
-          ${modeBtn("blend", "Blend", "Art over a faded live map — best for aligning")}
-          ${modeBtn("art", "Art", "Show your furnished art (live map hidden)")}
+          ${modeBtn("live", this.t("map.furnished_mode_live"), this.t("map.furnished_mode_live_title"))}
+          ${modeBtn("blend", this.t("map.furnished_mode_blend"), this.t("map.furnished_mode_blend_title"))}
+          ${modeBtn("art", this.t("map.furnished_mode_art"), this.t("map.furnished_mode_art_title"))}
         </div>
       </div>
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Align art</div>
-        <div class="evcc-map-config-adj-meta">Drag the art on the map, or nudge it here. Scale + rotate to match.</div>
+        <div class="evcc-map-config-section-title">${this.t("map.furnished_align")}</div>
+        <div class="evcc-map-config-adj-meta">${this.t("map.furnished_align_hint")}</div>
         <div class="evcc-map-nudge-pad">
           <div class="evcc-map-nudge-row">
-            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="-1" title="Up">↑</button>
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="-1" title="${this.t("map.nudge_up")}">↑</button>
           </div>
           <div class="evcc-map-nudge-row">
-            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="-1" data-dy="0" title="Left">←</button>
-            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="1" data-dy="0" title="Right">→</button>
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="-1" data-dy="0" title="${this.t("map.nudge_left")}">←</button>
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="1" data-dy="0" title="${this.t("map.nudge_right")}">→</button>
           </div>
           <div class="evcc-map-nudge-row">
-            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="1" title="Down">↓</button>
+            <button class="evcc-map-nudge-btn" data-action="furnished-art-nudge" data-dx="0" data-dy="1" title="${this.t("map.nudge_down")}">↓</button>
           </div>
         </div>
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="0.9" title="Shrink">－ Scale</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="Grow">＋ Scale</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="0.9" title="${this.t("map.scale_shrink")}">${this.t("map.scale_minus")}</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-scale" data-factor="1.111" title="${this.t("map.scale_grow")}">${this.t("map.scale_plus")}</button>
           <span class="evcc-map-config-adj-meta">${Math.round((Number(t.scale) || 1) * 100)}%</span>
         </div>
         <div class="evcc-map-furnished-rotate">
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="Rotate left 90°">↺ 90°</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-1" title="Rotate left 1°">−1°</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-0.1" title="Rotate left 0.1°">−0.1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-90" title="${this.t("map.rotate_left_90")}">↺ 90°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-1" title="${this.t("map.rotate_left_1")}">−1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="-0.1" title="${this.t("map.rotate_left_01")}">−0.1°</button>
           <span class="evcc-map-config-adj-meta evcc-map-furnished-rotate-readout">${(Number(t.rotation) || 0).toFixed(1)}°</span>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="0.1" title="Rotate right 0.1°">+0.1°</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="1" title="Rotate right 1°">+1°</button>
-          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="90" title="Rotate right 90°">↻ 90°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="0.1" title="${this.t("map.rotate_right_01")}">+0.1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="1" title="${this.t("map.rotate_right_1")}">+1°</button>
+          <button class="evcc-map-config-btn" data-action="furnished-art-rotate" data-deg="90" title="${this.t("map.rotate_right_90")}">↻ 90°</button>
         </div>
         <div class="evcc-map-furnished-trim">
-          <span class="evcc-map-config-adj-meta">Fine trim ±15°</span>
+          <span class="evcc-map-config-adj-meta">${this.t("map.furnished_fine_trim")}</span>
           <input type="range" class="evcc-map-furnished-rotate-slider"
                  data-action="furnished-art-rotate-slider"
                  min="-15" max="15" step="0.1" value="0"
-                 aria-label="Fine rotation trim, plus or minus 15 degrees">
+                 aria-label="${this.t("map.furnished_fine_trim_aria")}">
         </div>
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="furnished-art-save" title="Save this alignment">Save alignment</button>
+          <button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="furnished-art-save" title="${this.t("map.furnished_save_align_title")}">${this.t("map.furnished_save_align")}</button>
         </div>
       </div>` : ""}
     `;
@@ -1412,55 +1404,55 @@ export function applyMapRenderers(proto) {
         data-action="compose-step" data-step="${n}">${label}</button>`;
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Selected: <em>${s.type}</em></div>
+        <div class="evcc-map-config-section-title">${this.t("map.compose_selected")} <em>${s.type}</em></div>
         <div class="evcc-compose-tools">
-          ${stepBtn(1, "Fine")}${stepBtn(3, "Med")}${stepBtn(7, "Coarse")}
+          ${stepBtn(1, this.t("map.compose_step_fine"))}${stepBtn(3, this.t("map.compose_step_med"))}${stepBtn(7, this.t("map.compose_step_coarse"))}
         </div>
         ${groupSize >= 2 ? `
-        <div class="evcc-map-config-adj-meta">Move: the whole room, or just this piece</div>
+        <div class="evcc-map-config-adj-meta">${this.t("map.compose_move_prompt")}</div>
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn${moveScope === "room" ? " evcc-map-config-btn--primary" : ""}"
-            data-action="compose-move-scope" data-scope="room" title="Move the whole room together">Room</button>
+            data-action="compose-move-scope" data-scope="room" title="${this.t("map.compose_scope_room_title")}">${this.t("map.compose_scope_room")}</button>
           <button class="evcc-map-config-btn${moveScope === "piece" ? " evcc-map-config-btn--primary" : ""}"
-            data-action="compose-move-scope" data-scope="piece" title="Move just this shape">Piece</button>
+            data-action="compose-move-scope" data-scope="piece" title="${this.t("map.compose_scope_piece_title")}">${this.t("map.compose_scope_piece")}</button>
         </div>` : ""}
         <div class="evcc-map-nudge-pad">
-          <div class="evcc-map-nudge-row">${mv(0, -1, "↑", "Up")}</div>
-          <div class="evcc-map-nudge-row">${mv(-1, 0, "←", "Left")}${mv(1, 0, "→", "Right")}</div>
-          <div class="evcc-map-nudge-row">${mv(0, 1, "↓", "Down")}</div>
+          <div class="evcc-map-nudge-row">${mv(0, -1, "↑", this.t("map.nudge_up"))}</div>
+          <div class="evcc-map-nudge-row">${mv(-1, 0, "←", this.t("map.nudge_left"))}${mv(1, 0, "→", this.t("map.nudge_right"))}</div>
+          <div class="evcc-map-nudge-row">${mv(0, 1, "↓", this.t("map.nudge_down"))}</div>
         </div>
-        <div class="evcc-map-config-adj-meta">…or tap the map to drop the shape there.</div>
+        <div class="evcc-map-config-adj-meta">${this.t("map.compose_tap_to_drop")}</div>
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="0.85" title="Shrink">－ Scale</button>
-          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="1.18" title="Grow">＋ Scale</button>
+          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="0.85" title="${this.t("map.scale_shrink")}">${this.t("map.scale_minus")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-scale" data-factor="1.18" title="${this.t("map.scale_grow")}">${this.t("map.scale_plus")}</button>
         </div>
         ${s.type === "rect" ? `
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="-1">－ W</button>
-          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="1">＋ W</button>
-          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="-1">－ H</button>
-          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="1">＋ H</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="-1">${this.t("map.resize_w_minus")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="w" data-delta="1">${this.t("map.resize_w_plus")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="-1">${this.t("map.resize_h_minus")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-resize" data-dim="h" data-delta="1">${this.t("map.resize_h_plus")}</button>
         </div>` : ""}
         ${s.type !== "circle" ? `
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="-15" title="Rotate left">↺ Rotate</button>
-          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="15" title="Rotate right">↻ Rotate</button>
+          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="-15" title="${this.t("map.rotate_left")}">${this.t("map.rotate_ccw")}</button>
+          <button class="evcc-map-config-btn" data-action="compose-rotate" data-deg="15" title="${this.t("map.rotate_right")}">${this.t("map.rotate_cw")}</button>
         </div>` : ""}
         <div class="evcc-compose-tools">
           ${merging
-            ? `<button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="compose-merge-cancel" title="Stop merging">Cancel — tap a shape to merge</button>`
-            : `<button class="evcc-map-config-btn" data-action="compose-merge-start" ${totalShapes < 2 ? "disabled" : ""} title="Combine another shape into this room">⛓ Merge</button>`}
-          ${groupSize >= 2 ? `<button class="evcc-map-config-btn" data-action="compose-split" title="Make this shape its own room again">Split out</button>` : ""}
+            ? `<button class="evcc-map-config-btn evcc-map-config-btn--primary" data-action="compose-merge-cancel" title="${this.t("map.compose_merge_stop_title")}">${this.t("map.compose_merge_cancel")}</button>`
+            : `<button class="evcc-map-config-btn" data-action="compose-merge-start" ${totalShapes < 2 ? "disabled" : ""} title="${this.t("map.compose_merge_start_title")}">${this.t("map.compose_merge")}</button>`}
+          ${groupSize >= 2 ? `<button class="evcc-map-config-btn" data-action="compose-split" title="${this.t("map.compose_split_title")}">${this.t("map.compose_split")}</button>` : ""}
         </div>
         ${groupSize >= 2 ? `
         <div class="evcc-compose-tools">
           <button class="evcc-map-config-btn${s.op === "subtract" ? " evcc-map-config-btn--primary" : ""}"
             data-action="compose-toggle-op"
-            title="${s.op === "subtract" ? "Carving a hole — tap to fill instead" : "Carve this shape out of the room (cutout)"}"
-          >${s.op === "subtract" ? "⛏ Cutout (carving)" : "Make cutout"}</button>
+            title="${s.op === "subtract" ? this.t("map.compose_cutout_on_title") : this.t("map.compose_cutout_off_title")}"
+          >${s.op === "subtract" ? this.t("map.compose_cutout_on") : this.t("map.compose_cutout_off")}</button>
         </div>` : ""}
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="compose-deselect" title="Stop editing this shape">Done</button>
+          <button class="evcc-map-config-btn" data-action="compose-deselect" title="${this.t("map.compose_done_title")}">${this.t("map.compose_done")}</button>
         </div>
       </div>
     `;
@@ -1476,7 +1468,7 @@ export function applyMapRenderers(proto) {
     if (!rooms.length) {
       return `
         <div class="evcc-map-config-section evcc-map-config-section--hint">
-          <p>No rooms discovered for this map yet — link a shape to a room here once they appear.</p>
+          <p>${this.t("map.compose_no_rooms")}</p>
         </div>`;
     }
     const groupOf = (x) => x.group ?? x.id;
@@ -1494,13 +1486,13 @@ export function applyMapRenderers(proto) {
           data-shape-id="${this.escapeHtml(String(shape.id))}"
           data-room-id="${this.escapeHtml(String(room.id))}"
           ${takenByOther ? "disabled" : ""}
-          title="${takenByOther ? "Already linked to another shape"
-            : linkedHere ? "Unlink" : "Link to " + this.escapeHtml(room.name)}"
+          title="${takenByOther ? this.t("map.assign_taken_shape")
+            : linkedHere ? this.t("map.assign_unlink") : this.t("map.assign_link_to", { name: this.escapeHtml(room.name) })}"
         >${this.escapeHtml(room.name)}${linkedHere ? " ✓" : ""}</button>`;
     }).join("");
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Link to room</div>
+        <div class="evcc-map-config-section-title">${this.t("map.link_to_room")}</div>
         <div class="evcc-map-room-assign-chips">${chips}</div>
       </div>`;
   };
@@ -1527,27 +1519,27 @@ export function applyMapRenderers(proto) {
 
       const statusText = uploaded
         ? `${uploaded.width} × ${uploaded.height}`
-        : "not uploaded";
+        : this.t("map.variant_not_uploaded");
       const statusCls  = uploaded
         ? "evcc-map-variant-status--ok"
         : "evcc-map-variant-status--missing";
 
       // Label flips between upload (network transfer) and analyze
       // (segmenter pipeline) so the user has some sense of what's happening.
-      const buttonLabel = isUploadBusy ? "Uploading…"
-                        : isAnalyzeBusy ? "Analyzing… (10-30s)"
-                        : "Upload";
+      const buttonLabel = isUploadBusy ? this.t("map.uploading")
+                        : isAnalyzeBusy ? this.t("map.analyzing_progress")
+                        : this.t("map.upload");
 
       return `
         <div class="evcc-map-variant-row">
           <div class="evcc-map-variant-info">
-            <span class="evcc-map-variant-label">${this.escapeHtml(label)}</span>
-            <span class="evcc-map-variant-hint">${this.escapeHtml(hint)}</span>
+            <span class="evcc-map-variant-label">${this.t(`map.variant_${key}_label`)}</span>
+            <span class="evcc-map-variant-hint">${this.t(`map.variant_${key}_hint`)}</span>
           </div>
           <span class="evcc-map-variant-status ${statusCls}">${statusText}</span>
           ${isError
             ? `<span class="evcc-map-action-status evcc-map-action-status--error">
-                 ${this.escapeHtml(actionStatus.message ?? "Upload failed")}
+                 ${actionStatus.message ? this.escapeHtml(actionStatus.message) : this.t("map.upload_failed")}
                </span>`
             : ""}
           <button
@@ -1561,9 +1553,9 @@ export function applyMapRenderers(proto) {
             const isDeleteBusy = actionStatus?.type === "delete" &&
                                  actionStatus?.variant === key &&
                                  actionStatus?.status === "busy";
-            const btnLabel = isDeleteBusy ? "Deleting…"
-                           : isArmed ? "Confirm Delete"
-                           : "Delete";
+            const btnLabel = isDeleteBusy ? this.t("map.deleting")
+                           : isArmed ? this.t("map.confirm_delete")
+                           : this.t("common.delete");
             const btnClass = "evcc-map-config-btn evcc-map-config-btn--danger"
                            + (isArmed ? " evcc-map-config-btn--confirm" : "")
                            + (isDeleteBusy ? " evcc-map-config-btn--busy" : "");
@@ -1573,16 +1565,16 @@ export function applyMapRenderers(proto) {
                 data-action="delete-map-variant"
                 data-variant="${key}"
                 title="${isArmed
-                  ? 'Click again to confirm — or click anywhere else to cancel'
-                  : 'Delete this image (does not affect the map itself)'}"
+                  ? this.t("map.delete_variant_confirm_title")
+                  : this.t("map.delete_variant_title")}"
                 ${isDeleteBusy ? "disabled" : ""}
               >${btnLabel}</button>
               ${isArmed ? `
                 <button
                   class="evcc-map-config-btn"
                   data-action="cancel-delete-map-variant"
-                  title="Cancel the pending delete"
-                >Cancel</button>
+                  title="${this.t("map.cancel_delete_title")}"
+                >${this.t("common.cancel")}</button>
               ` : ""}
             `;
           })() : ""}
@@ -1603,23 +1595,23 @@ export function applyMapRenderers(proto) {
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Image Variants</div>
+        <div class="evcc-map-config-section-title">${this.t("map.image_variants")}</div>
         ${rows}
         <div class="evcc-map-config-analyze-row">
           <span class="evcc-map-config-seg-count">
             ${analyzeError
               ? `<span class="evcc-map-action-status evcc-map-action-status--error">
-                   ${this.escapeHtml(actionStatus.message ?? "Analysis failed")}
+                   ${actionStatus.message ? this.escapeHtml(actionStatus.message) : this.t("map.analysis_failed")}
                  </span>`
               : segCount > 0
-                ? `${segCount} segments${adjCount > 0 ? `, ${adjCount} adjusted` : ""}${analyzedAt ? ` · ${analyzedAt}` : ""}`
-                : "No segments analysed"}
+                ? `${this.t("map.seg_count", { count: segCount })}${adjCount > 0 ? this.t("map.seg_adjusted", { count: adjCount }) : ""}${analyzedAt ? ` · ${analyzedAt}` : ""}`
+                : this.t("map.no_segments")}
           </span>
           <button
             class="evcc-map-config-btn evcc-map-config-btn--primary${analyzeBusy ? " evcc-map-config-btn--busy" : ""}"
             data-action="analyze-map"
             ${analyzeBusy ? "disabled" : ""}
-          >${analyzeBusy ? "Analysing…" : segCount > 0 ? "Re-analyse" : "Analyse map"}</button>
+          >${analyzeBusy ? this.t("map.analyzing") : segCount > 0 ? this.t("map.reanalyse") : this.t("map.analyse_map")}</button>
         </div>
       </div>
     `;
@@ -1630,7 +1622,7 @@ export function applyMapRenderers(proto) {
      ========================================================= */
 
   proto._renderSegmentAdjustSection = function (seg, state) {
-    const label = seg.name ?? seg.label ?? `Segment ${seg.segment_id}`;
+    const label = seg.name ?? seg.label ?? this.t("map.segment_fallback", { id: seg.segment_id });
     const segIdStr = this.escapeHtml(String(seg.segment_id));
 
     return `
@@ -1650,26 +1642,26 @@ export function applyMapRenderers(proto) {
     return `
       <div class="evcc-map-config-section">
         <div class="evcc-map-config-section-title">
-          Adjusting: <em>${this.escapeHtml(label)}</em>
+          ${this.t("map.adjusting")} <em>${this.escapeHtml(label)}</em>
         </div>
-        <div class="evcc-map-config-adj-meta">Offset: ${ox} px, ${oy} px</div>
+        <div class="evcc-map-config-adj-meta">${this.t("map.offset_label", { x: ox, y: oy })}</div>
         <div class="evcc-map-nudge-pad">
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-segment"
-              data-segment-id="${segIdStr}" data-dx="0" data-dy="-${step.y}" title="Nudge up">↑</button>
+              data-segment-id="${segIdStr}" data-dx="0" data-dy="-${step.y}" title="${this.t("map.nudge_up")}">↑</button>
           </div>
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-segment"
-              data-segment-id="${segIdStr}" data-dx="-${step.x}" data-dy="0" title="Nudge left">←</button>
+              data-segment-id="${segIdStr}" data-dx="-${step.x}" data-dy="0" title="${this.t("map.nudge_left")}">←</button>
             <button class="evcc-map-nudge-btn evcc-map-nudge-btn--reset"
               data-action="reset-segment-adjustment"
-              data-segment-id="${segIdStr}" title="Reset translation">○</button>
+              data-segment-id="${segIdStr}" title="${this.t("map.reset_translation")}">○</button>
             <button class="evcc-map-nudge-btn" data-action="nudge-segment"
-              data-segment-id="${segIdStr}" data-dx="${step.x}" data-dy="0" title="Nudge right">→</button>
+              data-segment-id="${segIdStr}" data-dx="${step.x}" data-dy="0" title="${this.t("map.nudge_right")}">→</button>
           </div>
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-segment"
-              data-segment-id="${segIdStr}" data-dx="0" data-dy="${step.y}" title="Nudge down">↓</button>
+              data-segment-id="${segIdStr}" data-dx="0" data-dy="${step.y}" title="${this.t("map.nudge_down")}">↓</button>
           </div>
         </div>
       </div>
@@ -1680,10 +1672,10 @@ export function applyMapRenderers(proto) {
     const step = state.mapNudgeStep();
     const ea   = seg.edge_adjustment ?? {};
     const edges = [
-      { key: "top",    label: "Top",    stepKey: "y" },
-      { key: "bottom", label: "Bottom", stepKey: "y" },
-      { key: "left",   label: "Left",   stepKey: "x" },
-      { key: "right",  label: "Right",  stepKey: "x" },
+      { key: "top",    label: this.t("map.edge_top"),    stepKey: "y" },
+      { key: "bottom", label: this.t("map.edge_bottom"), stepKey: "y" },
+      { key: "left",   label: this.t("map.edge_left"),   stepKey: "x" },
+      { key: "right",  label: this.t("map.edge_right"),  stepKey: "x" },
     ];
 
     const rows = edges.map(({ key, label, stepKey }) => {
@@ -1694,18 +1686,18 @@ export function applyMapRenderers(proto) {
           <span class="evcc-map-edge-label">${label}</span>
           <button class="evcc-map-nudge-btn evcc-map-nudge-btn--edge"
             data-action="adjust-edge" data-segment-id="${segIdStr}"
-            data-edge="${key}" data-delta="-${s}" title="Contract ${label}">−</button>
+            data-edge="${key}" data-delta="-${s}" title="${this.t("map.edge_contract", { edge: label })}">−</button>
           <span class="evcc-map-edge-val">${cur > 0 ? "+" : ""}${cur}</span>
           <button class="evcc-map-nudge-btn evcc-map-nudge-btn--edge"
             data-action="adjust-edge" data-segment-id="${segIdStr}"
-            data-edge="${key}" data-delta="${s}" title="Expand ${label}">+</button>
+            data-edge="${key}" data-delta="${s}" title="${this.t("map.edge_expand", { edge: label })}">+</button>
         </div>
       `;
     }).join("");
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Edges</div>
+        <div class="evcc-map-config-section-title">${this.t("map.edges")}</div>
         <div class="evcc-map-edge-grid">${rows}</div>
       </div>
     `;
@@ -1743,24 +1735,24 @@ export function applyMapRenderers(proto) {
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-vertex"
               data-segment-id="${segIdStr}" data-vertex-index="${selectedIdx}"
-              data-dx="0" data-dy="-${step.y}" title="Nudge vertex up">↑</button>
+              data-dx="0" data-dy="-${step.y}" title="${this.t("map.nudge_vertex_up")}">↑</button>
           </div>
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-vertex"
               data-segment-id="${segIdStr}" data-vertex-index="${selectedIdx}"
-              data-dx="-${step.x}" data-dy="0" title="Nudge vertex left">←</button>
+              data-dx="-${step.x}" data-dy="0" title="${this.t("map.nudge_vertex_left")}">←</button>
             <button class="evcc-map-nudge-btn evcc-map-nudge-btn--reset"
               data-action="reset-vertex"
               data-segment-id="${segIdStr}" data-vertex-index="${selectedIdx}"
-              title="Reset this vertex">○</button>
+              title="${this.t("map.reset_vertex")}">○</button>
             <button class="evcc-map-nudge-btn" data-action="nudge-vertex"
               data-segment-id="${segIdStr}" data-vertex-index="${selectedIdx}"
-              data-dx="${step.x}" data-dy="0" title="Nudge vertex right">→</button>
+              data-dx="${step.x}" data-dy="0" title="${this.t("map.nudge_vertex_right")}">→</button>
           </div>
           <div class="evcc-map-nudge-row">
             <button class="evcc-map-nudge-btn" data-action="nudge-vertex"
               data-segment-id="${segIdStr}" data-vertex-index="${selectedIdx}"
-              data-dx="0" data-dy="${step.y}" title="Nudge vertex down">↓</button>
+              data-dx="0" data-dy="${step.y}" title="${this.t("map.nudge_vertex_down")}">↓</button>
           </div>
         </div>
       `;
@@ -1768,7 +1760,7 @@ export function applyMapRenderers(proto) {
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Vertices</div>
+        <div class="evcc-map-config-section-title">${this.t("map.vertices")}</div>
         <div class="evcc-map-vertex-chips">${chips}</div>
         ${nudgePad}
       </div>
@@ -1804,17 +1796,17 @@ export function applyMapRenderers(proto) {
           data-room-id="${this.escapeHtml(String(room.id))}"
           ${takenByOther ? "disabled" : ""}
           title="${takenByOther
-            ? "Already linked to another segment"
+            ? this.t("map.assign_taken_segment")
             : isLinkedHere
-              ? `Unlink ${this.escapeHtml(room.name)}`
-              : `Link to ${this.escapeHtml(room.name)}`}"
+              ? this.t("map.assign_unlink_name", { name: this.escapeHtml(room.name) })
+              : this.t("map.assign_link_to", { name: this.escapeHtml(room.name) })}"
         >${this.escapeHtml(room.name)}${isLinkedHere ? " ✓" : ""}</button>
       `;
     }).join("");
 
     return `
       <div class="evcc-map-config-section">
-        <div class="evcc-map-config-section-title">Link to room</div>
+        <div class="evcc-map-config-section-title">${this.t("map.link_to_room")}</div>
         <div class="evcc-map-room-assign-chips">${chips}</div>
       </div>
     `;
