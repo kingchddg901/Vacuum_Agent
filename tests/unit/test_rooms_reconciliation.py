@@ -20,14 +20,21 @@ Coverage targets
 [MIG-4]  id REUSE across rooms migrates without collision.
 [MIG-5]  a discovered room with no saved data is not carried (it's new).
 [MIG-6]  grant targets that no longer resolve are dropped.
+[NL-1]   non-Latin (Cyrillic) rooms survive a full re-segment, distinct ids.
+[NL-2]   migration carries every Cyrillic room; none dropped or merged.
+[NL-3]   two near non-Latin names are not merged into one identity.
+[NL-4]   NFC/NFD forms of one name reconcile as the SAME room (no orphan).
 """
 
 from __future__ import annotations
+
+import unicodedata
 
 from custom_components.eufy_vacuum.rooms.reconciliation import (
     compute_reconciliation,
     plan_migration,
 )
+from custom_components.eufy_vacuum.rooms.utils import slugify_room_name
 
 
 def _existing(*rooms) -> dict[str, dict]:
@@ -238,3 +245,93 @@ def test_migrate_drops_unresolvable_grant():
         existing_rooms=existing,
     )
     assert plan["rooms"]["27"]["grants_access_to"] == []
+
+
+# --- non-Latin room names ---------------------------------------------------
+# Identity is the name slug, so a non-ASCII script must survive a re-segment the
+# same way English does, and Unicode normalization drift must not orphan a room.
+# Slugs are derived through the real ``slugify_room_name`` so these stay honest
+# as the derivation evolves. An input axis the X10/S6 hardware never produced.
+
+_CYRILLIC = {
+    16: "Спальня", 17: "Кабинет", 18: "Зал", 19: "Коридор",
+    20: "Ванная", 21: "Гостевой туалет", 22: "Детская",
+}
+
+
+def _cyrillic_existing():
+    return _existing(
+        *((rid, name, slugify_room_name(name)) for rid, name in _CYRILLIC.items())
+    )
+
+
+def _cyrillic_discovered(id_shift):
+    return _discovered(
+        *(
+            (rid + id_shift, name, slugify_room_name(name))
+            for rid, name in _CYRILLIC.items()
+        )
+    )
+
+
+def test_cyrillic_rooms_survive_resegment():
+    """[NL-1] all seven Cyrillic rooms keep distinct identities when a re-segment
+    renumbers every id — the real S7 input class."""
+    result = compute_reconciliation(
+        discovered_rooms=_cyrillic_discovered(7),
+        existing_rooms=_cyrillic_existing(),
+    )
+    assert len(result["reviews"]) == len(_CYRILLIC)
+    assert all(r["kind"] == "id_changed" for r in result["reviews"])
+    pairs = {(r["old_id"], r["new_id"]) for r in result["reviews"]}
+    assert pairs == {(rid, rid + 7) for rid in _CYRILLIC}
+
+
+def test_migrate_carries_all_cyrillic_rooms():
+    """[NL-2] migration carries every Cyrillic room to its new id, keeps all
+    seven distinct, and drops none."""
+    plan = plan_migration(
+        discovered_rooms=_cyrillic_discovered(7),
+        existing_rooms=_cyrillic_existing(),
+    )
+    assert len(plan["rooms"]) == len(_CYRILLIC)
+    assert plan["dropped"] == []
+    assert {r["name"] for r in plan["rooms"].values()} == set(_CYRILLIC.values())
+    assert plan["id_remap"] == {rid: rid + 7 for rid in _CYRILLIC}
+
+
+def test_nonlatin_near_names_stay_distinct():
+    """[NL-3] two near non-Latin names ("Зал"/"Зала") are NOT merged into one
+    identity on re-segment."""
+    plan = plan_migration(
+        discovered_rooms=_discovered(
+            (26, "Зал", slugify_room_name("Зал")),
+            (27, "Зала", slugify_room_name("Зала")),
+        ),
+        existing_rooms=_existing(
+            (16, "Зал", slugify_room_name("Зал")),
+            (17, "Зала", slugify_room_name("Зала")),
+        ),
+    )
+    assert plan["id_remap"] == {16: 26, 17: 27}
+    assert plan["dropped"] == []
+
+
+def test_migrate_reconciles_nfc_nfd_same_room():
+    """[NL-4] a room stored under an NFC name, rediscovered in NFD form (same
+    visual name, new id), is recognized as the SAME room and carried — not
+    dropped.
+
+    Red-green of the NFC-normalization fix: pre-fix the two forms derive
+    different slugs, so the stored room's slug vanishes from discovery and the
+    room (with all its durable settings) is dropped on re-map.
+    """
+    nfc = unicodedata.normalize("NFC", "Йога")
+    nfd = unicodedata.normalize("NFD", "Йога")
+    plan = plan_migration(
+        discovered_rooms=_discovered((20, nfd, slugify_room_name(nfd))),
+        existing_rooms=_existing((16, nfc, slugify_room_name(nfc))),
+    )
+    assert set(plan["rooms"]) == {"20"}
+    assert plan["dropped"] == []
+    assert plan["id_remap"] == {16: 20}
