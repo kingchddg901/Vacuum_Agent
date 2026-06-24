@@ -11,7 +11,8 @@
     "harness:shoot": "node harness/build.mjs && node harness/shoot.mjs",
     "harness:gallery": "node harness/build.mjs && node harness/shoot-gallery.mjs",
     "harness:preview": "node harness/build.mjs && node harness/preview.mjs",
-    "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs"
+    "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
