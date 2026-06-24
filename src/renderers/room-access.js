@@ -43,37 +43,35 @@ export function applyRoomAccessRenderers(proto) {
         <div class="evcc-modal evcc-room-access-modal" data-stop-propagation>
 
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">${this.escapeHtml(room.name)} Access</div>
+            <div class="evcc-modal-title">${this.t("room_access.title", { name: this.escapeHtml(room.name) })}</div>
             <button
               type="button"
               class="evcc-chip evcc-chip--icon"
               data-action="close-room-access"
-              title="Close"
+              title="${this.t("common.close")}"
             >✕</button>
           </div>
 
           <div class="evcc-modal-body">
 
             <div class="evcc-room-access-section">
-              <div class="evcc-field-label">Dock Room</div>
+              <div class="evcc-field-label">${this.t("room_access.dock_room_label")}</div>
               <div class="evcc-room-access-help">
-                The dock room is the origin of the access tree. It has no inbound dependencies.
-                Only one room can be the dock room.
+                ${this.t("room_access.dock_room_help")}
               </div>
               <div class="evcc-chips">
                 <button
                   type="button"
                   class="evcc-chip ${isDockRoom ? "active" : ""}"
                   data-action="toggle-is-dock-room"
-                >${isDockRoom ? "This is the Dock Room" : "Set as Dock Room"}</button>
+                >${isDockRoom ? this.t("room_access.is_dock_room") : this.t("room_access.set_dock_room")}</button>
               </div>
             </div>
 
             <div class="evcc-room-access-section">
-              <div class="evcc-field-label">Rooms Accessed From Here</div>
+              <div class="evcc-field-label">${this.t("room_access.accessed_from_here_label")}</div>
               <div class="evcc-room-access-help">
-                Select the rooms this room unlocks. A room already claimed by another room
-                cannot be selected here.
+                ${this.t("room_access.accessed_from_here_help")}
               </div>
 
               <div class="evcc-chips evcc-room-access-chip-grid">
@@ -83,7 +81,7 @@ export function applyRoomAccessRenderers(proto) {
                       const isAvailable = entry.available !== false;
                       const claimedBy = entry.claimedBy ?? null;
                       const title = claimedBy
-                        ? `Already claimed by Room ${claimedBy}`
+                        ? this.t("room_access.claimed_by", { room: claimedBy })
                         : "";
                       return `
                         <button
@@ -99,15 +97,15 @@ export function applyRoomAccessRenderers(proto) {
                         >${this.escapeHtml(entry.name)}</button>
                       `;
                     }).join("")
-                  : `<span class="evcc-room-access-empty">No other rooms are available on this map.</span>`}
+                  : `<span class="evcc-room-access-empty">${this.t("room_access.no_other_rooms")}</span>`}
               </div>
             </div>
 
             ${!isDockRoom ? `
             <div class="evcc-room-access-section">
-              <div class="evcc-field-label">Accessed From</div>
+              <div class="evcc-field-label">${this.t("room_access.accessed_from_label")}</div>
               <div class="evcc-room-access-help">
-                The room that grants access to this room. Read-only — set from the other room's editor.
+                ${this.t("room_access.accessed_from_help")}
               </div>
 
               <div class="evcc-chips evcc-room-access-chip-grid">
@@ -117,17 +115,17 @@ export function applyRoomAccessRenderers(proto) {
                         class="evcc-chip evcc-room-access-chip evcc-room-access-chip--readonly ${entry.missing ? "evcc-room-access-chip--missing" : ""}"
                       >${this.escapeHtml(entry.name)}</span>
                     `).join("")
-                  : `<span class="evcc-room-access-empty">No room grants access here yet.</span>`}
+                  : `<span class="evcc-room-access-empty">${this.t("room_access.no_inbound")}</span>`}
               </div>
             </div>
             ` : ""}
 
             ${validation.issues?.length ? `
               <div class="evcc-room-access-issues">
-                <div class="evcc-field-label">Graph Issues</div>
+                <div class="evcc-field-label">${this.t("room_access.graph_issues_label")}</div>
                 <div class="evcc-room-access-issue-list">
                   ${validation.issues.map((issue) => `
-                    <div class="evcc-room-access-issue">${this.escapeHtml(issue.message ?? "Invalid room access graph.")}</div>
+                    <div class="evcc-room-access-issue">${this.escapeHtml(issue.message ?? this.t("room_access.invalid_graph"))}</div>
                   `).join("")}
                 </div>
               </div>
@@ -146,14 +144,14 @@ export function applyRoomAccessRenderers(proto) {
               type="button"
               class="evcc-chip"
               data-action="close-room-access"
-            >Cancel</button>
+            >${this.t("common.cancel")}</button>
 
             <button
               type="button"
               class="evcc-chip evcc-chip--save"
               data-action="save-room-access"
               ${validation.valid ? "" : "disabled"}
-            >Save Access</button>
+            >${this.t("room_access.save")}</button>
           </div>
 
         </div>

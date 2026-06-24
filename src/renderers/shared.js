@@ -44,28 +44,48 @@ export function applySharedRenderers(proto) {
   /**
    * Translate a UI string key for the current user's language.
    *
-   * The card's authored English lives in i18n/en.js; other locales fall back
-   * to English, then to the key itself (a visible miss, never a blank).
-   * Language is read live from `hass.locale.language` so it tracks the HA
-   * profile with no caching. Interpolation uses `{name}` placeholders:
-   * `this.t("rooms.n_selected", { count })`.
+   * TRUST MODEL B: `t()` HTML-escapes its result by default, because locales may
+   * be community-contributed and a translated value must never reach the
+   * innerHTML sink raw. The catalog (i18n/en.js) is the English source of truth;
+   * other locales fall back to English, then to the key itself (a visible miss).
+   * Language is read live from `hass.locale.language`. Interpolation uses
+   * `{name}` placeholders; interpolated values are inserted RAW and the caller
+   * escapes user data at the sink as before:
+   * `this.t("rooms.exclude_room", { name: this.escapeHtml(room.name) })`.
    *
-   * NOTE: like the literal strings it replaces, the returned text is TRUSTED
-   * authored content. Interpolated *values* carrying user/cloud data (room
-   * names, etc.) must still pass through escapeHtml at the innerHTML sink —
-   * the XSS boundary is unchanged.
+   * For the short, AUDITED set of strings that carry authored markup, use
+   * `this.tRaw` (below). Prefer keeping markup in the template and keying only
+   * the text run over reaching for tRaw.
    *
    * @param {string} key - dot-namespaced string key (e.g. "rooms.empty").
-   * @param {Record<string, unknown>} [vars] - interpolation values.
-   * @returns {string} the resolved, interpolated string.
+   * @param {Record<string, unknown>} [vars] - interpolation values (raw).
+   * @returns {string} the resolved, interpolated, escaped string.
    */
   proto.t = function (key, vars) {
+    return translate(this._i18nLanguage(), key, vars);
+  };
+
+  /**
+   * Translate a key whose English carries AUTHORED markup (e.g. <strong>):
+   * skips string-escaping so the markup survives, but STILL escapes interpolated
+   * values. Reserved for the audited markup allowlist — see `proto.t`.
+   *
+   * @param {string} key - dot-namespaced string key.
+   * @param {Record<string, unknown>} [vars] - interpolation values (raw).
+   * @returns {string} the resolved string with authored markup preserved.
+   */
+  proto.tRaw = function (key, vars) {
+    return translate(this._i18nLanguage(), key, vars, { raw: true });
+  };
+
+  /** Resolve the active UI language from hass: locale.language -> language -> en. */
+  proto._i18nLanguage = function () {
     const hass = this._hass;
-    const lang =
+    return (
       (hass && hass.locale && hass.locale.language) ||
       (hass && hass.language) ||
-      "en";
-    return translate(lang, key, vars);
+      "en"
+    );
   };
 
   /**

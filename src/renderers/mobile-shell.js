@@ -45,10 +45,10 @@ import { VIEWS, isViewAvailable } from "../render-cycle.js";
    ========================================================= */
 
 const PRIMARY_MOBILE_TABS = [
-  { id: VIEWS.ROOMS,        label: "Rooms",  icon: _iconRooms()  },
-  { id: VIEWS.MAINTENANCE,  label: "Upkeep", icon: _iconWrench() },
-  { id: VIEWS.BASE_STATION, label: "Dock",   icon: _iconHome()   },
-  { id: VIEWS.METRICS,      label: "Stats",  icon: _iconChart()  },
+  { id: VIEWS.ROOMS,        labelKey: "mobile.tab_rooms",  icon: _iconRooms()  },
+  { id: VIEWS.MAINTENANCE,  labelKey: "mobile.tab_upkeep", icon: _iconWrench() },
+  { id: VIEWS.BASE_STATION, labelKey: "mobile.tab_dock",   icon: _iconHome()   },
+  { id: VIEWS.METRICS,      labelKey: "mobile.tab_stats",  icon: _iconChart()  },
 ];
 
 /**
@@ -59,12 +59,12 @@ const PRIMARY_MOBILE_TABS = [
  * device-pin themes, but fine token editing happens on desktop.
  */
 const OVERFLOW_MOBILE_TABS = [
-  { id: VIEWS.LEARNING_REVIEW, label: "Learning Review" },
-  { id: VIEWS.ROOM_RULES,      label: "Room Rules"      },
-  { id: VIEWS.THEME,           label: "Theme"           },
-  { id: VIEWS.MAP_CONFIG,      label: "Map Config"      },
-  { id: VIEWS.MAPPING_REVIEW,  label: "Map Bounds"      },
-  { id: VIEWS.SETUP,           label: "Setup"           },
+  { id: VIEWS.LEARNING_REVIEW, labelKey: "mobile.tab_learning_review" },
+  { id: VIEWS.ROOM_RULES,      labelKey: "mobile.tab_room_rules"      },
+  { id: VIEWS.THEME,           labelKey: "mobile.tab_theme"           },
+  { id: VIEWS.MAP_CONFIG,      labelKey: "mobile.tab_map_config"      },
+  { id: VIEWS.MAPPING_REVIEW,  labelKey: "mobile.tab_map_bounds"      },
+  { id: VIEWS.SETUP,           labelKey: "mobile.tab_setup"           },
 ];
 
 /* =========================================================
@@ -139,7 +139,7 @@ export function applyMobileShellRenderer(proto) {
         <div class="evcc-mobile-vacuum-status">
           <span class="evcc-status-dot ${_statusDotClass(vacuumStatus)}"></span>
           <span class="evcc-mobile-vacuum-status-label">
-            <span class="evcc-status-prefix">Vacuum Status:</span>
+            <span class="evcc-status-prefix">${this.t("mobile.vacuum_status_label")}</span>
             ${this.escapeHtml(vacuumText)}
           </span>
           ${batteryText
@@ -150,7 +150,7 @@ export function applyMobileShellRenderer(proto) {
           <div class="evcc-mobile-vacuum-status evcc-mobile-dock-status">
             <span class="evcc-status-dot ${_dockDotClass(dockStatus)}"></span>
             <span class="evcc-mobile-vacuum-status-label">
-              <span class="evcc-status-prefix">Dock Status:</span>
+              <span class="evcc-status-prefix">${this.t("mobile.dock_status_label")}</span>
               ${this.escapeHtml(dockText)}
             </span>
           </div>
@@ -173,26 +173,29 @@ export function applyMobileShellRenderer(proto) {
     const overflowActive = OVERFLOW_MOBILE_TABS.some((t) => t.id === activeView);
 
     return `
-      <nav class="evcc-mobile-nav" aria-label="Primary">
-        ${primaryTabs.map((tab) => `
+      <nav class="evcc-mobile-nav" aria-label="${this.t("mobile.nav_primary_aria")}">
+        ${primaryTabs.map((tab) => {
+          const label = this.t(tab.labelKey);
+          return `
           <button
             class="evcc-mobile-nav-tab${activeView === tab.id ? " active" : ""}"
             data-view="${tab.id}"
-            aria-label="${this.escapeHtml(tab.label)}"
+            aria-label="${this.escapeHtml(label)}"
             aria-current="${activeView === tab.id ? "page" : "false"}"
           >
             <span class="evcc-mobile-nav-icon">${tab.icon}</span>
-            <span class="evcc-mobile-nav-label">${this.escapeHtml(tab.label)}</span>
+            <span class="evcc-mobile-nav-label">${this.escapeHtml(label)}</span>
           </button>
-        `).join("")}
+        `;
+        }).join("")}
         <button
           class="evcc-mobile-nav-tab evcc-mobile-nav-tab--more${overflowActive ? " active" : ""}"
           data-action="mobile-more-toggle"
-          aria-label="More"
+          aria-label="${this.t("mobile.more")}"
           aria-haspopup="menu"
         >
           <span class="evcc-mobile-nav-icon">${_iconMore()}</span>
-          <span class="evcc-mobile-nav-label">More</span>
+          <span class="evcc-mobile-nav-label">${this.t("mobile.more")}</span>
         </button>
       </nav>
     `;
@@ -216,7 +219,7 @@ export function applyMobileShellRenderer(proto) {
            aria-hidden="true"></div>
       <div class="evcc-mobile-more-sheet"
            role="menu"
-           aria-label="Additional views">
+           aria-label="${this.t("mobile.more_sheet_aria")}">
         <div class="evcc-mobile-more-handle"></div>
         ${overflowTabs.map((tab) => `
           <button
@@ -225,7 +228,7 @@ export function applyMobileShellRenderer(proto) {
             data-action="mobile-more-select"
             role="menuitem"
           >
-            ${this.escapeHtml(tab.label)}
+            ${this.escapeHtml(this.t(tab.labelKey))}
           </button>
         `).join("")}
       </div>

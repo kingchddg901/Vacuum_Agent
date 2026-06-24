@@ -45,18 +45,18 @@ export function applyRoomEditorRenderer(proto) {
               type="button"
               class="evcc-chip evcc-chip--icon"
               data-action="close-room-editor"
-              title="Close"
+              title="${this.t("common.close")}"
             >✕</button>
           </div>
 
           ${isCarpet ? `
             <div class="evcc-room-editor-carpet-notice">
-              🪵 Carpet room — locked to vacuum-only modes
+              🪵 ${this.t("room_editor.carpet_notice")}
             </div>
           ` : ""}
 
           <div class="evcc-room-editor-include-row">
-            <span class="evcc-room-editor-include-label">Current queue status:</span>
+            <span class="evcc-room-editor-include-label">${this.t("room_editor.queue_status_label")}</span>
             <button
               type="button"
               class="evcc-chip evcc-chip--toggle-include ${room.enabled ? "active" : ""}"
@@ -64,7 +64,7 @@ export function applyRoomEditorRenderer(proto) {
               data-room-id="${room.id}"
               data-map-id="${this.escapeHtml(room.mapId)}"
               data-enabled="${room.enabled ? "true" : "false"}"
-            >${room.enabled ? "Included" : "Excluded"}</button>
+            >${room.enabled ? this.t("room_editor.included") : this.t("room_editor.excluded")}</button>
           </div>
 
           <div class="evcc-editor-field-groups">
@@ -88,19 +88,19 @@ export function applyRoomEditorRenderer(proto) {
               data-action="open-room-access"
               data-room-id="${room.id}"
               data-map-id="${this.escapeHtml(room.mapId)}"
-            >Access</button>
+            >${this.t("room_editor.access")}</button>
 
             <button
               type="button"
               class="evcc-chip"
               data-action="close-room-editor"
-            >Cancel</button>
+            >${this.t("common.cancel")}</button>
 
             <button
               type="button"
               class="evcc-chip evcc-chip--save"
               data-action="save-room-editor"
-            >Save</button>
+            >${this.t("room_editor.save")}</button>
           </div>
 
         </div>
@@ -132,7 +132,7 @@ export function applyRoomEditorRenderer(proto) {
 
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Cleaning Profile</div>
+        <div class="evcc-field-label">${this.t("room_editor.cleaning_profile")}</div>
         <div class="evcc-chips">
 
           <button
@@ -141,7 +141,7 @@ export function applyRoomEditorRenderer(proto) {
             data-field="profile_name"
             data-value="custom"
             ${isCustom ? "disabled" : ""}
-          >Custom</button>
+          >${this.t("room_editor.custom")}</button>
 
           ${options.map((opt) => `
             <button
@@ -160,36 +160,38 @@ export function applyRoomEditorRenderer(proto) {
             type="button"
             class="evcc-chip"
             data-action="save-room-profile-as-new"
-          >Save as New</button>
+          >${this.t("room_editor.save_as_new")}</button>
 
           <button
             type="button"
             class="evcc-chip"
             data-action="overwrite-room-profile"
             ${hasCustomProfiles ? "" : "disabled"}
-          >Save Over</button>
+          >${this.t("room_editor.save_over")}</button>
 
           <button
             type="button"
             class="evcc-chip"
             data-action="rename-room-profile"
             ${currentProfileName && currentProfile && !currentProfileProtected ? "" : "disabled"}
-          >Rename</button>
+          >${this.t("room_editor.rename")}</button>
 
           <button
             type="button"
             class="evcc-chip evcc-chip--danger"
             data-action="delete-room-profile"
             ${currentProfileName && currentProfile && !currentProfileProtected ? "" : "disabled"}
-          >Delete</button>
+          >${this.t("common.delete")}</button>
         </div>
 
         <div class="evcc-room-profile-meta">
           ${isCustom
-            ? "Current room settings are custom and not linked to a saved profile."
+            ? this.t("room_editor.meta_custom")
             : currentProfile
-              ? `${this.escapeHtml(currentProfile.label)} is ${currentProfileProtected ? "built in and read-only" : "a custom reusable profile"}.`
-              : "Select a profile to apply reusable room settings."}
+              ? (currentProfileProtected
+                  ? this.t("room_editor.meta_profile_builtin", { label: this.escapeHtml(currentProfile.label) })
+                  : this.t("room_editor.meta_profile_custom", { label: this.escapeHtml(currentProfile.label) }))
+              : this.t("room_editor.meta_select")}
         </div>
       </div>
     `;
@@ -206,7 +208,7 @@ export function applyRoomEditorRenderer(proto) {
 
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Cleaning Mode</div>
+        <div class="evcc-field-label">${this.t("room_editor.cleaning_mode")}</div>
         <div class="evcc-chips">
           ${options.map((opt) => `
             <button
@@ -230,7 +232,7 @@ export function applyRoomEditorRenderer(proto) {
 
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Suction Level</div>
+        <div class="evcc-field-label">${this.t("room_editor.suction_level")}</div>
         <div class="evcc-chips">
           ${options.map((opt) => `
             <button
@@ -256,7 +258,7 @@ export function applyRoomEditorRenderer(proto) {
 
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Water Level</div>
+        <div class="evcc-field-label">${this.t("room_editor.water_level")}</div>
         <div class="evcc-chips">
           ${options.map((opt) => `
             <button
@@ -282,7 +284,7 @@ export function applyRoomEditorRenderer(proto) {
 
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Cleaning Path</div>
+        <div class="evcc-field-label">${this.t("room_editor.cleaning_path")}</div>
         <div class="evcc-chips">
           ${options.map((opt) => `
             <button
@@ -315,16 +317,16 @@ export function applyRoomEditorRenderer(proto) {
             class="evcc-chip ${fields.clean_passes === n ? "active" : ""}"
             data-field="clean_passes"
             data-value="${n}"
-          >${n} ${n === 1 ? "Pass" : "Passes"}</button>`);
+          >${n === 1 ? this.t("room_editor.pass_one", { count: n }) : this.t("room_editor.pass_many", { count: n })}</button>`);
     }
     const note = passesIsGlobal
       ? `<div class="evcc-room-editor-field-note">
-           Passes are controlled globally in the robot's own app — the per-room value here may be overridden.
+           ${this.t("room_editor.passes_global_note")}
          </div>`
       : "";
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Cleaning Passes</div>
+        <div class="evcc-field-label">${this.t("room_editor.cleaning_passes")}</div>
         <div class="evcc-chips">${chips.join("")}</div>
         ${note}
       </div>
@@ -341,11 +343,11 @@ export function applyRoomEditorRenderer(proto) {
     if (mopActive === null) return "";
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Cleaning Mode</div>
+        <div class="evcc-field-label">${this.t("room_editor.cleaning_mode")}</div>
         <div class="evcc-room-editor-mopstate ${mopActive ? "mopping" : "vacuum"}">
           ${mopActive
-            ? "Mopping — water tank attached"
-            : "Vacuum only — no water tank"}
+            ? this.t("room_editor.mopstate_mopping")
+            : this.t("room_editor.mopstate_vacuum")}
         </div>
       </div>
     `;
@@ -361,13 +363,13 @@ export function applyRoomEditorRenderer(proto) {
 
     const callout = transitionCandidate && !isTransition
       ? `<div class="evcc-room-editor-transition-callout">
-           Shape analysis suggests this may be a hallway or connecting corridor.
+           ${this.t("room_editor.transition_callout")}
          </div>`
       : "";
 
     return `
       <div class="evcc-editor-field-group evcc-editor-field-group--transition">
-        <div class="evcc-field-label">Transition Space</div>
+        <div class="evcc-field-label">${this.t("room_editor.transition_space_label")}</div>
         ${callout}
         <div class="evcc-chips">
           <button
@@ -377,7 +379,7 @@ export function applyRoomEditorRenderer(proto) {
             data-room-id="${this.escapeHtml(String(room.id))}"
             data-map-id="${this.escapeHtml(String(room.mapId))}"
             data-value="${isTransition ? "false" : "true"}"
-          >${isTransition ? "Transition Space" : "Mark as Transition"}</button>
+          >${isTransition ? this.t("room_editor.transition_is") : this.t("room_editor.transition_mark")}</button>
         </div>
       </div>
     `;
@@ -390,20 +392,20 @@ export function applyRoomEditorRenderer(proto) {
   proto._renderEdgeMoppingField = function (fields) {
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">Edge Mopping</div>
+        <div class="evcc-field-label">${this.t("room_editor.edge_mopping")}</div>
         <div class="evcc-chips">
           <button
             type="button"
             class="evcc-chip ${fields.edge_mopping ? "active" : ""}"
             data-field="edge_mopping"
             data-value="true"
-          >On</button>
+          >${this.t("room_editor.on")}</button>
           <button
             type="button"
             class="evcc-chip ${!fields.edge_mopping ? "active" : ""}"
             data-field="edge_mopping"
             data-value="false"
-          >Off</button>
+          >${this.t("room_editor.off")}</button>
         </div>
       </div>
     `;

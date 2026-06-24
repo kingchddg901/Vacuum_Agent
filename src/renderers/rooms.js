@@ -114,8 +114,8 @@ export function applyRoomsRenderers(proto) {
           class="evcc-rooms-view-toggle-btn${!mapActive ? " active" : ""}"
           data-action="set-map-view"
           data-map-view="false"
-          title="List view"
-          aria-label="List view"
+          title="${this.t("rooms.list_view")}"
+          aria-label="${this.t("rooms.list_view")}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
             <line x1="5" y1="4" x2="13" y2="4"/>
@@ -130,8 +130,8 @@ export function applyRoomsRenderers(proto) {
           class="evcc-rooms-view-toggle-btn${mapActive ? " active" : ""}"
           data-action="set-map-view"
           data-map-view="true"
-          title="Map view"
-          aria-label="Map view"
+          title="${this.t("rooms.map_view")}"
+          aria-label="${this.t("rooms.map_view")}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="2" width="5" height="5" rx="1"/>
@@ -143,8 +143,8 @@ export function applyRoomsRenderers(proto) {
         <button
           class="evcc-rooms-view-toggle-btn${(state.roomFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="room-texture-toggle"
-          title="${(state.roomFloorTextureEnabled?.() ?? true) ? "Hide room-card textures" : "Show room-card textures"}"
-          aria-label="${(state.roomFloorTextureEnabled?.() ?? true) ? "Hide room-card textures" : "Show room-card textures"}"
+          title="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
+          aria-label="${(state.roomFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_room_card_textures") : this.t("rooms.show_room_card_textures")}"
           aria-pressed="${(state.roomFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
@@ -156,20 +156,20 @@ export function applyRoomsRenderers(proto) {
         <button
           class="evcc-rooms-view-toggle-btn evcc-rooms-view-toggle-btn--configure"
           data-action="open-map-config"
-          title="Configure map"
-          aria-label="Configure map"
+          title="${this.t("rooms.configure_map")}"
+          aria-label="${this.t("rooms.configure_map")}"
         >
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="8" cy="8" r="2.5"/>
             <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.05 3.05l1.41 1.41M11.54 11.54l1.41 1.41M3.05 12.95l1.41-1.41M11.54 4.46l1.41-1.41"/>
           </svg>
-          Configure
+          ${this.t("rooms.configure")}
         </button>
         <select
           class="evcc-rooms-animal-select"
           data-action="map-animal-select"
-          title="Companion animal"
-          aria-label="Companion animal"
+          title="${this.t("rooms.companion_animal")}"
+          aria-label="${this.t("rooms.companion_animal")}"
         >
           ${(() => {
             const list    = window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"];
@@ -185,7 +185,7 @@ export function applyRoomsRenderers(proto) {
             const regular  = list.filter((a) => !window.AnimalSVG?.get?.(a)?.memorial);
             return regular.map(opt).join("")
               + (memorial.length
-                  ? `<optgroup label="🌈 Rainbow Bridge">${memorial.map(opt).join("")}</optgroup>`
+                  ? `<optgroup label="🌈 ${this.t("rooms.rainbow_bridge")}">${memorial.map(opt).join("")}</optgroup>`
                   : "");
           })()}
         </select>
@@ -195,14 +195,14 @@ export function applyRoomsRenderers(proto) {
           data-action="map-animal-scale"
           min="0.5" max="3" step="0.25"
           value="${state.mapAnimalScale?.() ?? 1.0}"
-          title="Icon size"
-          aria-label="Icon size"
+          title="${this.t("rooms.icon_size")}"
+          aria-label="${this.t("rooms.icon_size")}"
         >
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapAnimalEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-animal-toggle"
-          title="${(state.mapAnimalEnabled?.() ?? true) ? "Hide companion" : "Show companion"}"
-          aria-label="${(state.mapAnimalEnabled?.() ?? true) ? "Hide companion" : "Show companion"}"
+          title="${(state.mapAnimalEnabled?.() ?? true) ? this.t("rooms.hide_companion") : this.t("rooms.show_companion")}"
+          aria-label="${(state.mapAnimalEnabled?.() ?? true) ? this.t("rooms.hide_companion") : this.t("rooms.show_companion")}"
           aria-pressed="${(state.mapAnimalEnabled?.() ?? true) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" stroke="none">
@@ -216,8 +216,8 @@ export function applyRoomsRenderers(proto) {
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapAnimalFollowsRobot?.() ?? false) ? " active" : ""}"
           data-action="map-animal-follow-toggle"
-          title="${(state.mapAnimalFollowsRobot?.() ?? false) ? "Mascot follows the live robot position — tap for room/dock mode" : "Make the mascot ride the live robot position (replaces the dot)"}"
-          aria-label="Mascot follows robot"
+          title="${(state.mapAnimalFollowsRobot?.() ?? false) ? this.t("rooms.mascot_follow_on") : this.t("rooms.mascot_follow_off")}"
+          aria-label="${this.t("rooms.mascot_follows_robot")}"
           aria-pressed="${(state.mapAnimalFollowsRobot?.() ?? false) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
@@ -229,8 +229,8 @@ export function applyRoomsRenderers(proto) {
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-texture-toggle"
-          title="${(state.mapFloorTextureEnabled?.() ?? true) ? "Hide map textures" : "Show map textures"}"
-          aria-label="${(state.mapFloorTextureEnabled?.() ?? true) ? "Hide map textures" : "Show map textures"}"
+          title="${(state.mapFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_map_textures") : this.t("rooms.show_map_textures")}"
+          aria-label="${(state.mapFloorTextureEnabled?.() ?? true) ? this.t("rooms.hide_map_textures") : this.t("rooms.show_map_textures")}"
           aria-pressed="${(state.mapFloorTextureEnabled?.() ?? true) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round">
@@ -241,8 +241,8 @@ export function applyRoomsRenderers(proto) {
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapRoomLabelsEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-labels-toggle"
-          title="${(state.mapRoomLabelsEnabled?.() ?? true) ? "Hide room labels" : "Show room labels"}"
-          aria-label="${(state.mapRoomLabelsEnabled?.() ?? true) ? "Hide room labels" : "Show room labels"}"
+          title="${(state.mapRoomLabelsEnabled?.() ?? true) ? this.t("rooms.hide_room_labels") : this.t("rooms.show_room_labels")}"
+          aria-label="${(state.mapRoomLabelsEnabled?.() ?? true) ? this.t("rooms.hide_room_labels") : this.t("rooms.show_room_labels")}"
           aria-pressed="${(state.mapRoomLabelsEnabled?.() ?? true) ? "true" : "false"}"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
@@ -293,7 +293,7 @@ export function applyRoomsRenderers(proto) {
 
     return `
       <div class="evcc-orphaned-rooms-panel">
-        <span class="evcc-orphaned-rooms-label">Access not set</span>
+        <span class="evcc-orphaned-rooms-label">${this.t("rooms.access_not_set")}</span>
         <div class="evcc-chips evcc-orphaned-rooms-chips">
           ${orphaned.map((room) => `
             <span class="evcc-chip evcc-orphaned-rooms-chip">
@@ -316,7 +316,7 @@ export function applyRoomsRenderers(proto) {
     return `
       <div class="evcc-active-job">
         <div class="evcc-active-job-header">
-          <span class="evcc-active-job-label">Running</span>
+          <span class="evcc-active-job-label">${this.t("rooms.running")}</span>
           <span class="evcc-active-job-pulse"></span>
         </div>
 
@@ -353,7 +353,9 @@ proto.renderRoomsActionBar = function (
   rooms,
   hasWarning
 ) {
-  const countLabel = enabledCount === 1 ? "1 room" : `${enabledCount} rooms`;
+  const countLabel = enabledCount === 1
+    ? this.t("rooms.count_one_room")
+    : this.t("rooms.count_n_rooms", { count: enabledCount });
   const queueRooms = (Array.isArray(rooms) ? rooms : []).filter((room) => room.enabled);
   const startClass = canStart
     ? (hasWarning ? "evcc-chip--start-warn" : "evcc-chip--start")
@@ -406,12 +408,12 @@ proto.renderRoomsActionBar = function (
   const canResumeRun = Boolean(cardState?.canResumeRun?.());
 
   const primaryActionLabel = cancelRequiresConfirmation
-    ? "Confirm Cancel"
+    ? this.t("rooms.confirm_cancel")
     : hasActiveRun
-      ? "Cancel Run"
+      ? this.t("rooms.cancel_run")
       : startRequiresConfirmation
-        ? "Confirm Start"
-        : "Start Cleaning";
+        ? this.t("rooms.confirm_start")
+        : this.t("rooms.start_cleaning");
 
   const primaryActionClass = cancelRequiresConfirmation
     ? "evcc-chip--start-warn evcc-chip--confirm-flash"
@@ -445,7 +447,7 @@ proto.renderRoomsActionBar = function (
       <div class="evcc-rooms-bar-top">
         <div class="evcc-rooms-queue-summary">
           <span class="evcc-rooms-queue-count">${this.escapeHtml(countLabel)}</span>
-          <span class="evcc-rooms-queue-label">included</span>
+          <span class="evcc-rooms-queue-label">${this.t("rooms.included")}</span>
           ${queueEstimateLabel ? `
             <span class="evcc-rooms-queue-label">· ~${this.escapeHtml(queueEstimateLabel)}</span>
           ` : ""}
@@ -465,22 +467,22 @@ proto.renderRoomsActionBar = function (
               type="button"
               class="evcc-chip"
               data-action="${canResumeRun ? "resume-run" : "pause-run"}"
-            >${canResumeRun ? "Resume" : "Pause"}</button>
+            >${canResumeRun ? this.t("rooms.resume") : this.t("rooms.pause")}</button>
           ` : ""}
 
           <button type="button" class="evcc-chip" data-action="locate-vacuum">
-            Locate
+            ${this.t("rooms.locate")}
           </button>
 
           <button type="button" class="evcc-chip" data-action="select-all">
-            Select All
+            ${this.t("rooms.select_all")}
           </button>
 
           <button
             type="button"
             class="evcc-chip ${clearQueueRequiresConfirmation ? "evcc-chip--start-warn evcc-chip--confirm-flash" : ""}"
             data-action="clear-queue"
-          >${clearQueueRequiresConfirmation ? "Confirm Clear" : "Clear Queue"}</button>
+          >${clearQueueRequiresConfirmation ? this.t("rooms.confirm_clear") : this.t("rooms.clear_queue")}</button>
         </div>
       </div>
 
@@ -490,8 +492,7 @@ proto.renderRoomsActionBar = function (
 
       ${cancelRequiresConfirmation ? `
         <div class="evcc-rooms-cancel-warning" role="alert">
-          Tap "Confirm Cancel" again to send the vacuum back to the dock,
-          or press <strong>Cancel</strong> to keep the job running.
+          ${this.tRaw("rooms.cancel_warning")}
         </div>
       ` : ""}
 
@@ -505,7 +506,7 @@ proto.renderRoomsActionBar = function (
         <div class="evcc-rooms-order-advisory">
           <div class="evcc-rooms-order-advisory-text">
             ${strictOrder
-              ? "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms)."
+              ? this.t("rooms.strict_order_on_text")
               : this.escapeHtml(orderAdvisory)}
           </div>
           <button
@@ -513,7 +514,7 @@ proto.renderRoomsActionBar = function (
             class="evcc-chip ${strictOrder ? "active" : ""}"
             data-action="toggle-strict-order"
             aria-pressed="${strictOrder ? "true" : "false"}"
-          >${strictOrder ? "Strict order: ON" : "Force this exact order"}</button>
+          >${strictOrder ? this.t("rooms.strict_order_on_label") : this.t("rooms.force_exact_order")}</button>
         </div>
       ` : ""}
 
@@ -523,32 +524,32 @@ proto.renderRoomsActionBar = function (
             type="button"
             class="evcc-chip"
             data-action="cancel-primary-confirmation"
-          >Cancel</button>
+          >${this.t("common.cancel")}</button>
         </div>
       ` : ""}
 
       ${startRequiresConfirmation ? `
         <div class="evcc-start-preflight-panel">
-          <div class="evcc-start-preflight-header">Reduced Run Detected</div>
+          <div class="evcc-start-preflight-header">${this.t("rooms.reduced_run_detected")}</div>
 
           <div class="evcc-start-preflight-summary">
-            <span>${this.escapeHtml(String(startPreflight?.blocked_room_count ?? 0))} blocked</span>
+            <span>${this.t("rooms.n_blocked", { count: this.escapeHtml(String(startPreflight?.blocked_room_count ?? 0)) })}</span>
             <span>·</span>
-            <span>${this.escapeHtml(String(startPreflight?.included_room_count ?? enabledCount))} included</span>
+            <span>${this.t("rooms.n_included", { count: this.escapeHtml(String(startPreflight?.included_room_count ?? enabledCount)) })}</span>
             ${Number.isFinite(Number(startPreflight?.blocked_expected_minutes)) && Number(startPreflight?.blocked_expected_minutes) > 0 ? `
               <span>·</span>
-              <span>~${this.escapeHtml(this._formatLearningDuration(Number(startPreflight.blocked_expected_minutes)))} skipped</span>
+              <span>${this.t("rooms.duration_skipped", { duration: this.escapeHtml(this._formatLearningDuration(Number(startPreflight.blocked_expected_minutes))) })}</span>
             ` : ""}
           </div>
 
           ${blockedRooms.length ? `
             <div class="evcc-start-preflight-section">
-              <div class="evcc-start-preflight-title">Blocked Rooms</div>
+              <div class="evcc-start-preflight-title">${this.t("rooms.blocked_rooms")}</div>
               <div class="evcc-start-preflight-list">
                 ${blockedRooms.map((room) => `
                   <div class="evcc-start-preflight-item">
-                    <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? "Room")}</span>
-                    <span class="evcc-start-preflight-reason">${this.escapeHtml(room.reason ?? "Blocked")}</span>
+                    <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? this.t("rooms.room_fallback"))}</span>
+                    <span class="evcc-start-preflight-reason">${this.escapeHtml(room.reason ?? this.t("rooms.blocked_fallback"))}</span>
                   </div>
                 `).join("")}
               </div>
@@ -557,10 +558,10 @@ proto.renderRoomsActionBar = function (
 
           ${modifiedRooms.length ? `
             <div class="evcc-start-preflight-section">
-              <div class="evcc-start-preflight-title">Modified Rooms</div>
+              <div class="evcc-start-preflight-title">${this.t("rooms.modified_rooms")}</div>
               <div class="evcc-start-preflight-list">
                 ${modifiedRooms.map((room) => {
-                  const changeLabel = Object.keys(room.changes ?? {}).join(", ") || "Settings adjusted";
+                  const changeLabel = Object.keys(room.changes ?? {}).join(", ") || this.t("rooms.settings_adjusted");
                   // Fan-out attribution: when this entry was created
                   // purely by a rule fan-out (no direct rule on this
                   // room contributed), the backend flags it with
@@ -568,11 +569,11 @@ proto.renderRoomsActionBar = function (
                   // source rule name so users see why a room they
                   // didn't author a rule for is being modified.
                   const derivedNote = room.derived && room.source_rule_name
-                    ? ` (via ${room.source_room_name ?? "another room"}'s ${room.source_rule_name})`
+                    ? ` ${this.t("rooms.derived_via", { room: room.source_room_name ?? this.t("rooms.another_room"), rule: room.source_rule_name })}`
                     : "";
                   return `
                     <div class="evcc-start-preflight-item">
-                      <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? "Room")}</span>
+                      <span class="evcc-start-preflight-room">${this.escapeHtml(room.name ?? room.room_id ?? this.t("rooms.room_fallback"))}</span>
                       <span class="evcc-start-preflight-reason">${this.escapeHtml(changeLabel + derivedNote)}</span>
                     </div>
                   `;
@@ -583,7 +584,7 @@ proto.renderRoomsActionBar = function (
 
           ${warnings.length ? `
             <div class="evcc-start-preflight-section">
-              <div class="evcc-start-preflight-title">Warnings</div>
+              <div class="evcc-start-preflight-title">${this.t("rooms.warnings")}</div>
               <div class="evcc-start-preflight-list">
                 ${warnings.map((warning) => `
                   <div class="evcc-start-preflight-item">
@@ -665,8 +666,8 @@ proto.renderRoomsActionBar = function (
                 data-map-id="${this.escapeHtml(room.mapId)}"
                 data-enabled="${room.enabled ? "true" : "false"}"
                 style="--job-progress:${chipProgress}%;"
-                title="Click for settings · Double-click for estimate · Hold to remove from queue"
-                aria-label="Queue room ${this.escapeHtml(room.name)}"
+                title="${this.t("rooms.queue_chip_title")}"
+                aria-label="${this.t("rooms.queue_room_aria", { name: this.escapeHtml(room.name) })}"
               >
                 <span class="evcc-queue-chip-order">${index + 1}</span>
 
@@ -687,7 +688,7 @@ proto.renderRoomsActionBar = function (
         </div>
       ` : `
         <div class="evcc-queue-empty">
-          No rooms queued — toggle rooms to include them
+          ${this.t("rooms.no_rooms_queued")}
         </div>
       `}
 
@@ -733,11 +734,11 @@ proto.renderRoomCard = function (room, state) {
     : null;
 
   const edgeMopChip = this._isMopMode(normalizedRoom.cleanMode) && normalizedRoom.edgeMopping
-    ? "Edge Mop On"
+    ? this.t("rooms.edge_mop_on")
     : null;
 
   const passesChip = Number(normalizedRoom.cleanPasses) > 1
-    ? `${Number(normalizedRoom.cleanPasses)}× passes`
+    ? this.t("rooms.n_passes", { count: Number(normalizedRoom.cleanPasses) })
     : null;
 
   const dragItemId = this.card?._state?.orderDragItemId?.();
@@ -769,16 +770,16 @@ proto.renderRoomCard = function (room, state) {
       : `~${this._formatLearningMinutes(roomEstimate.minutes)}`;
 
     const estimateParts = [
-      `Estimate: ${this._formatLearningMinutes(roomEstimate.minutes)}`,
+      this.t("rooms.estimate_label", { value: this._formatLearningMinutes(roomEstimate.minutes) }),
     ];
 
     if (roomEstimate.source) {
-      estimateParts.push(`Source: ${String(roomEstimate.source)}`);
+      estimateParts.push(this.t("rooms.source_label", { value: String(roomEstimate.source) }));
     }
 
     const estimateBattery = Number(roomEstimate.battery);
     if (Number.isFinite(estimateBattery)) {
-      estimateParts.push(`Battery: ${estimateBattery}`);
+      estimateParts.push(this.t("rooms.battery_label", { value: estimateBattery }));
     }
 
     const estimateTitle = estimateParts.join(" · ");
@@ -800,9 +801,9 @@ proto.renderRoomCard = function (room, state) {
   if (roomEstimate && roomEstimate.error == null && typeof this.renderConfidenceChip === "function") {
     if (roomEstimate.source === "learned") {
       const variant = roomEstimate?.confidence_breakpoint?.ui_variant;
-      const trustLabel = variant === "success" ? "Reliable"
-        : variant === "warning" ? "Learning"
-        : variant === "error" ? "Uncertain"
+      const trustLabel = variant === "success" ? this.t("rooms.trust_reliable")
+        : variant === "warning" ? this.t("rooms.trust_learning")
+        : variant === "error" ? this.t("rooms.trust_uncertain")
         : null;
 
       if (trustLabel) {
@@ -817,7 +818,7 @@ proto.renderRoomCard = function (room, state) {
         else roomConfidenceClass = "evcc-room-card--confidence-low";
       }
     } else if (roomEstimate.source === "default") {
-      confidenceChip = this.renderConfidenceChip({ ui_variant: "neutral" }, "Unlearned", "Unlearned");
+      confidenceChip = this.renderConfidenceChip({ ui_variant: "neutral" }, this.t("rooms.trust_unlearned"), this.t("rooms.trust_unlearned"));
     }
   }
 
@@ -844,13 +845,13 @@ proto.renderRoomCard = function (room, state) {
           class="evcc-room-status"
           title="${this.escapeHtml(
             [
-              `Projected water use: ~${Math.round(projectedWaterMl)} ml`,
-              plannedWaterRoom?.clean_mode_label ? `Mode: ${String(plannedWaterRoom.clean_mode_label)}` : plannedWaterRoom?.effective_clean_mode ? `Mode: ${String(plannedWaterRoom.effective_clean_mode)}` : null,
-              plannedWaterRoom?.water_level_label ? `Water: ${String(plannedWaterRoom.water_level_label)}` : plannedWaterRoom?.effective_water_level ? `Water: ${String(plannedWaterRoom.effective_water_level)}` : null,
+              this.t("rooms.projected_water_use", { ml: Math.round(projectedWaterMl) }),
+              plannedWaterRoom?.clean_mode_label ? this.t("rooms.mode_label", { value: String(plannedWaterRoom.clean_mode_label) }) : plannedWaterRoom?.effective_clean_mode ? this.t("rooms.mode_label", { value: String(plannedWaterRoom.effective_clean_mode) }) : null,
+              plannedWaterRoom?.water_level_label ? this.t("rooms.water_label", { value: String(plannedWaterRoom.water_level_label) }) : plannedWaterRoom?.effective_water_level ? this.t("rooms.water_label", { value: String(plannedWaterRoom.effective_water_level) }) : null,
             ].filter(Boolean).join(" · ")
           )}"
         >
-          ${this.escapeHtml(`~${Math.round(projectedWaterMl)} ml water`)}
+          ${this.escapeHtml(this.t("rooms.water_ml", { ml: Math.round(projectedWaterMl) }))}
         </div>
       `;
     }
@@ -859,7 +860,7 @@ proto.renderRoomCard = function (room, state) {
   const notes = [];
 
   if (roomEstimate?.intensity_mismatch) {
-    notes.push({ text: "⚠ intensity mismatch", variant: "warning" });
+    notes.push({ text: `⚠ ${this.t("rooms.intensity_mismatch")}`, variant: "warning" });
   }
 
   const troubleEntry = state?.troubleRoomForRoom?.(normalizedRoom.id) ?? null;
@@ -871,7 +872,7 @@ proto.renderRoomCard = function (room, state) {
     notes.push({
       text: `⚠ Missed ${missCount}× of ${runCount} run${runCount === 1 ? "" : "s"}${pct !== null ? ` (${pct}%)` : ""}`,
       variant: "warning",
-      title: `This room was missed in ${pct ?? "?"}% of recent runs. Consider checking for obstacles or map accuracy.`,
+      title: this.t("rooms.trouble_note_title", { pct: pct ?? "?" }),
     });
   }
 
@@ -904,9 +905,9 @@ proto.renderRoomCard = function (room, state) {
   let lastCleanedChip = "";
   const lastCleanedAgoLabel = this.formatRelativeAgo?.(normalizedRoom.lastCleanedAt);
   if (lastCleanedAgoLabel && !(progressSnapshot?.isCurrent)) {
-    const titleParts = [`Last cleaned: ${normalizedRoom.lastCleanedAt}`];
+    const titleParts = [this.t("rooms.last_cleaned_label", { value: normalizedRoom.lastCleanedAt })];
     if (normalizedRoom.lastJobMode) {
-      titleParts.push(`Mode: ${String(normalizedRoom.lastJobMode)}`);
+      titleParts.push(this.t("rooms.mode_label", { value: String(normalizedRoom.lastJobMode) }));
     }
     lastCleanedChip = `
       <div
@@ -926,17 +927,17 @@ proto.renderRoomCard = function (room, state) {
             class="evcc-room-status evcc-room-progress-chip"
             title="${this.escapeHtml(
               [
-                `Progress: ${progressSnapshot.percent}%`,
+                this.t("rooms.progress_label", { pct: progressSnapshot.percent }),
                 Number.isFinite(progressSnapshot.elapsedMinutes)
-                  ? `Elapsed: ${this._formatLearningMinutes(progressSnapshot.elapsedMinutes)}`
+                  ? this.t("rooms.elapsed_label", { value: this._formatLearningMinutes(progressSnapshot.elapsedMinutes) })
                   : "",
                 Number.isFinite(progressSnapshot.remainingMinutes)
-                  ? `Remaining: ${this._formatLearningMinutes(progressSnapshot.remainingMinutes)}`
+                  ? this.t("rooms.remaining_label", { value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) })
                   : "",
               ].filter(Boolean).join(" · ")
             )}"
           >
-            ${this.escapeHtml(`${progressSnapshot.percent}% complete`)}
+            ${this.escapeHtml(this.t("rooms.percent_complete", { pct: progressSnapshot.percent }))}
           </div>
 
           ${Number.isFinite(progressSnapshot.remainingMinutes) ? `
@@ -944,15 +945,15 @@ proto.renderRoomCard = function (room, state) {
               class="evcc-room-status evcc-room-progress-chip evcc-room-progress-chip--remaining"
               title="${this.escapeHtml(
                 [
-                  `Progress: ${progressSnapshot.percent}%`,
+                  this.t("rooms.progress_label", { pct: progressSnapshot.percent }),
                   Number.isFinite(progressSnapshot.elapsedMinutes)
-                    ? `Elapsed: ${this._formatLearningMinutes(progressSnapshot.elapsedMinutes)}`
+                    ? this.t("rooms.elapsed_label", { value: this._formatLearningMinutes(progressSnapshot.elapsedMinutes) })
                     : "",
-                  `Remaining: ${this._formatLearningMinutes(progressSnapshot.remainingMinutes)}`,
+                  this.t("rooms.remaining_label", { value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) }),
                 ].filter(Boolean).join(" · ")
               )}"
             >
-              ${this.escapeHtml(`~${this._formatLearningMinutes(progressSnapshot.remainingMinutes)} left`)}
+              ${this.escapeHtml(this.t("rooms.remaining_left", { value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) }))}
             </div>
           ` : ""}
         </div>
@@ -972,7 +973,7 @@ proto.renderRoomCard = function (room, state) {
       role="button"
       tabindex="0"
       aria-pressed="${normalizedRoom.enabled ? "true" : "false"}"
-      aria-label="${this.escapeHtml(`${normalizedRoom.enabled ? "Exclude" : "Include"} room ${normalizedRoom.name}`)}"
+      aria-label="${this.escapeHtml(normalizedRoom.enabled ? this.t("rooms.exclude_room_aria", { name: normalizedRoom.name }) : this.t("rooms.include_room_aria", { name: normalizedRoom.name }))}"
       style="--room-progress:${roomProgress}%;"
     >
 
@@ -992,8 +993,8 @@ proto.renderRoomCard = function (room, state) {
               data-action="open-order-selector"
               data-scope="rooms"
               data-item-id="${normalizedRoom.id}"
-              title="Move room"
-            >Move</button>
+              title="${this.t("rooms.move_room")}"
+            >${this.t("rooms.move")}</button>
 
             <button
               type="button"
@@ -1002,7 +1003,7 @@ proto.renderRoomCard = function (room, state) {
               data-scope="rooms"
               data-item-id="${normalizedRoom.id}"
               draggable="true"
-              title="Drag to reorder"
+              title="${this.t("rooms.drag_to_reorder")}"
             >⋮⋮</button>
           </div>
 
@@ -1012,8 +1013,8 @@ proto.renderRoomCard = function (room, state) {
             data-action="open-room-settings"
             data-room-id="${normalizedRoom.id}"
             data-map-id="${this.escapeHtml(normalizedRoom.mapId)}"
-            title="Room settings"
-            aria-label="Open room settings for ${this.escapeHtml(normalizedRoom.name)}"
+            title="${this.t("rooms.room_settings")}"
+            aria-label="${this.t("rooms.open_room_settings_aria", { name: this.escapeHtml(normalizedRoom.name) })}"
           >
             <span class="evcc-chip evcc-chip--icon evcc-room-settings-button">⚙</span>
           </button>
@@ -1058,11 +1059,11 @@ proto.renderRoomCard = function (room, state) {
                 (() => {
                   const fallbackTitle =
                     String(note.text).includes("No learned data")
-                      ? "This room is using a fallback estimate until enough learned samples are collected."
+                      ? this.t("rooms.note_no_learned_data_title")
                       : String(note.text).includes("runs to reliable")
-                        ? `Estimated ${String(note.text).split(" ")[0]} more runs to reach high confidence.`
+                        ? this.t("rooms.note_runs_to_reliable_title", { count: String(note.text).split(" ")[0] })
                         : String(note.text).includes("intensity mismatch")
-                          ? "Estimate was learned from a different cleaning intensity or profile."
+                          ? this.t("rooms.note_intensity_mismatch_title")
                           : "";
 
                   const title = note.title || fallbackTitle;
@@ -1219,13 +1220,13 @@ proto.renderRoomCard = function (room, state) {
 
   proto._roomProfileLabel = function (profile) {
     const value = String(profile ?? "").trim();
-    if (!value) return "Standard";
-    if (value.toLowerCase() === "custom") return "Custom";
-    if (value === "vacuum_quick") return "Vacuum Only Quick";
-    if (value === "vacuum_deep") return "Vacuum Only Deep";
-    if (value === "vacuum_mop_quick") return "Quick";
-    if (value === "vacuum_mop_deep") return "Deep";
-    if (value === "user_1") return "User Profile 1";
+    if (!value) return this.t("rooms.profile_standard");
+    if (value.toLowerCase() === "custom") return this.t("rooms.profile_custom");
+    if (value === "vacuum_quick") return this.t("rooms.profile_vacuum_only_quick");
+    if (value === "vacuum_deep") return this.t("rooms.profile_vacuum_only_deep");
+    if (value === "vacuum_mop_quick") return this.t("rooms.profile_quick");
+    if (value === "vacuum_mop_deep") return this.t("rooms.profile_deep");
+    if (value === "user_1") return this.t("rooms.profile_user_1");
 
     return value
       .replace(/[_-]+/g, " ")
@@ -1235,10 +1236,10 @@ proto.renderRoomCard = function (room, state) {
   proto._formatCleanMode = function (value) {
     const raw = String(value ?? "").trim().toLowerCase();
 
-    if (raw === "vacuum_mop") return "Vacuum + Mop";
-    if (raw === "vacuum and mop") return "Vacuum + Mop";
-    if (raw === "vacuum") return "Vacuum";
-    if (raw === "mop") return "Mop";
+    if (raw === "vacuum_mop") return this.t("rooms.mode_vacuum_mop");
+    if (raw === "vacuum and mop") return this.t("rooms.mode_vacuum_mop");
+    if (raw === "vacuum") return this.t("rooms.mode_vacuum");
+    if (raw === "mop") return this.t("rooms.mode_mop");
 
     return this._formatSettingValue(value);
   };

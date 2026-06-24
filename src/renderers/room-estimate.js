@@ -43,61 +43,61 @@ export function applyRoomEstimateRenderers(proto) {
     const hasEstimatedWater = Number.isFinite(estimatedWaterMl);
 
     const notes = [];
-    if (roomEstimate?.intensity_mismatch) notes.push("Estimated from different intensity");
-    if (roomEstimate?.source === "default") notes.push("No learned data yet");
+    if (roomEstimate?.intensity_mismatch) notes.push(this.t("room_estimate.note_intensity_mismatch"));
+    if (roomEstimate?.source === "default") notes.push(this.t("room_estimate.note_no_learned_data"));
     if (Number(roomEstimate?.learning_velocity?.runs_to_high ?? 0) > 0) {
-      notes.push(`${roomEstimate.learning_velocity.runs_to_high} runs to reliable`);
+      notes.push(this.t("room_estimate.note_runs_to_reliable", { count: roomEstimate.learning_velocity.runs_to_high }));
     }
 
     const summaryRows = [
       Number.isFinite(minutes)
-        ? { label: "Estimated time", value: this._formatLearningMinutes(minutes) }
+        ? { label: this.t("room_estimate.label_estimated_time"), value: this._formatLearningMinutes(minutes) }
         : null,
       etaAt
-        ? { label: "Done by", value: this._formatLearningWallClock(etaAt) }
+        ? { label: this.t("room_estimate.label_done_by"), value: this._formatLearningWallClock(etaAt) }
         : null,
       roomEstimate?.source
-        ? { label: "Source", value: String(roomEstimate.source) }
+        ? { label: this.t("room_estimate.label_source"), value: String(roomEstimate.source) }
         : null,
       Number.isFinite(sampleCount)
-        ? { label: "Samples", value: String(sampleCount) }
+        ? { label: this.t("room_estimate.label_samples"), value: String(sampleCount) }
         : null,
       Number.isFinite(battery)
-        ? { label: "Battery", value: String(battery) }
+        ? { label: this.t("room_estimate.label_battery"), value: String(battery) }
         : null,
     ].filter(Boolean);
 
     const waterRows = [
       hasEstimatedWater
-        ? { label: "Projected water", value: `~${Math.round(estimatedWaterMl)} ml` }
+        ? { label: this.t("room_estimate.label_projected_water"), value: this.t("room_estimate.water_ml", { ml: Math.round(estimatedWaterMl) }) }
         : null,
       plannedWaterRoom?.clean_mode_label
-        ? { label: "Mode", value: String(plannedWaterRoom.clean_mode_label) }
+        ? { label: this.t("room_estimate.label_mode"), value: String(plannedWaterRoom.clean_mode_label) }
         : plannedWaterRoom?.effective_clean_mode
-          ? { label: "Mode", value: String(plannedWaterRoom.effective_clean_mode) }
+          ? { label: this.t("room_estimate.label_mode"), value: String(plannedWaterRoom.effective_clean_mode) }
           : null,
       plannedWaterRoom?.water_level_label
-        ? { label: "Water level", value: String(plannedWaterRoom.water_level_label) }
+        ? { label: this.t("room_estimate.label_water_level"), value: String(plannedWaterRoom.water_level_label) }
         : plannedWaterRoom?.effective_water_level
-          ? { label: "Water level", value: String(plannedWaterRoom.effective_water_level) }
+          ? { label: this.t("room_estimate.label_water_level"), value: String(plannedWaterRoom.effective_water_level) }
           : null,
     ].filter(Boolean);
 
     const liveRows = progressSnapshot
       ? [
-          { label: "Progress", value: `${Math.max(0, Math.min(100, Number(progressSnapshot.percent ?? 0)))}%` },
+          { label: this.t("room_estimate.label_progress"), value: `${Math.max(0, Math.min(100, Number(progressSnapshot.percent ?? 0)))}%` },
           Number.isFinite(progressSnapshot.elapsedMinutes)
-            ? { label: "Elapsed", value: this._formatLearningMinutes(progressSnapshot.elapsedMinutes) }
+            ? { label: this.t("room_estimate.label_elapsed"), value: this._formatLearningMinutes(progressSnapshot.elapsedMinutes) }
             : null,
           Number.isFinite(progressSnapshot.remainingMinutes)
-            ? { label: "Remaining", value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) }
+            ? { label: this.t("room_estimate.label_remaining"), value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) }
             : null,
         ].filter(Boolean)
       : [];
 
     const subtitleParts = [];
     if (Number.isFinite(minutes)) subtitleParts.push(this._formatLearningMinutes(minutes));
-    if (etaAt) subtitleParts.push(`done by ${this._formatLearningWallClock(etaAt)}`);
+    if (etaAt) subtitleParts.push(this.t("room_estimate.subtitle_done_by", { time: this._formatLearningWallClock(etaAt) }));
 
     return `
       <div class="evcc-modal-backdrop" data-action="close-room-estimate">
@@ -105,7 +105,7 @@ export function applyRoomEstimateRenderers(proto) {
 
           <div class="evcc-modal-header">
             <div class="evcc-modal-title-group">
-              <div class="evcc-modal-title">${this.escapeHtml(room.name)} Estimate</div>
+              <div class="evcc-modal-title">${this.t("room_estimate.modal_title", { name: this.escapeHtml(room.name) })}</div>
               ${subtitleParts.length ? `
                 <div class="evcc-room-estimate-subtitle">${this.escapeHtml(subtitleParts.join(" - "))}</div>
               ` : ""}
@@ -122,7 +122,7 @@ export function applyRoomEstimateRenderers(proto) {
                 type="button"
                 class="evcc-chip evcc-chip--icon"
                 data-action="close-room-estimate"
-                title="Close"
+                title="${this.t("common.close")}"
               >X</button>
             </div>
           </div>
@@ -130,7 +130,7 @@ export function applyRoomEstimateRenderers(proto) {
           <div class="evcc-modal-body">
             ${summaryRows.length ? `
               <div class="evcc-room-estimate-section">
-                <div class="evcc-field-label">Estimate Summary</div>
+                <div class="evcc-field-label">${this.t("room_estimate.section_summary")}</div>
                 <div class="evcc-room-estimate-grid">
                   ${summaryRows.map((row) => `
                     <div class="evcc-room-estimate-row">
@@ -144,7 +144,7 @@ export function applyRoomEstimateRenderers(proto) {
 
             ${waterRows.length ? `
               <div class="evcc-room-estimate-section">
-                <div class="evcc-field-label">Water Projection</div>
+                <div class="evcc-field-label">${this.t("room_estimate.section_water")}</div>
                 <div class="evcc-room-estimate-grid">
                   ${waterRows.map((row) => `
                     <div class="evcc-room-estimate-row">
@@ -158,7 +158,7 @@ export function applyRoomEstimateRenderers(proto) {
 
             ${liveRows.length ? `
               <div class="evcc-room-estimate-section">
-                <div class="evcc-field-label">Live Progress</div>
+                <div class="evcc-field-label">${this.t("room_estimate.section_live")}</div>
                 <div class="evcc-room-estimate-grid">
                   ${liveRows.map((row) => `
                     <div class="evcc-room-estimate-row">
@@ -172,7 +172,7 @@ export function applyRoomEstimateRenderers(proto) {
 
             ${notes.length ? `
               <div class="evcc-room-estimate-section">
-                <div class="evcc-field-label">Learning Notes</div>
+                <div class="evcc-field-label">${this.t("room_estimate.section_notes")}</div>
                 <div class="evcc-room-estimate-notes">
                   ${notes.map((note) => `
                     <div class="evcc-room-estimate-note">${this.escapeHtml(note)}</div>
@@ -181,7 +181,7 @@ export function applyRoomEstimateRenderers(proto) {
               </div>
             ` : `
               <div class="evcc-room-estimate-empty">
-                No extra estimate notes for this room right now.
+                ${this.t("room_estimate.empty_notes")}
               </div>
             `}
           </div>
@@ -191,7 +191,7 @@ export function applyRoomEstimateRenderers(proto) {
               type="button"
               class="evcc-chip"
               data-action="close-room-estimate"
-            >Close</button>
+            >${this.t("common.close")}</button>
           </div>
 
         </div>

@@ -3,30 +3,277 @@
  * I18N — English base catalog (source of truth)
  * ============================================================
  *
- * Every user-facing string key the card renders, in English. This is the
- * reference for translators and the fallback for all other locales — if a
- * locale is missing a key, English is used; if English is missing it, the key
- * itself shows (a visible miss).
+ * Every user-facing string key the card renders, in English. The reference for
+ * translators and the fallback for all locales — a missing locale key falls back
+ * to English; a missing English key renders the raw key (a visible miss).
  *
  * Conventions:
- *   - Keys are dot-namespaced by surface: `<view>.<name>`.
+ *   - Keys are dot-namespaced by surface: `<view>.<name>`. Generic actions
+ *     shared across surfaces live under `common.*` (one translation, reused).
  *   - Interpolation uses `{name}` placeholders, e.g. "{count} rooms selected".
- *   - Keep entries grouped by surface and in lock-step with the markup that
- *     calls `this.t(key)`; a key with no caller is dead, a caller with no key
- *     renders the raw key.
+ *   - `// plural` marks count-driven keys whose grammar needs per-language
+ *     plural variants when that mechanism lands (Slavic wants 3-4 forms).
  *
- * Scaffold seed: only the strings converted so far. Populated surface-by-
- * surface as renderers are migrated (Phase 1: Setup + Rooms + shell/errors).
+ * Coverage: Phase 1 (Setup + Rooms onboarding renderers). Shell/nav, bindings,
+ * learning, theme, map, maintenance follow in later waves.
  *
  * ============================================================
  */
 
 export const en = {
-  // --- Rooms view ---
-  "rooms.empty":
-    "No rooms yet — open the Setup tab and run Import Active Map (the highlighted button), then Configure Rooms to get started.",
+  // --- common ---
+  "common.cancel": "Cancel",
+  "common.close": "Close",
+  "common.delete": "Delete",
 
-  // --- Room Rules view ---
-  "room_rules.empty":
-    "No rooms yet — set up rooms first under Setup → Import Active Map (the highlighted button) → Configure Rooms, then add rules here.",
+  // --- mobile ---
+  "mobile.dock_status_label": "Dock Status:",
+  "mobile.more": "More",
+  "mobile.more_sheet_aria": "Additional views",
+  "mobile.nav_primary_aria": "Primary",
+  "mobile.tab_dock": "Dock",
+  "mobile.tab_learning_review": "Learning Review",
+  "mobile.tab_map_bounds": "Map Bounds",
+  "mobile.tab_map_config": "Map Config",
+  "mobile.tab_room_rules": "Room Rules",
+  "mobile.tab_rooms": "Rooms",
+  "mobile.tab_setup": "Setup",
+  "mobile.tab_stats": "Stats",
+  "mobile.tab_theme": "Theme",
+  "mobile.tab_upkeep": "Upkeep",
+  "mobile.vacuum_status_label": "Vacuum Status:",
+
+  // --- room_access ---
+  "room_access.accessed_from_help": "The room that grants access to this room. Read-only — set from the other room's editor.",
+  "room_access.accessed_from_here_help": "Select the rooms this room unlocks. A room already claimed by another room cannot be selected here.",
+  "room_access.accessed_from_here_label": "Rooms Accessed From Here",
+  "room_access.accessed_from_label": "Accessed From",
+  "room_access.claimed_by": "Already claimed by Room {room}",
+  "room_access.dock_room_help": "The dock room is the origin of the access tree. It has no inbound dependencies. Only one room can be the dock room.",
+  "room_access.dock_room_label": "Dock Room",
+  "room_access.graph_issues_label": "Graph Issues",
+  "room_access.invalid_graph": "Invalid room access graph.",
+  "room_access.is_dock_room": "This is the Dock Room",
+  "room_access.no_inbound": "No room grants access here yet.",
+  "room_access.no_other_rooms": "No other rooms are available on this map.",
+  "room_access.save": "Save Access",
+  "room_access.set_dock_room": "Set as Dock Room",
+  "room_access.title": "{name} Access",
+
+  // --- room_editor ---
+  "room_editor.access": "Access",
+  "room_editor.carpet_notice": "Carpet room — locked to vacuum-only modes",
+  "room_editor.cleaning_mode": "Cleaning Mode",
+  "room_editor.cleaning_passes": "Cleaning Passes",
+  "room_editor.cleaning_path": "Cleaning Path",
+  "room_editor.cleaning_profile": "Cleaning Profile",
+  "room_editor.custom": "Custom",
+  "room_editor.edge_mopping": "Edge Mopping",
+  "room_editor.excluded": "Excluded",
+  "room_editor.included": "Included",
+  "room_editor.meta_custom": "Current room settings are custom and not linked to a saved profile.",
+  "room_editor.meta_profile_builtin": "{label} is built in and read-only.",
+  "room_editor.meta_profile_custom": "{label} is a custom reusable profile.",
+  "room_editor.meta_select": "Select a profile to apply reusable room settings.",
+  "room_editor.mopstate_mopping": "Mopping — water tank attached",
+  "room_editor.mopstate_vacuum": "Vacuum only — no water tank",
+  "room_editor.off": "Off",
+  "room_editor.on": "On",
+  "room_editor.pass_many": "{count} Passes",  // plural
+  "room_editor.pass_one": "{count} Pass",  // plural
+  "room_editor.passes_global_note": "Passes are controlled globally in the robot's own app — the per-room value here may be overridden.",
+  "room_editor.queue_status_label": "Current queue status:",
+  "room_editor.rename": "Rename",
+  "room_editor.save": "Save",
+  "room_editor.save_as_new": "Save as New",
+  "room_editor.save_over": "Save Over",
+  "room_editor.suction_level": "Suction Level",
+  "room_editor.transition_callout": "Shape analysis suggests this may be a hallway or connecting corridor.",
+  "room_editor.transition_is": "Transition Space",
+  "room_editor.transition_mark": "Mark as Transition",
+  "room_editor.transition_space_label": "Transition Space",
+  "room_editor.water_level": "Water Level",
+
+  // --- room_estimate ---
+  "room_estimate.empty_notes": "No extra estimate notes for this room right now.",
+  "room_estimate.label_battery": "Battery",
+  "room_estimate.label_done_by": "Done by",
+  "room_estimate.label_elapsed": "Elapsed",
+  "room_estimate.label_estimated_time": "Estimated time",
+  "room_estimate.label_mode": "Mode",
+  "room_estimate.label_progress": "Progress",
+  "room_estimate.label_projected_water": "Projected water",
+  "room_estimate.label_remaining": "Remaining",
+  "room_estimate.label_samples": "Samples",
+  "room_estimate.label_source": "Source",
+  "room_estimate.label_water_level": "Water level",
+  "room_estimate.modal_title": "{name} Estimate",
+  "room_estimate.note_intensity_mismatch": "Estimated from different intensity",
+  "room_estimate.note_no_learned_data": "No learned data yet",
+  "room_estimate.note_runs_to_reliable": "{count} runs to reliable",  // plural
+  "room_estimate.section_live": "Live Progress",
+  "room_estimate.section_notes": "Learning Notes",
+  "room_estimate.section_summary": "Estimate Summary",
+  "room_estimate.section_water": "Water Projection",
+  "room_estimate.subtitle_done_by": "done by {time}",
+  "room_estimate.water_ml": "~{ml} ml",
+
+  // --- room_rules ---
+  "room_rules.empty": "No rooms yet — set up rooms first under Setup → Import Active Map (the highlighted button) → Configure Rooms, then add rules here.",
+
+  // --- rooms ---
+  "rooms.access_not_set": "Access not set",
+  "rooms.another_room": "another room",
+  "rooms.battery_label": "Battery: {value}",
+  "rooms.blocked_fallback": "Blocked",
+  "rooms.blocked_rooms": "Blocked Rooms",
+  "rooms.cancel_run": "Cancel Run",
+  "rooms.cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
+  "rooms.clear_queue": "Clear Queue",
+  "rooms.companion_animal": "Companion animal",
+  "rooms.configure": "Configure",
+  "rooms.configure_map": "Configure map",
+  "rooms.confirm_cancel": "Confirm Cancel",
+  "rooms.confirm_clear": "Confirm Clear",
+  "rooms.confirm_start": "Confirm Start",
+  "rooms.count_n_rooms": "{count} rooms",  // plural
+  "rooms.count_one_room": "1 room",  // plural
+  "rooms.derived_via": "(via {room}'s {rule})",
+  "rooms.drag_to_reorder": "Drag to reorder",
+  "rooms.duration_skipped": "~{duration} skipped",
+  "rooms.edge_mop_on": "Edge Mop On",
+  "rooms.elapsed_label": "Elapsed: {value}",
+  "rooms.empty": "No rooms yet — open the Setup tab and run Import Active Map (the highlighted button), then Configure Rooms to get started.",
+  "rooms.estimate_label": "Estimate: {value}",
+  "rooms.exclude_room_aria": "Exclude room {name}",
+  "rooms.force_exact_order": "Force this exact order",
+  "rooms.hide_companion": "Hide companion",
+  "rooms.hide_map_textures": "Hide map textures",
+  "rooms.hide_room_card_textures": "Hide room-card textures",
+  "rooms.hide_room_labels": "Hide room labels",
+  "rooms.icon_size": "Icon size",
+  "rooms.include_room_aria": "Include room {name}",
+  "rooms.included": "included",
+  "rooms.intensity_mismatch": "intensity mismatch",
+  "rooms.last_cleaned_label": "Last cleaned: {value}",
+  "rooms.list_view": "List view",
+  "rooms.locate": "Locate",
+  "rooms.map_view": "Map view",
+  "rooms.mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
+  "rooms.mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
+  "rooms.mascot_follows_robot": "Mascot follows robot",
+  "rooms.mode_label": "Mode: {value}",
+  "rooms.mode_mop": "Mop",
+  "rooms.mode_vacuum": "Vacuum",
+  "rooms.mode_vacuum_mop": "Vacuum + Mop",
+  "rooms.modified_rooms": "Modified Rooms",
+  "rooms.move": "Move",
+  "rooms.move_room": "Move room",
+  "rooms.n_blocked": "{count} blocked",  // plural
+  "rooms.n_included": "{count} included",  // plural
+  "rooms.n_passes": "{count}× passes",
+  "rooms.no_rooms_queued": "No rooms queued — toggle rooms to include them",
+  "rooms.note_intensity_mismatch_title": "Estimate was learned from a different cleaning intensity or profile.",
+  "rooms.note_no_learned_data_title": "This room is using a fallback estimate until enough learned samples are collected.",
+  "rooms.note_runs_to_reliable_title": "Estimated {count} more runs to reach high confidence.",
+  "rooms.open_room_settings_aria": "Open room settings for {name}",
+  "rooms.pause": "Pause",
+  "rooms.percent_complete": "{pct}% complete",
+  "rooms.profile_custom": "Custom",
+  "rooms.profile_deep": "Deep",
+  "rooms.profile_quick": "Quick",
+  "rooms.profile_standard": "Standard",
+  "rooms.profile_user_1": "User Profile 1",
+  "rooms.profile_vacuum_only_deep": "Vacuum Only Deep",
+  "rooms.profile_vacuum_only_quick": "Vacuum Only Quick",
+  "rooms.progress_label": "Progress: {pct}%",
+  "rooms.projected_water_use": "Projected water use: ~{ml} ml",
+  "rooms.queue_chip_title": "Click for settings · Double-click for estimate · Hold to remove from queue",
+  "rooms.queue_room_aria": "Queue room {name}",
+  "rooms.rainbow_bridge": "Rainbow Bridge",
+  "rooms.reduced_run_detected": "Reduced Run Detected",
+  "rooms.remaining_label": "Remaining: {value}",
+  "rooms.remaining_left": "~{value} left",
+  "rooms.resume": "Resume",
+  "rooms.room_fallback": "Room",
+  "rooms.room_settings": "Room settings",
+  "rooms.running": "Running",
+  "rooms.select_all": "Select All",
+  "rooms.settings_adjusted": "Settings adjusted",
+  "rooms.show_companion": "Show companion",
+  "rooms.show_map_textures": "Show map textures",
+  "rooms.show_room_card_textures": "Show room-card textures",
+  "rooms.show_room_labels": "Show room labels",
+  "rooms.source_label": "Source: {value}",
+  "rooms.start_cleaning": "Start Cleaning",
+  "rooms.strict_order_on_label": "Strict order: ON",
+  "rooms.strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
+  "rooms.trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
+  "rooms.trust_learning": "Learning",
+  "rooms.trust_reliable": "Reliable",
+  "rooms.trust_uncertain": "Uncertain",
+  "rooms.trust_unlearned": "Unlearned",
+  "rooms.warnings": "Warnings",
+  "rooms.water_label": "Water: {value}",
+  "rooms.water_ml": "~{ml} ml water",
+
+  // --- setup ---
+  "setup.add": "Add",
+  "setup.add_another_vacuum": "Add another vacuum",
+  "setup.add_vacuum": "Add Vacuum",
+  "setup.all_vacuums_managed": "All detected vacuums are already managed.",
+  "setup.auto_adapter_default": "Auto (adapter default)",
+  "setup.check_status": "Check Status",
+  "setup.click_to_exclude": "Click to exclude",
+  "setup.click_to_include": "Click to include",
+  "setup.complete_add_vacuum_first": "Complete Add Vacuum first.",
+  "setup.complete_map_import_first": "Complete map import first.",
+  "setup.configure_each_map": "Configure each imported map — exclude ghost rooms and set floor types.",
+  "setup.configure_rooms": "Configure Rooms",
+  "setup.configured_badge": "✓ Configured",
+  "setup.delete_map": "Delete Map",
+  "setup.delete_type_confirm": "Type <strong>{name}</strong> to confirm deletion.",
+  "setup.delete_warning": "Delete <strong>{name}</strong>? This removes all rooms, history, and learning data for this map from the integration. The upstream cloud map is not affected.",
+  "setup.deleting": "Deleting…",
+  "setup.description": "Steps below are declared by your vacuum adapter. Each must complete in order. New rooms discovered after setup will surface here for review before they enter the room library.",
+  "setup.drift_new_hint": "The vacuum reports rooms you haven't configured yet. Configure the matching map to include them, or reject as phantoms.",
+  "setup.drift_new_title": "New rooms discovered ({count})",
+  "setup.drift_removed_hint": "These rooms have been missing from discovery long enough to be confirmed removed. Reconfigure the matching map to drop them.",
+  "setup.drift_removed_title": "Rooms no longer reported ({count})",
+  "setup.drift_transient_hint": "Missing from recent discovery passes but not yet confirmed removed — likely a transient API glitch. Use \"Force remove\" only if you know the room is permanently gone.",
+  "setup.drift_transient_title": "Temporarily missing ({count})",
+  "setup.force_remove_now": "Force remove now",
+  "setup.import_active_map": "Import Active Map",
+  "setup.import_active_map_prompt": "Import the vacuum's currently active map. Make sure it has completed a mapping run first.",
+  "setup.import_another_map": "Import Another Map",
+  "setup.live_map_camera_hint": "Use a live map image/camera entity as this vacuum's map backdrop — for example the <code>camera.&lt;device&gt;_map</code> entity from the eufy-clean fork. Choose \"Auto\" to use the adapter default.",
+  "setup.live_map_camera_title": "Live map camera",
+  "setup.loading_rooms": "Loading rooms…",
+  "setup.map_label": "map {id}",
+  "setup.map_n": "Map {id}",
+  "setup.maps_imported": "{count} maps imported.",
+  "setup.no_rooms_discovered": "No rooms discovered yet. Run a clean cycle so the vacuum reports its room list, then refresh setup status.",
+  "setup.no_rooms_for_map": "No rooms found for this map.",
+  "setup.no_step_handler": "No handler for step \"{id}\".",
+  "setup.panel_name_hint": "Rename this vacuum's entry in the Home Assistant sidebar. After saving, refresh the page to see the new name. Leave blank to reset to the default.",
+  "setup.panel_name_title": "Panel name",
+  "setup.ready_banner": "✓ Setup complete — switch to the Rooms tab to start cleaning.",
+  "setup.reconfigure": "Reconfigure",
+  "setup.refresh": "Refresh",
+  "setup.register_vacuum_prompt": "Register this vacuum with the integration so it can be managed.",
+  "setup.reject_as_phantom": "Reject as phantom",
+  "setup.rename": "Rename",
+  "setup.room_editor_hint": "Deselect rooms you don't want managed (phantom rooms, closets, etc.). Set each real room's floor type — it drives the cleaning profile system.",
+  "setup.room_n": "Room {id}",
+  "setup.rooms_configured_drift": "Rooms configured. Drift detection watches for new or removed rooms below.",
+  "setup.save_room_config": "Save Room Configuration",
+  "setup.saving": "Saving…",
+  "setup.title": "Vacuum Setup",
+  "setup.unmanaged_vacuums_hint": "These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).",
+  "setup.vacuum_registered": "Vacuum registered.",
+  "setup.working": "Working…",
+
+  // --- toast ---
+  "toast.dismiss": "Dismiss",
+
 };

@@ -40,7 +40,7 @@ export function applyToastsRenderer(proto) {
               class="evcc-toast-dismiss"
               data-action="dismiss-toast"
               data-toast-id="${this.escapeHtml(t.id)}"
-              aria-label="Dismiss"
+              aria-label="${this.t("toast.dismiss")}"
             >x</button>
           </div>
         `).join("")}

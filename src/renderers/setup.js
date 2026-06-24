@@ -100,7 +100,7 @@ export function applySetupRenderers(proto) {
        Transient feedback (loading / error / last action)
        ------------------------------------------------------- */
     const loadingHtml = loading
-      ? `<div class="evcc-setup-result info">Working…</div>`
+      ? `<div class="evcc-setup-result info">${this.t("setup.working")}</div>`
       : "";
 
     const errorHtml = error && !loading
@@ -132,20 +132,20 @@ export function applySetupRenderers(proto) {
       if (step.completed) {
         return `
           <div class="evcc-setup-step-body">
-            Vacuum registered.
+            ${this.t("setup.vacuum_registered")}
             <div class="evcc-setup-entity-id">${this.escapeHtml(vacuumEntityId)}</div>
           </div>
         `;
       }
       return `
         <div class="evcc-setup-step-body">
-          Register this vacuum with the integration so it can be managed.
+          ${this.t("setup.register_vacuum_prompt")}
           <div class="evcc-setup-entity-id">${this.escapeHtml(vacuumEntityId)}</div>
         </div>
         <button class="evcc-setup-btn"
                 data-action="setup-add-vacuum"
                 ${loading ? "disabled" : ""}>
-          Add Vacuum
+          ${this.t("setup.add_vacuum")}
         </button>
       `;
     };
@@ -155,14 +155,14 @@ export function applySetupRenderers(proto) {
       const mapCount      = importedMaps.length;
 
       if (!addVacuumDone) {
-        return `<div class="evcc-setup-step-body muted">Complete Add Vacuum first.</div>`;
+        return `<div class="evcc-setup-step-body muted">${this.t("setup.complete_add_vacuum_first")}</div>`;
       }
 
       const summaryHtml = mapCount > 0
-        ? `<div class="evcc-setup-step-body muted">${mapCount} map${mapCount === 1 ? "" : "s"} imported.</div>`
-        : `<div class="evcc-setup-step-body">Import the vacuum's currently active map. Make sure it has completed a mapping run first.</div>`;
+        ? `<div class="evcc-setup-step-body muted">${this.t("setup.maps_imported", { count: mapCount })}</div>`
+        : `<div class="evcc-setup-step-body">${this.t("setup.import_active_map_prompt")}</div>`;
 
-      const buttonLabel = mapCount > 0 ? "Import Another Map" : "Import Active Map";
+      const buttonLabel = mapCount > 0 ? this.t("setup.import_another_map") : this.t("setup.import_active_map");
       const buttonClass = mapCount > 0 ? "secondary" : "";
 
       return `
@@ -182,16 +182,15 @@ export function applySetupRenderers(proto) {
       const addVacuumDone   = _isStepCompleted(steps, "add_vacuum");
 
       if (!addVacuumDone) {
-        return `<div class="evcc-setup-step-body muted">Complete Add Vacuum first.</div>`;
+        return `<div class="evcc-setup-step-body muted">${this.t("setup.complete_add_vacuum_first")}</div>`;
       }
       if (importNeeded && !importDone) {
-        return `<div class="evcc-setup-step-body muted">Complete map import first.</div>`;
+        return `<div class="evcc-setup-step-body muted">${this.t("setup.complete_map_import_first")}</div>`;
       }
       if (importedMaps.length === 0 && !importNeeded) {
         return `
           <div class="evcc-setup-step-body">
-            No rooms discovered yet. Run a clean cycle so the vacuum reports
-            its room list, then refresh setup status.
+            ${this.t("setup.no_rooms_discovered")}
           </div>
         `;
       }
@@ -202,8 +201,8 @@ export function applySetupRenderers(proto) {
       ).join("");
 
       const intro = step.completed
-        ? `<div class="evcc-setup-step-body muted">Rooms configured. Drift detection watches for new or removed rooms below.</div>`
-        : `<div class="evcc-setup-step-body">Configure each imported map — exclude ghost rooms and set floor types.</div>`;
+        ? `<div class="evcc-setup-step-body muted">${this.t("setup.rooms_configured_drift")}</div>`
+        : `<div class="evcc-setup-step-body">${this.t("setup.configure_each_map")}</div>`;
 
       return `
         ${intro}
@@ -236,22 +235,21 @@ export function applySetupRenderers(proto) {
       const newSection = newRooms.length === 0 ? "" : `
         <div class="evcc-setup-drift-section new">
           <div class="evcc-setup-drift-title">
-            New rooms discovered (${newRooms.length})
+            ${this.t("setup.drift_new_title", { count: newRooms.length })}
           </div>
           <div class="evcc-setup-drift-hint">
-            The vacuum reports rooms you haven't configured yet. Configure
-            the matching map to include them, or reject as phantoms.
+            ${this.t("setup.drift_new_hint")}
           </div>
           <div class="evcc-setup-drift-list">
             ${newRooms.map((r) => `
               <div class="evcc-setup-drift-row">
-                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
-                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? this.t("setup.room_n", { id: r.room_id }))}</span>
+                <span class="evcc-setup-drift-room-map muted">${this.t("setup.map_label", { id: this.escapeHtml(String(r.map_id ?? "")) })}</span>
                 <button class="evcc-setup-btn secondary small"
                         data-action="setup-reject-room"
                         data-room-id="${r.room_id}"
                         ${loading ? "disabled" : ""}>
-                  Reject as phantom
+                  ${this.t("setup.reject_as_phantom")}
                 </button>
               </div>
             `).join("")}
@@ -262,17 +260,16 @@ export function applySetupRenderers(proto) {
       const removedSection = removedRooms.length === 0 ? "" : `
         <div class="evcc-setup-drift-section removed">
           <div class="evcc-setup-drift-title">
-            Rooms no longer reported (${removedRooms.length})
+            ${this.t("setup.drift_removed_title", { count: removedRooms.length })}
           </div>
           <div class="evcc-setup-drift-hint">
-            These rooms have been missing from discovery long enough to be
-            confirmed removed. Reconfigure the matching map to drop them.
+            ${this.t("setup.drift_removed_hint")}
           </div>
           <div class="evcc-setup-drift-list">
             ${removedRooms.map((r) => `
               <div class="evcc-setup-drift-row">
-                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
-                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? this.t("setup.room_n", { id: r.room_id }))}</span>
+                <span class="evcc-setup-drift-room-map muted">${this.t("setup.map_label", { id: this.escapeHtml(String(r.map_id ?? "")) })}</span>
               </div>
             `).join("")}
           </div>
@@ -282,23 +279,21 @@ export function applySetupRenderers(proto) {
       const transientSection = transientRooms.length === 0 ? "" : `
         <div class="evcc-setup-drift-section transient">
           <div class="evcc-setup-drift-title">
-            Temporarily missing (${transientRooms.length})
+            ${this.t("setup.drift_transient_title", { count: transientRooms.length })}
           </div>
           <div class="evcc-setup-drift-hint">
-            Missing from recent discovery passes but not yet confirmed
-            removed — likely a transient API glitch. Use "Force remove"
-            only if you know the room is permanently gone.
+            ${this.t("setup.drift_transient_hint")}
           </div>
           <div class="evcc-setup-drift-list">
             ${transientRooms.map((r) => `
               <div class="evcc-setup-drift-row">
-                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? `Room ${r.room_id}`)}</span>
-                <span class="evcc-setup-drift-room-map muted">map ${this.escapeHtml(String(r.map_id ?? ""))}</span>
+                <span class="evcc-setup-drift-room-name">${this.escapeHtml(r.name ?? this.t("setup.room_n", { id: r.room_id }))}</span>
+                <span class="evcc-setup-drift-room-map muted">${this.t("setup.map_label", { id: this.escapeHtml(String(r.map_id ?? "")) })}</span>
                 <button class="evcc-setup-btn destructive-ghost small"
                         data-action="setup-force-remove-room"
                         data-room-id="${r.room_id}"
                         ${loading ? "disabled" : ""}>
-                  Force remove now
+                  ${this.t("setup.force_remove_now")}
                 </button>
               </div>
             `).join("")}
@@ -324,16 +319,16 @@ export function applySetupRenderers(proto) {
     const renderRoomEditor = (mapId) => {
       if (loadingMapId === mapId) {
         return `<div class="evcc-setup-room-editor">
-          <div class="evcc-setup-result info">Loading rooms…</div>
+          <div class="evcc-setup-result info">${this.t("setup.loading_rooms")}</div>
         </div>`;
       }
       if (openMapId !== mapId) return "";
 
       const roomRowsHtml = rooms.length === 0
-        ? `<div class="evcc-setup-step-body muted">No rooms found for this map.</div>`
+        ? `<div class="evcc-setup-step-body muted">${this.t("setup.no_rooms_for_map")}</div>`
         : rooms.map((room) => {
             const roomId    = String(room.room_id);
-            const roomName  = this.escapeHtml(room.name ?? `Room ${roomId}`);
+            const roomName  = this.escapeHtml(room.name ?? this.t("setup.room_n", { id: roomId }));
             const enabled   = enabledIdSet.has(roomId);
             const floorType = floorTypesMap[roomId] ?? "hardwood";
 
@@ -353,7 +348,7 @@ export function applySetupRenderers(proto) {
                   <button class="evcc-setup-room-toggle ${enabled ? "on" : "off"}"
                           data-action="setup-toggle-room"
                           data-room-id="${roomId}"
-                          title="${enabled ? "Click to exclude" : "Click to include"}"
+                          title="${enabled ? this.t("setup.click_to_exclude") : this.t("setup.click_to_include")}"
                           ${saving ? "disabled" : ""}>
                     ${enabled ? "✓" : "✕"}
                   </button>
@@ -367,8 +362,7 @@ export function applySetupRenderers(proto) {
       return `
         <div class="evcc-setup-room-editor">
           <div class="evcc-setup-room-editor-hint">
-            Deselect rooms you don't want managed (phantom rooms, closets, etc.).
-            Set each real room's floor type — it drives the cleaning profile system.
+            ${this.t("setup.room_editor_hint")}
           </div>
           <div class="evcc-setup-room-list">
             ${roomRowsHtml}
@@ -377,7 +371,7 @@ export function applySetupRenderers(proto) {
                   data-action="setup-save-rooms"
                   data-map-id="${mapId}"
                   ${saving ? "disabled" : ""}>
-            ${saving ? "Saving…" : "Save Room Configuration"}
+            ${saving ? this.t("setup.saving") : this.t("setup.save_room_config")}
           </button>
         </div>
       `;
@@ -385,7 +379,7 @@ export function applySetupRenderers(proto) {
 
     const renderDeletePanel = (mapId, protection) => {
       if (deletePendingMapId !== mapId) return "";
-      const targetName      = this.escapeHtml(protection?.typed_confirmation_value ?? `Map ${mapId}`);
+      const targetName      = this.escapeHtml(protection?.typed_confirmation_value ?? this.t("setup.map_n", { id: mapId }));
       const requiresTyped   = protection?.requires_typed_confirmation ?? false;
       const reasons         = protection?.reasons ?? [];
 
@@ -398,7 +392,7 @@ export function applySetupRenderers(proto) {
       const typingInputHtml = requiresTyped
         ? `<div class="evcc-setup-delete-typed">
              <div class="evcc-setup-delete-typed-hint">
-               Type <strong>${targetName}</strong> to confirm deletion.
+               ${this.tRaw("setup.delete_type_confirm", { name: targetName })}
              </div>
              <input class="evcc-setup-delete-input"
                     data-action="setup-delete-map-input"
@@ -418,9 +412,7 @@ export function applySetupRenderers(proto) {
         <div class="evcc-setup-delete-panel">
           ${reasonBadgesHtml}
           <div class="evcc-setup-delete-warning">
-            Delete <strong>${targetName}</strong>? This removes all rooms, history,
-            and learning data for this map from the integration.
-            The upstream cloud map is not affected.
+            ${this.tRaw("setup.delete_warning", { name: targetName })}
           </div>
           ${typingInputHtml}
           <div class="evcc-setup-delete-actions">
@@ -428,12 +420,12 @@ export function applySetupRenderers(proto) {
                     data-action="setup-delete-map-confirm"
                     data-map-id="${mapId}"
                     ${(!tokenMatchesOrNotRequired || deleteDeleting) ? "disabled" : ""}>
-              ${deleteDeleting ? "Deleting…" : "Delete Map"}
+              ${deleteDeleting ? this.t("setup.deleting") : this.t("setup.delete_map")}
             </button>
             <button class="evcc-setup-btn secondary small"
                     data-action="setup-delete-map-cancel"
                     ${deleteDeleting ? "disabled" : ""}>
-              Cancel
+              ${this.t("common.cancel")}
             </button>
           </div>
         </div>
@@ -442,7 +434,7 @@ export function applySetupRenderers(proto) {
 
     const renderMapRow = (m, showConfigureControls) => {
       const mapId         = String(m.map_id);
-      const mapLabel      = this.escapeHtml(m.display_name ?? `Map ${mapId}`);
+      const mapLabel      = this.escapeHtml(m.display_name ?? this.t("setup.map_n", { id: mapId }));
       const configured    = state.isSetupMapConfigured?.(mapId);
       const isOpen        = openMapId === mapId || loadingMapId === mapId;
       const protection    = m.protection ?? null;
@@ -450,7 +442,7 @@ export function applySetupRenderers(proto) {
       const isDeleteOpen  = deletePendingMapId === mapId;
 
       const badge = configured && !isOpen
-        ? `<span class="evcc-setup-configured-badge">✓ Configured</span>`
+        ? `<span class="evcc-setup-configured-badge">${this.t("setup.configured_badge")}</span>`
         : "";
 
       const configBtn = showConfigureControls ? `
@@ -458,7 +450,7 @@ export function applySetupRenderers(proto) {
                 data-action="setup-configure-map"
                 data-map-id="${mapId}"
                 ${(loading || saving || deleteDeleting) ? "disabled" : ""}>
-          ${isOpen ? "Close" : configured ? "Reconfigure" : "Configure Rooms"}
+          ${isOpen ? this.t("common.close") : configured ? this.t("setup.reconfigure") : this.t("setup.configure_rooms")}
         </button>
       ` : "";
 
@@ -468,7 +460,7 @@ export function applySetupRenderers(proto) {
                    data-map-id="${mapId}"
                    data-requires-typed="${requiresTyped}"
                    ${(loading || saving || deleteDeleting) ? "disabled" : ""}>
-             Delete
+             ${this.t("common.delete")}
            </button>`
         : "";
 
@@ -496,7 +488,7 @@ export function applySetupRenderers(proto) {
       const bodyRenderer = STEP_BODY_RENDERERS[step.id];
       const body = bodyRenderer
         ? bodyRenderer(step)
-        : `<div class="evcc-setup-step-body muted">No handler for step "${this.escapeHtml(step.id)}".</div>`;
+        : `<div class="evcc-setup-step-body muted">${this.t("setup.no_step_handler", { id: this.escapeHtml(step.id) })}</div>`;
 
       const badgeContents = step.completed ? "✓" : String(index + 1);
 
@@ -522,7 +514,7 @@ export function applySetupRenderers(proto) {
     const allInSync       = drift ? drift.in_sync !== false : true;
     const readyHtml = setupComplete && allInSync
       ? `<div class="evcc-setup-result success">
-           ✓ Setup complete — switch to the Rooms tab to start cleaning.
+           ${this.t("setup.ready_banner")}
          </div>`
       : "";
 
@@ -535,10 +527,9 @@ export function applySetupRenderers(proto) {
     const panelTitle = vacuumEntry?.panel_title ?? "";
     const renamePanelHtml = vacuumEntry ? `
       <div class="evcc-setup-rename">
-        <div class="evcc-setup-rename-title">Panel name</div>
+        <div class="evcc-setup-rename-title">${this.t("setup.panel_name_title")}</div>
         <div class="evcc-setup-step-body muted">
-          Rename this vacuum's entry in the Home Assistant sidebar. After saving,
-          refresh the page to see the new name. Leave blank to reset to the default.
+          ${this.t("setup.panel_name_hint")}
         </div>
         <div class="evcc-setup-rename-row">
           <input class="evcc-setup-rename-input"
@@ -553,7 +544,7 @@ export function applySetupRenderers(proto) {
           <button class="evcc-setup-btn small"
                   data-action="setup-rename-panel-save"
                   ${loading ? "disabled" : ""}>
-            Rename
+            ${this.t("setup.rename")}
           </button>
         </div>
       </div>
@@ -578,17 +569,15 @@ export function applySetupRenderers(proto) {
     }
     const mapCameraHtml = (vacuumEntry && mapCandidateIds.length) ? `
       <div class="evcc-setup-rename">
-        <div class="evcc-setup-rename-title">Live map camera</div>
+        <div class="evcc-setup-rename-title">${this.t("setup.live_map_camera_title")}</div>
         <div class="evcc-setup-step-body muted">
-          Use a live map image/camera entity as this vacuum's map backdrop — for
-          example the <code>camera.&lt;device&gt;_map</code> entity from the eufy-clean
-          fork. Choose "Auto" to use the adapter default.
+          ${this.tRaw("setup.live_map_camera_hint")}
         </div>
         <div class="evcc-setup-rename-row">
           <select class="evcc-setup-rename-input evcc-setup-map-camera-select"
                   data-action="setup-map-camera-select"
                   ${loading ? "disabled" : ""}>
-            <option value=""${liveMapCurrent ? "" : " selected"}>Auto (adapter default)</option>
+            <option value=""${liveMapCurrent ? "" : " selected"}>${this.t("setup.auto_adapter_default")}</option>
             ${mapCandidateIds.map((id) => {
               const friendly = card._hass.states[id]?.attributes?.friendly_name ?? id;
               const sel = id === liveMapCurrent ? " selected" : "";
@@ -626,7 +615,7 @@ export function applySetupRenderers(proto) {
                   data-action="setup-add-other-vacuum"
                   data-vacuum-id="${this.escapeHtml(id)}"
                   ${loading ? "disabled" : ""}>
-            Add
+            ${this.t("setup.add")}
           </button>
         </div>
       `;
@@ -634,10 +623,10 @@ export function applySetupRenderers(proto) {
 
     const addOtherHtml = `
       <div class="evcc-setup-add-other">
-        <div class="evcc-setup-add-other-title">Add another vacuum</div>
+        <div class="evcc-setup-add-other-title">${this.t("setup.add_another_vacuum")}</div>
         ${unmanagedIds.length === 0
-          ? `<div class="evcc-setup-step-body muted">All detected vacuums are already managed.</div>`
-          : `<div class="evcc-setup-step-body">These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).</div>
+          ? `<div class="evcc-setup-step-body muted">${this.t("setup.all_vacuums_managed")}</div>`
+          : `<div class="evcc-setup-step-body">${this.t("setup.unmanaged_vacuums_hint")}</div>
              <div class="evcc-setup-add-other-list">${addOtherRowsHtml}</div>`}
       </div>
     `;
@@ -650,7 +639,7 @@ export function applySetupRenderers(proto) {
         <button class="evcc-setup-btn secondary"
                 data-action="setup-refresh"
                 ${loading ? "disabled" : ""}>
-          ${status == null ? "Check Status" : "Refresh"}
+          ${status == null ? this.t("setup.check_status") : this.t("setup.refresh")}
         </button>
       </div>
     `;
@@ -658,11 +647,9 @@ export function applySetupRenderers(proto) {
     return `
       <div class="evcc-setup-view">
         <div class="evcc-setup-header">
-          <div class="evcc-setup-title">Vacuum Setup</div>
+          <div class="evcc-setup-title">${this.t("setup.title")}</div>
           <div class="evcc-setup-description">
-            Steps below are declared by your vacuum adapter. Each must complete
-            in order. New rooms discovered after setup will surface here for
-            review before they enter the room library.
+            ${this.t("setup.description")}
           </div>
         </div>
 
