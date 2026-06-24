@@ -36,7 +36,7 @@ export function applyRoomRulesRenderers(proto) {
     if (!rooms.length) {
       return `
         <div class="evcc-room-rules-view">
-          <div class="evcc-empty">No rooms yet — set up rooms first under Setup → Import Active Map (the highlighted button) → Configure Rooms, then add rules here.</div>
+          <div class="evcc-empty">${this.t("room_rules.empty")}</div>
         </div>
       `;
     }

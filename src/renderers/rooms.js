@@ -34,10 +34,7 @@ export function applyRoomsRenderers(proto) {
     if (rooms.length === 0) {
       return `
         <div class="evcc-rooms-view">
-          <div class="evcc-empty">
-            No rooms yet — open the Setup tab and run Import Active Map (the
-            highlighted button), then Configure Rooms to get started.
-          </div>
+          <div class="evcc-empty">${this.t("rooms.empty")}</div>
         </div>
       `;
     }

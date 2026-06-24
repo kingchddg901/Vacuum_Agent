@@ -12,6 +12,8 @@
  * ============================================================
  */
 
+import { translate } from "../i18n/index.js";
+
 /**
  * Mix shared renderer utility methods onto the given prototype.
  *
@@ -37,6 +39,33 @@ export function applySharedRenderers(proto) {
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#39;");
+  };
+
+  /**
+   * Translate a UI string key for the current user's language.
+   *
+   * The card's authored English lives in i18n/en.js; other locales fall back
+   * to English, then to the key itself (a visible miss, never a blank).
+   * Language is read live from `hass.locale.language` so it tracks the HA
+   * profile with no caching. Interpolation uses `{name}` placeholders:
+   * `this.t("rooms.n_selected", { count })`.
+   *
+   * NOTE: like the literal strings it replaces, the returned text is TRUSTED
+   * authored content. Interpolated *values* carrying user/cloud data (room
+   * names, etc.) must still pass through escapeHtml at the innerHTML sink —
+   * the XSS boundary is unchanged.
+   *
+   * @param {string} key - dot-namespaced string key (e.g. "rooms.empty").
+   * @param {Record<string, unknown>} [vars] - interpolation values.
+   * @returns {string} the resolved, interpolated string.
+   */
+  proto.t = function (key, vars) {
+    const hass = this._hass;
+    const lang =
+      (hass && hass.locale && hass.locale.language) ||
+      (hass && hass.language) ||
+      "en";
+    return translate(lang, key, vars);
   };
 
   /**
