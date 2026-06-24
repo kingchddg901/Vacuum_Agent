@@ -16,7 +16,8 @@
  *
  * Coverage: Phase 1 (Setup + Rooms) + Phase 2 (shell nav/header, view-router,
  * run profiles) + Map wave (live map + bounds review) + Maintenance-dock wave
- * (upkeep items + base station). Metrics, bindings, learning, theme follow next.
+ * (upkeep items + base station) + Room-rules wave. Metrics, learning, theme,
+ * bindings follow next.
  *
  * ============================================================
  */
@@ -516,7 +517,62 @@ export const en = {
   "room_estimate.water_ml": "~{ml} ml",
 
   // --- room_rules ---
+  "room_rules.add_rule": "Add Rule",
+  "room_rules.also_affects_many": "→ also affects {count} rooms",  // plural
+  "room_rules.also_affects_one": "→ also affects {count} room",  // plural
+  "room_rules.change_clean_intensity": "Clean Intensity",
+  "room_rules.change_clean_mode": "Clean Mode",
+  "room_rules.change_clean_passes": "Clean Passes",
+  "room_rules.change_edge_mopping": "Edge Mopping",
+  "room_rules.change_fan_speed": "Fan Speed",
+  "room_rules.change_water_level": "Water Level",
+  "room_rules.condition": "Condition",
+  "room_rules.disabled": "Disabled",
+  "room_rules.edit": "Edit",
+  "room_rules.editor_title_edit": "Edit Rule - {name}",
+  "room_rules.editor_title_new": "New Rule - {name}",
   "room_rules.empty": "No rooms yet — set up rooms first under Setup → Import Active Map (the highlighted button) → Configure Rooms, then add rules here.",
+  "room_rules.enabled": "Enabled",
+  "room_rules.entity_help_choose": "Choose a Home Assistant entity to drive this rule.",
+  "room_rules.entity_help_current": "Current: {state}",
+  "room_rules.entity_help_options_many": "{count} options",  // plural
+  "room_rules.entity_help_options_one": "{count} option",  // plural
+  "room_rules.entity_help_type": "Type: {category}",
+  "room_rules.entity_help_unavailable": "This entity is not currently available in Home Assistant.",
+  "room_rules.entity_help_unit": "Unit: {unit}",
+  "room_rules.entity_id": "Entity ID",
+  "room_rules.entity_search_empty": "No matching Home Assistant entities found.",
+  "room_rules.fan_out_help": "When this rule fires, also apply its settings to the rooms below. Each room's own rules still win for any fields they set; this fills in fields the room hasn't already overridden.",
+  "room_rules.fan_out_label": "Also apply to",
+  "room_rules.help_blocker": "Skip this room entirely when the condition is true.",
+  "room_rules.help_max": "Max: {max}",
+  "room_rules.help_min": "Min: {min}",
+  "room_rules.help_modifier": "Override this room's cleaning settings when the condition is true.",
+  "room_rules.kind_blocker": "Blocker",
+  "room_rules.kind_modifier": "Modifier",
+  "room_rules.label_field": "Label",
+  "room_rules.label_placeholder": "e.g. Skip when door is open",
+  "room_rules.no": "No",
+  "room_rules.no_rules_for_room": "No rules configured for {name}.",
+  "room_rules.off": "Off",
+  "room_rules.on": "On",
+  "room_rules.optional": "(optional)",
+  "room_rules.reason": "Reason",
+  "room_rules.reason_placeholder_blocker": "e.g. Door open",
+  "room_rules.reason_placeholder_modifier": "e.g. Reduce water near door",
+  "room_rules.rule_type": "Rule Type",
+  "room_rules.save_rule": "Save Rule",
+  "room_rules.select_a_value": "Select a value",
+  "room_rules.select_room_above": "Select a room above.",
+  "room_rules.setting_overrides": "Setting Overrides",
+  "room_rules.setting_overrides_help": "Select overrides to apply. \"-\" means keep the room's saved setting.",
+  "room_rules.unnamed_rule": "Unnamed rule",
+  "room_rules.value": "Value",
+  "room_rules.value_list_help": "Comma-separated list of values.",
+  "room_rules.value_multi_help": "Choose one or more allowed values from the entity itself.",
+  "room_rules.value_placeholder_list": "value1, value2, ...",
+  "room_rules.value_placeholder_text": "e.g. home, 25, true",
+  "room_rules.yes": "Yes",
 
   // --- rooms ---
   "rooms.access_not_set": "Access not set",

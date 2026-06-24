@@ -54,7 +54,7 @@ export function applyRoomRulesRenderers(proto) {
             ? (draft
                 ? this._renderRuleEditor(state, activeRoom, draft, draftMode, saveError)
                 : this._renderRuleList(state, activeRoom))
-            : `<div class="evcc-empty">Select a room above.</div>`}
+            : `<div class="evcc-empty">${this.t("room_rules.select_room_above")}</div>`}
         </div>
       </div>
     `;
@@ -99,14 +99,14 @@ export function applyRoomRulesRenderers(proto) {
       <div class="evcc-rule-list">
         ${rules.length
           ? rules.map((rule) => this._renderRuleCard(state, rule)).join("")
-          : `<div class="evcc-rule-list-empty">No rules configured for ${this.escapeHtml(room.name)}.</div>`}
+          : `<div class="evcc-rule-list-empty">${this.t("room_rules.no_rules_for_room", { name: this.escapeHtml(room.name) })}</div>`}
 
         <div class="evcc-rule-list-actions">
           <button
             type="button"
             class="evcc-chip evcc-chip--save"
             data-action="open-new-rule"
-          >+ Add Rule</button>
+          >+ ${this.t("room_rules.add_rule")}</button>
         </div>
       </div>
     `;
@@ -115,14 +115,14 @@ export function applyRoomRulesRenderers(proto) {
   proto._renderRuleCard = function (state, rule) {
     const condition = state.ruleConditionSummary?.(rule) ?? "";
     const effect = state.ruleEffectSummary?.(rule) ?? "";
-    const label = rule.label || rule.entity_id || "Unnamed rule";
+    const label = rule.label || rule.entity_id || this.t("room_rules.unnamed_rule");
     const isBlocker = rule.kind === "blocker";
 
     return `
       <div class="evcc-rule-card ${!rule.enabled ? "evcc-rule-card--disabled" : ""}">
         <div class="evcc-rule-card-body">
           <span class="evcc-rule-kind-badge evcc-rule-kind-badge--${isBlocker ? "blocker" : "modifier"}">
-            ${isBlocker ? "Blocker" : "Modifier"}
+            ${isBlocker ? this.t("room_rules.kind_blocker") : this.t("room_rules.kind_modifier")}
           </span>
 
           <div class="evcc-rule-info">
@@ -134,13 +134,15 @@ export function applyRoomRulesRenderers(proto) {
               const fanOutCount = Array.isArray(rule.fan_out_room_ids)
                 ? rule.fan_out_room_ids.length
                 : 0;
-              return fanOutCount > 0
-                ? `<div class="evcc-rule-fan-out">→ also affects ${fanOutCount} room${fanOutCount === 1 ? "" : "s"}</div>`
-                : "";
+              if (fanOutCount <= 0) return "";
+              const fanOutText = fanOutCount === 1
+                ? this.t("room_rules.also_affects_one", { count: fanOutCount })
+                : this.t("room_rules.also_affects_many", { count: fanOutCount });
+              return `<div class="evcc-rule-fan-out">${fanOutText}</div>`;
             })()}
           </div>
 
-          ${!rule.enabled ? `<span class="evcc-rule-disabled-tag">Disabled</span>` : ""}
+          ${!rule.enabled ? `<span class="evcc-rule-disabled-tag">${this.t("room_rules.disabled")}</span>` : ""}
         </div>
 
         <div class="evcc-rule-card-actions">
@@ -149,13 +151,13 @@ export function applyRoomRulesRenderers(proto) {
             class="evcc-chip"
             data-action="edit-rule"
             data-rule-id="${this.escapeHtml(String(rule.id ?? ""))}"
-          >Edit</button>
+          >${this.t("room_rules.edit")}</button>
           <button
             type="button"
             class="evcc-chip evcc-chip--danger"
             data-action="delete-rule"
             data-rule-id="${this.escapeHtml(String(rule.id ?? ""))}"
-          >Delete</button>
+          >${this.t("common.delete")}</button>
         </div>
       </div>
     `;
@@ -178,48 +180,50 @@ export function applyRoomRulesRenderers(proto) {
       <div class="evcc-rule-editor">
         <div class="evcc-rule-editor-header">
           <div class="evcc-rule-editor-title">
-            ${isNew ? "New Rule" : "Edit Rule"} - ${this.escapeHtml(room.name)}
+            ${isNew
+              ? this.t("room_rules.editor_title_new", { name: this.escapeHtml(room.name) })
+              : this.t("room_rules.editor_title_edit", { name: this.escapeHtml(room.name) })}
           </div>
         </div>
 
         <div class="evcc-rule-editor-body">
           <div class="evcc-rule-editor-section">
-            <div class="evcc-field-label">Rule Type</div>
+            <div class="evcc-field-label">${this.t("room_rules.rule_type")}</div>
             <div class="evcc-chips">
               <button
                 type="button"
                 class="evcc-chip ${draft.kind === "blocker" ? "active" : ""}"
                 data-rule-field="kind"
                 data-rule-value="blocker"
-              >Blocker</button>
+              >${this.t("room_rules.kind_blocker")}</button>
               <button
                 type="button"
                 class="evcc-chip ${draft.kind === "modifier" ? "active" : ""}"
                 data-rule-field="kind"
                 data-rule-value="modifier"
-              >Modifier</button>
+              >${this.t("room_rules.kind_modifier")}</button>
             </div>
             <div class="evcc-rule-editor-help">
               ${draft.kind === "blocker"
-                ? "Skip this room entirely when the condition is true."
-                : "Override this room's cleaning settings when the condition is true."}
+                ? this.t("room_rules.help_blocker")
+                : this.t("room_rules.help_modifier")}
             </div>
           </div>
 
           <div class="evcc-rule-editor-section">
-            <label class="evcc-field-label" for="rule-label">Label <span class="evcc-rule-editor-optional">(optional)</span></label>
+            <label class="evcc-field-label" for="rule-label">${this.t("room_rules.label_field")} <span class="evcc-rule-editor-optional">${this.t("room_rules.optional")}</span></label>
             <input
               id="rule-label"
               type="text"
               class="evcc-rule-editor-input"
-              placeholder="e.g. Skip when door is open"
+              placeholder="${this.t("room_rules.label_placeholder")}"
               value="${this.escapeHtml(draft.label ?? "")}"
               data-rule-input="label"
             />
           </div>
 
           <div class="evcc-rule-editor-section">
-            <label class="evcc-field-label" for="rule-entity">Entity ID</label>
+            <label class="evcc-field-label" for="rule-entity">${this.t("room_rules.entity_id")}</label>
             <input
               id="rule-entity"
               type="text"
@@ -233,7 +237,7 @@ export function applyRoomRulesRenderers(proto) {
           </div>
 
           <div class="evcc-rule-editor-section">
-            <div class="evcc-field-label">Condition</div>
+            <div class="evcc-field-label">${this.t("room_rules.condition")}</div>
             ${operatorGroups.map((group) => `
               <div class="evcc-rule-operator-group">
                 <div class="evcc-rule-operator-group-label">${this.escapeHtml(group.label)}</div>
@@ -254,32 +258,32 @@ export function applyRoomRulesRenderers(proto) {
           ${!hideValue ? this._renderRuleValueField(state, draft, descriptor) : ""}
 
           <div class="evcc-rule-editor-section">
-            <div class="evcc-field-label">Enabled</div>
+            <div class="evcc-field-label">${this.t("room_rules.enabled")}</div>
             <div class="evcc-chips">
               <button
                 type="button"
                 class="evcc-chip ${draft.enabled ? "active" : ""}"
                 data-rule-field="enabled"
                 data-rule-value="true"
-              >Yes</button>
+              >${this.t("room_rules.yes")}</button>
               <button
                 type="button"
                 class="evcc-chip ${!draft.enabled ? "active" : ""}"
                 data-rule-field="enabled"
                 data-rule-value="false"
-              >No</button>
+              >${this.t("room_rules.no")}</button>
             </div>
           </div>
 
           <div class="evcc-rule-editor-section">
             <label class="evcc-field-label" for="rule-reason">
-              Reason <span class="evcc-rule-editor-optional">(optional)</span>
+              ${this.t("room_rules.reason")} <span class="evcc-rule-editor-optional">${this.t("room_rules.optional")}</span>
             </label>
             <input
               id="rule-reason"
               type="text"
               class="evcc-rule-editor-input"
-              placeholder="${isModifier ? "e.g. Reduce water near door" : "e.g. Door open"}"
+              placeholder="${isModifier ? this.t("room_rules.reason_placeholder_modifier") : this.t("room_rules.reason_placeholder_blocker")}"
               value="${this.escapeHtml(draft.effect?.reason ?? "")}"
               data-rule-input="effect.reason"
             />
@@ -297,13 +301,13 @@ export function applyRoomRulesRenderers(proto) {
             type="button"
             class="evcc-chip"
             data-action="cancel-rule-editor"
-          >Cancel</button>
+          >${this.t("common.cancel")}</button>
           <button
             type="button"
             class="evcc-chip evcc-chip--save"
             data-action="save-rule"
             ${isValid ? "" : "disabled"}
-          >${isNew ? "Add Rule" : "Save Rule"}</button>
+          >${isNew ? this.t("room_rules.add_rule") : this.t("room_rules.save_rule")}</button>
         </div>
       </div>
     `;
@@ -311,28 +315,31 @@ export function applyRoomRulesRenderers(proto) {
 
   proto._renderRuleEntityHelp = function (descriptor) {
     if (!descriptor?.entityId) {
-      return `<div class="evcc-rule-editor-help">Choose a Home Assistant entity to drive this rule.</div>`;
+      return `<div class="evcc-rule-editor-help">${this.t("room_rules.entity_help_choose")}</div>`;
     }
 
     if (!descriptor.entityExists) {
-      return `<div class="evcc-rule-editor-help">This entity is not currently available in Home Assistant.</div>`;
+      return `<div class="evcc-rule-editor-help">${this.t("room_rules.entity_help_unavailable")}</div>`;
     }
 
     const bits = [
       `${this.escapeHtml(descriptor.entityLabel)}`,
-      `Type: ${this.escapeHtml(descriptor.category)}`,
+      this.t("room_rules.entity_help_type", { category: this.escapeHtml(descriptor.category) }),
     ];
 
     if (descriptor.currentState != null) {
-      bits.push(`Current: ${this.escapeHtml(String(descriptor.currentState))}`);
+      bits.push(this.t("room_rules.entity_help_current", { state: this.escapeHtml(String(descriptor.currentState)) }));
     }
 
     if (descriptor.unit) {
-      bits.push(`Unit: ${this.escapeHtml(String(descriptor.unit))}`);
+      bits.push(this.t("room_rules.entity_help_unit", { unit: this.escapeHtml(String(descriptor.unit)) }));
     }
 
     if (descriptor.category === "enum" && descriptor.options?.length) {
-      bits.push(`${descriptor.options.length} option${descriptor.options.length === 1 ? "" : "s"}`);
+      const optCount = descriptor.options.length;
+      bits.push(optCount === 1
+        ? this.t("room_rules.entity_help_options_one", { count: optCount })
+        : this.t("room_rules.entity_help_options_many", { count: optCount }));
     }
 
     return `<div class="evcc-rule-editor-help">${bits.join(" • ")}</div>`;
@@ -343,7 +350,7 @@ export function applyRoomRulesRenderers(proto) {
     if (query.length < 2) return "";
 
     if (!results.length) {
-      return `<div class="evcc-rule-entity-search-empty">No matching Home Assistant entities found.</div>`;
+      return `<div class="evcc-rule-entity-search-empty">${this.t("room_rules.entity_search_empty")}</div>`;
     }
 
     return `
@@ -372,13 +379,13 @@ export function applyRoomRulesRenderers(proto) {
     if (valueMode === "single-select" && descriptor?.options?.length) {
       return `
         <div class="evcc-rule-editor-section">
-          <label class="evcc-field-label" for="rule-value-select">Value</label>
+          <label class="evcc-field-label" for="rule-value-select">${this.t("room_rules.value")}</label>
           <select
             id="rule-value-select"
             class="evcc-rule-editor-input"
             data-rule-select="value"
           >
-            <option value="">Select a value</option>
+            <option value="">${this.t("room_rules.select_a_value")}</option>
             ${descriptor.options.map((option) => `
               <option
                 value="${this.escapeHtml(String(option.value))}"
@@ -394,7 +401,7 @@ export function applyRoomRulesRenderers(proto) {
       const selectedValues = Array.isArray(value) ? value.map(String) : [];
       return `
         <div class="evcc-rule-editor-section">
-          <div class="evcc-field-label">Value</div>
+          <div class="evcc-field-label">${this.t("room_rules.value")}</div>
           <div class="evcc-chips">
             ${descriptor.options.map((option) => `
               <button
@@ -404,7 +411,7 @@ export function applyRoomRulesRenderers(proto) {
               >${this.escapeHtml(option.label)}</button>
             `).join("")}
           </div>
-          <div class="evcc-rule-editor-help">Choose one or more allowed values from the entity itself.</div>
+          <div class="evcc-rule-editor-help">${this.t("room_rules.value_multi_help")}</div>
         </div>
       `;
     }
@@ -412,7 +419,7 @@ export function applyRoomRulesRenderers(proto) {
     if (valueMode === "number") {
       return `
         <div class="evcc-rule-editor-section">
-          <label class="evcc-field-label" for="rule-value-number">Value</label>
+          <label class="evcc-field-label" for="rule-value-number">${this.t("room_rules.value")}</label>
           <input
             id="rule-value-number"
             type="number"
@@ -425,9 +432,9 @@ export function applyRoomRulesRenderers(proto) {
           />
           ${(descriptor?.unit || descriptor?.min != null || descriptor?.max != null)
             ? `<div class="evcc-rule-editor-help">${[
-                descriptor?.unit ? `Unit: ${this.escapeHtml(String(descriptor.unit))}` : null,
-                descriptor?.min != null ? `Min: ${descriptor.min}` : null,
-                descriptor?.max != null ? `Max: ${descriptor.max}` : null,
+                descriptor?.unit ? this.t("room_rules.entity_help_unit", { unit: this.escapeHtml(String(descriptor.unit)) }) : null,
+                descriptor?.min != null ? this.t("room_rules.help_min", { min: descriptor.min }) : null,
+                descriptor?.max != null ? this.t("room_rules.help_max", { max: descriptor.max }) : null,
               ].filter(Boolean).join(" • ")}</div>`
             : ""}
         </div>
@@ -436,17 +443,17 @@ export function applyRoomRulesRenderers(proto) {
 
     return `
       <div class="evcc-rule-editor-section">
-        <label class="evcc-field-label" for="rule-value">Value</label>
+        <label class="evcc-field-label" for="rule-value">${this.t("room_rules.value")}</label>
         <input
           id="rule-value"
           type="text"
           class="evcc-rule-editor-input"
-          placeholder="${draft.operator === "in" || draft.operator === "not_in" ? "value1, value2, ..." : "e.g. home, 25, true"}"
+          placeholder="${draft.operator === "in" || draft.operator === "not_in" ? this.t("room_rules.value_placeholder_list") : this.t("room_rules.value_placeholder_text")}"
           value="${this.escapeHtml(Array.isArray(value) ? value.join(", ") : String(value ?? ""))}"
           data-rule-input="value"
         />
         ${draft.operator === "in" || draft.operator === "not_in"
-          ? `<div class="evcc-rule-editor-help">Comma-separated list of values.</div>`
+          ? `<div class="evcc-rule-editor-help">${this.t("room_rules.value_list_help")}</div>`
           : ""}
       </div>
     `;
@@ -478,11 +485,9 @@ export function applyRoomRulesRenderers(proto) {
 
     return `
       <div class="evcc-rule-editor-section">
-        <div class="evcc-field-label">Also apply to</div>
+        <div class="evcc-field-label">${this.t("room_rules.fan_out_label")}</div>
         <div class="evcc-rule-editor-help">
-          When this rule fires, also apply its settings to the rooms below.
-          Each room's own rules still win for any fields they set; this
-          fills in fields the room hasn't already overridden.
+          ${this.t("room_rules.fan_out_help")}
         </div>
         <div class="evcc-chips">
           ${candidates.map((room) => `
@@ -539,18 +544,18 @@ export function applyRoomRulesRenderers(proto) {
 
     return `
       <div class="evcc-rule-editor-section">
-        <div class="evcc-field-label">Setting Overrides</div>
+        <div class="evcc-field-label">${this.t("room_rules.setting_overrides")}</div>
         <div class="evcc-rule-editor-help">
-          Select overrides to apply. "-" means keep the room's saved setting.
+          ${this.t("room_rules.setting_overrides_help")}
         </div>
 
-        ${chipRow("Clean Mode", "clean_mode", cleanModeOptions)}
-        ${chipRow("Fan Speed", "fan_speed", fanSpeedOptions)}
-        ${chipRow("Water Level", "water_level", waterLevelOptions)}
-        ${chipRow("Clean Intensity", "clean_intensity", cleanIntensityOptions)}
+        ${chipRow(this.t("room_rules.change_clean_mode"), "clean_mode", cleanModeOptions)}
+        ${chipRow(this.t("room_rules.change_fan_speed"), "fan_speed", fanSpeedOptions)}
+        ${chipRow(this.t("room_rules.change_water_level"), "water_level", waterLevelOptions)}
+        ${chipRow(this.t("room_rules.change_clean_intensity"), "clean_intensity", cleanIntensityOptions)}
 
         <div class="evcc-rule-change-row">
-          <div class="evcc-rule-change-label">Clean Passes</div>
+          <div class="evcc-rule-change-label">${this.t("room_rules.change_clean_passes")}</div>
           <div class="evcc-chips">
             <button
               type="button"
@@ -570,7 +575,7 @@ export function applyRoomRulesRenderers(proto) {
         </div>
 
         <div class="evcc-rule-change-row">
-          <div class="evcc-rule-change-label">Edge Mopping</div>
+          <div class="evcc-rule-change-label">${this.t("room_rules.change_edge_mopping")}</div>
           <div class="evcc-chips">
             <button
               type="button"
@@ -583,13 +588,13 @@ export function applyRoomRulesRenderers(proto) {
               class="evcc-chip ${changes.edge_mopping === true ? "active" : ""}"
               data-rule-field="effect.changes.edge_mopping"
               data-rule-value="true"
-            >On</button>
+            >${this.t("room_rules.on")}</button>
             <button
               type="button"
               class="evcc-chip ${changes.edge_mopping === false ? "active" : ""}"
               data-rule-field="effect.changes.edge_mopping"
               data-rule-value="false"
-            >Off</button>
+            >${this.t("room_rules.off")}</button>
           </div>
         </div>
       </div>
