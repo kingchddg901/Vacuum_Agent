@@ -35,7 +35,8 @@ export function applyRoomsRenderers(proto) {
       return `
         <div class="evcc-rooms-view">
           <div class="evcc-empty">
-            No rooms found. Run the discover rooms service to get started.
+            No rooms yet — open the Setup tab and run Import Active Map (the
+            highlighted button), then Configure Rooms to get started.
           </div>
         </div>
       `;

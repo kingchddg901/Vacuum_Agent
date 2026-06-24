@@ -820,7 +820,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(x)}/samples.jsonl</pre>
     `},n._getSortedLearningReviewJobs=function(e,t){let r=Array.isArray(t)?[...t]:[],a=e.learningHistorySort?.()??"newest";return a==="outlier"?r.sort((i,c)=>Number(c?.outlier_score??0)-Number(i?.outlier_score??0)):a==="suggested"?r.filter(i=>i?.exclude_suggested===!0).sort((i,c)=>Number(c?.outlier_score??0)-Number(i?.outlier_score??0)):a==="excluded"?r.filter(i=>i?.excluded_from_learning===!0).sort((i,c)=>new Date(c?.started_at??0).getTime()-new Date(i?.started_at??0).getTime()):r.sort((i,c)=>new Date(c?.started_at??0).getTime()-new Date(i?.started_at??0).getTime())},n._formatReviewTimestamp=function(e){return this.formatTimestamp(e,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"},"")},n._formatReviewLabel=function(e){return String(e??"").replace(/[_-]+/g," ").replace(/\b\w/g,t=>t.toUpperCase())}}function Xa(n){n.renderRoomsView=function(e){let{state:t}=e,r=t.getRoomsForActiveMap(),a=this._withCurrentRoomPinned(r,t),i=t.canStartCleaning(),c=t.startBlockedReason(),s=t.hasStartWarning(),o=t.enabledRoomCount(),l=t.activeJobRooms();return r.length===0?`
         <div class="evcc-rooms-view">
           <div class="evcc-empty">
-            No rooms found. Run the discover rooms service to get started.
+            No rooms yet \u2014 open the Setup tab and run Import Active Map (the
+            highlighted button), then Configure Rooms to get started.
           </div>
         </div>
       `:`
@@ -2241,7 +2242,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(x)}/samples.jsonl</pre>
       </div>
     `}}var Fc=new Set(["is_on","is_off","exists","missing"]);function ii(n){n.renderRoomRulesView=function(e){let{state:t}=e,r=t.getRoomsForActiveMap?.()??[];if(!r.length)return`
         <div class="evcc-room-rules-view">
-          <div class="evcc-empty">No rooms found. Run the discover rooms service to get started.</div>
+          <div class="evcc-empty">No rooms yet \u2014 set up rooms first under Setup \u2192 Import Active Map (the highlighted button) \u2192 Configure Rooms, then add rules here.</div>
         </div>
       `;let a=t.resolvedRoomRulesRoom?.(),i=t.roomRulesDraft?.(),c=t.roomRulesDraftMode?.(),s=t.roomRulesSaveError?.();return`
       <div class="evcc-room-rules-view">
