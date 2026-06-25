@@ -544,12 +544,9 @@ async def test_lifecycle_recharge_suppresses_finalize_until_binary_clears(hass):
         await hass.async_block_till_done()
         assert finished == []                                # recharge -> NOT finalized
         m.finalize_learning_for_active_job.assert_not_awaited()
-        # device resumes then truly finishes: binary clears, task transitions back to
-        # the completion value -> the SAME signals now finalize (guard no longer fires)
+        # device truly finishes: binary clears while task is still at the completion
+        # value, so the same watched signal set now finalizes (guard no longer fires).
         hass.states.async_set("binary_sensor.alfred_cleaning", "off")
-        hass.states.async_set("sensor.alfred_task", "cleaning")
-        await hass.async_block_till_done()
-        hass.states.async_set("sensor.alfred_task", "charging")
         await hass.async_block_till_done()
         assert len(finished) == 1
         m.finalize_learning_for_active_job.assert_awaited()
