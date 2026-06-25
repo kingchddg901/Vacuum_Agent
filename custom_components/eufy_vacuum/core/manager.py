@@ -3191,6 +3191,12 @@ class EufyVacuumManager:
                 threshold = self._timing_completion_threshold_minutes(current_room_entry)
                 if current_room_elapsed_minutes >= threshold:
                     awaiting_bounds_exit = True
+        _adapter_capabilities = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        if (
+            isinstance(_adapter_capabilities, dict)
+            and _adapter_capabilities.get("honors_clean_order") is False
+        ):
+            awaiting_bounds_exit = False
 
         # ------------------------------------------------------------------
         # Run anomalies: stall (hard) + running_long (soft) + skipped

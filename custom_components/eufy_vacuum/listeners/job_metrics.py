@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from typing import Any
 
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.event import async_track_state_change_event
@@ -27,6 +28,19 @@ from ..core.manager import EufyVacuumManager
 _LOGGER = logging.getLogger(__name__)
 
 _JOB_METRICS_UNSUBS = "_job_metrics_unsubs"
+
+
+def _duration_state_to_seconds(raw: Any, unit: Any) -> int:
+    """Convert a Home Assistant duration state to seconds."""
+    value = float(raw)
+    normalized_unit = str(unit or "").strip().lower()
+    if normalized_unit in {"ms", "millisecond", "milliseconds"}:
+        return int(round(value / 1000.0))
+    if normalized_unit in {"min", "mins", "minute", "minutes"}:
+        return int(round(value * 60.0))
+    if normalized_unit in {"h", "hr", "hrs", "hour", "hours"}:
+        return int(round(value * 3600.0))
+    return int(round(value))
 
 
 def remove(hass: HomeAssistant) -> None:
@@ -71,7 +85,11 @@ def register(hass: HomeAssistant) -> None:
         # entity on any adapter that doesn't expose it.
         ct_entity = entities.get("cleaning_time")
         if ct_entity:
-            watch_map[ct_entity] = (vacuum_entity_id, "last_cleaning_time_seconds", "int")
+            watch_map[ct_entity] = (
+                vacuum_entity_id,
+                "last_cleaning_time_seconds",
+                "duration_seconds",
+            )
 
         ca_entity = entities.get("cleaning_area")
         if ca_entity:
@@ -118,7 +136,15 @@ def register(hass: HomeAssistant) -> None:
             return
 
         try:
-            value = int(float(raw)) if value_type == "int" else float(raw)
+            if value_type == "duration_seconds":
+                value = _duration_state_to_seconds(
+                    raw,
+                    getattr(new_state_obj, "attributes", {}).get("unit_of_measurement"),
+                )
+            elif value_type == "int":
+                value = int(float(raw))
+            else:
+                value = float(raw)
         except (TypeError, ValueError):
             return
 

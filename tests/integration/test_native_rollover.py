@@ -22,6 +22,8 @@ Coverage targets
         robot's dock room is not phantom-completed when it leaves to clean phase 0.
 [NR-11] regression: a grouped (no-phases) job STILL rolls through the caller — the
         sequenced guard didn't break the grouped path.
+[NR-12] non-unique native room signal -> pointer updates without auto-completing
+        the previous room.
 """
 
 from __future__ import annotations
@@ -52,13 +54,16 @@ def tracker(manager) -> ActiveJobTracker:
     return ActiveJobTracker(manager)
 
 
-def _register(native: bool = True):
+def _register(native: bool = True, *, rooms_unique: bool | None = None):
     clear_registry()
-    register_adapter_config(_VAC, {
+    config = {
         "adapter_id": "rb", "source": "code",
         "entities": {"active_cleaning_target": _SIGNAL},
         "live_transition": {"enabled": True, "native_transition_source": native},
-    })
+    }
+    if rooms_unique is not None:
+        config["capabilities"] = {"rooms_unique_per_job": rooms_unique}
+    register_adapter_config(_VAC, config)
 
 
 def _seed(manager, *, current, completed=None, native_confirmed=None):
@@ -154,6 +159,17 @@ async def test_already_completed_target_ignored(tracker, manager):
     result = await _roll(tracker, manager, job, "KITCHEN")  # 16, already done
     assert result["current_room_id"] == 17
     assert result["completed_room_ids"] == [16]
+
+
+async def test_non_unique_signal_updates_pointer_without_completion(tracker, manager):
+    """[NR-12] Roborock's live current-room signal can revisit targets during an
+    optimized route, so pointer changes are not completion proof."""
+    _register(rooms_unique=False)
+    job = _seed(manager, current=16, native_confirmed=16)
+    result = await _roll(tracker, manager, job, "Heidi & Chris")  # jump to 20
+    assert result["completed_room_ids"] == []
+    assert result["current_room_id"] == 20
+    assert result["_native_current_room_id"] == 20
 
 
 async def test_sequenced_job_suppresses_native_rollover(tracker, manager):

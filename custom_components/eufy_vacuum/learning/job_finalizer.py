@@ -46,6 +46,23 @@ def _parse_iso_to_utc(value: Any) -> datetime | None:
         return None
 
 
+def _duration_state_to_seconds(raw: Any, unit: Any, default: int | None = None) -> int | None:
+    """Convert a Home Assistant duration state to seconds."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return default
+
+    normalized_unit = str(unit or "").strip().lower()
+    if normalized_unit in {"ms", "millisecond", "milliseconds"}:
+        return int(round(value / 1000.0))
+    if normalized_unit in {"min", "mins", "minute", "minutes"}:
+        return int(round(value * 60.0))
+    if normalized_unit in {"h", "hr", "hrs", "hour", "hours"}:
+        return int(round(value * 3600.0))
+    return int(round(value))
+
+
 def _compute_total_error_seconds(
     error_latch: dict[str, Any] | None,
     *,
@@ -469,7 +486,11 @@ class LearningJobFinalizer:
                     if _ct_entity:
                         ct_state = manager.hass.states.get(_ct_entity)
                         if ct_state and ct_state.state not in ("unavailable", "unknown"):
-                            cleaning_time_seconds = _safe_int(ct_state.state, None)
+                            cleaning_time_seconds = _duration_state_to_seconds(
+                                ct_state.state,
+                                ct_state.attributes.get("unit_of_measurement"),
+                                None,
+                            )
                 if cleaning_area_m2 is None:
                     _ca_entity = _adapter_entities.get("cleaning_area")
                     if _ca_entity:
