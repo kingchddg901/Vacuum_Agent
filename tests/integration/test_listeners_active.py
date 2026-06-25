@@ -79,6 +79,9 @@ def _mgr(hass):
     # Atomic jobs never advance a phase — the completion hook awaits this and
     # finalizes when it returns False.
     m.maybe_advance_phase = AsyncMock(return_value=False)
+    # Lifecycle probes external/app-started runs before internal job finalization.
+    # Most tests in this file exercise internal jobs, so keep that branch inert.
+    m.maybe_handle_external_run = AsyncMock(return_value=False)
     hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = m
     return m
 
