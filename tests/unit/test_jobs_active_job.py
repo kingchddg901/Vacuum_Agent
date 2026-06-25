@@ -34,6 +34,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.eufy_vacuum.adapters.registry import clear_registry, register_adapter_config
 from custom_components.eufy_vacuum.jobs.active_job import (
     ActiveJobTracker,
     _normalize_path_block_action,
@@ -236,6 +237,48 @@ def test_timing_threshold_low_confidence_few_samples(tracker):
     room = {"minutes": 10.0, "confidence_score": 0.3, "sample_count": 1}
     # overrun 0.22 → slack max(0.75, 2.2)=2.2; sample<=1 +1.0 → 3.2; cap 4.0
     assert tracker._timing_completion_threshold_minutes(room) == pytest.approx(13.2)
+
+
+# ---------------------------------------------------------------------------
+# detect_run_anomalies
+# ---------------------------------------------------------------------------
+
+def test_detect_run_anomalies_disabled_for_path_optimized_order():
+    """A path-optimizing adapter can jump ahead of queue order without implying
+    skipped rooms or a stall in the current room."""
+    clear_registry()
+    register_adapter_config("vacuum.alfred", {
+        "adapter_id": "roborock",
+        "source": "test",
+        "capabilities": {"honors_clean_order": False},
+    })
+    manager = MagicMock()
+    manager.data = {"active_jobs": {}}
+    tracker = ActiveJobTracker(manager)
+    active_job = {
+        "status": "started",
+        "queue_room_ids": [1, 2],
+        "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}, {"room_id": 2, "name": "Hall"}],
+    }
+
+    result = tracker.detect_run_anomalies(
+        vacuum_entity_id="vacuum.alfred",
+        map_id="6",
+        active_job=active_job,
+        raw_timeline=[
+            {"room_id": 1, "minutes": 1.0, "confidence_score": 0.9, "sample_count": 3},
+            {"room_id": 2, "minutes": 1.0, "confidence_score": 0.9, "sample_count": 3},
+        ],
+        current_room_id=2,
+        current_room_elapsed_minutes=10.0,
+        completed_room_ids=[],
+        awaiting_bounds_exit=True,
+    )
+
+    assert result["stall_detected"] is False
+    assert result["running_long"] is False
+    assert result["skipped_room_ids"] == []
+    manager.hass.bus.async_fire.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

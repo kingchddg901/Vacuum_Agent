@@ -657,7 +657,13 @@ class ActiveJobTracker:
         passed-in computed locals — it does NOT recompute the timeline or rollover; the
         composer hands in awaiting_bounds_exit / current_room_id / elapsed already resolved.
         Returns the anomaly fields for the snapshot dict."""
-        _anomaly_cfg = (_get_adapter_config(vacuum_entity_id) or {}).get("anomaly", {})
+        _adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+        _anomaly_cfg = _adapter_cfg.get("anomaly", {})
+        _capabilities = _adapter_cfg.get("capabilities", {})
+        _honors_clean_order = not (
+            isinstance(_capabilities, dict)
+            and _capabilities.get("honors_clean_order") is False
+        )
         _STALL_RATIO = _safe_float(_anomaly_cfg.get("stall_ratio"), 2.0)
         _RUNNING_LONG_RATIO = _safe_float(_anomaly_cfg.get("running_long_ratio"), 1.5)
         stall_detected = False
@@ -665,7 +671,7 @@ class ActiveJobTracker:
         stall_expected_minutes: float | None = None
         stall_ratio: float | None = None
 
-        if awaiting_bounds_exit and current_room_id is not None:
+        if _honors_clean_order and awaiting_bounds_exit and current_room_id is not None:
             _stall_entry = next(
                 (
                     r for r in raw_timeline
@@ -714,7 +720,12 @@ class ActiveJobTracker:
         running_long = False
         running_long_ratio: float | None = None
         running_long_room_id: int | None = None
-        if (not stall_detected) and current_room_id is not None and active_job.get("status") == "started":
+        if (
+            _honors_clean_order
+            and (not stall_detected)
+            and current_room_id is not None
+            and active_job.get("status") == "started"
+        ):
             _rl_entry = next(
                 (r for r in raw_timeline if _safe_int(r.get("room_id", -1), -1) == current_room_id),
                 None,
@@ -738,7 +749,7 @@ class ActiveJobTracker:
         # skipped (conservative): a queued room the live tracking has provably advanced
         # PAST (strictly before the current room in queue order) that is not completed.
         skipped_room_ids: list[int] = []
-        if current_room_id is not None:
+        if _honors_clean_order and current_room_id is not None:
             _queue_order = [_safe_int(r.get("room_id", -1), -1) for r in raw_timeline]
             if current_room_id in _queue_order:
                 _cur_idx = _queue_order.index(current_room_id)
@@ -1117,11 +1128,19 @@ class ActiveJobTracker:
             ~30s-polled signal never double-advances).
 
         Transit rooms (names not among the job targets) resolve to None -> ignored.
-        Assumes rooms_unique_per_job (no revisits) — true for the brands that opt in.
+        When ``capabilities.rooms_unique_per_job`` is false, the native signal is
+        treated as a live pointer only: pointer changes update the current room, but
+        they do not mark the previous room complete or reject already-seen targets.
         """
         signal_room_id = self._resolve_native_target_room_id(vacuum_entity_id, active_job)
         if signal_room_id is None:
             return active_job  # transit / dock / sentinel / unmatched -> ignore
+
+        _adapter_capabilities = (_get_adapter_config(vacuum_entity_id) or {}).get("capabilities", {})
+        rooms_unique_per_job = not (
+            isinstance(_adapter_capabilities, dict)
+            and _adapter_capabilities.get("rooms_unique_per_job") is False
+        )
 
         confirmed = _safe_int(active_job.get("_native_current_room_id", -1), -1)
         if signal_room_id == confirmed:
@@ -1130,7 +1149,7 @@ class ActiveJobTracker:
         completed_ids = {
             _safe_int(rid, -1) for rid in active_job.get("completed_room_ids", [])
         }
-        if signal_room_id in completed_ids:
+        if rooms_unique_per_job and signal_room_id in completed_ids:
             return active_job  # already finished (rooms_unique_per_job) -> ignore
 
         if confirmed < 0:
@@ -1161,7 +1180,7 @@ class ActiveJobTracker:
             map_id=map_id,
             active_job=active_job,
             new_room_id=signal_room_id,
-            complete_room_id=confirmed,
+            complete_room_id=confirmed if rooms_unique_per_job else None,
             elapsed_minutes=current_room_elapsed_minutes,
         )
 

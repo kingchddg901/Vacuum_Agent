@@ -11,9 +11,9 @@ Flow:
      with live-resolved ids; the queue-first room's fan is pushed live (per-room
      fan via vacuum.set_fan_speed — passes is global, mop is unsettable).
   2. run starts -> lifecycle marks has_observed_active_lifecycle.
-  3. native rollover follows current_room through the device's optimized order,
-     completing the previous target on each move AND pushing that room's fan;
-     transit rooms ignored.
+  3. native rollover follows current_room through the device's optimized order
+     as a live pointer, pushing each room's fan without treating pointer changes
+     as completion proof; transit rooms ignored.
   4. completion (dock: cleaning binary off + charging) -> finalization fires via
      the require_job_active_clear gate.
 """
@@ -164,7 +164,7 @@ async def test_roborock_dispatch_rollover_completion(hass, manager, monkeypatch)
     assert calls["fan"][-1]["fan_speed"] == "quiet"             # Office fan pushed live
 
     await _tick_rollover(manager, hass, "KITCHEN")
-    assert _OFFICE in _job(manager)["completed_room_ids"]        # Office done on move
+    assert _job(manager)["completed_room_ids"] == []             # pointer move != completion
     assert _job(manager)["current_room_id"] == _KITCHEN
     assert calls["fan"][-1]["fan_speed"] == "turbo"             # Kitchen fan pushed live
 

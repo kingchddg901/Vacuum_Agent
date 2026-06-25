@@ -390,8 +390,11 @@ def register_roborock_adapter_for_vacuum(
             # so clean order != queue order) — instead of Eufy's counter-plateau /
             # timing heuristic. Tracks the last confirmed target + completes the
             # previous one when the signal moves; transit rooms (not job targets) are
-            # ignored. Assumes rooms_unique_per_job (no revisits) — true here. Eufy
-            # leaves native_transition_source False (the default) and is untouched.
+            # ignored. Roborock's native signal is a live pointer and may revisit
+            # rooms during an optimized route, so completion is left to the final job
+            # snapshot instead of treating every pointer change as proof that the
+            # previous room is permanently done. Eufy leaves native_transition_source
+            # False (the default) and is untouched.
             "enabled": True,
             "native_transition_source": True,
         },
@@ -463,7 +466,7 @@ def register_roborock_adapter_for_vacuum(
             "supports_robot_position": caps.get("supports_robot_position", False),
             # Conservative defaults pending a live segment-clean run (Wave 2).
             "position_lock_reliable": False,
-            "rooms_unique_per_job": True,
+            "rooms_unique_per_job": False,
             # Reusable room PROFILES bundle multiple per-room settings (mode,
             # water, intensity, passes, edge). The S6 exposes only per-room fan
             # (everything else is global/unsettable), so a "profile" would be a

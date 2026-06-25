@@ -130,8 +130,8 @@ def _event(entity_id, new_state):
     return Event("state_changed", {"entity_id": entity_id, "new_state": new_state})
 
 
-def _state(entity_id, value):
-    return State(entity_id, value)
+def _state(entity_id, value, attributes=None):
+    return State(entity_id, value, attributes or {})
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +296,23 @@ async def test_valid_value_records_positive_control(hass, manager, monkeypatch):
     assert len(calls["sensor"]) == 1
     assert calls["sensor"][0]["vacuum_entity_id"] == _VAC
     assert calls["sensor"][0]["key"] == "last_cleaning_time_seconds"
-    assert calls["sensor"][0]["value"] == 300  # int conversion (value_type "int")
+    assert calls["sensor"][0]["value"] == 300  # duration defaults to seconds
     # cleaning_time changes also append a counter sample
     assert len(calls["counter"]) == 1
     assert calls["counter"][0]["vacuum_entity_id"] == _VAC
+
+
+async def test_duration_unit_minutes_records_seconds(hass, manager, monkeypatch):
+    """Roborock exposes cleaning_time as a HA duration sensor in minutes; the
+    active job stores the canonical seconds value used by learning."""
+    handler = _capture_handler(hass, manager, monkeypatch)
+    _seed_active_job(manager)
+    calls = _spy_recorders(manager, monkeypatch)
+
+    handler(_event(
+        _CLEANING_TIME_ENTITY,
+        _state(_CLEANING_TIME_ENTITY, "6.15", {"unit_of_measurement": "min"}),
+    ))
+
+    assert calls["sensor"][0]["key"] == "last_cleaning_time_seconds"
+    assert calls["sensor"][0]["value"] == 369

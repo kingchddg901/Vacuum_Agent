@@ -12,6 +12,7 @@ from custom_components.eufy_vacuum.learning.job_finalizer import (
     LearningJobFinalizer,
     _apply_water_actuals,
     _compute_total_error_seconds,
+    _duration_state_to_seconds,
     _parse_iso_to_utc,
 )
 
@@ -54,6 +55,24 @@ def test_parse_iso_utc_non_string_returns_none():
 
 def test_parse_iso_utc_garbage_returns_none():
     assert _parse_iso_to_utc("not-a-date") is None
+
+
+# ---------------------------------------------------------------------------
+# _duration_state_to_seconds
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("raw,unit,expected", [
+    ("300", "s", 300),
+    ("6.15", "min", 369),
+    ("0.1", "h", 360),
+    ("1500", "ms", 2),
+])
+def test_duration_state_to_seconds(raw, unit, expected):
+    assert _duration_state_to_seconds(raw, unit) == expected
+
+
+def test_duration_state_to_seconds_bad_value_default():
+    assert _duration_state_to_seconds("unavailable", "min", None) is None
 
 
 # ---------------------------------------------------------------------------
