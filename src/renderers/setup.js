@@ -371,7 +371,7 @@ export function applySetupRenderers(proto) {
                   data-action="setup-save-rooms"
                   data-map-id="${mapId}"
                   ${saving ? "disabled" : ""}>
-            ${saving ? this.t("setup.saving") : this.t("setup.save_room_config")}
+            ${saving ? this.t("common.saving") : this.t("setup.save_room_config")}
           </button>
         </div>
       `;
@@ -544,7 +544,7 @@ export function applySetupRenderers(proto) {
           <button class="evcc-setup-btn small"
                   data-action="setup-rename-panel-save"
                   ${loading ? "disabled" : ""}>
-            ${this.t("setup.rename")}
+            ${this.t("common.rename")}
           </button>
         </div>
       </div>

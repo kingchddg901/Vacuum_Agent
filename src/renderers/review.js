@@ -280,8 +280,8 @@ export function applyReviewRenderers(proto) {
           ])}
           ${state.showReviewProfileMatcherEdgeMopping?.()
             ? this._renderReviewMatcherField(this.t("review.matcher_edge_mopping"), "edge_mopping", fields.edge_mopping, [
-              { value: true, label: this.t("review.on") },
-              { value: false, label: this.t("review.off") },
+              { value: true, label: this.t("common.on") },
+              { value: false, label: this.t("common.off") },
             ])
             : ""}
         </div>
@@ -485,7 +485,7 @@ export function applyReviewRenderers(proto) {
           ${this._renderReviewKeyValue(this.t("review.kv_rooms"), roomDisplay)}
           ${this._renderReviewKeyValue(this.t("review.kv_scope"), scopeDisplay)}
           ${this._renderReviewKeyValue(this.t("review.kv_profile"), profileDisplay, profileSubtitle)}
-          ${this._renderReviewKeyValue(this.t("review.kv_used_for_learning"), job?.used_for_learning === true ? this.t("review.yes") : this.t("review.no"))}
+          ${this._renderReviewKeyValue(this.t("review.kv_used_for_learning"), job?.used_for_learning === true ? this.t("common.yes") : this.t("common.no"))}
           ${this._renderReviewKeyValue(this.t("review.kv_primary_room"), primaryRoomDisplay)}
         </div>
 

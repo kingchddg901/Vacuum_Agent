@@ -550,7 +550,7 @@ export function applyMaintenanceRenderers(proto) {
                       type="button"
                       class="evcc-chip evcc-chip--save"
                       data-action="save-maintenance-interval"
-                    >${this.t("maintenance.interval_save")}</button>
+                    >${this.t("common.save")}</button>
                     ${Number.isFinite(defaultInterval) && defaultInterval > 0 ? `
                       <button
                         type="button"
@@ -569,7 +569,7 @@ export function applyMaintenanceRenderers(proto) {
 
             ${canInvokeReset ? `
               <div class="evcc-editor-field-group">
-                <div class="evcc-field-label">${this.t("maintenance.reset_label")}</div>
+                <div class="evcc-field-label">${this.t("common.reset")}</div>
 
                 ${resetSuccess ? `
                   <div class="evcc-maintenance-reset-hint evcc-maintenance-reset-hint--success">
@@ -615,7 +615,7 @@ export function applyMaintenanceRenderers(proto) {
                         ? this.t("maintenance.begin_reset_title_integration")
                         : this.t("maintenance.begin_reset_title_device")}"
                       ${resetPending ? "disabled" : ""}
-                    >${this.t("maintenance.reset_button")}</button>
+                    >${this.t("common.reset")}</button>
                   </div>
                 `}
               </div>

@@ -132,7 +132,7 @@ export function applyRunProfilesRenderers(proto) {
                 class="evcc-chip"
                 data-action="edit-run-profile"
                 data-profile-id="${this.escapeHtml(selected.id)}"
-              >${this.t("run_profiles.edit")}</button>
+              >${this.t("common.edit")}</button>
 
               <button
                 type="button"

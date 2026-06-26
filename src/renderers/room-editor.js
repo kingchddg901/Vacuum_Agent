@@ -100,7 +100,7 @@ export function applyRoomEditorRenderer(proto) {
               type="button"
               class="evcc-chip evcc-chip--save"
               data-action="save-room-editor"
-            >${this.t("room_editor.save")}</button>
+            >${this.t("common.save")}</button>
           </div>
 
         </div>
@@ -174,7 +174,7 @@ export function applyRoomEditorRenderer(proto) {
             class="evcc-chip"
             data-action="rename-room-profile"
             ${currentProfileName && currentProfile && !currentProfileProtected ? "" : "disabled"}
-          >${this.t("room_editor.rename")}</button>
+          >${this.t("common.rename")}</button>
 
           <button
             type="button"
@@ -399,13 +399,13 @@ export function applyRoomEditorRenderer(proto) {
             class="evcc-chip ${fields.edge_mopping ? "active" : ""}"
             data-field="edge_mopping"
             data-value="true"
-          >${this.t("room_editor.on")}</button>
+          >${this.t("common.on")}</button>
           <button
             type="button"
             class="evcc-chip ${!fields.edge_mopping ? "active" : ""}"
             data-field="edge_mopping"
             data-value="false"
-          >${this.t("room_editor.off")}</button>
+          >${this.t("common.off")}</button>
         </div>
       </div>
     `;

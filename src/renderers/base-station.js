@@ -87,7 +87,7 @@ export function applyBaseStationRenderers(proto) {
               ${this._renderBaseStationStat(this.t("base_station.stat_dock_status"), dockStatus || this.t("base_station.unknown"))}
               ${this._renderBaseStationStat(this.t("base_station.stat_lifecycle"), lifecycleState || this.t("base_station.unknown"))}
               ${this._renderBaseStationStat(this.t("base_station.stat_task"), taskStatus || this.t("base_station.unknown"))}
-              ${this._renderBaseStationStat(this.t("base_station.stat_docked"), docked ? this.t("base_station.yes") : this.t("base_station.no"))}
+              ${this._renderBaseStationStat(this.t("base_station.stat_docked"), docked ? this.t("common.yes") : this.t("common.no"))}
             </div>
 
             ${(upkeep.updated_at || actionStatus?.updated_at) ? `

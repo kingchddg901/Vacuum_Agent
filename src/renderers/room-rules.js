@@ -151,7 +151,7 @@ export function applyRoomRulesRenderers(proto) {
             class="evcc-chip"
             data-action="edit-rule"
             data-rule-id="${this.escapeHtml(String(rule.id ?? ""))}"
-          >${this.t("room_rules.edit")}</button>
+          >${this.t("common.edit")}</button>
           <button
             type="button"
             class="evcc-chip evcc-chip--danger"
@@ -265,13 +265,13 @@ export function applyRoomRulesRenderers(proto) {
                 class="evcc-chip ${draft.enabled ? "active" : ""}"
                 data-rule-field="enabled"
                 data-rule-value="true"
-              >${this.t("room_rules.yes")}</button>
+              >${this.t("common.yes")}</button>
               <button
                 type="button"
                 class="evcc-chip ${!draft.enabled ? "active" : ""}"
                 data-rule-field="enabled"
                 data-rule-value="false"
-              >${this.t("room_rules.no")}</button>
+              >${this.t("common.no")}</button>
             </div>
           </div>
 
@@ -588,13 +588,13 @@ export function applyRoomRulesRenderers(proto) {
               class="evcc-chip ${changes.edge_mopping === true ? "active" : ""}"
               data-rule-field="effect.changes.edge_mopping"
               data-rule-value="true"
-            >${this.t("room_rules.on")}</button>
+            >${this.t("common.on")}</button>
             <button
               type="button"
               class="evcc-chip ${changes.edge_mopping === false ? "active" : ""}"
               data-rule-field="effect.changes.edge_mopping"
               data-rule-value="false"
-            >${this.t("room_rules.off")}</button>
+            >${this.t("common.off")}</button>
           </div>
         </div>
       </div>

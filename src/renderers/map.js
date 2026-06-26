@@ -1132,12 +1132,12 @@ export function applyMapRenderers(proto) {
             value="${esc(draftName)}" placeholder="${this.t("map.layout_name_placeholder")}" />
           <button class="evcc-map-config-btn evcc-map-config-btn--primary"
             data-action="${editMode === "rename" ? "rename-layout-save" : "create-layout-save"}"
-          >${editMode === "rename" ? this.t("map.layout_save") : this.t("map.layout_create")}</button>
+          >${editMode === "rename" ? this.t("common.save") : this.t("map.layout_create")}</button>
           <button class="evcc-map-config-btn" data-action="cancel-layout-editor">${this.t("common.cancel")}</button>
         </div>` : ""}
         ${mode === "custom" && activeId ? `
         <div class="evcc-compose-tools">
-          <button class="evcc-map-config-btn" data-action="open-rename-layout">${this.t("map.layout_rename")}</button>
+          <button class="evcc-map-config-btn" data-action="open-rename-layout">${this.t("common.rename")}</button>
           <button class="evcc-map-config-btn evcc-map-config-btn--danger" data-action="delete-layout">${this.t("map.layout_delete")}</button>
         </div>` : ""}
       </div>
@@ -1279,7 +1279,7 @@ export function applyMapRenderers(proto) {
           class="evcc-map-config-btn evcc-map-config-btn--primary${saveBusy ? " evcc-map-config-btn--busy" : ""}"
           data-action="compose-save"
           ${(count && !saveBusy) ? "" : "disabled"}
-        >${saveBusy ? this.t("map.saving") : this.t("map.compose_save")}</button>
+        >${saveBusy ? this.t("common.saving") : this.t("map.compose_save")}</button>
         ${saveErr
           ? `<span class="evcc-map-action-status evcc-map-action-status--error">${status.message ? this.escapeHtml(status.message) : this.t("map.save_failed")}</span>`
           : ""}

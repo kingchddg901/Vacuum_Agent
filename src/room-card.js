@@ -333,8 +333,8 @@ class EufyRoomCard extends HTMLElement {
       <div class="field-group">
         <div class="field-label">${this.t("room_card.edge_mopping_label")}</div>
         <div class="chips">
-          <button class="chip ${fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="true">${this.t("room_card.on")}</button>
-          <button class="chip ${!fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="false">${this.t("room_card.off")}</button>
+          <button class="chip ${fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="true">${this.t("common.on")}</button>
+          <button class="chip ${!fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="false">${this.t("common.off")}</button>
         </div>
       </div>
     `;
@@ -513,7 +513,7 @@ class EufyRoomCard extends HTMLElement {
         <div class="footer">
           ${dirty ? `
           <button class="btn btn-save" id="save-btn" ${this._saving ? "disabled" : ""}>
-            ${this._saving ? `<span class="spinning">↻</span> ${this.t("room_card.saving")}` : this.t("room_card.save")}
+            ${this._saving ? `<span class="spinning">↻</span> ${this.t("common.saving")}` : this.t("common.save")}
           </button>` : ""}
           <button class="btn btn-start" id="start-btn" ${this._starting ? "disabled" : ""}>
             ${this._starting

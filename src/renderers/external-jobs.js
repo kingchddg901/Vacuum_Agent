@@ -283,9 +283,9 @@ export function applyExternalJobsRenderers(proto) {
           <div class="evcc-field-label">${this.t("external_jobs.edge_mop")} <span class="evcc-ext-hint">${this.t("external_jobs.edge_mop_hint")}</span></div>
           <div class="evcc-chip-row">
             <button class="evcc-chip ${a.edge_mopping ? "active" : ""}"
-              data-action="ext-set-edge" data-order="${order}" data-value="true">${this.t("external_jobs.on")}</button>
+              data-action="ext-set-edge" data-order="${order}" data-value="true">${this.t("common.on")}</button>
             <button class="evcc-chip ${!a.edge_mopping ? "active" : ""}"
-              data-action="ext-set-edge" data-order="${order}" data-value="false">${this.t("external_jobs.off")}</button>
+              data-action="ext-set-edge" data-order="${order}" data-value="false">${this.t("common.off")}</button>
           </div>
         </div>
       </div>
@@ -345,7 +345,7 @@ export function applyExternalJobsRenderers(proto) {
       left = `<button class="evcc-btn evcc-btn-ghost" data-action="ext-wizard-back">← ${this.t("external_jobs.back")}</button>`;
       right = `
         <button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-confirm" ${w.busy ? "disabled" : ""}>
-          ${w.busy ? this.t("external_jobs.saving") : this.t("external_jobs.confirm")}
+          ${w.busy ? this.t("common.saving") : this.t("external_jobs.confirm")}
         </button>
         ${blocked.length ? `<button class="evcc-btn evcc-btn-warn" data-action="ext-wizard-override">${this.t("external_jobs.keep_anyway")}</button>` : ""}`;
     }

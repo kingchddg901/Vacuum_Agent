@@ -640,7 +640,7 @@ export function applyThemeRenderers(proto) {
                   class="evcc-chip"
                   data-theme-group-reset="${this.escapeHtml(group)}"
                 >
-                  ${this.t("theme.group_reset")}
+                  ${this.t("common.reset")}
                 </button>
               ` : ""}
 
@@ -762,7 +762,7 @@ export function applyThemeRenderers(proto) {
               class="evcc-chip"
               data-theme-reset="${this.escapeHtml(token.key)}"
             >
-              ${this.t("theme.token_reset")}
+              ${this.t("common.reset")}
             </button>
           ` : ""}
 
@@ -845,7 +845,7 @@ export function applyThemeRenderers(proto) {
           <div class="token-head-actions">
             ${isDraft ? `
               <button class="evcc-chip" data-theme-reset="${this.escapeHtml(token.key)}">
-                ${this.t("theme.token_reset")}
+                ${this.t("common.reset")}
               </button>
             ` : ""}
           </div>
@@ -943,7 +943,7 @@ export function applyThemeRenderers(proto) {
                 class="evcc-chip"
                 data-theme-reset="${this.escapeHtml(token.key)}"
               >
-                ${this.t("theme.token_reset")}
+                ${this.t("common.reset")}
               </button>
             ` : ""}
           </div>
@@ -1001,7 +1001,7 @@ export function applyThemeRenderers(proto) {
                 class="evcc-chip"
                 data-theme-reset="${this.escapeHtml(token.key)}"
               >
-                ${this.t("theme.token_reset")}
+                ${this.t("common.reset")}
               </button>
             ` : ""}
           </div>
