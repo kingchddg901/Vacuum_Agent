@@ -25,6 +25,7 @@ const RUN = Boolean(process.env.CI) || Boolean(process.env.VISUAL);
 // "ids in sync" test below fails if these drift, so this stays honest.
 const GALLERY_IDS = [
   "rooms-active",
+  "rooms-cyrillic",
   "review-badges",
   "mapping-badges",
   "external-jobs",

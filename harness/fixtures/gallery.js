@@ -605,8 +605,43 @@ const ROOM_RULES = {
    EXPORT
    ========================================================= */
 
+/* =========================================================
+   ROOMS — Cyrillic room NAMES (Russian pilot's live data)
+   =========================================================
+   The user's actual situation: an English UI (no ru catalog ships yet) with
+   room names entered in Cyrillic, which flow through as escaped `{name}` vars.
+   Reuses the rich active-job fixture so the names hit the queue, the active-job
+   list, the room chips, and the learning timeline; one deliberately LONG name
+   ("Детская комната") stresses chip width. This is the one REAL-DATA case (vs
+   synthetic pseudo-long) — it verifies non-Latin user data renders (font /
+   encoding, no tofu) and fits, not just that the catalog can be widened. */
+const ROOMS_CYRILLIC = {
+  id: "rooms-cyrillic",
+  view: "rooms",
+  label: "Rooms — Cyrillic room names (Russian pilot data)",
+  bundle: ROOMS_ACTIVE.bundle,
+  tokens: ROOMS_ACTIVE.tokens,
+  state: {
+    ...ROOMS_ACTIVE.state,
+    activeJobRooms: () => [
+      { jobOrder: 1, id: "1", name: "Кухня" },
+      { jobOrder: 2, id: "2", name: "Гостиная" },
+      { jobOrder: 3, id: "3", name: "Спальня" },
+    ],
+    getRoomsForActiveMap: () => [
+      room("1", "Кухня", { floor_type: "tile", clean_mode: "vacuum_mop", fan_speed: "max", water_level: "high", clean_intensity: "deep", clean_passes: 2, edge_mopping: true }),
+      room("2", "Гостиная", { floor_type: "carpet", clean_mode: "vacuum", fan_speed: "high" }),
+      room("3", "Спальня", { floor_type: "wood", clean_mode: "vacuum_mop", water_level: "medium" }),
+      room("4", "Детская комната", { floor_type: "marble", clean_mode: "vacuum" }),
+      room("5", "Кабинет", { enabled: false, floor_type: "tile" }),
+    ],
+  },
+  controller: ROOMS_ACTIVE.controller,
+};
+
 export const GALLERY = [
   ROOMS_ACTIVE,
+  ROOMS_CYRILLIC,
   LEARNING_REVIEW,
   MAPPING_REVIEW,
   EXTERNAL_JOBS,

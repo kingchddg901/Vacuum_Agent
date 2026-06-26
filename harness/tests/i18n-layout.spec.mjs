@@ -60,3 +60,55 @@ test.describe("i18n layout gate: pseudo-long @390px (mobile)", () => {
     });
   }
 });
+
+// REAL DATA: Cyrillic room NAMES with an English UI — the Russian pilot's actual
+// situation (no ru catalog ships yet; names flow through as {name} vars). The
+// rooms-cyrillic fixture carries realistic names + one long one ("Детская
+// комната"). Distinct from pseudo-long (synthetic catalog expansion): this is
+// the one case driven by real non-Latin USER data.
+//
+// RELATIVE assertion: "does the user's Cyrillic data break the layout WORSE than
+// the equivalent ENGLISH data?" We diff rooms-cyrillic against rooms-active (the
+// SAME fixture, names the only difference) — a long Cyrillic name pushing a NEW
+// element over, or scrolling worse than English, fails. We do NOT assert
+// absolute zero: the populated active-job view has a pre-existing,
+// name-INDEPENDENT ~4px overflow in its control rows (English has it too), which
+// is not a Cyrillic regression and is tracked separately.
+async function probeEntry(page, id, opts) {
+  const res = await page.evaluate(([gid, o]) => window.__evcc.renderGallery(gid, o), [id, opts]);
+  expect(res.ok, `${id}: ${res.error}`).toBe(true);
+  return probeLayout(page);
+}
+
+function assertCyrillicNoWorseThanEnglish(en, ru) {
+  expect(
+    ru.shellOverflow,
+    `Cyrillic scrolls ${ru.shellOverflow}px vs English ${en.shellOverflow}px`,
+  ).toBeLessThanOrEqual(en.shellOverflow + 1);
+  const enClasses = new Set(en.culprits.map((c) => c.cls));
+  const introduced = ru.culprits.filter((c) => !enClasses.has(c.cls));
+  const list = introduced.map((c) => `      +${c.ov}px  ${c.tag}.${c.cls}  "${c.text}"`).join("\n");
+  expect(
+    introduced.length,
+    `Cyrillic introduces overflow English doesn't (likely a long Cyrillic name):\n${list}`,
+  ).toBe(0);
+}
+
+test.describe("i18n layout gate: Cyrillic room data", () => {
+  test("rooms @500px (desktop): no worse than English", async ({ page }) => {
+    await mountHarness(page);
+    const en = await probeEntry(page, "rooms-active", { width: 500, freeze: true });
+    const ru = await probeEntry(page, "rooms-cyrillic", { width: 500, freeze: true });
+    assertCyrillicNoWorseThanEnglish(en, ru);
+  });
+
+  test.describe("mobile @390px", () => {
+    test.use({ viewport: { width: 390, height: 844 } });
+    test("rooms: no worse than English (mobile chrome)", async ({ page }) => {
+      await mountHarness(page);
+      const en = await probeEntry(page, "rooms-active", { width: 390, freeze: true, mobile: true });
+      const ru = await probeEntry(page, "rooms-cyrillic", { width: 390, freeze: true, mobile: true });
+      assertCyrillicNoWorseThanEnglish(en, ru);
+    });
+  });
+});
