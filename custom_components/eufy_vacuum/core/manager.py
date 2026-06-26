@@ -1092,6 +1092,22 @@ class EufyVacuumManager:
                 detected_model=effective_model,
             )
 
+        # Self-heal stale persisted caps after a code update. The adapter config is
+        # recomputed fresh each boot; if its model_family no longer matches the
+        # persisted snapshot (e.g. a detection fix now resolves "x10" where stored
+        # caps say "generic"), re-detect so the snapshot — and everything derived
+        # from it, like supports_rooms in attribute mode — picks up the fix without
+        # a manual refresh. Fires only on a real mismatch (adapter declares a family
+        # AND it differs), so steady state never re-detects and adapters that
+        # publish no model_family are unaffected. Idempotent: the refresh writes the
+        # adapter's family back, so the next call matches.
+        _adapter_family = (_get_adapter_config(vacuum_entity_id) or {}).get("model_family")
+        if _adapter_family and stored.get("model_family") != _adapter_family:
+            return self.refresh_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id,
+                detected_model=effective_model,
+            )
+
         return stored
 
     def ensure_runtime(self, vacuum_entity_id: str) -> VacuumRuntimeState:

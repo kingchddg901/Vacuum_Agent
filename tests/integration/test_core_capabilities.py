@@ -20,6 +20,8 @@ Coverage targets
 [CAP-10] refresh_vacuum_capabilities reproduces startup inputs: re-passes the adapter's
          stored model_family + capability_hints, so a refresh keeps model_family (not
          "generic") and keeps has_attribute_rooms (scalar supports_rooms).
+[CAP-11] get_vacuum_capabilities self-heals a stale persisted model_family: re-detects
+         (even refresh=False) when the adapter now declares a different family; idempotent.
 """
 
 from __future__ import annotations
@@ -260,3 +262,32 @@ def test_refresh_preserves_model_family_and_attribute_room_hint(hass, manager):
     assert caps["supports_segments"] is True
     assert caps["supports_active_map"] is False    # no active_map entity to dereference
     assert caps["supports_mop_wash"] is True       # stored hint honored on refresh
+
+
+def test_get_vacuum_capabilities_self_heals_stale_model_family(hass, manager):
+    """[CAP-11] A persisted snapshot with a stale model_family ("generic") is
+    re-detected when the freshly-registered adapter now declares a better family
+    ("x10") — so a detection fix lands on existing installs without a manual
+    refresh, even with refresh=False. Idempotent: once healed, stored matches the
+    adapter family so it does not re-detect again. (This is what made the live X10
+    keep reading "generic" until the adapter began publishing model_family.)"""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "model_family": "x10",
+        "capability_hints": {"supports_mop_wash": True},
+        "capabilities": {},
+    })
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 1, "name": "Kitchen"}]})
+    # Stale persisted snapshot (pre-fix): detected_model set, model_family generic.
+    manager.data.setdefault("capabilities", {})[_VAC] = {
+        "detected_model": "T2351", "model_family": "generic", "supports_rooms": True,
+    }
+
+    out = manager.get_vacuum_capabilities(vacuum_entity_id=_VAC, refresh=False)
+    assert out["model_family"] == "x10"            # self-healed
+    assert out["supports_mop_wash"] is True        # via the stored hint
+
+    # The refresh wrote the adapter family back, so the mismatch is gone.
+    assert manager.data["capabilities"][_VAC]["model_family"] == "x10"
