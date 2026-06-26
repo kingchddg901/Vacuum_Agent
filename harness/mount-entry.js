@@ -38,6 +38,7 @@ import {
 import { STYLES, MODAL_HOST_STYLES } from "../src/styles/index.js";
 import { registerLocale } from "../src/i18n/index.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
+import { makePseudoLong } from "./lib/pseudo-locale.mjs";
 import { GALLERY } from "./fixtures/gallery.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
 import { BADGE_MARK_PATHS, MARK_VIEWBOX } from "../src/renderers/badge-marks.js";
@@ -427,6 +428,7 @@ window.__evcc = {
   renderGallery,
   renderThemePresets,
   registerLocale, // inject a foreign/pseudo locale catalog before rendering with opts.lang
+  makePseudoLong, // build the layout-stress catalog IN-PAGE (avoids a Node-side en.js import)
   VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   badgeMarks: BADGE_MARK_PATHS,
