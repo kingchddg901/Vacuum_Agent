@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, STORAGE_KEY
@@ -129,6 +130,26 @@ def _build_button_blocks(
     }
 
 
+def _registry_model_code(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
+    """Return the device-registry model code for a vacuum (e.g. ``"T2351"``).
+
+    The device registry is the RELIABLE model source across robovac_mqtt
+    transports. The novel-API path also mirrors it onto a ``detected_model``
+    vacuum-entity attribute, but the scalar/Tuya path does NOT set that
+    attribute — so reading only the attribute pinned scalar devices to
+    model_family "generic". The registry carries the code either way. Mirrors
+    ``core/manager._get_registry_model_code`` (kept local to keep the adapter
+    self-contained).
+    """
+    entity_entry = er.async_get(hass).async_get(vacuum_entity_id)
+    if entity_entry is None or not entity_entry.device_id:
+        return None
+    device_entry = dr.async_get(hass).async_get(entity_entry.device_id)
+    if device_entry is None:
+        return None
+    return str(device_entry.model or "").strip() or None
+
+
 def register_eufy_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -146,8 +167,12 @@ def register_eufy_adapter_for_vacuum(
     from ...core.capabilities import detect_capabilities
 
     vacuum_state = hass.states.get(vacuum_entity_id)
-    detected_model = None
-    if vacuum_state is not None:
+    # Prefer the DEVICE REGISTRY model (reliable on every robovac_mqtt transport);
+    # fall back to the vacuum's `detected_model` attribute. Scalar/Tuya devices
+    # don't set that attribute, so reading only it pinned them to "generic" — but
+    # the registry has "T2351" either way.
+    detected_model = _registry_model_code(hass, vacuum_entity_id)
+    if not detected_model and vacuum_state is not None:
         detected_model = vacuum_state.attributes.get("detected_model")
 
     # Compute model family using the Eufy model catalog.
