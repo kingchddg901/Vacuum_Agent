@@ -10,43 +10,53 @@
  * fail; ellipsize/scroll = intentional), so there is no hand-maintained list to
  * drift.
  *
- * ACTIVE GATE (desktop @500px). Green as of the P2 CSS hardening: the tab strip
- * wraps (shell.js flex-wrap), filter-chip rows wrap their labels (foundation.js),
- * and map_config's composer buttons wrap (map.js). A regression that reintroduces
- * horizontal overflow under a long-text locale fails here. Still TODO (a future
- * addition, not yet asserted): a mobile-width run (stub isMobileViewport + frame
- * data-viewport) and a Cyrillic room-name fixture. See project_i18n_rollout.md.
+ * DESKTOP @500px: ACTIVE GATE (green as of the P2 CSS hardening). A regression
+ * that reintroduces horizontal overflow under a long-text locale fails here.
+ *
+ * MOBILE @390px: ACTIVE GATE (green — survived on first run, no CSS needed).
+ * Renders the real mobile chrome (mobile header + bottom nav + overflow overlay,
+ * data-viewport="mobile") at a phone-sized viewport so the viewport-fixed bottom
+ * nav and the max-width:600px media rules are faithful. The mobile bottom nav
+ * (icons + labels that wrap under each) and the responsive panel stacking
+ * already handle long-text locales; this gate keeps it that way. Verified
+ * faithful (bottom nav renders ~2.8k chars) + eyeballed. See project_i18n_rollout.md.
  */
 import { test, expect } from "@playwright/test";
 import { mountHarness, renderTab, probeLayout, VIEW_ORDER } from "../lib/mount-page.mjs";
 
-const WIDTH = 500;
+const registerPseudo = (page) =>
+  page.evaluate(() => window.__evcc.registerLocale("xx", window.__evcc.makePseudoLong()));
 
-test.describe("i18n layout gate: pseudo-long must not break the layout", () => {
+function assertNoOverflow(view, { shellOverflow, culprits }) {
+  const list = culprits.map((c) => `      +${c.ov}px  ${c.tag}.${c.cls}  "${c.text}"`).join("\n");
+  // 1) The card must not force horizontal scroll on itself.
+  expect(shellOverflow, `${view}: card forces ${shellOverflow}px of horizontal scroll`).toBeLessThanOrEqual(2);
+  // 2) No element may let its content escape its box (overflow-x:visible).
+  expect(culprits.length, `${view}: ${culprits.length} element(s) overflow their box:\n${list}`).toBe(0);
+}
+
+test.describe("i18n layout gate: pseudo-long @500px (desktop)", () => {
   for (const view of VIEW_ORDER) {
-    test(`${view} @${WIDTH}px survives pseudo-long`, async ({ page }) => {
+    test(`${view} survives pseudo-long`, async ({ page }) => {
       await mountHarness(page);
-      // Generate + register the pseudo-long catalog IN-PAGE (the bundle resolves
-      // en.js via esbuild; importing it Node-side trips Playwright's CJS loader).
-      await page.evaluate(() => window.__evcc.registerLocale("xx", window.__evcc.makePseudoLong()));
-
-      const res = await renderTab(page, view, { width: WIDTH, freeze: true, lang: "xx" });
+      await registerPseudo(page);
+      const res = await renderTab(page, view, { width: 500, freeze: true, lang: "xx" });
       expect(res.ok, res.error).toBe(true);
+      assertNoOverflow(view, await probeLayout(page));
+    });
+  }
+});
 
-      const { shellOverflow, culprits } = await probeLayout(page);
-      const list = culprits.map((c) => `      +${c.ov}px  ${c.tag}.${c.cls}  "${c.text}"`).join("\n");
+test.describe("i18n layout gate: pseudo-long @390px (mobile)", () => {
+  test.use({ viewport: { width: 390, height: 844 } });
 
-      // 1) The card must not force horizontal scroll on itself.
-      expect(
-        shellOverflow,
-        `${view}: card forces ${shellOverflow}px of horizontal scroll`,
-      ).toBeLessThanOrEqual(2);
-
-      // 2) No element may let its content escape its box (overflow-x:visible).
-      expect(
-        culprits.length,
-        `${view}: ${culprits.length} element(s) overflow their box:\n${list}`,
-      ).toBe(0);
+  for (const view of VIEW_ORDER) {
+    test(`${view} survives pseudo-long (mobile chrome)`, async ({ page }) => {
+      await mountHarness(page);
+      await registerPseudo(page);
+      const res = await renderTab(page, view, { width: 390, freeze: true, lang: "xx", mobile: true });
+      expect(res.ok, res.error).toBe(true);
+      assertNoOverflow(view, await probeLayout(page));
     });
   }
 });

@@ -110,7 +110,12 @@ const FREEZE_STYLE = `
    FRAME (byte-faithful to src/main.js _ensureShellFrame)
    ========================================================= */
 
-function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
+function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml, chrome = {}) {
+  // viewport/bottomNav/overlay mirror main.js's mobile fork (see render): on
+  // mobile the shell is tagged data-viewport="mobile", the header is the mobile
+  // header, and the bottom-nav / overflow-sheet regions are populated. Desktop
+  // leaves them empty exactly as the live card does.
+  const { viewport = "desktop", bottomNavHtml = "", mobileOverlayHtml = "" } = chrome;
   // Body-level modal host, mirroring main.js _renderModals(): in the live card,
   // modals mount to document.body with their OWN MODAL_HOST_STYLES (the shadow
   // modalStyles are inert). We reproduce that as a sibling of <ha-card> in the
@@ -126,13 +131,13 @@ function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
     ${freeze ? `<style data-evcc-harness-freeze>${FREEZE_STYLE}</style>` : ""}
 
     <ha-card>
-      <div class="evcc-shell" data-viewport="desktop">
+      <div class="evcc-shell" data-viewport="${viewport}">
         <div data-evcc-header-root>${headerHtml}</div>
         <div class="evcc-view-stage" data-evcc-view-stage data-view="${view}">
           <div class="evcc-view-root" data-evcc-view-root="${view}" aria-hidden="false">${viewHtml}</div>
         </div>
-        <div data-evcc-bottom-nav-root></div>
-        <div data-evcc-mobile-overlay-root></div>
+        <div data-evcc-bottom-nav-root>${bottomNavHtml}</div>
+        <div data-evcc-mobile-overlay-root>${mobileOverlayHtml}</div>
       </div>
     </ha-card>
     ${modalBlock}
@@ -161,6 +166,11 @@ function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
  *   `_hass.locale.language` so renderers resolve THIS locale (default: the stub
  *   coerces to English). Pair with registerLocale() to render a foreign/pseudo
  *   catalog and prove the UI actually switches language + survives the layout.
+ * @param {boolean}[opts.mobile]    - render the MOBILE chrome: forces
+ *   state.isMobileViewport()->true, tags the shell data-viewport="mobile", and
+ *   composes the mobile header + bottom nav + overlay (renderMobile*), exactly
+ *   as main.js forks. The CALLER should also size the page viewport (the bottom
+ *   nav is viewport-fixed) — see the mobile layout gate.
  * @returns {{view,ok,error?,stack?,headerLen?,viewLen?,misses:{state:string[],hass:string[]}}}
  */
 // A fixed instant for DETERMINISTIC relative-time rendering. The live-progress
@@ -181,7 +191,7 @@ function freezeClock() {
 }
 
 function render(view, opts = {}) {
-  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null, lang = null } = opts;
+  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null, lang = null, mobile = false } = opts;
   const restoreClock = freeze ? freezeClock() : null;
 
   const stateMisses = new Set();
@@ -189,7 +199,9 @@ function render(view, opts = {}) {
   const result = { view, ok: false, misses: { state: [], hass: [] } };
 
   try {
-    const state = makeStubState({ overrides, record: stateMisses });
+    // Mobile mode forces isMobileViewport()->true (a caller override still wins).
+    const effectiveOverrides = mobile ? { isMobileViewport: () => true, ...overrides } : overrides;
+    const state = makeStubState({ overrides: effectiveOverrides, record: stateMisses });
 
     // Minimal card stub: renderers read exactly _config/_state/_renderers/
     // _view/_mobileMoreOpen. _hass is a recording null-object so any direct
@@ -209,8 +221,16 @@ function render(view, opts = {}) {
     card._renderers = renderers;
 
     const ctx = buildRenderContext(card); // real builder; view comes from card._view
-    const headerHtml = renderHeader(ctx);
+    // Header forks by viewport exactly as main.js does; the bottom nav + overflow
+    // overlay are mobile-only chrome (empty on desktop).
+    const headerHtml = mobile && typeof renderers.renderMobileHeader === "function"
+      ? renderers.renderMobileHeader(ctx)
+      : renderHeader(ctx);
     const viewHtml = renderView(ctx);
+    const bottomNavHtml = mobile && typeof renderers.renderMobileBottomNav === "function"
+      ? renderers.renderMobileBottomNav(ctx) : "";
+    const mobileOverlayHtml = mobile && typeof renderers.renderMobileOverlay === "function"
+      ? renderers.renderMobileOverlay(ctx) : "";
     // Body-level modals (main.js _renderModals) live outside renderView, so a
     // fixture that wants one names its renderer via opts.modal. We render only
     // that one — NOT every modal renderer — because the null-object would make
@@ -226,7 +246,11 @@ function render(view, opts = {}) {
     root.appendChild(host);
 
     const shadow = host.attachShadow({ mode: "open" });
-    shadow.innerHTML = frameHtml(view, headerHtml, viewHtml, freeze, modalHtml);
+    shadow.innerHTML = frameHtml(view, headerHtml, viewHtml, freeze, modalHtml, {
+      viewport: mobile ? "mobile" : "desktop",
+      bottomNavHtml,
+      mobileOverlayHtml,
+    });
 
     // Apply the bundle exactly as src/styles/apply-theme.js does:
     // inline custom properties on the shadow host.
@@ -288,6 +312,7 @@ function renderGallery(id, opts = {}) {
     freeze: opts.freeze,
     modal: entry.modal ?? null,
     lang: opts.lang ?? null,
+    mobile: opts.mobile ?? false,
   });
   return { ...res, id, clip: entry.clip ?? null, label: entry.label };
 }

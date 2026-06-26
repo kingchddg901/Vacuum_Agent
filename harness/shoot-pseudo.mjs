@@ -19,7 +19,8 @@ import { makePseudoLong, PSEUDO_MARKER } from "./lib/pseudo-locale.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const flag = (n, d) => { const i = process.argv.indexOf(n); return i === -1 ? d : process.argv[i + 1]; };
-const width = Number(flag("--width", "500")) || 500;
+const MOBILE = process.argv.includes("--mobile");
+const width = Number(flag("--width", MOBILE ? "390" : "500")) || (MOBILE ? 390 : 500);
 const LANG = "xx";
 
 const outDir = join(here, "out", "pseudo");
@@ -54,6 +55,9 @@ function probe() {
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 1 });
+// Mobile: size the PAGE viewport (not just the host) so the viewport-fixed
+// bottom nav + max-width:600px media rules render faithfully.
+if (MOBILE) await page.setViewportSize({ width, height: 844 });
 await mountHarness(page);
 
 // Inject the pseudo-long catalog under LANG so render({lang}) resolves it.
@@ -68,17 +72,24 @@ for (const view of VIEW_ORDER) {
   const enPng = await page.locator("#evcc-host").screenshot();
   writeFileSync(join(outDir, `${view}.en.png`), enPng);
 
-  const xx = await renderTab(page, view, { width, freeze: true, lang: LANG });
+  const xx = await renderTab(page, view, { width, freeze: true, lang: LANG, mobile: MOBILE });
   if (!xx.ok) { console.log(`✗ ${view}: ${xx.error}`); continue; }
   const xxPng = await page.locator("#evcc-host").screenshot();
-  writeFileSync(join(outDir, `${view}.xx.png`), xxPng);
+  writeFileSync(join(outDir, `${view}.xx${MOBILE ? "-mobile" : ""}.png`), xxPng);
 
   const p = await page.evaluate(probe);
   anyMarker = anyMarker || p.markerPresent;
   rows.push({ view, en: enPng.toString("base64"), xx: xxPng.toString("base64") });
 
+  // Faithfulness check: in mobile mode the bottom nav MUST have rendered (else
+  // a "no overflow" pass is meaningless — the chrome isn't there).
+  const navLen = MOBILE ? await page.evaluate(() => {
+    const r = document.getElementById("evcc-host")?.shadowRoot;
+    return (r?.querySelector("[data-evcc-bottom-nav-root]")?.innerHTML || "").length;
+  }) : null;
+  const navTag = MOBILE ? `  bottomNav=${navLen}ch` : "";
   const shellTag = p.shellOverflow > 1 ? `  ⚠ SHELL +${p.shellOverflow}px (horizontal scroll)` : "";
-  console.log(`${view.padEnd(16)} switched=${p.markerPresent ? "yes" : "NO "}  overflow-els=${String(p.count).padStart(3)}${shellTag}`);
+  console.log(`${view.padEnd(16)} switched=${p.markerPresent ? "yes" : "NO "}  overflow-els=${String(p.count).padStart(3)}${navTag}${shellTag}`);
   for (const it of p.items) {
     console.log(`    +${String(it.ov).padStart(4)}px  ${it.tag}.${(it.cls || "(none)").split(" ")[0].padEnd(28)} "${it.text}"`);
   }
