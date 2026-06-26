@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang }             from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, localeSource } from "./i18n/index.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -317,6 +317,38 @@ class EufyVacuumCommandCenter extends HTMLElement {
   /** Translate a card-level string preserving authored markup (see `t`). */
   tRaw(key, vars) { return translate(this._i18nLanguage(), key, vars, { raw: true }); }
 
+  /**
+   * Load the external locale declared in `config.i18n`, ONCE per resolved
+   * (locale,url). On success the validated catalog (validateLocale) is
+   * registered and the card re-renders so the new strings replace English.
+   * Fails soft — a missing/invalid/cross-origin file just keeps English (logged).
+   */
+  _maybeLoadLocale() {
+    const src = localeSource(this._config, resolveLang(this._hass, this._config));
+    if (!src || this._localeLoadKey === src.key) return;
+    // Same-origin only: never fetch a cross-origin url a shared dashboard config
+    // might point at (privacy + trust). Relative urls (e.g. /local/...) pass.
+    let abs;
+    try { abs = new URL(src.url, location.href); } catch { return; }
+    if (abs.origin !== location.origin) {
+      console.warn(`[eufy-vacuum-command-center] i18n: refusing cross-origin locale url "${src.url}"`);
+      return;
+    }
+    this._localeLoadKey = src.key; // one-shot: don't refetch on every hass update
+    loadLocale(src.url, src.lang).then((report) => {
+      if (!report.ok) {
+        console.warn(`[eufy-vacuum-command-center] i18n: locale "${src.lang}" not loaded (${src.url}): ${report.errors.join("; ")}`);
+        return;
+      }
+      if (report.errors.length || report.warnings.length) {
+        console.warn(`[eufy-vacuum-command-center] i18n: locale "${src.lang}" — ${report.loaded} keys, ${report.errors.length} dropped, ${report.warnings.length} warning(s)`);
+      }
+      // Re-render so the registered strings replace the English fallback.
+      if (this._config?.vacuum_entity_id) this._scheduleRender();
+      else this._renderNoVacuumPlaceholder();
+    });
+  }
+
   set narrow(narrow) {
     this._narrow = narrow;
   }
@@ -327,6 +359,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
    */
   set hass(hass) {
     this._hass = hass;
+
+    // Load an external locale (config.i18n) once the language is known — runs in
+    // BOTH the placeholder and the normal path (one-shot, see _maybeLoadLocale).
+    this._maybeLoadLocale();
 
     // Setup-placeholder mode: no vacuum configured yet, the static
     // placeholder is already in the DOM, and we have no state to sync.

@@ -38,7 +38,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { translate, registerLocale, resolveLang, validateLocale } from "../src/i18n/index.js";
+import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale } from "../src/i18n/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -77,6 +77,11 @@ registerLocale("pl", { "rooms.count_rooms": { other: "pokoje: {count}" } });
 
 const check = (label, fn) => {
   try { fn(); console.log(`  ✓ ${label}`); }
+  catch (e) { fail(`${label} — ${e.message}`); }
+};
+
+const checkAsync = async (label, fn) => {
+  try { await fn(); console.log(`  ✓ ${label}`); }
   catch (e) { fail(`${label} — ${e.message}`); }
 };
 
@@ -266,6 +271,41 @@ check("validateLocale: unknown key kept+warned; English fallback intact", () => 
   registerLocale("vv", { "rooms.empty": "VV empty" });
   assert.equal(translate("vv", "rooms.empty"), "VV empty");
   assert.equal(translate("vv", "common.cancel"), translate("en", "common.cancel"));
+});
+
+// --- localeSource + loadLocale (external intake) -------------------------
+
+// 24. localeSource: url wins; else url_map[lang] then base-lang; else null.
+check("localeSource: url / url_map resolution", () => {
+  assert.equal(localeSource({ i18n: { url: "/a.json" } }, "de").url, "/a.json");
+  assert.equal(localeSource({ i18n: { url_map: { de: "/de.json" } } }, "de-DE").url, "/de.json"); // base-lang
+  assert.equal(localeSource({ i18n: { url_map: { ru: "/ru.json" } } }, "de"), null); // no entry
+  assert.equal(localeSource({}, "de"), null);          // no i18n block
+  assert.equal(localeSource(undefined, "de"), null);   // no config
+  assert.equal(localeSource({ i18n: { url: "/a.json" } }, "de").key, "de|/a.json"); // one-shot identity
+});
+
+// 25. loadLocale: a valid file is fetched, validated, registered; the UI then
+//     resolves the loaded strings and still falls back to English for the rest.
+await checkAsync("loadLocale: valid file registers + UI switches", async () => {
+  const fetchImpl = async () => ({ ok: true, status: 200, json: async () => ({ "common.cancel": "ZZcancel" }) });
+  const r = await loadLocale("/x.json", "lz", { fetchImpl });
+  assert.equal(r.ok, true);
+  assert.equal(r.loaded, 1);
+  assert.equal(translate("lz", "common.cancel"), "ZZcancel");
+  assert.equal(translate("lz", "common.close"), translate("en", "common.close")); // fallback intact
+});
+
+// 26. loadLocale NEVER throws — !ok, non-JSON, and network errors all resolve to
+//     ok:false and leave English untouched.
+await checkAsync("loadLocale: failures keep English (never throws)", async () => {
+  const notOk = await loadLocale("/x", "lf", { fetchImpl: async () => ({ ok: false, status: 404 }) });
+  assert.equal(notOk.ok, false);
+  const badJson = await loadLocale("/x", "lf", { fetchImpl: async () => ({ ok: true, status: 200, json: async () => { throw new Error("bad json"); } }) });
+  assert.equal(badJson.ok, false);
+  const netErr = await loadLocale("/x", "lf", { fetchImpl: async () => { throw new Error("network down"); } });
+  assert.equal(netErr.ok, false);
+  assert.equal(translate("lf", "common.cancel"), translate("en", "common.cancel")); // never registered
 });
 
 /* =========================================================

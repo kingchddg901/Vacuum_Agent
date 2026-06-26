@@ -284,3 +284,66 @@ export function validateLocale(catalog, base = CATALOGS.en) {
   }
   return { clean, warnings, errors };
 }
+
+/**
+ * Resolve which external locale file to load from the card's `config.i18n`, for
+ * a resolved language. Two shapes (from the design doc):
+ *   i18n: { locale: "de", url: "/local/vacuum-agent/i18n/de.json" }
+ *   i18n: { locale: "auto", url_map: { de: "…/de.json", ru: "…/ru.json" } }
+ * `url` wins if present; otherwise `url_map[lang]` then `url_map[<base lang>]`.
+ *
+ * @param {object} [config] - the card config.
+ * @param {string} lang - the resolved language (see resolveLang).
+ * @returns {{ lang: string, url: string, key: string } | null} source + a
+ *   (lang|url) identity key for one-shot loading, or null when none applies.
+ */
+export function localeSource(config, lang) {
+  const i18n = config && config.i18n;
+  if (!i18n || typeof i18n !== "object") return null;
+  const code = String(lang || "");
+  const baseLang = code.split("-")[0];
+  let url = null;
+  if (typeof i18n.url === "string" && i18n.url) {
+    url = i18n.url;
+  } else if (i18n.url_map && typeof i18n.url_map === "object") {
+    url = i18n.url_map[code] || i18n.url_map[baseLang] || null;
+  }
+  if (!url || typeof url !== "string") return null;
+  return { lang: code, url, key: `${code}|${url}` };
+}
+
+/**
+ * Fetch + validate + register an external locale JSON file. Async; NEVER throws
+ * — every failure (network, !ok, non-JSON, bad shape) resolves to a report with
+ * `ok:false` so the caller keeps rendering English. On success the VALIDATED
+ * subset (validateLocale) is registered under `lang`; dropped/extra keys are
+ * reported. The fetch is JSON-only (no eval/import), so a hostile file can at
+ * worst contribute escaped strings (TRUST MODEL B) or be rejected outright.
+ *
+ * @param {string} url - same-origin locale JSON url (caller vets the origin).
+ * @param {string} lang - language code to register the catalog under.
+ * @param {{ fetchImpl?: typeof fetch }} [opts] - injectable fetch (for tests).
+ * @returns {Promise<{ ok: boolean, lang: string, url: string, loaded: number, warnings: string[], errors: string[] }>}
+ */
+export async function loadLocale(url, lang, opts = {}) {
+  const report = { ok: false, lang, url, loaded: 0, warnings: [], errors: [] };
+  const doFetch = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!doFetch) { report.errors.push("no fetch available"); return report; }
+  try {
+    const resp = await doFetch(url, { credentials: "same-origin" });
+    if (!resp || !resp.ok) {
+      report.errors.push(`fetch failed (status ${resp ? resp.status : "none"})`);
+      return report;
+    }
+    const data = await resp.json();
+    const { clean, warnings, errors } = validateLocale(data);
+    report.warnings = warnings;
+    report.errors = errors;
+    registerLocale(lang, clean);
+    report.loaded = Object.keys(clean).length;
+    report.ok = true;
+  } catch (e) {
+    report.errors.push(`load error: ${String((e && e.message) || e)}`);
+  }
+  return report;
+}
