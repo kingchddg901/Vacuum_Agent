@@ -5279,6 +5279,19 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
     cursor: pointer;
   }
 
+  /* Filter-chip rows carry long, must-stay-READABLE labels (you pick a filter by
+     its text), so under translation they WRAP within the chip rather than
+     truncate or push the row into horizontal overflow. Targeted at the filter
+     rows only \u2014 the base .evcc-chip stays nowrap (per the layout decision);
+     mirrors the searchable-filter rule in metrics.js. No-op for English (short
+     filter labels fit one line), so the byte-pinned baselines are unchanged. */
+  .evcc-metrics-filter-chips .evcc-chip,
+  .evcc-review-filter-chips .evcc-chip {
+    white-space:   normal;
+    overflow-wrap: anywhere;
+    max-width:     100%;
+  }
+
   .evcc-chip:hover:not(:disabled):not(.active) {
     background: var(--evcc-chip-hover-bg, var(--evcc-surface-panel));
     color: var(--evcc-chip-hover-text, var(--evcc-text-primary));
@@ -6249,6 +6262,12 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
 
   .evcc-nav {
     display:       flex;
+    /* Wrap the TAB STRIP to a second row when long (translated) labels push the
+       tabs past the width, instead of overflowing the card into a horizontal
+       scroll \u2014 a growth-zone strip, taller is acceptable. No-op for English,
+       whose tabs fit one row (labels keep wrapping inside their own tab as
+       before), so the byte-pinned baselines are unchanged. */
+    flex-wrap:     wrap;
     gap:           2px;
     padding:       8px 12px;
     border-bottom: 1px solid var(--evcc-border-subtle);
@@ -12826,8 +12845,22 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
 
   /* Custom-segment composer */
   .evcc-compose-tools {
-    display: flex;
-    gap:     6px;
+    display:   flex;
+    /* Wrap the control buttons to the next line under long (translated) labels
+       instead of running them off the side panel. */
+    flex-wrap: wrap;
+    gap:       6px;
+  }
+
+  /* Inside the composer, a long (translated) button label must wrap + the button
+     must be allowed to shrink \u2014 the base .evcc-map-config-btn is nowrap +
+     flex-shrink:0 (correct elsewhere), which would otherwise overflow the panel
+     even once the row wraps. Scoped to the composer; no-op for English. */
+  .evcc-compose-tools .evcc-map-config-btn {
+    white-space:   normal;
+    overflow-wrap: anywhere;
+    flex-shrink:   1;
+    min-width:     0;
   }
 
   .evcc-compose-shape {

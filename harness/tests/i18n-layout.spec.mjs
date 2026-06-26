@@ -10,23 +10,19 @@
  * fail; ellipsize/scroll = intentional), so there is no hand-maintained list to
  * drift.
  *
- * OPT-IN until P2 CSS lands. This gate is RED today — the first pseudo-long run
- * shows the desktop tab strip (.evcc-nav) overflows on every tab and
- * map_config's button rows run off the panel. It defines the P2 target; enable
- * it with I18N_LAYOUT=1 while doing the CSS hardening, and PROMOTE it into the
- * default VISUAL suite (delete the skip below) once it is green. Kept out of the
- * default run so a known-red target doesn't break the green suite prematurely.
- * See memory/project_i18n_rollout.md.
+ * ACTIVE GATE (desktop @500px). Green as of the P2 CSS hardening: the tab strip
+ * wraps (shell.js flex-wrap), filter-chip rows wrap their labels (foundation.js),
+ * and map_config's composer buttons wrap (map.js). A regression that reintroduces
+ * horizontal overflow under a long-text locale fails here. Still TODO (a future
+ * addition, not yet asserted): a mobile-width run (stub isMobileViewport + frame
+ * data-viewport) and a Cyrillic room-name fixture. See project_i18n_rollout.md.
  */
 import { test, expect } from "@playwright/test";
 import { mountHarness, renderTab, probeLayout, VIEW_ORDER } from "../lib/mount-page.mjs";
 
-const OPT_IN = Boolean(process.env.I18N_LAYOUT);
 const WIDTH = 500;
 
 test.describe("i18n layout gate: pseudo-long must not break the layout", () => {
-  test.skip(!OPT_IN, "opt-in (I18N_LAYOUT=1) until P2 CSS greens it");
-
   for (const view of VIEW_ORDER) {
     test(`${view} @${WIDTH}px survives pseudo-long`, async ({ page }) => {
       await mountHarness(page);

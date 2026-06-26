@@ -142,6 +142,12 @@ export const shellStyles = `
 
   .evcc-nav {
     display:       flex;
+    /* Wrap the TAB STRIP to a second row when long (translated) labels push the
+       tabs past the width, instead of overflowing the card into a horizontal
+       scroll — a growth-zone strip, taller is acceptable. No-op for English,
+       whose tabs fit one row (labels keep wrapping inside their own tab as
+       before), so the byte-pinned baselines are unchanged. */
+    flex-wrap:     wrap;
     gap:           2px;
     padding:       8px 12px;
     border-bottom: 1px solid var(--evcc-border-subtle);

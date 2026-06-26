@@ -64,6 +64,19 @@ export const sharedChipStyles = `
     cursor: pointer;
   }
 
+  /* Filter-chip rows carry long, must-stay-READABLE labels (you pick a filter by
+     its text), so under translation they WRAP within the chip rather than
+     truncate or push the row into horizontal overflow. Targeted at the filter
+     rows only — the base .evcc-chip stays nowrap (per the layout decision);
+     mirrors the searchable-filter rule in metrics.js. No-op for English (short
+     filter labels fit one line), so the byte-pinned baselines are unchanged. */
+  .evcc-metrics-filter-chips .evcc-chip,
+  .evcc-review-filter-chips .evcc-chip {
+    white-space:   normal;
+    overflow-wrap: anywhere;
+    max-width:     100%;
+  }
+
   .evcc-chip:hover:not(:disabled):not(.active) {
     background: var(--evcc-chip-hover-bg, var(--evcc-surface-panel));
     color: var(--evcc-chip-hover-text, var(--evcc-text-primary));

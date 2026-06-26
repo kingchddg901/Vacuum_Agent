@@ -1187,8 +1187,22 @@ export const mapStyles = `
 
   /* Custom-segment composer */
   .evcc-compose-tools {
-    display: flex;
-    gap:     6px;
+    display:   flex;
+    /* Wrap the control buttons to the next line under long (translated) labels
+       instead of running them off the side panel. */
+    flex-wrap: wrap;
+    gap:       6px;
+  }
+
+  /* Inside the composer, a long (translated) button label must wrap + the button
+     must be allowed to shrink — the base .evcc-map-config-btn is nowrap +
+     flex-shrink:0 (correct elsewhere), which would otherwise overflow the panel
+     even once the row wraps. Scoped to the composer; no-op for English. */
+  .evcc-compose-tools .evcc-map-config-btn {
+    white-space:   normal;
+    overflow-wrap: anywhere;
+    flex-shrink:   1;
+    min-width:     0;
   }
 
   .evcc-compose-shape {
