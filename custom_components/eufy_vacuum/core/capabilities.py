@@ -234,7 +234,14 @@ def detect_capabilities(
     robot_position_x_entity_id = robot_position_x_entity or robot_position_x_registered
     robot_position_y_entity_id = robot_position_y_entity or robot_position_y_registered
 
-    supports_rooms                  = bool(active_map_registered or active_map_entity)
+    # Rooms/segments are available either via an active_map entity OR — for
+    # attribute-mode devices that expose the room list as a vacuum attribute but
+    # create no map sensor (e.g. Eufy on the scalar/Tuya transport) — via the
+    # adapter's `has_attribute_rooms` hint. supports_active_map stays strictly
+    # entity-gated: there is no map ENTITY to read in attribute mode, so it must
+    # not be reported True (the import path uses the implicit map id instead).
+    _has_attribute_rooms            = bool(_hints.get("has_attribute_rooms"))
+    supports_rooms                  = bool(active_map_registered or active_map_entity or _has_attribute_rooms)
     supports_segments               = supports_rooms
     supports_active_map             = bool(active_map_registered or active_map_entity)
     supports_active_cleaning_target = bool(

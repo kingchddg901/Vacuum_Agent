@@ -2578,18 +2578,16 @@ class EufyVacuumManager:
         return self.active_job.start_external_capture(**kwargs)
 
     def _resolve_active_map_id(self, vacuum_entity_id: str) -> str | None:
-        """Current active map id from the adapter's active_map entity (or None)."""
-        from ..adapters.registry import get_adapter_config
+        """Current active map id — the adapter's active_map entity, or (for an
+        attribute-mode device with no such entity, e.g. scalar/Tuya Eufy) the
+        adapter's implicit single map id.
 
-        cfg = get_adapter_config(vacuum_entity_id) or {}
-        entity_id = (cfg.get("entities", {}) or {}).get("active_map")
-        if not entity_id:
-            return None
-        state_obj = self.hass.states.get(entity_id)
-        value = getattr(state_obj, "state", None)
-        if value in (None, "", "unknown", "unavailable", "none"):
-            return None
-        return str(value)
+        Delegates to the brand-agnostic resolver so the import path and the
+        runtime path (external-run capture, dispatch) agree on the same id.
+        """
+        from ..rooms.room_discovery import get_active_map_id
+
+        return get_active_map_id(self.hass, vacuum_entity_id)
 
     async def maybe_handle_external_run(self, *, vacuum_entity_id: str) -> bool:
         """Detect + capture an app-started (external) run.

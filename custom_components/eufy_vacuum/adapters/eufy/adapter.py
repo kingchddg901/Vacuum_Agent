@@ -207,12 +207,20 @@ def register_eufy_adapter_for_vacuum(
     # of whether the entity happens to be present right now. Entity presence
     # detection in detect_capabilities() is the fallback for unrecognised
     # model codes that still expose the relevant entities.
+    # Rooms can be read from the `segments` attribute even when there's no
+    # active_map sensor (scalar/Tuya transport). Flag it so detect_capabilities
+    # reports supports_rooms/segments via the attribute path (supports_active_map
+    # stays entity-gated — there's no map entity to dereference).
+    _segments = vacuum_state.attributes.get("segments") if vacuum_state is not None else None
+    has_attribute_rooms = bool(isinstance(_segments, list) and _segments)
+
     capability_hints: dict[str, bool] = {
         "supports_mop_features": model_family in {"x10", "x8", "l60", "l50"},
         "supports_mop_wash":     model_family in {"x10", "x8"},
         "supports_mop_dry":      model_family in {"x10", "x8"},
         "supports_empty_dust":   model_family in {"x10", "x8", "l60", "l50"},
         "supports_path_control": model_family in {"x10", "x8"},
+        "has_attribute_rooms":   has_attribute_rooms,
     }
 
     caps = detect_capabilities(
@@ -476,6 +484,13 @@ def register_eufy_adapter_for_vacuum(
             "room_list_attribute": "segments",
             "room_id_key": "id",
             "room_name_key": "name",
+            # Scalar/Tuya-transport Eufy devices surface the room list in the
+            # `segments` attribute but create NO active_map sensor. There is only
+            # one map on these, so anchor import/discovery to this single implicit
+            # id when no active_map entity exists (see rooms/room_discovery
+            # ._implicit_attribute_map_id). Novel devices have the entity, so the
+            # implicit id never fires for them.
+            "implicit_map_id": "main",
             # Auto-discovery cadence. The framework runs discovery on each
             # listed event plus once every interval as a safety net.
             "auto_refresh_on": [

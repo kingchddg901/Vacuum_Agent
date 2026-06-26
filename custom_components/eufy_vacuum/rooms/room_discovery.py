@@ -35,27 +35,59 @@ _LOGGER = logging.getLogger(__name__)
 def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
     """Return the active map ID for a vacuum, if available.
 
-    Reads the entity declared as entities.active_map in the adapter config.
-    Returns None when the adapter is not registered, the entity is missing,
-    or its state is an HA sentinel value.
+    Reads the entity declared as entities.active_map in the adapter config. When
+    the device exposes that entity (novel Eufy / Roborock) it is the single
+    source of truth. When NO active_map entity exists at all — an attribute-mode
+    device, e.g. Eufy on the scalar/Tuya transport, which surfaces its room list
+    as a vacuum attribute but creates no map sensor — fall back to the adapter's
+    single implicit map id (see _implicit_attribute_map_id). Returns None when
+    neither path yields an id.
     """
     config = get_adapter_config(vacuum_entity_id)
     active_map_entity = (config or {}).get("entities", {}).get("active_map")
-    if not active_map_entity:
-        _LOGGER.debug("No active_map entity declared for %s", vacuum_entity_id)
-        return None
 
-    state = hass.states.get(active_map_entity)
-    if state is None:
-        _LOGGER.debug("Active map entity %s missing for %s", active_map_entity, vacuum_entity_id)
-        return None
+    if active_map_entity:
+        # Entity present: trust it exclusively. A transiently unavailable entity
+        # returns None (wait for it) rather than forking a second implicit map.
+        state = hass.states.get(active_map_entity)
+        if state is None:
+            _LOGGER.debug("Active map entity %s missing for %s", active_map_entity, vacuum_entity_id)
+            return None
+        value = state.state
+        if value in {"unknown", "unavailable", "", "none", "None"}:
+            _LOGGER.debug("Active map entity invalid value for %s: %s", vacuum_entity_id, value)
+            return None
+        return str(value)
 
-    value = state.state
-    if value in {"unknown", "unavailable", "", "none", "None"}:
-        _LOGGER.debug("Active map entity invalid value for %s: %s", vacuum_entity_id, value)
-        return None
+    # No active_map entity declared — attribute-mode fallback.
+    _LOGGER.debug("No active_map entity for %s — trying implicit attribute map", vacuum_entity_id)
+    return _implicit_attribute_map_id(hass, vacuum_entity_id, config)
 
-    return str(value)
+
+def _implicit_attribute_map_id(
+    hass: HomeAssistant, vacuum_entity_id: str, config: dict | None
+) -> str | None:
+    """Single implicit map id for an attribute-mode device (no active_map entity).
+
+    A device that exposes its room list as a vacuum-entity attribute but creates
+    no active_map sensor still has exactly one map. When the adapter declares
+    ``discovery.implicit_map_id`` AND that room-list attribute currently holds a
+    non-empty list, return the implicit id so import/discovery have an anchor.
+    Returns None otherwise — so brands that don't opt in (Roborock, which uses a
+    service-response source and sets no implicit_map_id) are unaffected, and the
+    implicit map never appears for a device with no rooms.
+    """
+    discovery = (config or {}).get("discovery", {}) or {}
+    implicit = discovery.get("implicit_map_id")
+    attr = discovery.get("room_list_attribute")
+    # Only the vacuum-attribute room source supports an implicit single map.
+    if not implicit or not attr or discovery.get("room_list_entity") != "vacuum_entity":
+        return None
+    state = hass.states.get(vacuum_entity_id)
+    rooms = state.attributes.get(attr) if state is not None else None
+    if isinstance(rooms, list) and rooms:
+        return str(implicit)
+    return None
 
 
 def discover_rooms_for_vacuum(
