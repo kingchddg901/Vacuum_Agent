@@ -41,16 +41,27 @@ export function applyThemePreviewRenderers(proto) {
       return "";
     }
 
+    // The registry carries stable i18n keys (titleKey/descKey) plus any
+    // interpolation vars (titleVars/descVars). Translate at the render site so
+    // the registry stays a pure data module. `this.t` escapes the catalog
+    // string; per-animal vars are escaped here at the sink.
+    const title = entry.titleKey
+      ? this.t(entry.titleKey, entry.titleVars)
+      : this.escapeHtml(entry.title || "");
+    const description = entry.descKey
+      ? this.t(entry.descKey, entry.descVars)
+      : this.escapeHtml(entry.description || "");
+
     return `
       <aside class="evcc-theme-preview-column">
         <section class="evcc-theme-preview-pane">
           <div class="evcc-theme-preview-header">
-            <div class="evcc-theme-preview-eyebrow">Contextual Preview</div>
+            <div class="evcc-theme-preview-eyebrow">${this.t("theme_preview.eyebrow")}</div>
             <div class="evcc-theme-preview-title">
-              ${this.escapeHtml(entry.title)}
+              ${title}
             </div>
             <div class="evcc-theme-preview-description">
-              ${this.escapeHtml(entry.description)}
+              ${description}
             </div>
           </div>
 
@@ -66,23 +77,23 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid evcc-theme-preview-grid--shell">
         <section class="evcc-theme-preview-card evcc-theme-preview-card--hero">
-          <div class="evcc-theme-preview-shell-kicker">EVCC Shell</div>
-          <h2 class="evcc-theme-preview-heading">Premium vacuum control, calmly organized.</h2>
+          <div class="evcc-theme-preview-shell-kicker">${this.t("theme_preview.shell.kicker")}</div>
+          <h2 class="evcc-theme-preview-heading">${this.t("theme_preview.shell.heading")}</h2>
           <p class="evcc-theme-preview-copy">
-            Primary and secondary text plus accent styling define the card’s voice before any specific feature surface appears.
+            ${this.t("theme_preview.shell.copy")}
           </p>
           <div class="evcc-theme-preview-inline-actions">
-            <span class="evcc-theme-preview-linkish">Open Metrics</span>
-            <span class="evcc-theme-preview-accent-pill">Accent</span>
+            <span class="evcc-theme-preview-linkish">${this.t("theme_preview.shell.open_metrics")}</span>
+            <span class="evcc-theme-preview-accent-pill">${this.t("theme_preview.shell.accent")}</span>
           </div>
         </section>
 
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Text Stack</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.shell.text_stack")}</div>
           <div class="evcc-theme-preview-text-stack">
-            <div class="evcc-theme-preview-text-primary">Primary text anchors the main reading path.</div>
-            <div class="evcc-theme-preview-text-secondary">Secondary text supports controls and summaries without overpowering them.</div>
-            <div class="evcc-theme-preview-text-muted">Muted text handles metadata, helper copy, and low-priority hints.</div>
+            <div class="evcc-theme-preview-text-primary">${this.t("theme_preview.shell.text_primary")}</div>
+            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.shell.text_secondary")}</div>
+            <div class="evcc-theme-preview-text-muted">${this.t("theme_preview.shell.text_muted")}</div>
           </div>
         </section>
       </div>
@@ -93,18 +104,18 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Raised Card</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.raised_card")}</div>
           <div class="evcc-theme-preview-surface-card">
-            <div class="evcc-theme-preview-surface-title">Card Surface</div>
-            <div class="evcc-theme-preview-text-secondary">Shared card background, gap, padding, and surface treatment.</div>
+            <div class="evcc-theme-preview-surface-title">${this.t("theme_preview.surfaces.card_surface")}</div>
+            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.card_desc")}</div>
           </div>
         </section>
 
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Panel + Input</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.surfaces.panel_input")}</div>
           <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-text-secondary">Panel surfaces and nested inputs preview layered elevation.</div>
-            <div class="evcc-theme-preview-input">Search tokens...</div>
+            <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.surfaces.panel_desc")}</div>
+            <div class="evcc-theme-preview-input">${this.t("theme_preview.surfaces.search_tokens")}</div>
           </div>
         </section>
       </div>
@@ -115,19 +126,19 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Border Strength</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.border_strength")}</div>
           <div class="evcc-theme-preview-border-stack">
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--subtle">Subtle border</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--default">Default border</div>
-            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--strong">Strong border</div>
+            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--subtle">${this.t("theme_preview.borders.subtle")}</div>
+            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--default">${this.t("theme_preview.borders.default")}</div>
+            <div class="evcc-theme-preview-border-sample evcc-theme-preview-border-sample--strong">${this.t("theme_preview.borders.strong")}</div>
           </div>
         </section>
 
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Shadow Depth</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.borders.shadow_depth")}</div>
           <div class="evcc-theme-preview-shadow-stack">
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--card">Card shadow</div>
-            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--hover">Hover shadow</div>
+            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--card">${this.t("theme_preview.borders.card_shadow")}</div>
+            <div class="evcc-theme-preview-shadow-sample evcc-theme-preview-shadow-sample--hover">${this.t("theme_preview.borders.hover_shadow")}</div>
           </div>
         </section>
       </div>
@@ -137,15 +148,15 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewChips = function () {
     return `
       <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">Chip Matrix</div>
+        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.chips.matrix")}</div>
         <div class="evcc-theme-preview-chip-grid">
-          <span class="evcc-chip">Default</span>
-          <span class="evcc-chip active">Active</span>
-          <span class="evcc-chip evcc-theme-preview-chip--hover">Hover</span>
-          <span class="evcc-chip evcc-theme-preview-chip--included">Included</span>
-          <span class="evcc-chip evcc-theme-preview-chip--excluded">Excluded</span>
-          <span class="evcc-chip evcc-theme-preview-chip--success">Success</span>
-          <span class="evcc-chip evcc-theme-preview-chip--warning">Warning</span>
+          <span class="evcc-chip">${this.t("theme_preview.chips.default")}</span>
+          <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
+          <span class="evcc-chip evcc-theme-preview-chip--hover">${this.t("theme_preview.chips.hover")}</span>
+          <span class="evcc-chip evcc-theme-preview-chip--included">${this.t("theme_preview.chips.included")}</span>
+          <span class="evcc-chip evcc-theme-preview-chip--excluded">${this.t("theme_preview.chips.excluded")}</span>
+          <span class="evcc-chip evcc-theme-preview-chip--success">${this.t("theme_preview.chips.success")}</span>
+          <span class="evcc-chip evcc-theme-preview-chip--warning">${this.t("theme_preview.chips.warning")}</span>
         </div>
       </div>
     `;
@@ -156,35 +167,35 @@ export function applyThemePreviewRenderers(proto) {
       <div class="evcc-theme-preview-grid evcc-theme-preview-grid--rooms">
         <section class="evcc-theme-preview-room-card">
           <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">Kitchen</div>
+            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.kitchen")}</div>
             <span class="evcc-chip evcc-theme-preview-room-order">#1</span>
           </div>
 
           <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">Profile</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip">Daily Vacuum</span>
+            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
+            <span class="evcc-chip evcc-theme-preview-profile-chip">${this.t("theme_preview.rooms.daily_vacuum")}</span>
           </div>
 
           <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">Room</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">Hardwood</span>
+            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
+            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.hardwood")}</span>
           </div>
         </section>
 
         <section class="evcc-theme-preview-room-card evcc-theme-preview-room-card--filled">
           <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">Hallway</div>
+            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.rooms.hallway")}</div>
             <span class="evcc-chip evcc-theme-preview-room-order">#2</span>
           </div>
 
           <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">Profile</span>
-            <span class="evcc-chip evcc-theme-preview-profile-chip evcc-theme-preview-profile-chip--custom">Custom Profile</span>
+            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.profile_label")}</span>
+            <span class="evcc-chip evcc-theme-preview-profile-chip evcc-theme-preview-profile-chip--custom">${this.t("theme_preview.rooms.custom_profile")}</span>
           </div>
 
           <div class="evcc-theme-preview-room-detail-row">
-            <span class="evcc-theme-preview-detail-label">Room</span>
-            <span class="evcc-chip evcc-theme-preview-room-chip">Area Rug</span>
+            <span class="evcc-theme-preview-detail-label">${this.t("theme_preview.rooms.room_label")}</span>
+            <span class="evcc-chip evcc-theme-preview-room-chip">${this.t("theme_preview.rooms.area_rug")}</span>
           </div>
         </section>
       </div>
@@ -193,13 +204,13 @@ export function applyThemePreviewRenderers(proto) {
 
   proto._renderThemePreviewFloorTextures = function () {
     const FLOOR_TYPES = [
-      { key: "tile",          name: "Tile"         },
-      { key: "wood",          name: "Wood"         },
-      { key: "marble",        name: "Marble"       },
-      { key: "concrete",      name: "Concrete"     },
-      { key: "carpet_low",    name: "Carpet Low"   },
-      { key: "carpet_high",   name: "Carpet High"  },
-      { key: "granite_light", name: "Granite"      },
+      { key: "tile",          name: this.t("theme_preview.floor.tile")        },
+      { key: "wood",          name: this.t("theme_preview.floor.wood")        },
+      { key: "marble",        name: this.t("theme_preview.floor.marble")      },
+      { key: "concrete",      name: this.t("theme_preview.floor.concrete")    },
+      { key: "carpet_low",    name: this.t("theme_preview.floor.carpet_low")  },
+      { key: "carpet_high",   name: this.t("theme_preview.floor.carpet_high") },
+      { key: "granite_light", name: this.t("theme_preview.floor.granite")     },
     ];
 
     const cards = FLOOR_TYPES.map(({ key, name }) => this._renderFloorPreviewCard(key, name)).join("");
@@ -217,40 +228,40 @@ export function applyThemePreviewRenderers(proto) {
     }, null);
   };
 
-  proto._renderThemePreviewFloorTextureTile     = function () { return this._renderFloorPreviewCard("tile",          "Tile");        };
-  proto._renderThemePreviewFloorTextureWood     = function () { return this._renderFloorPreviewCard("wood",          "Wood");        };
-  proto._renderThemePreviewFloorTextureMarble   = function () { return this._renderFloorPreviewCard("marble",        "Marble");      };
-  proto._renderThemePreviewFloorTextureConcrete = function () { return this._renderFloorPreviewCard("concrete",      "Concrete");    };
-  proto._renderThemePreviewFloorTextureCarpetLow  = function () { return this._renderFloorPreviewCard("carpet_low",  "Carpet Low");  };
-  proto._renderThemePreviewFloorTextureCarpetHigh = function () { return this._renderFloorPreviewCard("carpet_high", "Carpet High"); };
-  proto._renderThemePreviewFloorTextureGranite  = function () { return this._renderFloorPreviewCard("granite_light", "Granite");    };
+  proto._renderThemePreviewFloorTextureTile     = function () { return this._renderFloorPreviewCard("tile",          this.t("theme_preview.floor.tile"));        };
+  proto._renderThemePreviewFloorTextureWood     = function () { return this._renderFloorPreviewCard("wood",          this.t("theme_preview.floor.wood"));        };
+  proto._renderThemePreviewFloorTextureMarble   = function () { return this._renderFloorPreviewCard("marble",        this.t("theme_preview.floor.marble"));      };
+  proto._renderThemePreviewFloorTextureConcrete = function () { return this._renderFloorPreviewCard("concrete",      this.t("theme_preview.floor.concrete"));    };
+  proto._renderThemePreviewFloorTextureCarpetLow  = function () { return this._renderFloorPreviewCard("carpet_low",  this.t("theme_preview.floor.carpet_low"));  };
+  proto._renderThemePreviewFloorTextureCarpetHigh = function () { return this._renderFloorPreviewCard("carpet_high", this.t("theme_preview.floor.carpet_high")); };
+  proto._renderThemePreviewFloorTextureGranite  = function () { return this._renderFloorPreviewCard("granite_light", this.t("theme_preview.floor.granite"));    };
 
   proto._renderThemePreviewQueueOrdering = function () {
     return `
       <div class="evcc-theme-preview-card">
-        <div class="evcc-theme-preview-section-title">Queue Strip</div>
+        <div class="evcc-theme-preview-section-title">${this.t("theme_preview.queue.strip")}</div>
         <div class="evcc-theme-preview-queue-strip">
           <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--current">
             <span class="evcc-chip evcc-theme-preview-order-chip">1</span>
-            Kitchen
+            ${this.t("theme_preview.rooms.kitchen")}
           </div>
           <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--pending">
             <span class="evcc-chip evcc-theme-preview-order-chip">2</span>
-            Cat Room
+            ${this.t("theme_preview.queue.cat_room")}
           </div>
           <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--completed">
             <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
-            Entry
+            ${this.t("theme_preview.queue.entry")}
           </div>
           <div class="evcc-theme-preview-queue-chip evcc-theme-preview-queue-chip--inferred">
             <span class="evcc-chip evcc-theme-preview-order-chip">4</span>
-            Office
+            ${this.t("theme_preview.queue.office")}
           </div>
         </div>
 
         <div class="evcc-theme-preview-reorder-row">
-          <div class="evcc-theme-preview-drag-card">Dragging</div>
-          <div class="evcc-theme-preview-order-target">Drop target</div>
+          <div class="evcc-theme-preview-drag-card">${this.t("theme_preview.queue.dragging")}</div>
+          <div class="evcc-theme-preview-order-target">${this.t("theme_preview.queue.drop_target")}</div>
         </div>
       </div>
     `;
@@ -260,25 +271,25 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Status Dots</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.status.dots")}</div>
           <div class="evcc-theme-preview-status-dots">
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--idle">Idle</span>
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">Cleaning</span>
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--docked">Docked</span>
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--error">Error</span>
+            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--idle">${this.t("theme_preview.status.idle")}</span>
+            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">${this.t("theme_preview.status.cleaning")}</span>
+            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--docked">${this.t("theme_preview.status.docked")}</span>
+            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--error">${this.t("theme_preview.status.error")}</span>
           </div>
         </section>
 
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Confidence & Alerts</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.status.confidence_alerts")}</div>
           <div class="evcc-theme-preview-chip-grid">
-            <span class="evcc-chip evcc-theme-preview-confidence-high">High confidence</span>
-            <span class="evcc-chip evcc-theme-preview-confidence-medium">Medium confidence</span>
-            <span class="evcc-chip evcc-theme-preview-confidence-low">Low confidence</span>
+            <span class="evcc-chip evcc-theme-preview-confidence-high">${this.t("theme_preview.confidence.high")}</span>
+            <span class="evcc-chip evcc-theme-preview-confidence-medium">${this.t("theme_preview.confidence.medium")}</span>
+            <span class="evcc-chip evcc-theme-preview-confidence-low">${this.t("theme_preview.confidence.low")}</span>
           </div>
-          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--info">Information surface</div>
-          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--warning">Warning surface</div>
-          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--error">Error surface</div>
+          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--info">${this.t("theme_preview.status.info_surface")}</div>
+          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--warning">${this.t("theme_preview.status.warning_surface")}</div>
+          <div class="evcc-theme-preview-alert evcc-theme-preview-alert--error">${this.t("theme_preview.status.error_surface")}</div>
         </section>
       </div>
     `;
@@ -288,20 +299,20 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card">
-          <div class="evcc-theme-preview-section-title">Estimate Badges</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.estimate_badges")}</div>
           <div class="evcc-theme-preview-chip-grid">
-            <span class="evcc-chip evcc-theme-preview-estimate-default">~18 min default</span>
-            <span class="evcc-chip evcc-theme-preview-estimate-learned">~14 min learned</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-high">High confidence</span>
-            <span class="evcc-chip evcc-theme-preview-learning-confidence-medium">Building confidence</span>
+            <span class="evcc-chip evcc-theme-preview-estimate-default">${this.t("theme_preview.learning.estimate_default", { min: 18 })}</span>
+            <span class="evcc-chip evcc-theme-preview-estimate-learned">${this.t("theme_preview.learning.estimate_learned", { min: 14 })}</span>
+            <span class="evcc-chip evcc-theme-preview-learning-confidence-high">${this.t("theme_preview.confidence.high")}</span>
+            <span class="evcc-chip evcc-theme-preview-learning-confidence-medium">${this.t("theme_preview.confidence.building")}</span>
           </div>
         </section>
 
         <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">Learning Panel</div>
-          <div class="evcc-theme-preview-text-primary">Estimated water use: 410 ml</div>
-          <div class="evcc-theme-preview-text-secondary">Tank after run: 850 ml (28%)</div>
-          <div class="evcc-theme-preview-note">Re-anchor suggested after a long interrupted run.</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.learning.panel")}</div>
+          <div class="evcc-theme-preview-text-primary">${this.t("theme_preview.learning.water_use", { ml: 410 })}</div>
+          <div class="evcc-theme-preview-text-secondary">${this.t("theme_preview.learning.tank_after", { ml: 850, pct: 28 })}</div>
+          <div class="evcc-theme-preview-note">${this.t("theme_preview.learning.reanchor_note")}</div>
         </section>
       </div>
     `;
@@ -314,34 +325,36 @@ export function applyThemePreviewRenderers(proto) {
         <div class="evcc-theme-preview-modal">
           <div class="evcc-theme-preview-modal-header">
             <div>
-              <div class="evcc-theme-preview-modal-title">Maintenance Reset</div>
-              <div class="evcc-theme-preview-text-muted">Overlay shell preview</div>
+              <div class="evcc-theme-preview-modal-title">${this.t("theme_preview.modal.title")}</div>
+              <div class="evcc-theme-preview-text-muted">${this.t("theme_preview.modal.subtitle")}</div>
             </div>
             <span class="evcc-chip">X</span>
           </div>
 
           <div class="evcc-theme-preview-modal-body">
-            <div class="evcc-chip evcc-theme-preview-modal-accent-chip">Accent chip</div>
-            <div class="evcc-theme-preview-input">Type a note...</div>
-            <div class="evcc-theme-preview-alert evcc-theme-preview-alert--warning">This action cannot be undone.</div>
+            <div class="evcc-chip evcc-theme-preview-modal-accent-chip">${this.t("theme_preview.modal.accent_chip")}</div>
+            <div class="evcc-theme-preview-input">${this.t("theme_preview.modal.type_note")}</div>
+            <div class="evcc-theme-preview-alert evcc-theme-preview-alert--warning">${this.t("theme_preview.modal.cannot_undo")}</div>
           </div>
 
           <div class="evcc-theme-preview-modal-footer">
-            <span class="evcc-chip">Cancel</span>
-            <span class="evcc-chip evcc-chip--save">Confirm</span>
+            <span class="evcc-chip">${this.t("common.cancel")}</span>
+            <span class="evcc-chip evcc-chip--save">${this.t("theme_preview.modal.confirm")}</span>
           </div>
         </div>
       </div>
     `;
   };
 
-  // Shared battery-state row config for all animal previews.
+  // Shared battery-state row config for all animal previews. The visible
+  // label/hint are i18n keys resolved at the render site (this.t); `id` is the
+  // battery-state data attribute and stays literal.
   const _ANIMAL_PREVIEW_BATTERY_STATES = [
-    { id: "good",     label: "Good",     hint: "battery > 50%" },
-    { id: "mid",      label: "Mid",      hint: "25–50%" },
-    { id: "warn",     label: "Warn",     hint: "15–25%" },
-    { id: "low",      label: "Low",      hint: "≤ 15%" },
-    { id: "charging", label: "Charging", hint: "pulses" },
+    { id: "good",     labelKey: "theme_preview.animal.battery_good_label",     hintKey: "theme_preview.animal.battery_good_hint" },
+    { id: "mid",      labelKey: "theme_preview.animal.battery_mid_label",      hintKey: "theme_preview.animal.battery_mid_hint" },
+    { id: "warn",     labelKey: "theme_preview.animal.battery_warn_label",     hintKey: "theme_preview.animal.battery_warn_hint" },
+    { id: "low",      labelKey: "theme_preview.animal.battery_low_label",      hintKey: "theme_preview.animal.battery_low_hint" },
+    { id: "charging", labelKey: "theme_preview.animal.battery_charging_label", hintKey: "theme_preview.animal.battery_charging_hint" },
   ];
 
   /**
@@ -363,11 +376,11 @@ export function applyThemePreviewRenderers(proto) {
       </div>
     `;
 
-    const bodyRows = _ANIMAL_PREVIEW_BATTERY_STATES.map(({ id, label, hint }) => `
+    const bodyRows = _ANIMAL_PREVIEW_BATTERY_STATES.map(({ id, labelKey, hintKey }) => `
       <div class="evcc-theme-preview-animal-row">
         <div class="evcc-theme-preview-animal-rowlabel">
-          <span class="evcc-theme-preview-animal-rowlabel-title">${this.escapeHtml(label)}</span>
-          <span class="evcc-theme-preview-animal-rowlabel-hint">${this.escapeHtml(hint)}</span>
+          <span class="evcc-theme-preview-animal-rowlabel-title">${this.t(labelKey)}</span>
+          <span class="evcc-theme-preview-animal-rowlabel-hint">${this.t(hintKey)}</span>
         </div>
         ${animals.map((a) => `
           <div class="evcc-theme-preview-animal-cell">
@@ -400,11 +413,7 @@ export function applyThemePreviewRenderers(proto) {
       : ["cat", "dog", "raccoon", "parrot", "snake"];
     return this._renderAnimalPreviewGrid(
       animals,
-      `Tokens in this <em>parent</em> group apply across <strong>every</strong>
-       animal. The five eye-color tokens (<code>--evcc-animal-eye-*</code>) drive
-       the rows; the global palette tokens (<code>--evcc-animal-fur</code>,
-       <code>--evcc-animal-pupil</code>, etc.) drive every body. Use the
-       per-animal sub-groups below to override for a single animal.`
+      this.tRaw("theme_preview.animal.parent_note")
     );
   };
 
@@ -418,11 +427,9 @@ export function applyThemePreviewRenderers(proto) {
   proto._renderThemePreviewAnimal = function (animalName) {
     const safe = String(animalName || "").replace(/[^a-z0-9-]/gi, "");
     if (!safe) return "";
-    const note =
-      `Tokens in this sub-group (prefixed <code>--evcc-animal-${safe}-…</code>) ` +
-      `override the global Animal Companion tokens for just the ${safe}. ` +
-      `Leave any token unset to inherit the parent value (or the ${safe}'s ` +
-      `own built-in default if no theme value is set).`;
+    // Authored markup (<code>) with the sanitized animal name interpolated raw,
+    // exactly as the original literal did (safe is [a-z0-9-]-only).
+    const note = this.tRaw("theme_preview.animal.subgroup_note", { animal: safe });
     return this._renderAnimalPreviewGrid([safe], note);
   };
 
@@ -430,33 +437,33 @@ export function applyThemePreviewRenderers(proto) {
     return `
       <div class="evcc-theme-preview-grid">
         <section class="evcc-theme-preview-card evcc-theme-preview-foundation-card">
-          <div class="evcc-theme-preview-section-title">Surface Stack</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.surface_stack")}</div>
           <div class="evcc-theme-preview-surface-panel">
-            <div class="evcc-theme-preview-input">Foundation input</div>
+            <div class="evcc-theme-preview-input">${this.t("theme_preview.foundations.foundation_input")}</div>
             <div class="evcc-theme-preview-chip-grid">
-              <span class="evcc-chip">Chip</span>
-              <span class="evcc-chip active">Active</span>
+              <span class="evcc-chip">${this.t("theme_preview.foundations.chip")}</span>
+              <span class="evcc-chip active">${this.t("theme_preview.chips.active")}</span>
             </div>
           </div>
         </section>
 
         <section class="evcc-theme-preview-room-card">
           <div class="evcc-theme-preview-room-header">
-            <div class="evcc-theme-preview-room-name">Mixed Surface</div>
+            <div class="evcc-theme-preview-room-name">${this.t("theme_preview.foundations.mixed_surface")}</div>
             <span class="evcc-chip evcc-theme-preview-order-chip">3</span>
           </div>
           <div class="evcc-theme-preview-text-secondary">
-            Shared gap, radius, font, hover lift, and transition values show up here together.
+            ${this.t("theme_preview.foundations.mixed_desc")}
           </div>
         </section>
 
         <section class="evcc-theme-preview-learning-panel">
-          <div class="evcc-theme-preview-section-title">Composite Sample</div>
+          <div class="evcc-theme-preview-section-title">${this.t("theme_preview.foundations.composite_sample")}</div>
           <div class="evcc-theme-preview-status-dots">
-            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">Cleaning</span>
+            <span class="evcc-theme-preview-status-dot evcc-theme-preview-status-dot--cleaning">${this.t("theme_preview.status.cleaning")}</span>
           </div>
           <div class="evcc-theme-preview-copy">
-            Foundations touch multiple systems, so the preview intentionally mixes a few representative surfaces.
+            ${this.t("theme_preview.foundations.composite_desc")}
           </div>
         </section>
       </div>

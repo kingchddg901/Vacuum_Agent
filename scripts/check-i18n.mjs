@@ -152,6 +152,15 @@ const DYNAMIC_KEYS = new Set([
   "learning.confidence_high_job", "learning.confidence_medium_job", "learning.confidence_low_job",
 ]);
 
+// Whole key families resolved from a variable (registry-driven), exempt by PREFIX
+// rather than listing every member. theme-preview.js renders the preview-group
+// registry titles/descriptions via `group.titleKey` and the battery-state
+// labels/hints via `item.labelKey` / `item.hintKey` — never as string literals.
+const DYNAMIC_PREFIXES = [
+  "theme_preview.group.",
+  "theme_preview.animal.battery_",
+];
+
 // Collect every literal t()/tRaw() key across src/, skipping the i18n module.
 const USE = /\.t(?:Raw)?\("([^"]+)"/g;
 const used = new Map();
@@ -173,10 +182,12 @@ walk(SRC);
 const enTxt = readFileSync(join(SRC, "i18n", "en.js"), "utf8");
 const defined = new Set([...enTxt.matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]));
 
+const isDynamic = (k) => DYNAMIC_KEYS.has(k) || DYNAMIC_PREFIXES.some((p) => k.startsWith(p));
 const orphans = [...used.keys()].filter((k) => !defined.has(k)).sort();
-const dead = [...defined].filter((k) => !used.has(k) && !DYNAMIC_KEYS.has(k)).sort();
+const dead = [...defined].filter((k) => !used.has(k) && !isDynamic(k)).sort();
+const dynamicExempt = [...defined].filter(isDynamic).length;
 
-console.log(`  defined: ${defined.size}   used(literal): ${used.size}   dynamic-exempt: ${DYNAMIC_KEYS.size}`);
+console.log(`  defined: ${defined.size}   used(literal): ${used.size}   dynamic-exempt: ${dynamicExempt}`);
 
 if (orphans.length === 0) {
   console.log("  ✓ no orphan keys (every used key exists in en.js)");

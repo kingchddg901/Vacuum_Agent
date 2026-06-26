@@ -1,7 +1,11 @@
 // Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
+import { translate } from "./i18n/index.js";
+
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
+
+const _rcLang = (hass) => (hass && hass.locale && hass.locale.language) || (hass && hass.language) || "en";
 
 /* ================================================================
    EDITOR
@@ -19,6 +23,9 @@ class EufyRoomCardEditor extends HTMLElement {
 
   set hass(hass) { this._hass = hass; this._render(); }
 
+  t(key, vars)    { return translate(_rcLang(this._hass), key, vars); }
+  tRaw(key, vars) { return translate(_rcLang(this._hass), key, vars, { raw: true }); }
+
   _vacuumEntities() {
     if (!this._hass) return [];
     return Object.keys(this._hass.states).filter((id) => id.startsWith("vacuum.")).sort();
@@ -34,7 +41,7 @@ class EufyRoomCardEditor extends HTMLElement {
       )
       .map(([, s]) => ({
         room_id:   s.attributes.room_id,
-        room_name: s.attributes.room_name ?? s.attributes.friendly_name ?? `Room ${s.attributes.room_id}`,
+        room_name: s.attributes.room_name ?? s.attributes.friendly_name ?? this.t("room_card.room_fallback", { room_id: s.attributes.room_id }),
       }))
       .sort((a, b) => String(a.room_name).localeCompare(String(b.room_name)));
   }
@@ -77,29 +84,29 @@ class EufyRoomCardEditor extends HTMLElement {
       </style>
 
       <div class="field">
-        <label>Vacuum</label>
+        <label>${this.t("room_card.editor_vacuum_label")}</label>
         <select id="vacuum">
-          <option value="" disabled ${!selectedVacuum ? "selected" : ""}>— pick a vacuum —</option>
+          <option value="" disabled ${!selectedVacuum ? "selected" : ""}>${this.t("room_card.editor_pick_vacuum")}</option>
           ${vacuums.map((v) => `<option value="${_esc(v)}" ${v === selectedVacuum ? "selected" : ""}>${_esc(v)}</option>`).join("")}
         </select>
       </div>
 
       <div class="field">
-        <label>Room</label>
+        <label>${this.t("room_card.editor_room_label")}</label>
         ${!selectedVacuum
-          ? `<div class="hint">Select a vacuum first.</div>`
+          ? `<div class="hint">${this.t("room_card.editor_select_vacuum_first")}</div>`
           : rooms.length === 0
-          ? `<div class="no-rooms">No room switches found for ${_esc(selectedVacuum)}.</div>`
+          ? `<div class="no-rooms">${this.t("room_card.editor_no_room_switches", { vacuum: _esc(selectedVacuum) })}</div>`
           : `<select id="room">
-               <option value="" disabled ${!selectedRoom ? "selected" : ""}>— pick a room —</option>
+               <option value="" disabled ${!selectedRoom ? "selected" : ""}>${this.t("room_card.editor_pick_room")}</option>
                ${rooms.map((r) => `<option value="${_esc(String(r.room_id))}" ${String(r.room_id) === selectedRoom ? "selected" : ""}>${_esc(r.room_name)}</option>`).join("")}
              </select>`}
       </div>
 
       <div class="field">
-        <label>Name override <span style="font-weight:400;text-transform:none">(optional)</span></label>
-        <input id="name" type="text" placeholder="Leave blank to use room name" value="${_esc(nameOverride)}">
-        <div class="hint">Overrides the label shown on the card.</div>
+        <label>${this.t("room_card.editor_name_override_label")} <span style="font-weight:400;text-transform:none">${this.t("room_card.editor_optional")}</span></label>
+        <input id="name" type="text" placeholder="${this.t("room_card.editor_name_placeholder")}" value="${_esc(nameOverride)}">
+        <div class="hint">${this.t("room_card.editor_name_hint")}</div>
       </div>
     `;
 
@@ -161,6 +168,9 @@ class EufyRoomCard extends HTMLElement {
     this._hass = hass;
     this._render();
   }
+
+  t(key, vars)    { return translate(_rcLang(this._hass), key, vars); }
+  tRaw(key, vars) { return translate(_rcLang(this._hass), key, vars, { raw: true }); }
 
   /* =========================================================
      ENTITY FINDERS
@@ -276,7 +286,7 @@ class EufyRoomCard extends HTMLElement {
     const sw        = this._targetSwitch();
     const swAttrs   = sw?.attrs ?? {};
     const isEnabled = sw?.state === "on";
-    const name      = this._config.name ?? swAttrs.room_name ?? `Room ${this._config.room_id}`;
+    const name      = this._config.name ?? swAttrs.room_name ?? this.t("room_card.room_fallback", { room_id: this._config.room_id });
     const slug      = swAttrs.slug ?? "";
     const mapId     = String(swAttrs.map_id ?? "");
     const isCarpet  = Boolean(swAttrs.carpet ?? false);
@@ -311,20 +321,20 @@ class EufyRoomCard extends HTMLElement {
 
     const passesRow = () => `
       <div class="field-group">
-        <div class="field-label">Passes</div>
+        <div class="field-label">${this.t("room_card.passes_label")}</div>
         <div class="chips">
-          <button class="chip ${fields.clean_passes === 1 ? "active" : ""}" data-field="clean_passes" data-value="1">1 Pass</button>
-          <button class="chip ${fields.clean_passes === 2 ? "active" : ""}" data-field="clean_passes" data-value="2">2 Passes</button>
+          <button class="chip ${fields.clean_passes === 1 ? "active" : ""}" data-field="clean_passes" data-value="1">${this.t("room_card.passes_1")}</button>
+          <button class="chip ${fields.clean_passes === 2 ? "active" : ""}" data-field="clean_passes" data-value="2">${this.t("room_card.passes_2")}</button>
         </div>
       </div>
     `;
 
     const edgeMopRow = () => !showEdgeMopping ? "" : `
       <div class="field-group">
-        <div class="field-label">Edge Mopping</div>
+        <div class="field-label">${this.t("room_card.edge_mopping_label")}</div>
         <div class="chips">
-          <button class="chip ${fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="true">On</button>
-          <button class="chip ${!fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="false">Off</button>
+          <button class="chip ${fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="true">${this.t("room_card.on")}</button>
+          <button class="chip ${!fields.edge_mopping ? "active" : ""}" data-field="edge_mopping" data-value="false">${this.t("room_card.off")}</button>
         </div>
       </div>
     `;
@@ -486,16 +496,16 @@ class EufyRoomCard extends HTMLElement {
         <div class="header ${isEnabled ? "is-enabled" : ""}" role="button" aria-pressed="${isEnabled}" tabindex="0">
           <div class="indicator"></div>
           <span class="room-name">${_esc(name)}</span>
-          ${dirty ? `<span class="dirty-badge">Unsaved</span>` : ""}
+          ${dirty ? `<span class="dirty-badge">${this.t("room_card.unsaved_badge")}</span>` : ""}
         </div>
 
-        ${isCarpet ? `<div class="carpet-notice">🪵 Carpet room — mop fields hidden</div>` : ""}
+        ${isCarpet ? `<div class="carpet-notice">🪵 ${this.t("room_card.carpet_notice")}</div>` : ""}
 
         <div class="fields">
-          ${chipRow("Cleaning Mode", "clean_mode", cleanModes, fields.clean_mode)}
-          ${chipRow("Suction Level", "fan_speed", suctionLevels, fields.fan_speed)}
-          ${waterLevels.length ? chipRow("Water Level", "water_level", waterLevels, fields.water_level) : ""}
-          ${chipRow("Cleaning Path", "clean_intensity", cleanIntensities, fields.clean_intensity)}
+          ${chipRow(this.t("room_card.cleaning_mode_label"), "clean_mode", cleanModes, fields.clean_mode)}
+          ${chipRow(this.t("room_card.suction_level_label"), "fan_speed", suctionLevels, fields.fan_speed)}
+          ${waterLevels.length ? chipRow(this.t("room_card.water_level_label"), "water_level", waterLevels, fields.water_level) : ""}
+          ${chipRow(this.t("room_card.cleaning_path_label"), "clean_intensity", cleanIntensities, fields.clean_intensity)}
           ${passesRow()}
           ${edgeMopRow()}
         </div>
@@ -503,12 +513,12 @@ class EufyRoomCard extends HTMLElement {
         <div class="footer">
           ${dirty ? `
           <button class="btn btn-save" id="save-btn" ${this._saving ? "disabled" : ""}>
-            ${this._saving ? `<span class="spinning">↻</span> Saving…` : "Save"}
+            ${this._saving ? `<span class="spinning">↻</span> ${this.t("room_card.saving")}` : this.t("room_card.save")}
           </button>` : ""}
           <button class="btn btn-start" id="start-btn" ${this._starting ? "disabled" : ""}>
             ${this._starting
-              ? `<span class="spinning">↻</span> Starting…`
-              : `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="margin-right:2px"><polygon points="5,3 19,12 5,21"/></svg> Start`}
+              ? `<span class="spinning">↻</span> ${this.t("room_card.starting")}`
+              : `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" style="margin-right:2px"><polygon points="5,3 19,12 5,21"/></svg> ${this.t("room_card.start")}`}
           </button>
         </div>
 

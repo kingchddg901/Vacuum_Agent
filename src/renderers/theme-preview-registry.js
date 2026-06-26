@@ -35,101 +35,108 @@ import { animalEditorGroupLabel, ANIMAL_PARENT_GROUP } from "../theme-tokens/ind
    STATIC PREVIEW ENTRIES (non-animal groups)
    ========================================================= */
 
+/*
+ * Each entry's user-facing pane title/description is i18n'd: it carries a
+ * stable `titleKey`/`descKey` (namespace "theme_preview.*") that the renderer
+ * (`_renderThemePreviewPane` in theme-preview.js) resolves via `this.t` at the
+ * render site, keeping this module a pure data/routing layer. The OBJECT KEYS
+ * (group ids like "App Shell & Typography") are data/identity, NOT translated.
+ */
 const STATIC_PREVIEW_ENTRIES = {
   "App Shell & Typography": {
     method: "_renderThemePreviewShellTypography",
-    title: "Shell & Typography Preview",
-    description: "Accent, heading, and body text examples show the shell voice this group controls.",
+    titleKey: "theme_preview.group.shell.title",
+    descKey: "theme_preview.group.shell.desc",
   },
   "Cards & Surfaces": {
     method: "_renderThemePreviewCardsSurfaces",
-    title: "Cards & Surfaces Preview",
-    description: "Shared card, panel, and input surfaces show the base material language for the editor.",
+    titleKey: "theme_preview.group.surfaces.title",
+    descKey: "theme_preview.group.surfaces.desc",
   },
   "Borders & Shadows": {
     method: "_renderThemePreviewBordersShadows",
-    title: "Borders & Shadows Preview",
-    description: "Border strength and elevation samples reveal separation, depth, and hover lift.",
+    titleKey: "theme_preview.group.borders.title",
+    descKey: "theme_preview.group.borders.desc",
   },
   "Chips": {
     method: "_renderThemePreviewChips",
-    title: "Chip Preview",
-    description: "A compact chip matrix highlights default, active, hover, success, warning, and excluded states.",
+    titleKey: "theme_preview.group.chips.title",
+    descKey: "theme_preview.group.chips.desc",
   },
   "Room Cards": {
     method: "_renderThemePreviewRoomCards",
-    title: "Room Card Preview",
-    description: "Mini room cards expose profile chips, room chips, and room-surface treatment together.",
+    titleKey: "theme_preview.group.rooms.title",
+    descKey: "theme_preview.group.rooms.desc",
   },
   "Floor Textures": {
     method: "_renderThemePreviewFloorTextures",
-    title: "Floor Texture Preview",
-    description: "Live swatches show each material's overlay on the card surface. Opacity, scale, and tint tokens update in real time.",
+    titleKey: "theme_preview.group.floor.title",
+    descKey: "theme_preview.group.floor.desc",
   },
   "Floor Textures — Tile": {
     method: "_renderThemePreviewFloorTextureTile",
-    title: "Tile Floor Preview",
-    description: "Base and accent colors control the grout lines and tile face on card and map surfaces.",
+    titleKey: "theme_preview.group.floor_tile.title",
+    descKey: "theme_preview.group.floor_tile.desc",
   },
   "Floor Textures — Wood": {
     method: "_renderThemePreviewFloorTextureWood",
-    title: "Wood Floor Preview",
-    description: "Base and accent colors control the wood grain, seam lines, and directional depth layers.",
+    titleKey: "theme_preview.group.floor_wood.title",
+    descKey: "theme_preview.group.floor_wood.desc",
   },
   "Floor Textures — Marble": {
     method: "_renderThemePreviewFloorTextureMarble",
-    title: "Marble Floor Preview",
-    description: "Base color tints the marble texture layer on the card surface.",
+    titleKey: "theme_preview.group.floor_marble.title",
+    descKey: "theme_preview.group.floor_marble.desc",
   },
   "Floor Textures — Concrete": {
     method: "_renderThemePreviewFloorTextureConcrete",
-    title: "Concrete Floor Preview",
-    description: "Base color tints the concrete texture layer on the card surface.",
+    titleKey: "theme_preview.group.floor_concrete.title",
+    descKey: "theme_preview.group.floor_concrete.desc",
   },
   "Floor Textures — Carpet Low": {
     method: "_renderThemePreviewFloorTextureCarpetLow",
-    title: "Carpet Low Pile Preview",
-    description: "Base color tints the low-pile carpet texture layer on the card surface.",
+    titleKey: "theme_preview.group.floor_carpet_low.title",
+    descKey: "theme_preview.group.floor_carpet_low.desc",
   },
   "Floor Textures — Carpet High": {
     method: "_renderThemePreviewFloorTextureCarpetHigh",
-    title: "Carpet High Pile Preview",
-    description: "Base color tints the high-pile carpet texture layer on the card surface.",
+    titleKey: "theme_preview.group.floor_carpet_high.title",
+    descKey: "theme_preview.group.floor_carpet_high.desc",
   },
   "Floor Textures — Granite": {
     method: "_renderThemePreviewFloorTextureGranite",
-    title: "Granite Floor Preview",
-    description: "Base color tints the granite texture layer on the card surface.",
+    titleKey: "theme_preview.group.floor_granite.title",
+    descKey: "theme_preview.group.floor_granite.desc",
   },
   "Queue & Ordering": {
     method: "_renderThemePreviewQueueOrdering",
-    title: "Queue & Ordering Preview",
-    description: "Queue strip, order chips, and drag feedback samples show sequencing and reorder states.",
+    titleKey: "theme_preview.group.queue.title",
+    descKey: "theme_preview.group.queue.desc",
   },
   "Status, Confidence & Alerts": {
     method: "_renderThemePreviewStatusAlerts",
-    title: "Status & Alerts Preview",
-    description: "Status dots, confidence badges, and alert surfaces show semantic state color relationships.",
+    titleKey: "theme_preview.group.status.title",
+    descKey: "theme_preview.group.status.desc",
   },
   "Learning & Metrics": {
     method: "_renderThemePreviewLearningMetrics",
-    title: "Learning & Metrics Preview",
-    description: "Estimate badges and learning panels preview predictive and analytical surfaces.",
+    titleKey: "theme_preview.group.learning.title",
+    descKey: "theme_preview.group.learning.desc",
   },
   [ANIMAL_PARENT_GROUP]: {
     method: "_renderThemePreviewAnimalCompanion",
-    title: "Animal Companion Preview",
-    description: "Every registered animal in standing pose across all five battery-state bands. Eye-color and global palette tokens in this group apply across every animal.",
+    titleKey: "theme_preview.group.animal.title",
+    descKey: "theme_preview.group.animal.desc",
   },
   "Modals & Overlays": {
     method: "_renderThemePreviewModalsOverlays",
-    title: "Modal & Overlay Preview",
-    description: "A modal shell sample isolates overlay surfaces, chips, warning states, and backdrop treatment.",
+    titleKey: "theme_preview.group.modal.title",
+    descKey: "theme_preview.group.modal.desc",
   },
   "Shared Foundations": {
     method: "_renderThemePreviewSharedFoundations",
-    title: "Shared Foundations Preview",
-    description: "A mixed control-surface preview shows spacing, radius, motion, and typography primitives together.",
+    titleKey: "theme_preview.group.foundations.title",
+    descKey: "theme_preview.group.foundations.desc",
   },
 };
 
@@ -156,15 +163,17 @@ function buildAnimalSubgroupEntries(animals) {
     if (!safe) continue;
     const display = safe.charAt(0).toUpperCase() + safe.slice(1);
     // Key by the memorial-aware editor group (Rainbow Bridge — X for memorials),
-    // so the preview pane resolves for a tribute animal too.
+    // so the preview pane resolves for a tribute animal too. The pane title/
+    // description are i18n'd via stable keys + per-animal vars, resolved by
+    // `_renderThemePreviewPane` (this.t) at the render site. The animal name is
+    // [a-z0-9-]-sanitized; escaping at the sink is therefore a no-op.
     out[animalEditorGroupLabel(name)] = {
       method:     "_renderThemePreviewAnimal",
       methodArgs: [safe],
-      title:      `${display} Preview`,
-      description:
-        `The ${safe} across all five battery-state bands. Tokens in this ` +
-        `sub-group (prefixed --evcc-animal-${safe}-) override the global ` +
-        `Animal Companion palette and eye-state colors for just the ${safe}.`,
+      titleKey:   "theme_preview.group.animal_sub.title",
+      titleVars:  { animal: display },
+      descKey:    "theme_preview.group.animal_sub.desc",
+      descVars:   { animal: safe },
     };
   }
   return out;

@@ -215,21 +215,21 @@ export function applyThemeRenderers(proto) {
             class="evcc-chip ${activeTab === "presets" ? "active" : ""}"
             data-theme-tab="presets"
           >
-            Themes
+            ${this.t("theme.tab_themes")}
           </button>
 
           <button
             class="evcc-chip ${activeTab === "palette" ? "active" : ""}"
             data-theme-tab="palette"
           >
-            Palette
+            ${this.t("theme.tab_palette")}
           </button>
 
           <button
             class="evcc-chip ${activeTab === "tokens" ? "active" : ""}"
             data-theme-tab="tokens"
           >
-            Tokens
+            ${this.t("theme.tab_tokens")}
           </button>
         </div>`}
 
@@ -261,29 +261,29 @@ export function applyThemeRenderers(proto) {
         <div class="evcc-modal evcc-modal--theme-json" data-stop-propagation>
 
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">${isExport ? "Export theme" : "Import theme"}</div>
-            <button type="button" class="evcc-chip evcc-chip--icon" data-action="close-theme-json" title="Close">✕</button>
+            <div class="evcc-modal-title">${isExport ? this.t("theme.json_modal_title_export") : this.t("theme.json_modal_title_import")}</div>
+            <button type="button" class="evcc-chip evcc-chip--icon" data-action="close-theme-json" title="${this.t("common.close")}">✕</button>
           </div>
 
           <div class="evcc-modal-body">
             <p class="evcc-theme-json-hint">${isExport
-              ? "Copy this JSON to share or back up the active theme. It's not saved anywhere — it's gone when you close this."
-              : "Paste a theme export below, then Import. (Or use Upload for a file.)"}</p>
+              ? this.t("theme.json_modal_hint_export")
+              : this.t("theme.json_modal_hint_import")}</p>
             <textarea
               class="evcc-theme-json-area"
               data-theme-json-area
               spellcheck="false"
-              ${isExport ? "readonly" : `placeholder="Paste theme JSON here…"`}
+              ${isExport ? "readonly" : `placeholder="${this.t("theme.json_modal_paste_placeholder")}"`}
             >${this.escapeHtml(text)}</textarea>
             ${isExport ? "" : `<p class="evcc-theme-json-error" data-theme-json-error hidden></p>`}
           </div>
 
           <div class="evcc-modal-footer">
-            <button type="button" class="evcc-chip" data-action="close-theme-json">${isExport ? "Close" : "Cancel"}</button>
+            <button type="button" class="evcc-chip" data-action="close-theme-json">${isExport ? this.t("common.close") : this.t("common.cancel")}</button>
             ${isExport
-              ? `<button type="button" class="evcc-chip" data-action="notify-theme-json" title="Post this export to a Home Assistant persistent notification to grab later (useful for batch exports when clipboard/download are blocked)">Send to HA</button>
-                 <button type="button" class="evcc-chip evcc-chip--save" data-action="copy-theme-json">Copy</button>`
-              : `<button type="button" class="evcc-chip evcc-chip--save" data-action="confirm-theme-import">Import</button>`}
+              ? `<button type="button" class="evcc-chip" data-action="notify-theme-json" title="${this.t("theme.json_modal_notify_title")}">${this.t("theme.json_modal_send_to_ha")}</button>
+                 <button type="button" class="evcc-chip evcc-chip--save" data-action="copy-theme-json">${this.t("theme.json_modal_copy")}</button>`
+              : `<button type="button" class="evcc-chip evcc-chip--save" data-action="confirm-theme-import">${this.t("theme.json_modal_import")}</button>`}
           </div>
 
         </div>
@@ -298,7 +298,7 @@ export function applyThemeRenderers(proto) {
           <ha-icon icon="mdi:magnify"></ha-icon>
           <input
             type="text"
-            placeholder="Search tokens..."
+            placeholder="${this.t("theme.search_tokens_placeholder")}"
             value="${this.escapeHtml(state.tokenSearchQuery || "")}"
             data-theme-search
           />
@@ -309,7 +309,7 @@ export function applyThemeRenderers(proto) {
             ?checked="${state.modifiedOnly}"
             data-theme-modified-only
           ></ha-checkbox>
-          <span>Modified Only</span>
+          <span>${this.t("theme.modified_only")}</span>
         </label>
       </div>
     `;
@@ -319,8 +319,8 @@ export function applyThemeRenderers(proto) {
     const selectedFilter = this.card._state.getThemeGroupFilter();
 
     const chips = [
-      { value: "all", label: "All" },
-      { value: "modified", label: "Modified" },
+      { value: "all", label: this.t("theme.filter_all") },
+      { value: "modified", label: this.t("theme.filter_modified") },
       ...THEME_GROUPS.map((group) => ({ value: group, label: group })),
     ];
 
@@ -370,7 +370,7 @@ export function applyThemeRenderers(proto) {
             <ha-icon icon="mdi:magnify"></ha-icon>
             <input
               type="text"
-              placeholder="Search themes..."
+              placeholder="${this.t("theme.search_themes_placeholder")}"
               value="${this.escapeHtml(state.presetSearchQuery || "")}"
               data-preset-search
             />
@@ -382,21 +382,21 @@ export function applyThemeRenderers(proto) {
               aria-expanded="${filtersOpen ? "true" : "false"}"
             >
               <ha-icon icon="mdi:filter-variant"></ha-icon>
-              Filters${facetCount ? ` (${facetCount})` : ""}
+              ${facetCount ? this.t("theme.filters_count", { count: facetCount }) : this.t("theme.filters")}
               <ha-icon class="evcc-preset-filters-caret" icon="mdi:chevron-down"></ha-icon>
             </button>
           ` : ""}
           ${hasFilters ? `
-            <button class="evcc-chip evcc-preset-clear" data-preset-clear>Clear</button>
+            <button class="evcc-chip evcc-preset-clear" data-preset-clear>${this.t("theme.clear_filters")}</button>
           ` : ""}
           <a
             class="evcc-preset-gallery-link"
             href="${THEME_GALLERY_URL}"
             target="_blank"
             rel="noopener noreferrer"
-            title="Browse the theme gallery (opens in a new tab)"
+            title="${this.t("theme.gallery_link_title")}"
           >
-            Browse gallery <ha-icon icon="mdi:open-in-new"></ha-icon>
+            ${this.t("theme.browse_gallery")} <ha-icon icon="mdi:open-in-new"></ha-icon>
           </a>
         </div>
         ${canFilter && filtersOpen ? `<div class="evcc-preset-facets">${facetRows}</div>` : ""}
@@ -412,13 +412,13 @@ export function applyThemeRenderers(proto) {
     const allIds = Object.keys(library);
 
     if (allIds.length === 0) {
-      return `<div class="evcc-empty">No themes available.</div>`;
+      return `<div class="evcc-empty">${this.t("theme.presets_empty")}</div>`;
     }
 
     const ids = this.card._state.filteredPresetIds();
 
     const grid = ids.length === 0
-      ? `<div class="evcc-empty">No themes match these filters.</div>`
+      ? `<div class="evcc-empty">${this.t("theme.presets_no_match")}</div>`
       : `
         <div class="evcc-preset-grid">
           ${(() => {
@@ -459,18 +459,18 @@ export function applyThemeRenderers(proto) {
                         class="evcc-preset-vibe-remove"
                         data-preset-tag-remove="${this.escapeHtml(id)}"
                         data-tag="${this.escapeHtml(t)}"
-                        title="Remove tag">×</button></span>`).join("")}
+                        title="${this.t("theme.tag_remove_title")}">×</button></span>`).join("")}
                   </div>
                   <div class="evcc-preset-tag-add">
                     <input
                       class="evcc-preset-tag-input"
                       type="text"
                       list="evcc-vibe-suggest"
-                      placeholder="add a tag…"
+                      placeholder="${this.t("theme.tag_add_placeholder")}"
                       maxlength="32"
                       data-preset-tag-add="${this.escapeHtml(id)}"
                     >
-                    <button class="evcc-preset-tag-done" data-preset-tag-done title="Done editing tags">
+                    <button class="evcc-preset-tag-done" data-preset-tag-done title="${this.t("theme.tag_done_title")}">
                       <ha-icon icon="mdi:check"></ha-icon>
                     </button>
                   </div>
@@ -485,7 +485,7 @@ export function applyThemeRenderers(proto) {
                 <button
                   class="evcc-preset-tag-edit ${isEditing ? "active" : ""}"
                   data-preset-tag-edit="${this.escapeHtml(id)}"
-                  title="Edit tags"
+                  title="${this.t("theme.tag_edit_title")}"
                 >
                   <ha-icon icon="mdi:tag-multiple-outline"></ha-icon>
                 </button>
@@ -506,7 +506,7 @@ export function applyThemeRenderers(proto) {
 
                 <div class="evcc-preset-label">
                   ${this.escapeHtml(theme.name || id)}
-                  ${isActive ? `<span class="evcc-chip evcc-chip--active">Active</span>` : ""}
+                  ${isActive ? `<span class="evcc-chip evcc-chip--active">${this.t("theme.preset_active")}</span>` : ""}
                 </div>
                 ${tagChips}
                 ${editor}
@@ -528,21 +528,21 @@ export function applyThemeRenderers(proto) {
     return `
       <div class="evcc-theme-mode">
         <div class="evcc-theme-mode-row">
-          <span class="evcc-theme-mode-label">Theme mode</span>
-          <button class="evcc-chip ${isDevice ? "" : "active"}" data-theme-mode="system">Follow system</button>
-          <button class="evcc-chip ${isDevice ? "active" : ""}" data-theme-mode="device">This device only</button>
+          <span class="evcc-theme-mode-label">${this.t("theme.mode_label")}</span>
+          <button class="evcc-chip ${isDevice ? "" : "active"}" data-theme-mode="system">${this.t("theme.mode_follow_system")}</button>
+          <button class="evcc-chip ${isDevice ? "active" : ""}" data-theme-mode="device">${this.t("theme.mode_this_device")}</button>
         </div>
         ${isDevice ? `
           <div class="evcc-theme-mode-detail">
             <div class="evcc-theme-mode-state">
-              <span><span class="k">Active theme</span> ${this.escapeHtml(activeName)}</span>
-              <span><span class="k">Mode</span> this device only</span>
+              <span><span class="k">${this.t("theme.mode_active_theme")}</span> ${this.escapeHtml(activeName)}</span>
+              <span><span class="k">${this.t("theme.mode_mode")}</span> ${this.t("theme.mode_this_device_only")}</span>
             </div>
             <div class="evcc-theme-mode-actions">
-              <button class="evcc-chip" data-action="theme-use-everywhere">Use everywhere</button>
-              <button class="evcc-chip" data-action="theme-clear-device">Clear device override</button>
+              <button class="evcc-chip" data-action="theme-use-everywhere">${this.t("theme.mode_use_everywhere")}</button>
+              <button class="evcc-chip" data-action="theme-clear-device">${this.t("theme.mode_clear_device")}</button>
             </div>
-            <p class="evcc-theme-mode-note">Theme edits are shared. Only the <em>selected</em> theme is local to this browser.</p>
+            <p class="evcc-theme-mode-note">${this.tRaw("theme.mode_note")}</p>
           </div>
         ` : ""}
       </div>
@@ -640,7 +640,7 @@ export function applyThemeRenderers(proto) {
                   class="evcc-chip"
                   data-theme-group-reset="${this.escapeHtml(group)}"
                 >
-                  Reset
+                  ${this.t("theme.group_reset")}
                 </button>
               ` : ""}
 
@@ -656,7 +656,7 @@ export function applyThemeRenderers(proto) {
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
-                    placeholder="Search ${this.escapeHtml(displayTitle)}..."
+                    placeholder="${this.t("theme.group_search_placeholder", { title: this.escapeHtml(displayTitle) })}"
                     value="${this.escapeHtml(groupSearchQuery)}"
                     data-theme-group-search="${this.escapeHtml(group)}"
                   />
@@ -672,7 +672,7 @@ export function applyThemeRenderers(proto) {
 
                 ${!groupTokens.length && hasActiveSearch ? `
                   <div class="evcc-empty evcc-empty--theme-group-search">
-                    No tokens in ${this.escapeHtml(displayTitle)} match "${this.escapeHtml(groupSearchQuery)}".
+                    ${this.t("theme.group_no_match", { title: this.escapeHtml(displayTitle), query: this.escapeHtml(groupSearchQuery) })}
                   </div>
                 ` : ""}
               ` : ""}
@@ -701,7 +701,7 @@ export function applyThemeRenderers(proto) {
           <div class="evcc-token-list">
           ${renderedGroups.length ? renderedGroups.join("") : `
             <div class="evcc-empty evcc-empty--theme-group-search">
-              No tokens match the current theme filters.
+              ${this.t("theme.no_tokens_match_filters")}
             </div>
           `}
           </div>
@@ -762,12 +762,12 @@ export function applyThemeRenderers(proto) {
               class="evcc-chip"
               data-theme-reset="${this.escapeHtml(token.key)}"
             >
-              Reset
+              ${this.t("theme.token_reset")}
             </button>
           ` : ""}
 
           <div class="token-hint">
-            Drag for opacity · Double tap for color
+            ${this.t("theme.color_hint")}
           </div>
         </div>
 
@@ -799,7 +799,7 @@ export function applyThemeRenderers(proto) {
                   value="${alphaPercent}"
                   data-theme-alpha="${this.escapeHtml(token.key)}"
                   data-color-swatch="${this.escapeHtml(token.key)}"
-                  aria-label="${this.escapeHtml(token.label)} opacity"
+                  aria-label="${this.t("theme.alpha_aria_label", { label: this.escapeHtml(token.label) })}"
                 />
 
                 <div
@@ -845,13 +845,13 @@ export function applyThemeRenderers(proto) {
           <div class="token-head-actions">
             ${isDraft ? `
               <button class="evcc-chip" data-theme-reset="${this.escapeHtml(token.key)}">
-                Reset
+                ${this.t("theme.token_reset")}
               </button>
             ` : ""}
           </div>
         </div>
 
-        <div class="token-hint">Drag ratio · Edit color references</div>
+        <div class="token-hint">${this.t("theme.colormix_hint")}</div>
 
         <div class="token-colormix-colors">
           <div class="token-colormix-slot">
@@ -943,7 +943,7 @@ export function applyThemeRenderers(proto) {
                 class="evcc-chip"
                 data-theme-reset="${this.escapeHtml(token.key)}"
               >
-                Reset
+                ${this.t("theme.token_reset")}
               </button>
             ` : ""}
           </div>
@@ -992,7 +992,7 @@ export function applyThemeRenderers(proto) {
           <div class="token-label">
             ${this.escapeHtml(token.label)}
             <span class="evcc-chip">${this.escapeHtml(token.type)}</span>
-            ${isDraft ? `<span class="evcc-chip evcc-chip--custom">Draft</span>` : ""}
+            ${isDraft ? `<span class="evcc-chip evcc-chip--custom">${this.t("theme.token_draft")}</span>` : ""}
           </div>
 
           <div class="token-head-actions">
@@ -1001,7 +1001,7 @@ export function applyThemeRenderers(proto) {
                 class="evcc-chip"
                 data-theme-reset="${this.escapeHtml(token.key)}"
               >
-                Reset
+                ${this.t("theme.token_reset")}
               </button>
             ` : ""}
           </div>
@@ -1012,7 +1012,7 @@ export function applyThemeRenderers(proto) {
             type="text"
             class="token-input"
             value="${this.escapeHtml(value)}"
-            placeholder="Default"
+            placeholder="${this.t("theme.token_default_placeholder")}"
             data-theme-token="${this.escapeHtml(token.key)}"
           />
         </div>
@@ -1034,40 +1034,40 @@ export function applyThemeRenderers(proto) {
           <button
             class="evcc-chip"
             data-action="export-theme"
-            title="Copy theme JSON to clipboard"
+            title="${this.t("theme.export_title")}"
           >
-            Export
+            ${this.t("theme.export")}
           </button>
 
           <button
             class="evcc-chip"
             data-action="import-theme"
-            title="Paste theme JSON from clipboard"
+            title="${this.t("theme.import_title")}"
           >
-            Import
+            ${this.t("theme.import")}
           </button>
 
           <button
             class="evcc-chip"
             data-action="download-theme"
-            title="Download theme as a .json file"
+            title="${this.t("theme.download_title")}"
           >
-            Download
+            ${this.t("theme.download")}
           </button>
 
           <button
             class="evcc-chip"
             data-action="upload-theme"
-            title="Upload a theme .json file"
+            title="${this.t("theme.upload_title")}"
           >
-            Upload
+            ${this.t("theme.upload")}
           </button>
 
           ${isMobile ? "" : `
           <select
             class="evcc-chip evcc-floor-scope-select"
             data-theme-floor-scope
-            title="Floor type to export as a shareable preset"
+            title="${this.t("theme.floor_scope_title")}"
           >
             ${floorTypeNames().map((name) => `<option value="${name}">${name}</option>`).join("")}
           </select>
@@ -1075,15 +1075,15 @@ export function applyThemeRenderers(proto) {
           <button
             class="evcc-chip"
             data-action="download-floor-theme"
-            title="Download just this floor type as a shareable preset .json"
+            title="${this.t("theme.download_floor_title")}"
           >
-            Download Floor
+            ${this.t("theme.download_floor")}
           </button>
 
           <select
             class="evcc-chip evcc-floor-scope-select"
             data-floor-preset
-            title="Built-in marble preset to apply to the active theme"
+            title="${this.t("theme.marble_preset_title")}"
           >
             ${MARBLE_PRESETS.map((p) => `<option value="${p.id}">${this.escapeHtml(p.name)}</option>`).join("")}
           </select>
@@ -1091,9 +1091,9 @@ export function applyThemeRenderers(proto) {
           <button
             class="evcc-chip"
             data-action="apply-floor-preset"
-            title="Apply this built-in marble preset to the active theme"
+            title="${this.t("theme.apply_preset_title")}"
           >
-            Apply Preset
+            ${this.t("theme.apply_preset")}
           </button>`}
         </div>
 
@@ -1104,7 +1104,7 @@ export function applyThemeRenderers(proto) {
             data-action="reset-draft"
             ${!hasDraft ? "disabled" : ""}
           >
-            Discard
+            ${this.t("theme.discard")}
           </button>
 
           <button
@@ -1112,7 +1112,7 @@ export function applyThemeRenderers(proto) {
             data-action="save-theme"
             ${!hasDraft ? "disabled" : ""}
           >
-            ${hasActiveTheme ? "Save Changes" : "Save as New"}
+            ${hasActiveTheme ? this.t("theme.save_changes") : this.t("theme.save_as_new")}
           </button>
         </div>`}
       </div>
