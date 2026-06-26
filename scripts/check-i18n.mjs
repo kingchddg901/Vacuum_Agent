@@ -60,7 +60,20 @@ registerLocale("xx", {
 registerLocale("ev", {
   // An attacker-supplied community locale value. Must never reach innerHTML raw.
   "rooms.empty": '<img src=x onerror="alert(1)">&"\'<b>',
+  // A hostile PLURAL form — escaping must apply to the selected form too.
+  "rooms.count_rooms": { other: '<b>{count}</b>' },
 });
+// A real multi-form language (Russian: one/few/many/other) drives the
+// Intl.PluralRules selection path; "de" has the key absent (English-object
+// fallback); "pl" supplies only `other` (in-entry fallback when the chosen
+// category is missing).
+registerLocale("ru", {
+  "rooms.count_rooms": {
+    one: "{count} комната", few: "{count} комнаты",
+    many: "{count} комнат", other: "{count} комнаты",
+  },
+});
+registerLocale("pl", { "rooms.count_rooms": { other: "pokoje: {count}" } });
 
 const check = (label, fn) => {
   try { fn(); console.log(`  ✓ ${label}`); }
@@ -128,6 +141,45 @@ check("interpolation replaces {name}; value inserted raw", () => {
 // 11. A missing interpolation var leaves its placeholder untouched.
 check("missing interpolation var leaves placeholder", () => {
   assert.equal(translate("xx", "rooms.greeting", {}), "Olá {name}");
+});
+
+// --- Plurals (object-valued keys + Intl.PluralRules) ---------------------
+
+// 12. English picks `one` for count===1 and `other` otherwise (CLDR English).
+check("plural: English selects one vs other by count", () => {
+  assert.equal(translate("en", "rooms.count_rooms", { count: 1 }), "1 room");
+  assert.equal(translate("en", "rooms.count_rooms", { count: 5 }), "5 rooms");
+  assert.equal(translate("en", "rooms.count_rooms", { count: 0 }), "0 rooms");
+});
+
+// 13. A real multi-form language selects the right CLDR category via Intl —
+//     Russian: 1->one, 2->few, 5->many, 21->one (n%10==1 && n%100!=11).
+check("plural: Intl.PluralRules drives multi-form selection (ru)", () => {
+  assert.equal(translate("ru", "rooms.count_rooms", { count: 1 }), "1 комната");
+  assert.equal(translate("ru", "rooms.count_rooms", { count: 2 }), "2 комнаты");
+  assert.equal(translate("ru", "rooms.count_rooms", { count: 5 }), "5 комнат");
+  assert.equal(translate("ru", "rooms.count_rooms", { count: 21 }), "21 комната");
+});
+
+// 14. A plural key called WITHOUT count falls to the `other` form (never blank).
+check("plural: missing count falls to 'other'", () => {
+  assert.equal(translate("en", "rooms.count_rooms"), "{count} rooms");
+});
+
+// 15. Partial locale (only `other`) uses its own `other` when the chosen
+//     category is absent; a locale missing the key entirely falls to English.
+check("plural: in-entry + cross-locale fallback", () => {
+  assert.equal(translate("pl", "rooms.count_rooms", { count: 1 }), "pokoje: 1");
+  assert.equal(translate("de", "rooms.count_rooms", { count: 1 }), "1 room");
+  assert.equal(translate("de", "rooms.count_rooms", { count: 3 }), "3 rooms");
+});
+
+// 16. TRUST MODEL B holds for the SELECTED plural form — a hostile form is
+//     escaped, and the count var is still inserted after escaping.
+check("plural: selected form is escaped (trust model B)", () => {
+  const out = translate("ev", "rooms.count_rooms", { count: 5 });
+  assert.ok(!out.includes("<b>"), "raw <b> survived escaping in a plural form");
+  assert.equal(out, "&lt;b&gt;5&lt;/b&gt;");
 });
 
 /* =========================================================

@@ -1059,11 +1059,11 @@ export function applyMapRenderers(proto) {
     const diffMs  = Date.now() - d.getTime();
     const diffMin = Math.floor(diffMs / 60000);
     if (diffMin < 1)  return this.t("relative.just_now");
-    if (diffMin < 60) return this.t("relative.minutes_ago", { n: diffMin });
+    if (diffMin < 60) return this.t("relative.minutes_ago", { count: diffMin });
     const diffH = Math.floor(diffMin / 60);
-    if (diffH < 24)   return this.t("relative.hours_ago", { n: diffH });
+    if (diffH < 24)   return this.t("relative.hours_ago", { count: diffH });
     const diffD = Math.floor(diffH / 24);
-    if (diffD < 14)   return this.t("relative.days_ago", { n: diffD });
+    if (diffD < 14)   return this.t("relative.days_ago", { count: diffD });
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   };
 

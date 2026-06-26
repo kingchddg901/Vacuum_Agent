@@ -135,9 +135,7 @@ export function applyRoomRulesRenderers(proto) {
                 ? rule.fan_out_room_ids.length
                 : 0;
               if (fanOutCount <= 0) return "";
-              const fanOutText = fanOutCount === 1
-                ? this.t("room_rules.also_affects_one", { count: fanOutCount })
-                : this.t("room_rules.also_affects_many", { count: fanOutCount });
+              const fanOutText = this.t("room_rules.also_affects", { count: fanOutCount });
               return `<div class="evcc-rule-fan-out">${fanOutText}</div>`;
             })()}
           </div>
@@ -337,9 +335,7 @@ export function applyRoomRulesRenderers(proto) {
 
     if (descriptor.category === "enum" && descriptor.options?.length) {
       const optCount = descriptor.options.length;
-      bits.push(optCount === 1
-        ? this.t("room_rules.entity_help_options_one", { count: optCount })
-        : this.t("room_rules.entity_help_options_many", { count: optCount }));
+      bits.push(this.t("room_rules.entity_help_options", { count: optCount }));
     }
 
     return `<div class="evcc-rule-editor-help">${bits.join(" • ")}</div>`;

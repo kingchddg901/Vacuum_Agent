@@ -317,7 +317,7 @@ export function applyRoomEditorRenderer(proto) {
             class="evcc-chip ${fields.clean_passes === n ? "active" : ""}"
             data-field="clean_passes"
             data-value="${n}"
-          >${n === 1 ? this.t("room_editor.pass_one", { count: n }) : this.t("room_editor.pass_many", { count: n })}</button>`);
+          >${this.t("room_editor.pass", { count: n })}</button>`);
     }
     const note = passesIsGlobal
       ? `<div class="evcc-room-editor-field-note">

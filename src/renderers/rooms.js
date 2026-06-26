@@ -353,9 +353,7 @@ proto.renderRoomsActionBar = function (
   rooms,
   hasWarning
 ) {
-  const countLabel = enabledCount === 1
-    ? this.t("rooms.count_one_room")
-    : this.t("rooms.count_n_rooms", { count: enabledCount });
+  const countLabel = this.t("rooms.count_rooms", { count: enabledCount });
   const queueRooms = (Array.isArray(rooms) ? rooms : []).filter((room) => room.enabled);
   const startClass = canStart
     ? (hasWarning ? "evcc-chip--start-warn" : "evcc-chip--start")

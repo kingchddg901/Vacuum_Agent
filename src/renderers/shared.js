@@ -109,15 +109,15 @@ export function applySharedRenderers(proto) {
     if (diffMs < 0) return null;
     const minutes = diffMs / 60000;
     if (minutes < 1) return this.t("relative.just_now");
-    if (minutes < 60) return this.t("relative.minutes_ago", { n: Math.round(minutes) });
+    if (minutes < 60) return this.t("relative.minutes_ago", { count: Math.round(minutes) });
     const hours = minutes / 60;
-    if (hours < 24) return this.t("relative.hours_ago", { n: Math.round(hours) });
+    if (hours < 24) return this.t("relative.hours_ago", { count: Math.round(hours) });
     const days = hours / 24;
     if (days < 1.5) return this.t("relative.yesterday");
-    if (days < 7) return this.t("relative.days_ago", { n: Math.round(days) });
-    if (days < 30) return this.t("relative.weeks_ago", { n: Math.round(days / 7) });
-    if (days < 365) return this.t("relative.months_ago", { n: Math.round(days / 30) });
-    return this.t("relative.years_ago", { n: Math.round(days / 365) });
+    if (days < 7) return this.t("relative.days_ago", { count: Math.round(days) });
+    if (days < 30) return this.t("relative.weeks_ago", { count: Math.round(days / 7) });
+    if (days < 365) return this.t("relative.months_ago", { count: Math.round(days / 30) });
+    return this.t("relative.years_ago", { count: Math.round(days / 365) });
   };
 
   /* =========================================================

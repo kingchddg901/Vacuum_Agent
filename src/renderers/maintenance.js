@@ -834,15 +834,12 @@ export function applyMaintenanceRenderers(proto) {
    */
   proto._formatMaintenanceHours = function (value) {
     const hours = Number(value);
-    if (!Number.isFinite(hours)) return this.t("maintenance.hours_many", { value: "0" });
+    if (!Number.isFinite(hours)) return this.t("maintenance.hours", { value: "0", count: 0 });
     const normalized = hours.toFixed(1).replace(/\.0$/, "");
     const numeric = Number(normalized);
-    // Interim singular/plural selection via a one/many key pair (both // plural)
-    // until a full per-language plural mechanism lands — mirrors the established
-    // room_editor.pass_one / pass_many pattern. Keeps English "1 hour" correct.
-    return numeric === 1
-      ? this.t("maintenance.hours_one", { value: normalized })
-      : this.t("maintenance.hours_many", { value: normalized });
+    // {value} is the preformatted display string; `count` (the numeric value)
+    // drives plural-form selection so the right one/other form is chosen.
+    return this.t("maintenance.hours", { value: normalized, count: numeric });
   };
 
   /**

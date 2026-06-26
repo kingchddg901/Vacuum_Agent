@@ -58,12 +58,8 @@ export function applyExternalJobsRenderers(proto) {
     const when = (this._formatReviewTimestamp && this._formatReviewTimestamp(run.detection_ts))
       || run.detection_ts || this.t("external_jobs.unknown_time");
     const rooms = run.suggested_room_count ?? segs.length;
-    const roomsPhrase = rooms === 1
-      ? this.t("external_jobs.card_rooms_one", { count: rooms })
-      : this.t("external_jobs.card_rooms_many", { count: rooms });
-    const segsPhrase = segs.length === 1
-      ? this.t("external_jobs.card_segments_one", { count: segs.length })
-      : this.t("external_jobs.card_segments_many", { count: segs.length });
+    const roomsPhrase = this.t("external_jobs.card_rooms", { count: rooms });
+    const segsPhrase = this.t("external_jobs.card_segments", { count: segs.length });
     const pid = this.escapeHtml(String(run.pending_job_id || ""));
     return `
       <div class="evcc-external-card">
@@ -205,9 +201,7 @@ export function applyExternalJobsRenderers(proto) {
     }).join("");
     return `
       <div class="evcc-ext-count">
-        ${groups.length === 1
-          ? this.tRaw("external_jobs.detected_rooms_one", { count: groups.length })
-          : this.tRaw("external_jobs.detected_rooms_many", { count: groups.length })}
+        ${this.tRaw("external_jobs.detected_rooms", { count: groups.length })}
       </div>
       <div class="evcc-ext-seglist">${rows}</div>
     `;
@@ -330,9 +324,7 @@ export function applyExternalJobsRenderers(proto) {
 
   proto._renderExtWizardFooter = function (w, groups) {
     const blocked = Array.isArray(w.blocked) ? w.blocked : [];
-    const blockedText = blocked.length === 1
-      ? this.t("external_jobs.blocked_one", { count: blocked.length })
-      : this.t("external_jobs.blocked_many", { count: blocked.length });
+    const blockedText = this.t("external_jobs.blocked", { count: blocked.length });
     const blockedHtml = blocked.length
       ? `<div class="evcc-ext-blocked">⚠ ${blockedText}</div>`
       : "";

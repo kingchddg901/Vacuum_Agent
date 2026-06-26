@@ -275,8 +275,8 @@ export function applyReviewRenderers(proto) {
             : ""}
           ${this._renderReviewMatcherField(this.t("review.matcher_clean_path"), "clean_intensity", fields.clean_intensity, state.cleanIntensityOptions?.() ?? [])}
           ${this._renderReviewMatcherField(this.t("review.matcher_clean_passes"), "clean_passes", fields.clean_passes, [
-            { value: 1, label: this.t("review.passes_one", { count: 1 }) },
-            { value: 2, label: this.t("review.passes_many", { count: 2 }) },
+            { value: 1, label: this.t("review.passes", { count: 1 }) },
+            { value: 2, label: this.t("review.passes", { count: 2 }) },
           ])}
           ${state.showReviewProfileMatcherEdgeMopping?.()
             ? this._renderReviewMatcherField(this.t("review.matcher_edge_mopping"), "edge_mopping", fields.edge_mopping, [
@@ -299,9 +299,7 @@ export function applyReviewRenderers(proto) {
             <div class="evcc-review-panel-title">${this.t("review.matched_profiles_title")}</div>
             <div class="evcc-review-panel-subtitle">
               ${matches.length
-                ? (matches.length === 1
-                  ? this.t("review.matcher_count_one", { count: matches.length })
-                  : this.t("review.matcher_count_many", { count: matches.length }))
+                ? this.t("review.matcher_count", { count: matches.length })
                 : this.t("review.matcher_no_matches")}
             </div>
           </div>

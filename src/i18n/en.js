@@ -11,13 +11,19 @@
  *   - Keys are dot-namespaced by surface: `<view>.<name>`. Generic actions
  *     shared across surfaces live under `common.*` (one translation, reused).
  *   - Interpolation uses `{name}` placeholders, e.g. "{count} rooms selected".
- *   - `// plural` marks count-driven keys whose grammar needs per-language
- *     plural variants when that mechanism lands (Slavic wants 3-4 forms).
+ *   - `// plural` marks count-driven keys. Their VALUE is an OBJECT of CLDR
+ *     forms ({ one, other }; English ships those two). At runtime translate()
+ *     reads `vars.count` and picks the form via the language's Intl.PluralRules,
+ *     so a locale supplies whatever its language needs (Russian one/few/many/
+ *     other, etc.). `{count}` is the conventional count token. The one exception
+ *     is `badge_runs_samples` (two independent counts) — a single-count selector
+ *     can't inflect both nouns, so it stays a plain string (annotated inline).
+ *   - A trailing `// <note>` after a key is a translator context note (the
+ *     `// plural` flag may carry one too: `// plural; <note>`).
  *
- * Coverage: Phase 1 (Setup + Rooms) + Phase 2 (shell nav/header, view-router,
- * run profiles) + Map + Maintenance-dock + Room-rules + relative-time + Metrics
- * (Stats tab) + Learning-jobs (Learning Review + History + External Jobs).
- * Theme, bindings, room-card follow next.
+ * Coverage: the whole card — every renderer, the standalone room-card, all
+ * bindings, and the no-vacuum onboarding placeholder are localized, with the
+ * plural mechanism live across all count-driven keys.
  *
  * ============================================================
  */
@@ -55,7 +61,7 @@ export const en = {
   "base_station.no_activity_yet": "No activity yet",
   "base_station.pause_timeout_subtitle": "Default pause timeout used when a run is paused",
   "base_station.pause_timeout_title": "Pause Timeout",
-  "base_station.recorded_count": "{count} recorded",  // plural; activity-card detail: count of recorded events of this kind, e.g. '5 recorded'
+  "base_station.recorded_count": { other: "{count} recorded" },  // plural; activity-card detail: count of recorded events of this kind, e.g. '5 recorded'
   "base_station.stat_after_job": "After Job",  // stat label: projected tank level remaining after the queued job
   "base_station.stat_dock_status": "Dock Status",
   "base_station.stat_docked": "Docked",  // stat label asking 'is the robot docked?' (value = Yes/No), not a status word
@@ -124,8 +130,7 @@ export const en = {
   "bind_rooms.could_not_retry_missed": "Could not retry missed rooms",
   "bind_rooms.locate_sent": "Locate sent — listen for the chirp",
   "bind_rooms.queue_cleared": "Queue cleared",
-  "bind_rooms.requeued_missed_many": "Re-queued {count} missed rooms",  // plural
-  "bind_rooms.requeued_missed_one": "Re-queued {count} missed room",  // plural
+  "bind_rooms.requeued_missed": { one: "Re-queued {count} missed room", other: "Re-queued {count} missed rooms" },  // plural
   "bind_run_profiles.confirm_delete": "Delete run profile \"{name}\"?",
   "bind_run_profiles.enter_name": "Enter a name for the run profile.",
   "bind_run_profiles.unable_apply": "Unable to apply run profile.",
@@ -182,18 +187,14 @@ export const en = {
 
   // --- external_jobs (External Jobs review: app-started run capture wizard) ---
   "external_jobs.back": "Back",
-  "external_jobs.blocked_many": "{count} rooms don't match the picked area — re-pick, or keep anyway.",  // plural
-  "external_jobs.blocked_one": "{count} room doesn't match the picked area — re-pick, or keep anyway.",  // plural
+  "external_jobs.blocked": { one: "{count} room doesn't match the picked area — re-pick, or keep anyway.", other: "{count} rooms don't match the picked area — re-pick, or keep anyway." },  // plural
   "external_jobs.capped_message": "Capped to the detectable room count.",  // Shown when the room count was limited to the max number of rooms detectable.
-  "external_jobs.card_rooms_many": "~{count} rooms",  // plural
-  "external_jobs.card_rooms_one": "~{count} room",  // plural
-  "external_jobs.card_segments_many": "{count} segments",  // plural
-  "external_jobs.card_segments_one": "{count} segment",  // plural
+  "external_jobs.card_rooms": { one: "~{count} room", other: "~{count} rooms" },  // plural
+  "external_jobs.card_segments": { one: "{count} segment", other: "{count} segments" },  // plural
   "external_jobs.clean_mode_unknown": "?",  // '?' placeholder shown when a segment's clean mode wasn't captured
   "external_jobs.confirm": "Confirm",
   "external_jobs.count_hint": "set the room count, or split / merge below",
-  "external_jobs.detected_rooms_many": "Detected <strong>{count}</strong> rooms. Merge any over-split before continuing.",  // plural; 'over-split' = the run was cut into more segments than real rooms; user merges extras.
-  "external_jobs.detected_rooms_one": "Detected <strong>{count}</strong> room. Merge any over-split before continuing.",  // plural; 'over-split' = cut into more segments than real rooms; merge any extras. {count} bold.
+  "external_jobs.detected_rooms": { one: "Detected <strong>{count}</strong> room. Merge any over-split before continuing.", other: "Detected <strong>{count}</strong> rooms. Merge any over-split before continuing." },  // plural; 'over-split' = cut into more segments than real rooms; merge any extras. {count} bold.; 'over-split' = the run was cut into more segments than real rooms; user merges extras.
   "external_jobs.discard": "Discard",
   "external_jobs.edge_mop": "Edge mop?",  // field label asking whether the run used edge-mopping (Edge mop?)
   "external_jobs.edge_mop_hint": "not detected — please set",
@@ -216,7 +217,7 @@ export const en = {
   "external_jobs.room_n": "Room {n}",
   "external_jobs.rooms_label": "Rooms",  // label for the room-COUNT stepper (how many rooms); a number, not a list of rooms
   "external_jobs.seg_n": "seg {n}",  // 'seg {n}' = abbreviated segment label (legacy step 1); n is the detected-segment order
-  "external_jobs.segments_merged": "{count} segments merged",  // plural
+  "external_jobs.segments_merged": { other: "{count} segments merged" },  // plural
   "external_jobs.setting_cleaning_path": "Cleaning Path",  // clean-intensity setting row (maps to clean_intensity), labelled 'Cleaning Path'
   "external_jobs.setting_suction": "Suction",  // per-room suction/fan-speed LEVEL setting row
   "external_jobs.setting_water": "Water",  // per-room mop water-LEVEL setting row (low/med/high), only shown for mop modes
@@ -239,14 +240,10 @@ export const en = {
   "learning.battery_finish_rooms": "May need to recharge to finish remaining rooms",  // live warning: may recharge before finishing remaining rooms
   "learning.battery_mid_job": "May need to recharge mid-job",  // pre-job warning: battery may need a recharge partway through
   "learning.battery_recharged": "Recharge occurred during job",  // post-job note: a recharge actually happened during the run
-  "learning.chip_mop_only_many": "{count} mop-only rooms",  // plural
-  "learning.chip_mop_only_one": "{count} mop-only room",  // plural
-  "learning.chip_vacuum_mop_many": "{count} vacuum + mop rooms",  // plural
-  "learning.chip_vacuum_mop_one": "{count} vacuum + mop room",  // plural
-  "learning.chip_vacuum_only_many": "{count} vacuum-only rooms",  // plural
-  "learning.chip_vacuum_only_one": "{count} vacuum-only room",  // plural
-  "learning.chip_wash_cycle_many": "{count} wash cycles",  // plural
-  "learning.chip_wash_cycle_one": "{count} wash cycle",  // plural
+  "learning.chip_mop_only": { one: "{count} mop-only room", other: "{count} mop-only rooms" },  // plural
+  "learning.chip_vacuum_mop": { one: "{count} vacuum + mop room", other: "{count} vacuum + mop rooms" },  // plural
+  "learning.chip_vacuum_only": { one: "{count} vacuum-only room", other: "{count} vacuum-only rooms" },  // plural
+  "learning.chip_wash_cycle": { one: "{count} wash cycle", other: "{count} wash cycles" },  // plural
   "learning.chip_water": "~{ml} water",  // Chip '~{ml} water'; {ml} is a milliliter water-use string already incl. its unit, ~ = approx
   "learning.cleaning_complete": "Cleaning Complete",
   "learning.cleaning_room": "Cleaning {room}",
@@ -268,8 +265,7 @@ export const en = {
   "learning.finished_at": "Finished at {time}",
   "learning.hours_minutes": "{hours}h {minutes}m",  // Duration format '{hours}h {minutes}m'; h/m = hour/minute unit abbrevs, localize per language
   "learning.hours_only": "{hours}h",  // Duration '{hours}h'; h = hours unit abbreviation, localize if your language differs
-  "learning.incomplete_title_many": "Last run {outcome} — {count} rooms missed",  // plural
-  "learning.incomplete_title_one": "Last run {outcome} — 1 room missed",  // plural
+  "learning.incomplete_title": { one: "Last run {outcome} — 1 room missed", other: "Last run {outcome} — {count} rooms missed" },  // plural
   "learning.job_will_use": "Job will use",  // water row: clean water this job is projected to consume
   "learning.learning_active": "Learning active",  // live banner title before first room update; system is recording data
   "learning.live_progress": "Live Progress",
@@ -277,14 +273,12 @@ export const en = {
   "learning.minutes_left": "~{minutes} left",  // live ETA remainder on current room: '~{minutes} left'
   "learning.minutes_only": "{minutes} min",  // whole-minute duration '{minutes} min' (under 1h); distinct from minutes_short
   "learning.minutes_short": "{value} min",  // duration formatter, fractional min e.g. '3.5 min'; {value}, distinct from minutes_only
-  "learning.mop_wash_label_many": "{total} ({count} cycles × {per} every {interval})",  // plural
+  "learning.mop_wash_label": { one: "{total} ({count} cycle × {per} every {interval})", other: "{total} ({count} cycles × {per} every {interval})" },  // plural
   "learning.mop_wash_label_none": "0 min (no cycles scheduled)",  // Overhead value when no mop-wash cycles scheduled; 'cycles' = dock mop-wash cycles
-  "learning.mop_wash_label_one": "{total} ({count} cycle × {per} every {interval})",  // plural
   "learning.next_room": "Next room",
   "learning.note_intensity_mismatch": "estimated from different intensity",  // per-room note: estimate learned at a different clean intensity/profile
   "learning.note_no_data": "No data yet",  // per-room note: no learned samples yet, using fallback estimate
-  "learning.note_runs_to_reliable_many": "{count} runs to reliable",  // plural; per-room note: N more runs until estimate reaches 'reliable'
-  "learning.note_runs_to_reliable_one": "{count} run to reliable",  // plural; per-room note: N more runs until estimate is 'reliable' (high confidence)
+  "learning.note_runs_to_reliable": { one: "{count} run to reliable", other: "{count} runs to reliable" },  // plural; per-room note: N more runs until estimate is 'reliable' (high confidence); per-room note: N more runs until estimate reaches 'reliable'
   "learning.outcome_cancelled": "cancelled",  // incomplete-run cause, lowercase mid-sentence: 'Last run cancelled — …'
   "learning.outcome_failed": "failed",
   "learning.outcome_interrupted": "interrupted",  // incomplete-run cause, lowercase mid-sentence (e.g. power/connection loss)
@@ -324,14 +318,13 @@ export const en = {
   "maintenance.category_replacement": "Replacement",  // item-category label prefix: upstream consumable/replacement part
   "maintenance.confirm_reset": "Confirm Reset",
   "maintenance.dock_fw": "Dock fw {version}",  // 'fw' = firmware abbreviation; {version} is the dock's firmware version string. Keep terse.
-  "maintenance.due_in_days": "Due in ~{count} days",  // plural
-  "maintenance.due_in_months": "Due in ~{count} months",  // plural
-  "maintenance.due_in_weeks": "Due in ~{count} weeks",  // plural
+  "maintenance.due_in_days": { one: "Due in ~{count} day", other: "Due in ~{count} days" },  // plural
+  "maintenance.due_in_months": { other: "Due in ~{count} months" },  // plural
+  "maintenance.due_in_weeks": { other: "Due in ~{count} weeks" },  // plural
   "maintenance.due_overdue": "Overdue",
   "maintenance.due_today": "Due today",
   "maintenance.due_tomorrow": "Due tomorrow",
-  "maintenance.hours_many": "{value} hours",  // plural
-  "maintenance.hours_one": "{value} hour",  // plural
+  "maintenance.hours": { one: "{value} hour", other: "{value} hours" },  // plural; run-hours label; {value} is preformatted, count drives one/other
   "maintenance.hours_remaining": "{hours} remaining",
   "maintenance.interval_default_button": "Default",  // button: restore manufacturer default interval value
   "maintenance.interval_default_hint": "Default {hours}h",  // 'Default {hours}h' — trailing 'h' = hours abbreviation; the manufacturer-default service interval.
@@ -433,7 +426,7 @@ export const en = {
   "map.compose_scope_room": "Room",  // move-scope toggle: move the WHOLE room together (vs single piece)
   "map.compose_scope_room_title": "Move the whole room together",
   "map.compose_selected": "Selected:",
-  "map.compose_shape_count": "{count} shapes",  // plural
+  "map.compose_shape_count": { one: "{count} shape", other: "{count} shapes" },  // plural
   "map.compose_split": "Split out",
   "map.compose_split_title": "Make this shape its own room again",
   "map.compose_step_coarse": "Coarse",  // Nudge-step size button (coarse = largest pixel step, 7px); pairs with Fine/Med
@@ -601,10 +594,10 @@ export const en = {
   "map.zoom_out": "Zoom out",
 
   // --- mapping_review (mapping-bounds review wizard: run history, outliers, exclude/restore) ---
-  "mapping_review.badge_n_excluded": "{count} excluded",  // plural
+  "mapping_review.badge_n_excluded": { other: "{count} excluded" },  // plural
   "mapping_review.badge_no_bounds": "No bounds",  // badge: this room has no accumulated mapping bounds yet
-  "mapping_review.badge_runs_likely": "{runs} runs · Likely",  // plural
-  "mapping_review.badge_runs_samples": "{runs} runs · {samples} samples",  // plural
+  "mapping_review.badge_runs_likely": { one: "{runs} run · Likely", other: "{runs} runs · Likely" },  // plural
+  "mapping_review.badge_runs_samples": "{runs} runs · {samples} samples",  // plural; NUMBER-DODGED: two independent counts ({runs},{samples}) — a single-count selector can't inflect both nouns, so this stays one form
   "mapping_review.baseline": "Baseline",  // badge for the protected oldest run that anchors bounds, not a metric baseline
   "mapping_review.clear_all": "Clear All",  // Button: clear ALL accumulated mapping bounds for this one room
   "mapping_review.clearing": "Clearing…",
@@ -834,13 +827,13 @@ export const en = {
   "nav.vacuum_status": "Vacuum Status:",  // header status-line prefix shown before the robot's state value, e.g. 'Vacuum Status: Docked'
 
   // --- relative (shared "ago" timestamp formatter: formatRelativeAgo + map analyzed-at) ---
-  "relative.days_ago": "{n}d ago",  // plural; Compact 'ago' pill '{n}d ago'; {n}=count of days, keep unit a short abbreviation
-  "relative.hours_ago": "{n}h ago",  // plural; Compact 'ago' pill '{n}h ago'; {n}=count of hours, keep unit a short abbreviation
+  "relative.days_ago": { other: "{count}d ago" },  // plural; Compact 'ago' pill; {count}=days, keep unit a short abbreviation
+  "relative.hours_ago": { other: "{count}h ago" },  // plural; Compact 'ago' pill; {count}=hours, keep unit a short abbreviation
   "relative.just_now": "just now",
-  "relative.minutes_ago": "{n}m ago",  // plural; 'm'=MINUTES here (vs relative.months_ago 'mo'); keep abbreviation short, {n}=count
-  "relative.months_ago": "{n}mo ago",  // plural; 'mo'=MONTHS (distinct from minutes_ago 'm'); short suffix, don't collide with minutes
-  "relative.weeks_ago": "{n}w ago",  // plural; Compact 'ago' pill '{n}w ago'; {n}=count of weeks, keep unit a short abbreviation
-  "relative.years_ago": "{n}y ago",  // plural; Compact 'ago' pill '{n}y ago'; {n}=count of years, keep unit a short abbreviation
+  "relative.minutes_ago": { other: "{count}m ago" },  // plural; 'm'=MINUTES (vs months_ago 'mo'); compact pill, keep unit short
+  "relative.months_ago": { other: "{count}mo ago" },  // plural; 'mo'=MONTHS (distinct from minutes_ago 'm'); short suffix, keep distinct
+  "relative.weeks_ago": { other: "{count}w ago" },  // plural; Compact 'ago' pill; {count}=weeks, keep unit a short abbreviation
+  "relative.years_ago": { other: "{count}y ago" },  // plural; Compact 'ago' pill; {count}=years, keep unit a short abbreviation
   "relative.yesterday": "yesterday",
 
   // --- review (Learning History review: filters, profile matcher, run exclude/restore) ---
@@ -878,8 +871,7 @@ export const en = {
   "review.matcher_clean_mode": "Cleaning Mode",  // Profile-matcher field labeling clean mode: vacuum / mop / both (not appearance mode)
   "review.matcher_clean_passes": "Cleaning Passes",  // Matcher field: number of cleaning passes (1 or 2), not pass/fail or a corridor
   "review.matcher_clean_path": "Cleaning Path",  // Matcher label for clean_intensity (path density): quick vs deep coverage, not a file path
-  "review.matcher_count_many": "{count} exact matches found.",  // plural
-  "review.matcher_count_one": "{count} exact match found.",  // plural
+  "review.matcher_count": { one: "{count} exact match found.", other: "{count} exact matches found." },  // plural
   "review.matcher_edge_mopping": "Edge Mopping",  // Matcher field: edge-mopping on/off (mop along walls), a per-room setting
   "review.matcher_empty": "Adjust the matcher fields until they line up with a saved profile exactly.",
   "review.matcher_no_matches": "No exact profile matches for the current settings.",
@@ -890,8 +882,7 @@ export const en = {
   "review.matcher_water_level": "Water Level",  // Matcher field: mop water flow amount, not a tank fill gauge
   "review.panel_subtitle": "Review runs used for learning and exclude bad history when needed.",
   "review.panel_title": "Learning Review",
-  "review.passes_many": "{count} Passes",  // plural; Chip value: '{count} Passes' = N cleaning passes over the floor (re-clean count)
-  "review.passes_one": "{count} Pass",  // plural; Chip value: '{count} Pass' = 1 cleaning pass over the floor, not pass/fail
+  "review.passes": { one: "{count} Pass", other: "{count} Passes" },  // plural; Chip value: N cleaning passes over the floor (re-clean count), not pass/fail
   "review.profile_fallback": "Profile",
   "review.restore": "Restore",  // Action button: restore a previously-excluded run into learning (verb)
   "review.room_fallback": "Room",
@@ -966,8 +957,7 @@ export const en = {
   "room_editor.meta_select": "Select a profile to apply reusable room settings.",
   "room_editor.mopstate_mopping": "Mopping — water tank attached",
   "room_editor.mopstate_vacuum": "Vacuum only — no water tank",
-  "room_editor.pass_many": "{count} Passes",  // plural; Pass-count chip: '{count} Passes' = N cleaning sweeps over the room; noun, not verb
-  "room_editor.pass_one": "{count} Pass",  // plural; Pass-count chip: '{count} Pass' = one cleaning sweep ({count}=1); 'Pass' the noun, not verb
+  "room_editor.pass": { one: "{count} Pass", other: "{count} Passes" },  // plural; Pass-count chip: N cleaning sweeps over the room; noun, not pass/fail
   "room_editor.passes_global_note": "Passes are controlled globally in the robot's own app — the per-room value here may be overridden.",
   "room_editor.queue_status_label": "Current queue status:",
   "room_editor.save_as_new": "Save as New",  // button: save current room settings as a new reusable profile (vs theme.save_as_new)
@@ -995,7 +985,7 @@ export const en = {
   "room_estimate.modal_title": "{name} Estimate",  // modal title: '{room name} Estimate'
   "room_estimate.note_intensity_mismatch": "Estimated from different intensity",  // caveat: estimate derived from runs at a different suction/intensity
   "room_estimate.note_no_learned_data": "No learned data yet",  // caveat: no learned history yet, estimate is a default
-  "room_estimate.note_runs_to_reliable": "{count} runs to reliable",  // plural; caveat: N more runs needed before estimate is reliable
+  "room_estimate.note_runs_to_reliable": { one: "{count} run to reliable", other: "{count} runs to reliable" },  // plural; caveat: N more runs needed before estimate is reliable
   "room_estimate.section_live": "Live Progress",
   "room_estimate.section_notes": "Learning Notes",  // section heading over learning caveats for this estimate
   "room_estimate.section_summary": "Estimate Summary",  // section heading over the estimate facts (time/source/samples/battery)
@@ -1005,8 +995,7 @@ export const en = {
 
   // --- room_rules ---
   "room_rules.add_rule": "Add Rule",
-  "room_rules.also_affects_many": "→ also affects {count} rooms",  // plural
-  "room_rules.also_affects_one": "→ also affects {count} room",  // plural
+  "room_rules.also_affects": { one: "→ also affects {count} room", other: "→ also affects {count} rooms" },  // plural
   "room_rules.change_clean_intensity": "Clean Intensity",
   "room_rules.change_clean_mode": "Clean Mode",
   "room_rules.change_clean_passes": "Clean Passes",  // Setting-override row: number of cleaning passes/repeats (1x or 2x), not 'pass/fail'.
@@ -1021,8 +1010,7 @@ export const en = {
   "room_rules.enabled": "Enabled",
   "room_rules.entity_help_choose": "Choose a Home Assistant entity to drive this rule.",
   "room_rules.entity_help_current": "Current: {state}",
-  "room_rules.entity_help_options_many": "{count} options",  // plural
-  "room_rules.entity_help_options_one": "{count} option",  // plural
+  "room_rules.entity_help_options": { one: "{count} option", other: "{count} options" },  // plural
   "room_rules.entity_help_type": "Type: {category}",
   "room_rules.entity_help_unavailable": "This entity is not currently available in Home Assistant.",
   "room_rules.entity_help_unit": "Unit: {unit}",
@@ -1069,8 +1057,7 @@ export const en = {
   "rooms.confirm_cancel": "Confirm Cancel",
   "rooms.confirm_clear": "Confirm Clear",
   "rooms.confirm_start": "Confirm Start",
-  "rooms.count_n_rooms": "{count} rooms",  // plural
-  "rooms.count_one_room": "1 room",  // plural
+  "rooms.count_rooms": { one: "1 room", other: "{count} rooms" },  // plural; room count label
   "rooms.derived_via": "(via {room}'s {rule})",  // Why a room was modified: '(via {room}'s {rule})'; {room}=other room name, {rule}=rule name
   "rooms.drag_to_reorder": "Drag to reorder",
   "rooms.duration_skipped": "~{duration} skipped",
@@ -1102,8 +1089,8 @@ export const en = {
   "rooms.modified_rooms": "Modified Rooms",
   "rooms.move": "Move",  // button to change a room's position in the clean order/queue
   "rooms.move_room": "Move room",
-  "rooms.n_blocked": "{count} blocked",  // plural
-  "rooms.n_included": "{count} included",  // plural
+  "rooms.n_blocked": { other: "{count} blocked" },  // plural
+  "rooms.n_included": { other: "{count} included" },  // plural
   "rooms.n_passes": "{count}× passes",  // Room chip: cleaning-pass count, e.g. '2× passes' = robot covers the room twice
   "rooms.no_rooms_queued": "No rooms queued — toggle rooms to include them",
   "rooms.note_intensity_mismatch_title": "Estimate was learned from a different cleaning intensity or profile.",
@@ -1159,7 +1146,7 @@ export const en = {
   "run_profiles.exposed_as_button": "· Exposed as button",  // Selected-profile meta tag; same 'Exposed'=surfaced-as-HA-button; keep leading '· ' separator
   "run_profiles.name_label": "Name",
   "run_profiles.name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
-  "run_profiles.room_count": "{count} rooms",  // plural
+  "run_profiles.room_count": { one: "{count} room", other: "{count} rooms" },  // plural
   "run_profiles.save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
   "run_profiles.subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",

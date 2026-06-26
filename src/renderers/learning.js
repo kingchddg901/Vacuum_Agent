@@ -54,9 +54,7 @@ export function applyLearningRenderers(proto) {
       <div class="evcc-incomplete-run-banner" role="alert">
         <div class="evcc-incomplete-run-body">
           <div class="evcc-incomplete-run-title">
-            ${missedCount === 1
-              ? this.t("learning.incomplete_title_one", { outcome: outcomeLabel })
-              : this.t("learning.incomplete_title_many", { outcome: outcomeLabel, count: missedCount })}
+            ${this.t("learning.incomplete_title", { outcome: outcomeLabel, count: missedCount })}
           </div>
           <div class="evcc-incomplete-run-rooms">${roomChips}</div>
         </div>
@@ -112,19 +110,12 @@ export function applyLearningRenderers(proto) {
     const mopWash = overhead.mop_wash ?? {};
     const mopWashLabel =
       String(mopWash.mode ?? "") === "by_time" && Number(mopWash.cycle_count ?? 0) > 0
-        ? (Number(mopWash.cycle_count) === 1
-            ? this.t("learning.mop_wash_label_one", {
-                total: this._formatLearningMinutes(overhead.mop_wash_minutes),
-                count: mopWash.cycle_count,
-                per: this._formatLearningMinutes(mopWash.minutes_per_cycle),
-                interval: this._formatLearningMinutes(mopWash.interval_minutes),
-              })
-            : this.t("learning.mop_wash_label_many", {
-                total: this._formatLearningMinutes(overhead.mop_wash_minutes),
-                count: mopWash.cycle_count,
-                per: this._formatLearningMinutes(mopWash.minutes_per_cycle),
-                interval: this._formatLearningMinutes(mopWash.interval_minutes),
-              }))
+        ? this.t("learning.mop_wash_label", {
+            total: this._formatLearningMinutes(overhead.mop_wash_minutes),
+            count: mopWash.cycle_count,
+            per: this._formatLearningMinutes(mopWash.minutes_per_cycle),
+            interval: this._formatLearningMinutes(mopWash.interval_minutes),
+          })
         : this.t("learning.mop_wash_label_none");
 
     return `
@@ -412,25 +403,17 @@ export function applyLearningRenderers(proto) {
     }
 
     if (vacuumOnly > 0) {
-      chips.push(vacuumOnly === 1
-        ? this.t("learning.chip_vacuum_only_one", { count: vacuumOnly })
-        : this.t("learning.chip_vacuum_only_many", { count: vacuumOnly }));
+      chips.push(this.t("learning.chip_vacuum_only", { count: vacuumOnly }));
     }
     if (mopOnly > 0) {
-      chips.push(mopOnly === 1
-        ? this.t("learning.chip_mop_only_one", { count: mopOnly })
-        : this.t("learning.chip_mop_only_many", { count: mopOnly }));
+      chips.push(this.t("learning.chip_mop_only", { count: mopOnly }));
     }
     if (both > 0) {
-      chips.push(both === 1
-        ? this.t("learning.chip_vacuum_mop_one", { count: both })
-        : this.t("learning.chip_vacuum_mop_many", { count: both }));
+      chips.push(this.t("learning.chip_vacuum_mop", { count: both }));
     }
 
     if (washCycleCount > 0) {
-      chips.push(washCycleCount === 1
-        ? this.t("learning.chip_wash_cycle_one", { count: washCycleCount })
-        : this.t("learning.chip_wash_cycle_many", { count: washCycleCount }));
+      chips.push(this.t("learning.chip_wash_cycle", { count: washCycleCount }));
     }
 
     return chips.length ? `
@@ -457,9 +440,7 @@ export function applyLearningRenderers(proto) {
 
     if (Number(entry?.learning_velocity?.runs_to_high ?? 0) > 0) {
       const runs = entry.learning_velocity.runs_to_high;
-      notes.push(Number(runs) === 1
-        ? this.t("learning.note_runs_to_reliable_one", { count: runs })
-        : this.t("learning.note_runs_to_reliable_many", { count: runs }));
+      notes.push(this.t("learning.note_runs_to_reliable", { count: runs }));
     }
 
     return `

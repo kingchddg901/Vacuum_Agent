@@ -295,9 +295,7 @@ export function applyRoomsBindings(proto) {
 
       const ok = result !== null && result !== undefined;
       this.card.showToast?.(
-        ok ? (count === 1
-                ? this.t("bind_rooms.requeued_missed_one", { count })
-                : this.t("bind_rooms.requeued_missed_many", { count }))
+        ok ? this.t("bind_rooms.requeued_missed", { count })
            : this.t("bind_rooms.could_not_retry_missed"),
         { kind: ok ? "success" : "error" }
       );

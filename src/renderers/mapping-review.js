@@ -123,7 +123,7 @@ export function applyMappingReviewRenderers(proto) {
     const statusBadge = bounds
       ? isConfident
         ? `<span class="evcc-mrev-badge evcc-mrev-badge--ok">${badgeMark("ok")}${this.t("mapping_review.badge_runs_samples", { runs: activeCount, samples: bounds.sample_count ?? 0 })}</span>`
-        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${badgeMark("likely")}${this.t("mapping_review.badge_runs_likely", { runs: activeCount })}</span>`
+        : `<span class="evcc-mrev-badge evcc-mrev-badge--likely">${badgeMark("likely")}${this.t("mapping_review.badge_runs_likely", { runs: activeCount, count: activeCount })}</span>`
       : `<span class="evcc-mrev-badge evcc-mrev-badge--warn">${badgeMark("warn")}${this.t("mapping_review.badge_no_bounds")}</span>`;
 
     return `
