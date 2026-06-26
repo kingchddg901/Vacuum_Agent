@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from ..registry import register_adapter_config
 from .const import ADAPTER_ID, STORAGE_KEY
@@ -129,6 +130,26 @@ def _build_button_blocks(
     }
 
 
+def _registry_model_code(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
+    """Return the device-registry model code for a vacuum (e.g. ``"T2351"``).
+
+    The device registry is the RELIABLE model source across robovac_mqtt
+    transports. The novel-API path also mirrors it onto a ``detected_model``
+    vacuum-entity attribute, but the scalar/Tuya path does NOT set that
+    attribute — so reading only the attribute pinned scalar devices to
+    model_family "generic". The registry carries the code either way. Mirrors
+    ``core/manager._get_registry_model_code`` (kept local to keep the adapter
+    self-contained).
+    """
+    entity_entry = er.async_get(hass).async_get(vacuum_entity_id)
+    if entity_entry is None or not entity_entry.device_id:
+        return None
+    device_entry = dr.async_get(hass).async_get(entity_entry.device_id)
+    if device_entry is None:
+        return None
+    return str(device_entry.model or "").strip() or None
+
+
 def register_eufy_adapter_for_vacuum(
     hass: HomeAssistant,
     vacuum_entity_id: str,
@@ -146,8 +167,12 @@ def register_eufy_adapter_for_vacuum(
     from ...core.capabilities import detect_capabilities
 
     vacuum_state = hass.states.get(vacuum_entity_id)
-    detected_model = None
-    if vacuum_state is not None:
+    # Prefer the DEVICE REGISTRY model (reliable on every robovac_mqtt transport);
+    # fall back to the vacuum's `detected_model` attribute. Scalar/Tuya devices
+    # don't set that attribute, so reading only it pinned them to "generic" — but
+    # the registry has "T2351" either way.
+    detected_model = _registry_model_code(hass, vacuum_entity_id)
+    if not detected_model and vacuum_state is not None:
         detected_model = vacuum_state.attributes.get("detected_model")
 
     # Compute model family using the Eufy model catalog.
@@ -182,12 +207,20 @@ def register_eufy_adapter_for_vacuum(
     # of whether the entity happens to be present right now. Entity presence
     # detection in detect_capabilities() is the fallback for unrecognised
     # model codes that still expose the relevant entities.
+    # Rooms can be read from the `segments` attribute even when there's no
+    # active_map sensor (scalar/Tuya transport). Flag it so detect_capabilities
+    # reports supports_rooms/segments via the attribute path (supports_active_map
+    # stays entity-gated — there's no map entity to dereference).
+    _segments = vacuum_state.attributes.get("segments") if vacuum_state is not None else None
+    has_attribute_rooms = bool(isinstance(_segments, list) and _segments)
+
     capability_hints: dict[str, bool] = {
         "supports_mop_features": model_family in {"x10", "x8", "l60", "l50"},
         "supports_mop_wash":     model_family in {"x10", "x8"},
         "supports_mop_dry":      model_family in {"x10", "x8"},
         "supports_empty_dust":   model_family in {"x10", "x8", "l60", "l50"},
         "supports_path_control": model_family in {"x10", "x8"},
+        "has_attribute_rooms":   has_attribute_rooms,
     }
 
     caps = detect_capabilities(
@@ -451,6 +484,13 @@ def register_eufy_adapter_for_vacuum(
             "room_list_attribute": "segments",
             "room_id_key": "id",
             "room_name_key": "name",
+            # Scalar/Tuya-transport Eufy devices surface the room list in the
+            # `segments` attribute but create NO active_map sensor. There is only
+            # one map on these, so anchor import/discovery to this single implicit
+            # id when no active_map entity exists (see rooms/room_discovery
+            # ._implicit_attribute_map_id). Novel devices have the entity, so the
+            # implicit id never fires for them.
+            "implicit_map_id": "main",
             # Auto-discovery cadence. The framework runs discovery on each
             # listed event plus once every interval as a safety net.
             "auto_refresh_on": [

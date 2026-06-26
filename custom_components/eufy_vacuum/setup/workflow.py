@@ -154,9 +154,12 @@ async def import_active_map(
         return _result(
             "blocked",
             (
-                f"No active map detected for '{vacuum_entity_id}'. "
-                "Ensure the vacuum is powered on and has completed at least one "
-                "mapping run, then try again."
+                f"No map or room list detected for '{vacuum_entity_id}'. "
+                "Ensure the vacuum is powered on and has completed a mapping run "
+                "with rooms configured in your vacuum app, then try again. "
+                "(Devices on Eufy's reduced transport have no map sensor — the "
+                "room list loads directly from the vacuum and may take a moment "
+                "after startup.)"
             ),
             data={"vacuum_entity_id": vacuum_entity_id},
         )

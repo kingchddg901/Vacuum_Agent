@@ -97,6 +97,99 @@ def _slim_upkeep(upkeep: Any) -> Any:
     return slim
 
 
+def _self_check(out: dict[str, Any]) -> dict[str, Any]:
+    """Plain-English interpretation of the raw signals collected below.
+
+    This is the block a support helper (or the user) reads first: it turns the
+    entity-resolution / capability / segment data into status lines, so the most
+    common report — "why can't I import my rooms?" — is answerable at a glance
+    without knowing the internals. The headline tell is transport mode: a device
+    on Eufy's reduced (scalar/Tuya) transport exposes no active_map sensor, so
+    its rooms come from the vacuum's ``segments`` attribute and its map picture
+    won't render. Derived purely from the already-collected ``out`` — never
+    raises (the caller still guards it).
+    """
+    caps = out.get("capabilities") or {}
+    entity_res = out.get("entity_resolution") or {}
+    vstate = out.get("vacuum_state") or {}
+
+    active_map_role = entity_res.get("active_map") or {}
+    has_active_map_entity = bool(active_map_role.get("exists"))
+
+    seg_count = vstate.get("segment_count")
+    has_segments = isinstance(seg_count, int) and seg_count > 0
+
+    if has_active_map_entity:
+        transport = "full (novel / MQTT) — active_map sensor present"
+    elif has_segments:
+        transport = (
+            "attribute-mode (reduced / scalar-Tuya) — no active_map sensor; "
+            "the room list is read from the vacuum's segments attribute"
+        )
+    else:
+        transport = (
+            "unknown — no active_map sensor and no room segments visible yet"
+        )
+
+    if caps.get("supports_rooms"):
+        if has_active_map_entity:
+            room_control = "available (via active map)"
+        elif has_segments:
+            room_control = f"available (via segments attribute — {seg_count} rooms)"
+        else:
+            room_control = "reported available, but no rooms are visible yet"
+    else:
+        room_control = "unavailable (no room source detected)"
+
+    if has_active_map_entity:
+        map_image = (
+            "active_map sensor present — live-map backdrop available when the "
+            "eufy-clean fork provides a map camera"
+        )
+    else:
+        map_image = (
+            "unavailable — the reduced transport has no map sensor; the live-map "
+            "backdrop needs the smcneece eufy-clean fork"
+        )
+
+    detected_model = caps.get("detected_model")
+    family = caps.get("model_family")
+    if detected_model and family:
+        model_detection = f"{detected_model} → {family}"
+    elif family:
+        model_detection = str(family)
+    else:
+        model_detection = "generic (model not detected)"
+
+    importable = bool(caps.get("supports_rooms")) and (
+        bool(out.get("active_map_id")) or has_segments
+    )
+
+    if has_active_map_entity:
+        note = "Standard transport — maps, rooms and the live map all work."
+    elif has_segments:
+        note = (
+            "No active_map sensor — your robot is on Eufy's reduced (scalar/Tuya) "
+            "transport. Room cleaning works (rooms come from the vacuum's segments "
+            "attribute); the map picture won't render without the eufy-clean fork."
+        )
+    else:
+        note = (
+            "No active_map sensor and no room segments yet. If the robot is new, "
+            "finish a mapping run with rooms set up in the Eufy app — the room list "
+            "loads directly from the vacuum and may take a moment after startup."
+        )
+
+    return {
+        "transport": transport,
+        "room_control": room_control,
+        "rooms_importable": "yes" if importable else "no",
+        "map_image": map_image,
+        "model_detection": model_detection,
+        "note": note,
+    }
+
+
 def _vacuum_diagnostics(
     hass: HomeAssistant, manager: Any, vacuum_entity_id: str
 ) -> dict[str, Any]:
@@ -190,7 +283,20 @@ def _vacuum_diagnostics(
     except Exception as err:  # pragma: no cover - defensive
         out["upkeep_snapshot_error"] = repr(err)
 
-    return out
+    # Interpreted, human-readable summary of everything above. Computed last
+    # (needs all signals) but surfaced right after the id so it reads first.
+    try:
+        summary = _self_check(out)
+    except Exception as err:  # pragma: no cover - defensive
+        summary = {"error": repr(err)}
+    ordered: dict[str, Any] = {
+        "vacuum_entity_id": vacuum_entity_id,
+        "self_check": summary,
+    }
+    for key, value in out.items():
+        if key != "vacuum_entity_id":
+            ordered[key] = value
+    return ordered
 
 
 async def async_get_config_entry_diagnostics(
