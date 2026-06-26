@@ -36,9 +36,18 @@ export function renderTab(page, view, opts = {}) {
  * and excluded: that's the allowlist, COMPUTED FROM CSS rather than a
  * hand-maintained class list (the audit's crux — too-broad allowlists never
  * fail, too-narrow ones flag the ~86 deliberate clips). svg/img/canvas/video
- * are skipped (raster/vector boxes, not text layout). Only the DEEPEST element
- * in any overflow chain is kept (ancestors that overflow only because a
- * descendant does are dropped) so each culprit points at the real fix site.
+ * are skipped (raster/vector boxes, not text layout).
+ *
+ * Also excluded: DELIBERATE negative-margin bleeds. An enlarged tap target or a
+ * full-bleed row uses a negative L/R margin so its border-box extends past the
+ * content edge BY DESIGN — that inflates scrollWidth without clipping any
+ * visible content (and an ancestor contains it). When a child's negative margin
+ * magnitude ≥ the overflow, the overflow is that bleed, not real content
+ * overflow (whose children's positive widths exceed the box), so it is skipped.
+ *
+ * Only the DEEPEST element in any overflow chain is kept (ancestors that
+ * overflow only because a descendant does are dropped) so each culprit points
+ * at the real fix site.
  *
  * @returns {Promise<{shellOverflow:number, culprits:Array<{tag:string,cls:string,ov:number,text:string}>}>}
  */
@@ -52,8 +61,21 @@ export function probeLayout(page, { tol = 2 } = {}) {
     for (const el of root.querySelectorAll("*")) {
       if (SKIP.has(el.tagName.toLowerCase()) || el.closest("svg")) continue;
       const cw = el.clientWidth;
-      if (cw <= 0 || el.scrollWidth - cw <= t) continue;
+      const ov = el.scrollWidth - cw;
+      if (cw <= 0 || ov <= t) continue;
       if (getComputedStyle(el).overflowX !== "visible") continue; // clips/scrolls → intentional
+      // A DESCENDANT whose negative margin ≥ the overflow is a deliberate bleed,
+      // not content overflow — skip (see doc above). Scans descendants, not just
+      // direct children: the bleed extends past every ancestor up to the one that
+      // contains it (e.g. a tap-target's -4px bleeds past both its control row
+      // AND the room row), so each of those would otherwise be flagged in turn.
+      let bleed = false;
+      for (const c of el.querySelectorAll("*")) {
+        const ccs = getComputedStyle(c);
+        const neg = Math.max(-(parseFloat(ccs.marginLeft) || 0), -(parseFloat(ccs.marginRight) || 0), 0);
+        if (neg >= ov - 0.5) { bleed = true; break; }
+      }
+      if (bleed) continue;
       over.push(el);
     }
     // Deepest-only: drop any culprit that contains another culprit.
