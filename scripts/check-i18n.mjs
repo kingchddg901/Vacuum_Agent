@@ -20,9 +20,10 @@
  *   B. KEYS — a static scan tying the two halves of the catalog together:
  *      every literal `t("…")` / `tRaw("…")` key used in src/ MUST exist in
  *      en.js (an orphan renders the raw key in the UI — a real bug, FATAL),
- *      and every en.js key SHOULD be referenced (a dead key is dropped
- *      translator effort — reported, non-fatal, since some keys are resolved
- *      dynamically from a variable and so are listed in DYNAMIC_KEYS).
+ *      and every en.js key MUST be reachable from source — proven three ways
+ *      (literal call, key-as-data-value, or a `t(`…${…}…`)` template extracted
+ *      from the code), never a hand-maintained allowlist. A key reachable by
+ *      none is a dead key (dropped translator effort, reported).
  *
  * Exit code is non-zero iff a contract assertion fails or an orphan key exists.
  * Framework-free on purpose (node:assert + node:fs) so it runs anywhere node
@@ -134,46 +135,43 @@ check("missing interpolation var leaves placeholder", () => {
    ========================================================= */
 console.log("\nB. key cross-check");
 
-// Keys resolved from a variable (not a literal), so the literal scan can't see
-// them. They are referenced dynamically and must be exempt from the dead check.
-//   - mobile-shell.js builds `mobile.tab_<id>` from the view list.
-//   - map.js builds `map.variant_<key>_label|_hint` from the image-variant key.
-//   - maintenance.js builds `maintenance.status_<state>` from a consumable status.
-const DYNAMIC_KEYS = new Set([
-  "mobile.tab_dock", "mobile.tab_learning_review", "mobile.tab_map_bounds",
-  "mobile.tab_map_config", "mobile.tab_room_rules", "mobile.tab_rooms",
-  "mobile.tab_setup", "mobile.tab_stats", "mobile.tab_theme", "mobile.tab_upkeep",
-  "map.variant_dark_label", "map.variant_dark_hint",
-  "map.variant_light_label", "map.variant_light_hint",
-  "map.variant_default_label", "map.variant_default_hint",
-  "maintenance.status_good", "maintenance.status_warning", "maintenance.status_unknown",
-  "maintenance.status_replace_now", "maintenance.status_replace_soon",
-  "learning.confidence_high", "learning.confidence_medium", "learning.confidence_low",
-  "learning.confidence_high_job", "learning.confidence_medium_job", "learning.confidence_low_job",
-]);
+// REACHABILITY IS DERIVED FROM SOURCE — not a hand-maintained allowlist. A defined
+// key counts as referenced if the code uses it one of three PROVABLE ways:
+//   (1) a literal `t("KEY")` / `tRaw("KEY")` call (also the orphan source);
+//   (2) the full key appears as a quoted string anywhere in src — i.e. it's a
+//       DATA VALUE handed to t() through a variable (registry `titleKey:"…"`, a
+//       nav `labelKey:"mobile.tab_…"`, etc.);
+//   (3) it matches a `t(`…${…}…`)` TEMPLATE found in src, each `${…}` standing in
+//       for one key segment (map.variant_${k}_label, maintenance.status_${s}, …).
+// Because the template patterns are extracted from the code, deleting a
+// construction site automatically un-exempts its keys — there is no trusted list.
+const LIT = /\.t(?:Raw)?\("([^"]+)"/g;          // t("literal")
+const TMPL = /\.t(?:Raw)?\(`([^`]+)`/g;          // t(`tmpl ${var}`)
+const SKIP_I18N = `${join("src", "i18n")}`;
 
-// Whole key families resolved from a variable (registry-driven), exempt by PREFIX
-// rather than listing every member. theme-preview.js renders the preview-group
-// registry titles/descriptions via `group.titleKey` and the battery-state
-// labels/hints via `item.labelKey` / `item.hintKey` — never as string literals.
-const DYNAMIC_PREFIXES = [
-  "theme_preview.group.",
-  "theme_preview.animal.battery_",
-];
+// Build a regex from a t(`…`) template: literal segments stay literal, each ${…}
+// becomes one [A-Za-z0-9_] key segment. A template with no namespace anchor (no "."
+// in its leading literal) is REJECTED so a pathologically dynamic `${a}.${b}` can
+// never silently exempt the whole catalog.
+const templateToRegex = (tmpl) => {
+  const parts = tmpl.split(/\$\{[^}]*\}/);
+  if (!parts[0].includes(".")) return null;
+  const esc = parts.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return new RegExp(`^${esc.join("[A-Za-z0-9_]+")}$`);
+};
 
-// Collect every literal t()/tRaw() key across src/, skipping the i18n module.
-const USE = /\.t(?:Raw)?\("([^"]+)"/g;
-const used = new Map();
+const used = new Map();      // literal-used KEY -> file
+const tmplRegexes = [];      // one regex per accepted t(`…`) template
+let allSrc = "";             // concatenated src (for quoted-string reachability)
 const walk = (dir) => {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) { walk(p); continue; }
-    if (!p.endsWith(".js")) continue;
-    if (p.includes(`${join("src", "i18n")}`)) continue;
+    if (!p.endsWith(".js") || p.includes(SKIP_I18N)) continue;
     const txt = readFileSync(p, "utf8");
-    for (const m of txt.matchAll(USE)) {
-      if (!used.has(m[1])) used.set(m[1], relative(REPO, p));
-    }
+    allSrc += `${txt}\n`;
+    for (const m of txt.matchAll(LIT)) if (!used.has(m[1])) used.set(m[1], relative(REPO, p));
+    for (const m of txt.matchAll(TMPL)) { const rx = templateToRegex(m[1]); if (rx) tmplRegexes.push(rx); }
   }
 };
 walk(SRC);
@@ -182,12 +180,17 @@ walk(SRC);
 const enTxt = readFileSync(join(SRC, "i18n", "en.js"), "utf8");
 const defined = new Set([...enTxt.matchAll(/^\s*"([^"]+)":/gm)].map((m) => m[1]));
 
-const isDynamic = (k) => DYNAMIC_KEYS.has(k) || DYNAMIC_PREFIXES.some((p) => k.startsWith(p));
-const orphans = [...used.keys()].filter((k) => !defined.has(k)).sort();
-const dead = [...defined].filter((k) => !used.has(k) && !isDynamic(k)).sort();
-const dynamicExempt = [...defined].filter(isDynamic).length;
+// A defined key is reachable iff one of the three provable forms references it.
+const stringPresent = (k) => allSrc.includes(`"${k}"`) || allSrc.includes(`'${k}'`);
+const templateMatch = (k) => tmplRegexes.some((rx) => rx.test(k));
+const reachable = (k) => used.has(k) || stringPresent(k) || templateMatch(k);
 
-console.log(`  defined: ${defined.size}   used(literal): ${used.size}   dynamic-exempt: ${dynamicExempt}`);
+const orphans = [...used.keys()].filter((k) => !defined.has(k)).sort();
+const dead = [...defined].filter((k) => !reachable(k)).sort();
+// "dynamic" = reachable but NOT via a literal t("…") — i.e. proven by data value or template.
+const dynamicReached = [...defined].filter((k) => !used.has(k) && reachable(k)).length;
+
+console.log(`  defined: ${defined.size}   literal-used: ${used.size}   reached via data/template: ${dynamicReached}   (templates: ${tmplRegexes.length})`);
 
 if (orphans.length === 0) {
   console.log("  ✓ no orphan keys (every used key exists in en.js)");
