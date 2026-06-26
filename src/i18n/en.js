@@ -39,12 +39,12 @@ export const en = {
 
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
-  "base_station.action_dry_mop": "Dry Mop",
+  "base_station.action_dry_mop": "Dry Mop",  // dock button: start air-drying the mop pad (not 'dry-mopping' the floor)
   "base_station.action_empty_dust": "Empty Dust",
-  "base_station.action_stop_drying": "Stop Drying",
+  "base_station.action_stop_drying": "Stop Drying",  // dock button: stop the mop air-dry cycle
   "base_station.action_unavailable": "Action unavailable",
   "base_station.action_wash_mop": "Wash Mop",
-  "base_station.activity_dry_start": "Dry Start",
+  "base_station.activity_dry_start": "Dry Start",  // dock activity: mop air-drying cycle started, not a clean/run start
   "base_station.activity_dust_empty": "Dust Empty",
   "base_station.activity_mop_wash": "Mop Wash",
   "base_station.activity_subtitle": "Last known dock service activity",
@@ -56,23 +56,23 @@ export const en = {
   "base_station.pause_timeout_subtitle": "Default pause timeout used when a run is paused",
   "base_station.pause_timeout_title": "Pause Timeout",
   "base_station.recorded_count": "{count} recorded",  // plural
-  "base_station.stat_after_job": "After Job",
+  "base_station.stat_after_job": "After Job",  // stat label: projected tank level remaining after the queued job
   "base_station.stat_dock_status": "Dock Status",
-  "base_station.stat_docked": "Docked",
-  "base_station.stat_job_use": "Job Use",
-  "base_station.stat_lifecycle": "Lifecycle",
+  "base_station.stat_docked": "Docked",  // stat label asking 'is the robot docked?' (value = Yes/No), not a status word
+  "base_station.stat_job_use": "Job Use",  // stat label: clean-water this job is projected to use (ml)
+  "base_station.stat_lifecycle": "Lifecycle",  // stat label: dock lifecycle state (drying/washing/idle), not product lifespan
   "base_station.stat_station_water": "Station Water",
-  "base_station.stat_tank_now": "Tank Now",
-  "base_station.stat_task": "Task",
+  "base_station.stat_tank_now": "Tank Now",  // stat label: clean-water tank volume right now (water tank, in ml)
+  "base_station.stat_task": "Task",  // stat label: robot's current task status string from the device
   "base_station.state_ready": "Ready",
-  "base_station.state_running": "Running...",
+  "base_station.state_running": "Running...",  // dock-action button state while the action is sending, not robot 'cleaning'
   "base_station.state_unavailable": "Unavailable",
   "base_station.station_status_subtitle": "Dock, lifecycle, and robot task state",
   "base_station.station_status_title": "Station Status",
   "base_station.unknown": "Unknown",
   "base_station.updated_prefix": "Updated {timestamp}",
   "base_station.water_subtitle": "Current dock water plus projected post-job tank level",
-  "base_station.water_title": "Water",
+  "base_station.water_title": "Water",  // Water panel section heading (dock water tank levels), not a per-room water setting
   "bind_base_station.auto_cancel_disabled": "Auto-cancel disabled",
   "bind_base_station.could_not_save_pause_timeout": "Could not save pause timeout",
   "bind_base_station.dock_action_failed": "Dock action failed ({action})",
@@ -189,41 +189,41 @@ export const en = {
   "external_jobs.card_rooms_one": "~{count} room",  // plural
   "external_jobs.card_segments_many": "{count} segments",  // plural
   "external_jobs.card_segments_one": "{count} segment",  // plural
-  "external_jobs.clean_mode_unknown": "?",
+  "external_jobs.clean_mode_unknown": "?",  // '?' placeholder shown when a segment's clean mode wasn't captured
   "external_jobs.confirm": "Confirm",
   "external_jobs.count_hint": "set the room count, or split / merge below",
   "external_jobs.detected_rooms_many": "Detected <strong>{count}</strong> rooms. Merge any over-split before continuing.",  // plural
   "external_jobs.detected_rooms_one": "Detected <strong>{count}</strong> room. Merge any over-split before continuing.",  // plural
   "external_jobs.discard": "Discard",
-  "external_jobs.edge_mop": "Edge mop?",
+  "external_jobs.edge_mop": "Edge mop?",  // field label asking whether the run used edge-mopping (Edge mop?)
   "external_jobs.edge_mop_hint": "not detected — please set",
   "external_jobs.empty": "No app-started runs awaiting review. Start a clean from {appPhrase} and the run will appear here to confirm which rooms it cleaned.",
   "external_jobs.empty_app_branded": "the {brand} app",
   "external_jobs.empty_app_generic": "your robot's app",
-  "external_jobs.first_room": "First room",
+  "external_jobs.first_room": "First room",  // marks the first segment (no merge-up control); start of the run
   "external_jobs.keep_anyway": "Keep anyway",
   "external_jobs.merge_up": "Merge up",
-  "external_jobs.merged_label": "merged",
-  "external_jobs.merged_label_uncertain": "merged · uncertain",
-  "external_jobs.mode": "Mode",
-  "external_jobs.mode_mop": "Mop",
-  "external_jobs.mode_vacuum": "Vacuum",
-  "external_jobs.mode_vacuum_mop": "Vac & Mop",
+  "external_jobs.merged_label": "merged",  // boundary toggle state = this cut is merged into the room above
+  "external_jobs.merged_label_uncertain": "merged · uncertain",  // boundary state: merged, but the detected cut was low-confidence
+  "external_jobs.mode": "Mode",  // field label above clean-mode chips (vacuum/mop/both); the cleaning mode, NOT theme appearance mode
+  "external_jobs.mode_mop": "Mop",  // clean-mode chip value: mop-only
+  "external_jobs.mode_vacuum": "Vacuum",  // clean-mode chip value: vacuum-only (no mopping)
+  "external_jobs.mode_vacuum_mop": "Vac & Mop",  // clean-mode chip value: vacuum + mop together (short 'Vac & Mop')
   "external_jobs.next_name_rooms": "Next: name rooms",
-  "external_jobs.passes": "Passes",
+  "external_jobs.passes": "Passes",  // field label for cleaning-pass count chips (1x / 2x)
   "external_jobs.pick_another_room": "… pick another room",
-  "external_jobs.review": "Review",
+  "external_jobs.review": "Review",  // button on a pending app-started run that opens the review wizard
   "external_jobs.room_n": "Room {n}",
-  "external_jobs.rooms_label": "Rooms",
-  "external_jobs.seg_n": "seg {n}",
+  "external_jobs.rooms_label": "Rooms",  // label for the room-COUNT stepper (how many rooms); a number, not a list of rooms
+  "external_jobs.seg_n": "seg {n}",  // 'seg {n}' = abbreviated segment label (legacy step 1); n is the detected-segment order
   "external_jobs.segments_merged": "{count} segments merged",  // plural
-  "external_jobs.setting_cleaning_path": "Cleaning Path",
-  "external_jobs.setting_suction": "Suction",
-  "external_jobs.setting_water": "Water",
+  "external_jobs.setting_cleaning_path": "Cleaning Path",  // clean-intensity setting row (maps to clean_intensity), labelled 'Cleaning Path'
+  "external_jobs.setting_suction": "Suction",  // per-room suction/fan-speed LEVEL setting row
+  "external_jobs.setting_water": "Water",  // per-room mop water-LEVEL setting row (low/med/high), only shown for mop modes
   "external_jobs.split_here": "Split here",
   "external_jobs.split_here_uncertain": "Split here · uncertain",
-  "external_jobs.split_label": "split here",
-  "external_jobs.split_label_uncertain": "split here · uncertain",
+  "external_jobs.split_label": "split here",  // boundary toggle state = this cut is split into its own room
+  "external_jobs.split_label_uncertain": "split here · uncertain",  // boundary state: split, but the detected cut was low-confidence
   "external_jobs.subtab_external": "External Jobs",
   "external_jobs.subtab_external_count": "External Jobs ({count})",
   "external_jobs.subtab_history": "Learning History",
@@ -236,9 +236,9 @@ export const en = {
 
   // --- learning (Learning Review surface: live progress, estimates, completion, incomplete-run recovery) ---
   "learning.all_rooms_complete": "All rooms complete",
-  "learning.battery_finish_rooms": "May need to recharge to finish remaining rooms",
-  "learning.battery_mid_job": "May need to recharge mid-job",
-  "learning.battery_recharged": "Recharge occurred during job",
+  "learning.battery_finish_rooms": "May need to recharge to finish remaining rooms",  // live warning: may recharge before finishing remaining rooms
+  "learning.battery_mid_job": "May need to recharge mid-job",  // pre-job warning: battery may need a recharge partway through
+  "learning.battery_recharged": "Recharge occurred during job",  // post-job note: a recharge actually happened during the run
   "learning.chip_mop_only_many": "{count} mop-only rooms",  // plural
   "learning.chip_mop_only_one": "{count} mop-only room",  // plural
   "learning.chip_vacuum_mop_many": "{count} vacuum + mop rooms",  // plural
@@ -250,17 +250,17 @@ export const en = {
   "learning.chip_water": "~{ml} water",
   "learning.cleaning_complete": "Cleaning Complete",
   "learning.cleaning_room": "Cleaning {room}",
-  "learning.confidence_high": "High",
-  "learning.confidence_high_job": "High confidence",
-  "learning.confidence_job_suffix": "{label} confidence",
-  "learning.confidence_low": "Low",
-  "learning.confidence_low_job": "Low confidence",
-  "learning.confidence_medium": "Medium",
-  "learning.confidence_medium_job": "Medium confidence",
+  "learning.confidence_high": "High",  // learning-confidence tier (High/Med/Low reliability), NOT water/suction High
+  "learning.confidence_high_job": "High confidence",  // job-level confidence badge: 'High confidence' (whole-run estimate)
+  "learning.confidence_job_suffix": "{label} confidence",  // job confidence badge for unknown tier: '{label} confidence'
+  "learning.confidence_low": "Low",  // learning-confidence tier (estimate reliability), NOT water-level Low
+  "learning.confidence_low_job": "Low confidence",  // job-level confidence badge: 'Low confidence' (whole-run estimate)
+  "learning.confidence_medium": "Medium",  // learning-confidence tier (estimate reliability), NOT water-level Medium
+  "learning.confidence_medium_job": "Medium confidence",  // job-level confidence badge: 'Medium confidence' (whole-run estimate)
   "learning.dismiss": "Dismiss",
   "learning.dismiss_aria": "Dismiss",
-  "learning.done_at": "Done at {time}",
-  "learning.done_by": "done by {time}",
+  "learning.done_at": "Done at {time}",  // projected per-room finish clock time: 'Done at {time}'
+  "learning.done_by": "done by {time}",  // projected whole-job finish clock time: 'done by {time}'
   "learning.estimate_queue_first": "Queue rooms first to see an estimate",
   "learning.estimate_unavailable_message": "Estimate unavailable.",
   "learning.estimate_unavailable_title": "Estimate unavailable",
@@ -270,45 +270,45 @@ export const en = {
   "learning.hours_only": "{hours}h",
   "learning.incomplete_title_many": "Last run {outcome} — {count} rooms missed",  // plural
   "learning.incomplete_title_one": "Last run {outcome} — 1 room missed",  // plural
-  "learning.job_will_use": "Job will use",
-  "learning.learning_active": "Learning active",
+  "learning.job_will_use": "Job will use",  // water row: clean water this job is projected to consume
+  "learning.learning_active": "Learning active",  // live banner title before first room update; system is recording data
   "learning.live_progress": "Live Progress",
   "learning.milliliters": "{ml} ml",
-  "learning.minutes_left": "~{minutes} left",
-  "learning.minutes_only": "{minutes} min",
-  "learning.minutes_short": "{value} min",
+  "learning.minutes_left": "~{minutes} left",  // live ETA remainder on current room: '~{minutes} left'
+  "learning.minutes_only": "{minutes} min",  // whole-minute duration '{minutes} min' (under 1h); distinct from minutes_short
+  "learning.minutes_short": "{value} min",  // duration formatter, fractional min e.g. '3.5 min'; {value}, distinct from minutes_only
   "learning.mop_wash_label_many": "{total} ({count} cycles × {per} every {interval})",  // plural
   "learning.mop_wash_label_none": "0 min (no cycles scheduled)",
   "learning.mop_wash_label_one": "{total} ({count} cycle × {per} every {interval})",  // plural
   "learning.next_room": "Next room",
-  "learning.note_intensity_mismatch": "estimated from different intensity",
-  "learning.note_no_data": "No data yet",
-  "learning.note_runs_to_reliable_many": "{count} runs to reliable",  // plural
-  "learning.note_runs_to_reliable_one": "{count} run to reliable",  // plural
-  "learning.outcome_cancelled": "cancelled",
+  "learning.note_intensity_mismatch": "estimated from different intensity",  // per-room note: estimate learned at a different clean intensity/profile
+  "learning.note_no_data": "No data yet",  // per-room note: no learned samples yet, using fallback estimate
+  "learning.note_runs_to_reliable_many": "{count} runs to reliable",  // plural; per-room note: N more runs until estimate reaches 'reliable'
+  "learning.note_runs_to_reliable_one": "{count} run to reliable",  // plural; per-room note: N more runs until estimate is 'reliable' (high confidence)
+  "learning.outcome_cancelled": "cancelled",  // incomplete-run cause, lowercase mid-sentence: 'Last run cancelled — …'
   "learning.outcome_failed": "failed",
-  "learning.outcome_interrupted": "interrupted",
+  "learning.outcome_interrupted": "interrupted",  // incomplete-run cause, lowercase mid-sentence (e.g. power/connection loss)
   "learning.overhead_breakdown": "Overhead breakdown",
-  "learning.overhead_dust_empty": "Dust empty",
-  "learning.overhead_mop_wash": "Mop wash",
-  "learning.overhead_recharge": "Recharge",
-  "learning.overhead_return": "Return to dock",
-  "learning.overhead_startup": "Startup",
-  "learning.overhead_transitions": "Transitions",
+  "learning.overhead_dust_empty": "Dust empty",  // time-overhead segment: dock auto-empty minutes
+  "learning.overhead_mop_wash": "Mop wash",  // time-overhead segment: dock mop-wash minutes
+  "learning.overhead_recharge": "Recharge",  // time-overhead segment: mid-job recharge minutes
+  "learning.overhead_return": "Return to dock",  // time-overhead segment: final return-to-dock minutes
+  "learning.overhead_startup": "Startup",  // time-overhead segment: robot startup/spin-up minutes
+  "learning.overhead_transitions": "Transitions",  // time-overhead segment: travel between rooms
   "learning.queue_missed_rooms": "Queue missed rooms",
   "learning.returning_to_dock": "Returning to dock",
-  "learning.robot_stuck": "Robot may be stuck in current room",
+  "learning.robot_stuck": "Robot may be stuck in current room",  // stall warning: robot may be stuck in the room it's cleaning
   "learning.room_fallback": "Room {id}",
   "learning.stall_detail": "({elapsed} elapsed)",
   "learning.stall_detail_expected": "({elapsed} elapsed, expected {expected})",
-  "learning.stat_actual": "Actual",
-  "learning.stat_delta": "Delta",
-  "learning.stat_predicted": "Predicted",
-  "learning.stat_rooms": "Rooms",
-  "learning.stats_stale": "Estimates may be outdated",
+  "learning.stat_actual": "Actual",  // post-job stat: actual elapsed run time (vs Predicted)
+  "learning.stat_delta": "Delta",  // post-job stat: signed +/- diff between actual and predicted time
+  "learning.stat_predicted": "Predicted",  // post-job stat: predicted run time (vs Actual)
+  "learning.stat_rooms": "Rooms",  // post-job stat: count of rooms completed this run
+  "learning.stats_stale": "Estimates may be outdated",  // warning: learned estimates may be outdated (stats not rebuilt recently)
   "learning.stats_stale_with_time": "Estimates may be outdated (last rebuilt {time})",
-  "learning.tank_after_run": "Tank after run",
-  "learning.tank_now": "Tank now",
+  "learning.tank_after_run": "Tank after run",  // water section: projected clean-water tank level AFTER the run
+  "learning.tank_now": "Tank now",  // water section: clean-water tank level BEFORE the run starts
   "learning.unknown": "Unknown",
   "learning.waiting_next_room": "Waiting for next room update",
   "learning.water_estimate": "Water estimate",
@@ -320,8 +320,8 @@ export const en = {
   "maintenance.attention_title": "Needs Attention",
   "maintenance.begin_reset_title_device": "Send the reset command to the device for this replacement item.",
   "maintenance.begin_reset_title_integration": "Reset this tracked maintenance interval and refresh the dashboard snapshot.",
-  "maintenance.category_maintenance": "Maintenance",
-  "maintenance.category_replacement": "Replacement",
+  "maintenance.category_maintenance": "Maintenance",  // item-category label prefix in attention list: integration-tracked interval item
+  "maintenance.category_replacement": "Replacement",  // item-category label prefix: upstream consumable/replacement part
   "maintenance.confirm_reset": "Confirm Reset",
   "maintenance.dock_fw": "Dock fw {version}",
   "maintenance.due_in_days": "Due in ~{count} days",  // plural
@@ -333,12 +333,12 @@ export const en = {
   "maintenance.hours_many": "{value} hours",  // plural
   "maintenance.hours_one": "{value} hour",  // plural
   "maintenance.hours_remaining": "{hours} remaining",
-  "maintenance.interval_default_button": "Default",
+  "maintenance.interval_default_button": "Default",  // button: restore manufacturer default interval value
   "maintenance.interval_default_hint": "Default {hours}h",
   "maintenance.interval_default_title": "Restore manufacturer default ({hours}h)",
   "maintenance.interval_label": "Interval",
   "maintenance.interval_max_hint": "Max {hours}h",
-  "maintenance.interval_unit": "hours",
+  "maintenance.interval_unit": "hours",  // unit suffix after a number-of-hours interval input
   "maintenance.items_empty_maintenance": "No maintenance items reported.",
   "maintenance.items_empty_replacements": "No replacement items reported.",
   "maintenance.items_subtitle": "Switch between maintenance intervals and replacement items",
@@ -346,36 +346,36 @@ export const en = {
   "maintenance.left_of": "{remaining} left of {total}",
   "maintenance.ml_remaining": "~{ml} ml remaining",
   "maintenance.modal_fallback_name": "Item details",
-  "maintenance.notes_label": "Notes",
+  "maintenance.notes_label": "Notes",  // section heading for guide notes/cautions in the item modal
   "maintenance.overview_subtitle": "Backend maintenance snapshot",
   "maintenance.overview_title": "Maintenance Overview",
   "maintenance.percent_remaining": "{percent}% remaining",
-  "maintenance.priority_normal": "Normal",
+  "maintenance.priority_normal": "Normal",  // highest-priority stat fallback = Normal (no item needs urgent attention)
   "maintenance.replacement_overview_subtitle": "Replacement inventory and lifecycle snapshot",
   "maintenance.replacement_overview_title": "Replacement Overview",
   "maintenance.reset_confirm_device": "This will send the reset command to the device for {name}.",
   "maintenance.reset_confirm_integration": "This will reset the tracked maintenance interval for {name}.",
   "maintenance.resetting": "Resetting...",
-  "maintenance.stat_attention": "Attention",
-  "maintenance.stat_cleans": "Cleans",
-  "maintenance.stat_healthy": "Healthy",
+  "maintenance.stat_attention": "Attention",  // stat: count of items flagged needing attention
+  "maintenance.stat_cleans": "Cleans",  // lifetime stat: total number of clean cycles run by the device
+  "maintenance.stat_healthy": "Healthy",  // stat: count of replacement items currently in healthy state
   "maintenance.stat_items": "Items",
   "maintenance.stat_priority": "Priority",
-  "maintenance.stat_status": "Status",
+  "maintenance.stat_status": "Status",  // stat cell label whose value is Tracked/Empty (replacements group state)
   "maintenance.stat_total_cleaned": "Total cleaned",
   "maintenance.stat_total_time": "Total time",
-  "maintenance.stat_water": "Water",
+  "maintenance.stat_water": "Water",  // overview stat cell: dock station water status value
   "maintenance.station_water_detail": "Base station water reservoir status",
   "maintenance.station_water_title": "Station Water",
-  "maintenance.status_empty": "Empty",
-  "maintenance.status_good": "Good",
+  "maintenance.status_empty": "Empty",  // replacements group status: no replacement items tracked (empty list)
+  "maintenance.status_good": "Good",  // consumable/water health status = Good (not 'Good' rating elsewhere)
   "maintenance.status_replace_now": "Replace Now",
   "maintenance.status_replace_soon": "Replace Soon",
-  "maintenance.status_tracked": "Tracked",
+  "maintenance.status_tracked": "Tracked",  // replacements group status: items are being tracked
   "maintenance.status_unknown": "Unknown",
-  "maintenance.status_warning": "Warning",
+  "maintenance.status_warning": "Warning",  // consumable health status = Warning
   "maintenance.steps_empty": "No model-aware steps were provided for this item.",
-  "maintenance.steps_label": "Steps",
+  "maintenance.steps_label": "Steps",  // section heading for the how-to maintenance steps list
   "maintenance.tab_maintenance_items": "Maintenance Items",
   "maintenance.tab_replacements": "Replacements",
   "maintenance.tab_subtitle_maintenance": "Integration-managed maintenance intervals",
@@ -388,11 +388,11 @@ export const en = {
   "maintenance.updated": "Updated {time}",
   "maintenance.used_of": "{used} used of {total}",
   "maintenance.used_since_reset": "{used} used since reset",
-  "maintenance.value_unknown": "Unknown",
-  "maintenance.water_empty": "Empty",
-  "maintenance.water_high": "High",
-  "maintenance.water_low": "Low",
-  "maintenance.water_medium": "Medium",
+  "maintenance.value_unknown": "Unknown",  // fallback when station water value is missing
+  "maintenance.water_empty": "Empty",  // station water reservoir FILL level: tank is empty
+  "maintenance.water_high": "High",  // station water reservoir FILL level (High amount), not quality/priority
+  "maintenance.water_low": "Low",  // station water reservoir FILL level (Low amount), not a low rating
+  "maintenance.water_medium": "Medium",  // station water reservoir FILL level (Medium amount)
 
   // --- map (live map room + config: zoom, furnished, composer, segment editor, zone clean, layout, image variants) ---
   "map.adjusting": "Adjusting:",
@@ -428,9 +428,9 @@ export const en = {
   "map.compose_no_rooms": "No rooms discovered for this map yet — link a shape to a room here once they appear.",
   "map.compose_rooms": "Compose rooms",
   "map.compose_save": "Save rooms",
-  "map.compose_scope_piece": "Piece",
+  "map.compose_scope_piece": "Piece",  // move-scope toggle: move just this one shape PIECE of the room
   "map.compose_scope_piece_title": "Move just this shape",
-  "map.compose_scope_room": "Room",
+  "map.compose_scope_room": "Room",  // move-scope toggle: move the WHOLE room together (vs single piece)
   "map.compose_scope_room_title": "Move the whole room together",
   "map.compose_selected": "Selected:",
   "map.compose_shape_count": "{count} shapes",  // plural
@@ -452,12 +452,12 @@ export const en = {
   "map.deleting": "Deleting…",
   "map.dock": "Dock",
   "map.draw_zone": "Draw a zone to clean",
-  "map.edge_bottom": "Bottom",
+  "map.edge_bottom": "Bottom",  // BOTTOM edge of a room-shape box (expand/contract side)
   "map.edge_contract": "Contract {edge}",
   "map.edge_expand": "Expand {edge}",
-  "map.edge_left": "Left",
-  "map.edge_right": "Right",
-  "map.edge_top": "Top",
+  "map.edge_left": "Left",  // LEFT edge of a room-shape box (expand/contract side), not a direction
+  "map.edge_right": "Right",  // RIGHT edge of a room-shape box (expand/contract side), not a direction
+  "map.edge_top": "Top",  // TOP edge of a room-shape box (expand/contract side)
   "map.edges": "Edges",
   "map.empty_custom_hint": "Open Map Configuration to upload this layout's backdrop, then draw + save its rooms.",
   "map.empty_live_hint": "The live map appears once the robot has one — start a clean, or open the robot's app to build its map.",
@@ -475,11 +475,11 @@ export const en = {
   "map.furnished_fine_trim": "Fine trim ±15°",
   "map.furnished_fine_trim_aria": "Fine rotation trim, plus or minus 15 degrees",
   "map.furnished_intro": "Upload a to-scale render of your home, then align it over the live map — the live robot, dock, and cleaning path ride on top.",
-  "map.furnished_mode_art": "Art",
+  "map.furnished_mode_art": "Art",  // render-mode toggle: show furnished art only (live map hidden)
   "map.furnished_mode_art_title": "Show your furnished art (live map hidden)",
-  "map.furnished_mode_blend": "Blend",
+  "map.furnished_mode_blend": "Blend",  // render-mode toggle: art over a faded live map (alignment aid)
   "map.furnished_mode_blend_title": "Art over a faded live map — best for aligning",
-  "map.furnished_mode_live": "Live",
+  "map.furnished_mode_live": "Live",  // render-mode toggle: show live map only (furniture art hidden)
   "map.furnished_mode_live_title": "Show the live map only (art hidden)",
   "map.furnished_no_size": "The live map has no image size yet — start a clean or open the robot's app so it publishes a map frame, then align.",
   "map.furnished_render_mode": "Render mode",
@@ -518,8 +518,8 @@ export const en = {
   "map.mascot_reposition": "Drag to reposition",
   "map.no_segments": "No segments analysed",
   "map.nudge_down": "Down",
-  "map.nudge_left": "Left",
-  "map.nudge_right": "Right",
+  "map.nudge_left": "Left",  // move/nudge direction LEFT (arrow button), not a box edge
+  "map.nudge_right": "Right",  // move/nudge direction RIGHT (arrow button), not a box edge
   "map.nudge_up": "Up",
   "map.nudge_vertex_down": "Nudge vertex down",
   "map.nudge_vertex_left": "Nudge vertex left",
@@ -530,7 +530,7 @@ export const en = {
   "map.reanalyse": "Re-analyse",
   "map.remove_hidden_area_aria": "Remove hidden area",
   "map.remove_hidden_area_title": "Remove this hidden area",
-  "map.replace": "Replace",
+  "map.replace": "Replace",  // button to replace the uploaded map/backdrop image, not find-and-replace
   "map.reset_translation": "Reset translation",
   "map.reset_vertex": "Reset this vertex",
   "map.resize_h_minus": "－ H",
@@ -550,17 +550,17 @@ export const en = {
   "map.rotate_right_1": "Rotate right 1°",
   "map.rotate_right_90": "Rotate right 90°",
   "map.save_failed": "Save failed",
-  "map.scale_grow": "Grow",
+  "map.scale_grow": "Grow",  // tooltip for the enlarge button when scaling placed art/shape (grow size)
   "map.scale_minus": "－ Scale",
   "map.scale_plus": "＋ Scale",
-  "map.scale_shrink": "Shrink",
+  "map.scale_shrink": "Shrink",  // tooltip for the reduce button when scaling placed art/shape (shrink size)
   "map.seg_adjusted": ", {count} adjusted",
   "map.seg_count": "{count} segments",
   "map.seg_custom_layout_title": "Custom layout: {name}",
-  "map.seg_cv": "Auto (CV)",
+  "map.seg_cv": "Auto (CV)",  // segmentation source: Auto (computer-vision) room detection; CV=computer vision
   "map.seg_cv_title": "Detect rooms automatically from the map image",
   "map.seg_cv_unavailable": "<strong>Auto (CV)</strong> map segmentation needs optional packages ({packages}) that aren't installed in this Home Assistant. Use <strong>Live map</strong>, a <strong>custom layout</strong>, or manual bounds instead — see the <a href=\"https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/16-making-your-own-maps/\" target=\"_blank\" rel=\"noopener\">map setup guide</a>.",
-  "map.seg_live": "Live map",
+  "map.seg_live": "Live map",  // segmentation source: draw rooms over the vacuum's live map
   "map.seg_live_title": "Draw rooms over your vacuum's live map",
   "map.seg_new": "＋ New",
   "map.seg_new_title": "Add a custom layout (its own backdrop + rooms)",
@@ -573,11 +573,11 @@ export const en = {
   "map.upload_failed": "Upload failed",
   "map.uploading": "Uploading…",
   "map.variant_dark_hint": "primary — clearest room colours",
-  "map.variant_dark_label": "Dark",
+  "map.variant_dark_label": "Dark",  // map image variant name (dark render), a label not a theme mode
   "map.variant_default_hint": "fallback",
   "map.variant_default_label": "Default",
   "map.variant_light_hint": "assist — wall detection",
-  "map.variant_light_label": "Light",
+  "map.variant_light_label": "Light",  // map image variant name (light render), a label not a theme mode
   "map.variant_not_uploaded": "not uploaded",
   "map.vertices": "Vertices",
   "map.zone_clean": "Zone clean",
@@ -586,11 +586,11 @@ export const en = {
   "map.zone_clear": "Clear",
   "map.zone_empty": "Drag a box on the map to add a zone.",
   "map.zone_remove": "Remove zone {num}",
-  "map.zone_setting_intensity": "Intensity",
-  "map.zone_setting_mode": "Mode",
-  "map.zone_setting_suction": "Suction",
-  "map.zone_setting_water": "Water",
-  "map.zone_settings": "Settings",
+  "map.zone_setting_intensity": "Intensity",  // zone-clean strength setting (clean intensity), not screen brightness
+  "map.zone_setting_mode": "Mode",  // zone-clean clean-mode select (vacuum/mop/both), not render/theme mode
+  "map.zone_setting_suction": "Suction",  // zone-clean fan-speed select; short form of Suction Level
+  "map.zone_setting_water": "Water",  // zone-clean water-level setting (Low/Med/High), not the dock water reservoir
+  "map.zone_settings": "Settings",  // section title for the zone-clean settings panel (suction/mode/water)
   "map.zone_settings_note": "apply to the whole clean",
   "map.zone_zones": "Zones",
   "map.zoom_controls_aria": "Map zoom controls",
@@ -602,32 +602,32 @@ export const en = {
 
   // --- mapping_review (mapping-bounds review wizard: run history, outliers, exclude/restore) ---
   "mapping_review.badge_n_excluded": "{count} excluded",  // plural
-  "mapping_review.badge_no_bounds": "No bounds",
+  "mapping_review.badge_no_bounds": "No bounds",  // badge: this room has no accumulated mapping bounds yet
   "mapping_review.badge_runs_likely": "{runs} runs · Likely",  // plural
   "mapping_review.badge_runs_samples": "{runs} runs · {samples} samples",  // plural
-  "mapping_review.baseline": "Baseline",
+  "mapping_review.baseline": "Baseline",  // badge for the protected oldest run that anchors bounds, not a metric baseline
   "mapping_review.clear_all": "Clear All",
   "mapping_review.clearing": "Clearing…",
-  "mapping_review.dim_height": "h {value}",
-  "mapping_review.dim_width": "w {value}",
+  "mapping_review.dim_height": "h {value}",  // abbreviation: h = height of the bounds box, in map px
+  "mapping_review.dim_width": "w {value}",  // abbreviation: w = width of the bounds box, in map px
   "mapping_review.exclude": "Exclude",
-  "mapping_review.excluded": "Excluded",
-  "mapping_review.filter": "Filter",
-  "mapping_review.job_pre_migration": "Pre-migration",
+  "mapping_review.excluded": "Excluded",  // badge: this RUN is excluded from accumulated bounds (not a room excluded from cleaning)
+  "mapping_review.filter": "Filter",  // noun heading above the run-list filter chips (has-bounds / no-bounds / all)
+  "mapping_review.job_pre_migration": "Pre-migration",  // job-id fallback label for runs recorded before a data migration
   "mapping_review.job_unknown": "Unknown",
   "mapping_review.loading": "Loading mapping bounds...",
   "mapping_review.no_active_bounds_archive": "No active bounds — archive available for rebuild.",
-  "mapping_review.ok": "OK",
+  "mapping_review.ok": "OK",  // outlier-status badge: run is OK / not an outlier, NOT a confirm button
   "mapping_review.outlier_label": "Outlier: {flags}",
-  "mapping_review.outlier_max_x": "max X",
-  "mapping_review.outlier_max_y": "max Y",
-  "mapping_review.outlier_min_x": "min X",
-  "mapping_review.outlier_min_y": "min Y",
+  "mapping_review.outlier_max_x": "max X",  // outlier flag: run's max-X bound exceeds the others (X = horizontal axis)
+  "mapping_review.outlier_max_y": "max Y",  // outlier flag: run's max-Y bound exceeds the others (Y = vertical axis)
+  "mapping_review.outlier_min_x": "min X",  // outlier flag: run's min-X bound is below the others (X = horizontal axis)
+  "mapping_review.outlier_min_y": "min Y",  // outlier flag: run's min-Y bound is below the others (Y = vertical axis)
   "mapping_review.rebuild_from_archive": "Rebuild from Archive",
   "mapping_review.rebuilding": "Rebuilding…",
   "mapping_review.restore": "Restore",
   "mapping_review.room_fallback": "Room {id}",
-  "mapping_review.room_id": "ID {id}",
+  "mapping_review.room_id": "ID {id}",  // label for the room's numeric identifier, e.g. 'ID 5'
   "mapping_review.run_history": "Run History ({count})",
   "mapping_review.run_solo": "Run solo to establish bounds.",
   "mapping_review.samples": "Samples",
@@ -641,42 +641,42 @@ export const en = {
   "mapping_review.updated": "Updated",
 
   // --- metrics (Stats tab: usage/learning/water/dock/battery analytics) ---
-  "metrics.battery_all_jobs": "All jobs (mixed + single)",
+  "metrics.battery_all_jobs": "All jobs (mixed + single)",  // Drain-table aggregate row label 'All jobs (mixed + single)'; the all-buckets total row
   "metrics.battery_area_used": "{area} m² | {pct} % used",
   "metrics.battery_awaiting_charge_session": "Awaiting next charge session",
   "metrics.battery_awaiting_first_job": "Awaiting first job",
-  "metrics.battery_bucket_clean_mode": "Clean mode",
+  "metrics.battery_bucket_clean_mode": "Clean mode",  // Battery-drain table grouping dimension (jobs bucketed by clean mode); not a settable mode
   "metrics.battery_bucket_empty": "{label} — no single-bucket jobs yet",
-  "metrics.battery_bucket_fan_speed": "Fan speed",
-  "metrics.battery_bucket_water_level": "Water level",
-  "metrics.battery_by_clean_mode": "By clean mode",
-  "metrics.battery_by_fan_speed": "By fan speed",
-  "metrics.battery_by_water_level": "By water level",
-  "metrics.battery_charge_cycles": "Charge cycles",
+  "metrics.battery_bucket_fan_speed": "Fan speed",  // Battery-drain table grouping dimension (jobs bucketed by fan speed); analytics label, not a control
+  "metrics.battery_bucket_water_level": "Water level",  // Battery-drain table grouping dimension (jobs bucketed by water level); analytics, not a setting
+  "metrics.battery_by_clean_mode": "By clean mode",  // Section sub-header in drain table: 'By clean mode' breakdown rows
+  "metrics.battery_by_fan_speed": "By fan speed",  // Section sub-header in drain table: 'By fan speed' breakdown rows
+  "metrics.battery_by_water_level": "By water level",  // Section sub-header in drain table: 'By water level' breakdown rows
+  "metrics.battery_charge_cycles": "Charge cycles",  // 'Charge cycles' chip: estimated full-charge-equivalent cycles (cumulative drain ÷ 100)
   "metrics.battery_charge_cycles_detail": "Cumulative drain ÷ 100",
   "metrics.battery_charge_rate": "Charge rate",
   "metrics.battery_charging_now": "Charging now",
-  "metrics.battery_col_bucket": "Bucket",
-  "metrics.battery_col_jobs": "Jobs",
-  "metrics.battery_col_last_rate": "Last rate",
-  "metrics.battery_col_mean_per_m2": "Mean %/m²",
-  "metrics.battery_col_notes": "Notes",
-  "metrics.battery_col_zone": "Zone",
+  "metrics.battery_col_bucket": "Bucket",  // Drain-table column header for the stat grouping bucket (e.g. clean-mode/fan/water value)
+  "metrics.battery_col_jobs": "Jobs",  // Drain-table column header: count of jobs in this bucket
+  "metrics.battery_col_last_rate": "Last rate",  // Charge-rates table column: most recent charge rate (%/min) for the zone
+  "metrics.battery_col_mean_per_m2": "Mean %/m²",  // Drain-table column header 'Mean %/m²': avg battery drain per square metre
+  "metrics.battery_col_notes": "Notes",  // Charge-rates table column: explanatory note text per row, not user-entered notes
+  "metrics.battery_col_zone": "Zone",  // Charge-rates table column: a battery charge-rate %-band zone (low/high/mid), not a clean zone/room
   "metrics.battery_drain_subtitle": "Only jobs where every room used the same setting feed these means. Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.",
   "metrics.battery_drain_title": "Drain per m² by single-bucket job",
-  "metrics.battery_health": "Health %",
+  "metrics.battery_health": "Health %",  // 'Health %' chip: battery state-of-health percent vs early full charges, not run health
   "metrics.battery_health_building": "Building baseline",
   "metrics.battery_health_vs_first": "vs first {count} full charges",
   "metrics.battery_last_job_per_m2": "Last job %/m²",
   "metrics.battery_last_job_title": "Most recent completed job",
   "metrics.battery_last_sample": "Last sample",
-  "metrics.battery_mixed": "(mixed)",
+  "metrics.battery_mixed": "(mixed)",  // Placeholder '(mixed)' shown when a job used multiple settings, not one single bucket value
   "metrics.battery_no_completed_job": "No completed job yet — sensors populate after the first finalized run.",
   "metrics.battery_post_job_recharge": "Post-job recharge",
   "metrics.battery_rates_title": "Charge rates by zone",
   "metrics.battery_raw_files_subtitle": "Long-term review is best done from the raw files written by the integration. Chart any of the sensors above with HA's history-graph or apexcharts-card; for deeper analysis open the CSV in a spreadsheet.",
   "metrics.battery_raw_files_title": "Raw data files",
-  "metrics.battery_row_area": "Area",
+  "metrics.battery_row_area": "Area",  // Last-job table row: floor area covered (m²) in the most recent job
   "metrics.battery_row_avg_rate": "Avg rate",
   "metrics.battery_row_battery_used": "Battery used",
   "metrics.battery_row_drain_per_hour": "Drain per hour",
@@ -692,15 +692,15 @@ export const en = {
   "metrics.battery_row_single_fan_speed": "Single fan speed",
   "metrics.battery_row_single_water_level": "Single water level",
   "metrics.battery_row_weighted_by": "Weighted by",
-  "metrics.battery_zone_high": "High (≥ 80 %)",
+  "metrics.battery_zone_high": "High (≥ 80 %)",  // Battery charge-rate zone, high charge band (≥80%); a %-range, not a quality rating
   "metrics.battery_zone_high_note": "CV taper — earliest health drop indicator",
-  "metrics.battery_zone_last_session": "Last full session",
+  "metrics.battery_zone_last_session": "Last full session",  // Charge-rates row for the last full charge session (its duration), not a %-band
   "metrics.battery_zone_last_session_note": "Charged {pct} %",
-  "metrics.battery_zone_low": "Low (≤ 29 %)",
+  "metrics.battery_zone_low": "Low (≤ 29 %)",  // Battery charge-rate zone, low charge band (≤29%); a %-range, not a quality rating
   "metrics.battery_zone_low_note": "Slow precharge / soft-cell signal",
-  "metrics.battery_zone_mid_job": "Mid-job (15→75)",
+  "metrics.battery_zone_mid_job": "Mid-job (15→75)",  // Battery charge-rate zone, mid-job recharge band (15→75%); a %-range, not a rating
   "metrics.battery_zone_mid_job_note": "Rolling mean | {count} samples",
-  "metrics.battery_zone_overall": "Overall",
+  "metrics.battery_zone_overall": "Overall",  // Battery charge-rate zone covering any active charge interval (aggregate row)
   "metrics.battery_zone_overall_note": "Any active charge interval",
   "metrics.chip_search_aria": "Search {label}",
   "metrics.chip_search_placeholder": "Search…",
@@ -774,15 +774,15 @@ export const en = {
   "metrics.stat_excluded": "Excluded",
   "metrics.stat_jobs": "Jobs",
   "metrics.stat_updated": "Updated",
-  "metrics.stat_used": "Used",
+  "metrics.stat_used": "Used",  // Overview stat: count of jobs USED for learning (not 'used' as consumed/spent)
   "metrics.tabs_aria": "Metrics groups",
   "metrics.unavailable": "Metrics unavailable.",
   "metrics.unknown": "Unknown",
-  "metrics.water_overhead": "Water Overhead",
+  "metrics.water_overhead": "Water Overhead",  // 'Water Overhead' chip: dock/wash water (not cleaning), distinct from Robot Water
   "metrics.water_overhead_detail": "Dock or wash overhead water",
   "metrics.water_profiles_subtitle": "Average total water use per profile.",
   "metrics.water_profiles_title": "Highest Water Profiles",
-  "metrics.water_robot": "Robot Water",
+  "metrics.water_robot": "Robot Water",  // 'Robot Water' chip: water the robot applied while cleaning, vs dock/overhead water
   "metrics.water_robot_detail": "Robot-applied cleaning water",
   "metrics.water_rooms_subtitle": "Average total water use per room.",
   "metrics.water_rooms_title": "Highest Water Rooms",
@@ -794,30 +794,30 @@ export const en = {
 
   // --- mobile ---
   "mobile.dock_status_label": "Dock Status:",
-  "mobile.more": "More",
+  "mobile.more": "More",  // bottom-nav button opening the overflow sheet of extra tabs ('More views')
   "mobile.more_sheet_aria": "Additional views",
-  "mobile.nav_primary_aria": "Primary",
-  "mobile.tab_dock": "Dock",
+  "mobile.nav_primary_aria": "Primary",  // aria-label for the primary bottom tab bar; means 'primary navigation'
+  "mobile.tab_dock": "Dock",  // mobile tab label for the Base Station view; NOT the dock map marker (cf. map.dock)
   "mobile.tab_learning_review": "Learning Review",
   "mobile.tab_map_bounds": "Map Bounds",
   "mobile.tab_map_config": "Map Config",
   "mobile.tab_room_rules": "Room Rules",
   "mobile.tab_rooms": "Rooms",
   "mobile.tab_setup": "Setup",
-  "mobile.tab_stats": "Stats",
+  "mobile.tab_stats": "Stats",  // mobile short tab label for the Metrics view (desktop calls it Metrics)
   "mobile.tab_theme": "Theme",
-  "mobile.tab_upkeep": "Upkeep",
+  "mobile.tab_upkeep": "Upkeep",  // mobile short tab label for the Maintenance view (desktop calls it Maintenance)
   "mobile.vacuum_status_label": "Vacuum Status:",
 
   // --- nav (desktop shell: header + tab bar + view-router empty states) ---
-  "nav.dock_status": "Dock Status:",
-  "nav.tab_base_station": "Base Station",
+  "nav.dock_status": "Dock Status:",  // header status-line prefix shown before the dock's state value, e.g. 'Dock Status: Charging'
+  "nav.tab_base_station": "Base Station",  // tab label for the dock/charging base station, not a cleaning zone or map area
   "nav.tab_learning_review": "Learning Review",
   "nav.tab_maintenance": "Maintenance",
-  "nav.tab_mapping_review": "Map Bounds",
+  "nav.tab_mapping_review": "Map Bounds",  // tab label for Map BOUNDS review (run-derived map extents), not map config/zoom
   "nav.tab_metrics": "Metrics",
   "nav.tab_room_rules": "Room Rules",
-  "nav.tab_rooms": "Rooms",
+  "nav.tab_rooms": "Rooms",  // main nav tab opening the Rooms view (queue/clean), not a room count or list header
   "nav.tab_setup": "Setup",
   "nav.tab_theme": "Theme",
   "nav.unavailable_base_station": "Base station view unavailable",
@@ -831,7 +831,7 @@ export const en = {
   "nav.unavailable_setup": "Setup unavailable",
   "nav.unavailable_theme": "Theme view unavailable",
   "nav.unavailable_unknown": "Unknown view",
-  "nav.vacuum_status": "Vacuum Status:",
+  "nav.vacuum_status": "Vacuum Status:",  // header status-line prefix shown before the robot's state value, e.g. 'Vacuum Status: Docked'
 
   // --- relative (shared "ago" timestamp formatter: formatRelativeAgo + map analyzed-at) ---
   "relative.days_ago": "{n}d ago",  // plural
@@ -846,68 +846,68 @@ export const en = {
   // --- review (Learning History review: filters, profile matcher, run exclude/restore) ---
   "review.badge_excluded": "Excluded",
   "review.badge_multi_room": "Multi Room",
-  "review.badge_recharge": "Recharge",
-  "review.badge_sanity_failed": "Sanity Failed",
+  "review.badge_recharge": "Recharge",  // Job badge: robot recharged mid-run, not a battery level
+  "review.badge_sanity_failed": "Sanity Failed",  // Job badge: run failed plausibility/sanity checks (suspect data)
   "review.badge_single_room": "Single Room",
-  "review.badge_suggested_exclude": "Suggested Exclude",
-  "review.detail_battery": "Battery {value}",
+  "review.badge_suggested_exclude": "Suggested Exclude",  // Job badge: system suggests excluding this run from learning
+  "review.detail_battery": "Battery {value}",  // Job stat: battery percent consumed by the run, '{value}' is a %
   "review.detail_minutes": "{value} min",
-  "review.detail_outlier": "Outlier {value}",
+  "review.detail_outlier": "Outlier {value}",  // Job stat: statistical outlier score {value}, how anomalous the run is
   "review.detail_water": "Water {value} ml",
-  "review.exclude": "Exclude",
-  "review.exclude_reason": "Exclude Reason",
+  "review.exclude": "Exclude",  // Action button: exclude this run from learning history (verb)
+  "review.exclude_reason": "Exclude Reason",  // Label above chips picking WHY a run is excluded from learning
   "review.filter_all_learning_use": "All Learning Use",
   "review.filter_all_profiles": "All Profiles",
   "review.filter_all_rooms": "All Rooms",
   "review.filter_all_statuses": "All Statuses",
-  "review.filter_learning_use": "Learning Use",
+  "review.filter_learning_use": "Learning Use",  // Filter dimension: whether jobs are used for learning; verb 'use', not 'used'
   "review.filter_profile": "Profile",
   "review.filter_room": "Room",
   "review.filter_sort": "Sort",
   "review.filter_status": "Status",
   "review.filters_subtitle": "Narrow to room, profile, status, or learning use.",
   "review.filters_title": "Filters",
-  "review.kv_primary_room": "Primary Room",
+  "review.kv_primary_room": "Primary Room",  // Job-card field: the main/first room of a multi-room run
   "review.kv_profile": "Profile",
   "review.kv_rooms": "Rooms",
-  "review.kv_scope": "Scope",
-  "review.kv_used_for_learning": "Used For Learning",
+  "review.kv_scope": "Scope",  // Job-card field: job scope = single-room vs multi-room run extent
+  "review.kv_used_for_learning": "Used For Learning",  // Job-card field: whether this run feeds time/water learning (Yes/No)
   "review.loading": "Loading learning history...",
   "review.matched_profiles_title": "Matched Profiles",
   "review.matcher_chip_title": "Filter learning jobs to this profile",
-  "review.matcher_clean_mode": "Cleaning Mode",
-  "review.matcher_clean_passes": "Cleaning Passes",
-  "review.matcher_clean_path": "Cleaning Path",
+  "review.matcher_clean_mode": "Cleaning Mode",  // Profile-matcher field labeling clean mode: vacuum / mop / both (not appearance mode)
+  "review.matcher_clean_passes": "Cleaning Passes",  // Matcher field: number of cleaning passes (1 or 2), not pass/fail or a corridor
+  "review.matcher_clean_path": "Cleaning Path",  // Matcher label for clean_intensity (path density): quick vs deep coverage, not a file path
   "review.matcher_count_many": "{count} exact matches found.",  // plural
   "review.matcher_count_one": "{count} exact match found.",  // plural
-  "review.matcher_edge_mopping": "Edge Mopping",
+  "review.matcher_edge_mopping": "Edge Mopping",  // Matcher field: edge-mopping on/off (mop along walls), a per-room setting
   "review.matcher_empty": "Adjust the matcher fields until they line up with a saved profile exactly.",
   "review.matcher_no_matches": "No exact profile matches for the current settings.",
   "review.matcher_reset": "Reset Matcher",
   "review.matcher_subtitle": "Try room-editor settings locally to find exact learned profile matches without editing a live room.",
-  "review.matcher_suction_level": "Suction Level",
+  "review.matcher_suction_level": "Suction Level",  // Matcher field: vacuum suction strength (fan speed), not an audio/volume level
   "review.matcher_title": "Profile Matcher",
-  "review.matcher_water_level": "Water Level",
+  "review.matcher_water_level": "Water Level",  // Matcher field: mop water flow amount, not a tank fill gauge
   "review.panel_subtitle": "Review runs used for learning and exclude bad history when needed.",
   "review.panel_title": "Learning Review",
   "review.passes_many": "{count} Passes",  // plural
   "review.passes_one": "{count} Pass",  // plural
   "review.profile_fallback": "Profile",
-  "review.restore": "Restore",
+  "review.restore": "Restore",  // Action button: restore a previously-excluded run into learning (verb)
   "review.room_fallback": "Room",
   "review.runs_empty": "No learning history jobs matched the current filters.",
   "review.runs_subtitle": "Newest first unless another sort is selected.",
   "review.runs_title": "Runs",
   "review.search_aria": "Search {label}",
   "review.search_placeholder": "Search…",
-  "review.sort_newest": "Newest",
+  "review.sort_newest": "Newest",  // Sort option label: newest runs first (sort order, not a 'new' badge)
   "review.stat_jobs": "Jobs",
   "review.stat_profiles": "Profiles",
   "review.stat_rooms": "Rooms",
   "review.stat_updated": "Updated",
   "review.unavailable": "Learning history unavailable.",
   "review.unknown": "Unknown",
-  "review.working": "Working...",
+  "review.working": "Working...",  // Transient button label while an exclude/restore action is in flight
   "room_access.accessed_from_help": "The room that grants access to this room. Read-only — set from the other room's editor.",
   "room_access.accessed_from_here_help": "Select the rooms this room unlocks. A room already claimed by another room cannot be selected here.",
   "room_access.accessed_from_here_label": "Rooms Accessed From Here",
@@ -925,9 +925,9 @@ export const en = {
   "room_access.title": "{name} Access",
 
   // --- room_card (standalone per-room Lovelace card + its config editor) ---
-  "room_card.carpet_notice": "Carpet room — mop fields hidden",
+  "room_card.carpet_notice": "Carpet room — mop fields hidden",  // banner shown when room is carpet: mop/water controls are hidden
   "room_card.cleaning_mode_label": "Cleaning Mode",
-  "room_card.cleaning_path_label": "Cleaning Path",
+  "room_card.cleaning_path_label": "Cleaning Path",  // chip-row label for clean_intensity (path density: e.g. Standard/Deep), NOT a route/map path
   "room_card.edge_mopping_label": "Edge Mopping",
   "room_card.editor_name_hint": "Overrides the label shown on the card.",
   "room_card.editor_name_override_label": "Name override",
@@ -939,27 +939,27 @@ export const en = {
   "room_card.editor_room_label": "Room",
   "room_card.editor_select_vacuum_first": "Select a vacuum first.",
   "room_card.editor_vacuum_label": "Vacuum",
-  "room_card.passes_1": "1 Pass",
-  "room_card.passes_2": "2 Passes",
-  "room_card.passes_label": "Passes",
-  "room_card.room_fallback": "Room {room_id}",
-  "room_card.start": "Start",
-  "room_card.starting": "Starting…",
+  "room_card.passes_1": "1 Pass",  // chip value: one cleaning sweep over the room (passes count = 1)
+  "room_card.passes_2": "2 Passes",  // chip value: two cleaning sweeps over the room (passes count = 2)
+  "room_card.passes_label": "Passes",  // chip-row header for number of cleaning passes (1 or 2 sweeps), not a passcode/permit
+  "room_card.room_fallback": "Room {room_id}",  // display name when a room has no name; {room_id} is the numeric id
+  "room_card.start": "Start",  // button that starts cleaning this single room now (run action), not a generic begin
+  "room_card.starting": "Starting…",  // transient label on the Start button while the clean is being dispatched
   "room_card.suction_level_label": "Suction Level",
-  "room_card.unsaved_badge": "Unsaved",
+  "room_card.unsaved_badge": "Unsaved",  // header badge: card has edited-but-unsaved chip changes (dirty state)
   "room_card.water_level_label": "Water Level",
 
   // --- room_editor ---
-  "room_editor.access": "Access",
+  "room_editor.access": "Access",  // button opening room access-graph editor (which room unlocks which); not generic 'access'
   "room_editor.carpet_notice": "Carpet room — locked to vacuum-only modes",
   "room_editor.cleaning_mode": "Cleaning Mode",
   "room_editor.cleaning_passes": "Cleaning Passes",
   "room_editor.cleaning_path": "Cleaning Path",
-  "room_editor.cleaning_profile": "Cleaning Profile",
-  "room_editor.custom": "Custom",
+  "room_editor.cleaning_profile": "Cleaning Profile",  // label for the saved-preset selector (a reusable bundle of room settings)
+  "room_editor.custom": "Custom",  // profile chip: settings are custom, not from a saved profile (a state, not 'Custom Profile')
   "room_editor.edge_mopping": "Edge Mopping",
-  "room_editor.excluded": "Excluded",
-  "room_editor.included": "Included",
+  "room_editor.excluded": "Excluded",  // queue toggle state: room is OUT of this run's queue (not excluded from learning/bounds)
+  "room_editor.included": "Included",  // queue toggle state: room IS in this run's queue (not learning/bounds 'included')
   "room_editor.meta_custom": "Current room settings are custom and not linked to a saved profile.",
   "room_editor.meta_profile_builtin": "{label} is built in and read-only.",
   "room_editor.meta_profile_custom": "{label} is a custom reusable profile.",
@@ -970,38 +970,38 @@ export const en = {
   "room_editor.pass_one": "{count} Pass",  // plural
   "room_editor.passes_global_note": "Passes are controlled globally in the robot's own app — the per-room value here may be overridden.",
   "room_editor.queue_status_label": "Current queue status:",
-  "room_editor.save_as_new": "Save as New",
-  "room_editor.save_over": "Save Over",
+  "room_editor.save_as_new": "Save as New",  // button: save current room settings as a new reusable profile (vs theme.save_as_new)
+  "room_editor.save_over": "Save Over",  // button: overwrite the currently selected saved room profile
   "room_editor.suction_level": "Suction Level",
   "room_editor.transition_callout": "Shape analysis suggests this may be a hallway or connecting corridor.",
-  "room_editor.transition_is": "Transition Space",
-  "room_editor.transition_mark": "Mark as Transition",
-  "room_editor.transition_space_label": "Transition Space",
+  "room_editor.transition_is": "Transition Space",  // toggle ON state for a hallway/corridor room; same 'Transition Space' meaning
+  "room_editor.transition_mark": "Mark as Transition",  // verb: tag this room as a hallway/connecting corridor
+  "room_editor.transition_space_label": "Transition Space",  // field label: room is a hallway/connecting corridor (pass-through space)
   "room_editor.water_level": "Water Level",
 
   // --- room_estimate ---
   "room_estimate.empty_notes": "No extra estimate notes for this room right now.",
-  "room_estimate.label_battery": "Battery",
-  "room_estimate.label_done_by": "Done by",
-  "room_estimate.label_elapsed": "Elapsed",
-  "room_estimate.label_estimated_time": "Estimated time",
-  "room_estimate.label_mode": "Mode",
-  "room_estimate.label_progress": "Progress",
-  "room_estimate.label_projected_water": "Projected water",
-  "room_estimate.label_remaining": "Remaining",
-  "room_estimate.label_samples": "Samples",
-  "room_estimate.label_source": "Source",
-  "room_estimate.label_water_level": "Water level",
-  "room_estimate.modal_title": "{name} Estimate",
-  "room_estimate.note_intensity_mismatch": "Estimated from different intensity",
-  "room_estimate.note_no_learned_data": "No learned data yet",
-  "room_estimate.note_runs_to_reliable": "{count} runs to reliable",  // plural
+  "room_estimate.label_battery": "Battery",  // battery % this room's clean is predicted to use
+  "room_estimate.label_done_by": "Done by",  // predicted wall-clock finish time label (value is a clock time)
+  "room_estimate.label_elapsed": "Elapsed",  // live time spent so far cleaning this room
+  "room_estimate.label_estimated_time": "Estimated time",  // predicted clean duration for this room
+  "room_estimate.label_mode": "Mode",  // per-room clean mode value: Mop / Vacuum / Vac & Mop (not a UI/theme mode)
+  "room_estimate.label_progress": "Progress",  // live % cleaned of this room during an active run
+  "room_estimate.label_projected_water": "Projected water",  // predicted water this room's clean will use (ml)
+  "room_estimate.label_remaining": "Remaining",  // live time left to finish this room
+  "room_estimate.label_samples": "Samples",  // count of learned past runs feeding this room's estimate
+  "room_estimate.label_source": "Source",  // where this estimate came from: learned data vs default fallback
+  "room_estimate.label_water_level": "Water level",  // per-room water-level setting value (Low/Medium/High), not a measured amount
+  "room_estimate.modal_title": "{name} Estimate",  // modal title: '{room name} Estimate'
+  "room_estimate.note_intensity_mismatch": "Estimated from different intensity",  // caveat: estimate derived from runs at a different suction/intensity
+  "room_estimate.note_no_learned_data": "No learned data yet",  // caveat: no learned history yet, estimate is a default
+  "room_estimate.note_runs_to_reliable": "{count} runs to reliable",  // plural; caveat: N more runs needed before estimate is reliable
   "room_estimate.section_live": "Live Progress",
-  "room_estimate.section_notes": "Learning Notes",
-  "room_estimate.section_summary": "Estimate Summary",
-  "room_estimate.section_water": "Water Projection",
-  "room_estimate.subtitle_done_by": "done by {time}",
-  "room_estimate.water_ml": "~{ml} ml",
+  "room_estimate.section_notes": "Learning Notes",  // section heading over learning caveats for this estimate
+  "room_estimate.section_summary": "Estimate Summary",  // section heading over the estimate facts (time/source/samples/battery)
+  "room_estimate.section_water": "Water Projection",  // section heading over projected water + mode/level for this room
+  "room_estimate.subtitle_done_by": "done by {time}",  // subtitle: predicted finish clock time, e.g. 'done by 3:40 PM'
+  "room_estimate.water_ml": "~{ml} ml",  // approximate water volume in milliliters, e.g. '~120 ml'
 
   // --- room_rules ---
   "room_rules.add_rule": "Add Rule",
@@ -1074,7 +1074,7 @@ export const en = {
   "rooms.derived_via": "(via {room}'s {rule})",
   "rooms.drag_to_reorder": "Drag to reorder",
   "rooms.duration_skipped": "~{duration} skipped",
-  "rooms.edge_mop_on": "Edge Mop On",
+  "rooms.edge_mop_on": "Edge Mop On",  // room chip: edge-mopping is enabled for this room (on/off state)
   "rooms.elapsed_label": "Elapsed: {value}",
   "rooms.empty": "No rooms yet — open the Setup tab and run Import Active Map (the highlighted button), then Configure Rooms to get started.",
   "rooms.estimate_label": "Estimate: {value}",
@@ -1086,21 +1086,21 @@ export const en = {
   "rooms.hide_room_labels": "Hide room labels",
   "rooms.icon_size": "Icon size",
   "rooms.include_room_aria": "Include room {name}",
-  "rooms.included": "included",
+  "rooms.included": "included",  // lowercase suffix after the queue count, e.g. '3 rooms included'
   "rooms.intensity_mismatch": "intensity mismatch",
   "rooms.last_cleaned_label": "Last cleaned: {value}",
-  "rooms.list_view": "List view",
-  "rooms.locate": "Locate",
-  "rooms.map_view": "Map view",
+  "rooms.list_view": "List view",  // view-toggle: show rooms as a list (vs map view)
+  "rooms.locate": "Locate",  // button: make the vacuum chirp to find it (Locate command)
+  "rooms.map_view": "Map view",  // view-toggle: show rooms on the map (vs list view)
   "rooms.mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
   "rooms.mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
   "rooms.mascot_follows_robot": "Mascot follows robot",
   "rooms.mode_label": "Mode: {value}",
-  "rooms.mode_mop": "Mop",
-  "rooms.mode_vacuum": "Vacuum",
-  "rooms.mode_vacuum_mop": "Vacuum + Mop",
+  "rooms.mode_mop": "Mop",  // per-room clean-MODE chip value (mop action), not the dock mop-wash
+  "rooms.mode_vacuum": "Vacuum",  // per-room clean-MODE chip value (vacuum action), not the device/vacuum noun
+  "rooms.mode_vacuum_mop": "Vacuum + Mop",  // per-room clean mode: vacuum and mop in one pass
   "rooms.modified_rooms": "Modified Rooms",
-  "rooms.move": "Move",
+  "rooms.move": "Move",  // button to change a room's position in the clean order/queue
   "rooms.move_room": "Move room",
   "rooms.n_blocked": "{count} blocked",  // plural
   "rooms.n_included": "{count} included",  // plural
@@ -1112,10 +1112,10 @@ export const en = {
   "rooms.open_room_settings_aria": "Open room settings for {name}",
   "rooms.pause": "Pause",
   "rooms.percent_complete": "{pct}% complete",
-  "rooms.profile_custom": "Custom",
-  "rooms.profile_deep": "Deep",
-  "rooms.profile_quick": "Quick",
-  "rooms.profile_standard": "Standard",
+  "rooms.profile_custom": "Custom",  // cleaning-profile name: user's own settings (not a saved preset)
+  "rooms.profile_deep": "Deep",  // cleaning-profile name: thorough/deep clean preset
+  "rooms.profile_quick": "Quick",  // cleaning-profile name: fast/light clean preset
+  "rooms.profile_standard": "Standard",  // cleaning-PROFILE name (fallback), not a quality/size rating
   "rooms.profile_user_1": "User Profile 1",
   "rooms.profile_vacuum_only_deep": "Vacuum Only Deep",
   "rooms.profile_vacuum_only_quick": "Vacuum Only Quick",
@@ -1130,7 +1130,7 @@ export const en = {
   "rooms.resume": "Resume",
   "rooms.room_fallback": "Room",
   "rooms.room_settings": "Room settings",
-  "rooms.running": "Running",
+  "rooms.running": "Running",  // active-job header label: a clean is in progress
   "rooms.select_all": "Select All",
   "rooms.settings_adjusted": "Settings adjusted",
   "rooms.show_companion": "Show companion",
@@ -1142,10 +1142,10 @@ export const en = {
   "rooms.strict_order_on_label": "Strict order: ON",
   "rooms.strict_order_on_text": "Strict order ON — rooms will clean one at a time in the order shown (slower: a dock trip between rooms).",
   "rooms.trouble_note_title": "This room was missed in {pct}% of recent runs. Consider checking for obstacles or map accuracy.",
-  "rooms.trust_learning": "Learning",
-  "rooms.trust_reliable": "Reliable",
-  "rooms.trust_uncertain": "Uncertain",
-  "rooms.trust_unlearned": "Unlearned",
+  "rooms.trust_learning": "Learning",  // estimate-confidence badge: still learning, not the Learning feature/tab
+  "rooms.trust_reliable": "Reliable",  // estimate-confidence badge: time estimate is trustworthy
+  "rooms.trust_uncertain": "Uncertain",  // estimate-confidence badge: estimate not yet trustworthy
+  "rooms.trust_unlearned": "Unlearned",  // estimate-confidence badge: no learned data, using default estimate
   "rooms.warnings": "Warnings",
   "rooms.water_label": "Water: {value}",
   "rooms.water_ml": "~{ml} ml water",
@@ -1238,10 +1238,10 @@ export const en = {
   "theme.apply_preset": "Apply Preset",
   "theme.apply_preset_title": "Apply this built-in marble preset to the active theme",
   "theme.browse_gallery": "Browse gallery",
-  "theme.clear_filters": "Clear",
+  "theme.clear_filters": "Clear",  // button: clear the active preset filter chips (not delete data/zones)
   "theme.color_hint": "Drag for opacity · Double tap for color",
   "theme.colormix_hint": "Drag ratio · Edit color references",
-  "theme.discard": "Discard",
+  "theme.discard": "Discard",  // button: throw away unsaved theme token edits (the draft), not a captured run
   "theme.download": "Download",
   "theme.download_floor": "Download Floor",
   "theme.download_floor_title": "Download just this floor type as a shareable preset .json",
@@ -1249,7 +1249,7 @@ export const en = {
   "theme.export": "Export",
   "theme.export_title": "Copy theme JSON to clipboard",
   "theme.filter_all": "All",
-  "theme.filter_modified": "Modified",
+  "theme.filter_modified": "Modified",  // filter chip: show only tokens changed from default ('modified' = edited)
   "theme.filters": "Filters",
   "theme.filters_count": "Filters ({count})",
   "theme.floor_scope_title": "Floor type to export as a shareable preset",
@@ -1271,15 +1271,15 @@ export const en = {
   "theme.mode_active_theme": "Active theme",
   "theme.mode_clear_device": "Clear device override",
   "theme.mode_follow_system": "Follow system",
-  "theme.mode_label": "Theme mode",
-  "theme.mode_mode": "Mode",
+  "theme.mode_label": "Theme mode",  // label for the theme appearance selector (follow system / this device only)
+  "theme.mode_mode": "Mode",  // theme appearance scope label: 'this device only' vs follow-system; NOT clean mode
   "theme.mode_note": "Theme edits are shared. Only the <em>selected</em> theme is local to this browser.",
   "theme.mode_this_device": "This device only",
-  "theme.mode_this_device_only": "this device only",
+  "theme.mode_this_device_only": "this device only",  // theme appearance scope value: applies only on this browser/device
   "theme.mode_use_everywhere": "Use everywhere",
   "theme.modified_only": "Modified Only",
   "theme.no_tokens_match_filters": "No tokens match the current theme filters.",
-  "theme.preset_active": "Active",
+  "theme.preset_active": "Active",  // badge on a theme card: this is the currently applied theme
   "theme.presets_empty": "No themes available.",
   "theme.presets_no_match": "No themes match these filters.",
   "theme.save_as_new": "Save as New",
@@ -1288,13 +1288,13 @@ export const en = {
   "theme.search_tokens_placeholder": "Search tokens...",
   "theme.tab_palette": "Palette",
   "theme.tab_themes": "Themes",
-  "theme.tab_tokens": "Tokens",
+  "theme.tab_tokens": "Tokens",  // sub-tab name: the CSS design-token editor list (jargon, keep as 'tokens')
   "theme.tag_add_placeholder": "add a tag…",
   "theme.tag_done_title": "Done editing tags",
   "theme.tag_edit_title": "Edit tags",
   "theme.tag_remove_title": "Remove tag",
   "theme.token_default_placeholder": "Default",
-  "theme.token_draft": "Draft",
+  "theme.token_draft": "Draft",  // chip on a token row: this token value is an unsaved/draft edit
   "theme.upload": "Upload",
   "theme.upload_title": "Upload a theme .json file",
 
@@ -1306,9 +1306,9 @@ export const en = {
   "theme_preview.animal.battery_low_hint": "≤ 15%",
   "theme_preview.animal.battery_low_label": "Low",
   "theme_preview.animal.battery_mid_hint": "25–50%",
-  "theme_preview.animal.battery_mid_label": "Mid",
+  "theme_preview.animal.battery_mid_label": "Mid",  // battery-band label 'Mid' (25-50%) for the animal-companion preview row
   "theme_preview.animal.battery_warn_hint": "15–25%",
-  "theme_preview.animal.battery_warn_label": "Warn",
+  "theme_preview.animal.battery_warn_label": "Warn",  // battery-band label 'Warn' (15-25%) for the animal-companion eye-color preview row
   "theme_preview.animal.parent_note": "Tokens in this <em>parent</em> group apply across <strong>every</strong> animal. The five eye-color tokens (<code>--evcc-animal-eye-*</code>) drive the rows; the global palette tokens (<code>--evcc-animal-fur</code>, <code>--evcc-animal-pupil</code>, etc.) drive every body. Use the per-animal sub-groups below to override for a single animal.",
   "theme_preview.animal.subgroup_note": "Tokens in this sub-group (prefixed <code>--evcc-animal-{animal}-…</code>) override the global Animal Companion tokens for just the {animal}. Leave any token unset to inherit the parent value (or the {animal}'s own built-in default if no theme value is set).",
   "theme_preview.borders.border_strength": "Border Strength",
@@ -1318,27 +1318,27 @@ export const en = {
   "theme_preview.borders.shadow_depth": "Shadow Depth",
   "theme_preview.borders.strong": "Strong border",
   "theme_preview.borders.subtle": "Subtle border",
-  "theme_preview.chips.active": "Active",
-  "theme_preview.chips.default": "Default",
-  "theme_preview.chips.excluded": "Excluded",
-  "theme_preview.chips.hover": "Hover",
-  "theme_preview.chips.included": "Included",
-  "theme_preview.chips.matrix": "Chip Matrix",
-  "theme_preview.chips.success": "Success",
-  "theme_preview.chips.warning": "Warning",
-  "theme_preview.confidence.building": "Building confidence",
-  "theme_preview.confidence.high": "High confidence",
-  "theme_preview.confidence.low": "Low confidence",
-  "theme_preview.confidence.medium": "Medium confidence",
-  "theme_preview.eyebrow": "Contextual Preview",
+  "theme_preview.chips.active": "Active",  // theme-editor sample chip showing the 'active' visual state; demo label, not a real toggle
+  "theme_preview.chips.default": "Default",  // theme-editor sample chip in default state; demo swatch label
+  "theme_preview.chips.excluded": "Excluded",  // theme-editor sample chip in the 'excluded' state; demo swatch, not a real exclude action
+  "theme_preview.chips.hover": "Hover",  // theme-editor sample chip in 'hover' state; demo swatch label
+  "theme_preview.chips.included": "Included",  // theme-editor sample chip in the 'included' state; demo swatch, not the room include control
+  "theme_preview.chips.matrix": "Chip Matrix",  // heading for the chip-swatch demo grid in the theme editor
+  "theme_preview.chips.success": "Success",  // theme-editor sample chip showing 'success' color; demo swatch label
+  "theme_preview.chips.warning": "Warning",  // theme-editor sample chip showing 'warning' color; demo swatch, not a real alert
+  "theme_preview.confidence.building": "Building confidence",  // theme-editor demo badge: confidence still being built; preview only
+  "theme_preview.confidence.high": "High confidence",  // theme-editor demo confidence badge (High); previews badge color, not a real confidence value
+  "theme_preview.confidence.low": "Low confidence",  // theme-editor demo confidence badge (Low); previews badge color only
+  "theme_preview.confidence.medium": "Medium confidence",  // theme-editor demo confidence badge (Medium); previews badge color only
+  "theme_preview.eyebrow": "Contextual Preview",  // small overline 'Contextual Preview' above the theme preview pane
   "theme_preview.floor.carpet_high": "Carpet High",
   "theme_preview.floor.carpet_low": "Carpet Low",
   "theme_preview.floor.concrete": "Concrete",
-  "theme_preview.floor.granite": "Granite",
+  "theme_preview.floor.granite": "Granite",  // swatch label for the granite floor texture (maps to granite_light key)
   "theme_preview.floor.marble": "Marble",
-  "theme_preview.floor.tile": "Tile",
-  "theme_preview.floor.wood": "Wood",
-  "theme_preview.foundations.chip": "Chip",
+  "theme_preview.floor.tile": "Tile",  // swatch label for the tile floor texture in the preview grid
+  "theme_preview.floor.wood": "Wood",  // swatch label for the wood floor texture in the preview grid
+  "theme_preview.foundations.chip": "Chip",  // plain sample chip labeled 'Chip' in the foundations preview; demo swatch
   "theme_preview.foundations.composite_desc": "Foundations touch multiple systems, so the preview intentionally mixes a few representative surfaces.",
   "theme_preview.foundations.composite_sample": "Composite Sample",
   "theme_preview.foundations.foundation_input": "Foundation input",
@@ -1394,42 +1394,42 @@ export const en = {
   "theme_preview.learning.water_use": "Estimated water use: {ml} ml",
   "theme_preview.modal.accent_chip": "Accent chip",
   "theme_preview.modal.cannot_undo": "This action cannot be undone.",
-  "theme_preview.modal.confirm": "Confirm",
+  "theme_preview.modal.confirm": "Confirm",  // demo 'Confirm' button inside the sample modal preview; inert, not a real confirm
   "theme_preview.modal.subtitle": "Overlay shell preview",
   "theme_preview.modal.title": "Maintenance Reset",
   "theme_preview.modal.type_note": "Type a note...",
   "theme_preview.queue.cat_room": "Cat Room",
   "theme_preview.queue.dragging": "Dragging",
   "theme_preview.queue.drop_target": "Drop target",
-  "theme_preview.queue.entry": "Entry",
+  "theme_preview.queue.entry": "Entry",  // placeholder room name 'Entry' (entryway) in the sample queue strip; fictitious
   "theme_preview.queue.office": "Office",
   "theme_preview.queue.strip": "Queue Strip",
   "theme_preview.rooms.area_rug": "Area Rug",
   "theme_preview.rooms.custom_profile": "Custom Profile",
   "theme_preview.rooms.daily_vacuum": "Daily Vacuum",
-  "theme_preview.rooms.hallway": "Hallway",
-  "theme_preview.rooms.hardwood": "Hardwood",
-  "theme_preview.rooms.kitchen": "Kitchen",
-  "theme_preview.rooms.profile_label": "Profile",
-  "theme_preview.rooms.room_label": "Room",
+  "theme_preview.rooms.hallway": "Hallway",  // placeholder room name in the theme-preview sample card; fictitious example
+  "theme_preview.rooms.hardwood": "Hardwood",  // placeholder floor-type chip in a sample room card; demo content
+  "theme_preview.rooms.kitchen": "Kitchen",  // placeholder room name in the theme-preview sample card; fictitious example
+  "theme_preview.rooms.profile_label": "Profile",  // demo field label 'Profile' inside a sample room card in the theme preview
+  "theme_preview.rooms.room_label": "Room",  // demo field label 'Room' inside a sample room card in the theme preview
   "theme_preview.shell.accent": "Accent",
   "theme_preview.shell.copy": "Primary and secondary text plus accent styling define the card’s voice before any specific feature surface appears.",
   "theme_preview.shell.heading": "Premium vacuum control, calmly organized.",
-  "theme_preview.shell.kicker": "EVCC Shell",
+  "theme_preview.shell.kicker": "EVCC Shell",  // 'EVCC Shell' overline label in the shell typography preview; product acronym, keep as-is
   "theme_preview.shell.open_metrics": "Open Metrics",
   "theme_preview.shell.text_muted": "Muted text handles metadata, helper copy, and low-priority hints.",
   "theme_preview.shell.text_primary": "Primary text anchors the main reading path.",
   "theme_preview.shell.text_secondary": "Secondary text supports controls and summaries without overpowering them.",
   "theme_preview.shell.text_stack": "Text Stack",
-  "theme_preview.status.cleaning": "Cleaning",
+  "theme_preview.status.cleaning": "Cleaning",  // theme-editor demo status dot labeled 'Cleaning'; previews dot color, not live state
   "theme_preview.status.confidence_alerts": "Confidence & Alerts",
-  "theme_preview.status.docked": "Docked",
+  "theme_preview.status.docked": "Docked",  // theme-editor demo status dot labeled 'Docked'; previews dot color, not live state
   "theme_preview.status.dots": "Status Dots",
-  "theme_preview.status.error": "Error",
-  "theme_preview.status.error_surface": "Error surface",
-  "theme_preview.status.idle": "Idle",
-  "theme_preview.status.info_surface": "Information surface",
-  "theme_preview.status.warning_surface": "Warning surface",
+  "theme_preview.status.error": "Error",  // theme-editor demo status dot labeled 'Error'; previews dot color, not a real error
+  "theme_preview.status.error_surface": "Error surface",  // theme-editor demo alert box previewing the 'error' surface color
+  "theme_preview.status.idle": "Idle",  // theme-editor demo status dot labeled 'Idle'; previews dot color, not live robot state
+  "theme_preview.status.info_surface": "Information surface",  // theme-editor demo alert box previewing the 'info' surface color
+  "theme_preview.status.warning_surface": "Warning surface",  // theme-editor demo alert box previewing the 'warning' surface color
   "theme_preview.surfaces.card_desc": "Shared card background, gap, padding, and surface treatment.",
   "theme_preview.surfaces.card_surface": "Card Surface",
   "theme_preview.surfaces.panel_desc": "Panel surfaces and nested inputs preview layered elevation.",
