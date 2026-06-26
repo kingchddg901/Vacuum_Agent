@@ -20,11 +20,13 @@ export function applyExternalJobsRenderers(proto) {
   proto._renderReviewSubtabStrip = function (state) {
     const sub = state.reviewSubtab();
     const count = state.externalPendingRuns().length;
-    const extLabel = count > 0 ? `External Jobs (${count})` : "External Jobs";
+    const extLabel = count > 0
+      ? this.t("external_jobs.subtab_external_count", { count })
+      : this.t("external_jobs.subtab_external");
     return `
       <div class="evcc-review-subtabs">
         <button class="evcc-review-subtab ${sub === "history" ? "is-active" : ""}"
-                data-action="set-review-subtab" data-subtab="history">Learning History</button>
+                data-action="set-review-subtab" data-subtab="history">${this.t("external_jobs.subtab_history")}</button>
         <button class="evcc-review-subtab ${sub === "external" ? "is-active" : ""}"
                 data-action="set-review-subtab" data-subtab="external">${extLabel}</button>
       </div>
@@ -38,11 +40,12 @@ export function applyExternalJobsRenderers(proto) {
     const runs = state.externalPendingRuns();
     if (!runs.length) {
       const brand = state.externalBrand?.();
-      const appPhrase = brand ? `the ${this.escapeHtml(brand)} app` : "your robot's app";
+      const appPhrase = brand
+        ? this.t("external_jobs.empty_app_branded", { brand: this.escapeHtml(brand) })
+        : this.t("external_jobs.empty_app_generic");
       return `
         <div class="evcc-empty evcc-external-empty">
-          No app-started runs awaiting review. Start a clean from ${appPhrase} and the
-          run will appear here to confirm which rooms it cleaned.
+          ${this.t("external_jobs.empty", { appPhrase })}
         </div>
       `;
     }
@@ -53,21 +56,27 @@ export function applyExternalJobsRenderers(proto) {
     const segs = Array.isArray(run.segments) ? run.segments : [];
     const totalArea = segs.reduce((acc, s) => acc + (Number(s.area_m2) || 0), 0);
     const when = (this._formatReviewTimestamp && this._formatReviewTimestamp(run.detection_ts))
-      || run.detection_ts || "Unknown time";
+      || run.detection_ts || this.t("external_jobs.unknown_time");
     const rooms = run.suggested_room_count ?? segs.length;
+    const roomsPhrase = rooms === 1
+      ? this.t("external_jobs.card_rooms_one", { count: rooms })
+      : this.t("external_jobs.card_rooms_many", { count: rooms });
+    const segsPhrase = segs.length === 1
+      ? this.t("external_jobs.card_segments_one", { count: segs.length })
+      : this.t("external_jobs.card_segments_many", { count: segs.length });
     const pid = this.escapeHtml(String(run.pending_job_id || ""));
     return `
       <div class="evcc-external-card">
         <div class="evcc-external-card-main">
           <div class="evcc-external-card-title">${this.escapeHtml(String(when))}</div>
           <div class="evcc-external-card-meta">
-            ~${rooms} room${rooms === 1 ? "" : "s"} · ${totalArea.toFixed(0)} m² ·
-            ${segs.length} segment${segs.length === 1 ? "" : "s"}
+            ${roomsPhrase} · ${totalArea.toFixed(0)} m² ·
+            ${segsPhrase}
           </div>
         </div>
         <div class="evcc-external-card-actions">
-          <button class="evcc-btn evcc-btn-primary" data-action="open-external-wizard" data-pending-id="${pid}">Review</button>
-          <button class="evcc-btn evcc-btn-ghost" data-action="discard-external-run" data-pending-id="${pid}">Discard</button>
+          <button class="evcc-btn evcc-btn-primary" data-action="open-external-wizard" data-pending-id="${pid}">${this.t("external_jobs.review")}</button>
+          <button class="evcc-btn evcc-btn-ghost" data-action="discard-external-run" data-pending-id="${pid}">${this.t("external_jobs.discard")}</button>
         </div>
       </div>
     `;
@@ -87,8 +96,11 @@ export function applyExternalJobsRenderers(proto) {
       <div class="evcc-modal-backdrop" data-action="close-external-wizard">
         <div class="evcc-modal evcc-external-wizard-modal" data-stop-propagation>
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">Review app-started run</div>
-            <div class="evcc-modal-subtitle">Step ${w.step} of 2 — ${w.step === 1 ? "how many rooms?" : "name each room"}</div>
+            <div class="evcc-modal-title">${this.t("external_jobs.wizard_title")}</div>
+            <div class="evcc-modal-subtitle">${this.t("external_jobs.wizard_step_of", {
+              step: w.step,
+              phase: w.step === 1 ? this.t("external_jobs.wizard_phase_count") : this.t("external_jobs.wizard_phase_name"),
+            })}</div>
           </div>
           <div class="evcc-modal-body">
             ${w.error ? `<div class="evcc-external-error">${this.escapeHtml(String(w.error))}</div>` : ""}
@@ -110,7 +122,7 @@ export function applyExternalJobsRenderers(proto) {
     const settings = seg.settings || {};
     return `${(Number(seg.area_m2) || 0).toFixed(0)} m² · `
       + `${Math.round((Number(seg.time_wall_s) || 0) / 60)} min · `
-      + `${this.escapeHtml(String(settings.clean_mode || "?"))} · ${seg.pass_count || 1}×`;
+      + `${this.escapeHtml(String(settings.clean_mode || this.t("external_jobs.clean_mode_unknown")))} · ${seg.pass_count || 1}×`;
   };
 
   // v2 (samples saved) — the count stepper + per-boundary split/merge re-segment
@@ -132,39 +144,39 @@ export function applyExternalJobsRenderers(proto) {
 
     const stepper = `
       <div class="evcc-ext-count">
-        <span class="evcc-ext-count-label">Rooms</span>
+        <span class="evcc-ext-count-label">${this.t("external_jobs.rooms_label")}</span>
         <div class="evcc-ext-stepper">
           <button class="evcc-btn evcc-ext-step" data-action="ext-count-dec" ${busy || count <= 1 ? "disabled" : ""}>−</button>
           <strong class="evcc-ext-count-n">${count}</strong>
           <button class="evcc-btn evcc-ext-step" data-action="ext-count-inc" ${busy || count >= maxRooms ? "disabled" : ""}>+</button>
         </div>
-        <span class="evcc-ext-hint">set the room count, or split / merge below</span>
+        <span class="evcc-ext-hint">${this.t("external_jobs.count_hint")}</span>
       </div>`;
 
     const rows = segments.map((seg, idx) => {
       const bid = seg.boundary_id;
       const head = idx === 0
-        ? `<span class="evcc-ext-seg-start">First room</span>`
-        : `<button class="evcc-ext-merge" data-action="ext-merge-up" data-boundary-id="${bid}" ${busy ? "disabled" : ""}>↥ Merge up</button>`;
+        ? `<span class="evcc-ext-seg-start">${this.t("external_jobs.first_room")}</span>`
+        : `<button class="evcc-ext-merge" data-action="ext-merge-up" data-boundary-id="${bid}" ${busy ? "disabled" : ""}>↥ ${this.t("external_jobs.merge_up")}</button>`;
       const within = inactive.filter(
         (c) => Number(c.id) > starts[idx] && Number(c.id) < nextStart(idx)
       );
       const splitBtns = within.map((c) => `
         <button class="evcc-ext-split-here" data-action="ext-split-here" data-boundary-id="${c.id}" ${busy ? "disabled" : ""}>
-          ↳ Split here${c.confident ? "" : " · uncertain"}
+          ↳ ${c.confident ? this.t("external_jobs.split_here") : this.t("external_jobs.split_here_uncertain")}
         </button>`).join("");
       return `
         <div class="evcc-ext-seg is-v2">
           <div class="evcc-ext-seg-row">
             ${head}
-            <span class="evcc-ext-seg-facts">Room ${idx + 1} · ${this._segFacts(seg)}</span>
+            <span class="evcc-ext-seg-facts">${this.t("external_jobs.room_n", { n: idx + 1 })} · ${this._segFacts(seg)}</span>
           </div>
           ${splitBtns ? `<div class="evcc-ext-splits">${splitBtns}</div>` : ""}
         </div>`;
     }).join("");
 
     const cap = w.resegmentMeta && w.resegmentMeta.capped
-      ? `<div class="evcc-ext-blocked">${this.escapeHtml(String(w.resegmentMeta.message || "Capped to the detectable room count."))}</div>`
+      ? `<div class="evcc-ext-blocked">${this.escapeHtml(String(w.resegmentMeta.message || this.t("external_jobs.capped_message")))}</div>`
       : "";
 
     return `${stepper}${cap}<div class="evcc-ext-seglist">${rows}</div>`;
@@ -176,22 +188,26 @@ export function applyExternalJobsRenderers(proto) {
       const order = Number(seg.order ?? 0);
       let head;
       if (order === 0) {
-        head = `<div class="evcc-ext-seg-start">First room</div>`;
+        head = `<div class="evcc-ext-seg-start">${this.t("external_jobs.first_room")}</div>`;
       } else {
         const split = !!w.splits[order];
         const confident = !!seg.confident_boundary;
+        const splitLabel = split
+          ? (confident ? this.t("external_jobs.split_label") : this.t("external_jobs.split_label_uncertain"))
+          : (confident ? this.t("external_jobs.merged_label") : this.t("external_jobs.merged_label_uncertain"));
         head = `
           <button class="evcc-ext-split ${split ? "is-split" : "is-merged"}"
                   data-action="toggle-external-split" data-order="${order}">
-            ${split ? "✂ split here" : "↳ merged"}${confident ? "" : " · uncertain"}
+            ${split ? "✂" : "↳"} ${splitLabel}
           </button>`;
       }
-      return `<div class="evcc-ext-seg">${head}<div class="evcc-ext-seg-facts">seg ${order} · ${this._segFacts(seg)}</div></div>`;
+      return `<div class="evcc-ext-seg">${head}<div class="evcc-ext-seg-facts">${this.t("external_jobs.seg_n", { n: order })} · ${this._segFacts(seg)}</div></div>`;
     }).join("");
     return `
       <div class="evcc-ext-count">
-        Detected <strong>${groups.length}</strong> room${groups.length === 1 ? "" : "s"}.
-        Merge any over-split before continuing.
+        ${groups.length === 1
+          ? this.tRaw("external_jobs.detected_rooms_one", { count: groups.length })
+          : this.tRaw("external_jobs.detected_rooms_many", { count: groups.length })}
       </div>
       <div class="evcc-ext-seglist">${rows}</div>
     `;
@@ -217,7 +233,11 @@ export function applyExternalJobsRenderers(proto) {
       </button>`).join("");
 
     const modeCur = ov.clean_mode ?? settings.clean_mode;
-    const modeChips = [["vacuum", "Vacuum"], ["vacuum_mop", "Vac & Mop"], ["mop", "Mop"]].map(
+    const modeChips = [
+      ["vacuum", this.t("external_jobs.mode_vacuum")],
+      ["vacuum_mop", this.t("external_jobs.mode_vacuum_mop")],
+      ["mop", this.t("external_jobs.mode_mop")],
+    ].map(
       ([val, label]) => `<button class="evcc-chip ${modeCur === val ? "active" : ""}"
         data-action="ext-set-override" data-order="${order}" data-key="clean_mode" data-value="${val}">${label}</button>`
     ).join("");
@@ -231,41 +251,41 @@ export function applyExternalJobsRenderers(proto) {
     // value is pre-selected. Water only applies to a mop mode.
     const isMop = modeCur === "mop" || modeCur === "vacuum_mop";
     const opt = (fn) => (typeof ctx.state[fn] === "function" ? ctx.state[fn]() : []);
-    const suctionRow = this._extSettingRow(order, "Suction", "fan_speed",
+    const suctionRow = this._extSettingRow(order, this.t("external_jobs.setting_suction"), "fan_speed",
       opt("suctionLevelOptions"), ov.fan_speed ?? settings.fan_speed);
-    const intensityRow = this._extSettingRow(order, "Cleaning Path", "clean_intensity",
+    const intensityRow = this._extSettingRow(order, this.t("external_jobs.setting_cleaning_path"), "clean_intensity",
       opt("cleanIntensityOptions"), ov.clean_intensity ?? settings.clean_intensity);
     const waterRow = isMop
-      ? this._extSettingRow(order, "Water", "water_level",
+      ? this._extSettingRow(order, this.t("external_jobs.setting_water"), "water_level",
           opt("waterLevelOptions"), ov.water_level ?? settings.water_level)
       : "";
 
     return `
       <div class="evcc-ext-room">
-        <div class="evcc-ext-room-head">Room ${idx + 1} · ${area.toFixed(0)} m²
-          ${group.orders.length > 1 ? `· ${group.orders.length} segments merged` : ""}</div>
+        <div class="evcc-ext-room-head">${this.t("external_jobs.room_n", { n: idx + 1 })} · ${area.toFixed(0)} m²
+          ${group.orders.length > 1 ? `· ${this.t("external_jobs.segments_merged", { count: group.orders.length })}` : ""}</div>
         <div class="evcc-editor-field-group">
-          <div class="evcc-field-label">Which room?</div>
+          <div class="evcc-field-label">${this.t("external_jobs.which_room")}</div>
           <div class="evcc-chip-row">${roomChips}${this._extAllRoomsOptions(ctx, order, a.room_id)}</div>
         </div>
         <div class="evcc-editor-field-group">
-          <div class="evcc-field-label">Mode</div>
+          <div class="evcc-field-label">${this.t("external_jobs.mode")}</div>
           <div class="evcc-chip-row">${modeChips}</div>
         </div>
         <div class="evcc-editor-field-group">
-          <div class="evcc-field-label">Passes</div>
+          <div class="evcc-field-label">${this.t("external_jobs.passes")}</div>
           <div class="evcc-chip-row">${passChips}</div>
         </div>
         ${suctionRow}
         ${intensityRow}
         ${waterRow}
         <div class="evcc-editor-field-group evcc-ext-edge">
-          <div class="evcc-field-label">Edge mop? <span class="evcc-ext-hint">not detected — please set</span></div>
+          <div class="evcc-field-label">${this.t("external_jobs.edge_mop")} <span class="evcc-ext-hint">${this.t("external_jobs.edge_mop_hint")}</span></div>
           <div class="evcc-chip-row">
             <button class="evcc-chip ${a.edge_mopping ? "active" : ""}"
-              data-action="ext-set-edge" data-order="${order}" data-value="true">On</button>
+              data-action="ext-set-edge" data-order="${order}" data-value="true">${this.t("external_jobs.on")}</button>
             <button class="evcc-chip ${!a.edge_mopping ? "active" : ""}"
-              data-action="ext-set-edge" data-order="${order}" data-value="false">Off</button>
+              data-action="ext-set-edge" data-order="${order}" data-value="false">${this.t("external_jobs.off")}</button>
           </div>
         </div>
       </div>
@@ -304,27 +324,30 @@ export function applyExternalJobsRenderers(proto) {
     }).join("");
     return `
       <select class="evcc-ext-allrooms" data-action="ext-pick-room-select" data-order="${order}">
-        <option value="">… pick another room</option>${opts}
+        <option value="">${this.t("external_jobs.pick_another_room")}</option>${opts}
       </select>`;
   };
 
   proto._renderExtWizardFooter = function (w, groups) {
     const blocked = Array.isArray(w.blocked) ? w.blocked : [];
+    const blockedText = blocked.length === 1
+      ? this.t("external_jobs.blocked_one", { count: blocked.length })
+      : this.t("external_jobs.blocked_many", { count: blocked.length });
     const blockedHtml = blocked.length
-      ? `<div class="evcc-ext-blocked">⚠ ${blocked.length} room${blocked.length === 1 ? "" : "s"} don't match the picked area — re-pick, or keep anyway.</div>`
+      ? `<div class="evcc-ext-blocked">⚠ ${blockedText}</div>`
       : "";
     let left;
     let right;
     if (w.step === 1) {
-      left = `<button class="evcc-btn evcc-btn-ghost" data-action="close-external-wizard">Cancel</button>`;
-      right = `<button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-next">Next: name rooms →</button>`;
+      left = `<button class="evcc-btn evcc-btn-ghost" data-action="close-external-wizard">${this.t("common.cancel")}</button>`;
+      right = `<button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-next">${this.t("external_jobs.next_name_rooms")} →</button>`;
     } else {
-      left = `<button class="evcc-btn evcc-btn-ghost" data-action="ext-wizard-back">← Back</button>`;
+      left = `<button class="evcc-btn evcc-btn-ghost" data-action="ext-wizard-back">← ${this.t("external_jobs.back")}</button>`;
       right = `
         <button class="evcc-btn evcc-btn-primary" data-action="ext-wizard-confirm" ${w.busy ? "disabled" : ""}>
-          ${w.busy ? "Saving…" : "Confirm"}
+          ${w.busy ? this.t("external_jobs.saving") : this.t("external_jobs.confirm")}
         </button>
-        ${blocked.length ? `<button class="evcc-btn evcc-btn-warn" data-action="ext-wizard-override">Keep anyway</button>` : ""}`;
+        ${blocked.length ? `<button class="evcc-btn evcc-btn-warn" data-action="ext-wizard-override">${this.t("external_jobs.keep_anyway")}</button>` : ""}`;
     }
     return `<div class="evcc-modal-footer">${blockedHtml}<div class="evcc-modal-footer-row">${left}${right}</div></div>`;
   };

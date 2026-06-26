@@ -40,7 +40,11 @@ export function applyLearningRenderers(proto) {
     const missedCount = missedRooms.length;
 
     const outcomeStatus = String(log?.outcome_status ?? "cancelled").toLowerCase();
-    const outcomeLabel = { cancelled: "cancelled", failed: "failed", interrupted: "interrupted" }[outcomeStatus] ?? outcomeStatus;
+    const outcomeLabel = {
+      cancelled: this.t("learning.outcome_cancelled"),
+      failed: this.t("learning.outcome_failed"),
+      interrupted: this.t("learning.outcome_interrupted"),
+    }[outcomeStatus] ?? this.escapeHtml(outcomeStatus);
 
     const roomChips = missedRooms
       .map((r) => `<span class="evcc-incomplete-run-room">${this.escapeHtml(r.name)}</span>`)
@@ -50,8 +54,9 @@ export function applyLearningRenderers(proto) {
       <div class="evcc-incomplete-run-banner" role="alert">
         <div class="evcc-incomplete-run-body">
           <div class="evcc-incomplete-run-title">
-            Last run ${this.escapeHtml(outcomeLabel)} —
-            ${missedCount} room${missedCount === 1 ? "" : "s"} missed
+            ${missedCount === 1
+              ? this.t("learning.incomplete_title_one", { outcome: outcomeLabel })
+              : this.t("learning.incomplete_title_many", { outcome: outcomeLabel, count: missedCount })}
           </div>
           <div class="evcc-incomplete-run-rooms">${roomChips}</div>
         </div>
@@ -59,11 +64,11 @@ export function applyLearningRenderers(proto) {
           <button
             class="evcc-incomplete-run-retry"
             data-action="queue-missed-rooms"
-          >Queue missed rooms</button>
+          >${this.t("learning.queue_missed_rooms")}</button>
           <button
             class="evcc-incomplete-run-dismiss"
             data-action="dismiss-incomplete-run-log"
-            aria-label="Dismiss"
+            aria-label="${this.t("learning.dismiss_aria")}"
           >✕</button>
         </div>
       </div>
@@ -85,14 +90,12 @@ export function applyLearningRenderers(proto) {
       return `
         <div class="evcc-learning-panel evcc-learning-panel--empty">
           <div class="evcc-learning-panel-header">
-            <div class="evcc-learning-panel-title">Estimate unavailable</div>
+            <div class="evcc-learning-panel-title">${this.t("learning.estimate_unavailable_title")}</div>
           </div>
           <div class="evcc-learning-empty-message">
-            ${this.escapeHtml(
-              estimate.error === "no_payload"
-                ? "Queue rooms first to see an estimate"
-                : estimate.message || estimate.error_detail || "Estimate unavailable."
-            )}
+            ${estimate.error === "no_payload"
+              ? this.t("learning.estimate_queue_first")
+              : this.escapeHtml(estimate.message || estimate.error_detail) || this.t("learning.estimate_unavailable_message")}
           </div>
         </div>
       `;
@@ -109,17 +112,29 @@ export function applyLearningRenderers(proto) {
     const mopWash = overhead.mop_wash ?? {};
     const mopWashLabel =
       String(mopWash.mode ?? "") === "by_time" && Number(mopWash.cycle_count ?? 0) > 0
-        ? `${this._formatLearningMinutes(overhead.mop_wash_minutes)} (${mopWash.cycle_count} cycle${Number(mopWash.cycle_count) === 1 ? "" : "s"} × ${this._formatLearningMinutes(mopWash.minutes_per_cycle)} every ${this._formatLearningMinutes(mopWash.interval_minutes)})`
-        : `0 min (no cycles scheduled)`;
+        ? (Number(mopWash.cycle_count) === 1
+            ? this.t("learning.mop_wash_label_one", {
+                total: this._formatLearningMinutes(overhead.mop_wash_minutes),
+                count: mopWash.cycle_count,
+                per: this._formatLearningMinutes(mopWash.minutes_per_cycle),
+                interval: this._formatLearningMinutes(mopWash.interval_minutes),
+              })
+            : this.t("learning.mop_wash_label_many", {
+                total: this._formatLearningMinutes(overhead.mop_wash_minutes),
+                count: mopWash.cycle_count,
+                per: this._formatLearningMinutes(mopWash.minutes_per_cycle),
+                interval: this._formatLearningMinutes(mopWash.interval_minutes),
+              }))
+        : this.t("learning.mop_wash_label_none");
 
     return `
       <div class="evcc-learning-panel evcc-learning-panel--prejob">
         <div class="evcc-learning-panel-header">
           <div class="evcc-learning-panel-title-group">
-            <div class="evcc-learning-panel-title">Estimated Job Time</div>
+            <div class="evcc-learning-panel-title">${this.t("learning.estimated_job_time")}</div>
             <div class="evcc-learning-panel-subtitle">
               ${this.escapeHtml(totalMinutes)}
-              ${jobEtaAt ? ` · done by ${this.escapeHtml(jobEtaAt)}` : ""}
+              ${jobEtaAt ? ` · ${this.t("learning.done_by", { time: this.escapeHtml(jobEtaAt) })}` : ""}
             </div>
           </div>
 
@@ -134,13 +149,13 @@ export function applyLearningRenderers(proto) {
 
         ${estimate.stats_stale ? `
           <div class="evcc-learning-notice evcc-learning-notice--stale">
-            ⚠ Estimates may be outdated${staleAt ? ` (last rebuilt ${this.escapeHtml(staleAt)})` : ""}
+            ⚠ ${staleAt ? this.t("learning.stats_stale_with_time", { time: this.escapeHtml(staleAt) }) : this.t("learning.stats_stale")}
           </div>
         ` : ""}
 
         ${estimate.battery_warning ? `
           <div class="evcc-learning-notice evcc-learning-notice--battery">
-            ⚡ May need to recharge mid-job
+            ⚡ ${this.t("learning.battery_mid_job")}
           </div>
         ` : ""}
 
@@ -154,11 +169,11 @@ export function applyLearningRenderers(proto) {
 
         ${waterEstimate?.available && Number(waterEstimate.mopping_room_count ?? 0) > 0 ? `
           <div class="evcc-learning-water-summary">
-            <div class="evcc-learning-panel-subtitle">Water estimate</div>
+            <div class="evcc-learning-panel-subtitle">${this.t("learning.water_estimate")}</div>
 
             <div class="evcc-learning-overhead-rows">
               <div class="evcc-learning-overhead-row">
-                <span>Tank now</span>
+                <span>${this.t("learning.tank_now")}</span>
                 <span>
                   ${this.escapeHtml(this._formatLearningMilliliters(waterEstimate.available_clean_tank_ml))}
                   ${Number.isFinite(Number(waterEstimate.station_clean_water_percent))
@@ -168,12 +183,12 @@ export function applyLearningRenderers(proto) {
               </div>
 
               <div class="evcc-learning-overhead-row">
-                <span>Job will use</span>
+                <span>${this.t("learning.job_will_use")}</span>
                 <span>${this.escapeHtml(this._formatLearningMilliliters(waterEstimate.estimated_total_dock_clean_water_used_ml))}</span>
               </div>
 
               <div class="evcc-learning-overhead-row">
-                <span>Tank after run</span>
+                <span>${this.t("learning.tank_after_run")}</span>
                 <span>
                   ${this.escapeHtml(this._formatLearningMilliliters(waterEstimate.estimated_clean_tank_remaining_ml))}
                   ${Number.isFinite(Number(waterEstimate.estimated_clean_tank_remaining_percent))
@@ -186,38 +201,38 @@ export function applyLearningRenderers(proto) {
         ` : ""}
 
         <details class="evcc-learning-overhead">
-          <summary class="evcc-learning-overhead-summary">Overhead breakdown</summary>
+          <summary class="evcc-learning-overhead-summary">${this.t("learning.overhead_breakdown")}</summary>
 
           <div class="evcc-learning-overhead-rows">
             <div class="evcc-learning-overhead-row">
-              <span>Startup</span>
+              <span>${this.t("learning.overhead_startup")}</span>
               <span>${this.escapeHtml(this._formatLearningMinutes(overhead.startup_minutes))}</span>
             </div>
 
             <div class="evcc-learning-overhead-row">
-              <span>Transitions</span>
+              <span>${this.t("learning.overhead_transitions")}</span>
               <span>${this.escapeHtml(this._formatLearningMinutes(overhead.transition_minutes))}</span>
             </div>
 
             <div class="evcc-learning-overhead-row">
-              <span>Recharge</span>
+              <span>${this.t("learning.overhead_recharge")}</span>
               <span>${this.escapeHtml(this._formatLearningMinutes(overhead.recharge_minutes))}</span>
             </div>
 
             ${Number(mopWash.cycle_count ?? 0) > 0 ? `
               <div class="evcc-learning-overhead-row">
-                <span>Mop wash</span>
-                <span>${this.escapeHtml(mopWashLabel)}</span>
+                <span>${this.t("learning.overhead_mop_wash")}</span>
+                <span>${mopWashLabel}</span>
               </div>
             ` : ""}
 
             <div class="evcc-learning-overhead-row">
-              <span>Dust empty</span>
+              <span>${this.t("learning.overhead_dust_empty")}</span>
               <span>${this.escapeHtml(this._formatLearningMinutes(overhead.dust_empty_minutes))}</span>
             </div>
 
             <div class="evcc-learning-overhead-row">
-              <span>Return to dock</span>
+              <span>${this.t("learning.overhead_return")}</span>
               <span>${this.escapeHtml(this._formatLearningMinutes(overhead.return_minutes))}</span>
             </div>
           </div>
@@ -251,17 +266,17 @@ export function applyLearningRenderers(proto) {
       >
         ${isAllComplete ? `
           <div class="evcc-learning-live-banner-main">
-            <div class="evcc-learning-live-title">All rooms complete</div>
-            <div class="evcc-learning-live-subtitle">Returning to dock</div>
+            <div class="evcc-learning-live-title">${this.t("learning.all_rooms_complete")}</div>
+            <div class="evcc-learning-live-subtitle">${this.t("learning.returning_to_dock")}</div>
           </div>
         ` : nextRoom ? `
           <div class="evcc-learning-live-banner-main">
             <div class="evcc-learning-live-title">
-              ▶ Cleaning ${this.escapeHtml(nextRoom.room_name ?? "Next room")}
+              ▶ ${this.t("learning.cleaning_room", { room: this.escapeHtml(nextRoom.room_name ?? this.t("learning.next_room")) })}
             </div>
 
             <div class="evcc-learning-live-subtitle">
-              ${nextRoom.eta_at ? `Done at ${this.escapeHtml(this._formatLearningWallClock(nextRoom.eta_at))}` : ""}
+              ${nextRoom.eta_at ? this.t("learning.done_at", { time: this.escapeHtml(this._formatLearningWallClock(nextRoom.eta_at)) }) : ""}
             </div>
           </div>
 
@@ -271,15 +286,15 @@ export function applyLearningRenderers(proto) {
           )}
         ` : `
           <div class="evcc-learning-live-banner-main">
-            <div class="evcc-learning-live-title">Learning active</div>
-            <div class="evcc-learning-live-subtitle">Waiting for next room update</div>
+            <div class="evcc-learning-live-title">${this.t("learning.learning_active")}</div>
+            <div class="evcc-learning-live-subtitle">${this.t("learning.waiting_next_room")}</div>
           </div>
         `}
       </div>
 
       ${batteryWarning ? `
         <div class="evcc-learning-notice evcc-learning-notice--battery">
-          ⚡ May need to recharge to finish remaining rooms
+          ⚡ ${this.t("learning.battery_finish_rooms")}
         </div>
       ` : ""}
 
@@ -291,11 +306,11 @@ export function applyLearningRenderers(proto) {
         const elapsedStr  = Number.isFinite(elapsed)  ? this._formatLearningMinutes(elapsed)  : null;
         const expectedStr = Number.isFinite(expected) ? this._formatLearningMinutes(expected) : null;
         const detail = elapsedStr && expectedStr
-          ? ` (${elapsedStr} elapsed, expected ${expectedStr})`
-          : elapsedStr ? ` (${elapsedStr} elapsed)` : "";
+          ? ` ${this.t("learning.stall_detail_expected", { elapsed: this.escapeHtml(elapsedStr), expected: this.escapeHtml(expectedStr) })}`
+          : elapsedStr ? ` ${this.t("learning.stall_detail", { elapsed: this.escapeHtml(elapsedStr) })}` : "";
         return `
           <div class="evcc-learning-notice evcc-learning-notice--stall">
-            ⏳ Robot may be stuck in current room${this.escapeHtml(detail)}
+            ⏳ ${this.t("learning.robot_stuck")}${detail}
           </div>
         `;
       })()}
@@ -317,7 +332,7 @@ export function applyLearningRenderers(proto) {
 
     return `
       <div class="evcc-learning-progress">
-        <div class="evcc-learning-progress-title">Live Progress</div>
+        <div class="evcc-learning-progress-title">${this.t("learning.live_progress")}</div>
 
         <div class="evcc-learning-progress-list">
           ${timeline.map((entry) => {
@@ -393,22 +408,36 @@ export function applyLearningRenderers(proto) {
     const chips = [];
 
     if (Number.isFinite(totalWaterUse) && totalWaterUse > 0) {
-      chips.push(`~${this._formatLearningMilliliters(totalWaterUse)} water`);
+      chips.push(this.t("learning.chip_water", { ml: this.escapeHtml(this._formatLearningMilliliters(totalWaterUse)) }));
     }
 
-    if (vacuumOnly > 0) chips.push(`${vacuumOnly} vacuum-only room${vacuumOnly === 1 ? "" : "s"}`);
-    if (mopOnly   > 0) chips.push(`${mopOnly} mop-only room${mopOnly === 1 ? "" : "s"}`);
-    if (both      > 0) chips.push(`${both} vacuum + mop room${both === 1 ? "" : "s"}`);
+    if (vacuumOnly > 0) {
+      chips.push(vacuumOnly === 1
+        ? this.t("learning.chip_vacuum_only_one", { count: vacuumOnly })
+        : this.t("learning.chip_vacuum_only_many", { count: vacuumOnly }));
+    }
+    if (mopOnly > 0) {
+      chips.push(mopOnly === 1
+        ? this.t("learning.chip_mop_only_one", { count: mopOnly })
+        : this.t("learning.chip_mop_only_many", { count: mopOnly }));
+    }
+    if (both > 0) {
+      chips.push(both === 1
+        ? this.t("learning.chip_vacuum_mop_one", { count: both })
+        : this.t("learning.chip_vacuum_mop_many", { count: both }));
+    }
 
     if (washCycleCount > 0) {
-      chips.push(`${washCycleCount} wash cycle${washCycleCount === 1 ? "" : "s"}`);
+      chips.push(washCycleCount === 1
+        ? this.t("learning.chip_wash_cycle_one", { count: washCycleCount })
+        : this.t("learning.chip_wash_cycle_many", { count: washCycleCount }));
     }
 
     return chips.length ? `
       <div class="evcc-learning-chip-row">
         ${chips.map((label) => `
           <span class="evcc-learning-chip evcc-learning-chip--neutral">
-            ${this.escapeHtml(label)}
+            ${label}
           </span>
         `).join("")}
       </div>
@@ -419,15 +448,18 @@ export function applyLearningRenderers(proto) {
     const notes = [];
 
     if (entry.intensity_mismatch) {
-      notes.push("⚠ estimated from different intensity");
+      notes.push(`⚠ ${this.t("learning.note_intensity_mismatch")}`);
     }
 
     if (entry.source === "default") {
-      notes.push("No data yet");
+      notes.push(this.t("learning.note_no_data"));
     }
 
     if (Number(entry?.learning_velocity?.runs_to_high ?? 0) > 0) {
-      notes.push(`${entry.learning_velocity.runs_to_high} runs to reliable`);
+      const runs = entry.learning_velocity.runs_to_high;
+      notes.push(Number(runs) === 1
+        ? this.t("learning.note_runs_to_reliable_one", { count: runs })
+        : this.t("learning.note_runs_to_reliable_many", { count: runs }));
     }
 
     return `
@@ -437,7 +469,7 @@ export function applyLearningRenderers(proto) {
       >
         <div class="evcc-learning-room-main">
           <div class="evcc-learning-room-name">
-            ${this.escapeHtml(entry.room_name ?? `Room ${entry.room_id ?? ""}`)}
+            ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
           </div>
 
           <div class="evcc-learning-room-meta">
@@ -447,7 +479,7 @@ export function applyLearningRenderers(proto) {
 
           ${notes.length ? `
             <div class="evcc-learning-room-notes">
-              ${notes.map((note) => `<div class="evcc-learning-room-note">${this.escapeHtml(note)}</div>`).join("")}
+              ${notes.map((note) => `<div class="evcc-learning-room-note">${note}</div>`).join("")}
             </div>
           ` : ""}
         </div>
@@ -468,7 +500,7 @@ export function applyLearningRenderers(proto) {
       >
         <div class="evcc-learning-progress-main">
           <div class="evcc-learning-progress-name">
-            ✓ ${this.escapeHtml(entry.room_name ?? `Room ${entry.room_id ?? ""}`)}
+            ✓ ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
           </div>
           <div class="evcc-learning-progress-meta">
             ${this.escapeHtml(this._formatLearningMinutes(entry.actual_duration_minutes))}
@@ -483,8 +515,8 @@ proto._renderLearningCurrentRow = function (entry) {
     this.card?._learningController?.getRoomProgressSnapshot?.(entry.room_id) ?? null;
 
   const progressMeta = snapshot?.isCurrent
-    ? `${snapshot.percent}%${Number.isFinite(snapshot.remainingMinutes) ? ` · ~${this._formatLearningMinutes(snapshot.remainingMinutes)} left` : ""}`
-    : (entry.eta_at ? `Done at ${this.escapeHtml(this._formatLearningWallClock(entry.eta_at))}` : "");
+    ? `${snapshot.percent}%${Number.isFinite(snapshot.remainingMinutes) ? ` · ${this.t("learning.minutes_left", { minutes: this.escapeHtml(this._formatLearningMinutes(snapshot.remainingMinutes)) })}` : ""}`
+    : (entry.eta_at ? this.t("learning.done_at", { time: this.escapeHtml(this._formatLearningWallClock(entry.eta_at)) }) : "");
 
   return `
     <div
@@ -493,10 +525,10 @@ proto._renderLearningCurrentRow = function (entry) {
     >
       <div class="evcc-learning-progress-main">
         <div class="evcc-learning-progress-name">
-          ▶ ${this.escapeHtml(entry.room_name ?? `Room ${entry.room_id ?? ""}`)}
+          ▶ ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
         </div>
         <div class="evcc-learning-progress-meta">
-          ${this.escapeHtml(progressMeta)}
+          ${progressMeta}
         </div>
       </div>
 
@@ -521,7 +553,7 @@ proto._renderLearningCurrentRow = function (entry) {
       >
         <div class="evcc-learning-progress-main">
           <div class="evcc-learning-progress-name">
-            ○ ${this.escapeHtml(entry.room_name ?? `Room ${entry.room_id ?? ""}`)}
+            ○ ${entry.room_name != null ? this.escapeHtml(entry.room_name) : this.t("learning.room_fallback", { id: this.escapeHtml(String(entry.room_id ?? "")) })}
           </div>
           <div class="evcc-learning-progress-meta">
             ${entry.eta_at ? this.escapeHtml(this._formatLearningWallClock(entry.eta_at)) : ""}
@@ -537,35 +569,35 @@ proto._renderLearningCurrentRow = function (entry) {
 
   proto._formatLearningMinutes = function (value) {
     const n = Number(value);
-    if (!Number.isFinite(n)) return "0 min";
+    if (!Number.isFinite(n)) return this.t("learning.minutes_short", { value: "0" });
 
-    return `${n.toFixed(1).replace(/\.0$/, "")} min`;
+    return this.t("learning.minutes_short", { value: n.toFixed(1).replace(/\.0$/, "") });
   };
 
   proto._formatLearningDuration = function (value) {
     const n = Number(value);
-    if (!Number.isFinite(n)) return "0 min";
+    if (!Number.isFinite(n)) return this.t("learning.minutes_only", { minutes: 0 });
 
     const rounded = Math.round(n);
     const hours = Math.floor(rounded / 60);
     const minutes = rounded % 60;
 
     if (hours <= 0) {
-      return `${minutes} min`;
+      return this.t("learning.minutes_only", { minutes });
     }
 
     if (minutes <= 0) {
-      return `${hours}h`;
+      return this.t("learning.hours_only", { hours });
     }
 
-    return `${hours}h ${minutes}m`;
+    return this.t("learning.hours_minutes", { hours, minutes });
   };
 
   proto._formatLearningMilliliters = function (value) {
     const n = Number(value);
-    if (!Number.isFinite(n)) return "Unknown";
+    if (!Number.isFinite(n)) return this.t("learning.unknown");
 
-    return `${Math.round(n)} ml`;
+    return this.t("learning.milliliters", { ml: Math.round(n) });
   };
 
   proto._formatLearningWallClock = function (value) {
@@ -579,10 +611,16 @@ proto._renderLearningCurrentRow = function (entry) {
     const normalized = String(value ?? "").trim().toLowerCase();
     if (!normalized) return "";
 
-    const title = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+    // Known confidence tiers (estimator breakpoint keys: high/medium/low) get a
+    // translated label; an unknown value falls back to a title-cased raw string.
+    const known = normalized === "high" || normalized === "medium" || normalized === "low";
+    const title = known
+      ? this.t(`learning.confidence_${normalized}`)
+      : normalized.charAt(0).toUpperCase() + normalized.slice(1);
 
     if (scope === "job") {
-      return `${title} confidence`;
+      if (known) return this.t(`learning.confidence_${normalized}_job`);
+      return this.t("learning.confidence_job_suffix", { label: title });
     }
 
     return title;
@@ -623,9 +661,9 @@ proto._renderLearningCurrentRow = function (entry) {
 
       <div class="evcc-learning-panel-header">
         <div class="evcc-learning-panel-title-group">
-          <div class="evcc-learning-panel-title">Cleaning Complete</div>
+          <div class="evcc-learning-panel-title">${this.t("learning.cleaning_complete")}</div>
           <div class="evcc-learning-panel-subtitle">
-            ${finishedAt ? `Finished at ${this.escapeHtml(finishedAt)}` : ""}
+            ${finishedAt ? this.t("learning.finished_at", { time: this.escapeHtml(finishedAt) }) : ""}
           </div>
         </div>
 
@@ -633,7 +671,7 @@ proto._renderLearningCurrentRow = function (entry) {
           class="evcc-chip evcc-learning-chip--neutral"
           data-action="dismiss-learning-summary"
         >
-          Dismiss
+          ${this.t("learning.dismiss")}
         </button>
       </div>
 
@@ -641,23 +679,23 @@ proto._renderLearningCurrentRow = function (entry) {
 
         <div class="evcc-learning-summary-stat">
           <div class="evcc-learning-summary-value">${this.escapeHtml(total)}</div>
-          <div class="evcc-learning-summary-label">Actual</div>
+          <div class="evcc-learning-summary-label">${this.t("learning.stat_actual")}</div>
         </div>
 
         <div class="evcc-learning-summary-stat">
           <div class="evcc-learning-summary-value">${this.escapeHtml(summary.rooms_completed)}</div>
-          <div class="evcc-learning-summary-label">Rooms</div>
+          <div class="evcc-learning-summary-label">${this.t("learning.stat_rooms")}</div>
         </div>
 
         ${hasPredicted ? `
           <div class="evcc-learning-summary-stat">
             <div class="evcc-learning-summary-value">${this.escapeHtml(this._formatLearningDuration(predictedMinutes))}</div>
-            <div class="evcc-learning-summary-label">Predicted</div>
+            <div class="evcc-learning-summary-label">${this.t("learning.stat_predicted")}</div>
           </div>
 
           <div class="evcc-learning-summary-stat">
             <div class="evcc-learning-summary-value">${this.escapeHtml(deltaLabel)}</div>
-            <div class="evcc-learning-summary-label">Delta</div>
+            <div class="evcc-learning-summary-label">${this.t("learning.stat_delta")}</div>
           </div>
         ` : ""}
 
@@ -665,7 +703,7 @@ proto._renderLearningCurrentRow = function (entry) {
 
       ${summary.battery_warning ? `
         <div class="evcc-learning-notice evcc-learning-notice--battery">
-          ⚡ Recharge occurred during job
+          ⚡ ${this.t("learning.battery_recharged")}
         </div>
       ` : ""}
 

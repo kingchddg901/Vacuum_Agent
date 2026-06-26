@@ -148,6 +148,8 @@ const DYNAMIC_KEYS = new Set([
   "map.variant_default_label", "map.variant_default_hint",
   "maintenance.status_good", "maintenance.status_warning", "maintenance.status_unknown",
   "maintenance.status_replace_now", "maintenance.status_replace_soon",
+  "learning.confidence_high", "learning.confidence_medium", "learning.confidence_low",
+  "learning.confidence_high_job", "learning.confidence_medium_job", "learning.confidence_low_job",
 ]);
 
 // Collect every literal t()/tRaw() key across src/, skipping the i18n module.

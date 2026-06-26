@@ -16,7 +16,8 @@
  *
  * Coverage: Phase 1 (Setup + Rooms) + Phase 2 (shell nav/header, view-router,
  * run profiles) + Map + Maintenance-dock + Room-rules + relative-time + Metrics
- * (Stats tab). Learning-jobs, theme, bindings follow next.
+ * (Stats tab) + Learning-jobs (Learning Review + History + External Jobs).
+ * Theme, bindings, room-card follow next.
  *
  * ============================================================
  */
@@ -65,6 +66,142 @@ export const en = {
   "base_station.water_subtitle": "Current dock water plus projected post-job tank level",
   "base_station.water_title": "Water",
   "base_station.yes": "Yes",
+
+  // --- external_jobs (External Jobs review: app-started run capture wizard) ---
+  "external_jobs.back": "Back",
+  "external_jobs.blocked_many": "{count} rooms don't match the picked area — re-pick, or keep anyway.",  // plural
+  "external_jobs.blocked_one": "{count} room doesn't match the picked area — re-pick, or keep anyway.",  // plural
+  "external_jobs.capped_message": "Capped to the detectable room count.",
+  "external_jobs.card_rooms_many": "~{count} rooms",  // plural
+  "external_jobs.card_rooms_one": "~{count} room",  // plural
+  "external_jobs.card_segments_many": "{count} segments",  // plural
+  "external_jobs.card_segments_one": "{count} segment",  // plural
+  "external_jobs.clean_mode_unknown": "?",
+  "external_jobs.confirm": "Confirm",
+  "external_jobs.count_hint": "set the room count, or split / merge below",
+  "external_jobs.detected_rooms_many": "Detected <strong>{count}</strong> rooms. Merge any over-split before continuing.",  // plural
+  "external_jobs.detected_rooms_one": "Detected <strong>{count}</strong> room. Merge any over-split before continuing.",  // plural
+  "external_jobs.discard": "Discard",
+  "external_jobs.edge_mop": "Edge mop?",
+  "external_jobs.edge_mop_hint": "not detected — please set",
+  "external_jobs.empty": "No app-started runs awaiting review. Start a clean from {appPhrase} and the run will appear here to confirm which rooms it cleaned.",
+  "external_jobs.empty_app_branded": "the {brand} app",
+  "external_jobs.empty_app_generic": "your robot's app",
+  "external_jobs.first_room": "First room",
+  "external_jobs.keep_anyway": "Keep anyway",
+  "external_jobs.merge_up": "Merge up",
+  "external_jobs.merged_label": "merged",
+  "external_jobs.merged_label_uncertain": "merged · uncertain",
+  "external_jobs.mode": "Mode",
+  "external_jobs.mode_mop": "Mop",
+  "external_jobs.mode_vacuum": "Vacuum",
+  "external_jobs.mode_vacuum_mop": "Vac & Mop",
+  "external_jobs.next_name_rooms": "Next: name rooms",
+  "external_jobs.off": "Off",
+  "external_jobs.on": "On",
+  "external_jobs.passes": "Passes",
+  "external_jobs.pick_another_room": "… pick another room",
+  "external_jobs.review": "Review",
+  "external_jobs.room_n": "Room {n}",
+  "external_jobs.rooms_label": "Rooms",
+  "external_jobs.saving": "Saving…",
+  "external_jobs.seg_n": "seg {n}",
+  "external_jobs.segments_merged": "{count} segments merged",  // plural
+  "external_jobs.setting_cleaning_path": "Cleaning Path",
+  "external_jobs.setting_suction": "Suction",
+  "external_jobs.setting_water": "Water",
+  "external_jobs.split_here": "Split here",
+  "external_jobs.split_here_uncertain": "Split here · uncertain",
+  "external_jobs.split_label": "split here",
+  "external_jobs.split_label_uncertain": "split here · uncertain",
+  "external_jobs.subtab_external": "External Jobs",
+  "external_jobs.subtab_external_count": "External Jobs ({count})",
+  "external_jobs.subtab_history": "Learning History",
+  "external_jobs.unknown_time": "Unknown time",
+  "external_jobs.which_room": "Which room?",
+  "external_jobs.wizard_phase_count": "how many rooms?",
+  "external_jobs.wizard_phase_name": "name each room",
+  "external_jobs.wizard_step_of": "Step {step} of 2 — {phase}",
+  "external_jobs.wizard_title": "Review app-started run",
+
+  // --- learning (Learning Review surface: live progress, estimates, completion, incomplete-run recovery) ---
+  "learning.all_rooms_complete": "All rooms complete",
+  "learning.battery_finish_rooms": "May need to recharge to finish remaining rooms",
+  "learning.battery_mid_job": "May need to recharge mid-job",
+  "learning.battery_recharged": "Recharge occurred during job",
+  "learning.chip_mop_only_many": "{count} mop-only rooms",  // plural
+  "learning.chip_mop_only_one": "{count} mop-only room",  // plural
+  "learning.chip_vacuum_mop_many": "{count} vacuum + mop rooms",  // plural
+  "learning.chip_vacuum_mop_one": "{count} vacuum + mop room",  // plural
+  "learning.chip_vacuum_only_many": "{count} vacuum-only rooms",  // plural
+  "learning.chip_vacuum_only_one": "{count} vacuum-only room",  // plural
+  "learning.chip_wash_cycle_many": "{count} wash cycles",  // plural
+  "learning.chip_wash_cycle_one": "{count} wash cycle",  // plural
+  "learning.chip_water": "~{ml} water",
+  "learning.cleaning_complete": "Cleaning Complete",
+  "learning.cleaning_room": "Cleaning {room}",
+  "learning.confidence_high": "High",
+  "learning.confidence_high_job": "High confidence",
+  "learning.confidence_job_suffix": "{label} confidence",
+  "learning.confidence_low": "Low",
+  "learning.confidence_low_job": "Low confidence",
+  "learning.confidence_medium": "Medium",
+  "learning.confidence_medium_job": "Medium confidence",
+  "learning.dismiss": "Dismiss",
+  "learning.dismiss_aria": "Dismiss",
+  "learning.done_at": "Done at {time}",
+  "learning.done_by": "done by {time}",
+  "learning.estimate_queue_first": "Queue rooms first to see an estimate",
+  "learning.estimate_unavailable_message": "Estimate unavailable.",
+  "learning.estimate_unavailable_title": "Estimate unavailable",
+  "learning.estimated_job_time": "Estimated Job Time",
+  "learning.finished_at": "Finished at {time}",
+  "learning.hours_minutes": "{hours}h {minutes}m",
+  "learning.hours_only": "{hours}h",
+  "learning.incomplete_title_many": "Last run {outcome} — {count} rooms missed",  // plural
+  "learning.incomplete_title_one": "Last run {outcome} — 1 room missed",  // plural
+  "learning.job_will_use": "Job will use",
+  "learning.learning_active": "Learning active",
+  "learning.live_progress": "Live Progress",
+  "learning.milliliters": "{ml} ml",
+  "learning.minutes_left": "~{minutes} left",
+  "learning.minutes_only": "{minutes} min",
+  "learning.minutes_short": "{value} min",
+  "learning.mop_wash_label_many": "{total} ({count} cycles × {per} every {interval})",  // plural
+  "learning.mop_wash_label_none": "0 min (no cycles scheduled)",
+  "learning.mop_wash_label_one": "{total} ({count} cycle × {per} every {interval})",  // plural
+  "learning.next_room": "Next room",
+  "learning.note_intensity_mismatch": "estimated from different intensity",
+  "learning.note_no_data": "No data yet",
+  "learning.note_runs_to_reliable_many": "{count} runs to reliable",  // plural
+  "learning.note_runs_to_reliable_one": "{count} run to reliable",  // plural
+  "learning.outcome_cancelled": "cancelled",
+  "learning.outcome_failed": "failed",
+  "learning.outcome_interrupted": "interrupted",
+  "learning.overhead_breakdown": "Overhead breakdown",
+  "learning.overhead_dust_empty": "Dust empty",
+  "learning.overhead_mop_wash": "Mop wash",
+  "learning.overhead_recharge": "Recharge",
+  "learning.overhead_return": "Return to dock",
+  "learning.overhead_startup": "Startup",
+  "learning.overhead_transitions": "Transitions",
+  "learning.queue_missed_rooms": "Queue missed rooms",
+  "learning.returning_to_dock": "Returning to dock",
+  "learning.robot_stuck": "Robot may be stuck in current room",
+  "learning.room_fallback": "Room {id}",
+  "learning.stall_detail": "({elapsed} elapsed)",
+  "learning.stall_detail_expected": "({elapsed} elapsed, expected {expected})",
+  "learning.stat_actual": "Actual",
+  "learning.stat_delta": "Delta",
+  "learning.stat_predicted": "Predicted",
+  "learning.stat_rooms": "Rooms",
+  "learning.stats_stale": "Estimates may be outdated",
+  "learning.stats_stale_with_time": "Estimates may be outdated (last rebuilt {time})",
+  "learning.tank_after_run": "Tank after run",
+  "learning.tank_now": "Tank now",
+  "learning.unknown": "Unknown",
+  "learning.waiting_next_room": "Waiting for next room update",
+  "learning.water_estimate": "Water estimate",
 
   // --- maintenance (Upkeep tab: items, due dates, consumable status, reset) ---
   "maintenance.attention_empty": "Everything currently looks healthy.",
@@ -601,6 +738,76 @@ export const en = {
   "relative.weeks_ago": "{n}w ago",  // plural
   "relative.years_ago": "{n}y ago",  // plural
   "relative.yesterday": "yesterday",
+
+  // --- review (Learning History review: filters, profile matcher, run exclude/restore) ---
+  "review.badge_excluded": "Excluded",
+  "review.badge_multi_room": "Multi Room",
+  "review.badge_recharge": "Recharge",
+  "review.badge_sanity_failed": "Sanity Failed",
+  "review.badge_single_room": "Single Room",
+  "review.badge_suggested_exclude": "Suggested Exclude",
+  "review.detail_battery": "Battery {value}",
+  "review.detail_minutes": "{value} min",
+  "review.detail_outlier": "Outlier {value}",
+  "review.detail_water": "Water {value} ml",
+  "review.exclude": "Exclude",
+  "review.exclude_reason": "Exclude Reason",
+  "review.filter_all_learning_use": "All Learning Use",
+  "review.filter_all_profiles": "All Profiles",
+  "review.filter_all_rooms": "All Rooms",
+  "review.filter_all_statuses": "All Statuses",
+  "review.filter_learning_use": "Learning Use",
+  "review.filter_profile": "Profile",
+  "review.filter_room": "Room",
+  "review.filter_sort": "Sort",
+  "review.filter_status": "Status",
+  "review.filters_subtitle": "Narrow to room, profile, status, or learning use.",
+  "review.filters_title": "Filters",
+  "review.kv_primary_room": "Primary Room",
+  "review.kv_profile": "Profile",
+  "review.kv_rooms": "Rooms",
+  "review.kv_scope": "Scope",
+  "review.kv_used_for_learning": "Used For Learning",
+  "review.loading": "Loading learning history...",
+  "review.matched_profiles_title": "Matched Profiles",
+  "review.matcher_chip_title": "Filter learning jobs to this profile",
+  "review.matcher_clean_mode": "Cleaning Mode",
+  "review.matcher_clean_passes": "Cleaning Passes",
+  "review.matcher_clean_path": "Cleaning Path",
+  "review.matcher_count_many": "{count} exact matches found.",  // plural
+  "review.matcher_count_one": "{count} exact match found.",  // plural
+  "review.matcher_edge_mopping": "Edge Mopping",
+  "review.matcher_empty": "Adjust the matcher fields until they line up with a saved profile exactly.",
+  "review.matcher_no_matches": "No exact profile matches for the current settings.",
+  "review.matcher_reset": "Reset Matcher",
+  "review.matcher_subtitle": "Try room-editor settings locally to find exact learned profile matches without editing a live room.",
+  "review.matcher_suction_level": "Suction Level",
+  "review.matcher_title": "Profile Matcher",
+  "review.matcher_water_level": "Water Level",
+  "review.no": "No",
+  "review.off": "Off",
+  "review.on": "On",
+  "review.panel_subtitle": "Review runs used for learning and exclude bad history when needed.",
+  "review.panel_title": "Learning Review",
+  "review.passes_many": "{count} Passes",  // plural
+  "review.passes_one": "{count} Pass",  // plural
+  "review.profile_fallback": "Profile",
+  "review.restore": "Restore",
+  "review.room_fallback": "Room",
+  "review.runs_empty": "No learning history jobs matched the current filters.",
+  "review.runs_subtitle": "Newest first unless another sort is selected.",
+  "review.runs_title": "Runs",
+  "review.search_aria": "Search {label}",
+  "review.search_placeholder": "Search…",
+  "review.sort_newest": "Newest",
+  "review.stat_jobs": "Jobs",
+  "review.stat_profiles": "Profiles",
+  "review.stat_rooms": "Rooms",
+  "review.stat_updated": "Updated",
+  "review.unavailable": "Learning history unavailable.",
+  "review.unknown": "Unknown",
+  "review.working": "Working...",
+  "review.yes": "Yes",
 
   // --- room_access ---
   "room_access.accessed_from_help": "The room that grants access to this room. Read-only — set from the other room's editor.",

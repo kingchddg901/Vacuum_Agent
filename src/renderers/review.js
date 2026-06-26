@@ -39,14 +39,14 @@ export function applyReviewRenderers(proto) {
     const { state } = ctx;
     const snapshot = state.learningHistorySnapshot?.();
     if (!snapshot) {
-      return `<div class="evcc-empty">Loading learning history...</div>`;
+      return `<div class="evcc-empty">${this.t("review.loading")}</div>`;
     }
 
     if (snapshot.available === false) {
       return `
         <div class="evcc-review-view">
           <div class="evcc-empty">
-            ${this.escapeHtml(snapshot.message || snapshot.reason || "Learning history unavailable.")}
+            ${this.escapeHtml(snapshot.message || snapshot.reason || this.t("review.unavailable"))}
           </div>
         </div>
       `;
@@ -62,56 +62,56 @@ export function applyReviewRenderers(proto) {
           <section class="evcc-review-panel">
             <div class="evcc-review-panel-header">
               <div>
-                <div class="evcc-review-panel-title">Learning Review</div>
+                <div class="evcc-review-panel-title">${this.t("review.panel_title")}</div>
                 <div class="evcc-review-panel-subtitle">
-                  ${this.escapeHtml(snapshot.message || "Review runs used for learning and exclude bad history when needed.")}
+                  ${this.escapeHtml(snapshot.message || this.t("review.panel_subtitle"))}
                 </div>
               </div>
             </div>
 
             <div class="evcc-review-stats">
-              ${this._renderReviewStat("Jobs", summary?.filtered_job_count ?? summary?.job_count ?? 0)}
-              ${this._renderReviewStat("Rooms", summary?.filtered_room_count ?? 0)}
-              ${this._renderReviewStat("Profiles", summary?.filtered_room_profile_count ?? 0)}
-              ${this._renderReviewStat("Updated", this._formatReviewTimestamp(snapshot.updated_at) || "Unknown")}
+              ${this._renderReviewStat(this.t("review.stat_jobs"), summary?.filtered_job_count ?? summary?.job_count ?? 0)}
+              ${this._renderReviewStat(this.t("review.stat_rooms"), summary?.filtered_room_count ?? 0)}
+              ${this._renderReviewStat(this.t("review.stat_profiles"), summary?.filtered_room_profile_count ?? 0)}
+              ${this._renderReviewStat(this.t("review.stat_updated"), this._formatReviewTimestamp(snapshot.updated_at) || this.t("review.unknown"))}
             </div>
           </section>
 
           <section class="evcc-review-panel evcc-review-panel--wide">
             <div class="evcc-review-panel-header">
               <div>
-                <div class="evcc-review-panel-title">Filters</div>
-                <div class="evcc-review-panel-subtitle">Narrow to room, profile, status, or learning use.</div>
+                <div class="evcc-review-panel-title">${this.t("review.filters_title")}</div>
+                <div class="evcc-review-panel-subtitle">${this.t("review.filters_subtitle")}</div>
               </div>
             </div>
 
             <div class="evcc-review-filters">
-              ${this._renderReviewChipFilter("Room", "room_slug", state.learningHistoryRooms?.().map((room) => ({
+              ${this._renderReviewChipFilter(this.t("review.filter_room"), "room_slug", state.learningHistoryRooms?.().map((room) => ({
                 value: room?.room_slug ?? room?.slug ?? "",
-                label: room?.room_name ?? room?.label ?? room?.slug ?? "Room",
-              })), state.learningHistoryFilters?.().room_slug, "All Rooms")}
+                label: room?.room_name ?? room?.label ?? room?.slug ?? this.t("review.room_fallback"),
+              })), state.learningHistoryFilters?.().room_slug, this.t("review.filter_all_rooms"))}
 
-              ${this._renderReviewChipFilter("Profile", "profile_key", state.learningHistoryProfiles?.().map((profile) => ({
+              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_key", state.learningHistoryProfiles?.().map((profile) => ({
                 value: profile?.profile_key ?? "",
-                label: profile?.label ?? profile?.profile_key ?? "Profile",
+                label: profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback"),
                 title: profile?.subtitle
-                  ? `${profile?.label ?? profile?.profile_key ?? "Profile"} | ${profile.subtitle}`
-                  : (profile?.label ?? profile?.profile_key ?? "Profile"),
-              })), state.learningHistoryFilters?.().profile_key, "All Profiles")}
+                  ? `${profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback")} | ${profile.subtitle}`
+                  : (profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback")),
+              })), state.learningHistoryFilters?.().profile_key, this.t("review.filter_all_profiles"))}
 
-              ${this._renderReviewChipFilter("Status", "status", state.learningHistoryStatusOptions?.(), state.learningHistoryFilters?.().status, "All Statuses")}
+              ${this._renderReviewChipFilter(this.t("review.filter_status"), "status", state.learningHistoryStatusOptions?.(), state.learningHistoryFilters?.().status, this.t("review.filter_all_statuses"))}
 
-              ${this._renderReviewChipFilter("Learning Use", "used_for_learning", state.learningHistoryUsedOptions?.(), state.learningHistoryFilters?.().used_for_learning, "All Learning Use")}
+              ${this._renderReviewChipFilter(this.t("review.filter_learning_use"), "used_for_learning", state.learningHistoryUsedOptions?.(), state.learningHistoryFilters?.().used_for_learning, this.t("review.filter_all_learning_use"))}
 
-              ${this._renderReviewChipFilter("Sort", "sort", state.learningHistorySortOptions?.(), state.learningHistorySort?.(), "Newest", "", true)}
+              ${this._renderReviewChipFilter(this.t("review.filter_sort"), "sort", state.learningHistorySortOptions?.(), state.learningHistorySort?.(), this.t("review.sort_newest"), "", true)}
             </div>
           </section>
 
           <section class="evcc-review-panel evcc-review-panel--wide">
             <div class="evcc-review-panel-header">
               <div>
-                <div class="evcc-review-panel-title">Profile Matcher</div>
-                <div class="evcc-review-panel-subtitle">Try room-editor settings locally to find exact learned profile matches without editing a live room.</div>
+                <div class="evcc-review-panel-title">${this.t("review.matcher_title")}</div>
+                <div class="evcc-review-panel-subtitle">${this.t("review.matcher_subtitle")}</div>
               </div>
             </div>
 
@@ -121,8 +121,8 @@ export function applyReviewRenderers(proto) {
           <section class="evcc-review-panel evcc-review-panel--wide">
             <div class="evcc-review-panel-header">
               <div>
-                <div class="evcc-review-panel-title">Runs</div>
-                <div class="evcc-review-panel-subtitle">Newest first unless another sort is selected.</div>
+                <div class="evcc-review-panel-title">${this.t("review.runs_title")}</div>
+                <div class="evcc-review-panel-subtitle">${this.t("review.runs_subtitle")}</div>
               </div>
             </div>
 
@@ -131,7 +131,7 @@ export function applyReviewRenderers(proto) {
                 ${jobs.map((job) => this._renderLearningReviewJobCard(job, state)).join("")}
               </div>
             ` : `
-              <div class="evcc-review-empty">No learning history jobs matched the current filters.</div>
+              <div class="evcc-review-empty">${this.t("review.runs_empty")}</div>
             `}
           </section>
 
@@ -226,7 +226,7 @@ export function applyReviewRenderers(proto) {
     const head = searchable
       ? `<div class="evcc-chip-filter-head">
            <div class="evcc-field-label">${this.escapeHtml(label)}</div>
-           <input type="text" class="evcc-chip-search" data-chip-search placeholder="Search…" aria-label="Search ${this.escapeHtml(label)}">
+           <input type="text" class="evcc-chip-search" data-chip-search placeholder="${this.t("review.search_placeholder")}" aria-label="${this.t("review.search_aria", { label: this.escapeHtml(label) })}">
          </div>`
       : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
     return `
@@ -268,20 +268,20 @@ export function applyReviewRenderers(proto) {
     return `
       <div class="evcc-review-matcher">
         <div class="evcc-review-matcher-grid">
-          ${this._renderReviewMatcherField("Cleaning Mode", "clean_mode", fields.clean_mode, state.cleanModeOptions?.() ?? [])}
-          ${this._renderReviewMatcherField("Suction Level", "fan_speed", fields.fan_speed, state.suctionLevelOptions?.() ?? [])}
+          ${this._renderReviewMatcherField(this.t("review.matcher_clean_mode"), "clean_mode", fields.clean_mode, state.cleanModeOptions?.() ?? [])}
+          ${this._renderReviewMatcherField(this.t("review.matcher_suction_level"), "fan_speed", fields.fan_speed, state.suctionLevelOptions?.() ?? [])}
           ${state.showReviewProfileMatcherWaterLevel?.()
-            ? this._renderReviewMatcherField("Water Level", "water_level", fields.water_level, state.waterLevelOptions?.() ?? [])
+            ? this._renderReviewMatcherField(this.t("review.matcher_water_level"), "water_level", fields.water_level, state.waterLevelOptions?.() ?? [])
             : ""}
-          ${this._renderReviewMatcherField("Cleaning Path", "clean_intensity", fields.clean_intensity, state.cleanIntensityOptions?.() ?? [])}
-          ${this._renderReviewMatcherField("Cleaning Passes", "clean_passes", fields.clean_passes, [
-            { value: 1, label: "1 Pass" },
-            { value: 2, label: "2 Passes" },
+          ${this._renderReviewMatcherField(this.t("review.matcher_clean_path"), "clean_intensity", fields.clean_intensity, state.cleanIntensityOptions?.() ?? [])}
+          ${this._renderReviewMatcherField(this.t("review.matcher_clean_passes"), "clean_passes", fields.clean_passes, [
+            { value: 1, label: this.t("review.passes_one", { count: 1 }) },
+            { value: 2, label: this.t("review.passes_many", { count: 2 }) },
           ])}
           ${state.showReviewProfileMatcherEdgeMopping?.()
-            ? this._renderReviewMatcherField("Edge Mopping", "edge_mopping", fields.edge_mopping, [
-              { value: true, label: "On" },
-              { value: false, label: "Off" },
+            ? this._renderReviewMatcherField(this.t("review.matcher_edge_mopping"), "edge_mopping", fields.edge_mopping, [
+              { value: true, label: this.t("review.on") },
+              { value: false, label: this.t("review.off") },
             ])
             : ""}
         </div>
@@ -291,16 +291,18 @@ export function applyReviewRenderers(proto) {
             type="button"
             class="evcc-chip"
             data-review-matcher-action="reset"
-          >Reset Matcher</button>
+          >${this.t("review.matcher_reset")}</button>
         </div>
 
         <div class="evcc-review-matcher-results">
           <div class="evcc-review-matcher-results-header">
-            <div class="evcc-review-panel-title">Matched Profiles</div>
+            <div class="evcc-review-panel-title">${this.t("review.matched_profiles_title")}</div>
             <div class="evcc-review-panel-subtitle">
               ${matches.length
-                ? this.escapeHtml(`${matches.length} exact match${matches.length === 1 ? "" : "es"} found.`)
-                : "No exact profile matches for the current settings."}
+                ? (matches.length === 1
+                  ? this.t("review.matcher_count_one", { count: matches.length })
+                  : this.t("review.matcher_count_many", { count: matches.length }))
+                : this.t("review.matcher_no_matches")}
             </div>
           </div>
 
@@ -311,12 +313,12 @@ export function applyReviewRenderers(proto) {
                   type="button"
                   class="evcc-chip ${String(profileFilter) === String(match.profile_key) ? "active" : ""}"
                   data-review-matcher-profile="${this.escapeHtml(match.profile_key)}"
-                  title="Filter learning jobs to this profile"
+                  title="${this.t("review.matcher_chip_title")}"
                 >${this.escapeHtml(match.label ?? match.profile_key)}</button>
               `).join("")}
             </div>
           ` : `
-            <div class="evcc-review-empty">Adjust the matcher fields until they line up with a saved profile exactly.</div>
+            <div class="evcc-review-empty">${this.t("review.matcher_empty")}</div>
           `}
         </div>
       </div>
@@ -386,7 +388,7 @@ export function applyReviewRenderers(proto) {
 
     return `
       <div class="evcc-review-reason-chips">
-        <div class="evcc-field-label">Exclude Reason</div>
+        <div class="evcc-field-label">${this.t("review.exclude_reason")}</div>
         <div class="evcc-chips evcc-review-filter-chips">
           ${options.map((opt) => `
             <button
@@ -417,21 +419,21 @@ export function applyReviewRenderers(proto) {
     const excluded = job?.excluded_from_learning === true;
     const badges = [];
 
-    if (excluded) badges.push({ text: "Excluded", cls: "evcc-review-badge--excluded" });
-    if (job?.exclude_suggested === true) badges.push({ text: job?.exclude_suggested_reason_label || "Suggested Exclude", cls: "evcc-review-badge--suggested" });
-    if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: job?.status_label || this._formatReviewLabel(job?.status || "Unknown"), cls: "evcc-review-badge--warning" });
-    if (job?.sanity_passed === false) badges.push({ text: "Sanity Failed", cls: "evcc-review-badge--warning" });
-    if (job?.mid_job_recharge_observed === true) badges.push({ text: "Recharge", cls: "evcc-review-badge--neutral" });
-    if (job?.is_single_room === true) badges.push({ text: "Single Room", cls: "evcc-review-badge--neutral" });
-    if (job?.is_multi_room === true) badges.push({ text: "Multi Room", cls: "evcc-review-badge--neutral" });
+    if (excluded) badges.push({ text: this.t("review.badge_excluded"), cls: "evcc-review-badge--excluded" });
+    if (job?.exclude_suggested === true) badges.push({ text: job?.exclude_suggested_reason_label || this.t("review.badge_suggested_exclude"), cls: "evcc-review-badge--suggested" });
+    if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown")), cls: "evcc-review-badge--warning" });
+    if (job?.sanity_passed === false) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
+    if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
+    if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });
+    if (job?.is_multi_room === true) badges.push({ text: this.t("review.badge_multi_room"), cls: "evcc-review-badge--neutral" });
 
     const detailParts = [
       this._formatReviewTimestamp(job?.started_at),
-      Number.isFinite(Number(job?.duration_minutes)) ? `${Number(job.duration_minutes).toFixed(1).replace(/\.0$/, "")} min` : "",
-      Number.isFinite(Number(job?.outlier_score)) ? `Outlier ${Number(job.outlier_score).toFixed(2)}` : "",
-      Number.isFinite(Number(job?.battery_used)) ? `Battery ${Number(job.battery_used)}` : "",
+      Number.isFinite(Number(job?.duration_minutes)) ? this.t("review.detail_minutes", { value: Number(job.duration_minutes).toFixed(1).replace(/\.0$/, "") }) : "",
+      Number.isFinite(Number(job?.outlier_score)) ? this.t("review.detail_outlier", { value: Number(job.outlier_score).toFixed(2) }) : "",
+      Number.isFinite(Number(job?.battery_used)) ? this.t("review.detail_battery", { value: Number(job.battery_used) }) : "",
       Number.isFinite(Number(job?.total_water_used_ml)) && Number(job.total_water_used_ml) > 0
-        ? `Water ${Math.round(Number(job.total_water_used_ml))} ml`
+        ? this.t("review.detail_water", { value: Math.round(Number(job.total_water_used_ml)) })
         : "",
     ].filter(Boolean);
 
@@ -452,18 +454,18 @@ export function applyReviewRenderers(proto) {
     // Fold the settings into the profile value (and drop the duplicate subtitle)
     // for profiles with a known namesake — same stable disambiguation as the
     // Metrics cards and the filter chips.
-    const profileBase = job?.profile_label || job?.selected_profile_label || job?.resolved_profile_label || job?.profile_key || "Unknown";
+    const profileBase = job?.profile_label || job?.selected_profile_label || job?.resolved_profile_label || job?.profile_key || this.t("review.unknown");
     const profileSettings = String(job?.profile_subtitle ?? "").trim();
     const profileAmbiguous = !!(this.card?._state?._isAmbiguousProfileLabel?.(profileBase) && profileSettings);
     const profileDisplay = profileAmbiguous ? `${profileBase} · ${profileSettings}` : profileBase;
     const profileSubtitle = profileAmbiguous ? null : (job?.profile_subtitle || null);
     const roomDisplay = Array.isArray(job?.room_slugs) && job.room_slugs.length
         ? job.room_slugs.join(", ")
-      : "Unknown";
-    const primaryRoomDisplay = job?.primary_room_label || job?.primary_room_slug || "Unknown";
+      : this.t("review.unknown");
+    const primaryRoomDisplay = job?.primary_room_label || job?.primary_room_slug || this.t("review.unknown");
     const scopeDisplay =
       job?.job_scope_label ||
-      (job?.job_scope ? this._formatReviewLabel(job.job_scope) : "Unknown");
+      (job?.job_scope ? this._formatReviewLabel(job.job_scope) : this.t("review.unknown"));
 
     return `
       <article class="evcc-review-job-card ${excluded ? "evcc-review-job-card--excluded" : ""} ${job?.exclude_suggested ? "evcc-review-job-card--suggested" : ""}">
@@ -480,11 +482,11 @@ export function applyReviewRenderers(proto) {
         </div>
 
         <div class="evcc-review-job-grid">
-          ${this._renderReviewKeyValue("Rooms", roomDisplay)}
-          ${this._renderReviewKeyValue("Scope", scopeDisplay)}
-          ${this._renderReviewKeyValue("Profile", profileDisplay, profileSubtitle)}
-          ${this._renderReviewKeyValue("Used For Learning", job?.used_for_learning === true ? "Yes" : "No")}
-          ${this._renderReviewKeyValue("Primary Room", primaryRoomDisplay)}
+          ${this._renderReviewKeyValue(this.t("review.kv_rooms"), roomDisplay)}
+          ${this._renderReviewKeyValue(this.t("review.kv_scope"), scopeDisplay)}
+          ${this._renderReviewKeyValue(this.t("review.kv_profile"), profileDisplay, profileSubtitle)}
+          ${this._renderReviewKeyValue(this.t("review.kv_used_for_learning"), job?.used_for_learning === true ? this.t("review.yes") : this.t("review.no"))}
+          ${this._renderReviewKeyValue(this.t("review.kv_primary_room"), primaryRoomDisplay)}
         </div>
 
         ${reasonText ? `
@@ -500,7 +502,7 @@ export function applyReviewRenderers(proto) {
               data-review-action="exclude"
               data-job-id="${this.escapeHtml(jobId)}"
               ${pending ? "disabled" : ""}
-            >${pending ? "Working..." : "Exclude"}</button>
+            >${pending ? this.t("review.working") : this.t("review.exclude")}</button>
           ` : ""}
 
           ${restoreAllowed ? `
@@ -510,7 +512,7 @@ export function applyReviewRenderers(proto) {
               data-review-action="restore"
               data-job-id="${this.escapeHtml(jobId)}"
               ${pending ? "disabled" : ""}
-            >${pending ? "Working..." : "Restore"}</button>
+            >${pending ? this.t("review.working") : this.t("review.restore")}</button>
           ` : ""}
         </div>
       </article>
