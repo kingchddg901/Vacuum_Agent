@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 # Maintenance reset buttons are event-driven; run-profile buttons call the
@@ -18,12 +17,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from .adapters.registry import get_adapter_config
 from .const import DOMAIN
 from .entity_helpers import build_vacuum_device_info
-
-
-def _slugify_profile_name(value: str) -> str:
-    """Return a stable slug segment for a saved run profile."""
-    text = re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower())
-    return text.strip("_") or "run_profile"
 
 
 async def async_setup_entry(

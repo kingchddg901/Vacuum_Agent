@@ -11,7 +11,6 @@ Coverage targets
 [BE-7]  EufyVacuumSavedRunProfileButton.available False when expose_as_button=False or missing.
 [BE-8]  EufyVacuumSavedRunProfileButton.extra_state_attributes includes vacuum_entity_id and map_id.
 [BE-9]  EufyVacuumSavedRunProfileButton.async_press calls manager.start_run_profile + async_save.
-[BE-10] _slugify_profile_name lowercases, collapses non-alphanumeric to underscores.
 [BE-11] async_setup_entry wires the update callback; exposing a profile adds its run button.
 [BE-12] A profile exposed before setup is built into the initial entities.
 [BE-13] Un-exposing a profile reconciles away its stale button (async_remove + registry un-register).
@@ -29,7 +28,6 @@ import custom_components.eufy_vacuum.button as button_mod
 from custom_components.eufy_vacuum.button import (
     EufyVacuumMaintenanceResetButton,
     EufyVacuumSavedRunProfileButton,
-    _slugify_profile_name,
 )
 from custom_components.eufy_vacuum.const import DOMAIN
 
@@ -189,23 +187,6 @@ async def test_run_button_async_press_calls_start_run_profile(hass):
         profile_id="p1",
     )
     manager.async_save.assert_awaited_once()
-
-
-# ---------------------------------------------------------------------------
-# [BE-10] _slugify_profile_name
-# ---------------------------------------------------------------------------
-
-@pytest.mark.parametrize("value,expected", [
-    ("Morning Vacuum", "morning_vacuum"),
-    ("UPSTAIRS & HALL", "upstairs_hall"),
-    ("deep-clean!", "deep_clean"),
-    ("", "run_profile"),
-    (None, "run_profile"),
-    ("room 1", "room_1"),
-])
-def test_slugify_profile_name(value, expected):
-    """[BE-10] _slugify_profile_name lowercases and collapses non-alphanumeric to underscores."""
-    assert _slugify_profile_name(value) == expected
 
 
 # ---------------------------------------------------------------------------
