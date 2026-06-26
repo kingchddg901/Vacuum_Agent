@@ -17,6 +17,11 @@ Coverage targets
          mop-derived default (the Roborock S6 declares it False — water is unsettable).
 [CAP-9]  detect_capabilities: has_attribute_rooms hint reports rooms/segments support
          WITHOUT a map entity (scalar/Tuya transport); supports_active_map stays False.
+[CAP-10] refresh_vacuum_capabilities reproduces startup inputs: re-passes the adapter's
+         stored model_family + capability_hints, so a refresh keeps model_family (not
+         "generic") and keeps has_attribute_rooms (scalar supports_rooms).
+[CAP-11] get_vacuum_capabilities self-heals a stale persisted model_family: re-detects
+         (even refresh=False) when the adapter now declares a different family; idempotent.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from custom_components.eufy_vacuum.core.capabilities import (
     _find_registry_entity_by_tokens,
     detect_capabilities,
 )
+from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
 
 from homeassistant.helpers import entity_registry as er
 
@@ -225,3 +231,63 @@ def test_get_vacuum_capabilities_refreshes_when_model_newly_known(manager):
     out = manager.get_vacuum_capabilities(
         vacuum_entity_id=_VAC, detected_model="X8", refresh=False)
     assert out["detected_model"] == "X8"
+
+
+def test_refresh_preserves_model_family_and_attribute_room_hint(hass, manager):
+    """[CAP-10] A capability REFRESH must reproduce the SAME detect_capabilities
+    inputs as startup by re-passing the adapter's stored model_family +
+    capability_hints. Without that, refresh_vacuum_capabilities omits model_family
+    (detect_capabilities defaults it to 'generic') and drops INPUT-ONLY hints like
+    has_attribute_rooms — so an attribute-mode/scalar device silently loses
+    supports_rooms on any refresh. Guards the live regression observed on an X10
+    (detected_model 'T2351' but model_family 'generic')."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        # Attribute-mode shape: NO active_map entity at all.
+        "entities": {"vacuum": _VAC},
+        "model_family": "x10",
+        "capability_hints": {"has_attribute_rooms": True, "supports_mop_wash": True},
+        # The curated capabilities subset deliberately lacks model_family /
+        # has_attribute_rooms — proving the fix reads capability_hints, not this.
+        "capabilities": {"supports_path_control": True},
+    })
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 1, "name": "Kitchen"}]})
+
+    caps = manager.refresh_vacuum_capabilities(
+        vacuum_entity_id=_VAC, detected_model="T2351")
+
+    assert caps["detected_model"] == "T2351"
+    assert caps["model_family"] == "x10"          # preserved, NOT reverted to "generic"
+    assert caps["supports_rooms"] is True          # via the has_attribute_rooms hint
+    assert caps["supports_segments"] is True
+    assert caps["supports_active_map"] is False    # no active_map entity to dereference
+    assert caps["supports_mop_wash"] is True       # stored hint honored on refresh
+
+
+def test_get_vacuum_capabilities_self_heals_stale_model_family(hass, manager):
+    """[CAP-11] A persisted snapshot with a stale model_family ("generic") is
+    re-detected when the freshly-registered adapter now declares a better family
+    ("x10") — so a detection fix lands on existing installs without a manual
+    refresh, even with refresh=False. Idempotent: once healed, stored matches the
+    adapter family so it does not re-detect again. (This is what made the live X10
+    keep reading "generic" until the adapter began publishing model_family.)"""
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "entities": {"active_map": "sensor.alfred_map"},
+        "model_family": "x10",
+        "capability_hints": {"supports_mop_wash": True},
+        "capabilities": {},
+    })
+    hass.states.async_set("sensor.alfred_map", "6")
+    hass.states.async_set(_VAC, "docked", {"segments": [{"id": 1, "name": "Kitchen"}]})
+    # Stale persisted snapshot (pre-fix): detected_model set, model_family generic.
+    manager.data.setdefault("capabilities", {})[_VAC] = {
+        "detected_model": "T2351", "model_family": "generic", "supports_rooms": True,
+    }
+
+    out = manager.get_vacuum_capabilities(vacuum_entity_id=_VAC, refresh=False)
+    assert out["model_family"] == "x10"            # self-healed
+    assert out["supports_mop_wash"] is True        # via the stored hint
+
+    # The refresh wrote the adapter family back, so the mismatch is gone.
+    assert manager.data["capabilities"][_VAC]["model_family"] == "x10"

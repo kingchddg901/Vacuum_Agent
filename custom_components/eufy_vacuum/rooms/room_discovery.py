@@ -21,6 +21,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .utils import slugify_room_name
 from .source_refresh import (
@@ -31,51 +32,87 @@ from ..adapters.registry import get_adapter_config
 
 _LOGGER = logging.getLogger(__name__)
 
+# HA sentinel states that mean "no usable value".
+_ACTIVE_MAP_SENTINELS = {"unknown", "unavailable", "", "none", "None"}
+
 
 def get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None:
     """Return the active map ID for a vacuum, if available.
 
-    Reads the entity declared as entities.active_map in the adapter config. When
-    the device exposes that entity (novel Eufy / Roborock) it is the single
-    source of truth. When NO active_map entity exists at all — an attribute-mode
-    device, e.g. Eufy on the scalar/Tuya transport, which surfaces its room list
-    as a vacuum attribute but creates no map sensor — fall back to the adapter's
-    single implicit map id (see _implicit_attribute_map_id). Returns None when
-    neither path yields an id.
+    The adapter declares ``entities.active_map`` from a NAMING PATTERN for every
+    device, so the config always carries an entity id — "declared" does NOT mean
+    "exists". Resolution therefore keys off whether the entity actually exists:
+
+    - Entity present in the state machine → it is the single source of truth
+      (a sentinel value returns None — wait, don't fork a second map).
+    - Entity absent from the state machine but present in the ENTITY REGISTRY →
+      a novel device whose sensor hasn't materialised yet (boot/restart window):
+      return None and wait. Must NOT fork a phantom implicit map.
+    - Entity absent from BOTH state machine and registry → the sensor is never
+      created: an attribute-mode device (e.g. Eufy on the scalar/Tuya transport)
+      that surfaces its room list as a vacuum attribute. Fall back to the
+      adapter's single implicit map id (see _implicit_attribute_map_id).
+
+    Returns None when no path yields an id.
     """
     config = get_adapter_config(vacuum_entity_id)
     active_map_entity = (config or {}).get("entities", {}).get("active_map")
 
     if active_map_entity:
-        # Entity present: trust it exclusively. A transiently unavailable entity
-        # returns None (wait for it) rather than forking a second implicit map.
         state = hass.states.get(active_map_entity)
-        if state is None:
-            _LOGGER.debug("Active map entity %s missing for %s", active_map_entity, vacuum_entity_id)
+        if state is not None:
+            value = state.state
+            if value in _ACTIVE_MAP_SENTINELS:
+                _LOGGER.debug(
+                    "Active map entity %s sentinel value for %s: %s",
+                    active_map_entity, vacuum_entity_id, value,
+                )
+                return None
+            return str(value)
+        # Declared but not in the state machine. Distinguish a registered-but-
+        # not-yet-materialised sensor (novel boot race → wait) from a sensor that
+        # is never created (scalar/attribute mode → implicit fallback).
+        if _entity_registered(hass, active_map_entity):
+            _LOGGER.debug(
+                "Active map entity %s registered but no state yet for %s — waiting",
+                active_map_entity, vacuum_entity_id,
+            )
             return None
-        value = state.state
-        if value in {"unknown", "unavailable", "", "none", "None"}:
-            _LOGGER.debug("Active map entity invalid value for %s: %s", vacuum_entity_id, value)
-            return None
-        return str(value)
+        _LOGGER.debug(
+            "Active map entity %s declared but never created for %s — trying "
+            "implicit attribute map", active_map_entity, vacuum_entity_id,
+        )
 
-    # No active_map entity declared — attribute-mode fallback.
-    _LOGGER.debug("No active_map entity for %s — trying implicit attribute map", vacuum_entity_id)
     return _implicit_attribute_map_id(hass, vacuum_entity_id, config)
+
+
+def _entity_registered(hass: HomeAssistant, entity_id: str) -> bool:
+    """True if entity_id exists in the HA entity registry.
+
+    Used to tell a sensor that is momentarily stateless (registered, e.g. during
+    a restart) from one that is never created at all (the scalar transport never
+    registers an active_map sensor). Defensive — never raises.
+    """
+    try:
+        return er.async_get(hass).async_get(entity_id) is not None
+    except Exception:  # pragma: no cover - defensive
+        return False
 
 
 def _implicit_attribute_map_id(
     hass: HomeAssistant, vacuum_entity_id: str, config: dict | None
 ) -> str | None:
-    """Single implicit map id for an attribute-mode device (no active_map entity).
+    """Single implicit map id for an attribute-mode device (no active_map sensor).
 
     A device that exposes its room list as a vacuum-entity attribute but creates
     no active_map sensor still has exactly one map. When the adapter declares
-    ``discovery.implicit_map_id`` AND that room-list attribute currently holds a
-    non-empty list, return the implicit id so import/discovery have an anchor.
-    Returns None otherwise — so brands that don't opt in (Roborock, which uses a
-    service-response source and sets no implicit_map_id) are unaffected, and the
-    implicit map never appears for a device with no rooms.
+    ``discovery.implicit_map_id`` AND that room-list attribute currently holds at
+    least one room-shaped (dict) row, return the implicit id so import/discovery
+    have an anchor. Returns None otherwise — so brands that don't opt in
+    (Roborock, which uses a service-response source and sets no implicit_map_id)
+    are unaffected, and the implicit map never appears for a device that exposes
+    no usable rooms (an empty or all-junk segments list — which discovery would
+    reject anyway).
     """
     discovery = (config or {}).get("discovery", {}) or {}
     implicit = discovery.get("implicit_map_id")
@@ -85,7 +122,9 @@ def _implicit_attribute_map_id(
         return None
     state = hass.states.get(vacuum_entity_id)
     rooms = state.attributes.get(attr) if state is not None else None
-    if isinstance(rooms, list) and rooms:
+    # Require at least one dict row — a non-empty list of non-dicts is not a usable
+    # room list and must not anchor a phantom map (matches discover_rooms' filter).
+    if isinstance(rooms, list) and any(isinstance(r, dict) for r in rooms):
         return str(implicit)
     return None
 

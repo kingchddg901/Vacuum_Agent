@@ -295,6 +295,16 @@ def register_eufy_adapter_for_vacuum(
         # app"); the card falls back to generic phrasing when absent.
         "brand": "Eufy",
 
+        # Model family + the model-based capability hints used to build the caps
+        # below. Stored so a later capability REFRESH (core/manager
+        # .refresh_vacuum_capabilities) reproduces the SAME detect_capabilities
+        # inputs as startup. Without these, a refresh reverts model_family to
+        # "generic" (detect_capabilities' default) and drops INPUT-ONLY hints such
+        # as has_attribute_rooms (which gates attribute-mode / scalar room support).
+        # Brand-agnostic: the manager passes through whatever the adapter stores.
+        "model_family": model_family,
+        "capability_hints": dict(capability_hints),
+
         "entities": entities,
 
         # External-run capture: the global select entities that reflect the

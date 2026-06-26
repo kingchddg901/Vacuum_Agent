@@ -1020,11 +1020,24 @@ class EufyVacuumManager:
         _entity_candidates: dict[str, list[str]] = {
             k: [v] for k, v in _adapter_entities.items() if v
         }
-        _capability_hints: dict[str, bool] = {
-            k: bool(v)
-            for k, v in _adapter_cfg.get("capabilities", {}).items()
-            if isinstance(v, bool)
-        }
+        # Prefer the adapter's stored model_family + original capability_hints so a
+        # refresh reproduces the SAME detect_capabilities inputs as startup. Without
+        # this, a refresh reverts model_family to "generic" (detect_capabilities'
+        # default) and drops INPUT-ONLY hints like has_attribute_rooms (which gates
+        # attribute-mode / scalar room support). Adapters that publish no
+        # capability_hints fall back to deriving boolean hints from stored flags.
+        _model_family = _adapter_cfg.get("model_family")
+        _stored_hints = _adapter_cfg.get("capability_hints")
+        if isinstance(_stored_hints, dict) and _stored_hints:
+            _capability_hints: dict[str, bool] = {
+                k: bool(v) for k, v in _stored_hints.items() if isinstance(v, bool)
+            }
+        else:
+            _capability_hints = {
+                k: bool(v)
+                for k, v in _adapter_cfg.get("capabilities", {}).items()
+                if isinstance(v, bool)
+            }
         _maintenance_components = _adapter_cfg.get("maintenance_components") or None
 
         payload = detect_capabilities(
@@ -1032,6 +1045,7 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             detected_model=effective_model,
             entity_candidates=_entity_candidates or None,
+            model_family=_model_family,
             capability_hints=_capability_hints or None,
             maintenance_components=_maintenance_components,
         )
@@ -1073,6 +1087,22 @@ class EufyVacuumManager:
             )
 
         if effective_model and not stored.get("detected_model"):
+            return self.refresh_vacuum_capabilities(
+                vacuum_entity_id=vacuum_entity_id,
+                detected_model=effective_model,
+            )
+
+        # Self-heal stale persisted caps after a code update. The adapter config is
+        # recomputed fresh each boot; if its model_family no longer matches the
+        # persisted snapshot (e.g. a detection fix now resolves "x10" where stored
+        # caps say "generic"), re-detect so the snapshot — and everything derived
+        # from it, like supports_rooms in attribute mode — picks up the fix without
+        # a manual refresh. Fires only on a real mismatch (adapter declares a family
+        # AND it differs), so steady state never re-detects and adapters that
+        # publish no model_family are unaffected. Idempotent: the refresh writes the
+        # adapter's family back, so the next call matches.
+        _adapter_family = (_get_adapter_config(vacuum_entity_id) or {}).get("model_family")
+        if _adapter_family and stored.get("model_family") != _adapter_family:
             return self.refresh_vacuum_capabilities(
                 vacuum_entity_id=vacuum_entity_id,
                 detected_model=effective_model,
