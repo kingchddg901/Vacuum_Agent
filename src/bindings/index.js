@@ -78,6 +78,27 @@ export class VacuumCardBindings {
     return this;
   }
 
+  /**
+   * Translate a UI string for a binding (toast / confirm / error message). The
+   * binding prototype has no `t` of its own, so it delegates to the renderers'
+   * i18n (`card._renderers.t`, defined in renderers/shared.js); if the renderers
+   * aren't constructed yet it falls back to the key — a visible miss, never a
+   * throw. Interpolation values are raw, escaped by the caller at the sink as
+   * before (trust model B escapes only the catalog string).
+   *
+   * @param {string} key - dot-namespaced string key (e.g. "bind_rooms.saved").
+   * @param {Record<string, unknown>} [vars] - interpolation values (raw).
+   * @returns {string}
+   */
+  t(key, vars) {
+    return this.card?._renderers?.t?.(key, vars) ?? key;
+  }
+
+  /** Markup-preserving translate (see `t`); delegates to `card._renderers.tRaw`. */
+  tRaw(key, vars) {
+    return this.card?._renderers?.tRaw?.(key, vars) ?? key;
+  }
+
   /** Re-attach all shadow-root event handlers after each render. */
   bindEvents() {
     this._bindNav();

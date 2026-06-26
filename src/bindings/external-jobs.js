@@ -202,11 +202,11 @@ export function applyExternalJobsBindings(proto) {
       if (res && res.ok) {
         card._state.applyResegmentResult(res);
       } else {
-        card._state.setExternalWizardError("Re-segment failed — please try again.");
+        card._state.setExternalWizardError(this.t("bind_external_jobs.resegment_failed_retry"));
       }
     } catch (err) {
       console.error("[eufy-vacuum-command-center] resegment external failed:", err);
-      card._state.setExternalWizardError("Re-segment failed: " + (err?.message || err));
+      card._state.setExternalWizardError(this.t("bind_external_jobs.resegment_failed_detail", { detail: (err?.message || err) }));
     } finally {
       card._state.setExternalWizardBusy(false);
       card._scheduleRender();
@@ -233,7 +233,7 @@ export function applyExternalJobsBindings(proto) {
     });
 
     if (assignments.some((a) => !a.room_id)) {
-      card._state.setExternalWizardError("Pick a room for every panel before confirming.");
+      card._state.setExternalWizardError(this.t("bind_external_jobs.pick_room_every_panel"));
       card._scheduleRender();
       return;
     }
@@ -254,13 +254,13 @@ export function applyExternalJobsBindings(proto) {
         card._scheduleRender();
       } else {
         card._state.setExternalWizardBusy(false);
-        card._state.setExternalWizardError("Confirm failed — please try again.");
+        card._state.setExternalWizardError(this.t("bind_external_jobs.confirm_failed_retry"));
         card._scheduleRender();
       }
     } catch (err) {
       console.error("[eufy-vacuum-command-center] confirm external failed:", err);
       card._state.setExternalWizardBusy(false);
-      card._state.setExternalWizardError("Confirm failed: " + (err?.message || err));
+      card._state.setExternalWizardError(this.t("bind_external_jobs.confirm_failed_detail", { detail: (err?.message || err) }));
       card._scheduleRender();
     }
   };

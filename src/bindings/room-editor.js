@@ -79,7 +79,7 @@ export function applyRoomEditorBindings(proto) {
 
     const choiceText = this._roomProfileTargetChoices();
     const entered = window.prompt(
-      `Choose a custom profile key:\n\n${choiceText}`,
+      this.t("bind_room_editor.choose_custom_profile_key", { choiceText }),
       customProfiles[0]?.name ?? ""
     );
 
@@ -122,7 +122,7 @@ export function applyRoomEditorBindings(proto) {
       : null;
     const room = this.card._state.activeEditorRoom?.();
 
-    return activeProfile?.label ?? room?.name ?? "Custom Room Profile";
+    return activeProfile?.label ?? room?.name ?? this.t("bind_room_editor.default_custom_profile_label");
   };
 
   /**
@@ -145,7 +145,7 @@ export function applyRoomEditorBindings(proto) {
     if (!room) return;
 
     const label = window.prompt(
-      "Save current room settings as a new profile. Enter a display label:",
+      this.t("bind_room_editor.save_new_profile_prompt"),
       this._defaultRoomProfileLabel()
     );
 
@@ -162,7 +162,7 @@ export function applyRoomEditorBindings(proto) {
     });
 
     if (!response?.saved) {
-      this._alertRoomProfileResult(response, "Failed to save room profile.");
+      this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_save_profile"));
       return;
     }
 
@@ -188,7 +188,9 @@ export function applyRoomEditorBindings(proto) {
 
     const targetProfile = this.card._state.roomProfileDefinition?.(targetProfileName);
     const confirmed = window.confirm(
-      `Overwrite ${targetProfile?.label ?? targetProfileName} with this room's current settings?`
+      this.t("bind_room_editor.confirm_overwrite_profile", {
+        target: targetProfile?.label ?? targetProfileName,
+      })
     );
     if (!confirmed) return;
 
@@ -200,7 +202,7 @@ export function applyRoomEditorBindings(proto) {
     });
 
     if (!response?.overwritten) {
-      this._alertRoomProfileResult(response, "Failed to overwrite room profile.");
+      this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_overwrite_profile"));
       return;
     }
 
@@ -222,20 +224,20 @@ export function applyRoomEditorBindings(proto) {
     }
 
     const nextLabel = window.prompt(
-      "Enter the new display label for this room profile:",
+      this.t("bind_room_editor.rename_label_prompt"),
       targetProfile.label
     );
     if (nextLabel == null) return;
 
     const trimmedLabel = String(nextLabel).trim();
     if (!trimmedLabel) {
-      window.alert("A room profile label is required.");
+      window.alert(this.t("bind_room_editor.label_required"));
       return;
     }
 
     const suggestedKey = this.card._state.makeRoomProfileName?.(trimmedLabel, targetProfileName);
     const nextProfileName = window.prompt(
-      "Optional: enter a new backend profile key.",
+      this.t("bind_room_editor.rename_key_prompt"),
       suggestedKey ?? targetProfileName
     );
     if (nextProfileName == null) return;
@@ -251,7 +253,7 @@ export function applyRoomEditorBindings(proto) {
     });
 
     if (!response?.renamed) {
-      this._alertRoomProfileResult(response, "Failed to rename room profile.");
+      this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_rename_profile"));
       return;
     }
 
@@ -284,7 +286,7 @@ export function applyRoomEditorBindings(proto) {
     }
 
     const confirmed = window.confirm(
-      `Delete ${targetProfile.label}? This cannot be undone.`
+      this.t("bind_room_editor.confirm_delete_profile", { label: targetProfile.label })
     );
     if (!confirmed) return;
 
@@ -293,7 +295,7 @@ export function applyRoomEditorBindings(proto) {
     });
 
     if (!response?.deleted) {
-      this._alertRoomProfileResult(response, "Failed to delete room profile.");
+      this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_delete_profile"));
       return;
     }
 

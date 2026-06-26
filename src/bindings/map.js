@@ -544,7 +544,7 @@ export function applyMapBindings(proto) {
           if (!mapId) {
             this.card._state.setMapActionStatus({
               type: "upload", variant, status: "error",
-              message: "No active map found",
+              message: this.t("bind_map.no_active_map"),
             });
             this.card._scheduleRender();
             return;
@@ -565,7 +565,7 @@ export function applyMapBindings(proto) {
               file,
               isCustom ? { maxDim: 2048, allowDownscale: true } : { allowDownscale: false },
             );
-            if (!fitted) throw new Error("Could not prepare the image for upload");
+            if (!fitted) throw new Error(this.t("bind_map.could_not_prepare_image"));
             const base64 = fitted.base64;
             // A custom backdrop targets the ACTIVE layout (custom_<id> variant);
             // the server forces the variant key from layout_id.
@@ -642,17 +642,17 @@ export function applyMapBindings(proto) {
 
           const ok = result && result.deleted !== false;
           this.card.showToast?.(
-            ok ? `${variant.charAt(0).toUpperCase()}${variant.slice(1)} image deleted`
-               : `Could not delete ${variant} image`,
+            ok ? this.t("bind_map.variant_image_deleted", { variant: `${variant.charAt(0).toUpperCase()}${variant.slice(1)}` })
+               : this.t("bind_map.could_not_delete_variant_image", { variant }),
             { kind: ok ? "success" : "error" }
           );
         } catch (err) {
           console.error("[eufy-vacuum-command-center] deleteMapImage failed:", err);
           this.card._state.setMapActionStatus?.({
             type: "delete", variant, status: "error",
-            message: err?.message ?? "Delete failed",
+            message: err?.message ?? this.t("bind_map.delete_failed"),
           });
-          this.card.showToast?.(`Could not delete ${variant} image`, { kind: "error" });
+          this.card.showToast?.(this.t("bind_map.could_not_delete_variant_image", { variant }), { kind: "error" });
         }
 
         this.card._scheduleRender();
@@ -691,7 +691,7 @@ export function applyMapBindings(proto) {
           console.error("[eufy-vacuum-command-center] Map analysis failed:", err);
           this.card._state.setMapActionStatus({
             type: "analyze", status: "error",
-            message: err?.message ?? "Analysis failed",
+            message: err?.message ?? this.t("bind_map.analysis_failed"),
           });
           this.card._scheduleRender();
         }
@@ -887,8 +887,8 @@ export function applyMapBindings(proto) {
           // silently saving room links onto segments that never persisted.
           if (!res?.saved) {
             const reason = res?.reason === "no_custom_backdrop"
-              ? "Map image still loading — wait for the live map to appear, then save again (or upload a backdrop)."
-              : (res?.reason ? `Save failed: ${res.reason}` : "Save failed");
+              ? this.t("bind_map.map_image_still_loading")
+              : (res?.reason ? this.t("bind_map.save_failed_reason", { reason: res.reason }) : this.t("bind_map.save_failed"));
             this.card._state.setMapActionStatus?.({
               type: "compose-save", status: "error", message: reason,
             });
@@ -907,7 +907,7 @@ export function applyMapBindings(proto) {
           console.error("[eufy-vacuum-command-center] save custom segments failed:", err);
           this.card._state.setMapActionStatus?.({
             type: "compose-save", status: "error",
-            message: err?.message ?? "Save failed",
+            message: err?.message ?? this.t("bind_map.save_failed"),
           });
           this.card._scheduleRender();
         }
@@ -1538,7 +1538,7 @@ export function applyMapBindings(proto) {
           if (!mapId || !layoutId) {
             this.card._state.setMapActionStatus({
               type: "upload", variant: "furnished-art", status: "error",
-              message: "No active Live-map layout found",
+              message: this.t("bind_map.no_active_live_map_layout"),
             });
             this.card._scheduleRender();
             return;
@@ -1548,7 +1548,7 @@ export function applyMapBindings(proto) {
           try {
             // Display-only art: downscale + recompress (alpha-safe) to fit HA's WS frame.
             const fitted = await _imageFileToFittedBase64(file, { maxDim: 2048, allowDownscale: true });
-            if (!fitted) throw new Error("Could not prepare the image for upload");
+            if (!fitted) throw new Error(this.t("bind_map.could_not_prepare_image"));
             await this.card._actions.uploadMapImage(mapId, fitted.base64, {
               variant: "custom",        // ignored when art_scope is set (server derives the key)
               layout_id: layoutId,
@@ -1621,7 +1621,7 @@ export function applyMapBindings(proto) {
           console.error("[eufy-vacuum-command-center] export map image failed:", err);
           this.card._state.setMapActionStatus?.({
             type: "export", variant: "furnished-map", status: "error",
-            message: "Couldn't save the map image — try right-click → Save image on the map.",
+            message: this.t("bind_map.could_not_save_map_image"),
           });
           this.card._scheduleRender();
         }

@@ -123,7 +123,7 @@ export function applyRoomsBindings(proto) {
         }
         await this.card._actions.cancelActiveRun();
         await this.card.refreshDashboardSnapshot?.();
-        this.card.showToast?.("Cancel sent — returning to dock", { kind: "info", ttl: 4000 });
+        this.card.showToast?.(this.t("bind_rooms.cancel_sent"), { kind: "info", ttl: 4000 });
         this.card._scheduleRender();
         return;
       }
@@ -195,7 +195,7 @@ export function applyRoomsBindings(proto) {
     "click",
     async () => {
       await this.card._actions.locateVacuum();
-      this.card.showToast?.("Locate sent — listen for the chirp", { kind: "info" });
+      this.card.showToast?.(this.t("bind_rooms.locate_sent"), { kind: "info" });
       this.card._scheduleRender();
     }
   );
@@ -227,7 +227,7 @@ export function applyRoomsBindings(proto) {
         this.card._state.clearCancelRunConfirmation?.();
         await this.card._actions.clearQueue();
         await this.card.refreshDashboardSnapshot?.();
-        this.card.showToast?.("Queue cleared", { kind: "success" });
+        this.card.showToast?.(this.t("bind_rooms.queue_cleared"), { kind: "success" });
         this.card._scheduleRender();
         return;
       }
@@ -295,8 +295,10 @@ export function applyRoomsBindings(proto) {
 
       const ok = result !== null && result !== undefined;
       this.card.showToast?.(
-        ok ? `Re-queued ${count} missed room${count === 1 ? "" : "s"}`
-           : `Could not retry missed rooms`,
+        ok ? (count === 1
+                ? this.t("bind_rooms.requeued_missed_one", { count })
+                : this.t("bind_rooms.requeued_missed_many", { count }))
+           : this.t("bind_rooms.could_not_retry_missed"),
         { kind: ok ? "success" : "error" }
       );
 
@@ -326,7 +328,7 @@ export function applyRoomsBindings(proto) {
       let pointerActive = false;
       let clickTimer = null;
 
-      chip.title = "Click for settings - Double-click for estimate - Hold to remove from queue";
+      chip.title = this.t("bind_rooms.chip_title");
 
       const clearClickTimer = () => {
         if (clickTimer) {

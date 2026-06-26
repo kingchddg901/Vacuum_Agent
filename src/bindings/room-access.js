@@ -92,7 +92,7 @@ export function applyRoomAccessBindings(proto) {
               result?.reason_detail ??
               result?.message ??
               result?.reason ??
-              "The backend rejected this room access graph.";
+              this.t("bind_room_access.backend_rejected_graph");
 
             this.card._state.setRoomAccessSaveError?.(message);
             this.card._scheduleRender();
@@ -108,7 +108,7 @@ export function applyRoomAccessBindings(proto) {
             err
           );
           this.card._state.setRoomAccessSaveError?.(
-            "Failed to save room access. Check Home Assistant logs for details."
+            this.t("bind_room_access.failed_to_save")
           );
           this.card._scheduleRender();
         }

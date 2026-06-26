@@ -59,7 +59,7 @@ export function applyRunProfilesBindings(proto) {
       });
 
       if (result?.ok === false) {
-        alert(result.reason || "Unable to apply run profile.");
+        alert(result.reason || this.t("bind_run_profiles.unable_apply"));
         return;
       }
 
@@ -78,7 +78,7 @@ export function applyRunProfilesBindings(proto) {
         const draft = this.card._state.runProfileDraft?.();
         const name = String(draft?.name ?? "").trim();
         if (!name) {
-          alert("Enter a name for the run profile.");
+          alert(this.t("bind_run_profiles.enter_name"));
           return;
         }
 
@@ -90,7 +90,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || "Unable to save run profile.");
+          alert(result.reason || this.t("bind_run_profiles.unable_save"));
           return;
         }
 
@@ -124,7 +124,7 @@ export function applyRunProfilesBindings(proto) {
 
         const name = String(draft?.name ?? "").trim();
         if (!name) {
-          alert("Enter a name for the run profile.");
+          alert(this.t("bind_run_profiles.enter_name"));
           return;
         }
 
@@ -137,7 +137,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || "Unable to overwrite run profile.");
+          alert(result.reason || this.t("bind_run_profiles.unable_overwrite"));
           return;
         }
 
@@ -156,7 +156,7 @@ export function applyRunProfilesBindings(proto) {
         const profile = this.card._state.selectedRunProfile?.();
         if (!profileId || !profile) return;
 
-        if (!confirm(`Delete run profile "${profile.name}"?`)) return;
+        if (!confirm(this.t("bind_run_profiles.confirm_delete", { name: profile.name }))) return;
 
         const result = await this.card._actions.deleteRunProfile({
           vacuum_entity_id: this.card._state.vacuumEntityId?.(),
@@ -165,7 +165,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || "Unable to delete run profile.");
+          alert(result.reason || this.t("bind_run_profiles.unable_delete"));
           return;
         }
 

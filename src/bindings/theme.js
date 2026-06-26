@@ -122,17 +122,19 @@ export function applyThemeBindings(proto) {
     const { known, unknown } = detectFloorScope(envelope);
     if (!known.length) {
       alert(
-        `${sourceLabel} has no floor types this version recognises` +
-        (unknown.length ? ` (unsupported: ${unknown.join(", ")}).` : ".")
+        this.t("bind_theme.no_recognised_floor_types", { sourceLabel }) +
+        (unknown.length
+          ? this.t("bind_theme.unsupported_suffix", { unknown: unknown.join(", ") })
+          : ".")
       );
       return false;
     }
     const proceed = confirm(
-      `Replace these floor types on the active theme:\n  ${known.join(", ")}` +
+      this.t("bind_theme.replace_floor_types_intro", { known: known.join(", ") }) +
       (unknown.length
-        ? `\n\nSkipped — unsupported in this version:\n  ${unknown.join(", ")}`
+        ? this.t("bind_theme.replace_floor_types_skipped", { unknown: unknown.join(", ") })
         : "") +
-      `\n\nThis overwrites those types. Continue?`
+      this.t("bind_theme.replace_floor_types_confirm")
     );
     if (!proceed) return false;
 
@@ -143,9 +145,9 @@ export function applyThemeBindings(proto) {
     );
     await this._refreshThemeFromBackend();
     alert(
-      `Replaced ${known.join(", ")} from ${sourceLabel}.` +
-      (corrected ? ` ${corrected} value(s) clamped to range.` : "") +
-      (unknown.length ? ` Skipped: ${unknown.join(", ")}.` : "")
+      this.t("bind_theme.replaced_floor_types", { known: known.join(", "), sourceLabel }) +
+      (corrected ? this.t("bind_theme.values_clamped_suffix", { corrected }) : "") +
+      (unknown.length ? this.t("bind_theme.skipped_suffix", { unknown: unknown.join(", ") }) : "")
     );
     return true;
   };
@@ -205,7 +207,7 @@ export function applyThemeBindings(proto) {
       );
 
       if (result?.ok === false) {
-        alert(result.reason || "Unable to select theme.");
+        alert(result.reason || this.t("bind_theme.unable_to_select_theme"));
         return;
       }
 
@@ -247,7 +249,7 @@ export function applyThemeBindings(proto) {
       // null = failure (callService never returns {ok:false}). Bail BEFORE we
       // clear the device pin, so a failed promote doesn't destroy the override.
       if (!result?.ok) {
-        alert(result?.reason || "Unable to apply for everyone.");
+        alert(result?.reason || this.t("bind_theme.unable_to_apply_everyone"));
         return;
       }
       const activeThemeId = result?.active_theme_id ?? result?.theme_id ?? themeId;
@@ -353,7 +355,7 @@ export function applyThemeBindings(proto) {
     if (!result?.ok) {
       this.card._state.applyThemeTagsLocal(id, prior); // revert the optimistic change
       this.card._scheduleRender();
-      alert(result?.reason || "Unable to update tags.");
+      alert(result?.reason || this.t("bind_theme.unable_to_update_tags"));
     }
   };
 
@@ -402,8 +404,10 @@ export function applyThemeBindings(proto) {
           }
         }
 
-        btn.textContent = copied ? "Copied!" : "Select + Ctrl+C";
-        setTimeout(() => { btn.textContent = "Copy"; }, 1800);
+        btn.textContent = copied
+          ? this.t("bind_theme.copied")
+          : this.t("bind_theme.select_ctrl_c");
+        setTimeout(() => { btn.textContent = this.t("bind_theme.copy"); }, 1800);
       });
     });
 
@@ -416,10 +420,15 @@ export function applyThemeBindings(proto) {
         const name = state.library?.[themeId]?.name || themeId || "theme";
 
         btn.disabled = true;
-        btn.textContent = "Sending…";
+        btn.textContent = this.t("bind_theme.sending");
         const ok = await this.card._actions.notifyThemeExport(themeId, name, text);
-        btn.textContent = ok ? "Sent to HA ✓" : "Failed — see logs";
-        setTimeout(() => { btn.textContent = "Send to HA"; btn.disabled = false; }, 1800);
+        btn.textContent = ok
+          ? this.t("bind_theme.sent_to_ha")
+          : this.t("bind_theme.send_failed_see_logs");
+        setTimeout(() => {
+          btn.textContent = this.t("bind_theme.send_to_ha");
+          btn.disabled = false;
+        }, 1800);
       });
     });
 
@@ -431,19 +440,19 @@ export function applyThemeBindings(proto) {
           if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
         };
         const raw = area ? area.value.trim() : "";
-        if (!raw) { showError("Paste a theme export first."); return; }
+        if (!raw) { showError(this.t("bind_theme.paste_theme_first")); return; }
 
         let payload;
         try {
           payload = JSON.parse(raw);
         } catch {
-          showError("That isn't valid JSON — check the pasted text.");
+          showError(this.t("bind_theme.invalid_json"));
           return;
         }
 
         const result = await this.card._actions.importTheme(payload);
         if (result?.ok === false) {
-          showError(`Import failed: ${result.reason || "unknown error"}.`);
+          showError(this.t("bind_theme.import_failed", { reason: result.reason || "unknown error" }));
           return;
         }
 
@@ -1155,7 +1164,7 @@ export function applyThemeBindings(proto) {
           state.activeThemeId
         );
       } else {
-        const name = prompt("Enter a name for your new theme:");
+        const name = prompt(this.t("bind_theme.enter_new_theme_name"));
         if (!name) return;
 
         result = await this.card._actions.saveThemeAsNew(
@@ -1196,7 +1205,7 @@ export function applyThemeBindings(proto) {
 
       const themeId = e.currentTarget.dataset.presetId;
       if (!themeId) return;
-      if (!confirm(`Delete theme "${themeId}"?`)) return;
+      if (!confirm(this.t("bind_theme.delete_theme_confirm", { themeId }))) return;
 
       await this.card._actions.deleteTheme(themeId);
       await this._refreshThemeFromBackend();
@@ -1207,7 +1216,7 @@ export function applyThemeBindings(proto) {
       const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
 
       if (!themeId) {
-        alert("No active theme to export.");
+        alert(this.t("bind_theme.no_active_theme_export"));
         return;
       }
 
@@ -1240,7 +1249,7 @@ export function applyThemeBindings(proto) {
       const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
 
       if (!themeId) {
-        alert("No active theme to download.");
+        alert(this.t("bind_theme.no_active_theme_download"));
         return;
       }
 
@@ -1248,7 +1257,7 @@ export function applyThemeBindings(proto) {
       try {
         result = await this.card._actions.exportTheme(themeId);
       } catch (err) {
-        alert(`Failed to export theme: ${err?.message ?? String(err)}`);
+        alert(this.t("bind_theme.failed_export_theme", { error: err?.message ?? String(err) }));
         return;
       }
 
@@ -1310,11 +1319,14 @@ export function applyThemeBindings(proto) {
             // Full import — adds a new library theme (legacy behavior).
             await this.card._actions.importTheme(payload);
             await this._refreshThemeFromBackend();
-            alert(`Theme imported from ${file.name}.`);
+            alert(this.t("bind_theme.theme_imported_from", { fileName: file.name }));
           }
         } catch (err) {
           alert(
-            `Failed to import "${file.name}": ${err?.message ?? String(err)}`
+            this.t("bind_theme.failed_import_file", {
+              fileName: file.name,
+              error: err?.message ?? String(err),
+            })
           );
         } finally {
           if (input.parentNode === document.body) {
@@ -1334,14 +1346,14 @@ export function applyThemeBindings(proto) {
       const state = this.card._state._ensureThemeState();
       const themeId = this.card._state.effectiveActiveThemeId(); // the DISPLAYED theme (device pin aware)
       if (!themeId) {
-        alert("No active theme to export.");
+        alert(this.t("bind_theme.no_active_theme_export"));
         return;
       }
 
       const select = this.card.$("[data-theme-floor-scope]");
       const type = select?.value;
       if (!type) {
-        alert("Pick a floor type to export.");
+        alert(this.t("bind_theme.pick_floor_type_export"));
         return;
       }
 
@@ -1349,16 +1361,13 @@ export function applyThemeBindings(proto) {
       try {
         result = await this.card._actions.exportTheme(themeId);
       } catch (err) {
-        alert(`Failed to export theme: ${err?.message ?? String(err)}`);
+        alert(this.t("bind_theme.failed_export_theme", { error: err?.message ?? String(err) }));
         return;
       }
 
       const scoped = sliceThemeByTypes(result, [type]);
       if (!themeKeyCount(scoped)) {
-        alert(
-          `This theme has no customised "${type}" floor settings to export. ` +
-          `Adjust and Save the ${type} tokens first.`
-        );
+        alert(this.t("bind_theme.no_customised_floor_settings", { type }));
         return;
       }
 
@@ -1388,10 +1397,13 @@ export function applyThemeBindings(proto) {
       const select = this.card.$("[data-floor-preset]");
       const preset = MARBLE_PRESETS.find((p) => p.id === select?.value);
       if (!preset) {
-        alert("Pick a preset to apply.");
+        alert(this.t("bind_theme.pick_preset_apply"));
         return;
       }
-      await this._applyScopedThemeImport(preset.envelope, `the ${preset.name} preset`);
+      await this._applyScopedThemeImport(
+        preset.envelope,
+        this.t("bind_theme.preset_source_label", { name: preset.name })
+      );
     });
   };
 

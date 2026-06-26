@@ -33,16 +33,18 @@ export function applyBaseStationBindings(proto) {
 
         if (payload) {
           this.card._state.setPauseTimeoutSettings?.(payload);
-          const label = minutes === 0 ? "Auto-cancel disabled" : `Pause timeout set to ${minutes} min`;
+          const label = minutes === 0
+            ? this.t("bind_base_station.auto_cancel_disabled")
+            : this.t("bind_base_station.pause_timeout_set", { minutes });
           this.card.showToast?.(label, { kind: "success" });
         } else {
-          this.card.showToast?.("Could not save pause timeout", { kind: "error" });
+          this.card.showToast?.(this.t("bind_base_station.could_not_save_pause_timeout"), { kind: "error" });
         }
 
         this.card._scheduleRender();
       } catch (err) {
         console.error("[eufy-vacuum-command-center] Failed to set pause timeout:", err);
-        this.card.showToast?.("Could not save pause timeout", { kind: "error" });
+        this.card.showToast?.(this.t("bind_base_station.could_not_save_pause_timeout"), { kind: "error" });
       }
     });
 
@@ -64,10 +66,10 @@ export function applyBaseStationBindings(proto) {
       this.card._scheduleRender();
 
       const labels = {
-        wash_mop: "Mop wash sent",
-        dry_mop: "Mop dry sent",
-        stop_dry_mop: "Stop drying sent",
-        empty_dust: "Dust empty sent",
+        wash_mop: this.t("bind_base_station.mop_wash_sent"),
+        dry_mop: this.t("bind_base_station.mop_dry_sent"),
+        stop_dry_mop: this.t("bind_base_station.stop_drying_sent"),
+        empty_dust: this.t("bind_base_station.dust_empty_sent"),
       };
 
       let ok = false;
@@ -82,8 +84,8 @@ export function applyBaseStationBindings(proto) {
       }
 
       this.card.showToast?.(
-        ok ? (labels[action] ?? "Dock action sent")
-           : `Dock action failed (${action.replace(/_/g, " ")})`,
+        ok ? (labels[action] ?? this.t("bind_base_station.dock_action_sent"))
+           : this.t("bind_base_station.dock_action_failed", { action: action.replace(/_/g, " ") }),
         { kind: ok ? "success" : "error" }
       );
     });
