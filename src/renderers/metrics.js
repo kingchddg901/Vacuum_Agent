@@ -30,14 +30,14 @@ export function applyMetricsRenderers(proto) {
     const { state } = ctx;
     const snapshot = state.metricsSnapshot?.();
     if (!snapshot) {
-      return `<div class="evcc-empty">Loading metrics...</div>`;
+      return `<div class="evcc-empty">${this.t("metrics.loading")}</div>`;
     }
 
     if (snapshot.available === false) {
       return `
         <div class="evcc-metrics-view">
           <div class="evcc-empty">
-            ${this.escapeHtml(snapshot.message || snapshot.reason || "Metrics unavailable.")}
+            ${this.escapeHtml(snapshot.message || snapshot.reason || this.t("metrics.unavailable"))}
           </div>
         </div>
       `;
@@ -54,48 +54,48 @@ export function applyMetricsRenderers(proto) {
           <section class="evcc-metrics-panel">
             <div class="evcc-metrics-panel-header">
               <div>
-                <div class="evcc-metrics-panel-title">Metrics</div>
+                <div class="evcc-metrics-panel-title">${this.t("metrics.panel_title")}</div>
                 <div class="evcc-metrics-panel-subtitle">
-                  ${this.escapeHtml(snapshot.message || "Usage, learning quality, water, and dock metrics across the learning dataset.")}
+                  ${this.escapeHtml(snapshot.message || this.t("metrics.panel_subtitle"))}
                 </div>
               </div>
             </div>
 
             <div class="evcc-metrics-stats">
-              ${this._renderMetricsStat("Jobs", metrics.job_count ?? 0)}
-              ${this._renderMetricsStat("Used", metrics.learning_used_count ?? 0)}
-              ${this._renderMetricsStat("Excluded", metrics.excluded_count ?? 0)}
-              ${this._renderMetricsStat("Updated", this._formatMetricsTimestamp(snapshot.updated_at) || "Unknown")}
+              ${this._renderMetricsStat(this.t("metrics.stat_jobs"), metrics.job_count ?? 0)}
+              ${this._renderMetricsStat(this.t("metrics.stat_used"), metrics.learning_used_count ?? 0)}
+              ${this._renderMetricsStat(this.t("metrics.stat_excluded"), metrics.excluded_count ?? 0)}
+              ${this._renderMetricsStat(this.t("metrics.stat_updated"), this._formatMetricsTimestamp(snapshot.updated_at) || this.t("metrics.unknown"))}
             </div>
           </section>
 
           <section class="evcc-metrics-panel evcc-metrics-panel--wide">
             <div class="evcc-metrics-panel-header">
               <div>
-                <div class="evcc-metrics-panel-title">Filters</div>
-                <div class="evcc-metrics-panel-subtitle">Focus the metrics by room, profile, status, or learning use.</div>
+                <div class="evcc-metrics-panel-title">${this.t("metrics.filters_title")}</div>
+                <div class="evcc-metrics-panel-subtitle">${this.t("metrics.filters_subtitle")}</div>
               </div>
             </div>
 
             <div class="evcc-metrics-filters">
-              ${this._renderMetricsChipFilter("Room", "room_slug", state.metricsFilterRoomOptions?.(), state.metricsFilters?.().room_slug, "All Rooms")}
-              ${this._renderMetricsChipFilter("Profile", "profile_key", state.metricsFilterProfileOptions?.().map((option) => ({
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_room"), "room_slug", state.metricsFilterRoomOptions?.(), state.metricsFilters?.().room_slug, this.t("metrics.filter_all_rooms"))}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key", state.metricsFilterProfileOptions?.().map((option) => ({
                 value: option?.value,
-                label: option?.label ?? option?.value ?? "Profile",
+                label: option?.label ?? option?.value ?? this.t("metrics.profile_fallback"),
                 title: option?.subtitle
-                  ? `${option?.label ?? option?.value ?? "Profile"} | ${option.subtitle}`
-                  : (option?.label ?? option?.value ?? "Profile"),
-              })), state.metricsFilters?.().profile_key, "All Profiles")}
-              ${this._renderMetricsChipFilter("Status", "status", state.metricsFilterStatusOptions?.(), state.metricsFilters?.().status, "All Statuses")}
-              ${this._renderMetricsChipFilter("Learning Use", "used_for_learning", state.metricsFilterUsedOptions?.().map((option) => ({
+                  ? `${option?.label ?? option?.value ?? this.t("metrics.profile_fallback")} | ${option.subtitle}`
+                  : (option?.label ?? option?.value ?? this.t("metrics.profile_fallback")),
+              })), state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_status"), "status", state.metricsFilterStatusOptions?.(), state.metricsFilters?.().status, this.t("metrics.filter_all_statuses"))}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_learning_use"), "used_for_learning", state.metricsFilterUsedOptions?.().map((option) => ({
                 value: option?.value_key ?? option?.value,
                 label: option?.label ?? option?.value_key ?? option?.value,
-              })), state.metricsFilters?.().used_for_learning, "All Learning Use")}
+              })), state.metricsFilters?.().used_for_learning, this.t("metrics.filter_all_learning_use"))}
             </div>
           </section>
 
           <section class="evcc-metrics-panel evcc-metrics-panel--wide">
-            <div class="evcc-metrics-tabs" role="tablist" aria-label="Metrics groups">
+            <div class="evcc-metrics-tabs" role="tablist" aria-label="${this.t("metrics.tabs_aria")}">
               ${state.metricsTabOptions?.().map((option) => `
                 <button
                   type="button"
@@ -165,18 +165,18 @@ export function applyMetricsRenderers(proto) {
     return `
       <div class="evcc-metrics-section-stack">
         <div class="evcc-metrics-window-grid">
-          ${this._renderMetricsWindowCard("Today", windows.today)}
-          ${this._renderMetricsWindowCard("Last 7 Days", windows.last_7_days)}
-          ${this._renderMetricsWindowCard("Last 30 Days", windows.last_30_days)}
+          ${this._renderMetricsWindowCard(this.t("metrics.window_today"), windows.today)}
+          ${this._renderMetricsWindowCard(this.t("metrics.window_last_7_days"), windows.last_7_days)}
+          ${this._renderMetricsWindowCard(this.t("metrics.window_last_30_days"), windows.last_30_days)}
         </div>
 
         <div class="evcc-metrics-card-grid">
-          ${this._renderMetricsMiniCard("Found Profiles", foundProfiles.length, "Profiles with learning history attached")}
-          ${this._renderMetricsMiniCard("Exact Stats", exactCount, "Exact room-learning stat groups")}
-          ${this._renderMetricsMiniCard("Baselines", baselineCount, "Room baseline groups")}
-          ${this._renderMetricsMiniCard("Accuracy Rows", accuracyCount, "Accuracy stat rows")}
-          ${this._renderMetricsMiniCard("Recharge Count", metrics.mid_job_recharge_count ?? 0, "Observed mid-job recharges")}
-          ${this._renderMetricsMiniCard("Wash Cycles", metrics.wash_cycle_count ?? 0, "Wash cycles recorded from jobs")}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_found_profiles"), foundProfiles.length, this.t("metrics.mini_found_profiles_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_exact_stats"), exactCount, this.t("metrics.mini_exact_stats_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_baselines"), baselineCount, this.t("metrics.mini_baselines_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_accuracy_rows"), accuracyCount, this.t("metrics.mini_accuracy_rows_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_recharge_count"), metrics.mid_job_recharge_count ?? 0, this.t("metrics.mini_recharge_count_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.mini_wash_cycles"), metrics.wash_cycle_count ?? 0, this.t("metrics.mini_wash_cycles_detail"))}
         </div>
 
         ${foundProfiles.length ? `
@@ -184,7 +184,7 @@ export function applyMetricsRenderers(proto) {
             ${this._withDisambiguatedTitles(foundProfiles).slice(0, 8).map((profile) => this._renderMetricsFoundProfileCard(profile)).join("")}
           </div>
         ` : `
-          <div class="evcc-metrics-empty">No found profiles were returned for the current filters.</div>
+          <div class="evcc-metrics-empty">${this.t("metrics.empty_found_profiles")}</div>
         `}
       </div>
     `;
@@ -199,7 +199,7 @@ export function applyMetricsRenderers(proto) {
   proto._renderMetricsRoomsTab = function (state) {
     const rooms = state.metricsRooms?.() ?? [];
     if (!rooms.length) {
-      return `<div class="evcc-metrics-empty">No room metrics matched the current filters.</div>`;
+      return `<div class="evcc-metrics-empty">${this.t("metrics.empty_rooms")}</div>`;
     }
 
     return `
@@ -226,14 +226,14 @@ export function applyMetricsRenderers(proto) {
             ${this._withDisambiguatedTitles(profiles).map((profile) => this._renderMetricsRoomProfileCard(profile)).join("")}
           </div>
         ` : `
-          <div class="evcc-metrics-empty">No room-profile metrics matched the current filters.</div>
+          <div class="evcc-metrics-empty">${this.t("metrics.empty_room_profiles")}</div>
         `}
 
         ${foundProfiles.length ? `
           <div class="evcc-metrics-panel-header">
             <div>
-              <div class="evcc-metrics-panel-title">Found Profiles</div>
-              <div class="evcc-metrics-panel-subtitle">Detected profile families and trust state.</div>
+              <div class="evcc-metrics-panel-title">${this.t("metrics.found_profiles_title")}</div>
+              <div class="evcc-metrics-panel-subtitle">${this.t("metrics.found_profiles_subtitle")}</div>
             </div>
           </div>
           <div class="evcc-metrics-card-grid">
@@ -262,16 +262,16 @@ export function applyMetricsRenderers(proto) {
     return `
       <div class="evcc-metrics-section-stack">
         <div class="evcc-metrics-card-grid">
-          ${this._renderMetricsMiniCard("Robot Water", this._formatMetricsMilliliters(metrics.total_robot_water_used_ml), "Robot-applied cleaning water")}
-          ${this._renderMetricsMiniCard("Water Overhead", this._formatMetricsMilliliters(metrics.total_water_overhead_ml), "Dock or wash overhead water")}
-          ${this._renderMetricsMiniCard("Total Water", this._formatMetricsMilliliters(metrics.total_water_used_ml), "Total water used across matching jobs")}
+          ${this._renderMetricsMiniCard(this.t("metrics.water_robot"), this._formatMetricsMilliliters(metrics.total_robot_water_used_ml), this.t("metrics.water_robot_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.water_overhead"), this._formatMetricsMilliliters(metrics.total_water_overhead_ml), this.t("metrics.water_overhead_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.water_total"), this._formatMetricsMilliliters(metrics.total_water_used_ml), this.t("metrics.water_total_detail"))}
         </div>
 
         ${rooms.length ? `
           <div class="evcc-metrics-panel-header">
             <div>
-              <div class="evcc-metrics-panel-title">Highest Water Rooms</div>
-              <div class="evcc-metrics-panel-subtitle">Average total water use per room.</div>
+              <div class="evcc-metrics-panel-title">${this.t("metrics.water_rooms_title")}</div>
+              <div class="evcc-metrics-panel-subtitle">${this.t("metrics.water_rooms_subtitle")}</div>
             </div>
           </div>
           <div class="evcc-metrics-card-grid">
@@ -282,8 +282,8 @@ export function applyMetricsRenderers(proto) {
         ${profiles.length ? `
           <div class="evcc-metrics-panel-header">
             <div>
-              <div class="evcc-metrics-panel-title">Highest Water Profiles</div>
-              <div class="evcc-metrics-panel-subtitle">Average total water use per profile.</div>
+              <div class="evcc-metrics-panel-title">${this.t("metrics.water_profiles_title")}</div>
+              <div class="evcc-metrics-panel-subtitle">${this.t("metrics.water_profiles_subtitle")}</div>
             </div>
           </div>
           <div class="evcc-metrics-card-grid">
@@ -308,21 +308,21 @@ export function applyMetricsRenderers(proto) {
     return `
       <div class="evcc-metrics-section-stack">
         <div class="evcc-metrics-card-grid">
-          ${this._renderMetricsMiniCard("Mop Wash", dock.mop_wash_count ?? 0, "Dock mop wash count")}
-          ${this._renderMetricsMiniCard("Dust Empty", dock.dust_empty_count ?? 0, "Dock dust-empty count")}
-          ${this._renderMetricsMiniCard("Dry Starts", dock.dry_start_count ?? 0, "Dock dry-start count")}
-          ${this._renderMetricsMiniCard("Wash Cycles", dock.wash_cycle_count_from_jobs ?? 0, "Wash cycles inferred from jobs")}
-          ${this._renderMetricsMiniCard("Water Overhead", this._formatMetricsMilliliters(dock.total_water_overhead_ml), "Total dock water overhead")}
-          ${this._renderMetricsMiniCard("Avg Overhead / Job", this._formatMetricsMilliliters(dock.avg_water_overhead_ml_per_job), "Average water overhead per job")}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_mop_wash"), dock.mop_wash_count ?? 0, this.t("metrics.dock_mop_wash_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_dust_empty"), dock.dust_empty_count ?? 0, this.t("metrics.dock_dust_empty_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_dry_starts"), dock.dry_start_count ?? 0, this.t("metrics.dock_dry_starts_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_wash_cycles"), dock.wash_cycle_count_from_jobs ?? 0, this.t("metrics.dock_wash_cycles_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_water_overhead"), this._formatMetricsMilliliters(dock.total_water_overhead_ml), this.t("metrics.dock_water_overhead_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_avg_overhead_per_job"), this._formatMetricsMilliliters(dock.avg_water_overhead_ml_per_job), this.t("metrics.dock_avg_overhead_per_job_detail"))}
         </div>
 
         <div class="evcc-metrics-card-grid">
-          ${this._renderMetricsMiniCard("Last Mop Wash", this._formatMetricsTimestamp(dock.last_mop_wash) || "Unknown", "Latest dock mop wash")}
-          ${this._renderMetricsMiniCard("Last Dust Empty", this._formatMetricsTimestamp(dock.last_dust_empty) || "Unknown", "Latest dock dust empty")}
-          ${this._renderMetricsMiniCard("Last Dry Start", this._formatMetricsTimestamp(dock.last_dry_start) || "Unknown", "Latest dock dry start")}
-          ${this._renderMetricsMiniCard("Last Dry Duration", this._formatMetricsDurationValue(dock.last_dry_duration), "Latest dock dry duration")}
-          ${this._renderMetricsMiniCard("Room Stats Rebuilt", this._formatMetricsTimestamp(sources.room_stats_rebuilt_at) || "Unknown", "Latest room stat rebuild")}
-          ${this._renderMetricsMiniCard("Accuracy Updated", this._formatMetricsTimestamp(sources.accuracy_stats_updated_at) || "Unknown", "Latest accuracy update")}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_last_mop_wash"), this._formatMetricsTimestamp(dock.last_mop_wash) || this.t("metrics.unknown"), this.t("metrics.dock_last_mop_wash_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_last_dust_empty"), this._formatMetricsTimestamp(dock.last_dust_empty) || this.t("metrics.unknown"), this.t("metrics.dock_last_dust_empty_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_last_dry_start"), this._formatMetricsTimestamp(dock.last_dry_start) || this.t("metrics.unknown"), this.t("metrics.dock_last_dry_start_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_last_dry_duration"), this._formatMetricsDurationValue(dock.last_dry_duration), this.t("metrics.dock_last_dry_duration_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_room_stats_rebuilt"), this._formatMetricsTimestamp(sources.room_stats_rebuilt_at) || this.t("metrics.unknown"), this.t("metrics.dock_room_stats_rebuilt_detail"))}
+          ${this._renderMetricsMiniCard(this.t("metrics.dock_accuracy_updated"), this._formatMetricsTimestamp(sources.accuracy_stats_updated_at) || this.t("metrics.unknown"), this.t("metrics.dock_accuracy_updated_detail"))}
         </div>
       </div>
     `;
@@ -387,7 +387,7 @@ export function applyMetricsRenderers(proto) {
     const head = searchable
       ? `<div class="evcc-chip-filter-head">
            <div class="evcc-field-label">${this.escapeHtml(label)}</div>
-           <input type="text" class="evcc-chip-search" data-chip-search placeholder="Search…" aria-label="Search ${this.escapeHtml(label)}">
+           <input type="text" class="evcc-chip-search" data-chip-search placeholder="${this.t("metrics.chip_search_placeholder")}" aria-label="${this.t("metrics.chip_search_aria", { label })}">
          </div>`
       : `<div class="evcc-field-label">${this.escapeHtml(label)}</div>`;
     return `
@@ -442,8 +442,8 @@ export function applyMetricsRenderers(proto) {
       <div class="evcc-metrics-card">
         <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsDuration(item.total_duration_minutes))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`${Number(item.job_count ?? 0)} jobs | ${Number(item.learning_used_count ?? 0)} used`)}</div>
-        <div class="evcc-metrics-card-secondary">${this.escapeHtml(`Water ${this._formatMetricsMilliliters(item.total_water_used_ml)} | Recharge ${Number(item.mid_job_recharge_count ?? 0)}`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_jobs_used", { jobs: Number(item.job_count ?? 0), used: Number(item.learning_used_count ?? 0) })}</div>
+        <div class="evcc-metrics-card-secondary">${this.t("metrics.detail_water_recharge", { water: this._formatMetricsMilliliters(item.total_water_used_ml), recharge: Number(item.mid_job_recharge_count ?? 0) })}</div>
       </div>
     `;
   };
@@ -473,13 +473,13 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMetricsRoomCard = function (room) {
-    const title = room?.room_label || room?.room_slug || "Room";
+    const title = room?.room_label || room?.room_slug || this.t("metrics.room_fallback");
     return `
       <div class="evcc-metrics-card">
         <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsDuration(room?.avg_duration_minutes))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`${Number(room?.run_count ?? 0)} runs | ${Number(room?.learning_run_count ?? 0)} used`)}</div>
-        <div class="evcc-metrics-card-secondary">${this.escapeHtml(`Trust ${this._formatMetricsTrustLevel(room?.trust_level)} | ${Number(room?.runs_to_trusted ?? 0)} runs to trusted`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_runs_used", { runs: Number(room?.run_count ?? 0), used: Number(room?.learning_run_count ?? 0) })}</div>
+        <div class="evcc-metrics-card-secondary">${this.t("metrics.detail_trust_runs_to_trusted", { trust: this._formatMetricsTrustLevel(room?.trust_level), runs: Number(room?.runs_to_trusted ?? 0) })}</div>
       </div>
     `;
   };
@@ -499,7 +499,7 @@ export function applyMetricsRenderers(proto) {
     if (!Array.isArray(profiles) || !profiles.length) return Array.isArray(profiles) ? profiles : [];
     const st = this.card?._state;
     const titleOf = (p) =>
-      String(p?.profile_label || p?.selected_profile_label || p?.resolved_profile_label || p?.profile_key || "Profile");
+      String(p?.profile_label || p?.selected_profile_label || p?.resolved_profile_label || p?.profile_key || this.t("metrics.profile_fallback"));
     st?._noteAmbiguousProfiles?.(profiles.map(titleOf));
     return profiles.map((p) => {
       const t = titleOf(p);
@@ -511,7 +511,7 @@ export function applyMetricsRenderers(proto) {
   };
 
   proto._renderMetricsRoomProfileCard = function (profile) {
-    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
+    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || this.t("metrics.profile_fallback");
     const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("profile", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;
@@ -521,15 +521,15 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || "Suggested save candidate")}">
-              ${this.escapeHtml(profile?.save_suggested_label || "Save Candidate")}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate_title"))}">
+              ${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate"))}
             </span>
           ` : ""}
         </div>
         ${subtitle ? `<div class="evcc-metrics-card-subtitle">${this.escapeHtml(subtitle)}</div>` : ""}
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsDuration(profile?.avg_duration_minutes))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`${Number(profile?.run_count ?? 0)} runs | ${Number(profile?.learning_run_count ?? 0)} used`)}</div>
-        <div class="evcc-metrics-card-secondary">${this.escapeHtml(`Water ${this._formatMetricsMilliliters(profile?.avg_total_water_used_ml)} | Trust ${this._formatMetricsTrustLevel(profile?.trust_level)}`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_runs_used", { runs: Number(profile?.run_count ?? 0), used: Number(profile?.learning_run_count ?? 0) })}</div>
+        <div class="evcc-metrics-card-secondary">${this.t("metrics.detail_water_trust", { water: this._formatMetricsMilliliters(profile?.avg_total_water_used_ml), trust: this._formatMetricsTrustLevel(profile?.trust_level) })}</div>
         ${canSave ? `
           <div class="evcc-metrics-card-actions">
             <button
@@ -539,8 +539,8 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(profile?.save_suggested_label || "Save this learned profile")}"
-            >${pending ? "Saving..." : "Save Profile"}</button>
+              title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_profile_title"))}"
+            >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}
       </div>
@@ -554,7 +554,7 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMetricsFoundProfileCard = function (profile) {
-    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || "Profile";
+    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || this.t("metrics.profile_fallback");
     const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
     const trustReason = profile?.trust_reason_text || profile?.trust_reason || "";
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("found", profile) ?? "";
@@ -565,14 +565,14 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || "Suggested save candidate")}">
-              ${this.escapeHtml(profile?.save_suggested_label || "Save Candidate")}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate_title"))}">
+              ${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate"))}
             </span>
           ` : ""}
         </div>
         ${subtitle ? `<div class="evcc-metrics-card-subtitle">${this.escapeHtml(subtitle)}</div>` : ""}
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsTrustLevel(profile?.trust_level))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`${Number(profile?.run_count ?? 0)} runs | ${Number(profile?.learning_run_count ?? 0)} used`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_runs_used", { runs: Number(profile?.run_count ?? 0), used: Number(profile?.learning_run_count ?? 0) })}</div>
         ${trustReason ? `<div class="evcc-metrics-card-secondary">${this.escapeHtml(trustReason)}</div>` : ""}
         ${canSave ? `
           <div class="evcc-metrics-card-actions">
@@ -583,8 +583,8 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(profile?.save_suggested_label || "Save this learned profile")}"
-            >${pending ? "Saving..." : "Save Profile"}</button>
+              title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_profile_title"))}"
+            >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}
       </div>
@@ -600,9 +600,9 @@ export function applyMetricsRenderers(proto) {
   proto._renderMetricsWaterRoomCard = function (room) {
     return `
       <div class="evcc-metrics-card">
-        <div class="evcc-metrics-card-title">${this.escapeHtml(room?.room_label || room?.room_slug || "Room")}</div>
+        <div class="evcc-metrics-card-title">${this.escapeHtml(room?.room_label || room?.room_slug || this.t("metrics.room_fallback"))}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsMilliliters(room?.avg_total_water_used_ml))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`Robot ${this._formatMetricsMilliliters(room?.avg_robot_water_used_ml)} | Overhead ${this._formatMetricsMilliliters(room?.avg_water_overhead_ml)}`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_robot_overhead", { robot: this._formatMetricsMilliliters(room?.avg_robot_water_used_ml), overhead: this._formatMetricsMilliliters(room?.avg_water_overhead_ml) })}</div>
       </div>
     `;
   };
@@ -616,9 +616,9 @@ export function applyMetricsRenderers(proto) {
   proto._renderMetricsWaterProfileCard = function (profile) {
     return `
       <div class="evcc-metrics-card">
-        <div class="evcc-metrics-card-title">${this.escapeHtml(profile?.profile_label || profile?.profile_key || "Profile")}</div>
+        <div class="evcc-metrics-card-title">${this.escapeHtml(profile?.profile_label || profile?.profile_key || this.t("metrics.profile_fallback"))}</div>
         <div class="evcc-metrics-card-value">${this.escapeHtml(this._formatMetricsMilliliters(profile?.avg_total_water_used_ml))}</div>
-        <div class="evcc-metrics-card-detail">${this.escapeHtml(`Robot ${this._formatMetricsMilliliters(profile?.avg_robot_water_used_ml)} | Overhead ${this._formatMetricsMilliliters(profile?.avg_water_overhead_ml)}`)}</div>
+        <div class="evcc-metrics-card-detail">${this.t("metrics.detail_robot_overhead", { robot: this._formatMetricsMilliliters(profile?.avg_robot_water_used_ml), overhead: this._formatMetricsMilliliters(profile?.avg_water_overhead_ml) })}</div>
       </div>
     `;
   };
@@ -675,7 +675,7 @@ export function applyMetricsRenderers(proto) {
   proto._formatMetricsTrustLevel = function (value) {
     return String(value ?? "")
       .replace(/[_-]+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || "Unknown";
+      .replace(/\b\w/g, (char) => char.toUpperCase()) || this.t("metrics.unknown");
   };
 
   /**
@@ -689,7 +689,7 @@ export function applyMetricsRenderers(proto) {
     if (Number.isFinite(numeric)) {
       return `${numeric.toFixed(1).replace(/\.0$/, "")} min`;
     }
-    return String(value ?? "Unknown");
+    return String(value ?? this.t("metrics.unknown"));
   };
 
   /* =========================================================
@@ -736,74 +736,72 @@ export function applyMetricsRenderers(proto) {
     const chips = `
       <div class="evcc-metrics-card-grid">
         ${this._renderMetricsMiniCard(
-          "Charge cycles",
+          this.t("metrics.battery_charge_cycles"),
           sensorVal(m.cycles, 1),
-          "Cumulative drain ÷ 100"
+          this.t("metrics.battery_charge_cycles_detail")
         )}
         ${this._renderMetricsMiniCard(
-          "Health %",
+          this.t("metrics.battery_health"),
           sensorVal(m.health, 0, "%"),
           m.health?.attrs?.baseline_session_count
-            ? `vs first ${m.health.attrs.baseline_session_count} full charges`
-            : "Building baseline"
+            ? this.t("metrics.battery_health_vs_first", { count: m.health.attrs.baseline_session_count })
+            : this.t("metrics.battery_health_building")
         )}
         ${this._renderMetricsMiniCard(
-          "Charge rate",
+          this.t("metrics.battery_charge_rate"),
           sensorVal(m.rate_overall, 2, " %/min"),
-          m.rate_overall?.attrs?.charging ? "Charging now" : "Last sample"
+          m.rate_overall?.attrs?.charging ? this.t("metrics.battery_charging_now") : this.t("metrics.battery_last_sample")
         )}
         ${this._renderMetricsMiniCard(
-          "Last job %/m²",
+          this.t("metrics.battery_last_job_per_m2"),
           sensorVal(m.last_job_per_m2, 3),
           m.last_job_per_m2?.attrs?.area_m2
-            ? `${numFmt(m.last_job_per_m2.attrs.area_m2, 1)} m² | ${numFmt(m.last_job_per_m2.attrs.battery_used_pct, 0)} % used`
-            : "Awaiting first job"
+            ? this.t("metrics.battery_area_used", { area: numFmt(m.last_job_per_m2.attrs.area_m2, 1), pct: numFmt(m.last_job_per_m2.attrs.battery_used_pct, 0) })
+            : this.t("metrics.battery_awaiting_first_job")
         )}
       </div>
     `;
 
     // Charge rates table — one row per tracked zone.
     const ratesTable = `
-      <div class="evcc-metrics-section-title">Charge rates by zone</div>
+      <div class="evcc-metrics-section-title">${this.t("metrics.battery_rates_title")}</div>
       <table class="evcc-metrics-table">
         <thead>
           <tr>
-            <th>Zone</th>
-            <th>Last rate</th>
-            <th>Notes</th>
+            <th>${this.t("metrics.battery_col_zone")}</th>
+            <th>${this.t("metrics.battery_col_last_rate")}</th>
+            <th>${this.t("metrics.battery_col_notes")}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Overall</td>
+            <td>${this.t("metrics.battery_zone_overall")}</td>
             <td>${this.escapeHtml(sensorVal(m.rate_overall, 2, " %/min"))}</td>
-            <td>Any active charge interval</td>
+            <td>${this.t("metrics.battery_zone_overall_note")}</td>
           </tr>
           <tr>
-            <td>Low (≤ 29 %)</td>
+            <td>${this.t("metrics.battery_zone_low")}</td>
             <td>${this.escapeHtml(sensorVal(m.rate_low, 2, " %/min"))}</td>
-            <td>Slow precharge / soft-cell signal</td>
+            <td>${this.t("metrics.battery_zone_low_note")}</td>
           </tr>
           <tr>
-            <td>High (≥ 80 %)</td>
+            <td>${this.t("metrics.battery_zone_high")}</td>
             <td>${this.escapeHtml(sensorVal(m.rate_high, 2, " %/min"))}</td>
-            <td>CV taper — earliest health drop indicator</td>
+            <td>${this.t("metrics.battery_zone_high_note")}</td>
           </tr>
           <tr>
-            <td>Mid-job (15→75)</td>
+            <td>${this.t("metrics.battery_zone_mid_job")}</td>
             <td>${this.escapeHtml(sensorVal(m.rate_mid_job, 2, " %/min"))}</td>
-            <td>${this.escapeHtml(
-              `Rolling mean | ${m.rate_mid_job?.attrs?.sample_count ?? 0} samples`
-            )}</td>
+            <td>${this.t("metrics.battery_zone_mid_job_note", { count: m.rate_mid_job?.attrs?.sample_count ?? 0 })}</td>
           </tr>
           <tr>
-            <td>Last full session</td>
+            <td>${this.t("metrics.battery_zone_last_session")}</td>
             <td>${this.escapeHtml(sensorVal(m.last_charge_duration, 0, " min"))}</td>
-            <td>${this.escapeHtml(
+            <td>${
               m.last_charge_duration?.attrs?.last_charge_delta_pct != null
-                ? `Charged ${m.last_charge_duration.attrs.last_charge_delta_pct} %`
+                ? this.t("metrics.battery_zone_last_session_note", { pct: m.last_charge_duration.attrs.last_charge_delta_pct })
                 : ""
-            )}</td>
+            }</td>
           </tr>
         </tbody>
       </table>
@@ -818,7 +816,7 @@ export function applyMetricsRenderers(proto) {
     const renderBucketRows = (obj, label) => {
       const keys = Object.keys(obj || {});
       if (!keys.length) {
-        return `<tr><td colspan="3"><em>${this.escapeHtml(label)} — no single-bucket jobs yet</em></td></tr>`;
+        return `<tr><td colspan="3"><em>${this.t("metrics.battery_bucket_empty", { label })}</em></td></tr>`;
       }
       return keys.map((k) => `
         <tr>
@@ -833,31 +831,30 @@ export function applyMetricsRenderers(proto) {
     const allMean = m.last_job_per_m2?.attrs?.all_jobs_mean;
 
     const aggregateTable = `
-      <div class="evcc-metrics-section-title">Drain per m² by single-bucket job</div>
+      <div class="evcc-metrics-section-title">${this.t("metrics.battery_drain_title")}</div>
       <div class="evcc-metrics-section-subtitle">
-        Only jobs where every room used the same setting feed these means.
-        Mixed-mode runs still update the all-jobs row but skip per-bucket buckets.
+        ${this.t("metrics.battery_drain_subtitle")}
       </div>
       <table class="evcc-metrics-table">
         <thead>
           <tr>
-            <th>Bucket</th>
-            <th>Mean %/m²</th>
-            <th>Jobs</th>
+            <th>${this.t("metrics.battery_col_bucket")}</th>
+            <th>${this.t("metrics.battery_col_mean_per_m2")}</th>
+            <th>${this.t("metrics.battery_col_jobs")}</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>All jobs (mixed + single)</strong></td>
+            <td><strong>${this.t("metrics.battery_all_jobs")}</strong></td>
             <td>${this.escapeHtml(numFmt(allMean, 3))}</td>
             <td>${this.escapeHtml(String(allCount))}</td>
           </tr>
-          <tr><td colspan="3"><em>By clean mode</em></td></tr>
-          ${renderBucketRows(buckets, "Clean mode")}
-          <tr><td colspan="3"><em>By fan speed</em></td></tr>
-          ${renderBucketRows(fanBuckets, "Fan speed")}
-          <tr><td colspan="3"><em>By water level</em></td></tr>
-          ${renderBucketRows(waterBuckets, "Water level")}
+          <tr><td colspan="3"><em>${this.t("metrics.battery_by_clean_mode")}</em></td></tr>
+          ${renderBucketRows(buckets, this.t("metrics.battery_bucket_clean_mode"))}
+          <tr><td colspan="3"><em>${this.t("metrics.battery_by_fan_speed")}</em></td></tr>
+          ${renderBucketRows(fanBuckets, this.t("metrics.battery_bucket_fan_speed"))}
+          <tr><td colspan="3"><em>${this.t("metrics.battery_by_water_level")}</em></td></tr>
+          ${renderBucketRows(waterBuckets, this.t("metrics.battery_bucket_water_level"))}
         </tbody>
       </table>
     `;
@@ -866,44 +863,42 @@ export function applyMetricsRenderers(proto) {
     const lastJob = m.last_job_per_m2?.attrs ?? {};
     const postJob = lastJob.post_job_charge ?? null;
     const lastJobBlock = lastJob.recorded_at ? `
-      <div class="evcc-metrics-section-title">Most recent completed job</div>
+      <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
       <table class="evcc-metrics-table">
         <tbody>
-          <tr><td>Job ID</td><td>${this.escapeHtml(String(lastJob.job_id ?? "—"))}</td></tr>
-          <tr><td>Recorded</td><td>${this.escapeHtml(this._formatMetricsTimestamp(lastJob.recorded_at) || "—")}</td></tr>
-          <tr><td>Duration</td><td>${this.escapeHtml(numFmt(lastJob.duration_min, 1) + " min")}</td></tr>
-          <tr><td>Area</td><td>${this.escapeHtml(numFmt(lastJob.area_m2, 1) + " m²")}</td></tr>
-          <tr><td>Battery used</td><td>${this.escapeHtml(numFmt(lastJob.battery_used_pct, 0) + " %")}</td></tr>
-          <tr><td>Drain rate</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
-          <tr><td>Drain per hour</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
-          <tr><td>Drain per m²</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
-          <tr><td>Single clean mode</td><td>${this.escapeHtml(lastJob.single_clean_mode ?? "(mixed)")}</td></tr>
-          <tr><td>Single fan speed</td><td>${this.escapeHtml(lastJob.single_fan_speed ?? "(mixed)")}</td></tr>
-          <tr><td>Single water level</td><td>${this.escapeHtml(lastJob.single_water_level ?? "(mixed)")}</td></tr>
-          <tr><td>Weighted by</td><td>${this.escapeHtml(lastJob.weighted_by ?? "—")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_job_id")}</td><td>${this.escapeHtml(String(lastJob.job_id ?? "—"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_recorded")}</td><td>${this.escapeHtml(this._formatMetricsTimestamp(lastJob.recorded_at) || "—")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_duration")}</td><td>${this.escapeHtml(numFmt(lastJob.duration_min, 1) + " min")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_area")}</td><td>${this.escapeHtml(numFmt(lastJob.area_m2, 1) + " m²")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_battery_used")}</td><td>${this.escapeHtml(numFmt(lastJob.battery_used_pct, 0) + " %")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${this.escapeHtml(lastJob.single_clean_mode ?? this.t("metrics.battery_mixed"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${this.escapeHtml(lastJob.single_fan_speed ?? this.t("metrics.battery_mixed"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${this.escapeHtml(lastJob.single_water_level ?? this.t("metrics.battery_mixed"))}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${this.escapeHtml(lastJob.weighted_by ?? "—")}</td></tr>
           ${postJob ? `
-            <tr><td colspan="2"><em>Post-job recharge</em></td></tr>
-            <tr><td>Recharge duration</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>
-            <tr><td>Recharge delta</td><td>${this.escapeHtml(`${postJob.start_battery ?? "?"} → ${postJob.end_battery ?? "?"} %`)}</td></tr>
-            <tr><td>Avg rate</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + " %/min")}</td></tr>
-            <tr><td>Ended</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
+            <tr><td colspan="2"><em>${this.t("metrics.battery_post_job_recharge")}</em></td></tr>
+            <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_recharge_delta")}</td><td>${this.escapeHtml(`${postJob.start_battery ?? "?"} → ${postJob.end_battery ?? "?"} %`)}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_avg_rate")}</td><td>${this.escapeHtml(numFmt(postJob.avg_rate_per_min, 2) + " %/min")}</td></tr>
+            <tr><td>${this.t("metrics.battery_row_ended")}</td><td>${this.escapeHtml(postJob.ended_reason ?? "—")}</td></tr>
           ` : `
-            <tr><td>Post-job recharge</td><td><em>Awaiting next charge session</em></td></tr>
+            <tr><td>${this.t("metrics.battery_post_job_recharge")}</td><td><em>${this.t("metrics.battery_awaiting_charge_session")}</em></td></tr>
           `}
         </tbody>
       </table>
     ` : `
-      <div class="evcc-metrics-section-title">Most recent completed job</div>
-      <div class="evcc-empty">No completed job yet — sensors populate after the first finalized run.</div>
+      <div class="evcc-metrics-section-title">${this.t("metrics.battery_last_job_title")}</div>
+      <div class="evcc-empty">${this.t("metrics.battery_no_completed_job")}</div>
     `;
 
     const objectId = state.vacuumObjectId?.() ?? "";
     const rawDataNote = `
-      <div class="evcc-metrics-section-title">Raw data files</div>
+      <div class="evcc-metrics-section-title">${this.t("metrics.battery_raw_files_title")}</div>
       <div class="evcc-metrics-section-subtitle">
-        Long-term review is best done from the raw files written by the integration.
-        Chart any of the sensors above with HA's history-graph or apexcharts-card; for
-        deeper analysis open the CSV in a spreadsheet.
+        ${this.t("metrics.battery_raw_files_subtitle")}
       </div>
       <pre class="evcc-metrics-codeblock">config/eufy_vacuum/battery/${this.escapeHtml(objectId)}/sessions.csv
 config/eufy_vacuum/battery/${this.escapeHtml(objectId)}/samples.jsonl</pre>
