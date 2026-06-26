@@ -20,6 +20,8 @@ Coverage targets
           a stored map still dumps that map's rooms (managed_rooms_by_map).
 [DIAG-7]  Slimming: per-item upkeep `guide` stripped, managed-rooms `summary`
           stripped, vacuum_state.rooms (== segments) dropped.
+[DIAG-8]  self_check interprets the scalar/Tuya transport (no active_map entity
+          but rooms via segments) into plain-English status lines, surfaced first.
 """
 
 from __future__ import annotations
@@ -283,3 +285,47 @@ async def test_diagnostics_rooms_without_active_map_sensor(hass):
     assert vac["active_map_id"] is None
     assert vac["managed_rooms_by_map"] == {"Main floor": {"room_count": 10}}
     assert "managed_rooms_note" not in vac
+
+
+async def test_diagnostics_self_check_attribute_mode(hass):
+    """[DIAG-8] self_check interprets the scalar/Tuya transport.
+
+    No active_map entity, but the room list is present in the vacuum's `segments`
+    attribute (Peter's X10 Pro Omni). The summary should read: attribute-mode
+    transport, rooms importable, map image needs the fork, model resolved — and
+    appear as the first block after the vacuum id."""
+    caps = {
+        "entities": {"vacuum": VACUUM},  # NO active_map entity (scalar transport)
+        "detected_model": "T2351",
+        "model_family": "x10",
+        "supports_rooms": True,
+        "supports_segments": True,
+        "supports_active_map": False,
+    }
+    manager = _FakeManager(
+        caps=caps,
+        maps={"vacuum_entity_id": VACUUM, "map_count": 1,
+              "maps": [{"map_id": "main", "room_count": 2}]},
+        rooms={"rooms": [{"room_id": 1, "name": "Kitchen"}]},
+        upkeep={"highest_priority_status": "good"},
+        dashboard={},
+    )
+    hass.data.setdefault(DOMAIN, {})[DATA_RUNTIME] = manager
+    hass.states.async_set(VACUUM, "docked", {
+        "segments": [{"id": 1, "name": "Kitchen"}, {"id": 2, "name": "Hall"}],
+    })
+
+    entry = _entry()
+    entry.add_to_hass(hass)
+
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    vac = diag["vacuums"][0]
+    sc = vac["self_check"]
+
+    assert "attribute-mode" in sc["transport"]
+    assert sc["rooms_importable"] == "yes"
+    assert "segments attribute" in sc["room_control"]
+    assert "eufy-clean fork" in sc["map_image"]
+    assert sc["model_detection"] == "T2351 → x10"
+    # Surfaced as the first signal, right after the id.
+    assert list(vac.keys())[:2] == ["vacuum_entity_id", "self_check"]

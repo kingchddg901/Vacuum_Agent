@@ -15,6 +15,8 @@ Coverage targets
 [CAP-7]  get_vacuum_capabilities: newly-known model refreshes cached caps even with refresh=False.
 [CAP-8]  detect_capabilities: an explicit supports_water_control hint wins over the
          mop-derived default (the Roborock S6 declares it False — water is unsettable).
+[CAP-9]  detect_capabilities: has_attribute_rooms hint reports rooms/segments support
+         WITHOUT a map entity (scalar/Tuya transport); supports_active_map stays False.
 """
 
 from __future__ import annotations
@@ -118,6 +120,23 @@ def test_detect_water_control_defaults_to_mop_without_hint(hass):
     )
     assert caps["supports_mop_features"] is True
     assert caps["supports_water_control"] is True
+
+
+def test_detect_attribute_rooms_hint(hass):
+    """[CAP-9] has_attribute_rooms reports room/segment support without a map
+    entity — the scalar/Tuya transport, where the room list lives in the vacuum's
+    ``segments`` attribute and there is NO active_map sensor. supports_active_map
+    must stay False: there is no map entity to dereference."""
+    hass.states.async_set(_VAC, "docked")
+    caps = detect_capabilities(
+        hass,
+        vacuum_entity_id=_VAC,
+        capability_hints={"has_attribute_rooms": True},
+    )
+    assert caps["supports_rooms"] is True
+    assert caps["supports_segments"] is True
+    assert caps["supports_active_map"] is False
+    assert caps["active_map_available"] is False
 
 
 def test_detect_robot_position_needs_both(hass):
