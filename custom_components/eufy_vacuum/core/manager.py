@@ -1020,11 +1020,24 @@ class EufyVacuumManager:
         _entity_candidates: dict[str, list[str]] = {
             k: [v] for k, v in _adapter_entities.items() if v
         }
-        _capability_hints: dict[str, bool] = {
-            k: bool(v)
-            for k, v in _adapter_cfg.get("capabilities", {}).items()
-            if isinstance(v, bool)
-        }
+        # Prefer the adapter's stored model_family + original capability_hints so a
+        # refresh reproduces the SAME detect_capabilities inputs as startup. Without
+        # this, a refresh reverts model_family to "generic" (detect_capabilities'
+        # default) and drops INPUT-ONLY hints like has_attribute_rooms (which gates
+        # attribute-mode / scalar room support). Adapters that publish no
+        # capability_hints fall back to deriving boolean hints from stored flags.
+        _model_family = _adapter_cfg.get("model_family")
+        _stored_hints = _adapter_cfg.get("capability_hints")
+        if isinstance(_stored_hints, dict) and _stored_hints:
+            _capability_hints: dict[str, bool] = {
+                k: bool(v) for k, v in _stored_hints.items() if isinstance(v, bool)
+            }
+        else:
+            _capability_hints = {
+                k: bool(v)
+                for k, v in _adapter_cfg.get("capabilities", {}).items()
+                if isinstance(v, bool)
+            }
         _maintenance_components = _adapter_cfg.get("maintenance_components") or None
 
         payload = detect_capabilities(
@@ -1032,6 +1045,7 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             detected_model=effective_model,
             entity_candidates=_entity_candidates or None,
+            model_family=_model_family,
             capability_hints=_capability_hints or None,
             maintenance_components=_maintenance_components,
         )
