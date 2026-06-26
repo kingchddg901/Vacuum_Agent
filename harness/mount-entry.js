@@ -157,8 +157,26 @@ function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
  *   because the stub null-object makes every modal's isOpen() accessor truthy.
  * @returns {{view,ok,error?,stack?,headerLen?,viewLen?,misses:{state:string[],hass:string[]}}}
  */
+// A fixed instant for DETERMINISTIC relative-time rendering. The live-progress
+// overlay (and any "N ago" pill) computes against Date.now(), so without this the
+// gallery-rooms-active baseline flaps by a line as wall-clock advances between
+// runs. Freezing Date.now() + argless `new Date()` — while leaving `new Date(iso)`
+// parsing of fixture timestamps intact — pins every render to the same moment.
+// Active only when `freeze` is set (every visual-regression render passes it).
+const FROZEN_NOW = Date.parse("2026-06-07T12:00:00Z");
+function freezeClock() {
+  const RealDate = Date;
+  class FrozenDate extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [FROZEN_NOW])); }
+    static now() { return FROZEN_NOW; }
+  }
+  globalThis.Date = FrozenDate;
+  return () => { globalThis.Date = RealDate; };
+}
+
 function render(view, opts = {}) {
   const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null } = opts;
+  const restoreClock = freeze ? freezeClock() : null;
 
   const stateMisses = new Set();
   const hassMisses = new Set();
@@ -236,6 +254,7 @@ function render(view, opts = {}) {
       : null;
   }
 
+  if (restoreClock) restoreClock();
   result.misses.state = [...stateMisses].sort();
   result.misses.hass = [...hassMisses].sort();
   return result;
