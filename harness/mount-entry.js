@@ -36,6 +36,7 @@ import {
   VIEW_ORDER,
 } from "../src/render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES } from "../src/styles/index.js";
+import { registerLocale } from "../src/i18n/index.js";
 import { makeStubState, makeNullObject } from "./fixtures/stub-state.js";
 import { GALLERY } from "./fixtures/gallery.js";
 import { SEMANTIC_COLOR_TOKENS } from "./semantic-tokens.js";
@@ -155,6 +156,10 @@ function frameHtml(view, headerHtml, viewHtml, freeze, modalHtml) {
  * @param {string} [opts.modal]     - a renderer method name (e.g.
  *   "renderExternalWizardModal") to render as a body-level modal host. Opt-in
  *   because the stub null-object makes every modal's isOpen() accessor truthy.
+ * @param {string} [opts.lang]      - BCP-47 code seeded into the stub
+ *   `_hass.locale.language` so renderers resolve THIS locale (default: the stub
+ *   coerces to English). Pair with registerLocale() to render a foreign/pseudo
+ *   catalog and prove the UI actually switches language + survives the layout.
  * @returns {{view,ok,error?,stack?,headerLen?,viewLen?,misses:{state:string[],hass:string[]}}}
  */
 // A fixed instant for DETERMINISTIC relative-time rendering. The live-progress
@@ -175,7 +180,7 @@ function freezeClock() {
 }
 
 function render(view, opts = {}) {
-  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null } = opts;
+  const { bundle = {}, overrides = {}, controller = null, width = 500, freeze = false, modal = null, lang = null } = opts;
   const restoreClock = freeze ? freezeClock() : null;
 
   const stateMisses = new Set();
@@ -195,7 +200,9 @@ function render(view, opts = {}) {
       _view: view,
       _mobileMoreOpen: false,
       _learningController: controller,
-      _hass: makeNullObject(hassMisses, "_hass"),
+      // Seed locale.language when a lang is requested so renderers resolve THIS
+      // locale; otherwise the null-object coerces to "" -> English (unchanged).
+      _hass: makeNullObject(hassMisses, "_hass", lang ? { locale: { language: lang } } : null),
     };
     const renderers = new VacuumCardRenderers(card);
     card._renderers = renderers;
@@ -279,6 +286,7 @@ function renderGallery(id, opts = {}) {
     width: opts.width,
     freeze: opts.freeze,
     modal: entry.modal ?? null,
+    lang: opts.lang ?? null,
   });
   return { ...res, id, clip: entry.clip ?? null, label: entry.label };
 }
@@ -418,6 +426,7 @@ window.__evcc = {
   render,
   renderGallery,
   renderThemePresets,
+  registerLocale, // inject a foreign/pseudo locale catalog before rendering with opts.lang
   VacuumCardState, // exposed so tooling can drive real state (e.g. per-device theme)
   semanticTokens: SEMANTIC_COLOR_TOKENS,
   badgeMarks: BADGE_MARK_PATHS,

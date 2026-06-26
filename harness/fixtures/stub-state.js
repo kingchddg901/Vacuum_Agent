@@ -45,9 +45,14 @@ const ARRAY_EMPTY = new Set([
  *
  * @param {Set<string>|null} record - sink for accessed paths (or null).
  * @param {string} path - dotted access path so far, for the census.
+ * @param {object|null} seed - optional real values for specific own props. A
+ *   matched prop returns its value (recursing with the nested object as the
+ *   next seed; a primitive is returned as-is) instead of an absorbing
+ *   null-object. Used to inject a real `_hass.locale.language` for i18n locale
+ *   runs while every OTHER access still absorbs + records as normal.
  * @returns {*} a proxy that absorbs reads/calls without throwing.
  */
-export function makeNullObject(record, path = "") {
+export function makeNullObject(record, path = "", seed = null) {
   const target = function nullObject() {};
   const obj = new Proxy(target, {
     apply: () => obj,
@@ -66,6 +71,14 @@ export function makeNullObject(record, path = "") {
           return Reflect.get(t, prop);
       }
       if (typeof prop === "symbol") return undefined;
+      // Seeded real values (e.g. _hass.locale.language) win over absorption.
+      if (seed && typeof prop === "string" && Object.prototype.hasOwnProperty.call(seed, prop)) {
+        const v = seed[prop];
+        const next = path ? `${path}.${prop}` : prop;
+        return v !== null && typeof v === "object"
+          ? makeNullObject(record, next, v)
+          : v;
+      }
       // Array-shaped helpers → empty results so chaining keeps working.
       if (ARRAY_EMPTY.has(prop)) return () => [];
       if (prop === "join")    return () => "";

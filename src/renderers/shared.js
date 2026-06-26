@@ -78,9 +78,19 @@ export function applySharedRenderers(proto) {
     return translate(this._i18nLanguage(), key, vars, { raw: true });
   };
 
-  /** Resolve the active UI language from hass: locale.language -> language -> en. */
+  /**
+   * Resolve the active UI language from hass: locale.language -> language -> en.
+   *
+   * Read hass off `this.card` — these methods run on the VacuumCardRenderers
+   * INSTANCE (render-cycle.js calls `renderers.t(...)`), and only `this.card`
+   * is set on it (the constructor); `this._hass` is undefined here, so reading
+   * it pinned EVERY renderer string to English regardless of the user's HA
+   * language. (`this._hass ||` is kept first as a defensive no-op for any path
+   * where `this` is the card itself.) Mirrors the `this.card._hass` reach the
+   * other renderers already use (e.g. setup.js).
+   */
   proto._i18nLanguage = function () {
-    const hass = this._hass;
+    const hass = this._hass || (this.card && this.card._hass);
     return (
       (hass && hass.locale && hass.locale.language) ||
       (hass && hass.language) ||
