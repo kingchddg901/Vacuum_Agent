@@ -37,6 +37,17 @@ Each brand's adapter was built and validated against one **reference model** —
 
 If you run this on another model, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with the model name and what worked or didn't — the table grows from there.
 
+### Eufy: which models Vacuum Agent can drive
+
+Vacuum Agent's value — per-room cleaning, the live map, room rollover, and the learning/ETA system — all depend on the robot building a **room map with per-room segments**, delivered over Eufy's **MQTT** transport. If your robot doesn't map rooms, Vacuum Agent has nothing to add.
+
+**Not supported — basic navigation robots (no map, no rooms).** These bump-and-go and gyroscopic-navigation models never build a room map, so per-room cleaning, the map view, and learning simply don't apply. They work fine in [eufy-clean](https://github.com/jeppesens/eufy-clean) on their own for start/stop, suction and status — use it directly:
+
+- **RoboVac C-series** — 11C, 11S, 15C / 15C MAX, 25C, 30C / 30C MAX, 35C
+- **RoboVac G-series** — G10 Hybrid, G20 / G20 Hybrid, G30 (incl. Verge / Hybrid / +SES), G32, G35 / G35+, G40 (incl. Hybrid / Hybrid+), G50
+
+**Transport-dependent — may not work.** The mapping robots — the **X-series** (X8, X9 Pro, X10 Pro Omni), **S1 / S1 Pro**, **L-series** (L60, L70), **LR-series** (LR20 / LR30 / LR35), **Omni C20** and **AE C10** — build a map and *should* drive Vacuum Agent, but **only when eufy-clean talks to them over MQTT.** eufy-clean v1.12 added a legacy **Tuya** transport (cloud / local) for older robots; on that path the live map and the room list are never sent, so the map and per-room features go dark even on a robot that can map. Only the **X10 Pro Omni** is verified. The rest are unconfirmed — **feel free to test and report back via an [issue](https://github.com/kingchddg901/Vacuum_Agent/issues) and this list will be updated.**
+
 ## Prerequisites
 
 Vacuum Agent is a supervisory control layer — it consumes whatever your provider integration already exposes. The only hard requirement is one supported vacuum provider; everything else is capability-dependent.

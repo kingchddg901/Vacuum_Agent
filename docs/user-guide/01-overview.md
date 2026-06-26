@@ -6,6 +6,17 @@ eufy_vacuum is a Home Assistant custom integration paired with a Lovelace card c
 
 The integration has been tested on the **Eufy X10 Pro Omni** and the **Roborock S6**. Other models of either brand may work but aren't officially supported. Because capabilities differ by brand and model, some tabs and controls described in this guide appear, are hidden, or read differently depending on your vacuum — those differences are called out inline as you go.
 
+## Will my Eufy vacuum work?
+
+Everything below — room-level control, the live map, room rollover, and the learning system — depends on the robot building a **room map with per-room segments**, which Eufy delivers only over its **MQTT** transport. If your robot doesn't map rooms, eufy_vacuum has nothing to add.
+
+**Not supported — basic navigation robots (no map, no rooms).** These bump-and-go and gyroscopic-navigation models never build a room map, so per-room cleaning, the map view, and the learning system don't apply. They work fine in [eufy-clean](https://github.com/jeppesens/eufy-clean) on their own for start/stop, suction, and status — use it directly:
+
+- **RoboVac C-series** — 11C, 11S, 15C / 15C MAX, 25C, 30C / 30C MAX, 35C
+- **RoboVac G-series** — G10 Hybrid, G20 / G20 Hybrid, G30 (incl. Verge / Hybrid / +SES), G32, G35 / G35+, G40 (incl. Hybrid / Hybrid+), G50
+
+**Transport-dependent — may not work.** The mapping robots — the **X-series** (X8, X9 Pro, X10 Pro Omni), **S1 / S1 Pro**, **L-series** (L60, L70), **LR-series** (LR20 / LR30 / LR35), **Omni C20**, and **AE C10** — build a map and should drive eufy_vacuum, but **only when eufy-clean talks to them over MQTT.** eufy-clean v1.12 added a legacy **Tuya** transport (cloud / local) for older robots; on that path the live map and the room list are never sent, so the map and per-room features go dark even on a robot that can map. Only the **X10 Pro Omni** is verified — if you run another, please [open an issue](https://github.com/kingchddg901/Vacuum_Agent/issues) with what worked, and the list will be updated.
+
 ## What does it add beyond the stock Eufy integration?
 
 A stock vacuum integration in Home Assistant lets you start and stop your vacuum as a single unit. eufy_vacuum goes further:
