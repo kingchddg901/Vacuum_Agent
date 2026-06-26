@@ -167,3 +167,120 @@ export function translate(lang, key, vars, options) {
   }
   return s;
 }
+
+/**
+ * Resolve the active UI language from hass + card config — the SINGLE resolver
+ * the card (main.js), the renderers (shared.js), and the standalone room-card
+ * all share (they each used to inline this).
+ *
+ * Order: an explicit `config.i18n.locale` pins the language (unless it is
+ * "auto") -> `hass.locale.language` -> `hass.language` -> "en". The pin lets a
+ * dashboard force a locale regardless of the HA UI language; "auto" defers to HA.
+ *
+ * @param {object} [hass] - Home Assistant connection (reads locale.language / language).
+ * @param {object} [config] - card config; reads `config.i18n.locale`.
+ * @returns {string} a BCP-47 code (translate() falls back to English for unknowns).
+ */
+export function resolveLang(hass, config) {
+  const pinned = config && config.i18n && config.i18n.locale;
+  if (pinned && pinned !== "auto") return String(pinned);
+  return (
+    (hass && hass.locale && hass.locale.language) ||
+    (hass && hass.language) ||
+    "en"
+  );
+}
+
+/** Extract the `{placeholder}` token set from a string or a plural-form object. */
+function placeholderSet(value) {
+  const set = new Set();
+  const scan = (s) => {
+    for (const m of String(s).matchAll(/\{(\w+)\}/g)) set.add(m[1]);
+  };
+  if (typeof value === "string") scan(value);
+  else if (value && typeof value === "object") {
+    for (const k of Object.keys(value)) if (typeof value[k] === "string") scan(value[k]);
+  }
+  return set;
+}
+
+// Keys that must never be copied into a catalog object — a JSON locale could
+// carry an own "__proto__" (JSON.parse makes it an OWN property) and assigning
+// it would pollute the prototype.
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
+/**
+ * Validate an UNTRUSTED locale catalog against the English base before it is
+ * registered — the gate for community/user-supplied locale files (which ride
+ * the same untrusted-intake path as themes/animals; see TRUST MODEL B).
+ *
+ * Never throws: a bad entry is dropped (recorded in `errors`) and the rest load,
+ * and the returned `clean` is a SUBSET of valid keys — so English fallback is
+ * always intact (translate() falls back to en for any dropped/missing key) and a
+ * locale can never remove it.
+ *
+ * Rules:
+ *  - catalog must be a plain object (else everything is dropped).
+ *  - each value is a string OR a plural object whose every form is a string;
+ *    anything else (number, array, null, nested object, empty object) is dropped.
+ *  - unsafe keys (__proto__/constructor/prototype) are dropped (no pollution).
+ *  - placeholder parity vs English (UNION across plural forms): a MISSING
+ *    placeholder is an error (the key is dropped — a lost {name} would render
+ *    wrong); an EXTRA placeholder is a warning (it renders literally, harmless).
+ *  - a key not present in English is kept but warned (dead until en adds it).
+ *  - PLURAL detection is by typeof===object, NOT a source comment — `// plural`
+ *    is stripped at build, and a deliberate plural-but-string key
+ *    (mapping_review.badge_runs_samples) must validate as the string it is.
+ *
+ * @param {Record<string, unknown>} catalog - the parsed locale to validate.
+ * @param {Record<string, unknown>} [base] - the English base (default CATALOGS.en).
+ * @returns {{ clean: Record<string, string|object>, warnings: string[], errors: string[] }}
+ */
+export function validateLocale(catalog, base = CATALOGS.en) {
+  const warnings = [];
+  const errors = [];
+  const clean = {};
+  if (!catalog || typeof catalog !== "object" || Array.isArray(catalog)) {
+    errors.push("locale is not a plain object — ignored entirely");
+    return { clean, warnings, errors };
+  }
+  const baseMap = base || {};
+  for (const key of Object.keys(catalog)) {
+    if (UNSAFE_KEYS.has(key)) {
+      errors.push(`"${key}": unsafe key dropped`);
+      continue;
+    }
+    const value = catalog[key];
+    const isString = typeof value === "string";
+    const isObject = value != null && typeof value === "object" && !Array.isArray(value);
+    if (!isString && !isObject) {
+      errors.push(`"${key}": value must be a string or plural object — dropped`);
+      continue;
+    }
+    if (isObject) {
+      const forms = Object.keys(value);
+      const badForm = forms.find((f) => typeof value[f] !== "string");
+      if (forms.length === 0 || badForm !== undefined) {
+        errors.push(`"${key}": plural forms must each be a string — dropped`);
+        continue;
+      }
+    }
+    if (!Object.prototype.hasOwnProperty.call(baseMap, key)) {
+      warnings.push(`"${key}": not in English base (extra key)`);
+    } else {
+      const want = placeholderSet(baseMap[key]);
+      const got = placeholderSet(value);
+      const missing = [...want].filter((p) => !got.has(p));
+      const extra = [...got].filter((p) => !want.has(p));
+      if (missing.length) {
+        errors.push(`"${key}": missing placeholder(s) {${missing.join("}, {")}} — dropped`);
+        continue;
+      }
+      if (extra.length) {
+        warnings.push(`"${key}": extra placeholder(s) {${extra.join("}, {")}}`);
+      }
+    }
+    clean[key] = value;
+  }
+  return { clean, warnings, errors };
+}

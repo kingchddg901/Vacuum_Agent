@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate }                          from "./i18n/index.js";
+import { translate, resolveLang }             from "./i18n/index.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -306,10 +306,9 @@ class EufyVacuumCommandCenter extends HTMLElement {
      through this._renderers.t; these go straight to the i18n module.
      ========================================================= */
 
-  /** Resolve the active UI language from hass: locale.language -> language -> en. */
+  /** Resolve the active UI language (shared resolver; honors config.i18n.locale). */
   _i18nLanguage() {
-    const hass = this._hass;
-    return (hass && hass.locale && hass.locale.language) || (hass && hass.language) || "en";
+    return resolveLang(this._hass, this._config);
   }
 
   /** Translate a card-level UI string (HTML-escaped; trust model B). */

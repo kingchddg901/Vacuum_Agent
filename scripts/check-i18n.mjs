@@ -36,9 +36,9 @@
 
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { translate, registerLocale } from "../src/i18n/index.js";
+import { translate, registerLocale, resolveLang, validateLocale } from "../src/i18n/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -182,6 +182,92 @@ check("plural: selected form is escaped (trust model B)", () => {
   assert.equal(out, "&lt;b&gt;5&lt;/b&gt;");
 });
 
+// --- resolveLang (the shared language resolver) --------------------------
+
+// 17. config.i18n.locale PINS the language; "auto" / absent defers to hass.
+check("resolveLang: config locale pins, auto/absent defers to hass", () => {
+  const hass = { locale: { language: "de" } };
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }), "fr");   // pinned wins
+  assert.equal(resolveLang(hass, { i18n: { locale: "auto" } }), "de"); // auto -> hass
+  assert.equal(resolveLang(hass, {}), "de");                            // no i18n -> hass
+  assert.equal(resolveLang({ language: "es" }, undefined), "es");       // legacy hass.language
+  assert.equal(resolveLang(undefined, undefined), "en");                // nothing -> en
+});
+
+// --- validateLocale (untrusted-locale gate) ------------------------------
+
+// 18. A well-formed locale passes clean with no errors (strings + plural object).
+check("validateLocale: well-formed locale passes clean", () => {
+  const { clean, errors, warnings } = validateLocale(
+    { "rooms.empty": "Keine Räume", "rooms.count_rooms": { one: "{count} Raum", other: "{count} Räume" } },
+  );
+  assert.equal(errors.length, 0);
+  assert.equal(warnings.length, 0);
+  assert.equal(clean["rooms.empty"], "Keine Räume");
+  assert.deepEqual(clean["rooms.count_rooms"], { one: "{count} Raum", other: "{count} Räume" });
+});
+
+// 19. A non-object locale is rejected ENTIRELY (never throws).
+check("validateLocale: non-object rejected entirely", () => {
+  for (const bad of [null, undefined, "x", 42, ["a"]]) {
+    const r = validateLocale(bad);
+    assert.deepEqual(r.clean, {});
+    assert.ok(r.errors.length >= 1, `expected error for ${JSON.stringify(bad)}`);
+  }
+});
+
+// 20. Prototype-pollution keys are dropped (no pollution of the clean object).
+check("validateLocale: unsafe keys dropped, no prototype pollution", () => {
+  const hostile = JSON.parse('{"__proto__":{"polluted":1},"constructor":"x","rooms.empty":"ok"}');
+  const { clean } = validateLocale(hostile);
+  assert.equal(clean["rooms.empty"], "ok");
+  assert.equal({}.polluted, undefined, "Object prototype was polluted");
+  assert.ok(!Object.prototype.hasOwnProperty.call(clean, "__proto__"));
+});
+
+// 21. Bad value shapes (non-string/object, array, empty/non-string plural form)
+//     are dropped with an error; valid siblings still load.
+check("validateLocale: bad value shapes dropped", () => {
+  const { clean, errors } = validateLocale({
+    "a.num": 5,
+    "a.arr": ["x"],
+    "a.emptyobj": {},
+    "a.badform": { one: "ok", other: 7 },
+    "rooms.empty": "fine",
+  });
+  for (const k of ["a.num", "a.arr", "a.emptyobj", "a.badform"]) {
+    assert.ok(!(k in clean), `${k} should be dropped`);
+  }
+  assert.equal(clean["rooms.empty"], "fine");
+  assert.ok(errors.length >= 4);
+});
+
+// 22. Placeholder parity: a MISSING placeholder drops the key (a lost {name}
+//     would render wrong); an EXTRA placeholder only warns (renders literally).
+check("validateLocale: placeholder parity vs English", () => {
+  // map.assign_link_to in en is "Link to {name}"; a translation dropping {name}
+  // is an error (the link target would vanish).
+  const missing = validateLocale({ "map.assign_link_to": "Verknüpfen" });
+  assert.ok(!("map.assign_link_to" in missing.clean), "missing-{name} key should drop");
+  assert.ok(missing.errors.some((e) => e.includes("map.assign_link_to")));
+  // An extra placeholder is kept with a warning.
+  const extra = validateLocale({ "rooms.empty": "Leer {oops}" });
+  assert.equal(extra.clean["rooms.empty"], "Leer {oops}");
+  assert.ok(extra.warnings.some((w) => w.includes("rooms.empty")));
+});
+
+// 23. An unknown key (not in English) is kept but warned; English fallback is
+//     never removable (clean is only a subset — translate still falls back).
+check("validateLocale: unknown key kept+warned; English fallback intact", () => {
+  const { clean, warnings } = validateLocale({ "made.up.key": "x" });
+  assert.equal(clean["made.up.key"], "x");
+  assert.ok(warnings.some((w) => w.includes("made.up.key")));
+  // A registered partial locale still falls back to English for absent keys.
+  registerLocale("vv", { "rooms.empty": "VV empty" });
+  assert.equal(translate("vv", "rooms.empty"), "VV empty");
+  assert.equal(translate("vv", "common.cancel"), translate("en", "common.cancel"));
+});
+
 /* =========================================================
    B. KEY CROSS-CHECK (used in src  <->  defined in en.js)
    ========================================================= */
@@ -255,6 +341,37 @@ if (dead.length === 0) {
 } else {
   console.log(`  ⚠ ${dead.length} dead key(s) in en.js (defined, never referenced):`);
   for (const k of dead) console.log(`      - ${k}`);
+}
+
+/* =========================================================
+   C. BUNDLED LOCALE VALIDATION (every shipped locale vs English)
+   ========================================================= */
+// Any locale file bundled under src/i18n/ (a `ru.js` etc., beyond the English
+// base) must pass validateLocale against English — placeholder parity, value
+// shapes, no unsafe keys — so a broken committed translation fails the BUILD,
+// not the user's render. No-op until the first locale lands.
+console.log("\nC. bundled locale validation");
+const i18nDir = join(SRC, "i18n");
+const localeFiles = readdirSync(i18nDir).filter(
+  (f) => f.endsWith(".js") && f !== "index.js" && f !== "en.js" && !f.endsWith(".test.js"),
+);
+if (localeFiles.length === 0) {
+  console.log("  ✓ no bundled locales beyond en (nothing to validate yet)");
+} else {
+  for (const f of localeFiles) {
+    const mod = await import(pathToFileURL(join(i18nDir, f)).href);
+    // The catalog is the largest object-valued export (e.g. `export const ru`).
+    const cat = Object.values(mod)
+      .filter((v) => v && typeof v === "object" && !Array.isArray(v))
+      .sort((a, b) => Object.keys(b).length - Object.keys(a).length)[0];
+    if (!cat) { fail(`locale ${f}: no catalog object export`); continue; }
+    const { clean, warnings, errors } = validateLocale(cat);
+    if (errors.length) {
+      for (const e of errors) fail(`locale ${f}: ${e}`);
+    } else {
+      console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
+    }
+  }
 }
 
 /* ========================================================= */

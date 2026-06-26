@@ -12,7 +12,7 @@
  * ============================================================
  */
 
-import { translate } from "../i18n/index.js";
+import { translate, resolveLang } from "../i18n/index.js";
 
 /**
  * Mix shared renderer utility methods onto the given prototype.
@@ -90,12 +90,12 @@ export function applySharedRenderers(proto) {
    * other renderers already use (e.g. setup.js).
    */
   proto._i18nLanguage = function () {
-    const hass = this._hass || (this.card && this.card._hass);
-    return (
-      (hass && hass.locale && hass.locale.language) ||
-      (hass && hass.language) ||
-      "en"
-    );
+    // hass + config live on the card the renderers are bound to: render-cycle
+    // calls renderers.t on the INSTANCE, where only this.card is set (this._hass
+    // is undefined here — the bug that pinned everything to English). Falls back
+    // to `this` for any path where the proto is mixed onto the card itself.
+    const c = this.card || this;
+    return resolveLang(c._hass, c._config);
   };
 
   /**

@@ -1,11 +1,9 @@
 // Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
-import { translate } from "./i18n/index.js";
+import { translate, resolveLang } from "./i18n/index.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
-
-const _rcLang = (hass) => (hass && hass.locale && hass.locale.language) || (hass && hass.language) || "en";
 
 /* ================================================================
    EDITOR
@@ -23,8 +21,8 @@ class EufyRoomCardEditor extends HTMLElement {
 
   set hass(hass) { this._hass = hass; this._render(); }
 
-  t(key, vars)    { return translate(_rcLang(this._hass), key, vars); }
-  tRaw(key, vars) { return translate(_rcLang(this._hass), key, vars, { raw: true }); }
+  t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
+  tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
 
   _vacuumEntities() {
     if (!this._hass) return [];
@@ -169,8 +167,8 @@ class EufyRoomCard extends HTMLElement {
     this._render();
   }
 
-  t(key, vars)    { return translate(_rcLang(this._hass), key, vars); }
-  tRaw(key, vars) { return translate(_rcLang(this._hass), key, vars, { raw: true }); }
+  t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
+  tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
 
   /* =========================================================
      ENTITY FINDERS
