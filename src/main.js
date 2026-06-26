@@ -9,6 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
+import { translate }                          from "./i18n/index.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -136,6 +137,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // any state machinery — there's no vacuum to bind to.
     if (!config?.vacuum_entity_id) {
       this._config = config ?? {};
+      // setConfig runs before the first `set hass`, so the language isn't known
+      // yet — the placeholder renders in English now and re-localizes once hass
+      // (hence locale.language) arrives. Re-arm that one-shot here.
+      this._placeholderLocalized = false;
       this._renderNoVacuumPlaceholder();
       return;
     }
@@ -266,43 +271,52 @@ class EufyVacuumCommandCenter extends HTMLElement {
         }
       </style>
       <div class="evcc-setup-wrap">
-        <h1 class="evcc-setup-title">Vacuum Agent — setup needed</h1>
+        <h1 class="evcc-setup-title">${this.t("shell.setup_title")}</h1>
         <p class="evcc-setup-lede">
-          The integration is installed but no vacuum is configured yet, so
-          the panel can't show your rooms, jobs, or controls until you
-          point it at your vacuum.
+          ${this.t("shell.setup_lede")}
         </p>
         <div class="evcc-setup-card">
-          <h3>Add your vacuum</h3>
+          <h3>${this.t("shell.setup_add_title")}</h3>
           <ol>
-            <li>Open <strong>Settings → Devices &amp; Services</strong></li>
-            <li>Find <strong>Vacuum Agent</strong></li>
-            <li>Click <strong>Configure</strong></li>
-            <li>Pick your <code>vacuum.*</code> entity from the dropdown and submit</li>
+            <li>${this.tRaw("shell.setup_step_open")}</li>
+            <li>${this.tRaw("shell.setup_step_find")}</li>
+            <li>${this.tRaw("shell.setup_step_configure")}</li>
+            <li>${this.tRaw("shell.setup_step_pick")}</li>
           </ol>
           <p>
-            The integration will reload and this page will turn into the
-            full Vacuum Agent panel with your rooms, learning history, and
-            controls.
+            ${this.t("shell.setup_reload_note")}
           </p>
         </div>
         <div class="evcc-setup-card">
-          <h3>If you don't see a vacuum entity in the dropdown</h3>
+          <h3>${this.t("shell.setup_no_entity_title")}</h3>
           <p>
-            This integration works on top of whatever Home Assistant
-            integration provides your vacuum — make sure your vacuum is set
-            up and producing a working <code>vacuum.*</code> entity first,
-            then come back here and choose it.
+            ${this.tRaw("shell.setup_no_entity_body")}
           </p>
           <p>
-            Using a Eufy vacuum? The
-            <a href="https://github.com/jeppesens/eufy-clean" target="_blank" rel="noopener">eufy-clean</a>
-            integration provides that entity.
+            ${this.tRaw("shell.setup_eufy_note")}
           </p>
         </div>
       </div>
     `;
   }
+
+  /* =========================================================
+     CARD-LEVEL I18N — for the few strings rendered BEFORE this._renderers
+     exists (the no-vacuum placeholder above). Renderer strings translate
+     through this._renderers.t; these go straight to the i18n module.
+     ========================================================= */
+
+  /** Resolve the active UI language from hass: locale.language -> language -> en. */
+  _i18nLanguage() {
+    const hass = this._hass;
+    return (hass && hass.locale && hass.locale.language) || (hass && hass.language) || "en";
+  }
+
+  /** Translate a card-level UI string (HTML-escaped; trust model B). */
+  t(key, vars) { return translate(this._i18nLanguage(), key, vars); }
+
+  /** Translate a card-level string preserving authored markup (see `t`). */
+  tRaw(key, vars) { return translate(this._i18nLanguage(), key, vars, { raw: true }); }
 
   set narrow(narrow) {
     this._narrow = narrow;
@@ -319,7 +333,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // placeholder is already in the DOM, and we have no state to sync.
     // Bail before any of the refresh schedulers run (they all assume
     // _state exists).
-    if (!this._config?.vacuum_entity_id) return;
+    if (!this._config?.vacuum_entity_id) {
+      // Localize the onboarding placeholder once, now that hass (and the user's
+      // language) is available — setConfig rendered it before the first hass.
+      if (!this._placeholderLocalized) {
+        this._placeholderLocalized = true;
+        this._renderNoVacuumPlaceholder();
+      }
+      return;
+    }
 
     if (this._state)   this._state.sync(hass, this._config);
     if (this._actions) this._actions.sync?.(hass, this._state);

@@ -1247,7 +1247,18 @@ export const en = {
   "setup.vacuum_registered": "Vacuum registered.",
   "setup.working": "Working…",
 
-  // --- shell (card-level render fallbacks) ---
+  // --- shell (card-level render fallbacks + no-vacuum onboarding placeholder) ---
+  "shell.setup_add_title": "Add your vacuum",
+  "shell.setup_eufy_note": "Using a Eufy vacuum? The <a href=\"https://github.com/jeppesens/eufy-clean\" target=\"_blank\" rel=\"noopener\">eufy-clean</a> integration provides that entity.",
+  "shell.setup_lede": "The integration is installed but no vacuum is configured yet, so the panel can't show your rooms, jobs, or controls until you point it at your vacuum.",
+  "shell.setup_no_entity_body": "This integration works on top of whatever Home Assistant integration provides your vacuum — make sure your vacuum is set up and producing a working <code>vacuum.*</code> entity first, then come back here and choose it.",
+  "shell.setup_no_entity_title": "If you don't see a vacuum entity in the dropdown",
+  "shell.setup_reload_note": "The integration will reload and this page will turn into the full Vacuum Agent panel with your rooms, learning history, and controls.",
+  "shell.setup_step_configure": "Click <strong>Configure</strong>",
+  "shell.setup_step_find": "Find <strong>Vacuum Agent</strong>",
+  "shell.setup_step_open": "Open <strong>Settings → Devices &amp; Services</strong>",
+  "shell.setup_step_pick": "Pick your <code>vacuum.*</code> entity from the dropdown and submit",
+  "shell.setup_title": "Vacuum Agent — setup needed",
   "shell.view_error": "View error — check console ({view})",
 
   // --- theme (theme editor: token groups, swatches, import/export, presets, modes) ---
