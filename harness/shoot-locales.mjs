@@ -42,14 +42,25 @@ function probe() {
   const host = document.getElementById("evcc-host");
   const root = host && host.shadowRoot;
   if (!root) return { ok: false };
-  let count = 0, worst = 0;
+  let count = 0, worst = 0, worstEl = null;
   for (const el of root.querySelectorAll("*")) {
     const ov = el.scrollWidth - el.clientWidth;
-    if (ov > 1 && el.clientWidth > 0) { count++; if (ov > worst) worst = ov; }
+    if (ov <= 1 || el.clientWidth <= 0) continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === "svg" || tag === "img" || tag === "canvas" || tag === "video") continue;
+    // Only count REAL escapes — an element that clips/scrolls its own excess
+    // (overflow-x != visible) is an INTENTIONAL truncation (e.g. ellipsized
+    // hint), not a card-breaking overflow. Mirrors lib/mount-page.probeLayout.
+    if (getComputedStyle(el).overflowX !== "visible") continue;
+    count++; if (ov > worst) { worst = ov; worstEl = el; }
   }
   const shell = root.querySelector(".evcc-shell");
+  const cls = worstEl
+    ? (worstEl.className && worstEl.className.baseVal !== undefined ? worstEl.className.baseVal : String(worstEl.className || ""))
+    : "";
   return {
     ok: true, count, worst,
+    culprit: worstEl ? `${worstEl.tagName.toLowerCase()}.${cls.split(" ")[0] || "(none)"} "${(worstEl.textContent || "").trim().slice(0, 40)}"` : "",
     shellOverflow: shell ? shell.scrollWidth - host.clientWidth : 0,
     text: (root.textContent || "").replace(/\s+/g, " ").trim(),
   };
@@ -83,7 +94,8 @@ for (const lang of LANGS) {
     const p = await page.evaluate(probe);
     const switched = p.text && p.text !== enText[view];
     const shellTag = p.shellOverflow > 1 ? `  ⚠ SHELL +${p.shellOverflow}px (horizontal scroll)` : "";
-    console.log(`${view.padEnd(16)} switched=${switched ? "yes" : "NO "}  overflow-els=${String(p.count).padStart(3)}  worst=${String(p.worst).padStart(4)}px${shellTag}`);
+    const culpritTag = p.worst > 0 ? `  → ${p.culprit}` : "";
+    console.log(`${view.padEnd(16)} switched=${switched ? "yes" : "NO "}  overflow-els=${String(p.count).padStart(3)}  worst=${String(p.worst).padStart(4)}px${shellTag}${culpritTag}`);
     byLang[lang].push({ view, en: enShot[view], loc: png.toString("base64") });
   }
 }
