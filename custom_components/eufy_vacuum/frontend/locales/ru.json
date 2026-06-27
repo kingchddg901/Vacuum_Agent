@@ -1756,11 +1756,12 @@
       "completed": "Завершено",
       "canceled": "Отменено",
       "failed": "Сбой",
-      "interrupted": "Прервано"
+      "interrupted": "Прервано",
+      "cancelled": "Отменено"
     },
     "used_for_learning": {
       "true": "Использовано для обучения",
-      "false": "Не использовано для обучения"
+      "false": "Исключено из обучения"
     },
     "sort": {
       "newest": "Сначала новые",
@@ -2162,7 +2163,27 @@
       "evcc_space_lg": "Большой интервал",
       "evcc_space_md": "Средний интервал",
       "evcc_space_sm": "Малый интервал",
-      "evcc_transition_normal": "Обычный переход"
+      "evcc_transition_normal": "Обычный переход",
+      "evcc_animal_fox_eye_good": "Глаз — норма",
+      "evcc_animal_fox_eye_mid": "Глаз — средний",
+      "evcc_animal_fox_eye_warn": "Глаз — внимание",
+      "evcc_animal_fox_eye_low": "Глаз — низкий",
+      "evcc_animal_fox_eye_charging": "Глаз — зарядка",
+      "evcc_animal_fox_fur": "Шерсть",
+      "evcc_animal_fox_fur_shadow": "Тень шерсти",
+      "evcc_animal_fox_fur_highlight": "Подсветка шерсти",
+      "evcc_animal_fox_eye": "Основа глаза",
+      "evcc_animal_fox_pupil": "Зрачок",
+      "evcc_animal_fox_nose": "Нос",
+      "evcc_animal_fox_whisker": "Ус",
+      "evcc_animal_fox_ear_inner": "Внутренняя часть уха",
+      "evcc_animal_fox_white_tip": "Белый кончик / акцент",
+      "evcc_animal_mittens_eye_good": "Глаз — норма",
+      "evcc_animal_mittens_eye_mid": "Глаз — средний",
+      "evcc_animal_mittens_eye_warn": "Глаз — внимание",
+      "evcc_animal_mittens_eye_low": "Глаз — низкий",
+      "evcc_animal_mittens_eye_charging": "Глаз — зарядка",
+      "evcc_animal_mittens_eye": "Основа глаза"
     },
     "theme_group": {
       "app_shell_typography": "Оболочка и типографика",
@@ -2184,7 +2205,14 @@
       "learning_metrics": "Обучение и метрики",
       "modals_overlays": "Окна и оверлеи",
       "animal_companion": "Питомец-компаньон",
-      "shared_foundations": "Общие основы"
+      "shared_foundations": "Общие основы",
+      "animal_companion_cat": "Кошка",
+      "animal_companion_dog": "Собака",
+      "animal_companion_fox": "Лиса",
+      "animal_companion_parrot": "Попугай",
+      "animal_companion_raccoon": "Енот",
+      "animal_companion_snake": "Змея",
+      "rainbow_bridge": "Радужный мост"
     },
     "theme_facet": {
       "mode": "Режим",
@@ -2224,6 +2252,15 @@
       "community": "сообщество",
       "generated": "сгенерировано",
       "manual": "вручную"
+    },
+    "trust_level": {
+      "none": "Нет",
+      "building": "Накопление",
+      "low": "Низкая",
+      "medium": "Средняя",
+      "good": "Хорошая",
+      "high": "Высокая",
+      "trusted": "Надёжная"
     }
   },
   "order_modal": {

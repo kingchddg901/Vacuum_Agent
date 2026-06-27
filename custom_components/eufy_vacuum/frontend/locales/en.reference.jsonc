@@ -89,12 +89,22 @@
     "status": {
       "completed": "Completed",
       "canceled": "Canceled",
+      "cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
       "failed": "Failed",
       "interrupted": "Interrupted"
     },
     "used_for_learning": {
       "true": "Used For Learning",
-      "false": "Not Used For Learning"
+      "false": "Excluded From Learning"  // matches the backend filter label
+    },
+    "trust_level": {
+      "none": "None",  // learning trust/confidence tier on a room/profile estimate
+      "building": "Building",
+      "low": "Low",
+      "medium": "Medium",
+      "good": "Good",
+      "high": "High",
+      "trusted": "Trusted"
     },
     "sort": {
       "newest": "Newest",
@@ -496,7 +506,27 @@
       "evcc_space_lg": "Space Lg",
       "evcc_space_md": "Space Md",
       "evcc_space_sm": "Space Sm",
-      "evcc_transition_normal": "Transition Normal"
+      "evcc_transition_normal": "Transition Normal",
+      "evcc_animal_fox_eye_good": "Eye — Good",
+      "evcc_animal_fox_eye_mid": "Eye — Mid",
+      "evcc_animal_fox_eye_warn": "Eye — Warn",
+      "evcc_animal_fox_eye_low": "Eye — Low",
+      "evcc_animal_fox_eye_charging": "Eye — Charging",
+      "evcc_animal_fox_fur": "Fur",
+      "evcc_animal_fox_fur_shadow": "Fur Shadow",
+      "evcc_animal_fox_fur_highlight": "Fur Highlight",
+      "evcc_animal_fox_eye": "Eye Base",
+      "evcc_animal_fox_pupil": "Pupil",
+      "evcc_animal_fox_nose": "Nose",
+      "evcc_animal_fox_whisker": "Whisker",
+      "evcc_animal_fox_ear_inner": "Ear Inner",
+      "evcc_animal_fox_white_tip": "White Tip / Accent",
+      "evcc_animal_mittens_eye_good": "Eye — Good",
+      "evcc_animal_mittens_eye_mid": "Eye — Mid",
+      "evcc_animal_mittens_eye_warn": "Eye — Warn",
+      "evcc_animal_mittens_eye_low": "Eye — Low",
+      "evcc_animal_mittens_eye_charging": "Eye — Charging",
+      "evcc_animal_mittens_eye": "Eye Base"
     },
     "theme_group": {
       "app_shell_typography": "App Shell & Typography",
@@ -518,7 +548,14 @@
       "learning_metrics": "Learning & Metrics",
       "modals_overlays": "Modals & Overlays",
       "animal_companion": "Animal Companion",
-      "shared_foundations": "Shared Foundations"
+      "shared_foundations": "Shared Foundations",
+      "animal_companion_cat": "Cat",
+      "animal_companion_dog": "Dog",
+      "animal_companion_fox": "Fox",
+      "animal_companion_parrot": "Parrot",
+      "animal_companion_raccoon": "Raccoon",
+      "animal_companion_snake": "Snake",
+      "rainbow_bridge": "Rainbow Bridge"
     },
     "theme_facet": {
       "mode": "Mode",

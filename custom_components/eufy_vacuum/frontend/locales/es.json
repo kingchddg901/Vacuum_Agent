@@ -1681,11 +1681,12 @@
       "completed": "Completado",
       "canceled": "Cancelado",
       "failed": "Fallido",
-      "interrupted": "Interrumpido"
+      "interrupted": "Interrumpido",
+      "cancelled": "Cancelada"
     },
     "used_for_learning": {
       "true": "Usado para aprendizaje",
-      "false": "No usado para aprendizaje"
+      "false": "Excluida del aprendizaje"
     },
     "sort": {
       "newest": "Más recientes",
@@ -2087,7 +2088,27 @@
       "evcc_space_lg": "Espacio gr.",
       "evcc_space_md": "Espacio md.",
       "evcc_space_sm": "Espacio pq.",
-      "evcc_transition_normal": "Transición normal"
+      "evcc_transition_normal": "Transición normal",
+      "evcc_animal_fox_eye_good": "Ojo — Bueno",
+      "evcc_animal_fox_eye_mid": "Ojo — Medio",
+      "evcc_animal_fox_eye_warn": "Ojo — Aviso",
+      "evcc_animal_fox_eye_low": "Ojo — Bajo",
+      "evcc_animal_fox_eye_charging": "Ojo — Cargando",
+      "evcc_animal_fox_fur": "Pelaje",
+      "evcc_animal_fox_fur_shadow": "Sombra del pelaje",
+      "evcc_animal_fox_fur_highlight": "Resalte del pelaje",
+      "evcc_animal_fox_eye": "Base del ojo",
+      "evcc_animal_fox_pupil": "Pupila",
+      "evcc_animal_fox_nose": "Nariz",
+      "evcc_animal_fox_whisker": "Bigote",
+      "evcc_animal_fox_ear_inner": "Interior de la oreja",
+      "evcc_animal_fox_white_tip": "Punta blanca / acento",
+      "evcc_animal_mittens_eye_good": "Ojo — Bueno",
+      "evcc_animal_mittens_eye_mid": "Ojo — Medio",
+      "evcc_animal_mittens_eye_warn": "Ojo — Aviso",
+      "evcc_animal_mittens_eye_low": "Ojo — Bajo",
+      "evcc_animal_mittens_eye_charging": "Ojo — Cargando",
+      "evcc_animal_mittens_eye": "Base del ojo"
     },
     "theme_group": {
       "app_shell_typography": "Marco de la app y tipografía",
@@ -2109,7 +2130,14 @@
       "learning_metrics": "Aprendizaje y métricas",
       "modals_overlays": "Modales y superposiciones",
       "animal_companion": "Compañero animal",
-      "shared_foundations": "Bases compartidas"
+      "shared_foundations": "Bases compartidas",
+      "animal_companion_cat": "Gato",
+      "animal_companion_dog": "Perro",
+      "animal_companion_fox": "Zorro",
+      "animal_companion_parrot": "Loro",
+      "animal_companion_raccoon": "Mapache",
+      "animal_companion_snake": "Serpiente",
+      "rainbow_bridge": "Puente del Arcoíris"
     },
     "theme_facet": {
       "mode": "Modo",
@@ -2149,6 +2177,15 @@
       "community": "comunidad",
       "generated": "generado",
       "manual": "manual"
+    },
+    "trust_level": {
+      "none": "Ninguna",
+      "building": "Acumulando",
+      "low": "Baja",
+      "medium": "Media",
+      "good": "Buena",
+      "high": "Alta",
+      "trusted": "Fiable"
     }
   },
   "order_modal": {

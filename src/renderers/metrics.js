@@ -402,7 +402,7 @@ export function applyMetricsRenderers(proto) {
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(opt.title)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -673,9 +673,14 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} Title-cased label, or "Unknown".
    */
   proto._formatMetricsTrustLevel = function (value) {
-    return String(value ?? "")
+    const formatted = String(value ?? "")
       .replace(/[_-]+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || this.t("metrics.unknown");
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    if (!formatted) return this.t("metrics.unknown");
+    // Localize the trust/confidence tier (building/low/medium/good/high/trusted).
+    // RAW (not tVocab): callers either insert via this.t (raw) or escapeHtml the
+    // result themselves — tVocab would double-escape at the escapeHtml site.
+    return this.tVocabRaw("trust_level", value, formatted);
   };
 
   /**
