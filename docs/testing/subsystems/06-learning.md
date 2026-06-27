@@ -26,7 +26,7 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | `job_finalizer.py` | 537 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
 | `manager.py` | 680 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
 | `services.py` | 241 | 96% | `tests/integration/test_learning_services.py` | integration |
-| `external_ingest.py` | 390 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
+| `external_ingest.py` | 391 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |
 | `job_segmenter_engines.py` | 99 | 98% | `tests/unit/test_job_segmenter_engines.py` | unit (pure) |
 | `room_attribution_engines.py` | 148 | 98% | `tests/unit/test_room_attribution_engines.py` (seam) + `tests/adapters/eufy/test_room_attribution.py` (classifier) | unit (pure) |
 | `counter_segmentation.py` | 165 | 96% | `tests/unit/test_counter_segmentation.py` + `tests/unit/test_counter_resegmentation.py` | unit (pure) |
