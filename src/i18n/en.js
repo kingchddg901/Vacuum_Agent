@@ -1163,6 +1163,22 @@ export const en = {
   "setup.add": "Add",
   "setup.add_another_vacuum": "Add another vacuum",
   "setup.add_vacuum": "Add Vacuum",
+  // Setup STEP labels — keyed by step.id, rendered via t() (the backend/fallback
+  // ships English labels; see setup/drift.py). Distinct from setup.add_vacuum
+  // (the action BUTTON) vs setup.step_add_vacuum (the wizard step heading).
+  "setup.step_add_vacuum": "Add vacuum",  // setup wizard step 1 heading
+  "setup.step_import_active_map": "Import active map",  // setup wizard step 2 heading
+  "setup.step_save_rooms": "Configure rooms",  // setup wizard step 3 heading (save/configure rooms)
+  // Floor-type option labels (the room floor-type picker; FLOOR_TYPE_OPTIONS in
+  // setup.js). Keyed by floor value, rendered via t().
+  "setup.floor_hardwood": "Hardwood",  // floor type
+  "setup.floor_laminate": "Laminate",  // floor type
+  "setup.floor_tile": "Tile",  // floor type
+  "setup.floor_marble": "Marble",  // floor type
+  "setup.floor_granite": "Granite",  // floor type
+  "setup.floor_concrete": "Concrete",  // floor type
+  "setup.floor_carpet_low_pile": "Low-Pile Carpet",  // floor type: short/low carpet pile
+  "setup.floor_carpet_high_pile": "High-Pile Carpet",  // floor type: deep/high carpet pile
   "setup.all_vacuums_managed": "All detected vacuums are already managed.",
   "setup.auto_adapter_default": "Auto (adapter default)",  // Live-map camera select default option; 'adapter'=brand integration shim (jargon)
   "setup.check_status": "Check Status",

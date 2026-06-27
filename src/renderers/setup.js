@@ -52,6 +52,16 @@ export function applySetupRenderers(proto) {
    * @param {{ state: object, card: object }} ctx
    * @returns {string} HTML string.
    */
+  // Setup step heading, localized by step.id (setup.step_<id>). The backend
+  // (setup/drift.py) and the legacy fallback both ship ENGLISH step.label, so
+  // translate by the stable id and fall back to step.label for any unknown id.
+  proto._setupStepLabel = function (step) {
+    // Inline the template in the t() call so the check:i18n reachability scan
+    // matches setup.step_* (a t(variable) form is invisible to it).
+    const t = this.t(`setup.step_${step.id}`);
+    return t === `setup.step_${step.id}` ? this.escapeHtml(String(step.label || step.id)) : t;
+  };
+
   proto.renderSetupView = function (ctx) {
     const { state, card } = ctx;
 
@@ -338,7 +348,7 @@ export function applySetupRenderers(proto) {
                       data-room-id="${roomId}"
                       data-floor-type="${opt.value}"
                       ${saving ? "disabled" : ""}>
-                ${opt.label}
+                ${this.t(`setup.floor_${opt.value}`)}
               </button>
             `).join("");
 
@@ -498,7 +508,7 @@ export function applySetupRenderers(proto) {
             <div class="evcc-setup-step-badge ${step.completed ? "done" : ""}">
               ${badgeContents}
             </div>
-            <div class="evcc-setup-step-label">${this.escapeHtml(step.label)}</div>
+            <div class="evcc-setup-step-label">${this._setupStepLabel(step)}</div>
           </div>
           ${body}
         </div>
