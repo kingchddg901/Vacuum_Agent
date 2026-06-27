@@ -1663,9 +1663,10 @@
       "high": "Alto"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minuti stimati",
       "room_count": "Numero stanze",
-      "none": "Nessuno"
+      "none": "Nessuno",
+      "estimated_minutes": "Minuti stimati",
+      "actual_minutes": "Minuti effettivi"
     },
     "status": {
       "completed": "Completato",

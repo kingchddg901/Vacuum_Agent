@@ -1663,9 +1663,10 @@
       "high": "Hoog"
     },
     "battery_weighted_by": {
-      "est_minutes": "Gesch. minuten",
       "room_count": "Aantal kamers",
-      "none": "Geen"
+      "none": "Geen",
+      "estimated_minutes": "Gesch. minuten",
+      "actual_minutes": "Werkelijke minuten"
     },
     "status": {
       "completed": "Voltooid",

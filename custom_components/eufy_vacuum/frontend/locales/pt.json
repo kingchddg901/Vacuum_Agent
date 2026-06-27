@@ -1676,9 +1676,10 @@
       "high": "Alto"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutos est.",
       "room_count": "Nº de divisões",
-      "none": "Nenhum"
+      "none": "Nenhum",
+      "estimated_minutes": "Minutos est.",
+      "actual_minutes": "Minutos reais"
     },
     "status": {
       "completed": "Concluído",

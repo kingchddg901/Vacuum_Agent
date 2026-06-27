@@ -1663,9 +1663,10 @@
       "high": "Hoch"
     },
     "battery_weighted_by": {
-      "est_minutes": "Gesch. Minuten",
       "room_count": "Anzahl Räume",
-      "none": "Keine"
+      "none": "Keine",
+      "estimated_minutes": "Gesch. Minuten",
+      "actual_minutes": "Tatsächliche Minuten"
     },
     "status": {
       "completed": "Abgeschlossen",

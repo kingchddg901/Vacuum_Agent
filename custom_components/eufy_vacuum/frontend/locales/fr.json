@@ -1677,9 +1677,10 @@
       "high": "Élevé"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutes est.",
       "room_count": "Nombre de pièces",
-      "none": "Aucune"
+      "none": "Aucune",
+      "estimated_minutes": "Minutes est.",
+      "actual_minutes": "Minutes réelles"
     },
     "status": {
       "completed": "Terminé",

@@ -85,7 +85,8 @@
       "high": "High"
     },
     "battery_weighted_by": {
-      "est_minutes": "Est-minutes",
+      "estimated_minutes": "Est. minutes",  // last-job %/m² weighting basis: the estimated per-room minutes
+      "actual_minutes": "Actual minutes",  // weighting basis: the actual measured minutes
       "room_count": "Room count",
       "none": "None"
     },

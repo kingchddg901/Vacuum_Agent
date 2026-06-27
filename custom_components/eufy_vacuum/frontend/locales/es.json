@@ -1677,9 +1677,10 @@
       "high": "Alto"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutos est.",
       "room_count": "Nº de habitaciones",
-      "none": "Ninguno"
+      "none": "Ninguno",
+      "estimated_minutes": "Minutos est.",
+      "actual_minutes": "Minutos reales"
     },
     "status": {
       "completed": "Completado",

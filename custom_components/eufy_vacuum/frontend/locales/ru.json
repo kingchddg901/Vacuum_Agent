@@ -1752,9 +1752,10 @@
       "high": "Высокий"
     },
     "battery_weighted_by": {
-      "est_minutes": "Расч. минуты",
       "room_count": "Число комнат",
-      "none": "Нет"
+      "none": "Нет",
+      "estimated_minutes": "Расч. минуты",
+      "actual_minutes": "Фактические минуты"
     },
     "status": {
       "completed": "Завершено",

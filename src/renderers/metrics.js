@@ -56,7 +56,7 @@ export function applyMetricsRenderers(proto) {
               <div>
                 <div class="evcc-metrics-panel-title">${this.t("metrics.panel_title")}</div>
                 <div class="evcc-metrics-panel-subtitle">
-                  ${this.escapeHtml(snapshot.message || this.t("metrics.panel_subtitle"))}
+                  ${this.t("metrics.panel_subtitle")}
                 </div>
               </div>
             </div>
@@ -878,7 +878,9 @@ export function applyMetricsRenderers(proto) {
       }
       return keys.map((k) => `
         <tr>
-          <td>${this.tVocab("battery_bucket_key", k, k)}</td>
+          <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
+               mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
+          <td>${this.tVocab("battery_bucket_key", String(k).replace(/\s+and\s+/gi, " "), k)}</td>
           <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
           <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
@@ -932,7 +934,7 @@ export function applyMetricsRenderers(proto) {
           <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", lastJob.single_clean_mode, lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", String(lastJob.single_clean_mode).replace(/\s+and\s+/gi, " "), lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${lastJob.single_fan_speed ? this.tVocab("fan_speed", lastJob.single_fan_speed, lastJob.single_fan_speed) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${lastJob.single_water_level ? this.tVocab("water_level", lastJob.single_water_level, lastJob.single_water_level) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${lastJob.weighted_by ? this.tVocab("battery_weighted_by", lastJob.weighted_by, lastJob.weighted_by) : "—"}</td></tr>

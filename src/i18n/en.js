@@ -1496,7 +1496,8 @@ export const en = {
   "vocab.battery_bucket_key.low": "Low",
   "vocab.battery_bucket_key.medium": "Medium",
   "vocab.battery_bucket_key.high": "High",
-  "vocab.battery_weighted_by.est_minutes": "Est-minutes",
+  "vocab.battery_weighted_by.estimated_minutes": "Est. minutes",  // last-job %/m² weighting basis: the estimated per-room minutes
+  "vocab.battery_weighted_by.actual_minutes": "Actual minutes",   // weighting basis: the actual measured minutes
   "vocab.battery_weighted_by.room_count": "Room count",
   "vocab.battery_weighted_by.none": "None",
   "vocab.status.completed": "Completed",
