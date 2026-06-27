@@ -11,7 +11,9 @@
     "reset": "Restablecer",
     "save": "Guardar",
     "saving": "Guardando…",
-    "yes": "Sí"
+    "yes": "Sí",
+    "confirm": "Confirmar",
+    "ok": "Aceptar"
   },
   "base_station": {
     "action_available": "Acción disponible",

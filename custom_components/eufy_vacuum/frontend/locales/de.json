@@ -11,7 +11,9 @@
     "reset": "Zurücksetzen",
     "save": "Speichern",
     "saving": "Wird gespeichert…",
-    "yes": "Ja"
+    "yes": "Ja",
+    "confirm": "Bestätigen",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Aktion verfügbar",

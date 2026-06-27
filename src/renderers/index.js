@@ -30,6 +30,7 @@ import { applyMappingReviewRenderers   } from "./mapping-review.js";
 import { applyExternalJobsRenderers     } from "./external-jobs.js";
 import { applyMobileShellRenderer      } from "./mobile-shell.js";
 import { applyToastsRenderer           } from "./toasts.js";
+import { applyDialogRenderer           } from "./dialog.js";
 
 /* =========================================================
    LEARNING RENDERERS
@@ -103,3 +104,4 @@ applyMappingReviewRenderers(VacuumCardRenderers.prototype);
 applyExternalJobsRenderers(VacuumCardRenderers.prototype);
 applyMobileShellRenderer(VacuumCardRenderers.prototype);
 applyToastsRenderer(VacuumCardRenderers.prototype);
+applyDialogRenderer(VacuumCardRenderers.prototype);

@@ -216,6 +216,7 @@ export class VacuumCardBindings {
     this._bindRoomEstimateHost?.(host);
     this._bindExternalWizardHost?.(host);
     this._bindThemeJsonModalHost?.(host);
+    this._bindDialogHost(host);
 
     // Close room editor actions.
     host.querySelectorAll("[data-action='close-room-editor']").forEach((el) => {
@@ -296,6 +297,59 @@ export class VacuumCardBindings {
         await this._handleDeleteRoomProfile?.();
       });
     });
+  }
+
+  /**
+   * Wire the card-native dialog (confirm / alert / prompt) in the modal host.
+   * No-op when no dialog is open. resolveDialog is idempotent, so the
+   * duplicate listeners a no-swap re-render can add are harmless.
+   */
+  _bindDialogHost(host) {
+    const dialog = this.card._state.pendingDialog?.();
+    if (!dialog) return;
+
+    const finish = (result) => {
+      this.card._state.resolveDialog(result);
+      this.card._scheduleRender();
+    };
+
+    // The generic stop-propagation handler only catches the FIRST modal; the
+    // dialog stacks above others, so guard its own clicks from the backdrop.
+    const modal = host.querySelector("[data-evcc-dialog]");
+    if (modal) modal.addEventListener("click", (e) => e.stopPropagation());
+
+    const inputEl = host.querySelector("[data-evcc-dialog-input]");
+
+    host.querySelectorAll("[data-action='dialog-confirm']").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (dialog.kind === "prompt") finish(inputEl ? inputEl.value : "");
+        else if (dialog.kind === "alert") finish(undefined);
+        else finish(true);
+      });
+    });
+
+    // Cancel button and backdrop both dismiss: confirm -> false, prompt ->
+    // null, alert -> resolve (acknowledged).
+    host.querySelectorAll("[data-action='dialog-cancel'], [data-action='dialog-backdrop']").forEach((el) => {
+      el.addEventListener("click", () => {
+        finish(dialog.kind === "confirm" ? false : dialog.kind === "prompt" ? null : undefined);
+      });
+    });
+
+    if (inputEl) {
+      inputEl.addEventListener("keydown", (e) => {
+        // stopPropagation so a prompt's own Enter/Escape never bubbles to the
+        // document-level keydown handler (which would close the modal beneath).
+        if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); finish(inputEl.value); }
+        else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); finish(null); }
+      });
+      // Autofocus once when the input first mounts. The dataset flag survives
+      // harmless re-binds but resets when the dialog re-opens with a fresh input.
+      if (!inputEl.dataset.evccFocused) {
+        inputEl.dataset.evccFocused = "1";
+        setTimeout(() => { try { inputEl.focus(); inputEl.select(); } catch (_e) { /* detached */ } }, 0);
+      }
+    }
   }
 }
 

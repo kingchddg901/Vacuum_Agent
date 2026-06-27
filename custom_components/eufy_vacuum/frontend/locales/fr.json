@@ -11,7 +11,9 @@
     "reset": "Réinitialiser",
     "save": "Enregistrer",
     "saving": "Enregistrement…",
-    "yes": "Oui"
+    "yes": "Oui",
+    "confirm": "Confirmer",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Action disponible",

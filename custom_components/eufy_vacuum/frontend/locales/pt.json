@@ -11,7 +11,9 @@
     "reset": "Repor",
     "save": "Guardar",
     "saving": "A guardar…",
-    "yes": "Sim"
+    "yes": "Sim",
+    "confirm": "Confirmar",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Ação disponível",

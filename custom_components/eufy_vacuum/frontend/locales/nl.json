@@ -11,7 +11,9 @@
     "reset": "Resetten",
     "save": "Opslaan",
     "saving": "Opslaan…",
-    "yes": "Ja"
+    "yes": "Ja",
+    "confirm": "Bevestigen",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Actie beschikbaar",

@@ -19,6 +19,7 @@ import { applyMapState   } from "./map.js";
 import { applyViewportState } from "./viewport.js";
 import { applyToastsState }   from "./toasts.js";
 import { applyConfirmationsState } from "./confirmations.js";
+import { applyDialogState }   from "./dialog.js";
 
 // Learning is predictive, temporal, and controller-managed — applied after all structural modules.
 import { applyLearningState      } from "./learning.js";
@@ -57,6 +58,7 @@ export class VacuumCardState {
 
 applyCoreState(VacuumCardState.prototype);
 applyConfirmationsState(VacuumCardState.prototype);
+applyDialogState(VacuumCardState.prototype);
 applyDockState(VacuumCardState.prototype);
 applyMetricsState(VacuumCardState.prototype);
 applyOrderState(VacuumCardState.prototype);

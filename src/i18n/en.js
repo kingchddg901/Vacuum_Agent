@@ -32,9 +32,11 @@ export const en = {
   // --- common ---
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.no": "No",
+  "common.ok": "OK",  // Acknowledge-button label on a card-native alert dialog
   "common.off": "Off",  // Toggle-button label = setting DISABLED (paired with common.on); not 'leave/away' or directional
   "common.on": "On",  // Toggle-button label = setting ENABLED (edge-mop/rules on); not 'turn on' verb or 'on' preposition
   "common.rename": "Rename",

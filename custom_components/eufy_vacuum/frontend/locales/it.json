@@ -11,7 +11,9 @@
     "reset": "Reimposta",
     "save": "Salva",
     "saving": "Salvataggio…",
-    "yes": "Sì"
+    "yes": "Sì",
+    "confirm": "Conferma",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Azione disponibile",

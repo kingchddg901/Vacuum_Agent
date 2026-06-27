@@ -13,9 +13,11 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
+    "confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
     "delete": "Delete",
     "edit": "Edit",
     "no": "No",
+    "ok": "OK",  // Acknowledge-button label on a card-native alert dialog
     "off": "Off",  // Toggle-button label = setting DISABLED (paired with common.on); not 'leave/away' or directional
     "on": "On",  // Toggle-button label = setting ENABLED (edge-mop/rules on); not 'turn on' verb or 'on' preposition
     "rename": "Rename",

@@ -59,7 +59,7 @@ export function applyRunProfilesBindings(proto) {
       });
 
       if (result?.ok === false) {
-        alert(result.reason || this.t("bind_run_profiles.unable_apply"));
+        this.card.showToast(result.reason || this.t("bind_run_profiles.unable_apply"), { kind: "error" });
         return;
       }
 
@@ -78,7 +78,7 @@ export function applyRunProfilesBindings(proto) {
         const draft = this.card._state.runProfileDraft?.();
         const name = String(draft?.name ?? "").trim();
         if (!name) {
-          alert(this.t("bind_run_profiles.enter_name"));
+          this.card.showToast(this.t("bind_run_profiles.enter_name"), { kind: "error" });
           return;
         }
 
@@ -90,7 +90,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || this.t("bind_run_profiles.unable_save"));
+          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_save"), { kind: "error" });
           return;
         }
 
@@ -124,7 +124,7 @@ export function applyRunProfilesBindings(proto) {
 
         const name = String(draft?.name ?? "").trim();
         if (!name) {
-          alert(this.t("bind_run_profiles.enter_name"));
+          this.card.showToast(this.t("bind_run_profiles.enter_name"), { kind: "error" });
           return;
         }
 
@@ -137,7 +137,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || this.t("bind_run_profiles.unable_overwrite"));
+          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_overwrite"), { kind: "error" });
           return;
         }
 
@@ -156,7 +156,7 @@ export function applyRunProfilesBindings(proto) {
         const profile = this.card._state.selectedRunProfile?.();
         if (!profileId || !profile) return;
 
-        if (!confirm(this.t("bind_run_profiles.confirm_delete", { name: profile.name }))) return;
+        if (!(await this.card._confirm(this.t("bind_run_profiles.confirm_delete", { name: profile.name }), { danger: true }))) return;
 
         const result = await this.card._actions.deleteRunProfile({
           vacuum_entity_id: this.card._state.vacuumEntityId?.(),
@@ -165,7 +165,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          alert(result.reason || this.t("bind_run_profiles.unable_delete"));
+          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_delete"), { kind: "error" });
           return;
         }
 
