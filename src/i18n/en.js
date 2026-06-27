@@ -1505,6 +1505,8 @@ export const en = {
   "vocab.status.cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
   "vocab.status.failed": "Failed",
   "vocab.status.interrupted": "Interrupted",
+  "vocab.job_scope.single_room": "Single Room",  // learning-review job coverage: one room cleaned
+  "vocab.job_scope.multi_room": "Multi Room",     // learning-review job coverage: several rooms in one run
   "vocab.used_for_learning.true": "Used For Learning",
   "vocab.used_for_learning.false": "Excluded From Learning",  // matches the backend filter label
   "vocab.trust_level.none": "None",  // learning trust/confidence tier on a room/profile estimate

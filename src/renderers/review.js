@@ -64,7 +64,7 @@ export function applyReviewRenderers(proto) {
               <div>
                 <div class="evcc-review-panel-title">${this.t("review.panel_title")}</div>
                 <div class="evcc-review-panel-subtitle">
-                  ${this.escapeHtml(snapshot.message || this.t("review.panel_subtitle"))}
+                  ${this.t("review.panel_subtitle")}
                 </div>
               </div>
             </div>
@@ -361,7 +361,7 @@ export function applyReviewRenderers(proto) {
               class="evcc-chip ${String(option.value) === String(selected) ? "active" : ""}"
               data-review-matcher-field="${this.escapeHtml(key)}"
               data-value="${this.escapeHtml(String(option.value))}"
-            >${this.escapeHtml(String(option.label))}</button>
+            >${this.tVocab(key, option.value, String(option.label))}</button>
           `).join("")}
         </div>
       </div>
@@ -419,7 +419,7 @@ export function applyReviewRenderers(proto) {
 
     if (excluded) badges.push({ text: this.t("review.badge_excluded"), cls: "evcc-review-badge--excluded" });
     if (job?.exclude_suggested === true) badges.push({ text: job?.exclude_suggested_reason_label || this.t("review.badge_suggested_exclude"), cls: "evcc-review-badge--suggested" });
-    if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown")), cls: "evcc-review-badge--warning" });
+    if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: this.tVocabRaw("status", job?.status, job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown"))), cls: "evcc-review-badge--warning" });
     if (job?.sanity_passed === false) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
     if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
     if (job?.is_single_room === true) badges.push({ text: this.t("review.badge_single_room"), cls: "evcc-review-badge--neutral" });
@@ -461,9 +461,9 @@ export function applyReviewRenderers(proto) {
         ? job.room_slugs.join(", ")
       : this.t("review.unknown");
     const primaryRoomDisplay = job?.primary_room_label || job?.primary_room_slug || this.t("review.unknown");
-    const scopeDisplay =
-      job?.job_scope_label ||
-      (job?.job_scope ? this._formatReviewLabel(job.job_scope) : this.t("review.unknown"));
+    const scopeDisplay = job?.job_scope
+      ? this.tVocabRaw("job_scope", job.job_scope, job?.job_scope_label || this._formatReviewLabel(job.job_scope))
+      : (job?.job_scope_label || this.t("review.unknown"));
 
     return `
       <article class="evcc-review-job-card ${excluded ? "evcc-review-job-card--excluded" : ""} ${job?.exclude_suggested ? "evcc-review-job-card--suggested" : ""}">

@@ -2312,6 +2312,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Ограничено комнатами, обнаруженными в этом запуске."
+    },
+    "job_scope": {
+      "single_room": "Одна комната",
+      "multi_room": "Несколько комнат"
     }
   },
   "order_modal": {

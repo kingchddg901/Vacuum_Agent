@@ -2237,6 +2237,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Limitado a las habitaciones detectables en esta ejecución."
+    },
+    "job_scope": {
+      "single_room": "Habitación única",
+      "multi_room": "Varias habitaciones"
     }
   },
   "order_modal": {

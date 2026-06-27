@@ -2223,6 +2223,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Limitato alle stanze rilevabili in questa esecuzione."
+    },
+    "job_scope": {
+      "single_room": "Stanza singola",
+      "multi_room": "Più stanze"
     }
   },
   "order_modal": {

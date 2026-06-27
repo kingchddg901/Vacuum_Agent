@@ -2223,6 +2223,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Beperkt tot de kamers die in deze run detecteerbaar zijn."
+    },
+    "job_scope": {
+      "single_room": "Eén kamer",
+      "multi_room": "Meerdere kamers"
     }
   },
   "order_modal": {

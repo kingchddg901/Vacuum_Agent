@@ -2237,6 +2237,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Limité aux pièces détectables lors de cette exécution."
+    },
+    "job_scope": {
+      "single_room": "Pièce unique",
+      "multi_room": "Plusieurs pièces"
     }
   },
   "order_modal": {

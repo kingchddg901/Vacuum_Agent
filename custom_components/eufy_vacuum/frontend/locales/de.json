@@ -2223,6 +2223,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Auf die in diesem Lauf erkennbaren Räume begrenzt."
+    },
+    "job_scope": {
+      "single_room": "Einzelner Raum",
+      "multi_room": "Mehrere Räume"
     }
   },
   "order_modal": {

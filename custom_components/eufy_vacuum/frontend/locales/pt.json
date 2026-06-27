@@ -2236,6 +2236,10 @@
     },
     "resegment_reason": {
       "capped_to_detectable": "Limitado aos cômodos detectáveis nesta execução."
+    },
+    "job_scope": {
+      "single_room": "Cômodo único",
+      "multi_room": "Vários cômodos"
     }
   },
   "order_modal": {

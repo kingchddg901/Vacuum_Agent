@@ -97,6 +97,10 @@
       "failed": "Failed",
       "interrupted": "Interrupted"
     },
+    "job_scope": {
+      "single_room": "Single Room",  // learning-review job coverage: one room cleaned
+      "multi_room": "Multi Room"  // learning-review job coverage: several rooms in one run
+    },
     "used_for_learning": {
       "true": "Used For Learning",
       "false": "Excluded From Learning"  // matches the backend filter label
