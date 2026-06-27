@@ -53,10 +53,33 @@ Resolution order, most-explicit first (`resolveLang`):
 A missing key renders **the key itself** (`rooms.empty`), never a blank — a
 visible miss in dev.
 
-**Draft-gate.** An AI-generated locale not yet native-reviewed is marked `draft`
-(or `custom` for a runtime drop-in). A draft must **never auto-activate** from the
-system language — only an explicit override/pin reaches it. So step 2 falls back
-to English for a draft locale; steps 0–1 (deliberate choices) bypass the gate.
+### Review status and auto-activation
+
+Separate from the [intake-gate outcomes](#the-intake-gate) (which judge a *file's
+safety*, not its review state), every locale carries a **review status**
+(`LOCALE_STATUS` in `index.js`) that controls whether it may auto-activate from the
+HA system language:
+
+| status | meaning | auto-activates at step 2? |
+|---|---|---|
+| `stable` | native-reviewed (English is always `stable`) | **yes** |
+| `draft` | AI-generated, not yet native-reviewed | no |
+| `custom` | a runtime drop-in (`config/eufy_vacuum/locales/`) | no |
+| `unknown` | no status on record | no |
+
+**The rule the gate enforces** (`isDraftLocale` in `resolveLang`): step 2 (the HA
+system language) activates a locale **only if its status is `stable`**. A `draft`
+or `custom` locale falls through to English at step 2 and is reachable only by a
+deliberate choice — the globe override or the dashboard pin (steps 0–1), which
+bypass the gate. Promotion `draft → stable` after native review is a one-line
+`LOCALE_STATUS` change, and it is the single switch that lets a language follow the
+system language.
+
+Consequence today: **all shipped non-English locales are `draft`**, so **`Auto`
+(follow-the-system-language) resolves to English for everyone** until a locale is
+promoted — by design (an unreviewed translation never activates silently), but the
+[user-facing language page](../user-guide/19-language.md) makes that visible to the
+user rather than leaving `Auto` looking broken.
 
 ## Trust Model B
 

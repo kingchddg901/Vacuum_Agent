@@ -83,8 +83,12 @@ until you change it — fix the offending value, restart, and it re-evaluates fr
 
 A new AI-assisted or unreviewed translation ships as a **draft** — usable by
 explicit pick, but it won't auto-activate. Once a native speaker has reviewed it,
-promote it to `stable` (a one-line status change) so it can follow the HA system
-language automatically.
+promote it to `stable` (a one-line `LOCALE_STATUS` change) so it can follow the HA
+system language automatically. `draft` and `stable` are the two review states a
+shipped locale moves between; the
+[review-status taxonomy](../dev/33-i18n-system.md#review-status-and-auto-activation)
+defines exactly what each status controls (and how it differs from the intake
+gate's safety outcomes).
 
 To contribute a language upstream, open a PR adding `<code>.json` to the served
 locales folder and its status to the locale tables in `src/i18n/index.js`. The

@@ -12,13 +12,17 @@ Your choice is **yours** — it applies only to your view, not to other people w
 use the same dashboard, and it follows you across your devices (it's saved to
 your Home Assistant account, not the browser).
 
-Pick **Auto** to follow your Home Assistant language automatically.
+Pick **Auto** to follow your Home Assistant language automatically — but note that
+**Auto only switches to languages that have been native-reviewed.** Every language
+other than English is currently a *draft* (see below), so **Auto shows English for
+now**. To use your language today, pick it directly from the globe.
 
 !!! info "Drafts"
     Languages other than English are currently AI-assisted and marked *(draft)*
-    until a native speaker has reviewed them — so they don't switch on
-    automatically, only when you pick them from the globe. The wording will keep
-    improving.
+    until a native speaker has reviewed them. A draft never switches on by itself —
+    so **Auto stays on English** and you choose the language manually from the
+    globe. Once a language is reviewed and promoted, **Auto** will follow your Home
+    Assistant language to it automatically. The wording will keep improving.
 
 ## Don't see your language?
 
