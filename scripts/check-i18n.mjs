@@ -39,6 +39,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
 import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale, loadDroppedLocales, listBundledLocales, listLocales } from "../src/i18n/index.js";
+import { flattenLocale } from "../src/i18n/flatten.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -443,6 +444,64 @@ await checkAsync("loadDroppedLocales: discovers + loads drop-in files (custom-ta
   assert.ok(r2.loaded.includes("yy-drop"));                            // others still load
 });
 
+// 28. flattenLocale: nested authoring -> flat catalog. Explicit / commons /
+//     scoped resolution + plural leaves, against an English manifest.
+check("flattenLocale: explicit + commons + plural resolution", () => {
+  const manifest = {
+    "common.save": "Save",
+    "rooms.empty": "No rooms",
+    "rooms.save": "Save",
+    "maintenance.schedule.save": "Save",
+    "rooms.count": { one: "{count} room", other: "{count} rooms" },
+  };
+  const nested = {
+    commons: { save: "Speichern" },
+    rooms: { empty: "Keine Räume", count: { one: "{count} Raum", other: "{count} Räume" } },
+    maintenance: { schedule: { save: "Plan speichern" } },
+  };
+  const { flat, coverage } = flattenLocale(nested, manifest);
+  assert.equal(flat["common.save"], "Speichern");                      // commons fallback
+  assert.equal(flat["rooms.empty"], "Keine Räume");                    // explicit
+  assert.equal(flat["rooms.save"], "Speichern");                       // commons fallback for a leaf
+  assert.equal(flat["maintenance.schedule.save"], "Plan speichern");   // deep explicit
+  assert.deepEqual(flat["rooms.count"], { one: "{count} Raum", other: "{count} Räume" }); // plural leaf
+  assert.ok(coverage.commons.includes("common.save") && coverage.commons.includes("rooms.save"));
+  assert.ok(coverage.explicit.includes("rooms.count"));
+});
+
+// 29. flattenLocale: a leaf at an ANCESTOR scope overrides all descendants.
+check("flattenLocale: scoped leaf overrides descendants", () => {
+  const manifest = { "maintenance.schedule.save": "Save", "maintenance.filter.save": "Save" };
+  const { flat, coverage } = flattenLocale({ maintenance: { save: "Speichern" } }, manifest);
+  assert.equal(flat["maintenance.schedule.save"], "Speichern");
+  assert.equal(flat["maintenance.filter.save"], "Speichern");
+  assert.ok(coverage.scoped.includes("maintenance.schedule.save"));
+});
+
+// 30. flattenLocale: a FLAT locale (dotted keys) passes through unchanged;
+//     missing keys are omitted (-> English fallback) and recorded; non-object safe.
+check("flattenLocale: flat passthrough + untranslated accounting", () => {
+  const manifest = { "a.b": "A", "c.d": "C", "e.f": { one: "1", other: "n" } };
+  const { flat, coverage } = flattenLocale({ "a.b": "AA" }, manifest);
+  assert.equal(flat["a.b"], "AA");                                     // literal flat key
+  assert.equal(flat["c.d"], undefined);                               // omitted
+  assert.ok(coverage.untranslated.includes("c.d") && coverage.untranslated.includes("e.f"));
+  const r = flattenLocale(null, manifest);
+  assert.equal(Object.keys(r.flat).length, 0);
+  assert.equal(r.coverage.untranslated.length, 3);
+});
+
+// 31. flattenLocale: plural disambiguation — a CLDR-only object is a leaf; an
+//     object with any non-CLDR key is a SECTION (so its would-be key is untranslated).
+check("flattenLocale: plural vs section disambiguation", () => {
+  const manifest = { "x.y": "Y" };
+  const asLeaf = flattenLocale({ x: { y: { one: "1", other: "n" } } }, manifest);
+  assert.deepEqual(asLeaf.flat["x.y"], { one: "1", other: "n" });
+  const asSection = flattenLocale({ x: { y: { one: "1", banana: "2" } } }, manifest);
+  assert.equal(asSection.flat["x.y"], undefined);
+  assert.ok(asSection.coverage.untranslated.includes("x.y"));
+});
+
 /* =========================================================
    B. KEY CROSS-CHECK (used in src  <->  defined in en.js)
    ========================================================= */
@@ -533,6 +592,7 @@ const localeFiles = readdirSync(i18nDir).filter(
     f !== "index.js" &&
     f !== "en.js" &&
     f !== "lang-store.js" && // helper module (WS user-data store), not a catalog
+    f !== "flatten.js" &&    // helper module (nested-authoring flatten), not a catalog
     !f.endsWith(".test.js"),
 );
 if (localeFiles.length === 0) {
