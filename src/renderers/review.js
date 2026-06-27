@@ -91,12 +91,10 @@ export function applyReviewRenderers(proto) {
                 label: room?.room_name ?? room?.label ?? room?.slug ?? this.t("review.room_fallback"),
               })), state.learningHistoryFilters?.().room_slug, this.t("review.filter_all_rooms"))}
 
-              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_key", state.learningHistoryProfiles?.().map((profile) => ({
+              ${this._renderReviewChipFilter(this.t("review.filter_profile"), "profile_key", this._localizedProfileOptions(state.learningHistoryProfiles?.() ?? []).map((profile) => ({
                 value: profile?.profile_key ?? "",
                 label: profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback"),
-                title: profile?.subtitle
-                  ? `${profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback")} | ${profile.subtitle}`
-                  : (profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback")),
+                title: profile?.title ?? profile?.label ?? profile?.profile_key ?? this.t("review.profile_fallback"),
               })), state.learningHistoryFilters?.().profile_key, this.t("review.filter_all_profiles"))}
 
               ${this._renderReviewChipFilter(this.t("review.filter_status"), "status", state.learningHistoryStatusOptions?.(), state.learningHistoryFilters?.().status, this.t("review.filter_all_statuses"))}
@@ -312,7 +310,7 @@ export function applyReviewRenderers(proto) {
                   class="evcc-chip ${String(profileFilter) === String(match.profile_key) ? "active" : ""}"
                   data-review-matcher-profile="${this.escapeHtml(match.profile_key)}"
                   title="${this.t("review.matcher_chip_title")}"
-                >${this.escapeHtml(match.label ?? match.profile_key)}</button>
+                >${this.escapeHtml(this._localizedProfile(match).label || match.label || match.profile_key)}</button>
               `).join("")}
             </div>
           ` : `

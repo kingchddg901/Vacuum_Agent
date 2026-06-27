@@ -79,13 +79,9 @@ export function applyMetricsRenderers(proto) {
 
             <div class="evcc-metrics-filters">
               ${this._renderMetricsChipFilter(this.t("metrics.filter_room"), "room_slug", state.metricsFilterRoomOptions?.(), state.metricsFilters?.().room_slug, this.t("metrics.filter_all_rooms"))}
-              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key", state.metricsFilterProfileOptions?.().map((option) => ({
-                value: option?.value,
-                label: option?.label ?? option?.value ?? this.t("metrics.profile_fallback"),
-                title: option?.subtitle
-                  ? `${option?.label ?? option?.value ?? this.t("metrics.profile_fallback")} | ${option.subtitle}`
-                  : (option?.label ?? option?.value ?? this.t("metrics.profile_fallback")),
-              })), state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key",
+                this._localizedProfileOptions(state.metricsFilterProfileOptions?.() ?? []),
+                state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_status"), "status", state.metricsFilterStatusOptions?.(), state.metricsFilters?.().status, this.t("metrics.filter_all_statuses"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_learning_use"), "used_for_learning", state.metricsFilterUsedOptions?.().map((option) => ({
                 value: option?.value_key ?? option?.value,
@@ -523,8 +519,8 @@ export function applyMetricsRenderers(proto) {
    */
   proto._localizedProfile = function (profile) {
     const fallback = {
-      label: String(profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || ""),
-      subtitle: String(profile?.profile_subtitle || ""),
+      label: String(profile?.profile_label || profile?.label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || ""),
+      subtitle: String(profile?.profile_subtitle || profile?.subtitle || ""),
     };
     const hasSettings = profile?.clean_mode != null || profile?.clean_intensity != null || profile?.fan_speed != null || profile?.water_level != null;
     if (!hasSettings) return fallback;
@@ -554,6 +550,41 @@ export function applyMetricsRenderers(proto) {
     if (passes > 1) sub.push(this.tRaw("room_profile.passes", { count: passes }));
     if (edge) sub.push(this.tRaw("room_card.edge_mopping_label"));
     return { label: label || fallback.label, subtitle: sub.join(" • ") || fallback.subtitle };
+  };
+
+  /**
+   * Localize + disambiguate a list of profile filter options for the CARD's
+   * per-user language. Each option carries the raw settings codes the backend
+   * now sends; _localizedProfile recomposes a localized label + subtitle, and we
+   * append the localized subtitle for any label that collides with a namesake.
+   *
+   * The ambiguity is (re)computed on the LOCALIZED label — NOT the backend's
+   * pre-folded English label/subtitle — so two variants that share a name still
+   * read apart after translation (and two that only collide once translated are
+   * caught). The stable `value`/`profile_key` is never touched, so filtering
+   * still targets the exact variant. Falls back to the backend English label for
+   * any option without raw settings (graceful, e.g. sensor-only catalog rows).
+   *
+   * @param {Array<object>} options - backend filter options (value/label/…+settings).
+   * @returns {Array<object>} options with localized, disambiguated label/subtitle/title.
+   */
+  proto._localizedProfileOptions = function (options) {
+    if (!Array.isArray(options) || !options.length) return [];
+    const st = this.card?._state;
+    const localized = options.map((o) => {
+      const lp = this._localizedProfile(o);
+      return { o, label: lp.label, subtitle: String(lp.subtitle ?? "").trim() };
+    });
+    st?._noteAmbiguousProfiles?.(localized.map((x) => x.label));
+    return localized.map(({ o, label, subtitle }) => {
+      const ambiguous = !!(st?._isAmbiguousProfileLabel?.(label) && subtitle);
+      return {
+        ...o,
+        label: ambiguous ? `${label} · ${subtitle}` : label,
+        subtitle: ambiguous ? "" : subtitle,
+        title: subtitle ? `${label} | ${subtitle}` : label,
+      };
+    });
   };
 
   proto._renderMetricsRoomProfileCard = function (profile) {

@@ -143,17 +143,29 @@ export function applyReviewState(proto) {
   proto.learningHistoryProfiles = function () {
     const filterOptions = this.learningHistorySnapshot?.()?.filter_options?.profiles;
     if (Array.isArray(filterOptions) && filterOptions.length) {
-      return this._disambiguateProfileOptions(
-        filterOptions
-          .filter((option) => String(option?.value ?? "").trim() !== "")
-          .map((option) => ({
-            profile_key: String(option?.value ?? ""),
-            label: String(option?.label ?? option?.value ?? ""),
-            subtitle: option?.subtitle == null ? null : String(option.subtitle),
-            room_slug: option?.room_slug == null ? null : String(option.room_slug),
-            room_label: option?.room_label == null ? null : String(option.room_label),
-          }))
-      );
+      // Return raw options; disambiguation is done LOCALIZED at render time
+      // (renderer _localizedProfileOptions). Folding the English subtitle into
+      // the label here is redundant and used to leak into the matcher catalog.
+      return filterOptions
+        .filter((option) => String(option?.value ?? "").trim() !== "")
+        .map((option) => ({
+          profile_key: String(option?.value ?? ""),
+          label: String(option?.label ?? option?.value ?? ""),
+          subtitle: option?.subtitle == null ? null : String(option.subtitle),
+          room_slug: option?.room_slug == null ? null : String(option.room_slug),
+          room_label: option?.room_label == null ? null : String(option.room_label),
+          // Raw settings codes (backend passthrough) so the renderer's
+          // _localizedProfile can recompose a localized label/subtitle. The
+          // English label/subtitle above stay as the fallback.
+          selected_profile_name: option?.selected_profile_name ?? null,
+          resolved_profile_name: option?.resolved_profile_name ?? null,
+          clean_mode: option?.clean_mode ?? null,
+          clean_intensity: option?.clean_intensity ?? null,
+          fan_speed: option?.fan_speed ?? null,
+          water_level: option?.water_level ?? null,
+          clean_passes: option?.clean_passes ?? null,
+          edge_mopping: option?.edge_mopping ?? null,
+        }));
     }
 
     const snapshot = this.learningHistorySnapshot?.();
@@ -178,14 +190,24 @@ export function applyReviewState(proto) {
             profile?.profile_subtitle ??
             profile?.resolved_profile_label ??
             null,
+          // Raw settings codes so _localizedProfile localizes this defensive
+          // path too (the source rooms/found-profiles carry them flat).
+          room_label: profile?.room_label ?? null,
+          selected_profile_name: profile?.selected_profile_name ?? null,
+          resolved_profile_name: profile?.resolved_profile_name ?? null,
+          clean_mode: profile?.clean_mode ?? null,
+          clean_intensity: profile?.clean_intensity ?? null,
+          fan_speed: profile?.fan_speed ?? null,
+          water_level: profile?.water_level ?? null,
+          clean_passes: profile?.clean_passes ?? null,
+          edge_mopping: profile?.edge_mopping ?? null,
         });
       }
     }
 
-    return this._disambiguateProfileOptions(
-      Array.from(merged.values()).sort((a, b) =>
-        String(a.label ?? a.profile_key).localeCompare(String(b.label ?? b.profile_key))
-      )
+    // Raw options; localized disambiguation happens at render.
+    return Array.from(merged.values()).sort((a, b) =>
+      String(a.label ?? a.profile_key).localeCompare(String(b.label ?? b.profile_key))
     );
   };
 
@@ -322,11 +344,12 @@ export function applyReviewState(proto) {
     const labels      = sensorAttrs.profile_labels ?? {};
 
     const foundProfiles = this.learningHistoryProfiles?.() ?? [];
-    const foundProfileLabels = new Map(
-      foundProfiles.map((profile) => [
-        String(profile?.profile_key ?? ""),
-        String(profile?.label ?? profile?.profile_key ?? ""),
-      ]).filter(([key]) => key)
+    // Index the enriched found-profiles by key so each catalog entry can carry
+    // the raw settings codes (clean_mode, room_label, …) the renderer needs to
+    // recompose a LOCALIZED matched-chip label. Sensor-only keys (no found
+    // profile) keep just the English sensor label — a graceful degradation.
+    const foundByKey = new Map(
+      foundProfiles.map((profile) => [String(profile?.profile_key ?? ""), profile]).filter(([key]) => key)
     );
 
     const catalog = new Map();
@@ -336,9 +359,11 @@ export function applyReviewState(proto) {
       if (!key) continue;
 
       if (!catalog.has(key)) {
+        const found = foundByKey.get(key);
         catalog.set(key, {
+          ...(found || {}),
           profile_key: key,
-          label: foundProfileLabels.get(key) || labels[key] || key,
+          label: (found?.label) || labels[key] || key,
           definition,
         });
       }
@@ -349,6 +374,7 @@ export function applyReviewState(proto) {
       if (!key || catalog.has(key)) continue;
 
       catalog.set(key, {
+        ...profile,
         profile_key: key,
         label: String(profile?.label ?? key),
         definition: null,

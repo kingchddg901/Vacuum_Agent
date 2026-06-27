@@ -167,21 +167,13 @@ export function applyMetricsState(proto) {
   proto._isAmbiguousProfileLabel = function (label) {
     return !!(this._ambiguousProfileLabels && this._ambiguousProfileLabels.has(String(label)));
   };
-  proto._disambiguateProfileOptions = function (options) {
-    if (!Array.isArray(options) || !options.length) return Array.isArray(options) ? options : [];
-    const labelOf = (o) => String(o?.label ?? o?.value ?? o?.profile_key ?? "");
-    this._noteAmbiguousProfiles(options.map(labelOf));
-    return options.map((o) => {
-      const l = labelOf(o);
-      const sub = String(o?.subtitle ?? "").trim();
-      return this._isAmbiguousProfileLabel(l) && sub ? { ...o, label: `${l} · ${sub}` } : o;
-    });
-  };
-
   proto.metricsFilterProfileOptions = function () {
     const options = this.metricsSnapshot()?.filter_options?.profiles;
-    if (Array.isArray(options) && options.length) return this._disambiguateProfileOptions(options);
-    return [];
+    // Return raw backend options; disambiguation is done LOCALIZED at render
+    // (renderer _localizedProfileOptions). The old English label-folding here was
+    // superseded by that helper and used to leak into the matcher catalog +
+    // title tooltips and pollute the shared ambiguity Set.
+    return Array.isArray(options) && options.length ? options : [];
   };
 
   proto.metricsFilterStatusOptions = function () {

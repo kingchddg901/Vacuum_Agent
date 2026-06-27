@@ -1327,6 +1327,15 @@ class LearningManager:
                 "room_label": item.get("room_label"),
                 "selected_profile_name": item.get("selected_profile_name"),
                 "resolved_profile_name": item.get("resolved_profile_name"),
+                # Raw settings codes (also in nested "settings" below) flattened so
+                # the card's _localizedProfile can recompose a localized label —
+                # mirrors the profile_filter_options passthrough.
+                "clean_mode": item.get("clean_mode"),
+                "clean_intensity": item.get("clean_intensity"),
+                "fan_speed": item.get("fan_speed"),
+                "water_level": item.get("water_level"),
+                "clean_passes": item.get("clean_passes"),
+                "edge_mopping": item.get("edge_mopping"),
                 "run_count": _safe_int(item.get("run_count"), 0),
                 "learning_run_count": _safe_int(item.get("learning_run_count"), 0),
                 "trusted": bool(item.get("trusted", False)),
@@ -1414,6 +1423,18 @@ class LearningManager:
                     "subtitle": item.get("profile_subtitle"),
                     "room_slug": item.get("room_slug"),
                     "room_label": item.get("room_label"),
+                    # Raw settings codes so the CARD can recompose a localized
+                    # label/subtitle in the per-user language. The label/subtitle
+                    # above stay as the English fallback; value(=profile_key) is
+                    # untouched so filtering still targets the exact variant.
+                    "selected_profile_name": item.get("selected_profile_name"),
+                    "resolved_profile_name": item.get("resolved_profile_name"),
+                    "clean_mode": item.get("clean_mode"),
+                    "clean_intensity": item.get("clean_intensity"),
+                    "fan_speed": item.get("fan_speed"),
+                    "water_level": item.get("water_level"),
+                    "clean_passes": item.get("clean_passes"),
+                    "edge_mopping": item.get("edge_mopping"),
                 }
                 for item in profile_filter_source
                 if isinstance(item, dict) and str(item.get("profile_key", "")).strip()
