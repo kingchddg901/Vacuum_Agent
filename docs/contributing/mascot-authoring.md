@@ -1,4 +1,4 @@
-# Mascot authoring (maintainer path)
+# Animal Companion authoring (maintainer path)
 
 !!! note "Two paths — pick the right one"
     **Want to *share* an animal? This isn't the page (and that's the good news).**
