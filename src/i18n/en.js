@@ -1507,6 +1507,27 @@ export const en = {
   "vocab.status.interrupted": "Interrupted",
   "vocab.job_scope.single_room": "Single Room",  // learning-review job coverage: one room cleaned
   "vocab.job_scope.multi_room": "Multi Room",     // learning-review job coverage: several rooms in one run
+  // Device-status VALUES shown in the header next to "Vacuum status:" / "Dock status:".
+  // Union of the HA vacuum-entity states + the Eufy dock_status sensor strings; tVocab
+  // falls back to the backend label for any state not keyed here.
+  "vocab.device_status.cleaning": "Cleaning",
+  "vocab.device_status.docked": "Docked",
+  "vocab.device_status.idle": "Idle",
+  "vocab.device_status.paused": "Paused",
+  "vocab.device_status.returning": "Returning",
+  "vocab.device_status.error": "Error",
+  "vocab.device_status.charging": "Charging",
+  "vocab.device_status.standby": "Standby",
+  "vocab.device_status.washing": "Washing",
+  "vocab.device_status.washing_mop": "Washing Mop",
+  "vocab.device_status.drying": "Drying",
+  "vocab.device_status.drying_mop": "Drying Mop",
+  "vocab.device_status.emptying": "Emptying",
+  "vocab.device_status.emptying_dust": "Emptying Dust",
+  "vocab.device_status.fault": "Fault",
+  "vocab.device_status.offline": "Offline",
+  "vocab.device_status.unavailable": "Unavailable",
+  "vocab.device_status.unknown": "Unknown",
   "vocab.used_for_learning.true": "Used For Learning",
   "vocab.used_for_learning.false": "Excluded From Learning",  // matches the backend filter label
   "vocab.trust_level.none": "None",  // learning trust/confidence tier on a room/profile estimate

@@ -2241,6 +2241,26 @@
     "job_scope": {
       "single_room": "Pièce unique",
       "multi_room": "Plusieurs pièces"
+    },
+    "device_status": {
+      "cleaning": "Nettoyage",
+      "docked": "Sur la base",
+      "idle": "Inactif",
+      "paused": "En pause",
+      "returning": "Retour à la base",
+      "error": "Erreur",
+      "charging": "En charge",
+      "standby": "En veille",
+      "washing": "Lavage",
+      "washing_mop": "Lavage serpillière",
+      "drying": "Séchage",
+      "drying_mop": "Séchage serpillière",
+      "emptying": "Vidage",
+      "emptying_dust": "Vidage poussière",
+      "fault": "Défaut",
+      "offline": "Hors ligne",
+      "unavailable": "Indisponible",
+      "unknown": "Inconnu"
     }
   },
   "order_modal": {

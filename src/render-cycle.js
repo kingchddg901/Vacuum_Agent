@@ -160,9 +160,13 @@ export function renderHeader(ctx) {
   // adapter vocabulary stays the source of truth. Title-case fallback
   // covers the first frame after mount, before the dashboard snapshot
   // has populated.
-  const vacuumText = vacuumStatusLabel ?? fallbackTitleCase(vacuumStatus);
-  const dockText = dockStatusLabel
-    ?? (dockStatus ? fallbackTitleCase(dockStatus) : "");
+  // Localize the device-status VALUE (Docked / Idle / Cleaning / Washing …) via
+  // the adapter vocab, falling back to the backend-provided label (then a
+  // title-cased raw) for any state not yet keyed. tVocabRaw — the sink escapes.
+  const vacuumText = renderers.tVocabRaw("device_status", vacuumStatus, vacuumStatusLabel ?? fallbackTitleCase(vacuumStatus));
+  const dockText = dockStatus
+    ? renderers.tVocabRaw("device_status", dockStatus, dockStatusLabel ?? fallbackTitleCase(dockStatus))
+    : "";
 
   return `
     <div class="evcc-header">

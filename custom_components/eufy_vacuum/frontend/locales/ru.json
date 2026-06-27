@@ -2316,6 +2316,26 @@
     "job_scope": {
       "single_room": "Одна комната",
       "multi_room": "Несколько комнат"
+    },
+    "device_status": {
+      "cleaning": "Уборка",
+      "docked": "На базе",
+      "idle": "Ожидание",
+      "paused": "Пауза",
+      "returning": "Возврат на базу",
+      "error": "Ошибка",
+      "charging": "Зарядка",
+      "standby": "Готов",
+      "washing": "Промывка",
+      "washing_mop": "Промывка швабры",
+      "drying": "Сушка",
+      "drying_mop": "Сушка швабры",
+      "emptying": "Очистка",
+      "emptying_dust": "Очистка контейнера",
+      "fault": "Неисправность",
+      "offline": "Не в сети",
+      "unavailable": "Недоступно",
+      "unknown": "Неизвестно"
     }
   },
   "order_modal": {

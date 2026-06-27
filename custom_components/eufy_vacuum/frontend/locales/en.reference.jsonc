@@ -101,6 +101,26 @@
       "single_room": "Single Room",  // learning-review job coverage: one room cleaned
       "multi_room": "Multi Room"  // learning-review job coverage: several rooms in one run
     },
+    "device_status": {
+      "cleaning": "Cleaning",
+      "docked": "Docked",
+      "idle": "Idle",
+      "paused": "Paused",
+      "returning": "Returning",
+      "error": "Error",
+      "charging": "Charging",
+      "standby": "Standby",
+      "washing": "Washing",
+      "washing_mop": "Washing Mop",
+      "drying": "Drying",
+      "drying_mop": "Drying Mop",
+      "emptying": "Emptying",
+      "emptying_dust": "Emptying Dust",
+      "fault": "Fault",
+      "offline": "Offline",
+      "unavailable": "Unavailable",
+      "unknown": "Unknown"
+    },
     "used_for_learning": {
       "true": "Used For Learning",
       "false": "Excluded From Learning"  // matches the backend filter label

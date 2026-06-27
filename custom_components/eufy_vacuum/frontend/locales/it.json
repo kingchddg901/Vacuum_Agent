@@ -2227,6 +2227,26 @@
     "job_scope": {
       "single_room": "Stanza singola",
       "multi_room": "Più stanze"
+    },
+    "device_status": {
+      "cleaning": "In pulizia",
+      "docked": "Alla base",
+      "idle": "Inattivo",
+      "paused": "In pausa",
+      "returning": "In rientro",
+      "error": "Errore",
+      "charging": "In carica",
+      "standby": "Standby",
+      "washing": "Lavaggio",
+      "washing_mop": "Lavaggio mocio",
+      "drying": "Asciugatura",
+      "drying_mop": "Asciugatura mocio",
+      "emptying": "Svuotamento",
+      "emptying_dust": "Svuotamento polvere",
+      "fault": "Guasto",
+      "offline": "Non in linea",
+      "unavailable": "Non disponibile",
+      "unknown": "Sconosciuto"
     }
   },
   "order_modal": {

@@ -2227,6 +2227,26 @@
     "job_scope": {
       "single_room": "Eén kamer",
       "multi_room": "Meerdere kamers"
+    },
+    "device_status": {
+      "cleaning": "Aan het stofzuigen",
+      "docked": "Gedockt",
+      "idle": "Inactief",
+      "paused": "Gepauzeerd",
+      "returning": "Keert terug",
+      "error": "Fout",
+      "charging": "Opladen",
+      "standby": "Stand-by",
+      "washing": "Wassen",
+      "washing_mop": "Mop wassen",
+      "drying": "Drogen",
+      "drying_mop": "Mop drogen",
+      "emptying": "Legen",
+      "emptying_dust": "Stof legen",
+      "fault": "Storing",
+      "offline": "Offline",
+      "unavailable": "Niet beschikbaar",
+      "unknown": "Onbekend"
     }
   },
   "order_modal": {

@@ -2241,6 +2241,26 @@
     "job_scope": {
       "single_room": "Habitación única",
       "multi_room": "Varias habitaciones"
+    },
+    "device_status": {
+      "cleaning": "Limpiando",
+      "docked": "En la base",
+      "idle": "Inactivo",
+      "paused": "En pausa",
+      "returning": "Regresando",
+      "error": "Error",
+      "charging": "Cargando",
+      "standby": "En espera",
+      "washing": "Lavando",
+      "washing_mop": "Lavando mopa",
+      "drying": "Secando",
+      "drying_mop": "Secando mopa",
+      "emptying": "Vaciando",
+      "emptying_dust": "Vaciando polvo",
+      "fault": "Avería",
+      "offline": "Sin conexión",
+      "unavailable": "No disponible",
+      "unknown": "Desconocido"
     }
   },
   "order_modal": {

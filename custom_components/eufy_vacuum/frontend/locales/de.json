@@ -2227,6 +2227,26 @@
     "job_scope": {
       "single_room": "Einzelner Raum",
       "multi_room": "Mehrere Räume"
+    },
+    "device_status": {
+      "cleaning": "Reinigt",
+      "docked": "Angedockt",
+      "idle": "Bereit",
+      "paused": "Pausiert",
+      "returning": "Rückkehr",
+      "error": "Fehler",
+      "charging": "Lädt",
+      "standby": "Standby",
+      "washing": "Wäscht",
+      "washing_mop": "Wischmopp wird gewaschen",
+      "drying": "Trocknet",
+      "drying_mop": "Wischmopp wird getrocknet",
+      "emptying": "Entleert",
+      "emptying_dust": "Staub wird entleert",
+      "fault": "Störung",
+      "offline": "Offline",
+      "unavailable": "Nicht verfügbar",
+      "unknown": "Unbekannt"
     }
   },
   "order_modal": {

@@ -2240,6 +2240,26 @@
     "job_scope": {
       "single_room": "Cômodo único",
       "multi_room": "Vários cômodos"
+    },
+    "device_status": {
+      "cleaning": "A limpar",
+      "docked": "Na base",
+      "idle": "Inativo",
+      "paused": "Em pausa",
+      "returning": "A regressar",
+      "error": "Erro",
+      "charging": "A carregar",
+      "standby": "Em espera",
+      "washing": "A lavar",
+      "washing_mop": "A lavar mopa",
+      "drying": "A secar",
+      "drying_mop": "A secar mopa",
+      "emptying": "A esvaziar",
+      "emptying_dust": "A esvaziar pó",
+      "fault": "Avaria",
+      "offline": "Offline",
+      "unavailable": "Indisponível",
+      "unknown": "Desconhecido"
     }
   },
   "order_modal": {
