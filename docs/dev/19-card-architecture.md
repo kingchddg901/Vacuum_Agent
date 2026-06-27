@@ -317,7 +317,7 @@ No state.         service results.  effects.          update state.
 
 **State** (`src/state/`) — holds two kinds of data. The first is derived from `hass.states` (vacuum entity, switch entities, number entities, sensor attributes). The second is transient UI state stored as plain properties on the instance (e.g. `_startStatus`, `_dockActionStatus`, editor open/close flags). State modules expose read methods; main.js writes to them by calling named setters or assigning directly to well-known properties.
 
-**Renderers** (`src/renderers/`) — pure functions that take the render context object and return HTML strings. They read from state but never write to it and never call services.
+**Renderers** (`src/renderers/`) — pure functions that take the render context object and return HTML strings. They read from state but never write to it and never call services. Their UI text is not English literals but localized through the [i18n system](33-i18n-system.md) (`this.t` / `this.tVocab`), per the user's chosen language.
 
 **Bindings** (`src/bindings/`) — called after every render. They query the shadow DOM for data-attribute selectors and attach event handlers. Event handlers call actions or state mutators, then call `_scheduleRender()`.
 
