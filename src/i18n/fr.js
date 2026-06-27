@@ -1398,4 +1398,17 @@ export const fr = {
   // --- toast ---
   "toast.dismiss": "Ignorer",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Ajouter un aspirateur",
+  "setup.step_import_active_map": "Importer la carte active",
+  "setup.step_save_rooms": "Configurer les pièces",
+  "setup.floor_hardwood": "Parquet",
+  "setup.floor_laminate": "Stratifié",
+  "setup.floor_tile": "Carrelage",
+  "setup.floor_marble": "Marbre",
+  "setup.floor_granite": "Granit",
+  "setup.floor_concrete": "Béton",
+  "setup.floor_carpet_low_pile": "Moquette rase",
+  "setup.floor_carpet_high_pile": "Moquette épaisse",
+
 };

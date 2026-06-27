@@ -1398,4 +1398,17 @@ export const ru = {
   // --- toast ---
   "toast.dismiss": "Скрыть",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Добавить пылесос",
+  "setup.step_import_active_map": "Импорт активной карты",
+  "setup.step_save_rooms": "Настроить комнаты",
+  "setup.floor_hardwood": "Паркетная доска",
+  "setup.floor_laminate": "Ламинат",
+  "setup.floor_tile": "Плитка",
+  "setup.floor_marble": "Мрамор",
+  "setup.floor_granite": "Гранит",
+  "setup.floor_concrete": "Бетон",
+  "setup.floor_carpet_low_pile": "Ковёр с низким ворсом",
+  "setup.floor_carpet_high_pile": "Ковёр с высоким ворсом",
+
 };

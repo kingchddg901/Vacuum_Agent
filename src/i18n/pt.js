@@ -1398,4 +1398,17 @@ export const pt = {
   // --- toast ---
   "toast.dismiss": "Dispensar",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Adicionar aspirador",
+  "setup.step_import_active_map": "Importar mapa ativo",
+  "setup.step_save_rooms": "Configurar divisões",
+  "setup.floor_hardwood": "Madeira maciça",
+  "setup.floor_laminate": "Laminado",
+  "setup.floor_tile": "Azulejo",
+  "setup.floor_marble": "Mármore",
+  "setup.floor_granite": "Granito",
+  "setup.floor_concrete": "Betão",
+  "setup.floor_carpet_low_pile": "Alcatifa de pelo baixo",
+  "setup.floor_carpet_high_pile": "Alcatifa de pelo alto",
+
 };

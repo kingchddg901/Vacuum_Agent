@@ -1398,4 +1398,17 @@ export const nl = {
   // --- toast ---
   "toast.dismiss": "Sluiten",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Stofzuiger toevoegen",
+  "setup.step_import_active_map": "Actieve kaart importeren",
+  "setup.step_save_rooms": "Kamers configureren",
+  "setup.floor_hardwood": "Hardhout",
+  "setup.floor_laminate": "Laminaat",
+  "setup.floor_tile": "Tegel",
+  "setup.floor_marble": "Marmer",
+  "setup.floor_granite": "Graniet",
+  "setup.floor_concrete": "Beton",
+  "setup.floor_carpet_low_pile": "Laagpolig tapijt",
+  "setup.floor_carpet_high_pile": "Hoogpolig tapijt",
+
 };

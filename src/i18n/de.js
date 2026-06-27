@@ -1398,4 +1398,17 @@ export const de = {
   // --- toast ---
   "toast.dismiss": "Schließen",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Saugroboter hinzufügen",
+  "setup.step_import_active_map": "Aktive Karte importieren",
+  "setup.step_save_rooms": "Räume konfigurieren",
+  "setup.floor_hardwood": "Holz",
+  "setup.floor_laminate": "Laminat",
+  "setup.floor_tile": "Fliesen",
+  "setup.floor_marble": "Marmor",
+  "setup.floor_granite": "Granit",
+  "setup.floor_concrete": "Beton",
+  "setup.floor_carpet_low_pile": "Niedrigflor-Teppich",
+  "setup.floor_carpet_high_pile": "Hochflor-Teppich",
+
 };

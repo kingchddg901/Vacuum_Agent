@@ -1398,4 +1398,17 @@ export const it = {
   // --- toast ---
   "toast.dismiss": "Ignora",
 
+  // --- setup floor types + step headings (added post-initial-translation) ---
+  "setup.step_add_vacuum": "Aggiungi aspirapolvere",
+  "setup.step_import_active_map": "Importa mappa attiva",
+  "setup.step_save_rooms": "Configura stanze",
+  "setup.floor_hardwood": "Legno",
+  "setup.floor_laminate": "Laminato",
+  "setup.floor_tile": "Piastrelle",
+  "setup.floor_marble": "Marmo",
+  "setup.floor_granite": "Granito",
+  "setup.floor_concrete": "Cemento",
+  "setup.floor_carpet_low_pile": "Moquette basso pelo",
+  "setup.floor_carpet_high_pile": "Moquette alto pelo",
+
 };

@@ -61,3 +61,8 @@ A second model reviewed all 7 — nothing broken. **Applied in-tree** from its l
 - **ru**: literal "швабру" (mop) in dock actions — a native may prefer "салфетку" / "моп" / "моющую насадку" per common robovac phrasing.
 - **pt**: reads European Portuguese (divisão, guardar, aplicação, mopa), NOT truly region-neutral. Fine as `pt`; add a `pt-BR` later if Brazilian users care (keep this as pt-PT-ish).
 - **all locales**: the "save image on the map" family reads slightly odd everywhere — better phrased as "right-click the map image and choose Save image" (rephrase per language).
+
+## Post-pattern-fix: new keys (setup.floor_* / setup.step_*), translated
+The render review found data-literal UI strings that bypassed t() (floor types + setup-step headings); they now route through t() and were AI-translated into all 7 locales. Native-review nuance:
+- **setup.step_add_vacuum** rendered with the plain vacuum term per locale. **de** aligned to "Saugroboter hinzufügen" (de uses "Saugroboter" 30:1 — never the plain "Staubsauger"). **fr/es/it/pt** also use a "robot"-qualified device term in fuller text (~24×); a native may prefer it in the step heading too, though the plain term matches English's "Add vacuum". **nl** ("Stofzuiger") + **ru** ("пылесос") match their locale's dominant plain term — fine.
+- **setup.floor_*** are standard native flooring terms (e.g. de Holz/Fliesen/Beton, fr Parquet/Carrelage/Béton, ru Паркетная доска/Плитка/Бетон) — verify against regional convention if a native cares (e.g. pt-PT "alcatifa" vs pt-BR "carpete").
