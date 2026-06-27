@@ -56,6 +56,7 @@ export const en = {
   "language.button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
   "language.heading": "Display language",  // heading at the top of the language dropdown menu
   "language.auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
+  "language.auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it.",  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name
 
   // --- vocab (adapter VOCABULARY values rendered via this.tVocab(field, value, label); keyed on the stable value, falls back to the backend English label for unkeyed values) ---
   "vocab.clean_mode.vacuum": "Vacuum",            // clean mode: suction only

@@ -267,7 +267,8 @@
   "language": {
     "button_title": "Язык",
     "heading": "Язык интерфейса",
-    "auto": "Авто (как в Home Assistant)"
+    "auto": "Авто (как в Home Assistant)",
+    "auto_draft_note": "{lang} ещё черновик, поэтому «Авто» показывает английский — выберите его ниже, чтобы использовать."
   },
   "learning": {
     "all_rooms_complete": "Все комнаты завершены",

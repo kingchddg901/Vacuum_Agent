@@ -36,7 +36,8 @@
   "language": {
     "button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
     "heading": "Display language",  // heading at the top of the language dropdown menu
-    "auto": "Auto (follow Home Assistant)"  // first menu row: defer to the HA system language (no override)
+    "auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
+    "auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it."  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name
   },
   "vocab": {
     "clean_mode": {

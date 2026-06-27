@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
@@ -324,6 +324,24 @@ class EufyVacuumCommandCenter extends HTMLElement {
    */
   _i18nLanguage() {
     return resolveLang(this._hass, this._config, this._langOverride);
+  }
+
+  /**
+   * What the header's "Auto" row should disclose. When the user has no per-dash
+   * pin and their HA system language is an unreviewed draft, "Auto" silently
+   * resolves to English (the draft-gate) — surface that so Auto doesn't look
+   * broken. Returns { systemLang, gatedToEnglish }.
+   */
+  _autoLangInfo() {
+    const systemLang = String(
+      (this._hass && this._hass.locale && this._hass.locale.language) ||
+      (this._hass && this._hass.language) || "en",
+    ).split("-")[0];
+    const pinned = this._config && this._config.i18n && this._config.i18n.locale;
+    const hasPin = pinned && pinned !== "auto";
+    const status = localeStatus(systemLang);
+    const gatedToEnglish = !hasPin && systemLang !== "en" && (status === "draft" || status === "custom");
+    return { systemLang, gatedToEnglish };
   }
 
   /** Translate a card-level UI string (HTML-escaped; trust model B). */

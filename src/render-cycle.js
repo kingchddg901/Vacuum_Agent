@@ -82,6 +82,7 @@ export function buildRenderContext(card) {
     langOverride:      card._langOverride ?? "auto",
     currentLang:       card._i18nLanguage?.() ?? "en",
     languageMenuOpen:  !!card._languageMenuOpen,
+    autoInfo:          card._autoLangInfo?.() ?? { systemLang: "en", gatedToEnglish: false },
   };
 }
 
@@ -151,7 +152,7 @@ function getDockStatusClass(dockStatus) {
 export function renderHeader(ctx) {
   const { state, renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
           dockStatus, dockStatusLabel, battery, view,
-          langOverride, currentLang, languageMenuOpen } = ctx;
+          langOverride, currentLang, languageMenuOpen, autoInfo } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
 
@@ -191,7 +192,7 @@ export function renderHeader(ctx) {
 
       <div class="evcc-header-right">
         ${renderLanguageControl(renderers, {
-          langOverride, currentLang, open: languageMenuOpen,
+          langOverride, currentLang, open: languageMenuOpen, autoInfo,
         })}
       </div>
 

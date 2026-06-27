@@ -127,7 +127,7 @@ export function applyMobileShellRenderer(proto) {
   proto.renderMobileHeader = function (ctx) {
     const { vacuumName, vacuumStatus, vacuumStatusLabel,
             dockStatus, dockStatusLabel, battery,
-            langOverride, currentLang, languageMenuOpen } = ctx;
+            langOverride, currentLang, languageMenuOpen, autoInfo } = ctx;
     const batteryText = battery != null ? `${battery}%` : "";
     const vacuumText = vacuumStatusLabel ?? _fallbackTitleCase(vacuumStatus);
     const dockText = dockStatusLabel
@@ -137,7 +137,7 @@ export function applyMobileShellRenderer(proto) {
       <div class="evcc-mobile-header">
         <div class="evcc-mobile-header-lang">
           ${renderLanguageControl(this, {
-            langOverride, currentLang, open: languageMenuOpen,
+            langOverride, currentLang, open: languageMenuOpen, autoInfo,
           })}
         </div>
         <div class="evcc-mobile-vacuum-name">

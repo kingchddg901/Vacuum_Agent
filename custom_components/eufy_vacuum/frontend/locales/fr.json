@@ -253,7 +253,8 @@
   "language": {
     "button_title": "Langue",
     "heading": "Langue d'affichage",
-    "auto": "Auto (suivre Home Assistant)"
+    "auto": "Auto (suivre Home Assistant)",
+    "auto_draft_note": "{lang} est encore un brouillon, donc Auto affiche l'anglais — choisissez-le ci-dessous pour l'utiliser."
   },
   "learning": {
     "all_rooms_complete": "Toutes les pièces terminées",

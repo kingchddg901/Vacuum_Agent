@@ -253,7 +253,8 @@
   "language": {
     "button_title": "Idioma",
     "heading": "Idioma de exibição",
-    "auto": "Auto (seguir o Home Assistant)"
+    "auto": "Auto (seguir o Home Assistant)",
+    "auto_draft_note": "{lang} ainda é um rascunho, então Auto mostra inglês — selecione-o abaixo para usá-lo."
   },
   "learning": {
     "all_rooms_complete": "Todas as divisões concluídas",

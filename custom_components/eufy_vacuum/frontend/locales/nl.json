@@ -251,7 +251,8 @@
   "language": {
     "button_title": "Taal",
     "heading": "Weergavetaal",
-    "auto": "Auto (volg Home Assistant)"
+    "auto": "Auto (volg Home Assistant)",
+    "auto_draft_note": "{lang} is nog een concept, dus Auto toont Engels — kies het hieronder om het te gebruiken."
   },
   "learning": {
     "all_rooms_complete": "Alle kamers voltooid",

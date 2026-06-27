@@ -251,7 +251,8 @@
   "language": {
     "button_title": "Lingua",
     "heading": "Lingua di visualizzazione",
-    "auto": "Auto (segui Home Assistant)"
+    "auto": "Auto (segui Home Assistant)",
+    "auto_draft_note": "{lang} è ancora una bozza, quindi Auto mostra l'inglese — selezionalo qui sotto per usarlo."
   },
   "learning": {
     "all_rooms_complete": "Tutte le stanze completate",

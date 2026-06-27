@@ -42,29 +42,46 @@ function esc(s) {
  *   - `open`: whether the dropdown is open.
  * @returns {string} HTML
  */
-export function renderLanguageControl(renderers, { langOverride, currentLang, open } = {}) {
+export function renderLanguageControl(renderers, { langOverride, currentLang, open, autoInfo } = {}) {
   const t = (k, v) => renderers.t(k, v);
   const active = langOverride && langOverride !== "auto" ? String(langOverride) : "auto";
   const badge = String(currentLang || "en").split("-")[0].toUpperCase();
+
+  const locales = listLocales();
+
+  // When the user has no pin and their HA system language is an unreviewed
+  // draft, "Auto" silently resolves to English (the draft-gate). Disclose that
+  // on the Auto row so the control doesn't look broken — name the drafted
+  // language and point at its (manually selectable) row below.
+  let autoNote = "";
+  if (autoInfo && autoInfo.gatedToEnglish) {
+    const sys = locales.find((l) => l.code === autoInfo.systemLang);
+    const sysName = sys ? sys.endonym : autoInfo.systemLang;
+    autoNote = t("language.auto_draft_note", { lang: esc(sysName) });
+  }
 
   // Rows: "Auto (system)" first, then every selectable locale (English first,
   // bundled alphabetically, then any drop-in "custom" locales). listLocales
   // orders them and labels drafts in their own language (e.g. "Русский
   // (черновик)") + custom drop-ins as "<Endonym> (custom)".
   const rows = [
-    { code: "auto", label: t("language.auto") },
-    ...listLocales().map((l) => ({ code: l.code, label: l.label })),
+    { code: "auto", label: t("language.auto"), note: autoNote },
+    ...locales.map((l) => ({ code: l.code, label: l.label })),
   ];
 
   const items = rows
     .map((r) => {
       const isActive = r.code === active;
+      // r.note is already a t()-escaped string with an esc()'d {lang} var — insert
+      // raw, as a flex sibling so it wraps to its own full-width line below.
+      const noteHtml = r.note ? `<span class="evcc-lang-note">${r.note}</span>` : "";
       return `
         <button type="button" role="menuitemradio" aria-checked="${isActive}"
                 class="evcc-lang-option${isActive ? " is-active" : ""}"
                 data-action="set-language" data-lang="${esc(r.code)}">
           <span class="evcc-lang-check" aria-hidden="true">${isActive ? "✓" : ""}</span>
           <span class="evcc-lang-label">${esc(r.label)}</span>
+          ${noteHtml}
         </button>`;
     })
     .join("");
