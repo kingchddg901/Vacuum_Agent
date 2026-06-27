@@ -38,7 +38,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale } from "../src/i18n/index.js";
+import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale, listBundledLocales } from "../src/i18n/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -196,12 +196,41 @@ check("plural: selected form is escaped (trust model B)", () => {
 
 // 17. config.i18n.locale PINS the language; "auto" / absent defers to hass.
 check("resolveLang: config locale pins, auto/absent defers to hass", () => {
-  const hass = { locale: { language: "de" } };
-  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }), "fr");   // pinned wins
-  assert.equal(resolveLang(hass, { i18n: { locale: "auto" } }), "de"); // auto -> hass
-  assert.equal(resolveLang(hass, {}), "de");                            // no i18n -> hass
-  assert.equal(resolveLang({ language: "es" }, undefined), "es");       // legacy hass.language
+  // hass language "sv" is non-bundled (not draft-gated) so it passes through and
+  // these assertions isolate the pin-vs-auto behavior from the draft-gate below.
+  const hass = { locale: { language: "sv" } };
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }), "fr");   // pinned wins (explicit, bypasses gate)
+  assert.equal(resolveLang(hass, { i18n: { locale: "auto" } }), "sv"); // auto -> hass
+  assert.equal(resolveLang(hass, {}), "sv");                            // no i18n -> hass
+  assert.equal(resolveLang({ language: "sv" }, undefined), "sv");       // legacy hass.language
   assert.equal(resolveLang(undefined, undefined), "en");                // nothing -> en
+});
+
+// 17b. DRAFT-GATE: an unreviewed bundled locale must not auto-activate from the
+//      system language (falls to English); an explicit pin still reaches it.
+check("resolveLang: draft-gate blocks auto-activation, explicit pin bypasses", () => {
+  // "de" is a bundled DRAFT — auto (system language) must fall back to English.
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}), "en");
+  assert.equal(resolveLang({ locale: { language: "de" } }, { i18n: { locale: "auto" } }), "en");
+  assert.equal(resolveLang({ locale: { language: "de-DE" } }, {}), "en"); // base-language gated too
+  assert.equal(resolveLang({ language: "ru" }, undefined), "en");          // legacy field gated too
+  // Explicit pin to a draft BYPASSES the gate (deliberate per-dashboard choice).
+  assert.equal(resolveLang({ locale: { language: "de" } }, { i18n: { locale: "de" } }), "de");
+  // Stable (en) auto-activates; non-bundled passes through unchanged.
+  assert.equal(resolveLang({ locale: { language: "en" } }, {}), "en");
+  assert.equal(resolveLang({ locale: { language: "sv" } }, {}), "sv");
+});
+
+// 17c. listBundledLocales: endonyms + localized draft tags for the override picker.
+check("listBundledLocales: endonyms, localized draft tags, English first", () => {
+  const list = listBundledLocales();
+  assert.equal(list[0].code, "en");
+  assert.equal(list[0].status, "stable");
+  assert.equal(list[0].label, "English");
+  const de = list.find((l) => l.code === "de");
+  assert.equal(de.status, "draft");
+  assert.equal(de.label, "Deutsch (Entwurf)");          // endonym + own word for draft
+  assert.equal(list.find((l) => l.code === "ru").label, "Русский (черновик)");
 });
 
 // --- validateLocale (untrusted-locale gate) ------------------------------

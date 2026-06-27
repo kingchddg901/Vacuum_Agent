@@ -49,6 +49,60 @@ import { pt } from "./pt.js";
 const CATALOGS = { en, ru, de, fr, es, nl, it, pt };
 
 /**
+ * Review status per bundled locale. A `draft` locale is AI-generated and not yet
+ * native-reviewed — it must NOT auto-activate from the HA system language (it can
+ * only be reached by an EXPLICIT choice: a config.i18n.locale pin or the display-
+ * language override). Promote to `stable` after native review (a one-line change).
+ * English is always stable. See resolveLang for the gate, and TRANSLATION_NOTES.md.
+ */
+const LOCALE_STATUS = {
+  en: "stable",
+  ru: "draft", de: "draft", fr: "draft", es: "draft", nl: "draft", it: "draft", pt: "draft",
+};
+
+// Endonyms (language's own name) + its own word for "draft" — so the override
+// picker is readable even to a user currently stuck in a bad translation.
+const LOCALE_ENDONYMS = {
+  en: "English", ru: "Русский", de: "Deutsch", fr: "Français",
+  es: "Español", nl: "Nederlands", it: "Italiano", pt: "Português",
+};
+const DRAFT_WORD = {
+  en: "draft", ru: "черновик", de: "Entwurf", fr: "brouillon",
+  es: "borrador", nl: "concept", it: "bozza", pt: "rascunho",
+};
+
+/** Review status ('stable' | 'draft' | 'unknown') for a code, base-language aware. */
+export function localeStatus(lang) {
+  const code = String(lang || "");
+  return LOCALE_STATUS[code] || LOCALE_STATUS[code.split("-")[0]] || "unknown";
+}
+
+/** A draft is an unreviewed bundled locale that must not auto-activate. */
+function isDraftLocale(lang) {
+  return localeStatus(lang) === "draft";
+}
+
+/**
+ * The bundled locales for an override picker: each as
+ * `{ code, status, endonym, label }` where `label` is the language's own name
+ * plus, for drafts, its own word for "draft" (e.g. "Deutsch (Entwurf)"). English
+ * first, then the rest alphabetically by endonym.
+ */
+export function listBundledLocales() {
+  const codes = Object.keys(LOCALE_STATUS);
+  return codes
+    .map((code) => {
+      const status = LOCALE_STATUS[code];
+      const endonym = LOCALE_ENDONYMS[code] || code;
+      const label = status === "draft" ? `${endonym} (${DRAFT_WORD[code] || "draft"})` : endonym;
+      return { code, status, endonym, label };
+    })
+    .sort((a, b) =>
+      a.code === "en" ? -1 : b.code === "en" ? 1 : a.endonym.localeCompare(b.endonym),
+    );
+}
+
+/**
  * Register (or replace) a locale catalog at runtime. Most locales will instead
  * be imported + added to CATALOGS above so they ship in the bundle; this exists
  * for lazy/optional locales and tests.
@@ -192,13 +246,21 @@ export function translate(lang, key, vars, options) {
  * @returns {string} a BCP-47 code (translate() falls back to English for unknowns).
  */
 export function resolveLang(hass, config) {
+  // 1. An explicit pin wins and BYPASSES the draft-gate — the dashboard
+  //    deliberately chose this locale (this is the per-dashboard override).
   const pinned = config && config.i18n && config.i18n.locale;
   if (pinned && pinned !== "auto") return String(pinned);
-  return (
+  // 2. Auto: the HA system language.
+  const auto =
     (hass && hass.locale && hass.locale.language) ||
     (hass && hass.language) ||
-    "en"
-  );
+    "en";
+  // 3. DRAFT-GATE: an unreviewed (AI-draft) bundled locale must not auto-activate
+  //    from the system language — fall back to English. A draft is only reachable
+  //    by the explicit pin above. Stable + non-bundled locales are unaffected
+  //    (non-bundled still returns its code; translate() falls back to en for it).
+  if (isDraftLocale(auto)) return "en";
+  return auto;
 }
 
 /** Extract the `{placeholder}` token set from a string or a plural-form object. */
