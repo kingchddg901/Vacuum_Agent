@@ -564,3 +564,29 @@ export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts 
   result.ok = true;
   return result;
 }
+
+let _localesRequested = false;
+
+/**
+ * Load the runtime locale catalogs (the SHIPPED non-English locales, then user
+ * DROP-INS) ONCE per module. The non-English catalogs were ripped out of the
+ * bundle, and CATALOGS is shared across EVERY card in the bundle — the main
+ * command-center AND the standalone room-card — so a single module-guarded load
+ * covers them all (a room-card on a view with no main card would otherwise stay
+ * English-only). Shipped first, then drops, so a drop-in overrides a shipped
+ * locale of the same code. Fails soft. `onLoaded` (the first caller's) re-renders
+ * promptly once strings arrive; every card also re-renders on the next hass push.
+ *
+ * @param {() => void} [onLoaded]
+ */
+export function ensureLocalesLoaded(onLoaded) {
+  if (_localesRequested) return;
+  _localesRequested = true;
+  const ping = (r) => {
+    if (r && r.loaded && r.loaded.length && typeof onLoaded === "function") onLoaded();
+  };
+  loadDroppedLocales("/eufy_vacuum/frontend/locales")
+    .then(ping)
+    .then(() => loadDroppedLocales("/eufy_vacuum/locales", { status: "custom" }))
+    .then(ping);
+}

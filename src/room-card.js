@@ -1,6 +1,6 @@
 // Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
-import { translate, resolveLang } from "./i18n/index.js";
+import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
@@ -19,7 +19,13 @@ class EufyRoomCardEditor extends HTMLElement {
 
   setConfig(config) { this._config = config ?? {}; this._render(); }
 
-  set hass(hass) { this._hass = hass; this._render(); }
+  set hass(hass) {
+    this._hass = hass;
+    // Non-English catalogs are runtime-loaded (ripped out of the bundle); pull
+    // them in once so a pinned non-English editor isn't stuck on English.
+    ensureLocalesLoaded(() => this._render());
+    this._render();
+  }
 
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
@@ -164,6 +170,10 @@ class EufyRoomCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    // The non-English locales are runtime-loaded (ripped out of the bundle).
+    // A standalone room-card on a view with NO main card is the only thing that
+    // triggers this, so a German-pinned room-card isn't stuck on English.
+    ensureLocalesLoaded(() => this._render());
     this._render();
   }
 

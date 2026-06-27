@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, loadDroppedLocales, localeSource, listBundledLocales } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
@@ -60,7 +60,6 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._languageMenuOpen = false;
     this._langOverrideLoaded = false;
     this._langUserPicked = false;
-    this._externalLocalesLoaded = false; // one-shot guard for runtime locale loads (shipped + drop-in)
 
     this._learningController = null;
 
@@ -405,16 +404,12 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * fail soft — English (bundled) covers anything that doesn't load.
    */
   _maybeLoadExternalLocales() {
-    if (this._externalLocalesLoaded) return;
-    this._externalLocalesLoaded = true; // one-shot, set before the await
-    const rerender = () => {
+    // Shared, module-guarded load (CATALOGS is shared across all cards in the
+    // bundle, incl. the standalone room-card) — see ensureLocalesLoaded.
+    ensureLocalesLoaded(() => {
       if (this._config?.vacuum_entity_id) this._scheduleRender();
       else this._renderNoVacuumPlaceholder();
-    };
-    loadDroppedLocales("/eufy_vacuum/frontend/locales")
-      .then((r) => { if (r && r.loaded && r.loaded.length) rerender(); })
-      .then(() => loadDroppedLocales("/eufy_vacuum/locales", { status: "custom" }))
-      .then((r) => { if (r && r.loaded && r.loaded.length) rerender(); });
+    });
   }
 
   /** Open/close the header language dropdown (card-level so it survives re-render). */
