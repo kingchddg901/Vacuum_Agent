@@ -1,14 +1,15 @@
 """
-Localized upkeep guides — official Eufy manual translations (+ Russian cross-checked).
+Localized upkeep guides — Eufy manual translations (+ our own for gaps the manual omits).
 
 UPKEEP_GUIDE_TRANSLATIONS[lang][guide_family][component] mirrors a subset of
 UPKEEP_GUIDE_LIBRARY (upkeep_guides.py) with translated steps/notes/frequencies.
-de/es/fr/nl/it/pt are VERBATIM from Eufy's official localized X10 Pro Omni (T2351)
-manuals; ru is AI-translated cross-checked against those six official versions
-(no official RU manual exists). Only the components the manual documents are
-present (filter/rolling_brush/side_brush/sensor/cleaning_tray) — the maintenance
-manager overlays these on the English base PER FIELD, so anything absent
-(mopping_cloth, swivel_wheel, other families/languages) falls back to English.
+filter/rolling_brush/side_brush/sensor/cleaning_tray are VERBATIM from Eufy's
+official localized X10 Pro Omni (T2351) manuals. mopping_cloth, swivel_wheel,
+and the rolling_brush/cleaning_tray notes are translated BY US (the manual is
+thin on those) — best-effort, pending native review; ru is AI-translated
+throughout (no official RU manual exists). The maintenance manager overlays
+these on the English base PER FIELD, so any component/field still absent falls
+back to English.
 
 Selected by the HA instance language (hass.config.language). Pure data.
 """
@@ -50,7 +51,8 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'einfügen.',
                                                                     'Drücken Sie nach unten, um den '
                                                                     'Bürstenschutz einzurasten.'],
-                                                       'notes': []},
+                                                       'notes': [   'Bürstenschutz sollte auch alle 3-6 Monate '
+                                                                    'oder bei Verschleiß ersetzt werden.']},
                                   'side_brush': {   'clean_frequency': 'Einmal pro Monat',
                                                     'replace_frequency': 'Alle 3-6 Monate (oder wenn sichtbar '
                                                                          'abgenutzt)',
@@ -82,7 +84,31 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'mit Wasser aus.',
                                                                     'Setzen Sie das Tablett zurück in die Omni '
                                                                     'Station.'],
-                                                       'notes': []}}},
+                                                       'notes': [   'Schmutzwassertank sollte geleert und '
+                                                                    'gereinigt werden, wenn er voll ist.']},
+                                  'mopping_cloth': {   'clean_frequency': 'Nach Gebrauch waschen / regelmäßig '
+                                                                          'überprüfen',
+                                                       'replace_frequency': 'Alle 3-6 Monate',
+                                                       'steps': [   'Entfernen Sie die Wischmopps vom Roboter.',
+                                                                    'Waschen und trocknen Sie die Mopps '
+                                                                    'vollständig vor der Wiederverwendung.',
+                                                                    'Ersetzen Sie die Mopps, wenn sie '
+                                                                    'abgenutzt sind oder nicht mehr wirksam '
+                                                                    'reinigen.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Einmal pro Monat',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Überprüfen Sie das Drehrad auf verwickelte '
+                                                                   'Haare oder Verschmutzung.',
+                                                                   'Entfernen Sie vorsichtig Verschmutzungen '
+                                                                   'und wischen Sie den Bereich des Rads '
+                                                                   'sauber.',
+                                                                   'Bestätigen Sie, dass das Rad frei dreht, '
+                                                                   'bevor Sie den Roboter erneut verwenden.'],
+                                                      'notes': [   'Die Bedienungsanleitung listet die '
+                                                                   'Reinigung des Drehrades auf, gibt jedoch '
+                                                                   'kein dediziertes Austauschintervall '
+                                                                   'an.']}}},
     'es': {   'x10_pro_omni': {   'filter': {   'clean_frequency': 'Una vez a la semana',
                                                 'replace_frequency': 'Cada 3-6 meses',
                                                 'steps': [   'Abra la tapa superior y saque el depósito de '
@@ -122,7 +148,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'sobresaliente fijo.',
                                                                     'Presione hacia abajo para encajar la '
                                                                     'protección del cepillo en su lugar.'],
-                                                       'notes': []},
+                                                       'notes': [   'La protección del cepillo también debe '
+                                                                    'reemplazarse cada 3-6 meses o cuando esté '
+                                                                    'desgastada.']},
                                   'side_brush': {   'clean_frequency': 'Una vez al mes',
                                                     'replace_frequency': 'Cada 3-6 meses (o cuando esté '
                                                                          'visiblemente desgastado)',
@@ -154,7 +182,28 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'limpieza con agua.',
                                                                     'Coloque la bandeja de nuevo en la '
                                                                     'Estación Omni.'],
-                                                       'notes': []}}},
+                                                       'notes': [   'El tanque de agua sucia debe vaciarse y '
+                                                                    'enjuagarse cuando esté lleno.']},
+                                  'mopping_cloth': {   'clean_frequency': 'lavar después del uso / '
+                                                                          'inspeccionar regularmente',
+                                                       'replace_frequency': 'Cada 3-6 meses',
+                                                       'steps': [   'Retire los pads de fregado del robot.',
+                                                                    'Lave y seque completamente los pads antes '
+                                                                    'de reutilizarlos.',
+                                                                    'Reemplace los pads cuando estén '
+                                                                    'desgastados o ya no limpien eficazmente.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Una vez al mes',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Inspeccione la rueda giratoria para '
+                                                                   'detectar cabello o residuos enroscados.',
+                                                                   'Retire cuidadosamente los residuos y '
+                                                                   'limpie el área de la rueda.',
+                                                                   'Confirme que la rueda gira libremente '
+                                                                   'antes del siguiente uso.'],
+                                                      'notes': [   'El manual lista la limpieza de la rueda '
+                                                                   'giratoria pero no proporciona un intervalo '
+                                                                   'de reemplazo dedicado.']}}},
     'fr': {   'x10_pro_omni': {   'filter': {   'clean_frequency': 'Une fois par semaine',
                                                 'replace_frequency': 'Tous les 3-6 mois',
                                                 'steps': [   'Ouvrez le couvercle supérieur et sortez le bac à '
@@ -196,7 +245,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     "d'abord l'extrémité saillante fixe.",
                                                                     'Appuyez vers le bas pour enclencher le '
                                                                     'protège-brosse en place.'],
-                                                       'notes': []},
+                                                       'notes': [   'Le protège-brosse doit également être '
+                                                                    'remplacé tous les 3-6 mois ou en cas '
+                                                                    "d'usure."]},
                                   'side_brush': {   'clean_frequency': 'Une fois par mois',
                                                     'replace_frequency': 'Tous les 3-6 mois (ou lorsque '
                                                                          "l'usure est visible)",
@@ -231,7 +282,29 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     "nettoyage avec de l'eau.",
                                                                     'Replacez le plateau dans la Station '
                                                                     'Omni.'],
-                                                       'notes': []}}},
+                                                       'notes': [   "Le réservoir d'eau sale doit être vidé et "
+                                                                    'rincé quand il est plein.']},
+                                  'mopping_cloth': {   'clean_frequency': 'Lavez après utilisation / inspectez '
+                                                                          'régulièrement',
+                                                       'replace_frequency': 'Tous les 3-6 mois',
+                                                       'steps': [   'Retirez les tampons de lavage du robot.',
+                                                                    'Lavez et séchez complètement les tampons '
+                                                                    'avant réutilisation.',
+                                                                    'Remplacez les tampons quand ils '
+                                                                    'deviennent usés ou ne nettoient plus '
+                                                                    'efficacement.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Une fois par mois',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Inspectez la roue pivotante pour vérifier '
+                                                                   'la présence de cheveux ou débris.',
+                                                                   'Retirez les débris avec soin et nettoyez '
+                                                                   'la zone de la roue.',
+                                                                   'Confirmez que la roue tourne librement '
+                                                                   'avant le prochain passage.'],
+                                                      'notes': [   'Le manuel indique le nettoyage de la roue '
+                                                                   "pivotante mais ne précise pas d'intervalle "
+                                                                   'de remplacement.']}}},
     'nl': {   'x10_pro_omni': {   'filter': {   'clean_frequency': 'Een keer per week',
                                                 'replace_frequency': 'Elke drie tot zes maanden',
                                                 'steps': [   'Open de bovenste klep en haal de stofbak eruit.',
@@ -266,11 +339,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'in te brengen.',
                                                                     'Druk naar beneden om de borstelbeschermer '
                                                                     'op zijn plaats te klikken.'],
-                                                       'notes': [   'Borstelbeschermer — Reinigingsfrequentie: '
-                                                                    'Een keer per maand; '
-                                                                    'Vervangingsfrequentie: Elke drie tot zes '
-                                                                    'maanden (of wanneer zichtbaar '
-                                                                    'versleten).']},
+                                                       'notes': [   'Borstelbeschermer moet ook elke drie tot '
+                                                                    'zes maanden of wanneer versleten worden '
+                                                                    'vervangen.']},
                                   'side_brush': {   'clean_frequency': 'Een keer per maand',
                                                     'replace_frequency': 'Elke drie tot zes maanden (of '
                                                                          'wanneer zichtbaar versleten)',
@@ -302,17 +373,29 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'water.',
                                                                     'Plaats de lade terug in het Omni '
                                                                     'Station.'],
-                                                       'notes': [   'Vuilwaterreservoir — '
-                                                                    'Reinigingsfrequentie: Leeg en reinig '
-                                                                    'wanneer vol.',
-                                                                    'Vuilwatertank reinigen (7.5): Verwijder '
-                                                                    'de vuilwatertank van de Omni Station. '
-                                                                    'Leeg de vuilwatertank. Spoel de '
-                                                                    'vuilwatertank grondig af met stromend '
-                                                                    'water.',
-                                                                    'Wanneer RoboVac klaar is met schoonmaken, '
-                                                                    'reinig dan de vuile watertank om schimmel '
-                                                                    'of onaangename geuren te voorkomen.']}}},
+                                                       'notes': [   'Vuilwatertank moet leeg worden gemaakt en '
+                                                                    'worden gereinigd wanneer vol.']},
+                                  'mopping_cloth': {   'clean_frequency': 'Na elk gebruik wassen / regelmatig '
+                                                                          'controleren',
+                                                       'replace_frequency': 'Elke drie tot zes maanden',
+                                                       'steps': [   'Verwijder de moppeermallen van de robot.',
+                                                                    'Was en droog de mallen volledig voordat u '
+                                                                    'deze opnieuw gebruikt.',
+                                                                    'Vervang de mallen wanneer ze slijten of '
+                                                                    'niet meer effectief reinigen.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Eenmaal per maand',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Controleer het zwenkelwiel op ingewikkeld '
+                                                                   'haar of vuil.',
+                                                                   'Verwijder voorzichtig het vuil en maak het '
+                                                                   'wielgebied schoon.',
+                                                                   'Zorg ervoor dat het wiel vrij kan draaien '
+                                                                   'voordat u het volgende reinigingswerk '
+                                                                   'uitvoert.'],
+                                                      'notes': [   'De handleiding beschrijft het schoonmaken '
+                                                                   'van het zwenkelwiel, maar geeft geen '
+                                                                   'vervangingsinterval aan.']}}},
     'it': {   'x10_pro_omni': {   'filter': {   'clean_frequency': 'Una volta a settimana',
                                                 'replace_frequency': 'Ogni 3-6 mesi',
                                                 'steps': [   'Aprire il coperchio superiore e togliere il '
@@ -356,9 +439,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'fissa.',
                                                                     'Premere verso il basso per far scattare '
                                                                     'il para-spazzola in posizione.'],
-                                                       'notes': [   'Protezione della spazzola: pulizia una '
-                                                                    'volta al mese, sostituzione ogni 3-6 mesi '
-                                                                    '(o quando visibilmente usurato).']},
+                                                       'notes': [   'La protezione della spazzola deve essere '
+                                                                    'sostituita anche ogni 3-6 mesi o quando '
+                                                                    'usurata.']},
                                   'side_brush': {   'clean_frequency': 'Una volta al mese',
                                                     'replace_frequency': 'Ogni 3-6 mesi (o quando visibilmente '
                                                                          'usurato)',
@@ -402,16 +485,32 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'pulizia con acqua.',
                                                                     'Rimettere il vassoio nella Stazione '
                                                                     'Omni.'],
-                                                       'notes': [   'Combina la sezione 7.5 "Pulire il '
-                                                                    'serbatoio dell\'acqua sporca" (passi 1-3) '
-                                                                    'e la sezione 7.6 "Pulire i tappetini '
-                                                                    'lavabili rimovibili del vassoio per la '
-                                                                    'pulizia" (passi 4-6, area di '
-                                                                    'lavaggio/vassoio della stazione Omni).',
-                                                                    'Frequenza tabella ufficiale: Serbatoio '
-                                                                    "dell'acqua sporca — Svuotare e pulire "
-                                                                    'quando è pieno (nessuna sostituzione '
-                                                                    'indicata).']}}},
+                                                       'notes': [   "Il serbatoio dell'acqua sporca deve "
+                                                                    'essere svuotato e sciacquato quando è '
+                                                                    'pieno.']},
+                                  'mopping_cloth': {   'clean_frequency': "Lavare dopo l'uso / ispezionare "
+                                                                          'regolarmente',
+                                                       'replace_frequency': 'Ogni 3-6 mesi',
+                                                       'steps': [   'Rimuovere i panni per pulire il pavimento '
+                                                                    'dal robot.',
+                                                                    'Lavare e asciugare completamente i panni '
+                                                                    'prima del riutilizzo.',
+                                                                    'Sostituire i panni quando diventano '
+                                                                    'usurati o non puliscono più '
+                                                                    'efficacemente.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Una volta al mese',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Ispezionare la ruota girevole per capelli '
+                                                                   'o detriti avvolti.',
+                                                                   'Rimuovere i detriti con attenzione e '
+                                                                   "pulire l'area della ruota.",
+                                                                   'Verificare che la ruota giri liberamente '
+                                                                   'prima della prossima esecuzione.'],
+                                                      'notes': [   'Il manuale fornisce istruzioni per la '
+                                                                   'pulizia della ruota girevole ma non '
+                                                                   'specifica un intervallo di '
+                                                                   'sostituzione.']}}},
     'pt': {   'x10_pro_omni': {   'filter': {   'clean_frequency': None,
                                                 'replace_frequency': None,
                                                 'steps': [   'Abra a tampa superior e retire a caixa de pó.',
@@ -446,7 +545,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'primeiro a extremidade fixa saliente.',
                                                                     'Pressione para encaixar a proteção da '
                                                                     'escova no lugar.'],
-                                                       'notes': []},
+                                                       'notes': [   'O protetor de escova também deve ser '
+                                                                    'substituído a cada 3-6 meses ou quando '
+                                                                    'estiver gasto.']},
                                   'side_brush': {   'clean_frequency': None,
                                                     'replace_frequency': None,
                                                     'steps': [   'Remova a escova lateral com uma chave de '
@@ -482,11 +583,29 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'limpeza com água.',
                                                                     'Coloque a bandeja de volta na Omni '
                                                                     'Station.'],
-                                                       'notes': [   'Os três primeiros passos correspondem à '
-                                                                    "seção 7.5 'Limpe o Tanque de Água Suja'; "
-                                                                    "os três últimos à seção 7.6 'Limpe a "
-                                                                    'Bandeja de Limpeza dos Panos de Esfregão '
-                                                                    "Removíveis'."]}}},
+                                                       'notes': [   'O tanque de água suja deve ser esvaziado '
+                                                                    'e enxaguado quando estiver cheio.']},
+                                  'mopping_cloth': {   'clean_frequency': 'lavar após o uso / inspecionar '
+                                                                          'regularmente',
+                                                       'replace_frequency': 'A cada 3-6 meses',
+                                                       'steps': [   'Remova os panos de esfregão do robô.',
+                                                                    'Lave e seque completamente os panos antes '
+                                                                    'de reutilizá-los.',
+                                                                    'Substitua os panos quando estiverem '
+                                                                    'gastos ou não limparem mais '
+                                                                    'efetivamente.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Uma vez por mês',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Inspecione a roda giratória para verificar '
+                                                                   'se há cabelos ou detritos enrolados.',
+                                                                   'Remova os detritos com cuidado e limpe a '
+                                                                   'área da roda.',
+                                                                   'Confirme que a roda gira livremente antes '
+                                                                   'da próxima execução.'],
+                                                      'notes': [   'O manual lista a limpeza da roda '
+                                                                   'giratória, mas não fornece um intervalo de '
+                                                                   'substituição específico.']}}},
     'ru': {   'x10_pro_omni': {   'filter': {   'clean_frequency': 'Раз в неделю',
                                                 'replace_frequency': 'Каждые 3–6 месяцев',
                                                 'steps': [   'Откройте верхнюю крышку и извлеките контейнер '
@@ -526,7 +645,9 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'конец.',
                                                                     'Нажмите вниз, чтобы крышка щётки '
                                                                     'защёлкнулась на месте.'],
-                                                       'notes': []},
+                                                       'notes': [   'Крышка щётки должна также заменяться '
+                                                                    'каждые 3–6 месяцев или при видимом '
+                                                                    'износе.']},
                                   'side_brush': {   'clean_frequency': 'Раз в месяц',
                                                     'replace_frequency': 'Каждые 3–6 месяцев (или при видимом '
                                                                          'износе)',
@@ -555,4 +676,26 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                                     'Тщательно промойте лоток для чистки '
                                                                     'водой.',
                                                                     'Установите лоток обратно в станцию Omni.'],
-                                                       'notes': []}}}}
+                                                       'notes': [   'Бак грязной воды следует опорожнять и '
+                                                                    'промывать при полном заполнении.']},
+                                  'mopping_cloth': {   'clean_frequency': 'Мойте после каждого использования / '
+                                                                          'регулярно проверяйте',
+                                                       'replace_frequency': 'Каждые 3–6 месяцев',
+                                                       'steps': [   'Снимите тряпки для влажной уборки с '
+                                                                    'робота.',
+                                                                    'Промойте тряпки и полностью высушите '
+                                                                    'перед следующим использованием.',
+                                                                    'Замените тряпки, когда они изнашиваются '
+                                                                    'или перестают эффективно чистить.'],
+                                                       'notes': []},
+                                  'swivel_wheel': {   'clean_frequency': 'Раз в месяц',
+                                                      'replace_frequency': None,
+                                                      'steps': [   'Проверьте поворотное колесо на наличие '
+                                                                   'намотанных волос или мусора.',
+                                                                   'Осторожно удалите мусор и протрите область '
+                                                                   'колеса.',
+                                                                   'Убедитесь, что колесо свободно вращается '
+                                                                   'перед следующей уборкой.'],
+                                                      'notes': [   'Руководство указывает на необходимость '
+                                                                   'очистки поворотного колеса, но не содержит '
+                                                                   'информацию об интервале его замены.']}}}}
