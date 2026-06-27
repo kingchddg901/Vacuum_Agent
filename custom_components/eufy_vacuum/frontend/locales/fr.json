@@ -109,7 +109,8 @@
     "label_required": "Un libellé de profil de pièce est requis.",
     "rename_key_prompt": "Facultatif : saisissez une nouvelle clé de profil backend.",
     "rename_label_prompt": "Saisissez le nouveau libellé d'affichage de ce profil de pièce :",
-    "save_new_profile_prompt": "Enregistrez les réglages actuels de la pièce comme nouveau profil. Saisissez un libellé d'affichage :"
+    "save_new_profile_prompt": "Enregistrez les réglages actuels de la pièce comme nouveau profil. Saisissez un libellé d'affichage :",
+    "profile_already_removed": "Ce profil a déjà été supprimé."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Le backend a rejeté cette règle.",

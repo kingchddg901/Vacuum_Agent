@@ -109,7 +109,8 @@
     "label_required": "É necessária uma etiqueta para o perfil de divisão.",
     "rename_key_prompt": "Opcional: introduza uma nova chave de perfil do backend.",
     "rename_label_prompt": "Introduza a nova etiqueta de apresentação para este perfil de divisão:",
-    "save_new_profile_prompt": "Guardar as definições atuais da divisão como novo perfil. Introduza uma etiqueta de apresentação:"
+    "save_new_profile_prompt": "Guardar as definições atuais da divisão como novo perfil. Introduza uma etiqueta de apresentação:",
+    "profile_already_removed": "Esse perfil já tinha sido removido."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "O backend rejeitou esta regra.",

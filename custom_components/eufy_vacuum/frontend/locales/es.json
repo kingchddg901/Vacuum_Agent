@@ -109,7 +109,8 @@
     "label_required": "Se requiere una etiqueta para el perfil de habitación.",
     "rename_key_prompt": "Opcional: introduce una nueva clave de perfil del backend.",
     "rename_label_prompt": "Introduce la nueva etiqueta visible para este perfil de habitación:",
-    "save_new_profile_prompt": "Guarda la configuración actual de la habitación como un nuevo perfil. Introduce una etiqueta visible:"
+    "save_new_profile_prompt": "Guarda la configuración actual de la habitación como un nuevo perfil. Introduce una etiqueta visible:",
+    "profile_already_removed": "Ese perfil ya se había eliminado."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "El backend rechazó esta regla.",

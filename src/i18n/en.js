@@ -148,6 +148,7 @@ export const en = {
   "bind_room_editor.confirm_overwrite_profile": "Overwrite {target} with this room's current settings?",
   "bind_room_editor.default_custom_profile_label": "Custom Room Profile",  // default display name suggested when saving a room's settings as a new reusable profile
   "bind_room_editor.failed_delete_profile": "Failed to delete room profile.",
+  "bind_room_editor.profile_already_removed": "That profile was already removed.",  // info toast: the delete found the profile already gone from the backend; the card reconciled (refreshed) rather than erroring
   "bind_room_editor.failed_overwrite_profile": "Failed to overwrite room profile.",
   "bind_room_editor.failed_rename_profile": "Failed to rename room profile.",
   "bind_room_editor.failed_save_profile": "Failed to save room profile.",

@@ -103,7 +103,10 @@ export function applyRoomEditorBindings(proto) {
    * @param {string} fallbackMessage - Shown when `result` has no message.
    */
   proto._alertRoomProfileResult = function (result, fallbackMessage) {
-    const message = String(result?.message ?? result?.reason ?? fallbackMessage ?? "").trim();
+    // Prefer a human-readable backend message; NEVER surface the raw reason CODE
+    // (e.g. "profile_not_found") to the user — fall back to the friendly,
+    // localized fallback instead.
+    const message = String(result?.message ?? fallbackMessage ?? "").trim();
     if (message) {
       this.card.showToast(message, { kind: "error" });
     }
@@ -296,7 +299,13 @@ export function applyRoomEditorBindings(proto) {
       profile_name: targetProfileName,
     });
 
-    if (!response?.deleted) {
+    // "deleted" AND "already gone" (profile_not_found) mean the same thing: the
+    // backend no longer holds this profile, so reconcile the card to that truth.
+    // The library fetch is fresh, so refreshing DROPS the (possibly stale) entry
+    // and resets the editor — without this, a profile_not_found returned early
+    // and the deleted profile kept rendering with a raw "profile_not_found" toast.
+    const goneFromBackend = response?.deleted || response?.reason === "profile_not_found";
+    if (!goneFromBackend) {
       this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_delete_profile"));
       return;
     }
@@ -304,6 +313,11 @@ export function applyRoomEditorBindings(proto) {
     await this._refreshRoomProfileLibrary();
     this.card._state._syncEditorProfileFromFields?.();
     this.card._scheduleRender();
+
+    if (!response?.deleted) {
+      // It was already gone (our copy was stale) — reconciled quietly, no error.
+      this.card.showToast(this.t("bind_room_editor.profile_already_removed"), { kind: "info" });
+    }
   };
 
   proto._bindRoomEditorOpen = function () {

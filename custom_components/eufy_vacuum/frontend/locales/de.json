@@ -108,7 +108,8 @@
     "label_required": "Eine Bezeichnung für das Raumprofil ist erforderlich.",
     "rename_key_prompt": "Optional: gib einen neuen Backend-Profilschlüssel ein.",
     "rename_label_prompt": "Gib die neue Anzeigebezeichnung für dieses Raumprofil ein:",
-    "save_new_profile_prompt": "Aktuelle Raumeinstellungen als neues Profil speichern. Gib eine Anzeigebezeichnung ein:"
+    "save_new_profile_prompt": "Aktuelle Raumeinstellungen als neues Profil speichern. Gib eine Anzeigebezeichnung ein:",
+    "profile_already_removed": "Dieses Profil wurde bereits entfernt."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Das Backend hat diese Regel abgelehnt.",

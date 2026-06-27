@@ -108,7 +108,8 @@
     "label_required": "Een label voor het kamerprofiel is verplicht.",
     "rename_key_prompt": "Optioneel: voer een nieuwe backend-profielsleutel in.",
     "rename_label_prompt": "Voer het nieuwe weergavelabel voor dit kamerprofiel in:",
-    "save_new_profile_prompt": "Sla de huidige kamerinstellingen op als nieuw profiel. Voer een weergavelabel in:"
+    "save_new_profile_prompt": "Sla de huidige kamerinstellingen op als nieuw profiel. Voer een weergavelabel in:",
+    "profile_already_removed": "Dat profiel was al verwijderd."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "De backend heeft deze regel afgewezen.",

@@ -1523,9 +1523,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
       prevScroll.forEach((top, i) => {
         if (top && bodies[i]) bodies[i].scrollTop = top;
       });
-    }
 
-    this._bindings?.bindModalHostEvents(this._modalHost);
+      // Bind ONLY after an actual innerHTML swap. The swap recreates every modal
+      // element (dropping its old listeners), so this attaches exactly one set.
+      // Re-binding on every render — including a background status/battery push
+      // while a modal sits open with UNCHANGED markup — would stack duplicate
+      // click listeners on the same buttons (double-firing save / rename /
+      // delete). Same-markup renders keep their already-attached listeners.
+      this._bindings?.bindModalHostEvents(this._modalHost);
+    }
   }
 
   /* =========================================================
