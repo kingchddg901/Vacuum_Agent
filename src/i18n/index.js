@@ -30,23 +30,23 @@
  */
 
 import { en } from "./en.js";
-// Bundled locales — AI-generated DRAFTS pending native review (each file's header
-// notes this). Auto-activate by hass.locale.language; English fills any gap.
-// Russian is the pilot (a Russian-speaking user reviews it live).
-import { ru } from "./ru.js";
-import { de } from "./de.js";
-import { fr } from "./fr.js";
-import { es } from "./es.js";
-import { nl } from "./nl.js";
-import { it } from "./it.js";
-import { pt } from "./pt.js";
+import { flattenLocale } from "./flatten.js";
+
+// English is the ONLY catalog bundled into the card — it is the manifest (the
+// complete key set) and the universal fallback. The other locales (de/fr/es/nl/
+// it/pt/ru) were RIPPED OUT of the minified bundle: they ship as nested JSON
+// served assets (custom_components/eufy_vacuum/frontend/locales/<code>.json) and
+// load + flatten at runtime (see loadLocale / loadDroppedLocales, and main.js's
+// _maybeLoadBundledLocales). Their METADATA (status/endonym/draft-word below)
+// stays bundled so the picker + draft-gate work before the catalogs arrive.
 
 /**
  * lang code -> { key: string | PluralForms }. English is always present as the
  * base. A value is a plain string, or — for a count-driven key — an object of
- * CLDR plural forms (e.g. { one, other }); see translate/pluralForm.
+ * CLDR plural forms (e.g. { one, other }); see translate/pluralForm. Non-English
+ * catalogs are registered at runtime (registerLocale) once their JSON loads.
  */
-const CATALOGS = { en, ru, de, fr, es, nl, it, pt };
+const CATALOGS = { en };
 
 /**
  * Review status per bundled locale. A `draft` locale is AI-generated and not yet
@@ -488,7 +488,11 @@ export async function loadLocale(url, lang, opts = {}) {
       return report;
     }
     const data = await resp.json();
-    const { clean, warnings, errors } = validateLocale(data);
+    // Locale files are authored NESTED (commons + scoped sections); flatten
+    // against the English manifest into the flat catalog validateLocale expects.
+    // A flat file is the degenerate case and passes through unchanged.
+    const { flat } = flattenLocale(data, CATALOGS.en);
+    const { clean, warnings, errors } = validateLocale(flat);
     report.warnings = warnings;
     report.errors = errors;
     registerLocale(lang, clean, opts.status ? { status: opts.status } : undefined);
@@ -504,15 +508,20 @@ export async function loadLocale(url, lang, opts = {}) {
  * Discover + load drop-in locale JSON files the integration serves at
  * `${baseUrl}/index.json` — an auto-generated list of "<code>.json" filenames
  * (see custom_components/eufy_vacuum/__init__.py, which regenerates it at
- * startup from config/eufy_vacuum/locales/). Each file is loaded via loadLocale
- * (same-origin fetch -> validateLocale -> registerLocale) and tagged status
- * "custom", so the picker lists it and the draft-gate keeps it explicit-only.
+ * startup from config/eufy_vacuum/locales/, and the shipped set from the
+ * served frontend dir). Each file is loaded via loadLocale (same-origin fetch ->
+ * flatten -> validateLocale -> registerLocale). `en.json` is refused (the base).
+ *
+ * Status is the CALLER's choice: pass { status: "custom" } for user drop-ins (so
+ * the draft-gate keeps them explicit-only); omit it for the SHIPPED locales so
+ * each keeps its bundled LOCALE_STATUS (e.g. "draft").
  *
  * NEVER throws: a missing folder / index / file just yields a soft report. The
  * filename stem IS the locale code (de.json -> "de", pt-BR.json -> "pt-BR").
  *
  * @param {string} [baseUrl] - served locales dir (default /eufy_vacuum/locales).
- * @param {{ fetchImpl?: typeof fetch }} [opts] - injectable fetch (for tests).
+ * @param {{ fetchImpl?: typeof fetch, status?: string }} [opts] - injectable
+ *   fetch (for tests); `status` tags the loaded locales (e.g. "custom").
  * @returns {Promise<{ ok: boolean, loaded: string[], errors: string[] }>}
  */
 export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts = {}) {
@@ -546,7 +555,9 @@ export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts 
       result.errors.push("en.json refused (the English base is not overridable via drop-in)");
       continue;
     }
-    const report = await loadLocale(`${baseUrl}/${file}`, code, { ...opts, status: "custom" });
+    // Status is the CALLER's call: shipped locales (no status) keep their
+    // bundled LOCALE_STATUS; user drop-ins pass { status: "custom" } to be gated.
+    const report = await loadLocale(`${baseUrl}/${file}`, code, opts);
     if (report.ok) result.loaded.push(code);
     else result.errors.push(`${file}: ${report.errors.join("; ")}`);
   }

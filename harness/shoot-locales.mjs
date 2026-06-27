@@ -18,10 +18,12 @@
  * destroy #root for any later render).
  */
 import { chromium } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { mountHarness, renderTab, VIEW_ORDER } from "./lib/mount-page.mjs";
+import { en } from "../src/i18n/en.js";
+import { flattenLocale } from "../src/i18n/flatten.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const flag = (n, d) => { const i = process.argv.indexOf(n); return i === -1 ? d : process.argv[i + 1]; };
@@ -86,6 +88,18 @@ const byLang = {};
 for (const lang of LANGS) {
   console.log(`\n===== ${lang} (width=${width}px${MOBILE ? ", mobile" : ""}) =====`);
   byLang[lang] = [];
+  // The locales were ripped out of the bundle, so the stub only ships English.
+  // Load the shipped nested JSON, flatten against the English manifest, and
+  // inject it the same way the real card loads it at runtime.
+  try {
+    const nested = JSON.parse(
+      readFileSync(join(here, "..", "custom_components", "eufy_vacuum", "frontend", "locales", `${lang}.json`), "utf8"),
+    );
+    const { flat } = flattenLocale(nested, en);
+    await page.evaluate(([l, cat]) => window.__evcc.registerLocale(l, cat), [lang, flat]);
+  } catch (e) {
+    console.log(`  (could not load ${lang}.json — renders will show English: ${e.message})`);
+  }
   for (const view of VIEW_ORDER) {
     const r = await renderTab(page, view, { width, freeze: true, lang, mobile: MOBILE });
     if (!r || !r.ok) { console.log(`✗ ${view}: ${(r && r.error) || "render failed"}`); continue; }

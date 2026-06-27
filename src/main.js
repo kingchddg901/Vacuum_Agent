@@ -60,7 +60,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._languageMenuOpen = false;
     this._langOverrideLoaded = false;
     this._langUserPicked = false;
-    this._droppedLocalesLoaded = false; // one-shot guard for drop-in locale JSON
+    this._externalLocalesLoaded = false; // one-shot guard for runtime locale loads (shipped + drop-in)
 
     this._learningController = null;
 
@@ -395,22 +395,26 @@ class EufyVacuumCommandCenter extends HTMLElement {
   }
 
   /**
-   * Discover + register drop-in locale JSON files served by the integration
-   * (config/eufy_vacuum/locales/ -> /eufy_vacuum/locales/index.json), ONCE. A
-   * loaded locale becomes selectable in the globe and usable as an override.
-   * Fails soft — no folder / no files just leaves the bundled set. See
-   * loadDroppedLocales (i18n/index.js).
+   * Load the runtime locale catalogs, ONCE. Two sources, in order:
+   *   1. SHIPPED — de/fr/es/nl/it/pt/ru, ripped out of the bundle and served as
+   *      nested JSON at /eufy_vacuum/frontend/locales/ (no status arg → each
+   *      keeps its bundled LOCALE_STATUS, i.e. "draft").
+   *   2. USER DROP-INS — config/eufy_vacuum/locales/ (status "custom", gated).
+   * Drops load AFTER shipped so a drop-in OVERRIDES the shipped locale of the
+   * same code (the user's correction wins). Both flatten the nested JSON and
+   * fail soft — English (bundled) covers anything that doesn't load.
    */
-  _maybeLoadDroppedLocales() {
-    if (this._droppedLocalesLoaded) return;
-    this._droppedLocalesLoaded = true; // one-shot, set before the await
-    loadDroppedLocales().then((report) => {
-      if (!report || !report.loaded || !report.loaded.length) return;
-      // Re-render so the picker lists the new locale(s) and, if one is the active
-      // override / matches the resolved language, its strings replace English.
+  _maybeLoadExternalLocales() {
+    if (this._externalLocalesLoaded) return;
+    this._externalLocalesLoaded = true; // one-shot, set before the await
+    const rerender = () => {
       if (this._config?.vacuum_entity_id) this._scheduleRender();
       else this._renderNoVacuumPlaceholder();
-    });
+    };
+    loadDroppedLocales("/eufy_vacuum/frontend/locales")
+      .then((r) => { if (r && r.loaded && r.loaded.length) rerender(); })
+      .then(() => loadDroppedLocales("/eufy_vacuum/locales", { status: "custom" }))
+      .then((r) => { if (r && r.loaded && r.loaded.length) rerender(); });
   }
 
   /** Open/close the header language dropdown (card-level so it survives re-render). */
@@ -460,8 +464,8 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // one-shot, runs in both the placeholder and normal paths (see method).
     this._maybeLoadLangOverride();
 
-    // Discover any drop-in locale JSON the integration serves — one-shot.
-    this._maybeLoadDroppedLocales();
+    // Load the runtime locale catalogs (shipped + user drop-ins) — one-shot.
+    this._maybeLoadExternalLocales();
 
     // Setup-placeholder mode: no vacuum configured yet, the static
     // placeholder is already in the DOM, and we have no state to sync.

@@ -416,7 +416,7 @@ await checkAsync("loadDroppedLocales: discovers + loads drop-in files (custom-ta
     if (!(name in files)) return { ok: false, status: 404 };
     return { ok: true, status: 200, json: async () => files[name] };
   };
-  const report = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl });
+  const report = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl, status: "custom" });
   assert.equal(report.ok, true);
   assert.deepEqual(report.loaded, ["xx-drop"]);
   assert.equal(translate("xx-drop", "rooms.empty"), "Dropped room");
@@ -438,7 +438,7 @@ await checkAsync("loadDroppedLocales: discovers + loads drop-in files (custom-ta
     const name = String(url).split("/").pop();
     return name in withEn ? { ok: true, status: 200, json: async () => withEn[name] } : { ok: false, status: 404 };
   };
-  const r2 = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl: fetchEn });
+  const r2 = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl: fetchEn, status: "custom" });
   assert.ok(!r2.loaded.includes("en"), "en.json is refused");
   assert.notEqual(translate("en", "rooms.empty"), "HIJACKED");          // base intact
   assert.ok(r2.loaded.includes("yy-drop"));                            // others still load
@@ -578,39 +578,31 @@ if (dead.length === 0) {
 }
 
 /* =========================================================
-   C. BUNDLED LOCALE VALIDATION (every shipped locale vs English)
+   C. SHIPPED LOCALE VALIDATION (every served locale JSON vs English)
    ========================================================= */
-// Any locale file bundled under src/i18n/ (a `ru.js` etc., beyond the English
-// base) must pass validateLocale against English — placeholder parity, value
-// shapes, no unsafe keys — so a broken committed translation fails the BUILD,
-// not the user's render. No-op until the first locale lands.
-console.log("\nC. bundled locale validation");
-const i18nDir = join(SRC, "i18n");
-const localeFiles = readdirSync(i18nDir).filter(
-  (f) =>
-    f.endsWith(".js") &&
-    f !== "index.js" &&
-    f !== "en.js" &&
-    f !== "lang-store.js" && // helper module (WS user-data store), not a catalog
-    f !== "flatten.js" &&    // helper module (nested-authoring flatten), not a catalog
-    !f.endsWith(".test.js"),
-);
-if (localeFiles.length === 0) {
-  console.log("  ✓ no bundled locales beyond en (nothing to validate yet)");
+// The non-English locales were ripped out of the bundle: they ship as nested
+// JSON under custom_components/eufy_vacuum/frontend/locales/ and load at runtime.
+// Each must FLATTEN against the English manifest and pass validateLocale
+// (placeholder parity, value shapes, no unsafe keys) — so a broken committed
+// translation fails the BUILD, not the user's render.
+console.log("\nC. shipped locale validation");
+const { en: enCatalog } = await import(pathToFileURL(join(SRC, "i18n", "en.js")).href);
+const shippedDir = join(REPO, "custom_components", "eufy_vacuum", "frontend", "locales");
+let shippedFiles = [];
+try {
+  shippedFiles = readdirSync(shippedDir).filter((f) => f.endsWith(".json") && f !== "index.json");
+} catch { /* dir absent — no-op */ }
+if (shippedFiles.length === 0) {
+  console.log("  ✓ no shipped locales (nothing to validate)");
 } else {
-  for (const f of localeFiles) {
-    const mod = await import(pathToFileURL(join(i18nDir, f)).href);
-    // The catalog is the largest object-valued export (e.g. `export const ru`).
-    const cat = Object.values(mod)
-      .filter((v) => v && typeof v === "object" && !Array.isArray(v))
-      .sort((a, b) => Object.keys(b).length - Object.keys(a).length)[0];
-    if (!cat) { fail(`locale ${f}: no catalog object export`); continue; }
-    const { clean, warnings, errors } = validateLocale(cat);
-    if (errors.length) {
-      for (const e of errors) fail(`locale ${f}: ${e}`);
-    } else {
-      console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
-    }
+  for (const f of shippedFiles) {
+    let nested;
+    try { nested = JSON.parse(readFileSync(join(shippedDir, f), "utf8")); }
+    catch (e) { fail(`locale ${f}: invalid JSON — ${e.message}`); continue; }
+    const { flat, coverage } = flattenLocale(nested, enCatalog);
+    const { clean, warnings, errors } = validateLocale(flat);
+    if (errors.length) { for (const e of errors) fail(`locale ${f}: ${e}`); continue; }
+    console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid (${coverage.untranslated.length} → en)${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
   }
 }
 

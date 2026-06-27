@@ -162,6 +162,22 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             ) as fh:
                 json.dump(animal_files, fh)
 
+        # SHIPPED locales (de/fr/es/nl/it/pt/ru) — ripped out of the minified
+        # card bundle, they ship as nested JSON here and load at runtime. Auto-
+        # index them (same as animals) so the card discovers each without an
+        # edit; served via the existing /eufy_vacuum/frontend static path.
+        shipped_locales_dir = os.path.join(frontend_dir, "locales")
+        if os.path.isdir(shipped_locales_dir):
+            shipped_locale_files = sorted(
+                f
+                for f in os.listdir(shipped_locales_dir)
+                if f.endswith(".json") and f != "index.json"
+            )
+            with open(
+                os.path.join(shipped_locales_dir, "index.json"), "w", encoding="utf-8"
+            ) as fh:
+                json.dump(shipped_locale_files, fh)
+
         return (
             maps_dir,
             os.path.join(integration_dir, "textures"),
