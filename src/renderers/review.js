@@ -418,7 +418,7 @@ export function applyReviewRenderers(proto) {
     const badges = [];
 
     if (excluded) badges.push({ text: this.t("review.badge_excluded"), cls: "evcc-review-badge--excluded" });
-    if (job?.exclude_suggested === true) badges.push({ text: job?.exclude_suggested_reason_label || this.t("review.badge_suggested_exclude"), cls: "evcc-review-badge--suggested" });
+    if (job?.exclude_suggested === true) badges.push({ text: this.tVocabRaw("exclude_suggested_reason", job?.exclude_suggested_reason, job?.exclude_suggested_reason_label || this.t("review.badge_suggested_exclude")), cls: "evcc-review-badge--suggested" });
     if (String(job?.status ?? "").trim().toLowerCase() !== "completed") badges.push({ text: this.tVocabRaw("status", job?.status, job?.status_label || this._formatReviewLabel(job?.status || this.t("review.unknown"))), cls: "evcc-review-badge--warning" });
     if (job?.sanity_passed === false) badges.push({ text: this.t("review.badge_sanity_failed"), cls: "evcc-review-badge--warning" });
     if (job?.mid_job_recharge_observed === true) badges.push({ text: this.t("review.badge_recharge"), cls: "evcc-review-badge--neutral" });
@@ -435,19 +435,29 @@ export function applyReviewRenderers(proto) {
         : "",
     ].filter(Boolean);
 
+    // Per-job explanatory note, built CODE-FIRST: localize the stable reason CODE
+    // via vocab.reason_code.*, falling back PER-CODE to the backend English
+    // sentence/label (then a client title-case) so an unkeyed code still reads in
+    // English — never a raw key. tVocabRaw (not tVocab) because the note is sunk
+    // through escapeHtml at render below. Arrays map EACH code independently and
+    // join — never zip codes[] with the index-filtered *_texts[] arrays, which can
+    // desync (codes are unfiltered, *_texts drop entries with no _reason_text).
+    const reasonChunk = (code, fallback) =>
+      code ? this.tVocabRaw("reason_code", String(code), fallback || this._formatReviewLabel(String(code))) : "";
+    const reasonFromList = (codes) =>
+      (Array.isArray(codes) ? codes : [])
+        .map((code) => reasonChunk(code))
+        .filter(Boolean)
+        .join(", ");
+
     const reasonText =
-      job?.exclude_suggested_reason_text ||
-      job?.exclude_reason_text ||
-      job?.restore_reason_text ||
-      job?.status_text ||
-      (Array.isArray(job?.learning_blocker_texts) && job.learning_blocker_texts.length ? job.learning_blocker_texts.join(", ") : "") ||
-      (Array.isArray(job?.sanity_flag_texts) && job.sanity_flag_texts.length ? job.sanity_flag_texts.join(", ") : "") ||
-      job?.cancel_detection?.reason_text ||
-      job?.exclude_suggested_reason_label ||
-      job?.exclude_reason_label ||
-      job?.restore_reason_label ||
-      (Array.isArray(job?.learning_blockers) && job.learning_blockers.length ? job.learning_blockers.join(", ") : "") ||
-      (Array.isArray(job?.sanity_flags) && job.sanity_flags.length ? job.sanity_flags.join(", ") : "");
+      reasonChunk(job?.exclude_suggested_reason, job?.exclude_suggested_reason_text || job?.exclude_suggested_reason_label) ||
+      reasonChunk(job?.exclude_reason, job?.exclude_reason_text || job?.exclude_reason_label) ||
+      reasonChunk(job?.restore_reason, job?.restore_reason_text || job?.restore_reason_label) ||
+      reasonChunk(job?.status, job?.status_text) ||
+      reasonFromList(job?.learning_blockers) ||
+      reasonFromList(job?.sanity_flags) ||
+      reasonChunk(job?.cancel_detection?.reason, job?.cancel_detection?.reason_text);
 
     // Fold the settings into the profile value (and drop the duplicate subtitle)
     // for profiles with a known namesake — same stable disambiguation as the

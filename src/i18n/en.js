@@ -1584,6 +1584,51 @@ export const en = {
   "vocab.exclude_reason.false_completion": "False Completion",
   "vocab.exclude_reason.bad_room_attribution": "Bad Room Attribution",
   "vocab.exclude_reason.interrupted_run": "Interrupted Run",
+  // Auto-exclude suggestion BADGE on Learning Review job cards — terse chip labels
+  // keyed on the stable exclude_suggested_reason code (manager.py emits cancelled/
+  // failed/interrupted/failed_sanity/cancel-detection reason/short_duration_vs_*).
+  // tVocabRaw'd at review.js; falls back to the backend label for any unkeyed code.
+  "vocab.exclude_suggested_reason.cancelled": "Cancelled run",
+  "vocab.exclude_suggested_reason.failed": "Failed run",
+  "vocab.exclude_suggested_reason.interrupted": "Interrupted run",
+  "vocab.exclude_suggested_reason.failed_sanity": "Failed sanity check",
+  "vocab.exclude_suggested_reason.floor_time_too_short": "Floor time too short",
+  "vocab.exclude_suggested_reason.early_return_likely_cancelled": "Returned early",
+  "vocab.exclude_suggested_reason.cancel_like": "Looks cancelled",
+  "vocab.exclude_suggested_reason.short_duration_vs_profile": "Short vs profile",
+  "vocab.exclude_suggested_reason.short_duration_vs_room": "Short vs room",
+  // Per-job "This run …" explanatory NOTE on Learning Review job cards — full
+  // sentences keyed on the stable reason code. One shared namespace because the
+  // note sources overlap (status / learning blockers / sanity flags / cancel
+  // reasons / exclude reasons reuse the same codes). Sourced verbatim from the
+  // backend _reason_text() where present; fresh sentences for codes that only
+  // title-cased before. tVocabRaw'd; falls back per-code to the backend sentence.
+  "vocab.reason_code.completed": "This run completed normally.",
+  "vocab.reason_code.cancelled": "This run ended as a cancelled job.",
+  "vocab.reason_code.failed": "This run ended as a failed job.",
+  "vocab.reason_code.interrupted": "This run ended as an interrupted job.",
+  "vocab.reason_code.test": "This run is marked as a test job.",
+  "vocab.reason_code.job_cancelled": "The job was cancelled before it finished.",
+  "vocab.reason_code.job_failed": "The job failed before it finished.",
+  "vocab.reason_code.job_interrupted": "The job was interrupted before it finished.",
+  "vocab.reason_code.test_job": "This run is marked as a test job.",
+  "vocab.reason_code.manually_excluded": "This run was manually excluded from learning.",
+  "vocab.reason_code.excluded_from_learning": "This run is currently excluded from learning.",
+  "vocab.reason_code.invalid_room_count": "This run did not record a valid number of rooms.",
+  "vocab.reason_code.invalid_duration": "This run did not record a valid duration.",
+  "vocab.reason_code.missing_resolved_rooms": "No rooms could be matched for this run.",
+  "vocab.reason_code.failed_sanity": "This run failed the backend sanity checks.",
+  "vocab.reason_code.short_duration_vs_profile": "Much shorter than this profile usually takes.",
+  "vocab.reason_code.short_duration_vs_room": "Much shorter than this room usually takes.",
+  "vocab.reason_code.cancel_like": "This run looks like a canceled run.",
+  "vocab.reason_code.cancel_likely": "This run looks like it was canceled.",
+  "vocab.reason_code.floor_time_too_short": "Floor-cleaning time was too short for a real run.",
+  "vocab.reason_code.early_return_likely_cancelled": "The vacuum returned early, so this run was likely canceled.",
+  "vocab.reason_code.short_test_cancel": "Looks like a short test run that was canceled early.",
+  "vocab.reason_code.manual_test_run": "Marked as a manual test run.",
+  "vocab.reason_code.false_completion": "This run appears to have ended before cleaning really completed.",
+  "vocab.reason_code.bad_room_attribution": "Room attribution for this run looks unreliable.",
+  "vocab.reason_code.interrupted_run": "This run appears to have been interrupted.",
   "mapping_review.filter_all_rooms": "All Rooms",
   "mapping_review.filter_has_bounds": "Has Bounds",
   "mapping_review.filter_no_bounds": "No Bounds",
