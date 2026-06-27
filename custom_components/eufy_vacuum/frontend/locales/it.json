@@ -2172,6 +2172,49 @@
       "good": "Buona",
       "high": "Alta",
       "trusted": "Affidabile"
+    },
+    "maintenance_component": {
+      "filter": "Filtro",
+      "sensor": "Sensore",
+      "side_brush": "Spazzola laterale",
+      "rolling_brush": "Spazzola rotante",
+      "mopping_cloth": "Panno per lavaggio",
+      "cleaning_tray": "Vassoio di pulizia",
+      "swivel_wheel": "Ruota piroettante"
+    },
+    "maintenance_kind": {
+      "maintenance": "Manutenzione",
+      "replacement": "Sostituzione"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Questa esecuzione è attualmente esclusa dall'apprendimento.",
+      "cancel_like": "Questa esecuzione sembra essere stata annullata.",
+      "cancelled": "Questa esecuzione è terminata come attività annullata.",
+      "failed": "Questa esecuzione è terminata come attività non riuscita.",
+      "interrupted": "Questa esecuzione è terminata come attività interrotta.",
+      "completed": "Questa esecuzione è stata completata normalmente.",
+      "test": "Questa esecuzione è contrassegnata come attività di prova.",
+      "no_learning_runs": "Non ci sono ancora abbastanza esecuzioni apprese.",
+      "building_samples": "Il sistema sta ancora raccogliendo cronologia sufficiente per affidarsi a questa stima.",
+      "accuracy_observed": "L'affidabilità è supportata da una cronologia reale di stime rispetto ai valori effettivi.",
+      "not_enough_accuracy_data": "È necessaria più cronologia di stime rispetto ai valori effettivi prima che l'affidabilità possa migliorare.",
+      "missing_timestamps": "L'esecuzione non disponeva di dati di marca temporale sufficienti per una classificazione affidabile.",
+      "not_single_room": "Il rilevamento di probabile annullamento si applica attualmente solo alle attività in una singola stanza.",
+      "no_transition_history": "Per questa esecuzione non era disponibile alcuna cronologia delle transizioni di stato.",
+      "service_state_explains_return": "Il rientro è sembrato un normale ciclo di servizio anziché un annullamento.",
+      "no_cancel_like_transition": "Non è stato osservato alcuno schema di transizione simile a un annullamento."
+    },
+    "dock_reason": {
+      "ready": "Pronto.",
+      "unsupported_feature": "Questo aspirapolvere non supporta quell'azione della base.",
+      "missing_action_entity": "L'entità di controllo della base a monte non è stata trovata.",
+      "job_active": "Termina, metti in pausa o annulla l'attività monitorata prima di usare le azioni della base.",
+      "not_docked": "L'aspirapolvere deve essere agganciato alla base prima di usare quell'azione della base.",
+      "already_washing": "La base sta già lavando il mocio.",
+      "already_drying": "La base sta già asciugando il mocio.",
+      "not_drying": "L'arresto dell'asciugatura è utile solo mentre la base sta asciugando attivamente.",
+      "already_emptying": "La base sta già svuotando la polvere.",
+      "dock_busy": "La base è attualmente occupata con un'altra azione di servizio."
     }
   },
   "order_modal": {

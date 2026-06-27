@@ -556,7 +556,12 @@ export function applyMetricsRenderers(proto) {
   proto._renderMetricsFoundProfileCard = function (profile) {
     const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || this.t("metrics.profile_fallback");
     const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
-    const trustReason = profile?.trust_reason_text || profile?.trust_reason || "";
+    // Localize from the stable trust_reason CODE; the backend's English
+    // trust_reason_text is the fallback for any code we haven't keyed. tVocabRaw:
+    // the sink escapeHtmls it (single escape).
+    const trustReason = profile?.trust_reason
+      ? this.tVocabRaw("estimate_reason", profile.trust_reason, profile?.trust_reason_text || "")
+      : (profile?.trust_reason_text || "");
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("found", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;
     const canSave = profile?.save_candidate === true && String(profile?.save_service ?? "").trim() !== "";

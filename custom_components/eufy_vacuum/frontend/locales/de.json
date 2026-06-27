@@ -2172,6 +2172,49 @@
       "good": "Gut",
       "high": "Hoch",
       "trusted": "Vertrauenswürdig"
+    },
+    "maintenance_component": {
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "side_brush": "Seitenbürste",
+      "rolling_brush": "Rollbürste",
+      "mopping_cloth": "Wischtuch",
+      "cleaning_tray": "Reinigungsschale",
+      "swivel_wheel": "Lenkrad"
+    },
+    "maintenance_kind": {
+      "maintenance": "Wartung",
+      "replacement": "Austausch"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Dieser Lauf ist derzeit vom Lernen ausgeschlossen.",
+      "cancel_like": "Dieser Lauf sieht aus wie ein abgebrochener Lauf.",
+      "cancelled": "Dieser Lauf endete als abgebrochener Auftrag.",
+      "failed": "Dieser Lauf endete als fehlgeschlagener Auftrag.",
+      "interrupted": "Dieser Lauf endete als unterbrochener Auftrag.",
+      "completed": "Dieser Lauf wurde normal abgeschlossen.",
+      "test": "Dieser Lauf ist als Testauftrag markiert.",
+      "no_learning_runs": "Es gibt noch nicht genug gelernte Läufe.",
+      "building_samples": "Das System sammelt noch genügend Verlaufsdaten, um dieser Schätzung zu vertrauen.",
+      "accuracy_observed": "Das Vertrauen wird durch den tatsächlichen Verlauf von Schätzung gegenüber Ist-Wert gestützt.",
+      "not_enough_accuracy_data": "Es wird mehr Verlauf von Schätzung gegenüber Ist-Wert benötigt, bevor sich das Vertrauen verbessern kann.",
+      "missing_timestamps": "Der Lauf hatte nicht genügend Zeitstempeldaten, um zuverlässig klassifiziert zu werden.",
+      "not_single_room": "Die Erkennung wahrscheinlicher Abbrüche gilt derzeit nur für Aufträge in einem einzelnen Raum.",
+      "no_transition_history": "Für diesen Lauf war kein Verlauf von Zustandsübergängen verfügbar.",
+      "service_state_explains_return": "Die Rückkehr sah aus wie ein normaler Servicezyklus und nicht wie ein Abbruch.",
+      "no_cancel_like_transition": "Es wurde kein abbruchähnliches Übergangsmuster beobachtet."
+    },
+    "dock_reason": {
+      "ready": "Bereit.",
+      "unsupported_feature": "Dieser Staubsauger unterstützt diese Dock-Aktion nicht.",
+      "missing_action_entity": "Die übergeordnete Dock-Steuerungsentität wurde nicht gefunden.",
+      "job_active": "Beenden, pausieren oder brechen Sie den verfolgten Auftrag ab, bevor Sie Dock-Aktionen verwenden.",
+      "not_docked": "Der Staubsauger muss angedockt sein, bevor diese Dock-Aktion verwendet werden kann.",
+      "already_washing": "Das Dock wäscht den Wischmopp bereits.",
+      "already_drying": "Das Dock trocknet den Wischmopp bereits.",
+      "not_drying": "Das Stoppen der Trocknung ist nur sinnvoll, während das Dock aktiv trocknet.",
+      "already_emptying": "Das Dock entleert bereits den Staub.",
+      "dock_busy": "Das Dock ist derzeit mit einer anderen Serviceaktion beschäftigt."
     }
   },
   "order_modal": {

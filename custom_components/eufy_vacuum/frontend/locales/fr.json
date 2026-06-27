@@ -2186,6 +2186,49 @@
       "good": "Bon",
       "high": "Élevé",
       "trusted": "Fiable"
+    },
+    "maintenance_component": {
+      "filter": "Filtre",
+      "sensor": "Capteur",
+      "side_brush": "Brosse latérale",
+      "rolling_brush": "Brosse rotative",
+      "mopping_cloth": "Chiffon de lavage",
+      "cleaning_tray": "Bac de nettoyage",
+      "swivel_wheel": "Roue pivotante"
+    },
+    "maintenance_kind": {
+      "maintenance": "Entretien",
+      "replacement": "Remplacement"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Cette session est actuellement exclue de l'apprentissage.",
+      "cancel_like": "Cette session ressemble à une session annulée.",
+      "cancelled": "Cette session s'est terminée par une tâche annulée.",
+      "failed": "Cette session s'est terminée par une tâche échouée.",
+      "interrupted": "Cette session s'est terminée par une tâche interrompue.",
+      "completed": "Cette session s'est terminée normalement.",
+      "test": "Cette session est marquée comme une tâche de test.",
+      "no_learning_runs": "Il n'y a pas encore assez de sessions apprises.",
+      "building_samples": "Le système accumule encore suffisamment d'historique pour faire confiance à cette estimation.",
+      "accuracy_observed": "La confiance est étayée par un historique réel des estimations comparées aux valeurs réelles.",
+      "not_enough_accuracy_data": "Davantage d'historique des estimations comparées aux valeurs réelles est nécessaire pour améliorer la confiance.",
+      "missing_timestamps": "La session ne disposait pas d'assez de données d'horodatage pour être classée de manière fiable.",
+      "not_single_room": "La détection des annulations probables ne s'applique actuellement qu'aux tâches portant sur une seule pièce.",
+      "no_transition_history": "Aucun historique des transitions d'état n'était disponible pour cette session.",
+      "service_state_explains_return": "Le retour ressemblait à un cycle d'entretien normal plutôt qu'à une annulation.",
+      "no_cancel_like_transition": "Aucun schéma de transition évoquant une annulation n'a été observé."
+    },
+    "dock_reason": {
+      "ready": "Prêt.",
+      "unsupported_feature": "Cet aspirateur ne prend pas en charge cette action de la station.",
+      "missing_action_entity": "L'entité de commande de la station en amont est introuvable.",
+      "job_active": "Terminez, mettez en pause ou annulez la tâche suivie avant d'utiliser les actions de la station.",
+      "not_docked": "L'aspirateur doit être à la station avant d'utiliser cette action de la station.",
+      "already_washing": "La station est déjà en train de laver la serpillière.",
+      "already_drying": "La station est déjà en train de sécher la serpillière.",
+      "not_drying": "L'arrêt du séchage n'est utile que lorsque la station est en train de sécher activement.",
+      "already_emptying": "La station est déjà en train de vider la poussière.",
+      "dock_busy": "La station est actuellement occupée par une autre action d'entretien."
     }
   },
   "order_modal": {

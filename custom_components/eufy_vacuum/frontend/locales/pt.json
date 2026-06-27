@@ -2185,6 +2185,49 @@
       "good": "Boa",
       "high": "Alta",
       "trusted": "Fiável"
+    },
+    "maintenance_component": {
+      "filter": "Filtro",
+      "sensor": "Sensor",
+      "side_brush": "Escova lateral",
+      "rolling_brush": "Escova rotativa",
+      "mopping_cloth": "Pano de limpeza",
+      "cleaning_tray": "Bandeja de limpeza",
+      "swivel_wheel": "Roda giratória"
+    },
+    "maintenance_kind": {
+      "maintenance": "Manutenção",
+      "replacement": "Substituição"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Esta execução está atualmente excluída do aprendizado.",
+      "cancel_like": "Esta execução parece uma execução cancelada.",
+      "cancelled": "Esta execução terminou como um trabalho cancelado.",
+      "failed": "Esta execução terminou como um trabalho com falha.",
+      "interrupted": "Esta execução terminou como um trabalho interrompido.",
+      "completed": "Esta execução foi concluída normalmente.",
+      "test": "Esta execução está marcada como um trabalho de teste.",
+      "no_learning_runs": "Ainda não há execuções aprendidas suficientes.",
+      "building_samples": "O sistema ainda está acumulando histórico suficiente para confiar nesta estimativa.",
+      "accuracy_observed": "A confiança é sustentada por um histórico real de estimativa versus valor real.",
+      "not_enough_accuracy_data": "É necessário mais histórico de estimativa versus valor real antes que a confiança possa melhorar.",
+      "missing_timestamps": "A execução não tinha dados de carimbo de data/hora suficientes para classificar de forma confiável.",
+      "not_single_room": "A detecção de provável cancelamento aplica-se atualmente apenas a trabalhos de cômodo único.",
+      "no_transition_history": "Nenhum histórico de transição de estado estava disponível para esta execução.",
+      "service_state_explains_return": "O retorno pareceu um ciclo de serviço normal e não um cancelamento.",
+      "no_cancel_like_transition": "Nenhum padrão de transição semelhante a um cancelamento foi observado."
+    },
+    "dock_reason": {
+      "ready": "Pronto.",
+      "unsupported_feature": "Este aspirador não suporta essa ação da base.",
+      "missing_action_entity": "A entidade de controle da base de origem não foi encontrada.",
+      "job_active": "Conclua, pause ou cancele o trabalho rastreado antes de usar as ações da base.",
+      "not_docked": "O aspirador deve estar na base antes de usar essa ação da base.",
+      "already_washing": "A base já está lavando o esfregão.",
+      "already_drying": "A base já está secando o esfregão.",
+      "not_drying": "Parar a secagem só é útil enquanto a base está secando ativamente.",
+      "already_emptying": "A base já está esvaziando a poeira.",
+      "dock_busy": "A base está atualmente ocupada com outra ação de serviço."
     }
   },
   "order_modal": {

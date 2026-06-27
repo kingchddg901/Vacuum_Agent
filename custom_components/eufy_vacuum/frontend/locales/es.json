@@ -2186,6 +2186,49 @@
       "good": "Buena",
       "high": "Alta",
       "trusted": "Fiable"
+    },
+    "maintenance_component": {
+      "filter": "Filtro",
+      "sensor": "Sensor",
+      "side_brush": "Cepillo lateral",
+      "rolling_brush": "Cepillo giratorio",
+      "mopping_cloth": "Paño de fregado",
+      "cleaning_tray": "Bandeja de limpieza",
+      "swivel_wheel": "Rueda giratoria"
+    },
+    "maintenance_kind": {
+      "maintenance": "Mantenimiento",
+      "replacement": "Reemplazo"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Esta ejecución está actualmente excluida del aprendizaje.",
+      "cancel_like": "Esta ejecución parece una ejecución cancelada.",
+      "cancelled": "Esta ejecución terminó como una tarea cancelada.",
+      "failed": "Esta ejecución terminó como una tarea fallida.",
+      "interrupted": "Esta ejecución terminó como una tarea interrumpida.",
+      "completed": "Esta ejecución se completó con normalidad.",
+      "test": "Esta ejecución está marcada como una tarea de prueba.",
+      "no_learning_runs": "Todavía no hay suficientes ejecuciones aprendidas.",
+      "building_samples": "El sistema todavía está acumulando suficiente historial para confiar en esta estimación.",
+      "accuracy_observed": "La confianza se respalda con el historial real de estimación frente a lo real.",
+      "not_enough_accuracy_data": "Se necesita más historial de estimación frente a lo real antes de que la confianza pueda mejorar.",
+      "missing_timestamps": "La ejecución no tenía suficientes datos de marca de tiempo para clasificarse de forma fiable.",
+      "not_single_room": "La detección de cancelación probable solo se aplica actualmente a tareas de una sola habitación.",
+      "no_transition_history": "No había historial de transición de estados disponible para esta ejecución.",
+      "service_state_explains_return": "El regreso parecía un ciclo de servicio normal en lugar de una cancelación.",
+      "no_cancel_like_transition": "No se observó ningún patrón de transición similar a una cancelación."
+    },
+    "dock_reason": {
+      "ready": "Listo.",
+      "unsupported_feature": "Esta aspiradora no admite esa acción de la base.",
+      "missing_action_entity": "No se encontró la entidad de control de la base original.",
+      "job_active": "Finaliza, pausa o cancela la tarea registrada antes de usar las acciones de la base.",
+      "not_docked": "La aspiradora debe estar acoplada antes de usar esa acción de la base.",
+      "already_washing": "La base ya está lavando la mopa.",
+      "already_drying": "La base ya está secando la mopa.",
+      "not_drying": "Detener el secado solo es útil mientras la base está secando activamente.",
+      "already_emptying": "La base ya está vaciando el polvo.",
+      "dock_busy": "La base está ocupada actualmente con otra acción de servicio."
     }
   },
   "order_modal": {

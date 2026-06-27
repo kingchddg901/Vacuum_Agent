@@ -245,6 +245,10 @@ export function applyBaseStationRenderers(proto) {
     const pending = state.isDockActionPending?.(action) ?? false;
     const reasonLabel = gate?.reason_label ?? "";
     const message = gate?.message ?? "";
+    // Localize the gate via its stable reason CODE (ready / already_drying /
+    // job_active / …); the backend's English message is the fallback. tVocabRaw:
+    // the sinks escapeHtml it (single escape).
+    const reasonText = this.tVocabRaw("dock_reason", gate?.reason, message || reasonLabel);
 
     return `
       <button
@@ -252,14 +256,14 @@ export function applyBaseStationRenderers(proto) {
         class="evcc-base-station-action-card ${allowed ? "evcc-base-station-action-card--allowed" : "evcc-base-station-action-card--blocked"}"
         data-dock-action="${this.escapeHtml(action)}"
         ${allowed && !pending ? "" : "disabled"}
-        title="${this.escapeHtml(message || reasonLabel) || (allowed ? this.escapeHtml(label) : this.t("base_station.action_unavailable"))}"
+        title="${this.escapeHtml(reasonText) || (allowed ? this.escapeHtml(label) : this.t("base_station.action_unavailable"))}"
       >
         <div class="evcc-base-station-action-title">${this.escapeHtml(label)}</div>
         <div class="evcc-base-station-action-state">
           ${pending ? this.t("base_station.state_running") : allowed ? this.t("base_station.state_ready") : this.t("base_station.state_unavailable")}
         </div>
         <div class="evcc-base-station-action-detail">
-          ${this.escapeHtml(message || reasonLabel) || this.t("base_station.action_available")}
+          ${this.escapeHtml(reasonText) || this.t("base_station.action_available")}
         </div>
       </button>
     `;

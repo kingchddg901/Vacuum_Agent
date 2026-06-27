@@ -2172,6 +2172,49 @@
       "good": "Goed",
       "high": "Hoog",
       "trusted": "Betrouwbaar"
+    },
+    "maintenance_component": {
+      "filter": "Filter",
+      "sensor": "Sensor",
+      "side_brush": "Zijborstel",
+      "rolling_brush": "Rolborstel",
+      "mopping_cloth": "Dweildoek",
+      "cleaning_tray": "Reinigingsbak",
+      "swivel_wheel": "Zwenkwiel"
+    },
+    "maintenance_kind": {
+      "maintenance": "Onderhoud",
+      "replacement": "Vervanging"
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "Deze run is momenteel uitgesloten van leren.",
+      "cancel_like": "Deze run lijkt op een geannuleerde run.",
+      "cancelled": "Deze run eindigde als een geannuleerde taak.",
+      "failed": "Deze run eindigde als een mislukte taak.",
+      "interrupted": "Deze run eindigde als een onderbroken taak.",
+      "completed": "Deze run is normaal voltooid.",
+      "test": "Deze run is gemarkeerd als een testtaak.",
+      "no_learning_runs": "Er zijn nog niet genoeg geleerde runs.",
+      "building_samples": "Het systeem bouwt nog genoeg geschiedenis op om deze schatting te vertrouwen.",
+      "accuracy_observed": "Het vertrouwen wordt ondersteund door echte geschiedenis van schatting versus werkelijkheid.",
+      "not_enough_accuracy_data": "Er is meer geschiedenis van schatting versus werkelijkheid nodig voordat het vertrouwen kan verbeteren.",
+      "missing_timestamps": "De run had niet genoeg tijdstempelgegevens om betrouwbaar te classificeren.",
+      "not_single_room": "Detectie van waarschijnlijke annulering geldt momenteel alleen voor taken met één kamer.",
+      "no_transition_history": "Er was geen geschiedenis van statusovergangen beschikbaar voor deze run.",
+      "service_state_explains_return": "De terugkeer leek op een normale servicecyclus in plaats van een annulering.",
+      "no_cancel_like_transition": "Er werd geen annuleringsachtig overgangspatroon waargenomen."
+    },
+    "dock_reason": {
+      "ready": "Gereed.",
+      "unsupported_feature": "Deze stofzuiger ondersteunt die dockactie niet.",
+      "missing_action_entity": "De bovenliggende dockbedieningsentiteit werd niet gevonden.",
+      "job_active": "Voltooi, pauzeer of annuleer de gevolgde taak voordat je dockacties gebruikt.",
+      "not_docked": "De stofzuiger moet gedockt zijn voordat je die dockactie gebruikt.",
+      "already_washing": "Het dock is de dweil al aan het wassen.",
+      "already_drying": "Het dock is de dweil al aan het drogen.",
+      "not_drying": "Drogen stoppen is alleen nuttig terwijl het dock actief aan het drogen is.",
+      "already_emptying": "Het dock is het stof al aan het legen.",
+      "dock_busy": "Het dock is momenteel bezig met een andere serviceactie."
     }
   },
   "order_modal": {

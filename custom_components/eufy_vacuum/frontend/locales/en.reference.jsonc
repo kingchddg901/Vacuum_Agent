@@ -106,6 +106,49 @@
       "high": "High",
       "trusted": "Trusted"
     },
+    "maintenance_component": {
+      "filter": "Filter",  // consumable/part names shown on the Maintenance cards
+      "sensor": "Sensor",
+      "side_brush": "Side Brush",
+      "rolling_brush": "Rolling Brush",
+      "mopping_cloth": "Mopping Cloth",
+      "cleaning_tray": "Cleaning Tray",
+      "swivel_wheel": "Swivel Wheel"
+    },
+    "maintenance_kind": {
+      "maintenance": "Maintenance",  // upkeep card kind: a cleanable item
+      "replacement": "Replacement"  // upkeep card kind: a replaceable consumable
+    },
+    "estimate_reason": {
+      "excluded_from_learning": "This run is currently excluded from learning.",
+      "cancel_like": "This run looks like a canceled run.",
+      "cancelled": "This run ended as a cancelled job.",
+      "failed": "This run ended as a failed job.",
+      "interrupted": "This run ended as an interrupted job.",
+      "completed": "This run completed normally.",
+      "test": "This run is marked as a test job.",
+      "no_learning_runs": "There are not enough learned runs yet.",
+      "building_samples": "The system is still building enough history to trust this estimate.",
+      "accuracy_observed": "Trust is supported by real estimate-versus-actual history.",
+      "not_enough_accuracy_data": "More estimate-versus-actual history is needed before trust can improve.",
+      "missing_timestamps": "The run did not have enough timestamp data to classify reliably.",
+      "not_single_room": "Cancel-likely detection currently only applies to single-room jobs.",
+      "no_transition_history": "No state-transition history was available for this run.",
+      "service_state_explains_return": "The return looked like a normal service cycle rather than a cancel.",
+      "no_cancel_like_transition": "No cancel-like transition pattern was observed."
+    },
+    "dock_reason": {
+      "ready": "Ready.",
+      "unsupported_feature": "This vacuum does not support that dock action.",
+      "missing_action_entity": "The upstream dock control entity was not found.",
+      "job_active": "Finish, pause, or cancel the tracked job before using dock actions.",
+      "not_docked": "The vacuum must be docked before using that dock action.",
+      "already_washing": "The dock is already washing the mop.",
+      "already_drying": "The dock is already drying the mop.",
+      "not_drying": "Stop dry is only useful while the dock is actively drying.",
+      "already_emptying": "The dock is already emptying dust.",
+      "dock_busy": "The dock is currently busy with another service action."
+    },
     "sort": {
       "newest": "Newest",
       "outlier": "Highest Outlier",
