@@ -12,28 +12,37 @@
 # full deterministic copy from the repo cannot drift, and HACS overwrites it on
 # its next real update anyway.
 #
-# Usage (PowerShell):   scripts\deploy-live.ps1            # build the card, then copy
-#                       scripts\deploy-live.ps1 -SkipBuild # copy the current bundle as-is
+# Usage (PowerShell):   scripts\deploy-live.ps1            # build the card, then copy to PROD (Z:\)
+#                       scripts\deploy-live.ps1 -SkipBuild # copy the current bundle as-is to PROD
+#                       scripts\deploy-live.ps1 -SkipBuild -LiveRoot "\\192.168.4.41\config"
+#                                                          # deploy to a CLONE (needs its Samba share running)
+#
+# -LiveRoot defaults to PROD (Z:\ = \\192.168.4.104\config). The CONSISTENCY rule
+# (full overwrite of every file) applies to whatever target you point at.
 #
 # After it runs: RESTART Home Assistant + hard-refresh the browser (Ctrl+Shift+R).
 # =============================================================================
 
-param([switch]$SkipBuild)
+param(
+    [switch]$SkipBuild,
+    # Target HA config root. Default = prod (Z:\ -> \\192.168.4.104\config).
+    # Pass a UNC/path to deploy to a clone test rig, e.g. -LiveRoot "\\192.168.4.41\config".
+    [string]$LiveRoot = "Z:\"
+)
 
 $ErrorActionPreference = "Stop"
 
 $repo     = Split-Path -Parent $PSScriptRoot        # scripts/ -> repo root
 $src      = Join-Path $repo "custom_components\eufy_vacuum"
-$liveRoot = "Z:\"                                    # mapped to \\192.168.4.104\config
-$dst      = Join-Path $liveRoot "custom_components\eufy_vacuum"
-$wwwCard  = Join-Path $liveRoot "www\eufy-vacuum-command-center.js"
+$dst      = Join-Path $LiveRoot "custom_components\eufy_vacuum"
+$wwwCard  = Join-Path $LiveRoot "www\eufy-vacuum-command-center.js"
 $bundle   = Join-Path $src "frontend\eufy-vacuum-command-center.js"
 
-if (-not (Test-Path $liveRoot)) {
-    throw "Live config drive Z:\ is not mapped (\\192.168.4.104\config). Map it, then retry."
+if (-not (Test-Path $LiveRoot)) {
+    throw "Target config root '$LiveRoot' is not reachable. Prod = Z:\ (\\192.168.4.104\config); a clone needs its Samba share add-on installed + started first. Map/enable it, then retry."
 }
 if (-not (Test-Path $dst)) {
-    throw "Live integration not found at $dst -- refusing to create a copy at the wrong path."
+    throw "Vacuum Agent not found at $dst -- refusing to create a copy at the wrong path. Install it via HACS on the target instance first."
 }
 if (-not (Test-Path $src)) {
     throw "Repo integration not found at $src."
@@ -54,6 +63,8 @@ $rc = $LASTEXITCODE
 if ($rc -ge 8) { throw "robocopy failed (exit $rc)." }   # robocopy: <8 == success
 
 Write-Host "[3/3] Refreshing the www card bundle (served as /local/)..."
+$wwwDir = Split-Path $wwwCard
+if (-not (Test-Path $wwwDir)) { New-Item -ItemType Directory -Force -Path $wwwDir | Out-Null }
 Copy-Item $bundle $wwwCard -Force
 
 Write-Host ""
