@@ -110,10 +110,11 @@ def _build_maps_list(
         if imported:
             has_imported_map = True
 
-        display_name = (
-            bucket.get("metadata", {}).get("display_name")
-            or f"Map {map_id}"
-        )
+        # Emit the raw stored name, or None when unnamed — the CARD owns the
+        # localized "Map {id}" fallback (setup.map_n -> "Карта {id}"). Fabricating
+        # an English "Map N" here would pre-empt that path and leak English in
+        # every locale. map_id is emitted alongside (below) for the card to use.
+        display_name = bucket.get("metadata", {}).get("display_name") or None
 
         protection = (
             evaluate_map_protection(

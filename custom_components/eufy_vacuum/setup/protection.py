@@ -10,14 +10,6 @@ from __future__ import annotations
 from typing import Any
 
 
-def _map_display_name(bucket: dict[str, Any], map_id: str) -> str:
-    """Return the stored display name for a map bucket, or a fallback label."""
-    return (
-        bucket.get("metadata", {}).get("display_name")
-        or f"Map {map_id}"
-    )
-
-
 def evaluate_map_protection(
     manager,
     *,
@@ -32,8 +24,9 @@ def evaluate_map_protection(
         "reasons": [
             {"code": str, "message": str}
         ],
-        "requires_typed_confirmation": bool,
-        "typed_confirmation_value":   str,   # map display name
+        "requires_typed_confirmation": bool,   # True only for a NAMED high map
+        "requires_confirmation":       bool,   # one-click confirm (elevated, or unnamed high)
+        "typed_confirmation_value":   str | None,   # stored map name; None when unnamed
     }
     """
     reasons: list[dict[str, str]] = []
@@ -42,7 +35,10 @@ def evaluate_map_protection(
     vacuum_maps = manager.data.get("maps", {}).get(vacuum_entity_id, {})
     bucket      = vacuum_maps.get(map_id_str, {})
     rooms       = bucket.get("rooms", {})
-    display_name = _map_display_name(bucket, map_id_str)
+    # Raw stored name, or None when unnamed. None is load-bearing: a synthesized
+    # "Map N" token would be locale-dependent and break the typed match, so an
+    # unnamed map drops to a one-click confirm. The card renders setup.map_n.
+    stored_name = bucket.get("metadata", {}).get("display_name") or None
 
     imported_map_ids = [
         mid for mid, b in vacuum_maps.items() if b.get("rooms")
@@ -103,11 +99,16 @@ def evaluate_map_protection(
     else:
         level = "normal"
 
-    requires_typed = level == "high"
+    # Typed confirmation only when we have a real, locale-invariant name to match
+    # against. An unnamed map keeps high-level friction via a one-click confirm
+    # (requires_confirmation) but cannot demand a typed token it has no name for.
+    requires_typed = level == "high" and bool(stored_name)
+    requires_confirmation = level != "normal"
 
     return {
         "protection_level":            level,
         "reasons":                     reasons,
         "requires_typed_confirmation": requires_typed,
-        "typed_confirmation_value":    display_name,
+        "requires_confirmation":       requires_confirmation,
+        "typed_confirmation_value":    stored_name if requires_typed else None,
     }

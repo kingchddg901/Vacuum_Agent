@@ -6,10 +6,13 @@ Coverage targets
 [SD-2]  Map not found / no rooms → already_done + code=map_not_found.
 [SD-3]  Elevated-protection map without token → requires_confirmation.
 [SD-4]  Elevated-protection map with any truthy token → success.
-[SD-5]  High-protection map (2+ reasons) without token → requires_confirmation
+[SD-5]  NAMED high-protection map (2+ reasons) without token → requires_confirmation
         with code=typed_confirmation_required.
-[SD-6]  High-protection map with wrong token → blocked + code=confirmation_mismatch.
-[SD-7]  High-protection map with correct token → success.
+[SD-5b] UNNAMED high-protection map without token → one-click confirmation_required
+        (no locale-invariant name to type; typed_confirmation_value is None).
+[SD-6]  NAMED high-protection map with wrong token → blocked + code=confirmation_mismatch.
+[SD-6b] UNNAMED high-protection map with any truthy token → success (one-click).
+[SD-7]  NAMED high-protection map with correct token (stored name) → success.
 [SD-8]  Success removes the map bucket from manager.data.
 [SD-9]  Success with no remaining maps → warning present and next_actions includes
         import_active_map.
@@ -37,6 +40,17 @@ def _add_history(manager, vacuum_entity_id: str, map_id: str) -> None:
     manager.data.setdefault("room_history", {})
     manager.data["room_history"].setdefault(vacuum_entity_id, {})
     manager.data["room_history"][vacuum_entity_id][str(map_id)] = {"1": {"visits": 1}}
+
+
+def _name_map(manager, vacuum_entity_id: str, map_id: str, name: str) -> None:
+    """Give a map a stored display name.
+
+    A high-protection map only enforces TYPED confirmation when it has a real,
+    locale-invariant stored name to match against; an unnamed high map drops to a
+    one-click confirm (the backend never fabricates an English "Map N" token).
+    """
+    bucket = manager.data["maps"][vacuum_entity_id][str(map_id)]
+    bucket.setdefault("metadata", {})["display_name"] = name
 
 
 # ---------------------------------------------------------------------------
@@ -95,12 +109,31 @@ async def test_delete_map_elevated_with_token_returns_success(hass, manager):
 # ---------------------------------------------------------------------------
 
 async def test_delete_map_high_protection_no_token_typed_confirmation_required(hass, manager):
-    """[SD-5] High-protection map (2+ reasons) without token → typed_confirmation_required."""
+    """[SD-5] NAMED high-protection map (2+ reasons) without token → typed_confirmation_required."""
     setup_map(manager, _VAC, _MAP, count=2)
     _add_history(manager, _VAC, _MAP)  # adds has_learning_data → 2nd reason → high
+    _name_map(manager, _VAC, _MAP, "Upstairs")
     result = await delete_map(hass, vacuum_entity_id=_VAC, map_id=_MAP)
     assert result["status"] == "requires_confirmation"
     assert result["code"] == "typed_confirmation_required"
+
+
+async def test_delete_map_unnamed_high_no_token_returns_one_click_confirmation(hass, manager):
+    """[SD-5b] UNNAMED high-protection map without token → one-click confirmation_required.
+
+    No locale-invariant name to type, so typed-confirm is dropped; the protection
+    payload exposes requires_typed_confirmation=False and a null typed value.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    _add_history(manager, _VAC, _MAP)
+    result = await delete_map(hass, vacuum_entity_id=_VAC, map_id=_MAP)
+    assert result["status"] == "requires_confirmation"
+    assert result["code"] == "confirmation_required"
+    protection = result["data"]["protection"]
+    assert protection["protection_level"] == "high"
+    assert protection["requires_typed_confirmation"] is False
+    assert protection["requires_confirmation"] is True
+    assert protection["typed_confirmation_value"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -108,9 +141,10 @@ async def test_delete_map_high_protection_no_token_typed_confirmation_required(h
 # ---------------------------------------------------------------------------
 
 async def test_delete_map_high_protection_wrong_token_returns_blocked(hass, manager):
-    """[SD-6] High-protection map with wrong confirmation token → blocked."""
+    """[SD-6] NAMED high-protection map with wrong confirmation token → blocked."""
     setup_map(manager, _VAC, _MAP, count=2)
     _add_history(manager, _VAC, _MAP)
+    _name_map(manager, _VAC, _MAP, "Upstairs")
     result = await delete_map(
         hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token="wrong name"
     )
@@ -118,17 +152,28 @@ async def test_delete_map_high_protection_wrong_token_returns_blocked(hass, mana
     assert result["code"] == "confirmation_mismatch"
 
 
+async def test_delete_map_unnamed_high_with_token_returns_success(hass, manager):
+    """[SD-6b] UNNAMED high-protection map with any truthy token → success (one-click)."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    _add_history(manager, _VAC, _MAP)
+    result = await delete_map(
+        hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token="confirmed"
+    )
+    assert result["status"] == "success"
+    assert result["code"] == "map_deleted"
+
+
 # ---------------------------------------------------------------------------
 # [SD-7] High protection — correct token
 # ---------------------------------------------------------------------------
 
 async def test_delete_map_high_protection_correct_token_returns_success(hass, manager):
-    """[SD-7] High-protection map with correct token (map display name) → success."""
+    """[SD-7] NAMED high-protection map with correct token (the stored name) → success."""
     setup_map(manager, _VAC, _MAP, count=2)
     _add_history(manager, _VAC, _MAP)
-    # Default display name is "Map {map_id}" when no metadata is set.
+    _name_map(manager, _VAC, _MAP, "Upstairs")
     result = await delete_map(
-        hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token=f"Map {_MAP}"
+        hass, vacuum_entity_id=_VAC, map_id=_MAP, confirmation_token="Upstairs"
     )
     assert result["status"] == "success"
     assert result["code"] == "map_deleted"
