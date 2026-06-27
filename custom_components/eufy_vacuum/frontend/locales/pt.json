@@ -691,7 +691,10 @@
     "subtitle": "Limites por execução derivados do histórico de trabalhos. Exclua execuções para remover valores anómalos dos limites acumulados.",
     "title": "Revisão de limites de mapeamento",
     "unavailable": "Limites de mapeamento indisponíveis.",
-    "updated": "Atualizado"
+    "updated": "Atualizado",
+    "filter_all_rooms": "Todas as divisões",
+    "filter_has_bounds": "Com limites",
+    "filter_no_bounds": "Sem limites"
   },
   "metrics": {
     "battery_all_jobs": "Todos os trabalhos (mistos + únicos)",
@@ -1244,7 +1247,11 @@
     "trust_unlearned": "Não aprendida",
     "warnings": "Avisos",
     "water_label": "Água: {value}",
-    "water_ml": "~{ml} ml de água"
+    "water_ml": "~{ml} ml de água",
+    "trouble_missed": {
+      "one": "Falhou {miss}× de {count} execução",
+      "other": "Falhou {miss}× de {count} execuções"
+    }
   },
   "run_profiles": {
     "create_profile": "Criar perfil",
@@ -1327,7 +1334,8 @@
     "floor_granite": "Granito",
     "floor_concrete": "Betão",
     "floor_carpet_low_pile": "Alcatifa de pelo baixo",
-    "floor_carpet_high_pile": "Alcatifa de pelo alto"
+    "floor_carpet_high_pile": "Alcatifa de pelo alto",
+    "panel_name_placeholder": "Agente do aspirador"
   },
   "shell": {
     "setup_add_title": "Adicione o seu aspirador",
@@ -1617,5 +1625,92 @@
   },
   "toast": {
     "dismiss": "Dispensar"
+  },
+  "vocab": {
+    "clean_mode": {
+      "vacuum": "Aspirar",
+      "mop": "Esfregar",
+      "vacuum_mop": "Aspirar e esfregar"
+    },
+    "fan_speed": {
+      "quiet": "Silencioso",
+      "standard": "Padrão",
+      "boost": "Turbo",
+      "max": "Máx"
+    },
+    "water_level": {
+      "off": "Desligado",
+      "low": "Baixo",
+      "medium": "Médio",
+      "high": "Alto"
+    },
+    "clean_intensity": {
+      "quick": "Rápida",
+      "narrow": "Estreita",
+      "deep": "Profunda",
+      "normal": "Normal"
+    },
+    "metrics_tab": {
+      "learning": "Aprendizagem",
+      "rooms": "Divisões",
+      "profiles": "Perfis",
+      "water": "Água",
+      "dock": "Base",
+      "battery": "Bateria"
+    },
+    "battery_bucket_key": {
+      "vacuum": "Aspirar",
+      "mop": "Esfregar",
+      "vacuum_mop": "Aspirar e esfregar",
+      "quiet": "Silencioso",
+      "standard": "Padrão",
+      "boost": "Turbo",
+      "max": "Máx",
+      "off": "Desligado",
+      "low": "Baixo",
+      "medium": "Médio",
+      "high": "Alto"
+    },
+    "battery_weighted_by": {
+      "est_minutes": "Minutos est.",
+      "room_count": "Nº de divisões",
+      "none": "Nenhum"
+    },
+    "status": {
+      "completed": "Concluído",
+      "canceled": "Cancelado",
+      "failed": "Falhou",
+      "interrupted": "Interrompido"
+    },
+    "used_for_learning": {
+      "true": "Usado na aprendizagem",
+      "false": "Não usado na aprendizagem"
+    },
+    "sort": {
+      "newest": "Mais recentes",
+      "outlier": "Maior anomalia",
+      "suggested": "Exclusão sugerida",
+      "excluded": "Só excluídos"
+    },
+    "exclude_reason": {
+      "short_test_cancel": "Teste curto cancelado",
+      "manual_test_run": "Execução de teste manual",
+      "false_completion": "Conclusão falsa",
+      "bad_room_attribution": "Atribuição de divisão errada",
+      "interrupted_run": "Execução interrompida"
+    }
+  },
+  "order_modal": {
+    "move_item": "Mover {label}",
+    "currently": "Atualmente",
+    "after_move": "Após mover",
+    "move_to_position": "Mover para a posição"
+  },
+  "card_editor": {
+    "vacuum_label": "Aspirador",
+    "pick_vacuum": "Selecione um aspirador…",
+    "language_label": "Idioma de exibição",
+    "language_auto": "Automático (seguir o Home Assistant)",
+    "language_hint": "Substitui o idioma apenas para este cartão."
   }
 }

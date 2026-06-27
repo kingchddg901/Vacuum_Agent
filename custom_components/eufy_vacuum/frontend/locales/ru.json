@@ -733,7 +733,10 @@
     "subtitle": "Границы по каждой очистке выводятся из истории заданий. Исключайте очистки, чтобы убрать выбросы из накопленных границ.",
     "title": "Проверка границ картографирования",
     "unavailable": "Границы картографирования недоступны.",
-    "updated": "Обновлено"
+    "updated": "Обновлено",
+    "filter_all_rooms": "Все комнаты",
+    "filter_has_bounds": "С границами",
+    "filter_no_bounds": "Без границ"
   },
   "metrics": {
     "battery_all_jobs": "Все задания (смешанные + одиночные)",
@@ -1316,7 +1319,13 @@
     "trust_unlearned": "Не изучена",
     "warnings": "Предупреждения",
     "water_label": "Вода: {value}",
-    "water_ml": "~{ml} мл воды"
+    "water_ml": "~{ml} мл воды",
+    "trouble_missed": {
+      "one": "Пропущено {miss}× из {count} запуска",
+      "few": "Пропущено {miss}× из {count} запусков",
+      "many": "Пропущено {miss}× из {count} запусков",
+      "other": "Пропущено {miss}× из {count} запуска"
+    }
   },
   "run_profiles": {
     "create_profile": "Создать профиль",
@@ -1401,7 +1410,8 @@
     "floor_granite": "Гранит",
     "floor_concrete": "Бетон",
     "floor_carpet_low_pile": "Ковёр с низким ворсом",
-    "floor_carpet_high_pile": "Ковёр с высоким ворсом"
+    "floor_carpet_high_pile": "Ковёр с высоким ворсом",
+    "panel_name_placeholder": "Агент пылесоса"
   },
   "shell": {
     "setup_add_title": "Добавьте свой пылесос",
@@ -1691,5 +1701,92 @@
   },
   "toast": {
     "dismiss": "Скрыть"
+  },
+  "vocab": {
+    "clean_mode": {
+      "vacuum": "Уборка",
+      "mop": "Влажная уборка",
+      "vacuum_mop": "Уборка и влажная уборка"
+    },
+    "fan_speed": {
+      "quiet": "Тихий",
+      "standard": "Стандарт",
+      "boost": "Усиленный",
+      "max": "Макс"
+    },
+    "water_level": {
+      "off": "Выкл",
+      "low": "Низкий",
+      "medium": "Средний",
+      "high": "Высокий"
+    },
+    "clean_intensity": {
+      "quick": "Быстрая",
+      "narrow": "Узкая",
+      "deep": "Глубокая",
+      "normal": "Обычная"
+    },
+    "metrics_tab": {
+      "learning": "Обучение",
+      "rooms": "Комнаты",
+      "profiles": "Профили",
+      "water": "Вода",
+      "dock": "База",
+      "battery": "Батарея"
+    },
+    "battery_bucket_key": {
+      "vacuum": "Уборка",
+      "mop": "Влажная уборка",
+      "vacuum_mop": "Уборка и влажная уборка",
+      "quiet": "Тихий",
+      "standard": "Стандарт",
+      "boost": "Усиленный",
+      "max": "Макс",
+      "off": "Выкл",
+      "low": "Низкий",
+      "medium": "Средний",
+      "high": "Высокий"
+    },
+    "battery_weighted_by": {
+      "est_minutes": "Расч. минуты",
+      "room_count": "Число комнат",
+      "none": "Нет"
+    },
+    "status": {
+      "completed": "Завершено",
+      "canceled": "Отменено",
+      "failed": "Сбой",
+      "interrupted": "Прервано"
+    },
+    "used_for_learning": {
+      "true": "Использовано для обучения",
+      "false": "Не использовано для обучения"
+    },
+    "sort": {
+      "newest": "Сначала новые",
+      "outlier": "Наибольшее отклонение",
+      "suggested": "Рекомендовано исключить",
+      "excluded": "Только исключённые"
+    },
+    "exclude_reason": {
+      "short_test_cancel": "Короткий тест отменён",
+      "manual_test_run": "Ручной тестовый запуск",
+      "false_completion": "Ложное завершение",
+      "bad_room_attribution": "Неверная привязка комнат",
+      "interrupted_run": "Прерванный запуск"
+    }
+  },
+  "order_modal": {
+    "move_item": "Переместить {label}",
+    "currently": "Сейчас",
+    "after_move": "После перемещения",
+    "move_to_position": "Переместить на позицию"
+  },
+  "card_editor": {
+    "vacuum_label": "Пылесос",
+    "pick_vacuum": "Выберите пылесос…",
+    "language_label": "Язык интерфейса",
+    "language_auto": "Авто (как в Home Assistant)",
+    "language_hint": "Переопределяет язык только для этой карточки."
   }
 }

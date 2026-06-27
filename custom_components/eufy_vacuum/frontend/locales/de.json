@@ -686,7 +686,10 @@
     "subtitle": "Pro-Lauf-Begrenzungen aus dem Auftragsverlauf abgeleitet. Schließe Läufe aus, um Ausreißer aus den kumulierten Begrenzungen zu entfernen.",
     "title": "Überprüfung der Kartenbegrenzungen",
     "unavailable": "Kartenbegrenzungen nicht verfügbar.",
-    "updated": "Aktualisiert"
+    "updated": "Aktualisiert",
+    "filter_all_rooms": "Alle Räume",
+    "filter_has_bounds": "Mit Grenzen",
+    "filter_no_bounds": "Ohne Grenzen"
   },
   "metrics": {
     "battery_all_jobs": "Alle Aufträge (gemischt + einzeln)",
@@ -1231,7 +1234,11 @@
     "trust_unlearned": "Ungelernt",
     "warnings": "Warnungen",
     "water_label": "Wasser: {value}",
-    "water_ml": "~{ml} ml Wasser"
+    "water_ml": "~{ml} ml Wasser",
+    "trouble_missed": {
+      "one": "{miss}× von {count} Lauf verpasst",
+      "other": "{miss}× von {count} Läufen verpasst"
+    }
   },
   "run_profiles": {
     "create_profile": "Profil erstellen",
@@ -1314,7 +1321,8 @@
     "floor_granite": "Granit",
     "floor_concrete": "Beton",
     "floor_carpet_low_pile": "Niedrigflor-Teppich",
-    "floor_carpet_high_pile": "Hochflor-Teppich"
+    "floor_carpet_high_pile": "Hochflor-Teppich",
+    "panel_name_placeholder": "Saug-Agent"
   },
   "shell": {
     "setup_add_title": "Füge deinen Saugroboter hinzu",
@@ -1604,5 +1612,92 @@
   },
   "toast": {
     "dismiss": "Schließen"
+  },
+  "vocab": {
+    "clean_mode": {
+      "vacuum": "Saugen",
+      "mop": "Wischen",
+      "vacuum_mop": "Saugen und Wischen"
+    },
+    "fan_speed": {
+      "quiet": "Leise",
+      "standard": "Standard",
+      "boost": "Boost",
+      "max": "Max"
+    },
+    "water_level": {
+      "off": "Aus",
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "clean_intensity": {
+      "quick": "Schnell",
+      "narrow": "Eng",
+      "deep": "Gründlich",
+      "normal": "Normal"
+    },
+    "metrics_tab": {
+      "learning": "Lernen",
+      "rooms": "Räume",
+      "profiles": "Profile",
+      "water": "Wasser",
+      "dock": "Station",
+      "battery": "Akku"
+    },
+    "battery_bucket_key": {
+      "vacuum": "Saugen",
+      "mop": "Wischen",
+      "vacuum_mop": "Saugen und Wischen",
+      "quiet": "Leise",
+      "standard": "Standard",
+      "boost": "Boost",
+      "max": "Max",
+      "off": "Aus",
+      "low": "Niedrig",
+      "medium": "Mittel",
+      "high": "Hoch"
+    },
+    "battery_weighted_by": {
+      "est_minutes": "Gesch. Minuten",
+      "room_count": "Anzahl Räume",
+      "none": "Keine"
+    },
+    "status": {
+      "completed": "Abgeschlossen",
+      "canceled": "Abgebrochen",
+      "failed": "Fehlgeschlagen",
+      "interrupted": "Unterbrochen"
+    },
+    "used_for_learning": {
+      "true": "Zum Lernen verwendet",
+      "false": "Nicht zum Lernen verwendet"
+    },
+    "sort": {
+      "newest": "Neueste",
+      "outlier": "Größter Ausreißer",
+      "suggested": "Ausschluss empfohlen",
+      "excluded": "Nur ausgeschlossene"
+    },
+    "exclude_reason": {
+      "short_test_cancel": "Kurzer Testabbruch",
+      "manual_test_run": "Manueller Testlauf",
+      "false_completion": "Falscher Abschluss",
+      "bad_room_attribution": "Falsche Raumzuordnung",
+      "interrupted_run": "Unterbrochener Lauf"
+    }
+  },
+  "order_modal": {
+    "move_item": "{label} verschieben",
+    "currently": "Aktuell",
+    "after_move": "Nach dem Verschieben",
+    "move_to_position": "An Position verschieben"
+  },
+  "card_editor": {
+    "vacuum_label": "Saugroboter",
+    "pick_vacuum": "Saugroboter auswählen…",
+    "language_label": "Anzeigesprache",
+    "language_auto": "Automatisch (Home Assistant folgen)",
+    "language_hint": "Überschreibt die Sprache nur für diese Karte."
   }
 }

@@ -686,7 +686,10 @@
     "subtitle": "Limiti per esecuzione derivati dalla cronologia dei lavori. Escludi le esecuzioni per rimuovere le anomalie dai limiti accumulati.",
     "title": "Revisione dei limiti di mappatura",
     "unavailable": "Limiti di mappatura non disponibili.",
-    "updated": "Aggiornato"
+    "updated": "Aggiornato",
+    "filter_all_rooms": "Tutte le stanze",
+    "filter_has_bounds": "Con confini",
+    "filter_no_bounds": "Senza confini"
   },
   "metrics": {
     "battery_all_jobs": "Tutti i lavori (misti + singoli)",
@@ -1231,7 +1234,11 @@
     "trust_unlearned": "Non appresa",
     "warnings": "Avvisi",
     "water_label": "Acqua: {value}",
-    "water_ml": "~{ml} ml acqua"
+    "water_ml": "~{ml} ml acqua",
+    "trouble_missed": {
+      "one": "Saltata {miss}× su {count} esecuzione",
+      "other": "Saltata {miss}× su {count} esecuzioni"
+    }
   },
   "run_profiles": {
     "create_profile": "Crea profilo",
@@ -1314,7 +1321,8 @@
     "floor_granite": "Granito",
     "floor_concrete": "Cemento",
     "floor_carpet_low_pile": "Moquette basso pelo",
-    "floor_carpet_high_pile": "Moquette alto pelo"
+    "floor_carpet_high_pile": "Moquette alto pelo",
+    "panel_name_placeholder": "Agente aspirapolvere"
   },
   "shell": {
     "setup_add_title": "Aggiungi il tuo aspirapolvere",
@@ -1604,5 +1612,92 @@
   },
   "toast": {
     "dismiss": "Ignora"
+  },
+  "vocab": {
+    "clean_mode": {
+      "vacuum": "Aspirazione",
+      "mop": "Lavaggio",
+      "vacuum_mop": "Aspirazione e lavaggio"
+    },
+    "fan_speed": {
+      "quiet": "Silenzioso",
+      "standard": "Standard",
+      "boost": "Potenziato",
+      "max": "Max"
+    },
+    "water_level": {
+      "off": "Disattivato",
+      "low": "Basso",
+      "medium": "Medio",
+      "high": "Alto"
+    },
+    "clean_intensity": {
+      "quick": "Rapida",
+      "narrow": "Stretta",
+      "deep": "Profonda",
+      "normal": "Normale"
+    },
+    "metrics_tab": {
+      "learning": "Apprendimento",
+      "rooms": "Stanze",
+      "profiles": "Profili",
+      "water": "Acqua",
+      "dock": "Base",
+      "battery": "Batteria"
+    },
+    "battery_bucket_key": {
+      "vacuum": "Aspirazione",
+      "mop": "Lavaggio",
+      "vacuum_mop": "Aspirazione e lavaggio",
+      "quiet": "Silenzioso",
+      "standard": "Standard",
+      "boost": "Potenziato",
+      "max": "Max",
+      "off": "Disattivato",
+      "low": "Basso",
+      "medium": "Medio",
+      "high": "Alto"
+    },
+    "battery_weighted_by": {
+      "est_minutes": "Minuti stimati",
+      "room_count": "Numero stanze",
+      "none": "Nessuno"
+    },
+    "status": {
+      "completed": "Completato",
+      "canceled": "Annullato",
+      "failed": "Non riuscito",
+      "interrupted": "Interrotto"
+    },
+    "used_for_learning": {
+      "true": "Usato per l'apprendimento",
+      "false": "Non usato per l'apprendimento"
+    },
+    "sort": {
+      "newest": "Più recenti",
+      "outlier": "Anomalia più alta",
+      "suggested": "Esclusione suggerita",
+      "excluded": "Solo esclusi"
+    },
+    "exclude_reason": {
+      "short_test_cancel": "Test breve annullato",
+      "manual_test_run": "Esecuzione di prova manuale",
+      "false_completion": "Completamento falso",
+      "bad_room_attribution": "Attribuzione stanze errata",
+      "interrupted_run": "Esecuzione interrotta"
+    }
+  },
+  "order_modal": {
+    "move_item": "Sposta {label}",
+    "currently": "Attualmente",
+    "after_move": "Dopo lo spostamento",
+    "move_to_position": "Sposta nella posizione"
+  },
+  "card_editor": {
+    "vacuum_label": "Aspirapolvere",
+    "pick_vacuum": "Seleziona un aspirapolvere…",
+    "language_label": "Lingua di visualizzazione",
+    "language_auto": "Automatica (segui Home Assistant)",
+    "language_hint": "Sostituisce la lingua solo per questa scheda."
   }
 }
