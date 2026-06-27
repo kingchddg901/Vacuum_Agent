@@ -207,6 +207,9 @@ export const pt = {
   "external_jobs.wizard_title": "Rever execução iniciada na aplicação",
 
   // --- learning ---
+  "language.button_title": "Idioma",
+  "language.heading": "Idioma de exibição",
+  "language.auto": "Auto (seguir o Home Assistant)",
   "learning.all_rooms_complete": "Todas as divisões concluídas",
   "learning.battery_finish_rooms": "Poderá precisar de recarregar para terminar as divisões restantes",
   "learning.battery_mid_job": "Poderá precisar de recarregar a meio do trabalho",

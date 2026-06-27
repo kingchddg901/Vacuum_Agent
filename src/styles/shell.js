@@ -137,6 +137,147 @@ export const shellStyles = `
   }
 
   /* =========================================================
+     HEADER LANGUAGE CONTROL
+     =========================================================
+     A globe button (top-right of the header) that opens a dropdown of the
+     bundled locales. The open menu must out-stack the view content (which
+     paints AFTER the header in DOM), so `.is-open` lifts the whole control
+     into a high stacking context; a transparent fixed backdrop catches the
+     outside click. Shared desktop + mobile (mobile positions the wrapper —
+     see styles/mobile.js). */
+
+  .evcc-header-right {
+    display:     flex;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .evcc-lang {
+    position: relative;
+    display:  inline-flex;
+  }
+
+  /* When open, lift above the view-stage and map layers (which top out near
+     z-index 10). The backdrop/menu stack within this context. */
+  .evcc-lang.is-open {
+    z-index: 100;
+  }
+
+  .evcc-lang-button {
+    position:       relative;
+    z-index:        2;            /* stay clickable above the backdrop */
+    display:        inline-flex;
+    align-items:    center;
+    gap:            4px;
+    padding:        4px 8px;
+    border-radius:  var(--evcc-radius-chip);
+    background:     transparent;
+    color:          var(--evcc-text-secondary);
+    cursor:         pointer;
+    font-size:      0.78rem;
+    line-height:    1;
+    transition:     background var(--evcc-transition-normal, 150ms ease),
+                    color      var(--evcc-transition-normal, 150ms ease);
+  }
+
+  .evcc-lang-button:hover {
+    background: var(--evcc-surface-raised);
+    color:      var(--evcc-text-primary);
+  }
+
+  .evcc-lang.is-open .evcc-lang-button {
+    background: var(--evcc-surface-raised);
+    color:      var(--evcc-text-primary);
+  }
+
+  .evcc-lang-globe {
+    font-size: 1rem;
+  }
+
+  .evcc-lang-code {
+    font-weight:          600;
+    letter-spacing:       0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .evcc-lang-backdrop {
+    /* fixed = clipped to the VIEWPORT, not the overflow:hidden card box, so the
+       outside-click target covers the whole screen. Assumes no ancestor sets
+       transform / filter / contain (which would make this its containing block
+       and re-clip it) — true today (.evcc-card uses only isolation:isolate). */
+    position:   fixed;
+    inset:      0;
+    z-index:    1;            /* below the button + menu, above everything else */
+    background: transparent;
+  }
+
+  .evcc-lang-menu {
+    position:      absolute;
+    top:           calc(100% + 6px);
+    right:         0;
+    z-index:       3;
+    min-width:     190px;
+    max-width:     calc(100vw - 20px);   /* never overflow a narrow card's right edge */
+    max-height:    62vh;
+    overflow-y:    auto;
+    padding:       4px;
+    background:    var(--evcc-surface-raised);
+    border:        1px solid var(--evcc-border-subtle);
+    border-radius: var(--evcc-radius-card, 10px);
+    box-shadow:    var(--evcc-shadow-overlay, 0 8px 24px rgba(0, 0, 0, 0.28));
+  }
+
+  .evcc-lang-menu-heading {
+    padding:        6px 8px 4px;
+    font-size:      0.7rem;
+    font-weight:    600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color:          var(--evcc-text-muted);
+  }
+
+  .evcc-lang-option {
+    display:       flex;
+    align-items:   center;
+    gap:           6px;
+    width:         100%;
+    padding:       7px 8px;
+    border:        none;
+    border-radius: var(--evcc-radius-chip);
+    background:    transparent;
+    color:         var(--evcc-text-secondary);
+    font-size:     0.82rem;
+    text-align:    left;
+    cursor:        pointer;
+    transition:    background var(--evcc-transition-normal, 150ms ease),
+                   color      var(--evcc-transition-normal, 150ms ease);
+  }
+
+  .evcc-lang-option:hover {
+    background: color-mix(in srgb, var(--evcc-accent) 12%, transparent);
+    color:      var(--evcc-text-primary);
+  }
+
+  .evcc-lang-option.is-active {
+    color:       var(--evcc-accent);
+    font-weight: 600;
+  }
+
+  .evcc-lang-check {
+    flex:       0 0 auto;
+    width:      1em;
+    text-align: center;
+    color:      var(--evcc-accent);
+  }
+
+  .evcc-lang-label {
+    flex:          1 1 auto;
+    overflow:      hidden;
+    text-overflow: ellipsis;
+    white-space:   nowrap;
+  }
+
+  /* =========================================================
      NAV TABS
      ========================================================= */
 

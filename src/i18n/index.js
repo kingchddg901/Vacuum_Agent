@@ -71,15 +71,37 @@ const DRAFT_WORD = {
   es: "borrador", nl: "concept", it: "bozza", pt: "rascunho",
 };
 
-/** Review status ('stable' | 'draft' | 'unknown') for a code, base-language aware. */
+/**
+ * Locales registered at RUNTIME rather than bundled — drop-in JSON files (see
+ * loadDroppedLocales) and tests. Keyed by code -> { status }. Lets the picker
+ * surface them and the draft-gate treat an unreviewed dropped locale ("custom")
+ * exactly like a bundled draft (explicit-choice only).
+ */
+const DYNAMIC_LOCALES = new Map();
+
+/** Review status ('stable' | 'draft' | 'custom' | 'unknown') for a code, base-language aware. */
 export function localeStatus(lang) {
   const code = String(lang || "");
-  return LOCALE_STATUS[code] || LOCALE_STATUS[code.split("-")[0]] || "unknown";
+  const dyn = DYNAMIC_LOCALES.get(code);
+  // A runtime drop-in ("custom") for a code WINS — it is the catalog translate()
+  // actually uses (registerLocale overwrote it), so its status is authoritative.
+  // This keeps the picker honest when a drop-in shadows a bundled draft.
+  return (
+    (dyn && dyn.status) ||
+    LOCALE_STATUS[code] ||
+    LOCALE_STATUS[code.split("-")[0]] ||
+    "unknown"
+  );
 }
 
-/** A draft is an unreviewed bundled locale that must not auto-activate. */
+/**
+ * An unreviewed locale that must NOT auto-activate from the system language — a
+ * bundled AI "draft" OR a dropped "custom" locale. Both are reachable only by an
+ * explicit pin / override / in-card pick (a deliberate choice), never implicitly.
+ */
 function isDraftLocale(lang) {
-  return localeStatus(lang) === "draft";
+  const s = localeStatus(lang);
+  return s === "draft" || s === "custom";
 }
 
 /**
@@ -102,6 +124,43 @@ export function listBundledLocales() {
     );
 }
 
+/** The language's own name (endonym) for a code, via Intl.DisplayNames. */
+function endonymFor(code) {
+  try {
+    const name = new Intl.DisplayNames([code], { type: "language" }).of(code);
+    if (name && name !== code) return name.charAt(0).toUpperCase() + name.slice(1);
+  } catch { /* unknown code / ancient engine — fall through to the code */ }
+  return code;
+}
+
+/**
+ * Every SELECTABLE locale for the override picker: the bundled ones plus any
+ * registered at runtime (drop-in JSON files). Each `{ code, status, endonym,
+ * label }`. A drop-in that SHADOWS a bundled code reports as "custom" — its
+ * catalog is the one translate() uses, so the label must agree (never show a
+ * stale "(draft)" for overridden strings). Bundled endonyms come from the
+ * curated table; unknown (dropped) codes derive theirs from Intl.DisplayNames.
+ * English first, then alphabetical by endonym.
+ */
+export function listLocales() {
+  const codes = new Set([...Object.keys(LOCALE_STATUS), ...DYNAMIC_LOCALES.keys()]);
+  return [...codes]
+    .map((code) => {
+      const status = localeStatus(code); // drop-in "custom" wins over bundled "draft"
+      const endonym = LOCALE_ENDONYMS[code] || endonymFor(code);
+      const label =
+        status === "draft"
+          ? `${endonym} (${DRAFT_WORD[code] || "draft"})`
+          : status === "custom"
+            ? `${endonym} (custom)`
+            : endonym;
+      return { code, status, endonym, label };
+    })
+    .sort((a, b) =>
+      a.code === "en" ? -1 : b.code === "en" ? 1 : a.endonym.localeCompare(b.endonym),
+    );
+}
+
 /**
  * Register (or replace) a locale catalog at runtime. Most locales will instead
  * be imported + added to CATALOGS above so they ship in the bundle; this exists
@@ -110,10 +169,16 @@ export function listBundledLocales() {
  * @param {string} lang - BCP-47 language code (e.g. "ru", "de", "pt-BR").
  * @param {Record<string, string | Record<string, string>>} catalog - key ->
  *   translated string, or for a plural key an object of CLDR forms.
+ * @param {{ status?: string }} [meta] - optional review status for a runtime
+ *   locale (e.g. "custom" for a drop-in file); recorded for the picker + gate.
  */
-export function registerLocale(lang, catalog) {
+export function registerLocale(lang, catalog, meta) {
   if (lang && catalog && typeof catalog === "object") {
-    CATALOGS[String(lang)] = catalog;
+    const code = String(lang);
+    CATALOGS[code] = catalog;
+    // A runtime-registered locale records its status (e.g. "custom" for a
+    // drop-in file) so localeStatus/listLocales/the draft-gate know about it.
+    if (meta && meta.status) DYNAMIC_LOCALES.set(code, { status: String(meta.status) });
   }
 }
 
@@ -233,21 +298,34 @@ export function translate(lang, key, vars, options) {
 }
 
 /**
- * Resolve the active UI language from hass + card config — the SINGLE resolver
- * the card (main.js), the renderers (shared.js), and the standalone room-card
- * all share (they each used to inline this).
+ * Resolve the active UI language from a runtime override + hass + card config —
+ * the SINGLE resolver the card (main.js), the renderers (shared.js), and the
+ * standalone room-card all share (they each used to inline this).
  *
- * Order: an explicit `config.i18n.locale` pins the language (unless it is
- * "auto") -> `hass.locale.language` -> `hass.language` -> "en". The pin lets a
- * dashboard force a locale regardless of the HA UI language; "auto" defers to HA.
+ * Order (most explicit wins):
+ *   0. `override` — the in-card language control's per-user choice (lang-store.js,
+ *      persisted server-side via HA user-data). The most deliberate choice of all.
+ *   1. `config.i18n.locale` — a per-dashboard author pin.
+ *   2. `hass.locale.language` / `hass.language` — the HA system language.
+ *   3. "en".
+ *
+ * Both the override and the pin BYPASS the draft-gate — each is a deliberate
+ * opt-in, so an unreviewed AI-draft locale is reachable that way. Only the
+ * auto/system step is gated (a draft must never auto-activate from the system
+ * language). The literal "auto" (or empty) at either explicit layer defers down
+ * the chain, so the control can map an "Auto (system)" choice back to HA.
  *
  * @param {object} [hass] - Home Assistant connection (reads locale.language / language).
  * @param {object} [config] - card config; reads `config.i18n.locale`.
+ * @param {string} [override] - per-user runtime choice (a code, "auto", or empty).
  * @returns {string} a BCP-47 code (translate() falls back to English for unknowns).
  */
-export function resolveLang(hass, config) {
-  // 1. An explicit pin wins and BYPASSES the draft-gate — the dashboard
-  //    deliberately chose this locale (this is the per-dashboard override).
+export function resolveLang(hass, config, override) {
+  // 0. The in-card control's per-user choice is the most explicit source and
+  //    wins over everything, BYPASSING the draft-gate. "auto"/empty defers.
+  if (override && override !== "auto") return String(override);
+  // 1. An explicit pin wins next and also BYPASSES the draft-gate — the
+  //    dashboard deliberately chose this locale (the per-dashboard override).
   const pinned = config && config.i18n && config.i18n.locale;
   if (pinned && pinned !== "auto") return String(pinned);
   // 2. Auto: the HA system language.
@@ -257,8 +335,9 @@ export function resolveLang(hass, config) {
     "en";
   // 3. DRAFT-GATE: an unreviewed (AI-draft) bundled locale must not auto-activate
   //    from the system language — fall back to English. A draft is only reachable
-  //    by the explicit pin above. Stable + non-bundled locales are unaffected
-  //    (non-bundled still returns its code; translate() falls back to en for it).
+  //    by the explicit override/pin above. Stable + non-bundled locales are
+  //    unaffected (non-bundled still returns its code; translate() falls back
+  //    to en for it).
   if (isDraftLocale(auto)) return "en";
   return auto;
 }
@@ -394,7 +473,8 @@ export function localeSource(config, lang) {
  *
  * @param {string} url - same-origin locale JSON url (caller vets the origin).
  * @param {string} lang - language code to register the catalog under.
- * @param {{ fetchImpl?: typeof fetch }} [opts] - injectable fetch (for tests).
+ * @param {{ fetchImpl?: typeof fetch, status?: string }} [opts] - injectable
+ *   fetch (for tests); `status` tags a runtime locale (e.g. "custom").
  * @returns {Promise<{ ok: boolean, lang: string, url: string, loaded: number, warnings: string[], errors: string[] }>}
  */
 export async function loadLocale(url, lang, opts = {}) {
@@ -411,11 +491,65 @@ export async function loadLocale(url, lang, opts = {}) {
     const { clean, warnings, errors } = validateLocale(data);
     report.warnings = warnings;
     report.errors = errors;
-    registerLocale(lang, clean);
+    registerLocale(lang, clean, opts.status ? { status: opts.status } : undefined);
     report.loaded = Object.keys(clean).length;
     report.ok = true;
   } catch (e) {
     report.errors.push(`load error: ${String((e && e.message) || e)}`);
   }
   return report;
+}
+
+/**
+ * Discover + load drop-in locale JSON files the integration serves at
+ * `${baseUrl}/index.json` — an auto-generated list of "<code>.json" filenames
+ * (see custom_components/eufy_vacuum/__init__.py, which regenerates it at
+ * startup from config/eufy_vacuum/locales/). Each file is loaded via loadLocale
+ * (same-origin fetch -> validateLocale -> registerLocale) and tagged status
+ * "custom", so the picker lists it and the draft-gate keeps it explicit-only.
+ *
+ * NEVER throws: a missing folder / index / file just yields a soft report. The
+ * filename stem IS the locale code (de.json -> "de", pt-BR.json -> "pt-BR").
+ *
+ * @param {string} [baseUrl] - served locales dir (default /eufy_vacuum/locales).
+ * @param {{ fetchImpl?: typeof fetch }} [opts] - injectable fetch (for tests).
+ * @returns {Promise<{ ok: boolean, loaded: string[], errors: string[] }>}
+ */
+export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts = {}) {
+  const result = { ok: false, loaded: [], errors: [] };
+  const doFetch = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!doFetch) { result.errors.push("no fetch available"); return result; }
+
+  let files;
+  try {
+    const resp = await doFetch(`${baseUrl}/index.json`, { credentials: "same-origin" });
+    if (!resp || !resp.ok) {
+      result.errors.push(`index fetch failed (status ${resp ? resp.status : "none"})`);
+      return result;
+    }
+    files = await resp.json();
+  } catch (e) {
+    result.errors.push(`index load error: ${String((e && e.message) || e)}`);
+    return result;
+  }
+  if (!Array.isArray(files)) {
+    result.errors.push("index is not an array");
+    return result;
+  }
+
+  for (const file of files) {
+    if (typeof file !== "string" || !file.endsWith(".json") || file === "index.json") continue;
+    const code = file.replace(/\.json$/, "");
+    if (code === "en") {
+      // The English base is the universal fallback source of truth — a partial
+      // or hostile en.json would break fallback for every other locale. Refuse.
+      result.errors.push("en.json refused (the English base is not overridable via drop-in)");
+      continue;
+    }
+    const report = await loadLocale(`${baseUrl}/${file}`, code, { ...opts, status: "custom" });
+    if (report.ok) result.loaded.push(code);
+    else result.errors.push(`${file}: ${report.errors.join("; ")}`);
+  }
+  result.ok = true;
+  return result;
 }

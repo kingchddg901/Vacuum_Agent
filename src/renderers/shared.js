@@ -95,7 +95,7 @@ export function applySharedRenderers(proto) {
     // is undefined here — the bug that pinned everything to English). Falls back
     // to `this` for any path where the proto is mixed onto the card itself.
     const c = this.card || this;
-    return resolveLang(c._hass, c._config);
+    return resolveLang(c._hass, c._config, c._langOverride);
   };
 
   /**

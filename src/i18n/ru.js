@@ -207,6 +207,9 @@ export const ru = {
   "external_jobs.wizard_title": "Проверка очистки из приложения",
 
   // --- learning ---
+  "language.button_title": "Язык",
+  "language.heading": "Язык интерфейса",
+  "language.auto": "Авто (как в Home Assistant)",
   "learning.all_rooms_complete": "Все комнаты завершены",
   "learning.battery_finish_rooms": "Возможно, потребуется подзарядка для завершения оставшихся комнат",
   "learning.battery_mid_job": "Возможно, потребуется подзарядка в середине задания",

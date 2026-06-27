@@ -207,6 +207,9 @@ export const fr = {
   "external_jobs.wizard_title": "Vérifier la tâche lancée depuis l'application",
 
   // --- learning ---
+  "language.button_title": "Langue",
+  "language.heading": "Langue d'affichage",
+  "language.auto": "Auto (suivre Home Assistant)",
   "learning.all_rooms_complete": "Toutes les pièces terminées",
   "learning.battery_finish_rooms": "Une recharge peut être nécessaire pour finir les pièces restantes",
   "learning.battery_mid_job": "Une recharge peut être nécessaire en cours de tâche",

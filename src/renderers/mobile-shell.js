@@ -39,6 +39,7 @@
  */
 
 import { VIEWS, isViewAvailable } from "../render-cycle.js";
+import { renderLanguageControl } from "./language-control.js";
 
 /* =========================================================
    TAB CONFIGURATION
@@ -125,7 +126,8 @@ export function applyMobileShellRenderer(proto) {
    */
   proto.renderMobileHeader = function (ctx) {
     const { vacuumName, vacuumStatus, vacuumStatusLabel,
-            dockStatus, dockStatusLabel, battery } = ctx;
+            dockStatus, dockStatusLabel, battery,
+            langOverride, currentLang, languageMenuOpen } = ctx;
     const batteryText = battery != null ? `${battery}%` : "";
     const vacuumText = vacuumStatusLabel ?? _fallbackTitleCase(vacuumStatus);
     const dockText = dockStatusLabel
@@ -133,6 +135,11 @@ export function applyMobileShellRenderer(proto) {
 
     return `
       <div class="evcc-mobile-header">
+        <div class="evcc-mobile-header-lang">
+          ${renderLanguageControl(this, {
+            langOverride, currentLang, open: languageMenuOpen,
+          })}
+        </div>
         <div class="evcc-mobile-vacuum-name">
           ${this.escapeHtml(vacuumName)}
         </div>

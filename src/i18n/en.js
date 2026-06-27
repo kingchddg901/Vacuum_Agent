@@ -50,6 +50,11 @@ export const en = {
   "card_editor.language_auto": "Auto (follow Home Assistant)",  // language option: defer to the HA UI language (no override)
   "card_editor.language_hint": "Overrides the language for this card only.",  // editor hint: the override is scoped to this dashboard card
 
+  // --- language (the header globe control: per-user display-language override, persisted across devices) ---
+  "language.button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
+  "language.heading": "Display language",  // heading at the top of the language dropdown menu
+  "language.auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
+
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
   "base_station.action_dry_mop": "Dry Mop",  // dock button: start air-drying the mop pad (not 'dry-mopping' the floor)

@@ -36,6 +36,7 @@
  */
 
 import { applyNavBindings        } from "./nav.js";
+import { applyLanguageBindings   } from "./language.js";
 import { applyBaseStationBindings } from "./base-station.js";
 import { applyMaintenanceBindings } from "./maintenance.js";
 import { applyMetricsBindings    } from "./metrics.js";
@@ -102,6 +103,7 @@ export class VacuumCardBindings {
   /** Re-attach all shadow-root event handlers after each render. */
   bindEvents() {
     this._bindNav();
+    this._bindLanguage();
     this._bindBaseStation();
     this._bindMaintenance();
     this._bindMetrics();
@@ -302,6 +304,7 @@ export class VacuumCardBindings {
    ========================================================= */
 
 applyNavBindings(VacuumCardBindings.prototype);
+applyLanguageBindings(VacuumCardBindings.prototype);
 applyBaseStationBindings(VacuumCardBindings.prototype);
 applyMaintenanceBindings(VacuumCardBindings.prototype);
 applyMetricsBindings(VacuumCardBindings.prototype);

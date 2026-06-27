@@ -207,6 +207,9 @@ export const it = {
   "external_jobs.wizard_title": "Rivedi esecuzione avviata dall'app",
 
   // --- learning ---
+  "language.button_title": "Lingua",
+  "language.heading": "Lingua di visualizzazione",
+  "language.auto": "Auto (segui Home Assistant)",
   "learning.all_rooms_complete": "Tutte le stanze completate",
   "learning.battery_finish_rooms": "Potrebbe servire una ricarica per finire le stanze rimanenti",
   "learning.battery_mid_job": "Potrebbe servire una ricarica a metà lavoro",

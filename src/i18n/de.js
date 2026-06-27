@@ -207,6 +207,9 @@ export const de = {
   "external_jobs.wizard_title": "App-gestarteten Lauf überprüfen",
 
   // --- learning ---
+  "language.button_title": "Sprache",
+  "language.heading": "Anzeigesprache",
+  "language.auto": "Auto (folgt Home Assistant)",
   "learning.all_rooms_complete": "Alle Räume abgeschlossen",
   "learning.battery_finish_rooms": "Muss möglicherweise aufladen, um die verbleibenden Räume zu beenden",
   "learning.battery_mid_job": "Muss möglicherweise während des Auftrags aufladen",

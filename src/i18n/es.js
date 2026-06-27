@@ -207,6 +207,9 @@ export const es = {
   "external_jobs.wizard_title": "Revisar limpieza iniciada desde la app",
 
   // --- learning ---
+  "language.button_title": "Idioma",
+  "language.heading": "Idioma de visualización",
+  "language.auto": "Auto (seguir Home Assistant)",
   "learning.all_rooms_complete": "Todas las habitaciones completadas",
   "learning.battery_finish_rooms": "Puede que necesite recargar para terminar las habitaciones restantes",
   "learning.battery_mid_job": "Puede que necesite recargar a mitad del trabajo",

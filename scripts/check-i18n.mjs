@@ -38,7 +38,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale, listBundledLocales } from "../src/i18n/index.js";
+import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale, loadDroppedLocales, listBundledLocales, listLocales } from "../src/i18n/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -221,6 +221,36 @@ check("resolveLang: draft-gate blocks auto-activation, explicit pin bypasses", (
   assert.equal(resolveLang({ locale: { language: "sv" } }, {}), "sv");
 });
 
+// 17d. OVERRIDE: the in-card control's per-user choice is the most explicit
+//      source — it wins over the config pin AND the system language, and (like
+//      the pin) bypasses the draft-gate. "auto"/empty defers down the chain.
+check("resolveLang: per-user override wins over pin + system, bypasses draft-gate", () => {
+  const hass = { locale: { language: "sv" } };
+  // Override beats a conflicting config pin.
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }, "it"), "it");
+  // Override beats the system language.
+  assert.equal(resolveLang(hass, {}, "es"), "es");
+  // Override to a DRAFT bypasses the gate even when the system language would be gated.
+  assert.equal(resolveLang({ locale: { language: "en" } }, {}, "de"), "de");
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}, "ru"), "ru");
+  // "auto" / empty override defers to the pin, then the system language.
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }, "auto"), "fr");
+  assert.equal(resolveLang(hass, {}, "auto"), "sv");
+  assert.equal(resolveLang(hass, {}, ""), "sv");
+  assert.equal(resolveLang(hass, {}, undefined), "sv");
+  // An "auto" override over a draft system language is still gated (defers, then gate).
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}, "auto"), "en");
+});
+
+// 17e. The three language-control strings are defined in the English base
+//      (the menu heading, button title, and the "Auto" row) — the control
+//      renders keys, so a missing one would surface as a visible miss.
+check("language control keys exist in en base", () => {
+  for (const key of ["language.button_title", "language.heading", "language.auto"]) {
+    assert.notEqual(translate("en", key), key, `${key} missing from en base`);
+  }
+});
+
 // 17c. listBundledLocales: endonyms + localized draft tags for the override picker.
 check("listBundledLocales: endonyms, localized draft tags, English first", () => {
   const list = listBundledLocales();
@@ -231,6 +261,36 @@ check("listBundledLocales: endonyms, localized draft tags, English first", () =>
   assert.equal(de.status, "draft");
   assert.equal(de.label, "Deutsch (Entwurf)");          // endonym + own word for draft
   assert.equal(list.find((l) => l.code === "ru").label, "Русский (черновик)");
+});
+
+// 17f. listLocales + draft-gate: a RUNTIME "custom" locale (a drop-in JSON,
+//      registered with status:"custom") is SELECTABLE in the picker but, like a
+//      bundled draft, reachable only by an explicit override/pin — never auto.
+check("listLocales: a runtime custom locale is selectable + explicit-only", () => {
+  registerLocale("eo", { "rooms.empty": "Neniu ĉambro" }, { status: "custom" });
+  const eo = listLocales().find((l) => l.code === "eo");
+  assert.ok(eo, "custom locale appears in listLocales");
+  assert.equal(eo.status, "custom");
+  assert.match(eo.label, /\(custom\)/);
+  assert.equal(translate("eo", "rooms.empty"), "Neniu ĉambro");
+  // Gated from auto-activation (system language); reachable by override / pin.
+  assert.equal(resolveLang({ locale: { language: "eo" } }, {}), "en");
+  assert.equal(resolveLang({}, {}, "eo"), "eo");
+  assert.equal(resolveLang({}, { i18n: { locale: "eo" } }), "eo");
+  // listLocales is a SUPERSET of the bundled set (English still first/present).
+  assert.equal(listLocales()[0].code, "en");
+});
+
+// 17g. Shadow: a drop-in whose code matches a BUNDLED one overrides the catalog
+//      (so you can fix a bundled draft locally) AND the picker reflects it as
+//      custom — label + active strings agree, no silent divergence.
+check("listLocales: a drop-in overriding a bundled code wins + shows custom", () => {
+  registerLocale("nl", { "rooms.empty": "Aangepaste NL" }, { status: "custom" });
+  assert.equal(translate("nl", "rooms.empty"), "Aangepaste NL");        // dropped catalog wins
+  const nl = listLocales().find((l) => l.code === "nl");
+  assert.equal(nl.status, "custom");                                     // honest, not "(draft)"
+  assert.match(nl.label, /\(custom\)/);
+  assert.equal(resolveLang({ locale: { language: "nl" } }, {}), "en");   // still gated (explicit-only)
 });
 
 // --- validateLocale (untrusted-locale gate) ------------------------------
@@ -342,6 +402,47 @@ await checkAsync("loadLocale: failures keep English (never throws)", async () =>
   assert.equal(translate("lf", "common.cancel"), translate("en", "common.cancel")); // never registered
 });
 
+// 27. loadDroppedLocales: reads the auto-generated index, loads each file via
+//     loadLocale, tags it "custom" (so it's gated), and surfaces it in the
+//     picker. A missing index resolves soft (ok:false), never throws.
+await checkAsync("loadDroppedLocales: discovers + loads drop-in files (custom-tagged)", async () => {
+  const files = {
+    "index.json": ["xx-drop.json", "skip.txt", "index.json"], // non-json + self ignored
+    "xx-drop.json": { "rooms.empty": "Dropped room" },
+  };
+  const fetchImpl = async (url) => {
+    const name = String(url).split("/").pop();
+    if (!(name in files)) return { ok: false, status: 404 };
+    return { ok: true, status: 200, json: async () => files[name] };
+  };
+  const report = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl });
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.loaded, ["xx-drop"]);
+  assert.equal(translate("xx-drop", "rooms.empty"), "Dropped room");
+  assert.ok(listLocales().some((l) => l.code === "xx-drop"), "drop-in appears in the picker");
+  assert.equal(resolveLang({ locale: { language: "xx-drop" } }, {}), "en"); // custom -> gated
+  assert.equal(resolveLang({}, {}, "xx-drop"), "xx-drop");                  // override reaches it
+
+  // A missing index is soft (never throws).
+  const missing = await loadDroppedLocales("/none", { fetchImpl: async () => ({ ok: false, status: 404 }) });
+  assert.equal(missing.ok, false);
+
+  // en.json is REFUSED — the English base is the fallback source of truth.
+  const withEn = {
+    "index.json": ["en.json", "yy-drop.json"],
+    "en.json": { "rooms.empty": "HIJACKED" },
+    "yy-drop.json": { "rooms.empty": "Y" },
+  };
+  const fetchEn = async (url) => {
+    const name = String(url).split("/").pop();
+    return name in withEn ? { ok: true, status: 200, json: async () => withEn[name] } : { ok: false, status: 404 };
+  };
+  const r2 = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl: fetchEn });
+  assert.ok(!r2.loaded.includes("en"), "en.json is refused");
+  assert.notEqual(translate("en", "rooms.empty"), "HIJACKED");          // base intact
+  assert.ok(r2.loaded.includes("yy-drop"));                            // others still load
+});
+
 /* =========================================================
    B. KEY CROSS-CHECK (used in src  <->  defined in en.js)
    ========================================================= */
@@ -427,7 +528,12 @@ if (dead.length === 0) {
 console.log("\nC. bundled locale validation");
 const i18nDir = join(SRC, "i18n");
 const localeFiles = readdirSync(i18nDir).filter(
-  (f) => f.endsWith(".js") && f !== "index.js" && f !== "en.js" && !f.endsWith(".test.js"),
+  (f) =>
+    f.endsWith(".js") &&
+    f !== "index.js" &&
+    f !== "en.js" &&
+    f !== "lang-store.js" && // helper module (WS user-data store), not a catalog
+    !f.endsWith(".test.js"),
 );
 if (localeFiles.length === 0) {
   console.log("  ✓ no bundled locales beyond en (nothing to validate yet)");

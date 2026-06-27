@@ -207,6 +207,9 @@ export const nl = {
   "external_jobs.wizard_title": "Door de app gestarte run beoordelen",
 
   // --- learning ---
+  "language.button_title": "Taal",
+  "language.heading": "Weergavetaal",
+  "language.auto": "Auto (volg Home Assistant)",
   "learning.all_rooms_complete": "Alle kamers voltooid",
   "learning.battery_finish_rooms": "Mogelijk opladen nodig om de resterende kamers af te maken",
   "learning.battery_mid_job": "Mogelijk opladen nodig halverwege de taak",
