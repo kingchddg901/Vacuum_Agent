@@ -36,6 +36,31 @@
     "heading": "Display language",  // heading at the top of the language dropdown menu
     "auto": "Auto (follow Home Assistant)"  // first menu row: defer to the HA system language (no override)
   },
+  "vocab": {
+    "clean_mode": {
+      "vacuum": "Vacuum",  // clean mode: suction only
+      "mop": "Mop",  // clean mode: mop only
+      "vacuum_mop": "Vacuum and mop"
+    },
+    "fan_speed": {
+      "quiet": "Quiet",  // suction level (lowest)
+      "standard": "Standard",  // suction level
+      "boost": "Boost",  // suction level
+      "max": "Max"  // suction level (highest)
+    },
+    "water_level": {
+      "off": "Off",  // water level: no water
+      "low": "Low",  // water level
+      "medium": "Medium",  // water level
+      "high": "High"  // water level
+    },
+    "clean_intensity": {
+      "quick": "Quick",  // cleaning path / intensity
+      "narrow": "Narrow",  // cleaning path / intensity
+      "deep": "Deep",  // cleaning path / intensity
+      "normal": "Normal"  // cleaning path / intensity (manual-only)
+    }
+  },
   "base_station": {
     "action_available": "Action available",
     "action_dry_mop": "Dry Mop",  // dock button: start air-drying the mop pad (not 'dry-mopping' the floor)

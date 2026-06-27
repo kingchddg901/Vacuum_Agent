@@ -55,6 +55,23 @@ export const en = {
   "language.heading": "Display language",  // heading at the top of the language dropdown menu
   "language.auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
 
+  // --- vocab (adapter VOCABULARY values rendered via this.tVocab(field, value, label); keyed on the stable value, falls back to the backend English label for unkeyed values) ---
+  "vocab.clean_mode.vacuum": "Vacuum",            // clean mode: suction only
+  "vocab.clean_mode.mop": "Mop",                  // clean mode: mop only
+  "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both
+  "vocab.fan_speed.quiet": "Quiet",               // suction level (lowest)
+  "vocab.fan_speed.standard": "Standard",         // suction level
+  "vocab.fan_speed.boost": "Boost",               // suction level
+  "vocab.fan_speed.max": "Max",                   // suction level (highest)
+  "vocab.water_level.off": "Off",                 // water level: no water
+  "vocab.water_level.low": "Low",                 // water level
+  "vocab.water_level.medium": "Medium",           // water level
+  "vocab.water_level.high": "High",               // water level
+  "vocab.clean_intensity.quick": "Quick",         // cleaning path / intensity
+  "vocab.clean_intensity.narrow": "Narrow",       // cleaning path / intensity
+  "vocab.clean_intensity.deep": "Deep",           // cleaning path / intensity
+  "vocab.clean_intensity.normal": "Normal",       // cleaning path / intensity (manual-only)
+
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
   "base_station.action_dry_mop": "Dry Mop",  // dock button: start air-drying the mop pad (not 'dry-mopping' the floor)
