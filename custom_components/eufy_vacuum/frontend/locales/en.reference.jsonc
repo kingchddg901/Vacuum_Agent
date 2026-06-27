@@ -149,6 +149,9 @@
       "already_emptying": "The dock is already emptying dust.",
       "dock_busy": "The dock is currently busy with another service action."
     },
+    "resegment_reason": {
+      "capped_to_detectable": "Capped to the rooms detectable from this run."  // External-run review: shown when the requested room count exceeded the number of boundaries detectable from the captured run, so it was limited.
+    },
     "sort": {
       "newest": "Newest",
       "outlier": "Highest Outlier",

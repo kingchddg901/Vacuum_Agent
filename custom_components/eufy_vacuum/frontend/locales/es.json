@@ -2229,6 +2229,9 @@
       "not_drying": "Detener el secado solo es útil mientras la base está secando activamente.",
       "already_emptying": "La base ya está vaciando el polvo.",
       "dock_busy": "La base está ocupada actualmente con otra acción de servicio."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limitado a las habitaciones detectables en esta ejecución."
     }
   },
   "order_modal": {

@@ -2228,6 +2228,9 @@
       "not_drying": "Parar a secagem só é útil enquanto a base está secando ativamente.",
       "already_emptying": "A base já está esvaziando a poeira.",
       "dock_busy": "A base está atualmente ocupada com outra ação de serviço."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limitado aos cômodos detectáveis nesta execução."
     }
   },
   "order_modal": {

@@ -1546,6 +1546,7 @@ export const en = {
   "vocab.dock_reason.not_drying": "Stop dry is only useful while the dock is actively drying.",
   "vocab.dock_reason.already_emptying": "The dock is already emptying dust.",
   "vocab.dock_reason.dock_busy": "The dock is currently busy with another service action.",
+  "vocab.resegment_reason.capped_to_detectable": "Capped to the rooms detectable from this run.",  // External-run review: shown when the requested room count exceeded the number of boundaries detectable from the captured run, so it was limited.
   "vocab.sort.newest": "Newest",
   "vocab.sort.outlier": "Highest Outlier",
   "vocab.sort.suggested": "Suggested Exclude",

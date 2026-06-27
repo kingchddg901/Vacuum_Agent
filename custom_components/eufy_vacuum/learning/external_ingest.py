@@ -765,6 +765,9 @@ def resegment_pending_record(
             "capped_at": capped_at,
         }
         if requested > available:
+            # Stable reason code so the card can localize this (vocab.resegment_reason.*);
+            # the English message is kept as a diagnostic / fallback for non-card consumers.
+            meta["reason"] = "capped_to_detectable"
             meta["message"] = f"Only {available} room(s) detectable from this run."
         suggested = capped_at
     else:

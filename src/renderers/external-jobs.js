@@ -176,8 +176,11 @@ export function applyExternalJobsRenderers(proto) {
         </div>`;
     }).join("");
 
-    const cap = w.resegmentMeta && w.resegmentMeta.capped
-      ? `<div class="evcc-ext-blocked">${this.escapeHtml(String(w.resegmentMeta.message || this.t("external_jobs.capped_message")))}</div>`
+    // Localize via the backend reason CODE (vocab.resegment_reason.*), falling
+    // back to the backend English message, then the static key. tVocab escapes.
+    const rm = w.resegmentMeta;
+    const cap = rm && rm.capped
+      ? `<div class="evcc-ext-blocked">${this.tVocab("resegment_reason", rm.reason, rm.message || this.t("external_jobs.capped_message"))}</div>`
       : "";
 
     return `${stepper}${cap}<div class="evcc-ext-seglist">${rows}</div>`;

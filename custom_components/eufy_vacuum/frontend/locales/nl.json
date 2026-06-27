@@ -2215,6 +2215,9 @@
       "not_drying": "Drogen stoppen is alleen nuttig terwijl het dock actief aan het drogen is.",
       "already_emptying": "Het dock is het stof al aan het legen.",
       "dock_busy": "Het dock is momenteel bezig met een andere serviceactie."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Beperkt tot de kamers die in deze run detecteerbaar zijn."
     }
   },
   "order_modal": {

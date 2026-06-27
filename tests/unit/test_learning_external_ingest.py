@@ -389,6 +389,10 @@ def test_resegment_by_count_caps_to_available():
     )
     assert meta["capped"] is True
     assert meta["available"] == 3 and meta["capped_at"] == 3
+    # Stable reason CODE so the card can localize the cap (vocab.resegment_reason.*),
+    # alongside the English message kept as a diagnostic / fallback.
+    assert meta["reason"] == "capped_to_detectable"
+    assert "detectable from this run" in meta["message"]
     assert new["segment_count"] == 3
 
 

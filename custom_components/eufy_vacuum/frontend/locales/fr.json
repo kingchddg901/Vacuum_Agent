@@ -2229,6 +2229,9 @@
       "not_drying": "L'arrêt du séchage n'est utile que lorsque la station est en train de sécher activement.",
       "already_emptying": "La station est déjà en train de vider la poussière.",
       "dock_busy": "La station est actuellement occupée par une autre action d'entretien."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limité aux pièces détectables lors de cette exécution."
     }
   },
   "order_modal": {

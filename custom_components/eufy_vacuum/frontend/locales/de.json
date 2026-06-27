@@ -2215,6 +2215,9 @@
       "not_drying": "Das Stoppen der Trocknung ist nur sinnvoll, während das Dock aktiv trocknet.",
       "already_emptying": "Das Dock entleert bereits den Staub.",
       "dock_busy": "Das Dock ist derzeit mit einer anderen Serviceaktion beschäftigt."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Auf die in diesem Lauf erkennbaren Räume begrenzt."
     }
   },
   "order_modal": {

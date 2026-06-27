@@ -2215,6 +2215,9 @@
       "not_drying": "L'arresto dell'asciugatura è utile solo mentre la base sta asciugando attivamente.",
       "already_emptying": "La base sta già svuotando la polvere.",
       "dock_busy": "La base è attualmente occupata con un'altra azione di servizio."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limitato alle stanze rilevabili in questa esecuzione."
     }
   },
   "order_modal": {
