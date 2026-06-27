@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, localeSource } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, localeSource, listBundledLocales } from "./i18n/index.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -451,6 +451,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: "vacuum.your_vacuum",
     };
   }
+
+  // Visual config editor (per-dashboard): entity + a display-language override
+  // that writes config.i18n.locale. See EufyVacuumCardEditor near registration.
+  static getConfigElement() { return document.createElement(CARD_EDITOR_NAME); }
 
   /* =========================================================
      VIEW MANAGEMENT
@@ -1749,6 +1753,113 @@ class EufyVacuumCommandCenter extends HTMLElement {
     });
   }
 }
+
+/* =========================================================
+   CONFIG EDITOR (per-dashboard)
+   =========================================================
+   A minimal visual editor for the card's Lovelace config: the vacuum entity
+   plus a "Display language" override that writes `config.i18n.locale`. The pin
+   bypasses the draft-gate (resolveLang), so a user can opt into any bundled
+   language or force English regardless of the HA system language — per this
+   card/dashboard only. (Advanced/runtime settings live in the in-card Setup
+   tab + backend; the Lovelace config stays minimal.) */
+
+const CARD_EDITOR_NAME = `${CARD_NAME}-editor`;
+
+function _editorEsc(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+class EufyVacuumCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._hass = null;
+    this._config = {};
+  }
+
+  setConfig(config) { this._config = config ?? {}; this._render(); }
+  set hass(hass) { this._hass = hass; this._render(); }
+
+  // Editor labels follow the editor's own resolved language (English fallback
+  // for any locale that hasn't translated the card_editor.* keys yet).
+  t(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars); }
+
+  _vacuumEntities() {
+    if (!this._hass) return [];
+    return Object.keys(this._hass.states).filter((id) => id.startsWith("vacuum.")).sort();
+  }
+
+  _fire(config) {
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config }, bubbles: true, composed: true,
+    }));
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const vacuums = this._vacuumEntities();
+    const selectedVacuum = this._config.vacuum_entity_id ?? "";
+    const selectedLang = (this._config.i18n && this._config.i18n.locale) || "auto";
+    const locales = listBundledLocales();
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; font-family: var(--paper-font-body1_-_font-family, sans-serif); }
+        .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+        label {
+          font-size: 0.80rem; font-weight: 500;
+          color: var(--secondary-text-color, #888);
+          text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        select {
+          width: 100%; box-sizing: border-box; padding: 8px 10px;
+          border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+          border-radius: 6px;
+          background: var(--card-background-color, #1c2127);
+          color: var(--primary-text-color, #f0f2f5);
+          font-size: 0.92rem; appearance: none; -webkit-appearance: none;
+        }
+        select:focus { outline: none; border-color: var(--primary-color, #3b82f6); }
+        .hint { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
+      </style>
+
+      <div class="field">
+        <label>${this.t("card_editor.vacuum_label")}</label>
+        <select id="vacuum">
+          <option value="" disabled ${!selectedVacuum ? "selected" : ""}>${this.t("card_editor.pick_vacuum")}</option>
+          ${vacuums.map((v) => `<option value="${_editorEsc(v)}" ${v === selectedVacuum ? "selected" : ""}>${_editorEsc(v)}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>${this.t("card_editor.language_label")}</label>
+        <select id="lang">
+          <option value="auto" ${selectedLang === "auto" ? "selected" : ""}>${this.t("card_editor.language_auto")}</option>
+          ${locales.map((l) => `<option value="${_editorEsc(l.code)}" ${l.code === selectedLang ? "selected" : ""}>${_editorEsc(l.label)}</option>`).join("")}
+        </select>
+        <div class="hint">${this.t("card_editor.language_hint")}</div>
+      </div>
+    `;
+
+    this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
+      this._fire({ ...this._config, vacuum_entity_id: e.target.value });
+    });
+    this.shadowRoot.getElementById("lang")?.addEventListener("change", (e) => {
+      const val = e.target.value;
+      // "auto" is stored explicitly (resolveLang treats it as defer-to-HA); a
+      // language code pins it. Either way write into config.i18n.locale.
+      const next = { ...this._config, i18n: { ...(this._config.i18n || {}), locale: val } };
+      this._fire(next);
+    });
+  }
+}
+
+customElements.define(CARD_EDITOR_NAME, EufyVacuumCardEditor);
 
 /* =========================================================
    REGISTRATION

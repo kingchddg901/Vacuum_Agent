@@ -43,6 +43,13 @@ export const en = {
   "common.saving": "Saving…",
   "common.yes": "Yes",
 
+  // --- card_editor (Lovelace visual config editor: vacuum entity + per-card language override) ---
+  "card_editor.vacuum_label": "Vacuum",  // editor field label: which vacuum entity this card controls
+  "card_editor.pick_vacuum": "Select a vacuum…",  // editor placeholder prompting the user to choose the vacuum entity
+  "card_editor.language_label": "Display language",  // editor field label: per-card UI language override (overrides the HA system language)
+  "card_editor.language_auto": "Auto (follow Home Assistant)",  // language option: defer to the HA UI language (no override)
+  "card_editor.language_hint": "Overrides the language for this card only.",  // editor hint: the override is scoped to this dashboard card
+
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
   "base_station.action_dry_mop": "Dry Mop",  // dock button: start air-drying the mop pad (not 'dry-mopping' the floor)

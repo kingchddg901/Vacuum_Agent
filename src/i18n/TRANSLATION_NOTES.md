@@ -9,6 +9,12 @@ speaker** to confirm/apply. Two objective fixes were already applied in-tree
 
 Verdicts: de = usable_with_fixes (now good after the fan-speed fix); all others = good_draft.
 
+> **New keys pending translation:** the `card_editor.*` namespace (5 keys — the Lovelace
+> visual config editor's labels) was added to en.js AFTER these drafts were produced, so the
+> locales don't carry them yet and fall back to English in the card editor. Translate them when
+> reviewing each locale (low priority — config-time surface; the language *option* labels are
+> already native, e.g. "Deutsch (Entwurf)").
+
 ## ru (Russian — pilot, live native review)
 - `learning.queue_missed_rooms` — lost the imperative verb, reads as a fragment. → e.g. "Добавить пропущенные комнаты в очередь".
 - `maintenance.stat_total_cleaned` — blurs the "area in m²" sense vs `stat_cleans`. → e.g. "Убранная площадь".
