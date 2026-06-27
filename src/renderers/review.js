@@ -241,7 +241,7 @@ export function applyReviewRenderers(proto) {
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 && includeFallback ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(opt.title)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -395,7 +395,7 @@ export function applyReviewRenderers(proto) {
               data-review-reason-chip="${this.escapeHtml(jobId)}"
               data-value="${this.escapeHtml(String(opt?.value ?? ""))}"
               ${pending ? "disabled" : ""}
-            >${this.escapeHtml(String(opt?.label ?? opt?.value ?? ""))}</button>
+            >${this.tVocab("exclude_reason", String(opt?.value ?? ""), String(opt?.label ?? opt?.value ?? ""))}</button>
           `).join("")}
         </div>
       </div>

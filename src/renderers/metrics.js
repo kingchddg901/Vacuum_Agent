@@ -103,7 +103,7 @@ export function applyMetricsRenderers(proto) {
                   data-metrics-tab="${this.escapeHtml(option.value)}"
                   role="tab"
                   aria-selected="${activeTab === option.value ? "true" : "false"}"
-                >${this.escapeHtml(option.label)}</button>
+                >${this.tVocab("metrics_tab", option.value, option.label)}</button>
               `).join("")}
             </div>
 
@@ -402,7 +402,7 @@ export function applyMetricsRenderers(proto) {
               data-value="${this.escapeHtml(opt.value)}"
               ${i === 0 ? `data-all-chip="true"` : ""}
               title="${this.escapeHtml(opt.title)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab(key, opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -510,9 +510,56 @@ export function applyMetricsRenderers(proto) {
     });
   };
 
+  /**
+   * Recompose a profile's display name + settings subtitle in the CARD's
+   * per-user language from the raw settings the snapshot carries (clean_mode,
+   * clean_intensity, fan_speed, water_level, passes, edge). Mirrors the backend
+   * _settings_profile_label so the result matches, but localized. Falls back to
+   * the backend's (English) profile_label/subtitle when the raw settings are
+   * absent. Returns RAW strings (tVocabRaw/tRaw) — the card sinks escapeHtml.
+   *
+   * @param {object} profile
+   * @returns {{label: string, subtitle: string}}
+   */
+  proto._localizedProfile = function (profile) {
+    const fallback = {
+      label: String(profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || ""),
+      subtitle: String(profile?.profile_subtitle || ""),
+    };
+    const hasSettings = profile?.clean_mode != null || profile?.clean_intensity != null || profile?.fan_speed != null || profile?.water_level != null;
+    if (!hasSettings) return fallback;
+
+    const v = (field, val) => (val == null || val === "") ? "" : this.tVocabRaw(field, val, String(val));
+    const room = String(profile?.room_label ?? "").trim();
+    const sel = String(profile?.selected_profile_name ?? "").trim().toLowerCase();
+    const res = String(profile?.resolved_profile_name ?? "").trim().toLowerCase();
+    const mode = v("clean_mode", profile?.clean_mode);
+    const intensity = v("clean_intensity", profile?.clean_intensity);
+    const fan = v("fan_speed", profile?.fan_speed);
+    const water = (profile?.water_level != null && String(profile.water_level).toLowerCase() !== "off") ? v("water_level", profile.water_level) : "";
+    const passes = Math.max(parseInt(profile?.clean_passes, 10) || 1, 1);
+    const edge = Boolean(profile?.edge_mopping);
+    const presetCodes = ["vacuum_quick", "vacuum_deep", "vacuum_mop_quick", "vacuum_mop_deep"];
+    const isCustom = ["", "custom", "user_1"].includes(sel) || (sel !== res && !presetCodes.includes(sel));
+
+    let label;
+    if (!isCustom && (mode || intensity)) {
+      label = [room, mode, intensity].filter(Boolean).join(" ").trim();
+    } else {
+      const bits = [room, this.tRaw("room_editor.custom"), mode];
+      if (passes > 1) bits.push(this.tRaw("room_profile.passes", { count: passes }));
+      label = bits.filter(Boolean).join(" ").trim();
+    }
+    const sub = [intensity, fan, water].filter(Boolean);
+    if (passes > 1) sub.push(this.tRaw("room_profile.passes", { count: passes }));
+    if (edge) sub.push(this.tRaw("room_card.edge_mopping_label"));
+    return { label: label || fallback.label, subtitle: sub.join(" • ") || fallback.subtitle };
+  };
+
   proto._renderMetricsRoomProfileCard = function (profile) {
-    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || this.t("metrics.profile_fallback");
-    const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
+    const lp = this._localizedProfile(profile);
+    const title = profile?._settings_in_title ? `${lp.label} · ${lp.subtitle}` : (lp.label || this.t("metrics.profile_fallback"));
+    const subtitle = profile?._settings_in_title ? "" : (lp.subtitle || profile?.room_label || profile?.room_slug || "");
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("profile", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;
     const canSave = profile?.save_candidate === true && profile?.save_supported === true && String(profile?.save_service ?? "").trim() !== "";
@@ -554,9 +601,15 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderMetricsFoundProfileCard = function (profile) {
-    const title = profile?.display_title || profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || this.t("metrics.profile_fallback");
-    const subtitle = profile?._settings_in_title ? "" : (profile?.profile_subtitle || profile?.room_label || profile?.room_slug || "");
-    const trustReason = profile?.trust_reason_text || profile?.trust_reason || "";
+    const lp = this._localizedProfile(profile);
+    const title = profile?._settings_in_title ? `${lp.label} · ${lp.subtitle}` : (lp.label || this.t("metrics.profile_fallback"));
+    const subtitle = profile?._settings_in_title ? "" : (lp.subtitle || profile?.room_label || profile?.room_slug || "");
+    // Localize from the stable trust_reason CODE; the backend's English
+    // trust_reason_text is the fallback for any code we haven't keyed. tVocabRaw:
+    // the sink escapeHtmls it (single escape).
+    const trustReason = profile?.trust_reason
+      ? this.tVocabRaw("estimate_reason", profile.trust_reason, profile?.trust_reason_text || "")
+      : (profile?.trust_reason_text || "");
     const saveKey = this.card?._state?.metricsProfileSaveKey?.("found", profile) ?? "";
     const pending = this.card?._state?.isMetricsProfileSavePending?.(saveKey) ?? false;
     const canSave = profile?.save_candidate === true && String(profile?.save_service ?? "").trim() !== "";
@@ -673,9 +726,14 @@ export function applyMetricsRenderers(proto) {
    * @returns {string} Title-cased label, or "Unknown".
    */
   proto._formatMetricsTrustLevel = function (value) {
-    return String(value ?? "")
+    const formatted = String(value ?? "")
       .replace(/[_-]+/g, " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase()) || this.t("metrics.unknown");
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+    if (!formatted) return this.t("metrics.unknown");
+    // Localize the trust/confidence tier (building/low/medium/good/high/trusted).
+    // RAW (not tVocab): callers either insert via this.t (raw) or escapeHtml the
+    // result themselves — tVocab would double-escape at the escapeHtml site.
+    return this.tVocabRaw("trust_level", value, formatted);
   };
 
   /**
@@ -820,7 +878,7 @@ export function applyMetricsRenderers(proto) {
       }
       return keys.map((k) => `
         <tr>
-          <td>${this.escapeHtml(k)}</td>
+          <td>${this.tVocab("battery_bucket_key", k, k)}</td>
           <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
           <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
@@ -874,10 +932,10 @@ export function applyMetricsRenderers(proto) {
           <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${this.escapeHtml(lastJob.single_clean_mode ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${this.escapeHtml(lastJob.single_fan_speed ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${this.escapeHtml(lastJob.single_water_level ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${this.escapeHtml(lastJob.weighted_by ?? "—")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", lastJob.single_clean_mode, lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${lastJob.single_fan_speed ? this.tVocab("fan_speed", lastJob.single_fan_speed, lastJob.single_fan_speed) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${lastJob.single_water_level ? this.tVocab("water_level", lastJob.single_water_level, lastJob.single_water_level) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${lastJob.weighted_by ? this.tVocab("battery_weighted_by", lastJob.weighted_by, lastJob.weighted_by) : "—"}</td></tr>
           ${postJob ? `
             <tr><td colspan="2"><em>${this.t("metrics.battery_post_job_recharge")}</em></td></tr>
             <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>

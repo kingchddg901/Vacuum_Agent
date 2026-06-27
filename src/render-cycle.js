@@ -1,5 +1,7 @@
 // Render cycle helpers: view constants, render context builder, header/nav HTML, and view router.
 
+import { renderLanguageControl } from "./renderers/language-control.js";
+
 /* =========================================================
    VIEW CONSTANTS
    ========================================================= */
@@ -74,6 +76,12 @@ export function buildRenderContext(card) {
     dockStatusLabel:   state.dockStatusLabel?.() ?? null,
     battery:           state.batteryLevel(),
     view:              card._view ?? VIEWS.ROOMS,
+    // Header language control: the raw per-user choice (marks the active row),
+    // the resolved language (the button badge), and the dropdown open flag.
+    // All card-level so they survive the periodic header re-render.
+    langOverride:      card._langOverride ?? "auto",
+    currentLang:       card._i18nLanguage?.() ?? "en",
+    languageMenuOpen:  !!card._languageMenuOpen,
   };
 }
 
@@ -142,7 +150,8 @@ function getDockStatusClass(dockStatus) {
  */
 export function renderHeader(ctx) {
   const { state, renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
-          dockStatus, dockStatusLabel, battery, view } = ctx;
+          dockStatus, dockStatusLabel, battery, view,
+          langOverride, currentLang, languageMenuOpen } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
 
@@ -178,6 +187,12 @@ export function renderHeader(ctx) {
             <span>${renderers.escapeHtml(dockText)}</span>
           </div>
         ` : ""}
+      </div>
+
+      <div class="evcc-header-right">
+        ${renderLanguageControl(renderers, {
+          langOverride, currentLang, open: languageMenuOpen,
+        })}
       </div>
 
     </div>

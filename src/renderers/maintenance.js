@@ -9,12 +9,46 @@
  * ============================================================
  */
 
+import { GUIDE_TRANSLATIONS } from "../i18n/guide-translations.js";
+
 /**
  * Mix maintenance renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
  */
 export function applyMaintenanceRenderers(proto) {
+
+  /**
+   * Localize the upkeep guide for the CARD's per-user language (the globe),
+   * not the HA instance language. The backend ships guide.display in the
+   * instance language; we overlay steps/notes/frequency from the bundled
+   * GUIDE_TRANSLATIONS (ported from the same source data), per-field, falling
+   * back to English and then to the backend's value. So a card set to Russian
+   * shows Russian guide text even on an English HA instance — one switch.
+   *
+   * @param {object} item - maintenance/replacement item (has guide, component, kind).
+   * @returns {object|null} a display-shaped guide ({frequency, steps, notes, …}).
+   */
+  proto._localizedGuide = function (item) {
+    const display = item?.guide?.display ?? null;
+    if (!display) return display;
+    const lang = String(this._i18nLanguage() || "en").split("-")[0];
+    const family = item?.guide?.source_guide_family ?? item?.guide?.guide_family ?? item?.guide_family;
+    const component = item?.component;
+    const kind = String(item?.kind ?? "maintenance");
+    const byLang = GUIDE_TRANSLATIONS[lang]?.[family]?.[component];
+    const byEn = GUIDE_TRANSLATIONS.en?.[family]?.[component];
+    if (!byLang && !byEn) return display; // unknown family/component → backend value
+    const pick = (field) => byLang?.[field] ?? byEn?.[field];
+    const freq = kind === "replacement" ? pick("replace_frequency") : pick("clean_frequency");
+    const steps = (Array.isArray(byLang?.steps) && byLang.steps.length) ? byLang.steps
+                : (Array.isArray(byEn?.steps) && byEn.steps.length) ? byEn.steps
+                : display.steps;
+    const notes = (Array.isArray(byLang?.notes) && byLang.notes.length) ? byLang.notes
+                : (Array.isArray(byEn?.notes) && byEn.notes.length) ? byEn.notes
+                : display.notes;
+    return { ...display, frequency: freq ?? display.frequency, steps, notes };
+  };
 
   /* =========================================================
      MAIN VIEW
@@ -288,7 +322,7 @@ export function applyMaintenanceRenderers(proto) {
     const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.unnamed_item");
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
-    const status = item?.status_label ?? this._formatMaintenanceStatus(statusKey);
+    const status = this._formatMaintenanceStatus(statusKey);
     const available = item?.available !== false;
     const remainingPercent = this._maintenanceRemainingPercent(item);
     const fillPercent = Number.isFinite(remainingPercent)
@@ -297,7 +331,7 @@ export function applyMaintenanceRenderers(proto) {
     const primaryValue = this._maintenancePrimaryValue(item);
     const secondaryValue = this._maintenanceSecondaryValue(item);
     const dueInLabel = this._maintenanceDueInLabel(item);
-    const guide = item?.guide?.display ?? null;
+    const guide = this._localizedGuide(item);
     const guideSummary = guide?.frequency || this._formatMaintenanceFrequency(guide?.frequency);
 
     return `
@@ -311,7 +345,7 @@ export function applyMaintenanceRenderers(proto) {
         style="--maintenance-remaining:${fillPercent}%;"
       >
         <div class="evcc-maintenance-card-header">
-          <div class="evcc-maintenance-card-title">${this.escapeHtml(name)}</div>
+          <div class="evcc-maintenance-card-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.component, name))}</div>
           <div class="evcc-maintenance-card-status">${this.escapeHtml(status)}</div>
         </div>
 
@@ -325,7 +359,7 @@ export function applyMaintenanceRenderers(proto) {
 
         <div class="evcc-maintenance-card-detail">
           ${this.escapeHtml(
-            [item?.kind_label ?? this._formatMaintenanceKind(kind), secondaryValue].filter(Boolean).join(" | ")
+            [this.tVocabRaw("maintenance_kind", kind, this._formatMaintenanceKind(kind)), secondaryValue].filter(Boolean).join(" | ")
           )}
         </div>
 
@@ -448,10 +482,10 @@ export function applyMaintenanceRenderers(proto) {
     const name = item?.label ?? item?.component_label ?? item?.name ?? item?.title ?? this.t("maintenance.modal_fallback_name");
     const kind = String(item?.kind ?? "maintenance");
     const statusKey = String(item?.status ?? "unknown");
-    const status = item?.status_label ?? this._formatMaintenanceStatus(statusKey);
+    const status = this._formatMaintenanceStatus(statusKey);
     const primaryValue = this._maintenancePrimaryValue(item);
     const secondaryValue = this._maintenanceSecondaryValue(item);
-    const guide = item?.guide?.display ?? null;
+    const guide = this._localizedGuide(item);
     const guideSteps = Array.isArray(guide?.steps) ? guide.steps.filter(Boolean) : [];
     const guideNotes = Array.isArray(guide?.notes) ? guide.notes.filter(Boolean) : [];
     const resetUi = state?.maintenanceResetUi?.() ?? {};
@@ -465,7 +499,7 @@ export function applyMaintenanceRenderers(proto) {
       <div class="evcc-modal-backdrop" data-action="close-maintenance-modal">
         <div class="evcc-modal evcc-maintenance-modal" data-stop-propagation>
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">${this.escapeHtml(name)}</div>
+            <div class="evcc-modal-title">${this.escapeHtml(this.tVocabRaw("maintenance_component", item?.component, name))}</div>
             <button
               type="button"
               class="evcc-chip evcc-chip--icon"
@@ -477,7 +511,7 @@ export function applyMaintenanceRenderers(proto) {
           <div class="evcc-modal-body">
             <div class="evcc-maintenance-modal-hero evcc-maintenance-modal-hero--status-${this.escapeHtml(statusKey)}">
               <div class="evcc-maintenance-modal-hero-top">
-                <div class="evcc-maintenance-modal-hero-label">${this.escapeHtml(item?.kind_label ?? this._formatMaintenanceKind(kind))}</div>
+                <div class="evcc-maintenance-modal-hero-label">${this.escapeHtml(this.tVocabRaw("maintenance_kind", kind, this._formatMaintenanceKind(kind)))}</div>
                 <div class="evcc-maintenance-modal-hero-status">${this.escapeHtml(status)}</div>
               </div>
 
@@ -762,19 +796,18 @@ export function applyMaintenanceRenderers(proto) {
   };
 
   proto._maintenancePrimaryValue = function (item) {
-    const explicitSummary = String(item?.remaining_summary ?? "").trim();
-    if (explicitSummary) {
-      return explicitSummary;
-    }
-
+    // Prefer the STRUCTURED fields (percent/hours) so the value localizes with
+    // the card's language. The backend's pre-formatted English `remaining_summary`
+    // is only a last resort for shapes we can't compose. tRaw (not t): the render
+    // sinks escapeHtml this, so returning raw keeps it single-escaped.
     const percent = this._maintenanceRemainingPercent(item);
     if (Number.isFinite(percent)) {
-      return this.t("maintenance.percent_remaining", { percent: Math.round(percent) });
+      return this.tRaw("maintenance.percent_remaining", { percent: Math.round(percent) });
     }
 
     const remainingHours = Number(item?.remaining_hours);
     if (Number.isFinite(remainingHours)) {
-      return this.t("maintenance.hours_remaining", { hours: this._formatMaintenanceHours(remainingHours) });
+      return this.tRaw("maintenance.hours_remaining", { hours: this._formatMaintenanceHours(remainingHours) });
     }
 
     const rawValue = item?.remaining_value;
@@ -783,7 +816,10 @@ export function applyMaintenanceRenderers(proto) {
       return [rawValue, rawUnit].filter(Boolean).join(" ");
     }
 
-    return this.t("maintenance.unknown_remaining_life");
+    const explicitSummary = String(item?.remaining_summary ?? "").trim();
+    if (explicitSummary) return explicitSummary;
+
+    return this.tRaw("maintenance.unknown_remaining_life");
   };
 
   /**
@@ -793,17 +829,14 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string} Human-readable secondary string, or empty string if unavailable.
    */
   proto._maintenanceSecondaryValue = function (item) {
-    const explicitSummary = String(item?.usage_summary ?? "").trim();
-    if (explicitSummary) {
-      return explicitSummary;
-    }
-
+    // Structured fields first (localize with the card language); the backend's
+    // pre-formatted English `usage_summary` is the last resort. tRaw: sinks escape.
     if (item?.kind === "replacement") {
       const usageHours = Number(item?.usage_hours);
       const maxHours = Number(item?.max_life_hours ?? item?.total_life_hours);
 
       if (Number.isFinite(usageHours) && Number.isFinite(maxHours)) {
-        return this.t("maintenance.used_of", { used: this._formatMaintenanceHours(usageHours), total: this._formatMaintenanceHours(maxHours) });
+        return this.tRaw("maintenance.used_of", { used: this._formatMaintenanceHours(usageHours), total: this._formatMaintenanceHours(maxHours) });
       }
     }
 
@@ -811,13 +844,16 @@ export function applyMaintenanceRenderers(proto) {
     const intervalHours = Number(item?.interval_hours);
 
     if (Number.isFinite(remainingHours) && Number.isFinite(intervalHours)) {
-      return this.t("maintenance.left_of", { remaining: this._formatMaintenanceHours(remainingHours), total: this._formatMaintenanceHours(intervalHours) });
+      return this.tRaw("maintenance.left_of", { remaining: this._formatMaintenanceHours(remainingHours), total: this._formatMaintenanceHours(intervalHours) });
     }
 
     const usedSinceResetHours = Number(item?.used_since_reset_hours ?? item?.current_usage_hours);
     if (Number.isFinite(usedSinceResetHours)) {
-      return this.t("maintenance.used_since_reset", { used: this._formatMaintenanceHours(usedSinceResetHours) });
+      return this.tRaw("maintenance.used_since_reset", { used: this._formatMaintenanceHours(usedSinceResetHours) });
     }
+
+    const explicitSummary = String(item?.usage_summary ?? "").trim();
+    if (explicitSummary) return explicitSummary;
 
     return "";
   };
@@ -879,7 +915,8 @@ export function applyMaintenanceRenderers(proto) {
     const normalized = String(status ?? "").trim().toLowerCase();
 
     if (["replace_now", "replace_soon", "warning", "good", "unknown"].includes(normalized)) {
-      return this.t(`maintenance.status_${normalized}`);
+      // tRaw: the render sinks escapeHtml this result (single escape).
+      return this.tRaw(`maintenance.status_${normalized}`);
     }
 
     return this._formatMaintenanceKind(normalized || "unknown");

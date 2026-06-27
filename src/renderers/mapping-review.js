@@ -90,7 +90,9 @@ export function applyMappingReviewRenderers(proto) {
               ${filterOpts.map(opt => `
                 <button class="evcc-chip ${filter === opt.value ? "active" : ""}"
                         data-mrev-filter="${this.escapeHtml(opt.value)}">
-                  ${this.escapeHtml(opt.label)}
+                  ${opt.value === "has_bounds" ? this.t("mapping_review.filter_has_bounds")
+                    : opt.value === "no_bounds" ? this.t("mapping_review.filter_no_bounds")
+                    : this.t("mapping_review.filter_all_rooms")}
                 </button>
               `).join("")}
             </div>

@@ -207,7 +207,12 @@ function render(view, opts = {}) {
     // _view/_mobileMoreOpen. _hass is a recording null-object so any direct
     // hass reach (another contract breach) is surfaced, not silently fed.
     const card = {
-      _config: {},
+      // Pin the requested locale via config (the explicit per-dashboard override)
+      // so it renders FAITHFULLY — this is the path a user takes when they pick a
+      // language, and crucially it BYPASSES the draft-gate (resolveLang sends a
+      // draft reached via the system language back to English; a pin does not).
+      // No lang -> {} -> English canonical renders are unchanged.
+      _config: lang ? { i18n: { locale: String(lang) } } : {},
       _state: state,
       _renderers: null,
       _view: view,

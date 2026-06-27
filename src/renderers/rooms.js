@@ -858,7 +858,7 @@ proto.renderRoomCard = function (room, state) {
   const notes = [];
 
   if (roomEstimate?.intensity_mismatch) {
-    notes.push({ text: `⚠ ${this.t("rooms.intensity_mismatch")}`, variant: "warning" });
+    notes.push({ type: "intensity_mismatch", text: `⚠ ${this.t("rooms.intensity_mismatch")}`, variant: "warning" });
   }
 
   const troubleEntry = state?.troubleRoomForRoom?.(normalizedRoom.id) ?? null;
@@ -868,7 +868,8 @@ proto.renderRoomCard = function (room, state) {
     const missRate  = Number(troubleEntry.miss_rate ?? 0);
     const pct       = Number.isFinite(missRate) ? Math.round(missRate * 100) : null;
     notes.push({
-      text: `⚠ Missed ${missCount}× of ${runCount} run${runCount === 1 ? "" : "s"}${pct !== null ? ` (${pct}%)` : ""}`,
+      type: "trouble",
+      text: `⚠ ${this.t("rooms.trouble_missed", { miss: missCount, count: runCount })}${pct !== null ? ` (${pct}%)` : ""}`,
       variant: "warning",
       title: this.t("rooms.trouble_note_title", { pct: pct ?? "?" }),
     });
@@ -1055,12 +1056,14 @@ proto.renderRoomCard = function (room, state) {
               class="evcc-room-note evcc-room-note--${this.escapeHtml(note.variant)}"
               ${
                 (() => {
+                  // Title resolved by note TYPE — NOT by matching the English
+                  // text (which breaks the moment the text is translated).
                   const fallbackTitle =
-                    String(note.text).includes("No learned data")
+                    note.type === "no_learned_data"
                       ? this.t("rooms.note_no_learned_data_title")
-                      : String(note.text).includes("runs to reliable")
-                        ? this.t("rooms.note_runs_to_reliable_title", { count: String(note.text).split(" ")[0] })
-                        : String(note.text).includes("intensity mismatch")
+                      : note.type === "runs_to_reliable"
+                        ? this.t("rooms.note_runs_to_reliable_title", { count: note.count ?? "?" })
+                        : note.type === "intensity_mismatch"
                           ? this.t("rooms.note_intensity_mismatch_title")
                           : "";
 

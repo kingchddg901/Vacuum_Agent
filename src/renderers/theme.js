@@ -321,7 +321,15 @@ export function applyThemeRenderers(proto) {
     const chips = [
       { value: "all", label: this.t("theme.filter_all") },
       { value: "modified", label: this.t("theme.filter_modified") },
-      ...THEME_GROUPS.map((group) => ({ value: group, label: group })),
+      ...THEME_GROUPS.map((group) => {
+        // Match the group-header display: nested groups show only their suffix.
+        // Animal subgroups have no theme_group key, so tVocab falls back to the
+        // suffix — the protected animal name (Cat/Dog/…), never translated.
+        const sep = group.indexOf(" — ");
+        const nested = sep !== -1 && THEME_GROUPS.includes(group.slice(0, sep));
+        const display = nested ? group.slice(group.lastIndexOf(" — ") + 3) : group;
+        return { value: group, label: this.tVocab("theme_group", group, display) };
+      }),
     ];
 
     return `
@@ -331,7 +339,7 @@ export function applyThemeRenderers(proto) {
             class="evcc-chip ${selectedFilter === chip.value ? "active" : ""}"
             data-theme-group-filter="${this.escapeHtml(chip.value)}"
           >
-            ${this.escapeHtml(chip.label)}
+            ${chip.label}
           </button>
         `).join("")}
       </div>
@@ -347,13 +355,13 @@ export function applyThemeRenderers(proto) {
       if (!tags.length) return "";
       return `
         <div class="evcc-preset-facet">
-          <span class="evcc-preset-facet-label">${this.escapeHtml(facet.label)}</span>
+          <span class="evcc-preset-facet-label">${this.tVocab("theme_facet", facet.key, facet.label)}</span>
           ${tags.map((t) => `
             <button
               class="evcc-chip evcc-preset-facet-chip ${this.card._state.isPresetFacetActive(facet.key, t) ? "active" : ""}"
               data-preset-facet="${this.escapeHtml(facet.key)}"
               data-preset-facet-value="${this.escapeHtml(t)}"
-            >${this.escapeHtml(t)}</button>
+            >${this.tVocab("theme_tag", t, t)}</button>
           `).join("")}
         </div>`;
     }).filter(Boolean).join("");
@@ -444,7 +452,7 @@ export function applyThemeRenderers(proto) {
             );
             const tagChips = shownTags.length
               ? `<div class="evcc-preset-tags">${shownTags
-                  .map((t) => `<span class="evcc-preset-tag" data-facet="${facetOf(t)}">${this.escapeHtml(t)}</span>`)
+                  .map((t) => `<span class="evcc-preset-tag" data-facet="${facetOf(t)}">${this.tVocab("theme_tag", t, t)}</span>`)
                   .join("")}</div>`
               : "";
 
@@ -631,7 +639,7 @@ export function applyThemeRenderers(proto) {
             data-theme-group-toggle="${this.escapeHtml(group)}"
           >
             <div class="group-title">
-              ${this.escapeHtml(displayTitle)} (${counts.modified} / ${counts.total})
+              ${this.tVocab("theme_group", group, displayTitle)} (${counts.modified} / ${counts.total})
             </div>
 
             <div class="group-actions">
@@ -656,7 +664,7 @@ export function applyThemeRenderers(proto) {
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
-                    placeholder="${this.t("theme.group_search_placeholder", { title: this.escapeHtml(displayTitle) })}"
+                    placeholder="${this.t("theme.group_search_placeholder", { title: this.tVocab("theme_group", group, displayTitle) })}"
                     value="${this.escapeHtml(groupSearchQuery)}"
                     data-theme-group-search="${this.escapeHtml(group)}"
                   />
@@ -672,7 +680,7 @@ export function applyThemeRenderers(proto) {
 
                 ${!groupTokens.length && hasActiveSearch ? `
                   <div class="evcc-empty evcc-empty--theme-group-search">
-                    ${this.t("theme.group_no_match", { title: this.escapeHtml(displayTitle), query: this.escapeHtml(groupSearchQuery) })}
+                    ${this.t("theme.group_no_match", { title: this.tVocab("theme_group", group, displayTitle), query: this.escapeHtml(groupSearchQuery) })}
                   </div>
                 ` : ""}
               ` : ""}
@@ -773,12 +781,12 @@ export function applyThemeRenderers(proto) {
 
         <div class="token-head">
           <div class="token-label">
-            ${this.escapeHtml(token.label)}
+            ${this.tVocab("theme_token", token.key, token.label)}
           </div>
         </div>
 
         <div class="token-control-row token-control-row--color">
-          <div class="token-color-combined-control" title="${this.escapeHtml(token.label)}">
+          <div class="token-color-combined-control" title="${this.tVocab("theme_token", token.key, token.label)}">
             <div
               class="token-alpha-shell"
               style="
@@ -799,7 +807,7 @@ export function applyThemeRenderers(proto) {
                   value="${alphaPercent}"
                   data-theme-alpha="${this.escapeHtml(token.key)}"
                   data-color-swatch="${this.escapeHtml(token.key)}"
-                  aria-label="${this.t("theme.alpha_aria_label", { label: this.escapeHtml(token.label) })}"
+                  aria-label="${this.t("theme.alpha_aria_label", { label: this.tVocab("theme_token", token.key, token.label) })}"
                 />
 
                 <div
@@ -841,7 +849,7 @@ export function applyThemeRenderers(proto) {
     return `
       <div class="evcc-token-row evcc-token-row--color-mix ${isDraft ? "is-draft" : ""}">
         <div class="token-head">
-          <div class="token-label">${this.escapeHtml(token.label)}</div>
+          <div class="token-label">${this.tVocab("theme_token", token.key, token.label)}</div>
           <div class="token-head-actions">
             ${isDraft ? `
               <button class="evcc-chip" data-theme-reset="${this.escapeHtml(token.key)}">
@@ -933,7 +941,7 @@ export function applyThemeRenderers(proto) {
       >
         <div class="token-head">
           <div class="token-label">
-            ${this.escapeHtml(token.label)}
+            ${this.tVocab("theme_token", token.key, token.label)}
             <span class="evcc-chip">${this.escapeHtml(token.type)}</span>
           </div>
 
@@ -990,7 +998,7 @@ export function applyThemeRenderers(proto) {
       <div class="evcc-token-row evcc-token-row--text ${isDraft ? "is-draft" : ""}">
         <div class="token-head">
           <div class="token-label">
-            ${this.escapeHtml(token.label)}
+            ${this.tVocab("theme_token", token.key, token.label)}
             <span class="evcc-chip">${this.escapeHtml(token.type)}</span>
             ${isDraft ? `<span class="evcc-chip evcc-chip--custom">${this.t("theme.token_draft")}</span>` : ""}
           </div>

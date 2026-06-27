@@ -77,6 +77,7 @@ from .upkeep_catalog import (
     UPKEEP_MODEL_NAMES,
 )
 from .upkeep_guides import UPKEEP_GUIDE_LIBRARY
+from .upkeep_guides_i18n import UPKEEP_GUIDE_TRANSLATIONS
 from .water_config import WATER_MODEL_CONFIGS
 from ...profiles.room_profiles import (
     BUILT_IN_ROOM_PROFILES,
@@ -810,6 +811,10 @@ def register_eufy_adapter_for_vacuum(
             "model_guide_families": UPKEEP_MODEL_GUIDE_FAMILIES,
             "guide_family_names": UPKEEP_GUIDE_FAMILY_NAMES,
             "guide_library": UPKEEP_GUIDE_LIBRARY,
+            # Official localized guide steps/notes/frequencies (+ ru cross-checked),
+            # overlaid on the English base per field by the maintenance manager
+            # (selected by HA instance language). See upkeep_guides_i18n.py.
+            "guide_translations": UPKEEP_GUIDE_TRANSLATIONS,
         },
 
         "water_model_configs": WATER_MODEL_CONFIGS,

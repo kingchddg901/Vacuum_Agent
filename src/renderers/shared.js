@@ -79,6 +79,52 @@ export function applySharedRenderers(proto) {
   };
 
   /**
+   * Translate a backend/adapter VOCABULARY value (a fan-speed, clean-mode,
+   * status, scope, floor type, …) that the integration hands us as an English
+   * label. The card holds the stable `value`; we key the translation on it
+   * (`vocab.<field>.<value>`, value normalized to a key-safe slug) and FALL BACK
+   * to the backend label for any value we haven't keyed — so a different brand /
+   * model / a new value renders its English label unchanged (no regression),
+   * never a raw key. Returns an HTML-escaped string (like escapeHtml(label) did).
+   *
+   * @param {string} field - vocabulary field, e.g. "fan_speed", "clean_mode".
+   * @param {string} value - the stable value, e.g. "max", "vacuum_mop".
+   * @param {string} [fallback] - the backend English label (used when unkeyed).
+   * @returns {string} escaped, localized label.
+   */
+  proto.tVocab = function (field, value, fallback) {
+    if (value == null || value === "") return this.escapeHtml(fallback ?? "");
+    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    // The template literal lives INSIDE the t() call so check:i18n's template
+    // scan reaches every `vocab.<field>.<value>` key (a dynamic this.t(varKey)
+    // would read as a dead key). t() escapes its result and returns the key
+    // verbatim on a miss -> fall back to the backend label.
+    const out = this.t(`vocab.${field}.${slug}`);
+    return out === `vocab.${field}.${slug}` ? this.escapeHtml(fallback ?? String(value)) : out;
+  };
+
+  /**
+   * Like `tVocab`, but returns the RAW (unescaped) localized label — for the few
+   * call sites that drop the value into a data object the renderer escapes again
+   * later (e.g. room-estimate's summary rows do `escapeHtml(row.value)`). Using
+   * `tVocab` there would double-escape, so a translated "l'eau"/"A & B" would
+   * render its entities literally. The CALLER must escape (these do). Mirrors the
+   * `tRaw`↔`t` pairing; uses the same inline `vocab.<field>.<slug>` template so
+   * check:i18n still reaches every vocab key.
+   *
+   * @param {string} field
+   * @param {string} value
+   * @param {string} [fallback]
+   * @returns {string} unescaped, localized label (caller escapes).
+   */
+  proto.tVocabRaw = function (field, value, fallback) {
+    if (value == null || value === "") return fallback ?? "";
+    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const out = this.tRaw(`vocab.${field}.${slug}`);
+    return out === `vocab.${field}.${slug}` ? (fallback ?? String(value)) : out;
+  };
+
+  /**
    * Resolve the active UI language from hass: locale.language -> language -> en.
    *
    * Read hass off `this.card` — these methods run on the VacuumCardRenderers
@@ -95,7 +141,7 @@ export function applySharedRenderers(proto) {
     // is undefined here — the bug that pinned everything to English). Falls back
     // to `this` for any path where the proto is mixed onto the card itself.
     const c = this.card || this;
-    return resolveLang(c._hass, c._config);
+    return resolveLang(c._hass, c._config, c._langOverride);
   };
 
   /**

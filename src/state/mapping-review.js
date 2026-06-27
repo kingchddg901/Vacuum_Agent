@@ -70,11 +70,13 @@ export function applyMappingReviewState(proto) {
     return this._ensureMappingReviewState().pendingRebuildRoomId === String(roomId);
   };
 
+  // Returns only the stable filter values; the chip labels are localized at the
+  // render site (`mapping_review.filter_*`), so no English text lives in state.
   proto.mappingBoundsFilterOptions = function () {
     return [
-      { value: BOUNDS_FILTERS.ALL,        label: "All Rooms"  },
-      { value: BOUNDS_FILTERS.HAS_BOUNDS, label: "Has Bounds" },
-      { value: BOUNDS_FILTERS.NO_BOUNDS,  label: "No Bounds"  },
+      { value: BOUNDS_FILTERS.ALL },
+      { value: BOUNDS_FILTERS.HAS_BOUNDS },
+      { value: BOUNDS_FILTERS.NO_BOUNDS },
     ];
   };
 }

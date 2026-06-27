@@ -177,6 +177,15 @@ class MaintenanceManager:
             "supported_guide_components": sorted(guide_map.keys()),
         }
 
+    def _guide_language(self) -> str:
+        """Base HA instance language (e.g. 'de' from 'de-DE') for localized upkeep
+        guides, or '' when unavailable. NOTE: guides follow the HA INSTANCE language
+        (hass.config.language) — not a per-user frontend locale or the card's
+        per-dashboard i18n override (the backend can't see those)."""
+        hass = getattr(self._manager, "hass", None)
+        lang = getattr(getattr(hass, "config", None), "language", None) or ""
+        return str(lang).split("-")[0].lower()
+
     def _get_upkeep_item_guide(
         self,
         *,
@@ -191,11 +200,31 @@ class MaintenanceManager:
         model_guide_families = _catalog.get("model_guide_families", {})
         guide_family_names = _catalog.get("guide_family_names", {})
         guide_library = _catalog.get("guide_library", {})
+        guide_translations = _catalog.get("guide_translations", {})
 
         guide_family = model_guide_families.get(model_code or "")
         guide = dict(guide_library.get(guide_family or "", {}).get(component, {}))
         if not guide:
             return None
+
+        # Overlay official localized steps/notes/frequencies on the English base
+        # PER FIELD, selected by the HA instance language. Anything the localized
+        # entry lacks (an unharvested component/language, or a frequency the manual
+        # didn't state) falls back to English. See adapters/eufy/upkeep_guides_i18n.
+        lang = self._guide_language()
+        translated = (
+            guide_translations.get(lang, {}).get(guide_family or "", {}).get(component)
+            if lang else None
+        )
+        if translated:
+            if translated.get("steps"):
+                guide["steps"] = list(translated["steps"])
+            if translated.get("notes"):
+                guide["notes"] = list(translated["notes"])
+            if translated.get("clean_frequency"):
+                guide["clean_frequency"] = translated["clean_frequency"]
+            if translated.get("replace_frequency"):
+                guide["replace_frequency"] = translated["replace_frequency"]
 
         guide["source_model_code"] = model_code
         guide["source_model_name"] = model_names.get(model_code or "", model_code)

@@ -216,7 +216,7 @@ export function applyRoomEditorRenderer(proto) {
               class="evcc-chip ${fields.clean_mode === opt.value ? "active" : ""}"
               data-field="clean_mode"
               data-value="${this.escapeHtml(opt.value)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab("clean_mode", opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -240,7 +240,7 @@ export function applyRoomEditorRenderer(proto) {
               class="evcc-chip ${fields.fan_speed === opt.value ? "active" : ""}"
               data-field="fan_speed"
               data-value="${this.escapeHtml(opt.value)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab("fan_speed", opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -266,7 +266,7 @@ export function applyRoomEditorRenderer(proto) {
               class="evcc-chip ${fields.water_level === opt.value ? "active" : ""}"
               data-field="water_level"
               data-value="${this.escapeHtml(opt.value)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab("water_level", opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>
@@ -292,7 +292,7 @@ export function applyRoomEditorRenderer(proto) {
               class="evcc-chip ${fields.clean_intensity === opt.value ? "active" : ""}"
               data-field="clean_intensity"
               data-value="${this.escapeHtml(opt.value)}"
-            >${this.escapeHtml(opt.label)}</button>
+            >${this.tVocab("clean_intensity", opt.value, opt.label)}</button>
           `).join("")}
         </div>
       </div>

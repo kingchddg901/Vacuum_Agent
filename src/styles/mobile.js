@@ -65,11 +65,23 @@ export const MOBILE_STYLES = `
     flex-direction: column;
     gap:         2px;
     padding:     10px 14px;
+    /* Reserve room on the right so the vacuum name/status never run under the
+       language globe (absolutely positioned top-right below). */
+    padding-right: 52px;
     border-bottom: 1px solid var(--evcc-border-subtle);
     background:  var(--evcc-surface-panel);
     position:    sticky;
     top:         0;
     z-index:     9;
+  }
+
+  /* Language globe — pinned to the top-right of the sticky mobile header. The
+     header is the positioned ancestor; the dropdown/backdrop stack within the
+     header's z-index:9 context, above the view-stage. */
+  .evcc-mobile-header-lang {
+    position: absolute;
+    top:      8px;
+    right:    10px;
   }
 
   .evcc-mobile-vacuum-name {

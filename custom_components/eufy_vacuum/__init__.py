@@ -109,19 +109,45 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 
     integration_dir = os.path.dirname(__file__)
 
-    def _prepare_static_dirs() -> tuple[str, str, str]:
-        """Create the served directories and regenerate the animal index.
+    def _prepare_static_dirs() -> tuple[str, str, str, str]:
+        """Create the served directories and regenerate the auto-indexes.
 
         All filesystem work (makedirs / listdir / open) lives here so it runs in
         the executor — never on the event loop.
 
         Floor textures ship with the integration so HACS delivers them on every
         install (cache_headers=True; versioned, non-changing ~18 MB assets). The
-        animal index is auto-generated so manifest.js can load every animal file
-        without editing — dropping a .js into animals/ and restarting is enough.
+        animal index and the drop-in locale index are auto-generated so the
+        frontend can load every file without editing — dropping a .js into
+        animals/ (or a <code>.json into config/eufy_vacuum/locales/) and
+        restarting is enough.
         """
         maps_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "maps")
         os.makedirs(maps_dir, exist_ok=True)
+
+        # Drop-in locales: user-supplied translation JSON in
+        # config/eufy_vacuum/locales/ (persistent across HACS updates, like
+        # maps). Auto-index the "<code>.json" files so the card can discover +
+        # load each at runtime — drop a file and restart. index.json is excluded.
+        locales_dir = os.path.join(hass.config.config_dir, "eufy_vacuum", "locales")
+        os.makedirs(locales_dir, exist_ok=True)
+        # Auto-index real .json files only — never index.json, never a symlink.
+        # The dir is served statically (like HA's /local/), so an authenticated
+        # user can read whatever they place here; keeping the index limited to
+        # regular locale files means a stray symlink is never advertised or
+        # auto-loaded by the card. (Document: locale JSON only belongs here.)
+        locale_files = sorted(
+            f
+            for f in os.listdir(locales_dir)
+            if f.endswith(".json")
+            and f != "index.json"
+            and os.path.isfile(os.path.join(locales_dir, f))
+            and not os.path.islink(os.path.join(locales_dir, f))
+        )
+        with open(
+            os.path.join(locales_dir, "index.json"), "w", encoding="utf-8"
+        ) as fh:
+            json.dump(locale_files, fh)
 
         frontend_dir = os.path.join(integration_dir, "frontend")
         os.makedirs(frontend_dir, exist_ok=True)
@@ -136,9 +162,30 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             ) as fh:
                 json.dump(animal_files, fh)
 
-        return maps_dir, os.path.join(integration_dir, "textures"), frontend_dir
+        # SHIPPED locales (de/fr/es/nl/it/pt/ru) — ripped out of the minified
+        # card bundle, they ship as nested JSON here and load at runtime. Auto-
+        # index them (same as animals) so the card discovers each without an
+        # edit; served via the existing /eufy_vacuum/frontend static path.
+        shipped_locales_dir = os.path.join(frontend_dir, "locales")
+        if os.path.isdir(shipped_locales_dir):
+            shipped_locale_files = sorted(
+                f
+                for f in os.listdir(shipped_locales_dir)
+                if f.endswith(".json") and f != "index.json"
+            )
+            with open(
+                os.path.join(shipped_locales_dir, "index.json"), "w", encoding="utf-8"
+            ) as fh:
+                json.dump(shipped_locale_files, fh)
 
-    maps_dir, textures_dir, frontend_dir = await hass.async_add_executor_job(
+        return (
+            maps_dir,
+            os.path.join(integration_dir, "textures"),
+            frontend_dir,
+            locales_dir,
+        )
+
+    maps_dir, textures_dir, frontend_dir, locales_dir = await hass.async_add_executor_job(
         _prepare_static_dirs
     )
 
@@ -147,6 +194,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             StaticPathConfig("/eufy_vacuum/maps", maps_dir, cache_headers=False),
             StaticPathConfig("/eufy_vacuum/textures", textures_dir, cache_headers=True),
             StaticPathConfig("/eufy_vacuum/frontend", frontend_dir, cache_headers=False),
+            StaticPathConfig("/eufy_vacuum/locales", locales_dir, cache_headers=False),
         ]
     )
 

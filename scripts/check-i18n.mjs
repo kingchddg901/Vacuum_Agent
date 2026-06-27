@@ -38,7 +38,8 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { dirname, join, relative } from "node:path";
-import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale } from "../src/i18n/index.js";
+import { translate, registerLocale, resolveLang, validateLocale, localeSource, loadLocale, loadDroppedLocales, listBundledLocales, listLocales } from "../src/i18n/index.js";
+import { flattenLocale } from "../src/i18n/flatten.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..");
@@ -64,9 +65,12 @@ registerLocale("ev", {
   "rooms.count_rooms": { other: '<b>{count}</b>' },
 });
 // A real multi-form language (Russian: one/few/many/other) drives the
-// Intl.PluralRules selection path; "de" has the key absent (English-object
-// fallback); "pl" supplies only `other` (in-entry fallback when the chosen
-// category is missing).
+// Intl.PluralRules selection path; "sv" (Swedish — deliberately a NON-BUNDLED
+// locale, so it has no catalog) exercises the English-object cross-locale
+// fallback; "pl" supplies only `other` (in-entry fallback when the chosen
+// category is missing). NOTE: the fallback case must use a locale NOT bundled
+// in CATALOGS (en/ru/de/fr/es/nl/it/pt) — a bundled one resolves to its own
+// translation instead of falling back. Keep it a tier-absent code.
 registerLocale("ru", {
   "rooms.count_rooms": {
     one: "{count} комната", few: "{count} комнаты",
@@ -175,8 +179,10 @@ check("plural: missing count falls to 'other'", () => {
 //     category is absent; a locale missing the key entirely falls to English.
 check("plural: in-entry + cross-locale fallback", () => {
   assert.equal(translate("pl", "rooms.count_rooms", { count: 1 }), "pokoje: 1");
-  assert.equal(translate("de", "rooms.count_rooms", { count: 1 }), "1 room");
-  assert.equal(translate("de", "rooms.count_rooms", { count: 3 }), "3 rooms");
+  // "sv" has no bundled catalog → cross-locale fallback to the English object,
+  // with sv's own (one/other) Intl plural selection.
+  assert.equal(translate("sv", "rooms.count_rooms", { count: 1 }), "1 room");
+  assert.equal(translate("sv", "rooms.count_rooms", { count: 3 }), "3 rooms");
 });
 
 // 16. TRUST MODEL B holds for the SELECTED plural form — a hostile form is
@@ -191,12 +197,101 @@ check("plural: selected form is escaped (trust model B)", () => {
 
 // 17. config.i18n.locale PINS the language; "auto" / absent defers to hass.
 check("resolveLang: config locale pins, auto/absent defers to hass", () => {
-  const hass = { locale: { language: "de" } };
-  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }), "fr");   // pinned wins
-  assert.equal(resolveLang(hass, { i18n: { locale: "auto" } }), "de"); // auto -> hass
-  assert.equal(resolveLang(hass, {}), "de");                            // no i18n -> hass
-  assert.equal(resolveLang({ language: "es" }, undefined), "es");       // legacy hass.language
+  // hass language "sv" is non-bundled (not draft-gated) so it passes through and
+  // these assertions isolate the pin-vs-auto behavior from the draft-gate below.
+  const hass = { locale: { language: "sv" } };
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }), "fr");   // pinned wins (explicit, bypasses gate)
+  assert.equal(resolveLang(hass, { i18n: { locale: "auto" } }), "sv"); // auto -> hass
+  assert.equal(resolveLang(hass, {}), "sv");                            // no i18n -> hass
+  assert.equal(resolveLang({ language: "sv" }, undefined), "sv");       // legacy hass.language
   assert.equal(resolveLang(undefined, undefined), "en");                // nothing -> en
+});
+
+// 17b. DRAFT-GATE: an unreviewed bundled locale must not auto-activate from the
+//      system language (falls to English); an explicit pin still reaches it.
+check("resolveLang: draft-gate blocks auto-activation, explicit pin bypasses", () => {
+  // "de" is a bundled DRAFT — auto (system language) must fall back to English.
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}), "en");
+  assert.equal(resolveLang({ locale: { language: "de" } }, { i18n: { locale: "auto" } }), "en");
+  assert.equal(resolveLang({ locale: { language: "de-DE" } }, {}), "en"); // base-language gated too
+  assert.equal(resolveLang({ language: "ru" }, undefined), "en");          // legacy field gated too
+  // Explicit pin to a draft BYPASSES the gate (deliberate per-dashboard choice).
+  assert.equal(resolveLang({ locale: { language: "de" } }, { i18n: { locale: "de" } }), "de");
+  // Stable (en) auto-activates; non-bundled passes through unchanged.
+  assert.equal(resolveLang({ locale: { language: "en" } }, {}), "en");
+  assert.equal(resolveLang({ locale: { language: "sv" } }, {}), "sv");
+});
+
+// 17d. OVERRIDE: the in-card control's per-user choice is the most explicit
+//      source — it wins over the config pin AND the system language, and (like
+//      the pin) bypasses the draft-gate. "auto"/empty defers down the chain.
+check("resolveLang: per-user override wins over pin + system, bypasses draft-gate", () => {
+  const hass = { locale: { language: "sv" } };
+  // Override beats a conflicting config pin.
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }, "it"), "it");
+  // Override beats the system language.
+  assert.equal(resolveLang(hass, {}, "es"), "es");
+  // Override to a DRAFT bypasses the gate even when the system language would be gated.
+  assert.equal(resolveLang({ locale: { language: "en" } }, {}, "de"), "de");
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}, "ru"), "ru");
+  // "auto" / empty override defers to the pin, then the system language.
+  assert.equal(resolveLang(hass, { i18n: { locale: "fr" } }, "auto"), "fr");
+  assert.equal(resolveLang(hass, {}, "auto"), "sv");
+  assert.equal(resolveLang(hass, {}, ""), "sv");
+  assert.equal(resolveLang(hass, {}, undefined), "sv");
+  // An "auto" override over a draft system language is still gated (defers, then gate).
+  assert.equal(resolveLang({ locale: { language: "de" } }, {}, "auto"), "en");
+});
+
+// 17e. The three language-control strings are defined in the English base
+//      (the menu heading, button title, and the "Auto" row) — the control
+//      renders keys, so a missing one would surface as a visible miss.
+check("language control keys exist in en base", () => {
+  for (const key of ["language.button_title", "language.heading", "language.auto"]) {
+    assert.notEqual(translate("en", key), key, `${key} missing from en base`);
+  }
+});
+
+// 17c. listBundledLocales: endonyms + localized draft tags for the override picker.
+check("listBundledLocales: endonyms, localized draft tags, English first", () => {
+  const list = listBundledLocales();
+  assert.equal(list[0].code, "en");
+  assert.equal(list[0].status, "stable");
+  assert.equal(list[0].label, "English");
+  const de = list.find((l) => l.code === "de");
+  assert.equal(de.status, "draft");
+  assert.equal(de.label, "Deutsch (Entwurf)");          // endonym + own word for draft
+  assert.equal(list.find((l) => l.code === "ru").label, "Русский (черновик)");
+});
+
+// 17f. listLocales + draft-gate: a RUNTIME "custom" locale (a drop-in JSON,
+//      registered with status:"custom") is SELECTABLE in the picker but, like a
+//      bundled draft, reachable only by an explicit override/pin — never auto.
+check("listLocales: a runtime custom locale is selectable + explicit-only", () => {
+  registerLocale("eo", { "rooms.empty": "Neniu ĉambro" }, { status: "custom" });
+  const eo = listLocales().find((l) => l.code === "eo");
+  assert.ok(eo, "custom locale appears in listLocales");
+  assert.equal(eo.status, "custom");
+  assert.match(eo.label, /\(custom\)/);
+  assert.equal(translate("eo", "rooms.empty"), "Neniu ĉambro");
+  // Gated from auto-activation (system language); reachable by override / pin.
+  assert.equal(resolveLang({ locale: { language: "eo" } }, {}), "en");
+  assert.equal(resolveLang({}, {}, "eo"), "eo");
+  assert.equal(resolveLang({}, { i18n: { locale: "eo" } }), "eo");
+  // listLocales is a SUPERSET of the bundled set (English still first/present).
+  assert.equal(listLocales()[0].code, "en");
+});
+
+// 17g. Shadow: a drop-in whose code matches a BUNDLED one overrides the catalog
+//      (so you can fix a bundled draft locally) AND the picker reflects it as
+//      custom — label + active strings agree, no silent divergence.
+check("listLocales: a drop-in overriding a bundled code wins + shows custom", () => {
+  registerLocale("nl", { "rooms.empty": "Aangepaste NL" }, { status: "custom" });
+  assert.equal(translate("nl", "rooms.empty"), "Aangepaste NL");        // dropped catalog wins
+  const nl = listLocales().find((l) => l.code === "nl");
+  assert.equal(nl.status, "custom");                                     // honest, not "(draft)"
+  assert.match(nl.label, /\(custom\)/);
+  assert.equal(resolveLang({ locale: { language: "nl" } }, {}), "en");   // still gated (explicit-only)
 });
 
 // --- validateLocale (untrusted-locale gate) ------------------------------
@@ -308,6 +403,105 @@ await checkAsync("loadLocale: failures keep English (never throws)", async () =>
   assert.equal(translate("lf", "common.cancel"), translate("en", "common.cancel")); // never registered
 });
 
+// 27. loadDroppedLocales: reads the auto-generated index, loads each file via
+//     loadLocale, tags it "custom" (so it's gated), and surfaces it in the
+//     picker. A missing index resolves soft (ok:false), never throws.
+await checkAsync("loadDroppedLocales: discovers + loads drop-in files (custom-tagged)", async () => {
+  const files = {
+    "index.json": ["xx-drop.json", "skip.txt", "index.json"], // non-json + self ignored
+    "xx-drop.json": { "rooms.empty": "Dropped room" },
+  };
+  const fetchImpl = async (url) => {
+    const name = String(url).split("/").pop();
+    if (!(name in files)) return { ok: false, status: 404 };
+    return { ok: true, status: 200, json: async () => files[name] };
+  };
+  const report = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl, status: "custom" });
+  assert.equal(report.ok, true);
+  assert.deepEqual(report.loaded, ["xx-drop"]);
+  assert.equal(translate("xx-drop", "rooms.empty"), "Dropped room");
+  assert.ok(listLocales().some((l) => l.code === "xx-drop"), "drop-in appears in the picker");
+  assert.equal(resolveLang({ locale: { language: "xx-drop" } }, {}), "en"); // custom -> gated
+  assert.equal(resolveLang({}, {}, "xx-drop"), "xx-drop");                  // override reaches it
+
+  // A missing index is soft (never throws).
+  const missing = await loadDroppedLocales("/none", { fetchImpl: async () => ({ ok: false, status: 404 }) });
+  assert.equal(missing.ok, false);
+
+  // en.json is REFUSED — the English base is the fallback source of truth.
+  const withEn = {
+    "index.json": ["en.json", "yy-drop.json"],
+    "en.json": { "rooms.empty": "HIJACKED" },
+    "yy-drop.json": { "rooms.empty": "Y" },
+  };
+  const fetchEn = async (url) => {
+    const name = String(url).split("/").pop();
+    return name in withEn ? { ok: true, status: 200, json: async () => withEn[name] } : { ok: false, status: 404 };
+  };
+  const r2 = await loadDroppedLocales("/eufy_vacuum/locales", { fetchImpl: fetchEn, status: "custom" });
+  assert.ok(!r2.loaded.includes("en"), "en.json is refused");
+  assert.notEqual(translate("en", "rooms.empty"), "HIJACKED");          // base intact
+  assert.ok(r2.loaded.includes("yy-drop"));                            // others still load
+});
+
+// 28. flattenLocale: nested authoring -> flat catalog. Explicit / commons /
+//     scoped resolution + plural leaves, against an English manifest.
+check("flattenLocale: explicit + commons + plural resolution", () => {
+  const manifest = {
+    "common.save": "Save",
+    "rooms.empty": "No rooms",
+    "rooms.save": "Save",
+    "maintenance.schedule.save": "Save",
+    "rooms.count": { one: "{count} room", other: "{count} rooms" },
+  };
+  const nested = {
+    commons: { save: "Speichern" },
+    rooms: { empty: "Keine Räume", count: { one: "{count} Raum", other: "{count} Räume" } },
+    maintenance: { schedule: { save: "Plan speichern" } },
+  };
+  const { flat, coverage } = flattenLocale(nested, manifest);
+  assert.equal(flat["common.save"], "Speichern");                      // commons fallback
+  assert.equal(flat["rooms.empty"], "Keine Räume");                    // explicit
+  assert.equal(flat["rooms.save"], "Speichern");                       // commons fallback for a leaf
+  assert.equal(flat["maintenance.schedule.save"], "Plan speichern");   // deep explicit
+  assert.deepEqual(flat["rooms.count"], { one: "{count} Raum", other: "{count} Räume" }); // plural leaf
+  assert.ok(coverage.commons.includes("common.save") && coverage.commons.includes("rooms.save"));
+  assert.ok(coverage.explicit.includes("rooms.count"));
+});
+
+// 29. flattenLocale: a leaf at an ANCESTOR scope overrides all descendants.
+check("flattenLocale: scoped leaf overrides descendants", () => {
+  const manifest = { "maintenance.schedule.save": "Save", "maintenance.filter.save": "Save" };
+  const { flat, coverage } = flattenLocale({ maintenance: { save: "Speichern" } }, manifest);
+  assert.equal(flat["maintenance.schedule.save"], "Speichern");
+  assert.equal(flat["maintenance.filter.save"], "Speichern");
+  assert.ok(coverage.scoped.includes("maintenance.schedule.save"));
+});
+
+// 30. flattenLocale: a FLAT locale (dotted keys) passes through unchanged;
+//     missing keys are omitted (-> English fallback) and recorded; non-object safe.
+check("flattenLocale: flat passthrough + untranslated accounting", () => {
+  const manifest = { "a.b": "A", "c.d": "C", "e.f": { one: "1", other: "n" } };
+  const { flat, coverage } = flattenLocale({ "a.b": "AA" }, manifest);
+  assert.equal(flat["a.b"], "AA");                                     // literal flat key
+  assert.equal(flat["c.d"], undefined);                               // omitted
+  assert.ok(coverage.untranslated.includes("c.d") && coverage.untranslated.includes("e.f"));
+  const r = flattenLocale(null, manifest);
+  assert.equal(Object.keys(r.flat).length, 0);
+  assert.equal(r.coverage.untranslated.length, 3);
+});
+
+// 31. flattenLocale: plural disambiguation — a CLDR-only object is a leaf; an
+//     object with any non-CLDR key is a SECTION (so its would-be key is untranslated).
+check("flattenLocale: plural vs section disambiguation", () => {
+  const manifest = { "x.y": "Y" };
+  const asLeaf = flattenLocale({ x: { y: { one: "1", other: "n" } } }, manifest);
+  assert.deepEqual(asLeaf.flat["x.y"], { one: "1", other: "n" });
+  const asSection = flattenLocale({ x: { y: { one: "1", banana: "2" } } }, manifest);
+  assert.equal(asSection.flat["x.y"], undefined);
+  assert.ok(asSection.coverage.untranslated.includes("x.y"));
+});
+
 /* =========================================================
    B. KEY CROSS-CHECK (used in src  <->  defined in en.js)
    ========================================================= */
@@ -384,33 +578,31 @@ if (dead.length === 0) {
 }
 
 /* =========================================================
-   C. BUNDLED LOCALE VALIDATION (every shipped locale vs English)
+   C. SHIPPED LOCALE VALIDATION (every served locale JSON vs English)
    ========================================================= */
-// Any locale file bundled under src/i18n/ (a `ru.js` etc., beyond the English
-// base) must pass validateLocale against English — placeholder parity, value
-// shapes, no unsafe keys — so a broken committed translation fails the BUILD,
-// not the user's render. No-op until the first locale lands.
-console.log("\nC. bundled locale validation");
-const i18nDir = join(SRC, "i18n");
-const localeFiles = readdirSync(i18nDir).filter(
-  (f) => f.endsWith(".js") && f !== "index.js" && f !== "en.js" && !f.endsWith(".test.js"),
-);
-if (localeFiles.length === 0) {
-  console.log("  ✓ no bundled locales beyond en (nothing to validate yet)");
+// The non-English locales were ripped out of the bundle: they ship as nested
+// JSON under custom_components/eufy_vacuum/frontend/locales/ and load at runtime.
+// Each must FLATTEN against the English manifest and pass validateLocale
+// (placeholder parity, value shapes, no unsafe keys) — so a broken committed
+// translation fails the BUILD, not the user's render.
+console.log("\nC. shipped locale validation");
+const { en: enCatalog } = await import(pathToFileURL(join(SRC, "i18n", "en.js")).href);
+const shippedDir = join(REPO, "custom_components", "eufy_vacuum", "frontend", "locales");
+let shippedFiles = [];
+try {
+  shippedFiles = readdirSync(shippedDir).filter((f) => f.endsWith(".json") && f !== "index.json");
+} catch { /* dir absent — no-op */ }
+if (shippedFiles.length === 0) {
+  console.log("  ✓ no shipped locales (nothing to validate)");
 } else {
-  for (const f of localeFiles) {
-    const mod = await import(pathToFileURL(join(i18nDir, f)).href);
-    // The catalog is the largest object-valued export (e.g. `export const ru`).
-    const cat = Object.values(mod)
-      .filter((v) => v && typeof v === "object" && !Array.isArray(v))
-      .sort((a, b) => Object.keys(b).length - Object.keys(a).length)[0];
-    if (!cat) { fail(`locale ${f}: no catalog object export`); continue; }
-    const { clean, warnings, errors } = validateLocale(cat);
-    if (errors.length) {
-      for (const e of errors) fail(`locale ${f}: ${e}`);
-    } else {
-      console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
-    }
+  for (const f of shippedFiles) {
+    let nested;
+    try { nested = JSON.parse(readFileSync(join(shippedDir, f), "utf8")); }
+    catch (e) { fail(`locale ${f}: invalid JSON — ${e.message}`); continue; }
+    const { flat, coverage } = flattenLocale(nested, enCatalog);
+    const { clean, warnings, errors } = validateLocale(flat);
+    if (errors.length) { for (const e of errors) fail(`locale ${f}: ${e}`); continue; }
+    console.log(`  ✓ ${f}: ${Object.keys(clean).length} keys valid (${coverage.untranslated.length} → en)${warnings.length ? ` (${warnings.length} warning(s))` : ""}`);
   }
 }
 

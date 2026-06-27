@@ -9,7 +9,8 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, localeSource } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales } from "./i18n/index.js";
+import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
 
@@ -49,6 +50,16 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._lastLoadedRoomEstimateVacuumEntityId = null;
     this._themeLoaded = false;
     this._setupStatusTimer = null;
+
+    // Language control state (the header globe). _langOverride is the per-user
+    // choice ("auto" | locale code), loaded once from HA user-data; the menu
+    // starts closed; _langOverrideLoaded is the one-shot load guard;
+    // _langUserPicked blocks a late server read from clobbering a fresh
+    // in-session pick (see _maybeLoadLangOverride / setLanguageOverride).
+    this._langOverride = "auto";
+    this._languageMenuOpen = false;
+    this._langOverrideLoaded = false;
+    this._langUserPicked = false;
 
     this._learningController = null;
 
@@ -306,9 +317,13 @@ class EufyVacuumCommandCenter extends HTMLElement {
      through this._renderers.t; these go straight to the i18n module.
      ========================================================= */
 
-  /** Resolve the active UI language (shared resolver; honors config.i18n.locale). */
+  /**
+   * Resolve the active UI language (shared resolver). Honors, in order: the
+   * per-user in-card override (this._langOverride), then config.i18n.locale,
+   * then the HA system language.
+   */
   _i18nLanguage() {
-    return resolveLang(this._hass, this._config);
+    return resolveLang(this._hass, this._config, this._langOverride);
   }
 
   /** Translate a card-level UI string (HTML-escaped; trust model B). */
@@ -324,7 +339,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
    * Fails soft — a missing/invalid/cross-origin file just keeps English (logged).
    */
   _maybeLoadLocale() {
-    const src = localeSource(this._config, resolveLang(this._hass, this._config));
+    const src = localeSource(this._config, resolveLang(this._hass, this._config, this._langOverride));
     if (!src || this._localeLoadKey === src.key) return;
     // Same-origin only: never fetch a cross-origin url a shared dashboard config
     // might point at (privacy + trust). Relative urls (e.g. /local/...) pass.
@@ -349,6 +364,82 @@ class EufyVacuumCommandCenter extends HTMLElement {
     });
   }
 
+  /* =========================================================
+     LANGUAGE OVERRIDE — the header globe control. The choice is stored
+     per-user, server-side (i18n/lang-store.js), so it follows the HA login
+     across devices. resolveLang() consumes `this._langOverride` as its
+     highest-priority source (above config + system), bypassing the draft-gate.
+     ========================================================= */
+
+  /**
+   * Load the per-user language choice ONCE, the first time hass is available.
+   * Fails soft to no-override (English/config/system) — see lang-store.js. A
+   * change made on another device is picked up on the next load (the documented
+   * tradeoff of the per-user-data store), not in real time.
+   */
+  _maybeLoadLangOverride() {
+    if (this._langOverrideLoaded) return;
+    this._langOverrideLoaded = true; // one-shot, set before the await
+    getStoredLang(this._hass).then((code) => {
+      // If the user already picked this session, their choice wins — never let
+      // a late server read (possibly a stale value, or one racing our own write)
+      // clobber a fresh in-session pick.
+      if (this._langUserPicked) return;
+      if (code == null || code === this._langOverride) return;
+      this._langOverride = code;
+      // Re-render so the stored language replaces the current paint.
+      if (this._config?.vacuum_entity_id) this._scheduleRender();
+      else this._renderNoVacuumPlaceholder();
+    });
+  }
+
+  /**
+   * Load the runtime locale catalogs, ONCE. Two sources, in order:
+   *   1. SHIPPED — de/fr/es/nl/it/pt/ru, ripped out of the bundle and served as
+   *      nested JSON at /eufy_vacuum/frontend/locales/ (no status arg → each
+   *      keeps its bundled LOCALE_STATUS, i.e. "draft").
+   *   2. USER DROP-INS — config/eufy_vacuum/locales/ (status "custom", gated).
+   * Drops load AFTER shipped so a drop-in OVERRIDES the shipped locale of the
+   * same code (the user's correction wins). Both flatten the nested JSON and
+   * fail soft — English (bundled) covers anything that doesn't load.
+   */
+  _maybeLoadExternalLocales() {
+    // Shared, module-guarded load (CATALOGS is shared across all cards in the
+    // bundle, incl. the standalone room-card) — see ensureLocalesLoaded.
+    ensureLocalesLoaded(() => {
+      if (this._config?.vacuum_entity_id) this._scheduleRender();
+      else this._renderNoVacuumPlaceholder();
+    });
+  }
+
+  /** Open/close the header language dropdown (card-level so it survives re-render). */
+  toggleLanguageMenu() {
+    this._languageMenuOpen = !this._languageMenuOpen;
+    this._scheduleRender();
+  }
+
+  /** Close the header language dropdown (no-op if already closed). */
+  closeLanguageMenu() {
+    if (!this._languageMenuOpen) return;
+    this._languageMenuOpen = false;
+    this._scheduleRender();
+  }
+
+  /**
+   * Apply a language choice from the control: update the live override
+   * immediately (optimistic), close the menu, re-render, and persist per-user in
+   * the background (fire-and-forget; a failed write just doesn't survive reload).
+   *
+   * @param {string} code - a bundled locale code, or "auto" to defer to config/system.
+   */
+  setLanguageOverride(code) {
+    this._langUserPicked = true; // an in-session pick wins over a late server read
+    this._langOverride = code;
+    this._languageMenuOpen = false;
+    this._scheduleRender();
+    setStoredLang(this._hass, code);
+  }
+
   set narrow(narrow) {
     this._narrow = narrow;
   }
@@ -363,6 +454,13 @@ class EufyVacuumCommandCenter extends HTMLElement {
     // Load an external locale (config.i18n) once the language is known — runs in
     // BOTH the placeholder and the normal path (one-shot, see _maybeLoadLocale).
     this._maybeLoadLocale();
+
+    // Load the per-user language override once hass (and its websocket) exist —
+    // one-shot, runs in both the placeholder and normal paths (see method).
+    this._maybeLoadLangOverride();
+
+    // Load the runtime locale catalogs (shipped + user drop-ins) — one-shot.
+    this._maybeLoadExternalLocales();
 
     // Setup-placeholder mode: no vacuum configured yet, the static
     // placeholder is already in the DOM, and we have no state to sync.
@@ -451,6 +549,10 @@ class EufyVacuumCommandCenter extends HTMLElement {
       vacuum_entity_id: "vacuum.your_vacuum",
     };
   }
+
+  // Visual config editor (per-dashboard): entity + a display-language override
+  // that writes config.i18n.locale. See EufyVacuumCardEditor near registration.
+  static getConfigElement() { return document.createElement(CARD_EDITOR_NAME); }
 
   /* =========================================================
      VIEW MANAGEMENT
@@ -1749,6 +1851,113 @@ class EufyVacuumCommandCenter extends HTMLElement {
     });
   }
 }
+
+/* =========================================================
+   CONFIG EDITOR (per-dashboard)
+   =========================================================
+   A minimal visual editor for the card's Lovelace config: the vacuum entity
+   plus a "Display language" override that writes `config.i18n.locale`. The pin
+   bypasses the draft-gate (resolveLang), so a user can opt into any bundled
+   language or force English regardless of the HA system language — per this
+   card/dashboard only. (Advanced/runtime settings live in the in-card Setup
+   tab + backend; the Lovelace config stays minimal.) */
+
+const CARD_EDITOR_NAME = `${CARD_NAME}-editor`;
+
+function _editorEsc(str) {
+  return String(str ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+class EufyVacuumCardEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._hass = null;
+    this._config = {};
+  }
+
+  setConfig(config) { this._config = config ?? {}; this._render(); }
+  set hass(hass) { this._hass = hass; this._render(); }
+
+  // Editor labels follow the editor's own resolved language (English fallback
+  // for any locale that hasn't translated the card_editor.* keys yet).
+  t(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars); }
+
+  _vacuumEntities() {
+    if (!this._hass) return [];
+    return Object.keys(this._hass.states).filter((id) => id.startsWith("vacuum.")).sort();
+  }
+
+  _fire(config) {
+    this.dispatchEvent(new CustomEvent("config-changed", {
+      detail: { config }, bubbles: true, composed: true,
+    }));
+  }
+
+  _render() {
+    if (!this.shadowRoot) return;
+    const vacuums = this._vacuumEntities();
+    const selectedVacuum = this._config.vacuum_entity_id ?? "";
+    const selectedLang = (this._config.i18n && this._config.i18n.locale) || "auto";
+    const locales = listBundledLocales();
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host { display: block; font-family: var(--paper-font-body1_-_font-family, sans-serif); }
+        .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
+        label {
+          font-size: 0.80rem; font-weight: 500;
+          color: var(--secondary-text-color, #888);
+          text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        select {
+          width: 100%; box-sizing: border-box; padding: 8px 10px;
+          border: 1px solid var(--divider-color, rgba(255,255,255,0.12));
+          border-radius: 6px;
+          background: var(--card-background-color, #1c2127);
+          color: var(--primary-text-color, #f0f2f5);
+          font-size: 0.92rem; appearance: none; -webkit-appearance: none;
+        }
+        select:focus { outline: none; border-color: var(--primary-color, #3b82f6); }
+        .hint { font-size: 0.75rem; color: var(--secondary-text-color, #888); margin-top: 2px; }
+      </style>
+
+      <div class="field">
+        <label>${this.t("card_editor.vacuum_label")}</label>
+        <select id="vacuum">
+          <option value="" disabled ${!selectedVacuum ? "selected" : ""}>${this.t("card_editor.pick_vacuum")}</option>
+          ${vacuums.map((v) => `<option value="${_editorEsc(v)}" ${v === selectedVacuum ? "selected" : ""}>${_editorEsc(v)}</option>`).join("")}
+        </select>
+      </div>
+
+      <div class="field">
+        <label>${this.t("card_editor.language_label")}</label>
+        <select id="lang">
+          <option value="auto" ${selectedLang === "auto" ? "selected" : ""}>${this.t("card_editor.language_auto")}</option>
+          ${locales.map((l) => `<option value="${_editorEsc(l.code)}" ${l.code === selectedLang ? "selected" : ""}>${_editorEsc(l.label)}</option>`).join("")}
+        </select>
+        <div class="hint">${this.t("card_editor.language_hint")}</div>
+      </div>
+    `;
+
+    this.shadowRoot.getElementById("vacuum")?.addEventListener("change", (e) => {
+      this._fire({ ...this._config, vacuum_entity_id: e.target.value });
+    });
+    this.shadowRoot.getElementById("lang")?.addEventListener("change", (e) => {
+      const val = e.target.value;
+      // "auto" is stored explicitly (resolveLang treats it as defer-to-HA); a
+      // language code pins it. Either way write into config.i18n.locale.
+      const next = { ...this._config, i18n: { ...(this._config.i18n || {}), locale: val } };
+      this._fire(next);
+    });
+  }
+}
+
+customElements.define(CARD_EDITOR_NAME, EufyVacuumCardEditor);
 
 /* =========================================================
    REGISTRATION

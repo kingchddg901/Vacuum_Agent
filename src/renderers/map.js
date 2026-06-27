@@ -55,10 +55,12 @@ const _SEGMENT_COLORS = [
   "#60a5fa", "#f472b6", "#4ade80", "#f97316",
 ];
 
+// Stable variant keys only — the human label + ranking hint are localized at
+// the render site (`map.variant_<key>_label` / `_hint`), so no English lives here.
 const _VARIANTS = [
-  { key: "dark",    label: "Dark",    hint: "primary — clearest room colours" },
-  { key: "light",   label: "Light",   hint: "assist — wall detection" },
-  { key: "default", label: "Default", hint: "fallback" },
+  { key: "dark" },
+  { key: "light" },
+  { key: "default" },
 ];
 
 /**
@@ -1502,7 +1504,7 @@ export function applyMapRenderers(proto) {
 
   proto._renderVariantsSection = function (variants, summary, actionStatus, state) {
     const armedDelete = state?.mapVariantDeleteArmed?.() ?? null;
-    const rows = _VARIANTS.map(({ key, label, hint }) => {
+    const rows = _VARIANTS.map(({ key }) => {
       const uploaded   = variants[key];
       // Treat both the upload phase and the (much longer) analyze phase
       // as "busy" for this variant, so the button stays in a clear working
