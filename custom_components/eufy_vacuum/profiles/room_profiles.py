@@ -159,14 +159,21 @@ def resolve_profile_catalog(block: dict[str, Any] | None) -> dict[str, Any]:
 
 
 def get_default_room_profiles(catalog: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
-    """Return default room profiles including the legacy user slot.
+    """Return the default room profiles (the built-in catalog).
 
-    ``catalog`` (a resolved ``room_profiles`` block) overrides the built-ins +
-    custom template; None uses the in-code constants (byte-identical)."""
+    ``catalog`` (a resolved ``room_profiles`` block) overrides the built-ins;
+    None uses the in-code constants (byte-identical).
+
+    The legacy ``user_1`` "starting custom slot" is intentionally NOT injected
+    here. It predated multi-profile "Save as New", and as a *pristine* framework
+    default it surfaced as an undeletable "User Profile 1" chip in the room editor
+    — it lives in no user store, so a delete found nothing (profile_not_found) and
+    it reappeared on every fetch. A ``user_1`` a user has actually saved-over still
+    lives in the stored profiles and is returned by the merge as real, deletable
+    data; ``custom_template`` remains in the resolved catalog for callers that want
+    the starting-settings template explicitly."""
     cat = catalog or {}
-    profiles = deepcopy(cat.get("builtins") or BUILT_IN_ROOM_PROFILES)
-    profiles["user_1"] = deepcopy(cat.get("custom_template") or DEFAULT_CUSTOM_ROOM_PROFILE)
-    return profiles
+    return deepcopy(cat.get("builtins") or BUILT_IN_ROOM_PROFILES)
 
 
 def normalize_room_profile(
