@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **169 tests across 14 files**.
+contract). Covered by **170 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -29,7 +29,7 @@ docs, not here:
 | `job_control.py` | 127 | 95% | `test_services_job_control_read.py`, `test_services_job_control_write.py` |
 | `run_profiles.py` | 89 | 100% | `test_services_run_profiles.py` |
 | `adapter_config.py` | 96 | 94% | `test_services_adapter_config.py` |
-| `setup.py` | 124 | 91% | `test_services_errors_setup.py` |
+| `setup.py` | 128 | 91% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
 | `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
 | `rooms.py` | 80 | 95% | `test_services_rooms.py` |

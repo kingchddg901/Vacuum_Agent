@@ -2,7 +2,7 @@
 
 The rooms subsystem owns room discovery, the managed-room CRUD lifecycle, and the
 **access graph** (which rooms grant cleaning access to which, plus the rule
-engine that gates/modifies rooms at start). Covered by **170 tests across 9 files**.
+engine that gates/modifies rooms at start). Covered by **187 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/rooms/`
 Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.md), [docs/dev/09-room-rules-system.md](../../dev/09-room-rules-system.md)
@@ -15,11 +15,11 @@ Architecture reference: [docs/dev/08-rooms-system.md](../../dev/08-rooms-system.
 |---------------|------:|----:|------------|-------|
 | `access_graph.py` | 404 | 94% | `test_access_graph.py`, `test_manager_rooms.py` | integration |
 | `room_crud.py` | 116 | 99% | `test_room_crud.py`, `test_manager_rooms.py` | integration |
-| `room_discovery.py` | 79 | 93% | `test_room_discovery.py` | integration |
+| `room_discovery.py` | 96 | 94% | `test_room_discovery.py` | integration |
 | `reconciliation.py` | 112 | 86% | `test_rooms_reconciliation.py` (unit), `test_rooms_reconcile.py` | integration |
-| `source_refresh.py` | 78 | 95% | `test_rooms_source_refresh.py` (unit) | unit |
+| `source_refresh.py` | 94 | 91% | `test_rooms_source_refresh.py` (unit) | unit |
 | `room_manager.py` | 40 | 100% | `test_room_manager.py` (unit) | unit |
-| `utils.py` | 2 | 100% | `test_rooms_utils.py` (unit) | unit |
+| `utils.py` | 3 | 100% | `test_rooms_utils.py` (unit) | unit |
 
 (Room-facing services live in [17 — services](17-services.md):
 `test_services_rooms.py`, `test_services_access_graph.py`.)

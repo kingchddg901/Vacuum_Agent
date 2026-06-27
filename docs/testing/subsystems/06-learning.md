@@ -7,7 +7,7 @@
 
 The learning subsystem records cleaning runs, rebuilds per-room/per-profile
 stats, estimates ETAs with a confidence model, and finalizes completed jobs. It
-is exercised by **406 tests across 13 files** (398 test functions, expanded by
+is exercised by **411 tests across 13 files** (400 test functions, expanded by
 parametrization).
 
 Source: `custom_components/eufy_vacuum/learning/`
@@ -23,7 +23,7 @@ Architecture reference: [docs/dev/10-learning-system.md](../../dev/10-learning-s
 | `estimator.py` | 411 | 94% | `tests/unit/test_learning_estimator.py` | unit (pure + class) |
 | `history_store.py` | 475 | 93% | `tests/unit/test_learning_history_store.py` | unit (`tmp_path` FS) |
 | `stats_rebuilder.py` | 460 | 93% | `tests/unit/test_learning_stats_rebuilder.py` | unit (`tmp_path` FS) |
-| `job_finalizer.py` | 524 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
+| `job_finalizer.py` | 537 | 93% | `tests/unit/test_learning_job_finalizer.py` + `tests/integration/test_learning_services.py` | unit (pure) + integration |
 | `manager.py` | 680 | 95% | `tests/integration/test_learning_services.py` + `tests/unit/test_learning_profile_label.py` | integration |
 | `services.py` | 241 | 96% | `tests/integration/test_learning_services.py` | integration |
 | `external_ingest.py` | 390 | 95% | `tests/unit/test_learning_external_ingest.py` | unit (pure) |

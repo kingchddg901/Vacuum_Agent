@@ -29,7 +29,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `config_loader.py` | 33 | 100% | `test_adapters.py` | integration |
 | `config_schema.py` | 2 | 100% | `test_adapters.py` | integration |
 | `eufy/segmentor.py` | 866 | 91% | `tests/adapters/eufy/` | adapter |
-| `eufy/adapter.py` | 40 | 95% | `tests/adapters/eufy/` | adapter |
+| `eufy/adapter.py` | 52 | 85% | `tests/adapters/eufy/` | adapter |
 | `eufy/discovery.py` | 54 | 100% | `test_discovery.py` | adapter |
 | `eufy/entities.py` | 28 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
