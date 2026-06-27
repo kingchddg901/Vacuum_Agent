@@ -11,6 +11,7 @@
     "harness:shoot": "node harness/build.mjs && node harness/shoot.mjs",
     "harness:gallery": "node harness/build.mjs && node harness/shoot-gallery.mjs",
     "harness:preview": "node harness/build.mjs && node harness/preview.mjs",
+    "harness:locales": "node harness/build.mjs && node harness/shoot-locales.mjs",
     "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs",
     "check:i18n": "node scripts/check-i18n.mjs"
   },
