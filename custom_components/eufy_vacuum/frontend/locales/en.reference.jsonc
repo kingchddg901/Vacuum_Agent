@@ -59,6 +59,55 @@
       "narrow": "Narrow",  // cleaning path / intensity
       "deep": "Deep",  // cleaning path / intensity
       "normal": "Normal"  // cleaning path / intensity (manual-only)
+    },
+    "metrics_tab": {
+      "learning": "Learning",
+      "rooms": "Rooms",
+      "profiles": "Profiles",
+      "water": "Water",
+      "dock": "Dock",
+      "battery": "Battery"
+    },
+    "battery_bucket_key": {
+      "vacuum": "Vacuum",
+      "mop": "Mop",
+      "vacuum_mop": "Vacuum and mop",
+      "quiet": "Quiet",
+      "standard": "Standard",
+      "boost": "Boost",
+      "max": "Max",
+      "off": "Off",
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High"
+    },
+    "battery_weighted_by": {
+      "est_minutes": "Est-minutes",
+      "room_count": "Room count",
+      "none": "None"
+    },
+    "status": {
+      "completed": "Completed",
+      "canceled": "Canceled",
+      "failed": "Failed",
+      "interrupted": "Interrupted"
+    },
+    "used_for_learning": {
+      "true": "Used For Learning",
+      "false": "Not Used For Learning"
+    },
+    "sort": {
+      "newest": "Newest",
+      "outlier": "Highest Outlier",
+      "suggested": "Suggested Exclude",
+      "excluded": "Excluded Only"
+    },
+    "exclude_reason": {
+      "short_test_cancel": "Short Test Cancel",
+      "manual_test_run": "Manual Test Run",
+      "false_completion": "False Completion",
+      "bad_room_attribution": "Bad Room Attribution",
+      "interrupted_run": "Interrupted Run"
     }
   },
   "base_station": {
@@ -671,7 +720,10 @@
     "subtitle": "Per-run bounds derived from job history. Exclude runs to remove outliers from accumulated bounds.",
     "title": "Mapping Bounds Review",
     "unavailable": "Mapping bounds unavailable.",
-    "updated": "Updated"
+    "updated": "Updated",
+    "filter_all_rooms": "All Rooms",
+    "filter_has_bounds": "Has Bounds",
+    "filter_no_bounds": "No Bounds"
   },
   "metrics": {
     "battery_all_jobs": "All jobs (mixed + single)",  // Drain-table aggregate row label 'All jobs (mixed + single)'; the all-buckets total row
@@ -1179,7 +1231,8 @@
     "trust_unlearned": "Unlearned",  // estimate-confidence badge: no learned data, using default estimate
     "warnings": "Warnings",
     "water_label": "Water: {value}",
-    "water_ml": "~{ml} ml water"  // Room chip: projected clean-water this room will use, '~{ml} ml water'
+    "water_ml": "~{ml} ml water",  // Room chip: projected clean-water this room will use, '~{ml} ml water'
+    "trouble_missed": {"one":"Missed {miss}× of {count} run","other":"Missed {miss}× of {count} runs"}
   },
   "run_profiles": {
     "create_profile": "Create Profile",
@@ -1259,7 +1312,8 @@
     "title": "Vacuum Setup",
     "unmanaged_vacuums_hint": "These vacuums are available in Home Assistant but not yet managed. Adding one registers its adapter and a sidebar panel (the integration reloads).",
     "vacuum_registered": "Vacuum registered.",
-    "working": "Working…"
+    "working": "Working…",
+    "panel_name_placeholder": "Vacuum Agent"
   },
   "shell": {
     "setup_add_title": "Add your vacuum",
@@ -1549,5 +1603,11 @@
   },
   "toast": {
     "dismiss": "Dismiss"
+  },
+  "order_modal": {
+    "move_item": "Move {label}",
+    "currently": "Currently",
+    "after_move": "After move",
+    "move_to_position": "Move to position"
   }
 }

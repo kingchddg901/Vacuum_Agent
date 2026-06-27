@@ -74,12 +74,12 @@ export function applyRoomEstimateRenderers(proto) {
       plannedWaterRoom?.clean_mode_label
         ? { label: this.t("room_estimate.label_mode"), value: String(plannedWaterRoom.clean_mode_label) }
         : plannedWaterRoom?.effective_clean_mode
-          ? { label: this.t("room_estimate.label_mode"), value: String(plannedWaterRoom.effective_clean_mode) }
+          ? { label: this.t("room_estimate.label_mode"), value: this.tVocabRaw("clean_mode", plannedWaterRoom.effective_clean_mode, plannedWaterRoom.effective_clean_mode) }
           : null,
       plannedWaterRoom?.water_level_label
         ? { label: this.t("room_estimate.label_water_level"), value: String(plannedWaterRoom.water_level_label) }
         : plannedWaterRoom?.effective_water_level
-          ? { label: this.t("room_estimate.label_water_level"), value: String(plannedWaterRoom.effective_water_level) }
+          ? { label: this.t("room_estimate.label_water_level"), value: this.tVocabRaw("water_level", plannedWaterRoom.effective_water_level, plannedWaterRoom.effective_water_level) }
           : null,
     ].filter(Boolean);
 

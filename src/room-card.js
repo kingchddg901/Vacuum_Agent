@@ -29,6 +29,12 @@ class EufyRoomCardEditor extends HTMLElement {
 
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
+  tVocab(field, value, fallback) {
+    if (value == null || value === "") return _esc(fallback ?? "");
+    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const out = this.t(`vocab.${field}.${slug}`);
+    return out === `vocab.${field}.${slug}` ? _esc(fallback ?? String(value)) : out;
+  }
 
   _vacuumEntities() {
     if (!this._hass) return [];
@@ -179,6 +185,12 @@ class EufyRoomCard extends HTMLElement {
 
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
+  tVocab(field, value, fallback) {
+    if (value == null || value === "") return _esc(fallback ?? "");
+    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const out = this.t(`vocab.${field}.${slug}`);
+    return out === `vocab.${field}.${slug}` ? _esc(fallback ?? String(value)) : out;
+  }
 
   /* =========================================================
      ENTITY FINDERS
@@ -320,7 +332,7 @@ class EufyRoomCard extends HTMLElement {
                 class="chip ${String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase() ? "active" : ""}"
                 data-field="${_esc(fieldKey)}"
                 data-value="${_esc(opt.value)}"
-              >${_esc(opt.label)}</button>
+              >${this.tVocab(fieldKey, opt.value, opt.label)}</button>
             `).join("")}
           </div>
         </div>

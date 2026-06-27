@@ -103,7 +103,7 @@ export function applyMetricsRenderers(proto) {
                   data-metrics-tab="${this.escapeHtml(option.value)}"
                   role="tab"
                   aria-selected="${activeTab === option.value ? "true" : "false"}"
-                >${this.escapeHtml(option.label)}</button>
+                >${this.tVocab("metrics_tab", option.value, option.label)}</button>
               `).join("")}
             </div>
 
@@ -820,7 +820,7 @@ export function applyMetricsRenderers(proto) {
       }
       return keys.map((k) => `
         <tr>
-          <td>${this.escapeHtml(k)}</td>
+          <td>${this.tVocab("battery_bucket_key", k, k)}</td>
           <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
           <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
@@ -874,10 +874,10 @@ export function applyMetricsRenderers(proto) {
           <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${this.escapeHtml(lastJob.single_clean_mode ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${this.escapeHtml(lastJob.single_fan_speed ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${this.escapeHtml(lastJob.single_water_level ?? this.t("metrics.battery_mixed"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${this.escapeHtml(lastJob.weighted_by ?? "—")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", lastJob.single_clean_mode, lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${lastJob.single_fan_speed ? this.tVocab("fan_speed", lastJob.single_fan_speed, lastJob.single_fan_speed) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${lastJob.single_water_level ? this.tVocab("water_level", lastJob.single_water_level, lastJob.single_water_level) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${lastJob.weighted_by ? this.tVocab("battery_weighted_by", lastJob.weighted_by, lastJob.weighted_by) : "—"}</td></tr>
           ${postJob ? `
             <tr><td colspan="2"><em>${this.t("metrics.battery_post_job_recharge")}</em></td></tr>
             <tr><td>${this.t("metrics.battery_row_recharge_duration")}</td><td>${this.escapeHtml(numFmt(postJob.duration_min, 1) + " min")}</td></tr>

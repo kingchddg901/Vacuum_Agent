@@ -74,19 +74,19 @@ export function applyOrderModalRenderer(proto) {
         <div class="evcc-modal" data-stop-propagation>
 
           <div class="evcc-modal-header">
-            <div class="evcc-modal-title">Move ${this.escapeHtml(label)}</div>
+            <div class="evcc-modal-title">${this.t('order_modal.move_item', { label: this.escapeHtml(label) })}</div>
             <button
               type="button"
               class="evcc-chip evcc-chip--icon"
               data-action="close-order-selector"
-              title="Close"
+              title="${this.t('common.close')}"
             >✕</button>
           </div>
 
           <div class="evcc-modal-body">
 
             <div class="evcc-editor-field-group">
-              <div class="evcc-field-label">Currently</div>
+              <div class="evcc-field-label">${this.t('order_modal.currently')}</div>
               <div class="evcc-order-preview-row">
                 ${renderChipRow(currentItems)}
               </div>
@@ -94,7 +94,7 @@ export function applyOrderModalRenderer(proto) {
 
             ${showPreview ? `
               <div class="evcc-editor-field-group">
-                <div class="evcc-field-label">After move</div>
+                <div class="evcc-field-label">${this.t('order_modal.after_move')}</div>
                 <div class="evcc-order-preview-row">
                   ${renderChipRow(previewItems)}
                 </div>
@@ -102,7 +102,7 @@ export function applyOrderModalRenderer(proto) {
             ` : ""}
 
             <div class="evcc-editor-field-group">
-              <div class="evcc-field-label">Move to position</div>
+              <div class="evcc-field-label">${this.t('order_modal.move_to_position')}</div>
               <div class="evcc-chips">
                 ${positions.map((value) => `
                   <button
@@ -122,14 +122,14 @@ export function applyOrderModalRenderer(proto) {
               type="button"
               class="evcc-chip"
               data-action="close-order-selector"
-            >Cancel</button>
+            >${this.t('common.cancel')}</button>
 
             <button
               type="button"
               class="evcc-chip evcc-chip--save"
               data-action="confirm-order-selector"
               ${showPreview ? "" : "disabled"}
-            >Save</button>
+            >${this.t('common.save')}</button>
           </div>
 
         </div>

@@ -104,6 +104,27 @@ export function applySharedRenderers(proto) {
   };
 
   /**
+   * Like `tVocab`, but returns the RAW (unescaped) localized label — for the few
+   * call sites that drop the value into a data object the renderer escapes again
+   * later (e.g. room-estimate's summary rows do `escapeHtml(row.value)`). Using
+   * `tVocab` there would double-escape, so a translated "l'eau"/"A & B" would
+   * render its entities literally. The CALLER must escape (these do). Mirrors the
+   * `tRaw`↔`t` pairing; uses the same inline `vocab.<field>.<slug>` template so
+   * check:i18n still reaches every vocab key.
+   *
+   * @param {string} field
+   * @param {string} value
+   * @param {string} [fallback]
+   * @returns {string} unescaped, localized label (caller escapes).
+   */
+  proto.tVocabRaw = function (field, value, fallback) {
+    if (value == null || value === "") return fallback ?? "";
+    const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    const out = this.tRaw(`vocab.${field}.${slug}`);
+    return out === `vocab.${field}.${slug}` ? (fallback ?? String(value)) : out;
+  };
+
+  /**
    * Resolve the active UI language from hass: locale.language -> language -> en.
    *
    * Read hass off `this.card` — these methods run on the VacuumCardRenderers

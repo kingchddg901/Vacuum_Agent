@@ -547,7 +547,7 @@ export function applySetupRenderers(proto) {
                  maxlength="48"
                  data-action="setup-rename-panel-input"
                  value="${this.escapeHtml(panelTitle)}"
-                 placeholder="Vacuum Agent"
+                 placeholder="${this.t("setup.panel_name_placeholder")}"
                  autocomplete="off"
                  spellcheck="false"
                  ${loading ? "disabled" : ""} />
