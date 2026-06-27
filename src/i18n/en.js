@@ -1135,6 +1135,8 @@ export const en = {
   "rooms.profile_user_1": "User Profile 1",
   "rooms.profile_vacuum_only_deep": "Vacuum Only Deep",
   "rooms.profile_vacuum_only_quick": "Vacuum Only Quick",
+  // plural — passes count in a composed profile name/subtitle (e.g. "2 Passes")
+  "room_profile.passes": { one: "{count} Pass", other: "{count} Passes" },
   "rooms.progress_label": "Progress: {pct}%",
   "rooms.projected_water_use": "Projected water use: ~{ml} ml",
   "rooms.queue_chip_title": "Click for settings · Double-click for estimate · Hold to remove from queue",

@@ -2318,5 +2318,13 @@
     "language_label": "Язык интерфейса",
     "language_auto": "Авто (как в Home Assistant)",
     "language_hint": "Переопределяет язык только для этой карточки."
+  },
+  "room_profile": {
+    "passes": {
+      "one": "{count} проход",
+      "few": "{count} прохода",
+      "many": "{count} проходов",
+      "other": "{count} прохода"
+    }
   }
 }

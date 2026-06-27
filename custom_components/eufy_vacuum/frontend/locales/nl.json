@@ -2229,5 +2229,11 @@
     "language_label": "Weergavetaal",
     "language_auto": "Automatisch (volg Home Assistant)",
     "language_hint": "Overschrijft de taal alleen voor deze kaart."
+  },
+  "room_profile": {
+    "passes": {
+      "one": "{count} veegbeurt",
+      "other": "{count} veegbeurten"
+    }
   }
 }

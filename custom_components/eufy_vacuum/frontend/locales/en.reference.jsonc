@@ -1764,6 +1764,9 @@
     "water_ml": "~{ml} ml water",  // Room chip: projected clean-water this room will use, '~{ml} ml water'
     "trouble_missed": {"one":"Missed {miss}× of {count} run","other":"Missed {miss}× of {count} runs"}
   },
+  "room_profile": {
+    "passes": {"one":"{count} Pass","other":"{count} Passes"}
+  },
   "run_profiles": {
     "create_profile": "Create Profile",
     "editor_title_edit": "Edit Saved Profile",

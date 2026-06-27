@@ -2229,5 +2229,11 @@
     "language_label": "Anzeigesprache",
     "language_auto": "Automatisch (Home Assistant folgen)",
     "language_hint": "Überschreibt die Sprache nur für diese Karte."
+  },
+  "room_profile": {
+    "passes": {
+      "one": "{count} Durchgang",
+      "other": "{count} Durchgänge"
+    }
   }
 }

@@ -2242,5 +2242,11 @@
     "language_label": "Idioma de exibição",
     "language_auto": "Automático (seguir o Home Assistant)",
     "language_hint": "Substitui o idioma apenas para este cartão."
+  },
+  "room_profile": {
+    "passes": {
+      "one": "{count} passagem",
+      "other": "{count} passagens"
+    }
   }
 }
