@@ -48,3 +48,16 @@ Verdicts: de = usable_with_fixes (now good after the fan-speed fix); all others 
 
 ## pt (Portuguese)
 - (`relative.months_ago` non-word already fixed.) Minor register: `setup.*` "defina por favor" word order; `external_jobs.detected_rooms` one-form slightly long.
+
+## Second-model cross-review (2026-06-26)
+A second model reviewed all 7 — nothing broken. **Applied in-tree** from its list:
+- **de**: `Kunst`→`Grafik` across all 9 furnished keys ("Kunst" = artwork, wrong for an uploaded map graphic); `external_jobs.mode_vacuum_mop` "Saug. & Wisch."→"Saugen & Wischen"; `learning.chip_vacuum_mop`→"{count} Saug- und Wischraum / -räume"; `maintenance.dock_fw` "Fw"→"FW"; `map.furnished_art_alt`→"Eingerichteter Grundriss"; `map.backdrop_image_hint` "bemalt"→"überzeichnet"; `bind_map.could_not_save_map_image` "auf der Karte"→"auf dem Kartenbild".
+- **nl**: `Kunst`/`kunst`→`Afbeelding`/`afbeelding` across all 9 furnished keys (same artwork issue).
+
+**Deferred** (dialect / native-judgment — the second model itself hedged; for the native reviewers):
+- **es**: verb+noun clash in the vacuum+mop mode/chip labels ("Aspirar y mopa", "… aspirar + mopa") — pick a consistent dialect form (e.g. "Aspirar y fregar" / "Aspirado + mopa" / "Aspirar + pasar mopa"). Also the earlier `room_editor.mopstate_mopping` "Mopeando"→"Fregando".
+- **fr**: over-abbreviated mode/chip ("Asp. & serp.") — spell out unless the chip is truly tiny ("Aspi. + serpillière" / "Asp. + lavage").
+- **it**: English "mop" leaks ("Asciuga mop", "Lava mop", "aspira + mop") — more native = "panno" / "panno lavapavimenti" / "lavaggio" (acceptable for tech users).
+- **ru**: literal "швабру" (mop) in dock actions — a native may prefer "салфетку" / "моп" / "моющую насадку" per common robovac phrasing.
+- **pt**: reads European Portuguese (divisão, guardar, aplicação, mopa), NOT truly region-neutral. Fine as `pt`; add a `pt-BR` later if Brazilian users care (keep this as pt-PT-ish).
+- **all locales**: the "save image on the map" family reads slightly odd everywhere — better phrased as "right-click the map image and choose Save image" (rephrase per language).
