@@ -802,7 +802,7 @@ export const pt = {
   "relative.hours_ago": { one: "há {count}h", other: "há {count}h" },
   "relative.just_now": "agora mesmo",
   "relative.minutes_ago": { one: "há {count}m", other: "há {count}m" },
-  "relative.months_ago": { one: "há {count}mes", other: "há {count}mes" },
+  "relative.months_ago": { one: "há {count}mês", other: "há {count}mês" },
   "relative.weeks_ago": { one: "há {count}sem", other: "há {count}sem" },
   "relative.years_ago": { one: "há {count}a", other: "há {count}a" },
   "relative.yesterday": "ontem",
