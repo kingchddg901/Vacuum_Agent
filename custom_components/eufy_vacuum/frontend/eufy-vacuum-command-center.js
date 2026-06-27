@@ -6290,9 +6290,9 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
      =========================================================
      A globe button (top-right of the header) that opens a dropdown of the
      bundled locales. The open menu must out-stack the view content (which
-     paints AFTER the header in DOM), so `.is-open` lifts the whole control
+     paints AFTER the header in DOM), so the is-open class lifts the whole control
      into a high stacking context; a transparent fixed backdrop catches the
-     outside click. Shared desktop + mobile (mobile positions the wrapper —
+     outside click. Shared desktop + mobile (mobile positions the wrapper \u2014
      see styles/mobile.js). */
 
   .evcc-header-right {
@@ -6353,7 +6353,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
     /* fixed = clipped to the VIEWPORT, not the overflow:hidden card box, so the
        outside-click target covers the whole screen. Assumes no ancestor sets
        transform / filter / contain (which would make this its containing block
-       and re-clip it) — true today (.evcc-card uses only isolation:isolate). */
+       and re-clip it) \u2014 true today (.evcc-card uses only isolation:isolate). */
     position:   fixed;
     inset:      0;
     z-index:    1;            /* below the button + menu, above everything else */
@@ -6434,7 +6434,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(b)}/samples.jsonl</pre>
     display:       flex;
     /* Wrap the TAB STRIP to a second row when long (translated) labels push the
        tabs past the width, instead of overflowing the card into a horizontal
-       scroll — a growth-zone strip, taller is acceptable. No-op for English,
+       scroll \u2014 a growth-zone strip, taller is acceptable. No-op for English,
        whose tabs fit one row (labels keep wrapping inside their own tab as
        before), so the byte-pinned baselines are unchanged. */
     flex-wrap:     wrap;

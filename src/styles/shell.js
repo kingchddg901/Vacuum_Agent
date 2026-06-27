@@ -141,7 +141,7 @@ export const shellStyles = `
      =========================================================
      A globe button (top-right of the header) that opens a dropdown of the
      bundled locales. The open menu must out-stack the view content (which
-     paints AFTER the header in DOM), so `.is-open` lifts the whole control
+     paints AFTER the header in DOM), so the is-open class lifts the whole control
      into a high stacking context; a transparent fixed backdrop catches the
      outside click. Shared desktop + mobile (mobile positions the wrapper —
      see styles/mobile.js). */
