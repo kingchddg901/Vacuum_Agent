@@ -31,6 +31,7 @@
 
 import { en } from "./en.js";
 import { flattenLocale } from "./flatten.js";
+import { sanitizeOrQuarantineLocale, OUTCOME } from "./sanitize-locale.js";
 
 // English is the ONLY catalog bundled into the card — it is the manifest (the
 // complete key set) and the universal fallback. The other locales (de/fr/es/nl/
@@ -464,6 +465,34 @@ export function localeSource(config, lang) {
 }
 
 /**
+ * Hash-keyed quarantine record for HOSTILE drop-in locales (active content found,
+ * §4 of the intake gate). Keyed by the file's CONTENT hash, NOT its filename — a
+ * fixed replacement gets a new hash and is re-evaluated fresh; the same bytes
+ * stay quarantined SILENTLY (no re-alarm). Exposed for the diagnostics surface.
+ */
+const LOCALE_QUARANTINE = new Map();
+
+/** A read-only snapshot of quarantined drop-in locales (for the diagnostics surface). */
+export function getLocaleQuarantineReport() {
+  return [...LOCALE_QUARANTINE.values()];
+}
+
+/**
+ * Fast non-cryptographic content hash (FNV-1a 32-bit + byte length) — a Map key
+ * to tell "same file" from "changed file" for the quarantine record, NOT a
+ * security primitive. A collision (astronomically unlikely at this scale) would
+ * at worst skip a different file; the security decision is the gate, not the hash.
+ */
+function contentHash(text) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${(h >>> 0).toString(16)}:${text.length}`;
+}
+
+/**
  * Fetch + validate + register an external locale JSON file. Async; NEVER throws
  * — every failure (network, !ok, non-JSON, bad shape) resolves to a report with
  * `ok:false` so the caller keeps rendering English. On success the VALIDATED
@@ -481,12 +510,60 @@ export async function loadLocale(url, lang, opts = {}) {
   const report = { ok: false, lang, url, loaded: 0, warnings: [], errors: [] };
   const doFetch = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
   if (!doFetch) { report.errors.push("no fetch available"); return report; }
+  // The intake GATE (sanitize-or-quarantine) runs ONLY on the UNTRUSTED drop-in
+  // path (a user-supplied "custom" locale) AND only in a browser, where the
+  // innerHTML sink it defends actually exists. The shipped first-party locales
+  // are vetted at build time; a DOM-less context (Node tests / SSR) has no sink,
+  // so the validated locale takes the trusted path there. The real card runtime
+  // is always a browser, so a real user drop-in is always gated.
+  const untrusted = opts.status === "custom" && typeof document !== "undefined";
   try {
     const resp = await doFetch(url, { credentials: "same-origin" });
     if (!resp || !resp.ok) {
       report.errors.push(`fetch failed (status ${resp ? resp.status : "none"})`);
       return report;
     }
+
+    if (untrusted) {
+      // Read the RAW bytes first: the quarantine record is keyed on their hash,
+      // so a known-hostile file is skipped silently before we even parse it.
+      const text = await resp.text();
+      const hash = contentHash(text);
+      if (LOCALE_QUARANTINE.has(hash)) {
+        report.errors.push("quarantined (unchanged hostile content) — skipped");
+        return report;
+      }
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        // Honest mistake, not hostility → soft skip, NOT hash-locked (retried).
+        report.errors.push("REJECT_MALFORMED: invalid JSON — skipped");
+        return report;
+      }
+      const { flat } = flattenLocale(data, CATALOGS.en);
+      const { clean, warnings, errors } = validateLocale(flat);
+      report.warnings = warnings;
+      report.errors = errors;
+      const gate = sanitizeOrQuarantineLocale(clean);
+      if (gate.outcome === OUTCOME.REJECT_MALFORMED) {
+        report.errors.push("REJECT_MALFORMED: unusable shape — skipped");
+        return report;
+      }
+      if (gate.outcome === OUTCOME.QUARANTINE_HOSTILE) {
+        // Positive tamper evidence taints the file's other ~1,353 keys (shared
+        // source) → reject the WHOLE file and hash-lock it (silent on re-load).
+        LOCALE_QUARANTINE.set(hash, { hash, locale: lang, ...gate.report, ts: Date.now() });
+        report.errors.push(`QUARANTINE_HOSTILE: ${gate.report.predicate} at "${gate.report.firstOffendingKey}" — whole file rejected`);
+        return report;
+      }
+      registerLocale(lang, gate.catalog, { status: "custom" });
+      report.loaded = Object.keys(gate.catalog).length;
+      report.ok = true;
+      return report;
+    }
+
+    // Trusted (shipped first-party) path — unchanged.
     const data = await resp.json();
     // Locale files are authored NESTED (commons + scoped sections); flatten
     // against the English manifest into the flat catalog validateLocale expects.
