@@ -9,12 +9,46 @@
  * ============================================================
  */
 
+import { GUIDE_TRANSLATIONS } from "../i18n/guide-translations.js";
+
 /**
  * Mix maintenance renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
  */
 export function applyMaintenanceRenderers(proto) {
+
+  /**
+   * Localize the upkeep guide for the CARD's per-user language (the globe),
+   * not the HA instance language. The backend ships guide.display in the
+   * instance language; we overlay steps/notes/frequency from the bundled
+   * GUIDE_TRANSLATIONS (ported from the same source data), per-field, falling
+   * back to English and then to the backend's value. So a card set to Russian
+   * shows Russian guide text even on an English HA instance — one switch.
+   *
+   * @param {object} item - maintenance/replacement item (has guide, component, kind).
+   * @returns {object|null} a display-shaped guide ({frequency, steps, notes, …}).
+   */
+  proto._localizedGuide = function (item) {
+    const display = item?.guide?.display ?? null;
+    if (!display) return display;
+    const lang = String(this._i18nLanguage() || "en").split("-")[0];
+    const family = item?.guide?.source_guide_family ?? item?.guide?.guide_family ?? item?.guide_family;
+    const component = item?.component;
+    const kind = String(item?.kind ?? "maintenance");
+    const byLang = GUIDE_TRANSLATIONS[lang]?.[family]?.[component];
+    const byEn = GUIDE_TRANSLATIONS.en?.[family]?.[component];
+    if (!byLang && !byEn) return display; // unknown family/component → backend value
+    const pick = (field) => byLang?.[field] ?? byEn?.[field];
+    const freq = kind === "replacement" ? pick("replace_frequency") : pick("clean_frequency");
+    const steps = (Array.isArray(byLang?.steps) && byLang.steps.length) ? byLang.steps
+                : (Array.isArray(byEn?.steps) && byEn.steps.length) ? byEn.steps
+                : display.steps;
+    const notes = (Array.isArray(byLang?.notes) && byLang.notes.length) ? byLang.notes
+                : (Array.isArray(byEn?.notes) && byEn.notes.length) ? byEn.notes
+                : display.notes;
+    return { ...display, frequency: freq ?? display.frequency, steps, notes };
+  };
 
   /* =========================================================
      MAIN VIEW
@@ -297,7 +331,7 @@ export function applyMaintenanceRenderers(proto) {
     const primaryValue = this._maintenancePrimaryValue(item);
     const secondaryValue = this._maintenanceSecondaryValue(item);
     const dueInLabel = this._maintenanceDueInLabel(item);
-    const guide = item?.guide?.display ?? null;
+    const guide = this._localizedGuide(item);
     const guideSummary = guide?.frequency || this._formatMaintenanceFrequency(guide?.frequency);
 
     return `
@@ -451,7 +485,7 @@ export function applyMaintenanceRenderers(proto) {
     const status = this._formatMaintenanceStatus(statusKey);
     const primaryValue = this._maintenancePrimaryValue(item);
     const secondaryValue = this._maintenanceSecondaryValue(item);
-    const guide = item?.guide?.display ?? null;
+    const guide = this._localizedGuide(item);
     const guideSteps = Array.isArray(guide?.steps) ? guide.steps.filter(Boolean) : [];
     const guideNotes = Array.isArray(guide?.notes) ? guide.notes.filter(Boolean) : [];
     const resetUi = state?.maintenanceResetUi?.() ?? {};
