@@ -30,13 +30,23 @@
  */
 
 import { en } from "./en.js";
+// Bundled locales — AI-generated DRAFTS pending native review (each file's header
+// notes this). Auto-activate by hass.locale.language; English fills any gap.
+// Russian is the pilot (a Russian-speaking user reviews it live).
+import { ru } from "./ru.js";
+import { de } from "./de.js";
+import { fr } from "./fr.js";
+import { es } from "./es.js";
+import { nl } from "./nl.js";
+import { it } from "./it.js";
+import { pt } from "./pt.js";
 
 /**
  * lang code -> { key: string | PluralForms }. English is always present as the
  * base. A value is a plain string, or — for a count-driven key — an object of
  * CLDR plural forms (e.g. { one, other }); see translate/pluralForm.
  */
-const CATALOGS = { en };
+const CATALOGS = { en, ru, de, fr, es, nl, it, pt };
 
 /**
  * Register (or replace) a locale catalog at runtime. Most locales will instead

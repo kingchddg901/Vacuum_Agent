@@ -64,9 +64,12 @@ registerLocale("ev", {
   "rooms.count_rooms": { other: '<b>{count}</b>' },
 });
 // A real multi-form language (Russian: one/few/many/other) drives the
-// Intl.PluralRules selection path; "de" has the key absent (English-object
-// fallback); "pl" supplies only `other` (in-entry fallback when the chosen
-// category is missing).
+// Intl.PluralRules selection path; "sv" (Swedish — deliberately a NON-BUNDLED
+// locale, so it has no catalog) exercises the English-object cross-locale
+// fallback; "pl" supplies only `other` (in-entry fallback when the chosen
+// category is missing). NOTE: the fallback case must use a locale NOT bundled
+// in CATALOGS (en/ru/de/fr/es/nl/it/pt) — a bundled one resolves to its own
+// translation instead of falling back. Keep it a tier-absent code.
 registerLocale("ru", {
   "rooms.count_rooms": {
     one: "{count} комната", few: "{count} комнаты",
@@ -175,8 +178,10 @@ check("plural: missing count falls to 'other'", () => {
 //     category is absent; a locale missing the key entirely falls to English.
 check("plural: in-entry + cross-locale fallback", () => {
   assert.equal(translate("pl", "rooms.count_rooms", { count: 1 }), "pokoje: 1");
-  assert.equal(translate("de", "rooms.count_rooms", { count: 1 }), "1 room");
-  assert.equal(translate("de", "rooms.count_rooms", { count: 3 }), "3 rooms");
+  // "sv" has no bundled catalog → cross-locale fallback to the English object,
+  // with sv's own (one/other) Intl plural selection.
+  assert.equal(translate("sv", "rooms.count_rooms", { count: 1 }), "1 room");
+  assert.equal(translate("sv", "rooms.count_rooms", { count: 3 }), "3 rooms");
 });
 
 // 16. TRUST MODEL B holds for the SELECTED plural form — a hostile form is
