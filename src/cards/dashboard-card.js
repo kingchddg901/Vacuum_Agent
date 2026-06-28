@@ -137,6 +137,7 @@ class EufyDashboardCard extends HTMLElement {
     this._armed = emptyArmed();
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
+    this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
     this._snapshot = null;       // get_dashboard_snapshot payload (fetched once)
     this._profiles = [];         // get_saved_run_profiles list (fetched once)
     this._fetchedFor = null;     // vacuum id the above were fetched for
@@ -150,6 +151,7 @@ class EufyDashboardCard extends HTMLElement {
     this._armed = emptyArmed();
     this._rowFields = {};
     this._expanded = new Set();
+    this._roomsCollapsed = false;
     this._starting = false;
     this._snapshot = null;
     this._profiles = [];
@@ -302,9 +304,15 @@ class EufyDashboardCard extends HTMLElement {
       <div class="card">
         ${this._renderHeader(title, vacuumState)}
         ${rooms.length
-          ? `<div class="section rooms ${disabled ? "is-disabled" : ""}">
-               <div class="section-label">${this.t("vacuum_card.rooms_label")}</div>
-               ${rooms.map((r) => this._renderRoomRow(r)).join("")}
+          ? `<div class="section rooms ${disabled ? "is-disabled" : ""} ${this._roomsCollapsed ? "is-collapsed" : ""}">
+               <div class="group-head" id="rooms-toggle" role="button" tabindex="0" aria-expanded="${!this._roomsCollapsed}">
+                 <span class="section-label">${this.t("vacuum_card.rooms_label")}</span>
+                 ${this._armed.selectedRoomIds.length
+                   ? `<span class="count">${this.t("vacuum_card.rooms_selected", { count: this._armed.selectedRoomIds.length })}</span>`
+                   : ""}
+                 <span class="group-chevron">▾</span>
+               </div>
+               ${this._roomsCollapsed ? "" : rooms.map((r) => this._renderRoomRow(r)).join("")}
              </div>`
           : `<div class="empty">${this.t("vacuum_card.no_rooms")}</div>`}
         ${this._renderLauncher()}
@@ -446,6 +454,15 @@ class EufyDashboardCard extends HTMLElement {
      ========================================================= */
 
   _wire() {
+    // Collapse / expand the whole Rooms group
+    const roomsToggle = this.shadowRoot.getElementById("rooms-toggle");
+    if (roomsToggle) {
+      const toggle = () => { this._roomsCollapsed = !this._roomsCollapsed; this._render(); };
+      roomsToggle.addEventListener("click", toggle);
+      roomsToggle.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    }
     // Room include toggles
     this.shadowRoot.querySelectorAll(".include").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -584,7 +601,7 @@ const CARD_CSS = `
     --text-muted:   var(--evcc-text-muted, rgba(240,242,245,0.48));
     --radius:       var(--evcc-radius-card, 12px);
   }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
   .title { font-size: 1.0rem; font-weight: 700; color: var(--text-primary); }
@@ -594,6 +611,11 @@ const CARD_CSS = `
   .section { padding: 4px 12px 8px; }
   .section-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 4px 4px; }
   .rooms.is-disabled { opacity: 0.4; pointer-events: none; }
+  .group-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent; }
+  .group-head .section-label { flex: 0 0 auto; }
+  .group-head .count { font-size: 0.68rem; font-weight: 600; color: color-mix(in srgb, var(--accent) 90%, white); background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 10px; padding: 1px 8px; }
+  .group-chevron { margin-left: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform 150ms ease; }
+  .rooms:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
   .empty { padding: 16px; font-size: 0.85rem; color: var(--text-muted); }
 
   .room-row { border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; overflow: hidden; }

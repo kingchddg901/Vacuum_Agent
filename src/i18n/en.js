@@ -993,6 +993,7 @@ export const en = {
   "vacuum_card.profiles_label": "Your profiles",  // section label for the saved run-profiles launcher
   "vacuum_card.profiles_placeholder": "— run a saved profile —",  // dropdown placeholder before a profile is armed
   "vacuum_card.rooms_label": "Rooms",  // section label above the per-room selection rows
+  "vacuum_card.rooms_selected": { one: "{count} selected", other: "{count} selected" },  // badge on the collapsed Rooms group showing how many rooms are armed
   "vacuum_card.scenes_hint": "Selecting a scene arms it; it runs when you press Start.",  // clarifies arm-only (scene fires on Start, not on pick)
   "vacuum_card.scenes_label": "App scenes",  // section label for the vendor-app (Eufy) scenes launcher
   "vacuum_card.scenes_placeholder": "— run an app scene —",  // dropdown placeholder before a scene is armed
