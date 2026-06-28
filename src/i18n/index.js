@@ -607,9 +607,17 @@ export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts 
   const doFetch = opts.fetchImpl || (typeof fetch === "function" ? fetch : null);
   if (!doFetch) { result.errors.push("no fetch available"); return result; }
 
+  // Cache-bust the runtime locale fetches. The catalogs are SERVED (not bundled),
+  // so without a versioned URL a CHANGED catalog can be served stale from the
+  // browser / service-worker cache — the symptom being newly-added keys falling
+  // back to English while older keys render translated. `opts.ver` (the
+  // build-injected locale content hash) makes each catalog revision a fresh URL.
+  // User drop-ins pass no ver (their content isn't known at build time).
+  const bust = opts.ver ? `?v=${encodeURIComponent(opts.ver)}` : "";
+
   let files;
   try {
-    const resp = await doFetch(`${baseUrl}/index.json`, { credentials: "same-origin" });
+    const resp = await doFetch(`${baseUrl}/index.json${bust}`, { credentials: "same-origin" });
     if (!resp || !resp.ok) {
       result.errors.push(`index fetch failed (status ${resp ? resp.status : "none"})`);
       return result;
@@ -635,7 +643,7 @@ export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts 
     }
     // Status is the CALLER's call: shipped locales (no status) keep their
     // bundled LOCALE_STATUS; user drop-ins pass { status: "custom" } to be gated.
-    const report = await loadLocale(`${baseUrl}/${file}`, code, opts);
+    const report = await loadLocale(`${baseUrl}/${file}${bust}`, code, opts);
     if (report.ok) result.loaded.push(code);
     else result.errors.push(`${file}: ${report.errors.join("; ")}`);
   }
@@ -644,6 +652,13 @@ export async function loadDroppedLocales(baseUrl = "/eufy_vacuum/locales", opts 
 }
 
 let _localesRequested = false;
+
+// Build-injected cache-bust token for the SHIPPED runtime locale catalogs (esbuild
+// --define __LOCALE_VER__, keyed to the locale files' content). Appended as
+// ?v=<token> to the shipped locale fetches so an edited catalog is fetched fresh
+// instead of served stale from the browser / service-worker cache. "dev" when
+// running unbundled (build:dev / watch / tests).
+const SHIPPED_LOCALE_VER = (typeof __LOCALE_VER__ !== "undefined") ? __LOCALE_VER__ : "dev";
 
 /**
  * Load the runtime locale catalogs (the SHIPPED non-English locales, then user
@@ -663,7 +678,7 @@ export function ensureLocalesLoaded(onLoaded) {
   const ping = (r) => {
     if (r && r.loaded && r.loaded.length && typeof onLoaded === "function") onLoaded();
   };
-  loadDroppedLocales("/eufy_vacuum/frontend/locales")
+  loadDroppedLocales("/eufy_vacuum/frontend/locales", { ver: SHIPPED_LOCALE_VER })
     .then(ping)
     .then(() => loadDroppedLocales("/eufy_vacuum/locales", { status: "custom" }))
     .then(ping);

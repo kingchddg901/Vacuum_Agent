@@ -17,8 +17,14 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const TEXTURES_DIR = "custom_components/eufy_vacuum/textures";
+const LOCALES_DIR = "custom_components/eufy_vacuum/frontend/locales";
 
-function hashTextures(dir) {
+// Content hash of a directory tree: name + bytes of every file. Used as a
+// cache-bust token so a CHANGE to the assets yields a new ?v=<hash> URL (browsers
+// + HA's service worker fetch fresh) while UNCHANGED assets keep one stable URL
+// (stay cached, no churn). Same scheme for textures and for the runtime locale
+// catalogs (which are fetched at runtime, NOT bundled, so they need their own bust).
+function hashDir(dir) {
   const h = createHash("sha1");
   const walk = (d) => {
     for (const name of readdirSync(d).sort()) {
@@ -38,7 +44,8 @@ function hashTextures(dir) {
 const deploy = process.argv.includes("--deploy");
 const outDir = deploy ? "custom_components/eufy_vacuum/frontend" : "dist";
 
-const assetVer = hashTextures(TEXTURES_DIR);
+const assetVer = hashDir(TEXTURES_DIR);
+const localeVer = hashDir(LOCALES_DIR);
 
 const shared = {
   bundle: true,
@@ -50,7 +57,7 @@ const shared = {
   // so esbuild leaves the dynamic import() as a runtime URL instead of trying to
   // resolve/bundle it (the map host is a BUILD OUTPUT, not a source file).
   external: ["/eufy_vacuum/frontend/*"],
-  define: { __ASSET_VER__: JSON.stringify(assetVer) },
+  define: { __ASSET_VER__: JSON.stringify(assetVer), __LOCALE_VER__: JSON.stringify(localeVer) },
 };
 
 // THREE self-contained ESM bundles (no code-splitting):
@@ -68,4 +75,4 @@ await esbuild.build({ ...shared, entryPoints: ["src/all-cards.js"], outfile: `${
 await esbuild.build({ ...shared, entryPoints: ["src/cards-standalone.js"], outfile: `${outDir}/eufy-vacuum-cards.js` });
 await esbuild.build({ ...shared, entryPoints: ["src/cards/vacuum-map-host.js"], outfile: `${outDir}/eufy-vacuum-map.js` });
 
-console.log(`built command-center + cards + map-host bundles  (texture asset ver ${assetVer})`);
+console.log(`built command-center + cards + map-host bundles  (texture asset ver ${assetVer}, locale ver ${localeVer})`);
