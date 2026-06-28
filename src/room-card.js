@@ -1,6 +1,9 @@
 // Standalone per-room Lovelace card with settings chips, save, and quick-start for managed vacuums.
 
 import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
+import {
+  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
+} from "./cards/_shared.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
@@ -30,10 +33,10 @@ class EufyRoomCardEditor extends HTMLElement {
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
   tVocab(field, value, fallback) {
-    if (value == null || value === "") return _esc(fallback ?? "");
+    if (value == null || value === "") return esc(fallback ?? "");
     const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     const out = this.t(`vocab.${field}.${slug}`);
-    return out === `vocab.${field}.${slug}` ? _esc(fallback ?? String(value)) : out;
+    return out === `vocab.${field}.${slug}` ? esc(fallback ?? String(value)) : out;
   }
 
   _vacuumEntities() {
@@ -97,7 +100,7 @@ class EufyRoomCardEditor extends HTMLElement {
         <label>${this.t("room_card.editor_vacuum_label")}</label>
         <select id="vacuum">
           <option value="" disabled ${!selectedVacuum ? "selected" : ""}>${this.t("room_card.editor_pick_vacuum")}</option>
-          ${vacuums.map((v) => `<option value="${_esc(v)}" ${v === selectedVacuum ? "selected" : ""}>${_esc(v)}</option>`).join("")}
+          ${vacuums.map((v) => `<option value="${esc(v)}" ${v === selectedVacuum ? "selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </div>
 
@@ -106,16 +109,16 @@ class EufyRoomCardEditor extends HTMLElement {
         ${!selectedVacuum
           ? `<div class="hint">${this.t("room_card.editor_select_vacuum_first")}</div>`
           : rooms.length === 0
-          ? `<div class="no-rooms">${this.t("room_card.editor_no_room_switches", { vacuum: _esc(selectedVacuum) })}</div>`
+          ? `<div class="no-rooms">${this.t("room_card.editor_no_room_switches", { vacuum: esc(selectedVacuum) })}</div>`
           : `<select id="room">
                <option value="" disabled ${!selectedRoom ? "selected" : ""}>${this.t("room_card.editor_pick_room")}</option>
-               ${rooms.map((r) => `<option value="${_esc(String(r.room_id))}" ${String(r.room_id) === selectedRoom ? "selected" : ""}>${_esc(r.room_name)}</option>`).join("")}
+               ${rooms.map((r) => `<option value="${esc(String(r.room_id))}" ${String(r.room_id) === selectedRoom ? "selected" : ""}>${esc(r.room_name)}</option>`).join("")}
              </select>`}
       </div>
 
       <div class="field">
         <label>${this.t("room_card.editor_name_override_label")} <span style="font-weight:400;text-transform:none">${this.t("room_card.editor_optional")}</span></label>
-        <input id="name" type="text" placeholder="${this.t("room_card.editor_name_placeholder")}" value="${_esc(nameOverride)}">
+        <input id="name" type="text" placeholder="${this.t("room_card.editor_name_placeholder")}" value="${esc(nameOverride)}">
         <div class="hint">${this.t("room_card.editor_name_hint")}</div>
       </div>
     `;
@@ -186,10 +189,10 @@ class EufyRoomCard extends HTMLElement {
   t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
   tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
   tVocab(field, value, fallback) {
-    if (value == null || value === "") return _esc(fallback ?? "");
+    if (value == null || value === "") return esc(fallback ?? "");
     const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     const out = this.t(`vocab.${field}.${slug}`);
-    return out === `vocab.${field}.${slug}` ? _esc(fallback ?? String(value)) : out;
+    return out === `vocab.${field}.${slug}` ? esc(fallback ?? String(value)) : out;
   }
 
   /* =========================================================
@@ -201,16 +204,7 @@ class EufyRoomCard extends HTMLElement {
   }
 
   _allRoomSwitches() {
-    const { states } = this._hass ?? {};
-    const vacuumId   = this._config?.vacuum_entity_id;
-    if (!states || !vacuumId) return [];
-    return Object.entries(states)
-      .filter(([id, s]) =>
-        id.startsWith("switch.") &&
-        s.attributes?.vacuum_entity_id === vacuumId &&
-        s.attributes?.room_id != null
-      )
-      .map(([id, s]) => ({ entityId: id, state: s.state, attrs: s.attributes ?? {} }));
+    return roomSwitchesFor(this._hass, this._config?.vacuum_entity_id);
   }
 
   _targetSwitch() {
@@ -234,9 +228,7 @@ class EufyRoomCard extends HTMLElement {
    * @returns {Array<{value: string, label: string}>}
    */
   _adapterOptions(attrName) {
-    const sw = this._targetSwitch();
-    const list = sw?.attrs?.[attrName];
-    return Array.isArray(list) ? list : [];
+    return adapterOptions(this._targetSwitch()?.attrs, attrName);
   }
 
   _cleanModeOptions() {
@@ -259,7 +251,7 @@ class EufyRoomCard extends HTMLElement {
   }
 
   _isMopMode(mode) {
-    return String(mode ?? "").toLowerCase().replace(/[\s_-]/g, "").includes("mop");
+    return isMopMode(mode);
   }
 
   /* =========================================================
@@ -267,15 +259,7 @@ class EufyRoomCard extends HTMLElement {
      ========================================================= */
 
   _committedFields() {
-    const sw = this._targetSwitch()?.attrs ?? {};
-    return {
-      clean_mode:      sw.clean_mode      ?? "vacuum",
-      fan_speed:       sw.fan_speed       ?? null,
-      water_level:     sw.water_level     ?? null,
-      clean_intensity: sw.clean_intensity ?? null,
-      clean_passes:    Number(sw.clean_passes   ?? 1),
-      edge_mopping:    Boolean(sw.edge_mopping  ?? false),
-    };
+    return committedRoomFields(this._targetSwitch()?.attrs ?? {});
   }
 
   _currentFields() {
@@ -325,13 +309,13 @@ class EufyRoomCard extends HTMLElement {
       if (!options.length) return "";
       return `
         <div class="field-group">
-          <div class="field-label">${_esc(label)}</div>
+          <div class="field-label">${esc(label)}</div>
           <div class="chips">
             ${options.map((opt) => `
               <button
                 class="chip ${String(currentVal ?? "").toLowerCase() === String(opt.value ?? "").toLowerCase() ? "active" : ""}"
-                data-field="${_esc(fieldKey)}"
-                data-value="${_esc(opt.value)}"
+                data-field="${esc(fieldKey)}"
+                data-value="${esc(opt.value)}"
               >${this.tVocab(fieldKey, opt.value, opt.label)}</button>
             `).join("")}
           </div>
@@ -515,7 +499,7 @@ class EufyRoomCard extends HTMLElement {
 
         <div class="header ${isEnabled ? "is-enabled" : ""}" role="button" aria-pressed="${isEnabled}" tabindex="0">
           <div class="indicator"></div>
-          <span class="room-name">${_esc(name)}</span>
+          <span class="room-name">${esc(name)}</span>
           ${dirty ? `<span class="dirty-badge">${this.t("room_card.unsaved_badge")}</span>` : ""}
         </div>
 
@@ -656,18 +640,6 @@ class EufyRoomCard extends HTMLElement {
     );
     return { vacuum_entity_id: vacuum, room_id: firstRoom?.[1]?.attributes?.room_id ?? null };
   }
-}
-
-/* ================================================================
-   SHARED UTIL
-   ================================================================ */
-
-function _esc(str) {
-  return String(str ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 customElements.define(ROOM_CARD_NAME, EufyRoomCard);

@@ -1644,6 +1644,37 @@
     "unsaved_badge": "Unsaved",  // header badge: card has edited-but-unsaved chip changes (dirty state)
     "water_level_label": "Water Level"
   },
+  "vacuum_card": {
+    "dock": "Dock",  // button that sends the vacuum back to its charging dock (return_to_base), not a noun
+    "editor_sections_hint": "Hide a section to keep the card compact; sections also hide when the vacuum doesn't support them.",
+    "editor_sections_label": "Sections",  // editor group label for the show/hide toggles below it
+    "editor_show_dock": "Show dock button",
+    "editor_show_profiles": "Show saved profiles",  // toggle: show the saved run-profiles dropdown
+    "editor_show_scenes": "Show app scenes",  // toggle: show the vendor-app scenes dropdown (Eufy only)
+    "editor_title_label": "Card title",
+    "editor_title_placeholder": "Leave blank to use the vacuum name",
+    "include_room": "Include this room in the run",  // tooltip on the per-room include checkbox
+    "no_rooms": "No rooms found for this vacuum — import a map and configure rooms first.",
+    "passes_n": {"one":"{count} Pass","other":"{count} Passes"},  // chip: number of cleaning sweeps over the room
+    "profiles_label": "Your profiles",  // section label for the saved run-profiles launcher
+    "profiles_placeholder": "— run a saved profile —",  // dropdown placeholder before a profile is armed
+    "rooms_label": "Rooms",  // section label above the per-room selection rows
+    "scenes_hint": "Selecting a scene arms it; it runs when you press Start.",  // clarifies arm-only (scene fires on Start, not on pick)
+    "scenes_label": "App scenes",  // section label for the vendor-app (Eufy) scenes launcher
+    "scenes_placeholder": "— run an app scene —",  // dropdown placeholder before a scene is armed
+    "start": "Start",  // button that dispatches the armed run (rooms / profile / scene), not a generic begin
+    "starting": "Starting…",  // transient Start-button label while the run is being dispatched
+    "status": {
+      "cleaning": "Cleaning",  // live vacuum activity shown in the header
+      "docked": "Docked",
+      "error": "Error",
+      "idle": "Idle",
+      "paused": "Paused",
+      "returning": "Returning to dock",
+      "unavailable": "Unavailable",
+      "unknown": "Unknown"
+    }
+  },
   "room_editor": {
     "access": "Access",  // button opening room access-graph editor (which room unlocks which); not generic 'access'
     "carpet_notice": "Carpet room — locked to vacuum-only modes",

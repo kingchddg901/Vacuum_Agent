@@ -224,6 +224,17 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "Degradation: path control inferred from model family only."
                 ),
             },
+            "scene_select": {
+                "type": "str",
+                "required": False,
+                "description": (
+                    "Vendor-app scenes select entity (e.g. eufy-clean "
+                    "select.<object_id>_scene). Its options are the app's saved "
+                    "scenes; selecting one RUNS it immediately. Surfaced on the "
+                    "dashboard snapshot for the card's 'App scenes' run-launcher. "
+                    "Degradation: absent (Roborock) -> the scenes group is hidden."
+                ),
+            },
         },
     },
 

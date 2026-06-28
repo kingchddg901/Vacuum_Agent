@@ -3669,6 +3669,18 @@ class EufyVacuumManager:
             _seid = (_scfg or {}).get("entity_id")
             if _seid and self.hass.states.get(_seid) is not None:
                 setting_entities[_skey] = _seid
+        # Vendor-app scenes select (Eufy `select.<object_id>_scene`), declared in
+        # the adapter `entities` block. Its options are the app's saved scenes;
+        # selecting one RUNS it — so the dashboard card only reads the options to
+        # build the "App scenes" run-launcher and fires select_option on Start.
+        # Existence-checked; absent (Roborock, or an eufy-clean build without
+        # scenes) -> None -> the card hides the scenes group.
+        _scene_select_id = (_adapter_cfg.get("entities", {}) or {}).get("scene_select")
+        scene_select = (
+            _scene_select_id
+            if _scene_select_id and self.hass.states.get(_scene_select_id) is not None
+            else None
+        )
         # Optional CV libraries (numpy / Pillow / scipy) power Auto (CV) map
         # segmentation but are NOT a hard dependency (manifest requirements = []).
         # Surface RUNTIME availability so the card can hide/disable Auto (CV) and
@@ -3746,6 +3758,7 @@ class EufyVacuumManager:
             "supports_zone_clean": supports_zone_clean,
             "zone_max": zone_max,
             "setting_entities": setting_entities,
+            "scene_select": scene_select,
             "cv_available": cv_available,
             "cv_missing": cv_missing,
             "live_map_image_entity": live_map_image_entity,

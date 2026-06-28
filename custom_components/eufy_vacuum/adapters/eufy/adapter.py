@@ -286,6 +286,14 @@ def register_eufy_adapter_for_vacuum(
         "robot_position_y": caps.get("entities", {}).get("robot_position_y"),
         "work_mode": caps.get("entities", {}).get("work_mode"),
         "cleaning_intensity": caps.get("entities", {}).get("cleaning_intensity"),
+        # Vendor-app scenes/routines, exposed by eufy-clean as a select whose
+        # OPTIONS are the saved app scenes. Selecting an option RUNS that scene
+        # immediately (verified on-device). The dashboard card reads the options
+        # to build its "App scenes" run-launcher and only calls select_option on
+        # an explicit Start. Always declared for Eufy; the snapshot existence-checks
+        # it, so an eufy-clean build without scenes resolves to None and the card
+        # hides the group (Roborock has no equivalent entity at all).
+        "scene_select": f"select.{object_id}_scene",
     }
 
     # Remove None values — absent entities degrade gracefully per the schema.

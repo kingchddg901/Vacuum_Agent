@@ -978,6 +978,35 @@ export const en = {
   "room_card.unsaved_badge": "Unsaved",  // header badge: card has edited-but-unsaved chip changes (dirty state)
   "room_card.water_level_label": "Water Level",
 
+  // --- vacuum_card (multi-room "Dashboard Mode" control card + its editor) ---
+  "vacuum_card.dock": "Dock",  // button that sends the vacuum back to its charging dock (return_to_base), not a noun
+  "vacuum_card.editor_sections_hint": "Hide a section to keep the card compact; sections also hide when the vacuum doesn't support them.",
+  "vacuum_card.editor_sections_label": "Sections",  // editor group label for the show/hide toggles below it
+  "vacuum_card.editor_show_dock": "Show dock button",
+  "vacuum_card.editor_show_profiles": "Show saved profiles",  // toggle: show the saved run-profiles dropdown
+  "vacuum_card.editor_show_scenes": "Show app scenes",  // toggle: show the vendor-app scenes dropdown (Eufy only)
+  "vacuum_card.editor_title_label": "Card title",
+  "vacuum_card.editor_title_placeholder": "Leave blank to use the vacuum name",
+  "vacuum_card.include_room": "Include this room in the run",  // tooltip on the per-room include checkbox
+  "vacuum_card.no_rooms": "No rooms found for this vacuum — import a map and configure rooms first.",
+  "vacuum_card.passes_n": { one: "{count} Pass", other: "{count} Passes" },  // chip: number of cleaning sweeps over the room
+  "vacuum_card.profiles_label": "Your profiles",  // section label for the saved run-profiles launcher
+  "vacuum_card.profiles_placeholder": "— run a saved profile —",  // dropdown placeholder before a profile is armed
+  "vacuum_card.rooms_label": "Rooms",  // section label above the per-room selection rows
+  "vacuum_card.scenes_hint": "Selecting a scene arms it; it runs when you press Start.",  // clarifies arm-only (scene fires on Start, not on pick)
+  "vacuum_card.scenes_label": "App scenes",  // section label for the vendor-app (Eufy) scenes launcher
+  "vacuum_card.scenes_placeholder": "— run an app scene —",  // dropdown placeholder before a scene is armed
+  "vacuum_card.start": "Start",  // button that dispatches the armed run (rooms / profile / scene), not a generic begin
+  "vacuum_card.starting": "Starting…",  // transient Start-button label while the run is being dispatched
+  "vacuum_card.status.cleaning": "Cleaning",  // live vacuum activity shown in the header
+  "vacuum_card.status.docked": "Docked",
+  "vacuum_card.status.error": "Error",
+  "vacuum_card.status.idle": "Idle",
+  "vacuum_card.status.paused": "Paused",
+  "vacuum_card.status.returning": "Returning to dock",
+  "vacuum_card.status.unavailable": "Unavailable",
+  "vacuum_card.status.unknown": "Unknown",
+
   // --- room_editor ---
   "room_editor.access": "Access",  // button opening room access-graph editor (which room unlocks which); not generic 'access'
   "room_editor.carpet_notice": "Carpet room — locked to vacuum-only modes",
