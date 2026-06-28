@@ -239,6 +239,7 @@ export const shellStyles = `
   .evcc-lang-option {
     display:       flex;
     align-items:   center;
+    flex-wrap:     wrap;
     gap:           6px;
     width:         100%;
     padding:       7px 8px;
@@ -275,6 +276,19 @@ export const shellStyles = `
     overflow:      hidden;
     text-overflow: ellipsis;
     white-space:   nowrap;
+  }
+
+  /* Auto-row draft note: wraps to its own full-width line under the label
+     (the option is flex-wrap), indented past the check column. */
+  .evcc-lang-note {
+    flex:          1 0 100%;
+    padding-left:  calc(1em + 6px);
+    margin-top:    1px;
+    font-size:     0.92em;
+    line-height:   1.3;
+    white-space:   normal;
+    font-weight:   400;
+    color:         var(--evcc-text-muted);
   }
 
   /* =========================================================

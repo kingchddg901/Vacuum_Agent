@@ -224,6 +224,10 @@ async def test_dock_drift_log(tracker, hass):
 
     # The HA test config_dir is shared/persistent across runs, so start from a clean
     # slate — otherwise a leftover drift log makes the count assertion non-deterministic.
+    # Drain first: a dock-drift append still in flight from a PRIOR test runs on the
+    # executor, and if it lands AFTER our unlink it inflates the count (this test
+    # passes in isolation but flaked in-suite without this barrier).
+    await hass.async_block_till_done()
     drift_path = tracker._dock_drift_path(_VAC)
     if drift_path.exists():
         drift_path.unlink()

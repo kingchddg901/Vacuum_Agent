@@ -11,7 +11,9 @@
     "reset": "Réinitialiser",
     "save": "Enregistrer",
     "saving": "Enregistrement…",
-    "yes": "Oui"
+    "yes": "Oui",
+    "confirm": "Confirmer",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Action disponible",
@@ -107,7 +109,8 @@
     "label_required": "Un libellé de profil de pièce est requis.",
     "rename_key_prompt": "Facultatif : saisissez une nouvelle clé de profil backend.",
     "rename_label_prompt": "Saisissez le nouveau libellé d'affichage de ce profil de pièce :",
-    "save_new_profile_prompt": "Enregistrez les réglages actuels de la pièce comme nouveau profil. Saisissez un libellé d'affichage :"
+    "save_new_profile_prompt": "Enregistrez les réglages actuels de la pièce comme nouveau profil. Saisissez un libellé d'affichage :",
+    "profile_already_removed": "Ce profil a déjà été supprimé."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Le backend a rejeté cette règle.",
@@ -251,7 +254,8 @@
   "language": {
     "button_title": "Langue",
     "heading": "Langue d'affichage",
-    "auto": "Auto (suivre Home Assistant)"
+    "auto": "Auto (suivre Home Assistant)",
+    "auto_draft_note": "{lang} est encore un brouillon, donc Auto affiche l'anglais — choisissez-le ci-dessous pour l'utiliser."
   },
   "learning": {
     "all_rooms_complete": "Toutes les pièces terminées",
@@ -1631,13 +1635,17 @@
     "clean_mode": {
       "vacuum": "Aspiration",
       "mop": "Serpillière",
-      "vacuum_mop": "Aspiration et serpillière"
+      "vacuum_mop": "Aspiration et serpillière",
+      "vacuum_and_mop": "Aspiration et serpillière"
     },
     "fan_speed": {
       "quiet": "Silencieux",
       "standard": "Standard",
       "boost": "Turbo",
-      "max": "Max"
+      "max": "Max",
+      "turbo": "Turbo",
+      "gentle": "Doux",
+      "balanced": "Équilibré"
     },
     "water_level": {
       "off": "Désactivé",
@@ -1649,7 +1657,8 @@
       "quick": "Rapide",
       "narrow": "Resserré",
       "deep": "Approfondi",
-      "normal": "Normal"
+      "normal": "Normal",
+      "standard": "Standard"
     },
     "metrics_tab": {
       "learning": "Apprentissage",
@@ -1670,12 +1679,17 @@
       "off": "Désactivé",
       "low": "Faible",
       "medium": "Moyen",
-      "high": "Élevé"
+      "high": "Élevé",
+      "vacuum_and_mop": "Aspiration et serpillière",
+      "turbo": "Turbo",
+      "gentle": "Doux",
+      "balanced": "Équilibré"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutes est.",
       "room_count": "Nombre de pièces",
-      "none": "Aucune"
+      "none": "Aucune",
+      "estimated_minutes": "Minutes est.",
+      "actual_minutes": "Minutes réelles"
     },
     "status": {
       "completed": "Terminé",
@@ -2229,6 +2243,72 @@
       "not_drying": "L'arrêt du séchage n'est utile que lorsque la station est en train de sécher activement.",
       "already_emptying": "La station est déjà en train de vider la poussière.",
       "dock_busy": "La station est actuellement occupée par une autre action d'entretien."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limité aux pièces détectables lors de cette exécution."
+    },
+    "job_scope": {
+      "single_room": "Pièce unique",
+      "multi_room": "Plusieurs pièces"
+    },
+    "device_status": {
+      "cleaning": "Nettoyage",
+      "docked": "Sur la base",
+      "idle": "Inactif",
+      "paused": "En pause",
+      "returning": "Retour à la base",
+      "error": "Erreur",
+      "charging": "En charge",
+      "standby": "En veille",
+      "washing": "Lavage",
+      "washing_mop": "Lavage serpillière",
+      "drying": "Séchage",
+      "drying_mop": "Séchage serpillière",
+      "emptying": "Vidage",
+      "emptying_dust": "Vidage poussière",
+      "fault": "Défaut",
+      "offline": "Hors ligne",
+      "unavailable": "Indisponible",
+      "unknown": "Inconnu"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Session annulée",
+      "failed": "Session échouée",
+      "interrupted": "Session interrompue",
+      "failed_sanity": "Vérif. échouée",
+      "floor_time_too_short": "Temps au sol trop court",
+      "early_return_likely_cancelled": "Retour anticipé",
+      "cancel_like": "Semble annulée",
+      "short_duration_vs_profile": "Court vs profil",
+      "short_duration_vs_room": "Court vs pièce"
+    },
+    "reason_code": {
+      "completed": "Cette session s'est terminée normalement.",
+      "cancelled": "Cette session s'est terminée par une tâche annulée.",
+      "failed": "Cette session s'est terminée par une tâche échouée.",
+      "interrupted": "Cette session s'est terminée par une tâche interrompue.",
+      "test": "Cette session est marquée comme une tâche de test.",
+      "cancel_like": "Cette session ressemble à une session annulée.",
+      "excluded_from_learning": "Cette session est actuellement exclue de l'apprentissage.",
+      "job_cancelled": "La tâche a été annulée avant la fin.",
+      "job_failed": "La tâche a échoué avant la fin.",
+      "job_interrupted": "La tâche a été interrompue avant la fin.",
+      "test_job": "Cette session est marquée comme une tâche de test.",
+      "manually_excluded": "Cette session a été exclue manuellement de l'apprentissage.",
+      "invalid_room_count": "Cette session n'a pas enregistré de nombre de pièces valide.",
+      "invalid_duration": "Cette session n'a pas enregistré de durée valide.",
+      "missing_resolved_rooms": "Aucune pièce n'a pu être associée à cette session.",
+      "failed_sanity": "Cette session a échoué aux vérifications internes du backend.",
+      "short_duration_vs_profile": "Bien plus courte que la durée habituelle de ce profil.",
+      "short_duration_vs_room": "Bien plus courte que la durée habituelle de cette pièce.",
+      "cancel_likely": "Cette session semble avoir été annulée.",
+      "floor_time_too_short": "Le temps de nettoyage au sol était trop court pour une session réelle.",
+      "early_return_likely_cancelled": "L'aspirateur est revenu en avance, cette session a donc probablement été annulée.",
+      "short_test_cancel": "Semble être une courte session de test annulée prématurément.",
+      "manual_test_run": "Marquée comme une session de test manuelle.",
+      "false_completion": "Cette session semble s'être terminée avant la fin réelle du nettoyage.",
+      "bad_room_attribution": "L'attribution des pièces de cette session semble peu fiable.",
+      "interrupted_run": "Cette session semble avoir été interrompue."
     }
   },
   "order_modal": {

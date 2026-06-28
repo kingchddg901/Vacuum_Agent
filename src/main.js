@@ -9,7 +9,7 @@ import { applyCardDomHelpers }                from "./bindings/core.js";
 import { buildRenderContext, renderHeader, renderView, isViewAvailable, VIEW_ORDER, VIEWS } from "./render-cycle.js";
 import { STYLES, MODAL_HOST_STYLES, TOAST_HOST_STYLES } from "./styles/index.js";
 import { applyThemeToCard }                   from "./styles/apply-theme.js";
-import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales } from "./i18n/index.js";
+import { translate, resolveLang, loadLocale, ensureLocalesLoaded, localeSource, listBundledLocales, localeStatus } from "./i18n/index.js";
 import { getStoredLang, setStoredLang }     from "./i18n/lang-store.js";
 
 import { LearningController }                 from "./controllers/learning-controller.js";
@@ -324,6 +324,24 @@ class EufyVacuumCommandCenter extends HTMLElement {
    */
   _i18nLanguage() {
     return resolveLang(this._hass, this._config, this._langOverride);
+  }
+
+  /**
+   * What the header's "Auto" row should disclose. When the user has no per-dash
+   * pin and their HA system language is an unreviewed draft, "Auto" silently
+   * resolves to English (the draft-gate) — surface that so Auto doesn't look
+   * broken. Returns { systemLang, gatedToEnglish }.
+   */
+  _autoLangInfo() {
+    const systemLang = String(
+      (this._hass && this._hass.locale && this._hass.locale.language) ||
+      (this._hass && this._hass.language) || "en",
+    ).split("-")[0];
+    const pinned = this._config && this._config.i18n && this._config.i18n.locale;
+    const hasPin = pinned && pinned !== "auto";
+    const status = localeStatus(systemLang);
+    const gatedToEnglish = !hasPin && systemLang !== "en" && (status === "draft" || status === "custom");
+    return { systemLang, gatedToEnglish };
   }
 
   /** Translate a card-level UI string (HTML-escaped; trust model B). */
@@ -1186,6 +1204,43 @@ class EufyVacuumCommandCenter extends HTMLElement {
     return id;
   }
 
+  /* =========================================================
+     CARD-NATIVE DIALOGS  (confirm / alert / prompt)
+     =========================================================
+     Drop-in async replacements for window.confirm/alert/prompt — they
+     follow the card's per-user language and work inside the HA app /
+     webview (where window.confirm is often suppressed). Each opens a
+     dialog in the modal host and returns a Promise that settles when the
+     user acts. If state isn't ready, they fail safe (confirm -> false,
+     prompt -> null, alert -> resolves) rather than blocking. */
+
+  /** @returns {Promise<boolean>} true if confirmed, false if cancelled. */
+  _confirm(message, opts = {}) {
+    if (!this._state?.openDialog) return Promise.resolve(false);
+    return new Promise((resolve) => {
+      this._state.openDialog({ ...opts, kind: "confirm", message, resolve });
+      this._scheduleRender();
+    });
+  }
+
+  /** @returns {Promise<void>} resolves when acknowledged. */
+  _alert(message, opts = {}) {
+    if (!this._state?.openDialog) return Promise.resolve();
+    return new Promise((resolve) => {
+      this._state.openDialog({ ...opts, kind: "alert", message, resolve });
+      this._scheduleRender();
+    });
+  }
+
+  /** @returns {Promise<string|null>} the entered text, or null if cancelled. */
+  _prompt(message, opts = {}) {
+    if (!this._state?.openDialog) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      this._state.openDialog({ ...opts, kind: "prompt", message, defaultValue: opts.defaultValue ?? "", resolve });
+      this._scheduleRender();
+    });
+  }
+
   /**
    * Deferred render — used by theme controls (color pickers, alpha sliders,
    * text token inputs) so that badge / modified-indicator updates happen
@@ -1430,7 +1485,14 @@ class EufyVacuumCommandCenter extends HTMLElement {
         ? this._renderers.renderThemeJsonModal(ctx)
         : "";
 
-    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}`;
+    // Dialog (confirm / alert / prompt) is rendered LAST so it stacks above
+    // whatever modal triggered it (e.g. the run-profile editor below it).
+    const dialogHtml =
+      typeof this._renderers.renderDialogModal === "function"
+        ? this._renderers.renderDialogModal(ctx)
+        : "";
+
+    const html = `${roomEditorHtml}${roomAccessHtml}${roomEstimateHtml}${orderModalHtml}${maintenanceModalHtml}${externalWizardHtml}${themeJsonHtml}${dialogHtml}`;
 
     if (!html) {
       if (this._modalHost) {
@@ -1461,9 +1523,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
       prevScroll.forEach((top, i) => {
         if (top && bodies[i]) bodies[i].scrollTop = top;
       });
-    }
 
-    this._bindings?.bindModalHostEvents(this._modalHost);
+      // Bind ONLY after an actual innerHTML swap. The swap recreates every modal
+      // element (dropping its old listeners), so this attaches exactly one set.
+      // Re-binding on every render — including a background status/battery push
+      // while a modal sits open with UNCHANGED markup — would stack duplicate
+      // click listeners on the same buttons (double-firing save / rename /
+      // delete). Same-markup renders keep their already-attached listeners.
+      this._bindings?.bindModalHostEvents(this._modalHost);
+    }
   }
 
   /* =========================================================
@@ -1489,6 +1557,15 @@ class EufyVacuumCommandCenter extends HTMLElement {
     if (event?.key !== "Escape") return;
     if (!this._modalHost) return;
     if (!this._state) return;
+
+    // A card-native dialog stacks ABOVE every other modal, so Escape must
+    // cancel IT — not the modal underneath. (Native confirm/prompt were
+    // document-blocking; Escape never reached the page. Preserve that.)
+    if (this._state.cancelDialog?.()) {
+      this._scheduleRender();
+      event.preventDefault();
+      return;
+    }
 
     const closers = [
       ["maintenance",   "activeMaintenanceModalItem", "closeMaintenanceModal"],

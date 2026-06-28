@@ -77,7 +77,9 @@ async def delete_map(
         map_id=map_id_str,
     )
     level = protection["protection_level"]
-    display_name = protection["typed_confirmation_value"]
+    typed_value = protection["typed_confirmation_value"]
+    # Safe human label for messages/logs — typed_value is None for unnamed maps.
+    display_label = typed_value or f"Map {map_id_str}"
 
     if protection["requires_typed_confirmation"]:
         if not confirmation_token:
@@ -85,27 +87,29 @@ async def delete_map(
                 "requires_confirmation",
                 code="typed_confirmation_required",
                 message=(
-                    f"Deleting '{display_name}' requires typed confirmation. "
+                    f"Deleting '{display_label}' requires typed confirmation. "
                     f"Send the map name as confirmation_token."
                 ),
                 data={"protection": protection},
             )
-        if confirmation_token.strip() != display_name.strip():
+        # typed_value is non-None whenever requires_typed_confirmation is True.
+        if confirmation_token.strip() != (typed_value or "").strip():
             return _action_result(
                 "blocked",
                 code="confirmation_mismatch",
                 message=(
-                    f"Confirmation token does not match map name '{display_name}'. "
+                    f"Confirmation token does not match map name '{display_label}'. "
                     "Check for extra spaces or typos."
                 ),
                 data={"protection": protection},
             )
-    elif level == "elevated" and not confirmation_token:
-        # Elevated protection requires a one-click confirm (any truthy token), not a typed name.
+    elif protection.get("requires_confirmation") and not confirmation_token:
+        # One-click confirm (any truthy token) for elevated maps AND unnamed
+        # high-protection maps — which have no locale-invariant name to type.
         return _action_result(
             "requires_confirmation",
             code="confirmation_required",
-            message=f"Confirm deletion of '{display_name}'.",
+            message=f"Confirm deletion of '{display_label}'.",
             data={"protection": protection},
         )
 
@@ -157,7 +161,7 @@ async def delete_map(
     return _action_result(
         "success",
         code="map_deleted",
-        message=f"Map '{display_name}' has been deleted.",
+        message=f"Map '{display_label}' has been deleted.",
         warnings=warnings,
         data={
             "removed": removed,

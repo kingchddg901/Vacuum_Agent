@@ -116,9 +116,14 @@ export function applyExternalJobsRenderers(proto) {
 
   proto._segFacts = function (seg) {
     const settings = seg.settings || {};
+    // The captured clean_mode is an adapter VOCAB value (vacuum / vacuum_mop /
+    // mop) — localize it like the room editor does, not raw. tVocab escapes.
+    const mode = settings.clean_mode
+      ? this.tVocab("clean_mode", settings.clean_mode, String(settings.clean_mode))
+      : this.t("external_jobs.clean_mode_unknown");
     return `${(Number(seg.area_m2) || 0).toFixed(0)} m² · `
       + `${Math.round((Number(seg.time_wall_s) || 0) / 60)} min · `
-      + `${this.escapeHtml(String(settings.clean_mode || this.t("external_jobs.clean_mode_unknown")))} · ${seg.pass_count || 1}×`;
+      + `${mode} · ${seg.pass_count || 1}×`;
   };
 
   // v2 (samples saved) — the count stepper + per-boundary split/merge re-segment
@@ -171,8 +176,11 @@ export function applyExternalJobsRenderers(proto) {
         </div>`;
     }).join("");
 
-    const cap = w.resegmentMeta && w.resegmentMeta.capped
-      ? `<div class="evcc-ext-blocked">${this.escapeHtml(String(w.resegmentMeta.message || this.t("external_jobs.capped_message")))}</div>`
+    // Localize via the backend reason CODE (vocab.resegment_reason.*), falling
+    // back to the backend English message, then the static key. tVocab escapes.
+    const rm = w.resegmentMeta;
+    const cap = rm && rm.capped
+      ? `<div class="evcc-ext-blocked">${this.tVocab("resegment_reason", rm.reason, rm.message || this.t("external_jobs.capped_message"))}</div>`
       : "";
 
     return `${stepper}${cap}<div class="evcc-ext-seglist">${rows}</div>`;
@@ -292,9 +300,12 @@ export function applyExternalJobsRenderers(proto) {
     const chips = options.map((o) => {
       const val = String(o.value ?? "");
       const active = cur && cur.toLowerCase() === val.toLowerCase() ? "active" : "";
+      // key is the adapter vocab field (fan_speed / clean_intensity /
+      // water_level) — localize the option label via tVocab like the room
+      // editor, falling back to the backend label. tVocab escapes.
       return `<button class="evcc-chip ${active}"
         data-action="ext-set-override" data-order="${order}" data-key="${key}"
-        data-value="${this.escapeHtml(val)}">${this.escapeHtml(String(o.label || val))}</button>`;
+        data-value="${this.escapeHtml(val)}">${this.tVocab(key, o.value, String(o.label || val))}</button>`;
     }).join("");
     return `
       <div class="evcc-editor-field-group">

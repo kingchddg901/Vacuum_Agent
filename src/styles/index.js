@@ -42,6 +42,7 @@ import { setupStyles                         } from "./setup.js";
 import { mappingReviewStyles                 } from "./mapping-review.js";
 import { MOBILE_STYLES                       } from "./mobile.js";
 import { externalJobsStyles, externalWizardModalStyles } from "./external-jobs.js";
+import { dialogModalStyles                   } from "./dialog.js";
 import { THEME_TOKEN_REGISTRY                } from "../theme-tokens/index.js";
 
 export const STYLES = [
@@ -556,6 +557,7 @@ export const MODAL_HOST_STYLES = `
   ${roomAccessStyles}
   ${roomEstimateStyles}
   ${externalWizardModalStyles}
+  ${dialogModalStyles}
 
   .evcc-modal-footer {
     display:         flex;

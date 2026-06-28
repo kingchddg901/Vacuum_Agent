@@ -25,6 +25,7 @@ RESPONSIBILITIES
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -32,6 +33,7 @@ from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
+from ..adapters.registry import get_adapter_config
 from ..const import DOMAIN
 from ..profiles.room_profiles import get_default_room_profiles
 from ..timestamp_utils import parse_timestamp, utc_now
@@ -142,6 +144,30 @@ def _profile_name_label(value: Any) -> str | None:
     if normalized in replacements:
         return replacements[normalized]
     return _display_label(normalized)
+
+
+def _normalize_profile_setting(value: Any, aliases: dict[str, str] | None) -> Any:
+    """Normalize a raw profile-setting display string to a canonical code.
+
+    Room-profile settings are stored as un-normalized display strings (mixed
+    case, spaces — e.g. "Vacuum and mop", "Standard", "BoostIQ"), so their
+    card-side slug (lowercased, non-alnum -> "_") would miss the vocab key and
+    fall back to English. Lowercase + collapse non-alphanumerics to single
+    spaces, map through the adapter's alias table (display string -> canonical
+    code), and slug anything not aliased. Empty/None passes through unchanged so
+    "no setting" stays falsy.
+    """
+    text = str(value or "").strip().lower()
+    if not text:
+        return value
+    compact = " ".join(re.sub(r"[^a-z0-9]+", " ", text).split())
+    if not compact:
+        return value
+    if aliases:
+        mapped = aliases.get(compact)
+        if mapped is not None:
+            return mapped
+    return compact.replace(" ", "_")
 
 
 def _settings_profile_label(
@@ -1052,6 +1078,14 @@ class LearningManager:
             enriched_rooms.append(enriched)
 
         enriched_room_profiles: list[dict[str, Any]] = []
+        # Adapter-owned display-string -> canonical-code maps. The observed
+        # profile settings are stored un-normalized; normalizing here means the
+        # card always receives a code its vocab is keyed on (no English leak).
+        _setting_vocab = (get_adapter_config(vacuum_entity_id) or {}).get("vocabulary", {})
+        _clean_mode_aliases = _setting_vocab.get("clean_mode_aliases") or {}
+        _clean_intensity_aliases = _setting_vocab.get("clean_intensity_aliases") or {}
+        _fan_speed_aliases = _setting_vocab.get("fan_speed_aliases") or {}
+        _water_level_aliases = _setting_vocab.get("water_level_aliases") or {}
         for item in filtered_room_profiles:
             enriched = dict(item)
             enriched["room_label"] = _room_label(item.get("room_slug"))
@@ -1114,6 +1148,13 @@ class LearningManager:
             enriched["save_candidate_kind"] = "custom_profile" if custom_observed else "preset_variant"
             enriched["save_suggested_label"] = suggested_label
             enriched.update(profile_display)
+            # Normalize the flat setting CODES the card reads (via _localizedProfile)
+            # to canonical form. The English *_label fallbacks computed above keep
+            # the original display string, so degradation is unaffected.
+            enriched["clean_mode"] = _normalize_profile_setting(item.get("clean_mode"), _clean_mode_aliases)
+            enriched["clean_intensity"] = _normalize_profile_setting(item.get("clean_intensity"), _clean_intensity_aliases)
+            enriched["fan_speed"] = _normalize_profile_setting(item.get("fan_speed"), _fan_speed_aliases)
+            enriched["water_level"] = _normalize_profile_setting(item.get("water_level"), _water_level_aliases)
             enriched["save_supported"] = False
             enriched["save_service"] = None
             enriched["save_service_data"] = None
@@ -1327,6 +1368,15 @@ class LearningManager:
                 "room_label": item.get("room_label"),
                 "selected_profile_name": item.get("selected_profile_name"),
                 "resolved_profile_name": item.get("resolved_profile_name"),
+                # Raw settings codes (also in nested "settings" below) flattened so
+                # the card's _localizedProfile can recompose a localized label —
+                # mirrors the profile_filter_options passthrough.
+                "clean_mode": item.get("clean_mode"),
+                "clean_intensity": item.get("clean_intensity"),
+                "fan_speed": item.get("fan_speed"),
+                "water_level": item.get("water_level"),
+                "clean_passes": item.get("clean_passes"),
+                "edge_mopping": item.get("edge_mopping"),
                 "run_count": _safe_int(item.get("run_count"), 0),
                 "learning_run_count": _safe_int(item.get("learning_run_count"), 0),
                 "trusted": bool(item.get("trusted", False)),
@@ -1414,6 +1464,18 @@ class LearningManager:
                     "subtitle": item.get("profile_subtitle"),
                     "room_slug": item.get("room_slug"),
                     "room_label": item.get("room_label"),
+                    # Raw settings codes so the CARD can recompose a localized
+                    # label/subtitle in the per-user language. The label/subtitle
+                    # above stay as the English fallback; value(=profile_key) is
+                    # untouched so filtering still targets the exact variant.
+                    "selected_profile_name": item.get("selected_profile_name"),
+                    "resolved_profile_name": item.get("resolved_profile_name"),
+                    "clean_mode": item.get("clean_mode"),
+                    "clean_intensity": item.get("clean_intensity"),
+                    "fan_speed": item.get("fan_speed"),
+                    "water_level": item.get("water_level"),
+                    "clean_passes": item.get("clean_passes"),
+                    "edge_mopping": item.get("edge_mopping"),
                 }
                 for item in profile_filter_source
                 if isinstance(item, dict) and str(item.get("profile_key", "")).strip()

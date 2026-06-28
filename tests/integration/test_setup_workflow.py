@@ -226,8 +226,13 @@ async def test_delete_elevated_requires_confirm(hass, manager):
 
 
 async def test_delete_high_typed_mismatch(hass, manager):
-    """[SW-12] two protection reasons → high → typed confirm enforced."""
+    """[SW-12] NAMED map + two protection reasons → high → typed confirm enforced.
+
+    A high map only demands a TYPED token when it has a real (locale-invariant)
+    stored name; an unnamed high map drops to a one-click confirm instead.
+    """
     setup_map(manager, _VAC, "swdel12", count=2)
+    manager.data["maps"][_VAC]["swdel12"].setdefault("metadata", {})["display_name"] = "Garage"
     rooms = manager.data["maps"][_VAC]["swdel12"]["rooms"]
     first_key = next(iter(rooms))
     rooms[first_key]["rules"] = [{"kind": "blocker", "entity_id": "binary_sensor.x"}]

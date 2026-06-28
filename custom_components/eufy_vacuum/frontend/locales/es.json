@@ -11,7 +11,9 @@
     "reset": "Restablecer",
     "save": "Guardar",
     "saving": "Guardando…",
-    "yes": "Sí"
+    "yes": "Sí",
+    "confirm": "Confirmar",
+    "ok": "Aceptar"
   },
   "base_station": {
     "action_available": "Acción disponible",
@@ -107,7 +109,8 @@
     "label_required": "Se requiere una etiqueta para el perfil de habitación.",
     "rename_key_prompt": "Opcional: introduce una nueva clave de perfil del backend.",
     "rename_label_prompt": "Introduce la nueva etiqueta visible para este perfil de habitación:",
-    "save_new_profile_prompt": "Guarda la configuración actual de la habitación como un nuevo perfil. Introduce una etiqueta visible:"
+    "save_new_profile_prompt": "Guarda la configuración actual de la habitación como un nuevo perfil. Introduce una etiqueta visible:",
+    "profile_already_removed": "Ese perfil ya se había eliminado."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "El backend rechazó esta regla.",
@@ -251,7 +254,8 @@
   "language": {
     "button_title": "Idioma",
     "heading": "Idioma de visualización",
-    "auto": "Auto (seguir Home Assistant)"
+    "auto": "Auto (seguir Home Assistant)",
+    "auto_draft_note": "{lang} todavía es un borrador, por lo que Auto muestra inglés — selecciónalo abajo para usarlo."
   },
   "learning": {
     "all_rooms_complete": "Todas las habitaciones completadas",
@@ -1631,13 +1635,17 @@
     "clean_mode": {
       "vacuum": "Aspirar",
       "mop": "Fregar",
-      "vacuum_mop": "Aspirar y fregar"
+      "vacuum_mop": "Aspirar y fregar",
+      "vacuum_and_mop": "Aspirar y fregar"
     },
     "fan_speed": {
       "quiet": "Silencioso",
       "standard": "Estándar",
       "boost": "Turbo",
-      "max": "Máx."
+      "max": "Máx.",
+      "turbo": "Turbo",
+      "gentle": "Suave",
+      "balanced": "Equilibrado"
     },
     "water_level": {
       "off": "Desactivado",
@@ -1649,7 +1657,8 @@
       "quick": "Rápida",
       "narrow": "Estrecha",
       "deep": "Profunda",
-      "normal": "Normal"
+      "normal": "Normal",
+      "standard": "Estándar"
     },
     "metrics_tab": {
       "learning": "Aprendizaje",
@@ -1670,12 +1679,17 @@
       "off": "Desactivado",
       "low": "Bajo",
       "medium": "Medio",
-      "high": "Alto"
+      "high": "Alto",
+      "vacuum_and_mop": "Aspirar y fregar",
+      "turbo": "Turbo",
+      "gentle": "Suave",
+      "balanced": "Equilibrado"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutos est.",
       "room_count": "Nº de habitaciones",
-      "none": "Ninguno"
+      "none": "Ninguno",
+      "estimated_minutes": "Minutos est.",
+      "actual_minutes": "Minutos reales"
     },
     "status": {
       "completed": "Completado",
@@ -2229,6 +2243,72 @@
       "not_drying": "Detener el secado solo es útil mientras la base está secando activamente.",
       "already_emptying": "La base ya está vaciando el polvo.",
       "dock_busy": "La base está ocupada actualmente con otra acción de servicio."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limitado a las habitaciones detectables en esta ejecución."
+    },
+    "job_scope": {
+      "single_room": "Habitación única",
+      "multi_room": "Varias habitaciones"
+    },
+    "device_status": {
+      "cleaning": "Limpiando",
+      "docked": "En la base",
+      "idle": "Inactivo",
+      "paused": "En pausa",
+      "returning": "Regresando",
+      "error": "Error",
+      "charging": "Cargando",
+      "standby": "En espera",
+      "washing": "Lavando",
+      "washing_mop": "Lavando mopa",
+      "drying": "Secando",
+      "drying_mop": "Secando mopa",
+      "emptying": "Vaciando",
+      "emptying_dust": "Vaciando polvo",
+      "fault": "Avería",
+      "offline": "Sin conexión",
+      "unavailable": "No disponible",
+      "unknown": "Desconocido"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Ejecución cancelada",
+      "failed": "Ejecución fallida",
+      "interrupted": "Ejecución interrumpida",
+      "failed_sanity": "Verificación fallida",
+      "floor_time_too_short": "Limpieza de suelo muy corta",
+      "early_return_likely_cancelled": "Regreso anticipado",
+      "cancel_like": "Parece cancelada",
+      "short_duration_vs_profile": "Corta frente al perfil",
+      "short_duration_vs_room": "Corta frente a la habitación"
+    },
+    "reason_code": {
+      "completed": "Esta ejecución se completó con normalidad.",
+      "cancelled": "Esta ejecución terminó como una tarea cancelada.",
+      "failed": "Esta ejecución terminó como una tarea fallida.",
+      "interrupted": "Esta ejecución terminó como una tarea interrumpida.",
+      "test": "Esta ejecución está marcada como una tarea de prueba.",
+      "cancel_like": "Esta ejecución parece una ejecución cancelada.",
+      "excluded_from_learning": "Esta ejecución está actualmente excluida del aprendizaje.",
+      "job_cancelled": "La tarea se canceló antes de finalizar.",
+      "job_failed": "La tarea falló antes de finalizar.",
+      "job_interrupted": "La tarea se interrumpió antes de finalizar.",
+      "test_job": "Esta ejecución está marcada como una tarea de prueba.",
+      "manually_excluded": "Esta ejecución se excluyó manualmente del aprendizaje.",
+      "invalid_room_count": "Esta ejecución no registró un número válido de habitaciones.",
+      "invalid_duration": "Esta ejecución no registró una duración válida.",
+      "missing_resolved_rooms": "No se pudo asociar ninguna habitación a esta ejecución.",
+      "failed_sanity": "Esta ejecución no superó las verificaciones internas del backend.",
+      "short_duration_vs_profile": "Mucho más corta de lo que suele tardar este perfil.",
+      "short_duration_vs_room": "Mucho más corta de lo que suele tardar esta habitación.",
+      "cancel_likely": "Esta ejecución parece haberse cancelado.",
+      "floor_time_too_short": "El tiempo de limpieza de suelo fue demasiado corto para una ejecución real.",
+      "early_return_likely_cancelled": "El aspirador regresó antes de tiempo, por lo que esta ejecución probablemente se canceló.",
+      "short_test_cancel": "Parece una ejecución de prueba corta que se canceló antes de tiempo.",
+      "manual_test_run": "Marcada como ejecución de prueba manual.",
+      "false_completion": "Esta ejecución parece haber terminado antes de completar realmente la limpieza.",
+      "bad_room_attribution": "La atribución de habitaciones de esta ejecución parece poco fiable.",
+      "interrupted_run": "Esta ejecución parece haberse interrumpido."
     }
   },
   "order_modal": {

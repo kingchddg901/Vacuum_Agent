@@ -353,6 +353,39 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                     "falls back to the default interval."
                 ),
             },
+            "clean_mode_aliases": {
+                "type": "dict[str, str]",
+                "required": False,
+                "description": (
+                    "Maps brand clean-mode display strings (lowercased, non-alnum "
+                    "collapsed to a single space) to the canonical codes the card "
+                    "vocab is keyed on. Canonical codes: 'vacuum', 'mop', "
+                    "'vacuum_mop'. Example: {'vacuum and mop': 'vacuum_mop'}. The "
+                    "learning manager normalizes observed settings through this so "
+                    "the card receives a code, not a display string. Degradation: "
+                    "unknown values slug through (spaces -> underscores)."
+                ),
+            },
+            "clean_intensity_aliases": {
+                "type": "dict[str, str]",
+                "required": False,
+                "description": (
+                    "Maps brand clean-intensity display strings to canonical codes. "
+                    "Canonical codes: 'quick', 'narrow', 'deep', 'normal', "
+                    "'standard'. May be empty when the brand's display values "
+                    "already slug to the canonical code. Degradation: slug-through."
+                ),
+            },
+            "fan_speed_aliases": {
+                "type": "dict[str, str]",
+                "required": False,
+                "description": (
+                    "Maps brand suction/fan-speed display strings to canonical "
+                    "codes. Canonical codes: 'quiet', 'gentle', 'standard', "
+                    "'boost', 'turbo', 'max'. Example: {'boostiq': 'boost'}. "
+                    "Degradation: slug-through."
+                ),
+            },
 
             # --- User-facing dropdown vocabularies -----------------
             # The card's room editor and rule editor populate dropdowns

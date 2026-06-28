@@ -4,7 +4,7 @@ The core package is the orchestrator: `EufyVacuumManager` ties every subsystem
 together and owns the live read surfaces the dashboard polls (lifecycle, job
 progress, start-status), plus the storage layer, capability cache, error-tracker
 latch, the post-job water amendment, and the brand-agnostic charging /
-low-battery-return reads. Covered by **240 tests across 15 files**.
+low-battery-return reads. Covered by **243 tests across 15 files**.
 
 Source: `custom_components/eufy_vacuum/core/`
 Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.md), [docs/dev/23-error-tracker.md](../../dev/23-error-tracker.md)
@@ -15,9 +15,9 @@ Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 1688 | 97% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit |
+| `manager.py` | 1690 | 97% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit |
 | `error_tracker.py` | 316 | 89% | `test_core_error_tracker.py` | integration |
-| `capabilities.py` | 117 | 97% | `test_core_capabilities.py` | integration |
+| `capabilities.py` | 118 | 97% | `test_core_capabilities.py` | integration |
 | `charging.py` | 39 | 100% | `test_charging.py` (unit) | unit |
 | `water_amendment.py` | 120 | 92% | `test_core_water_amendment.py` | integration |
 | `storage.py` | 17 | 100% | `test_core_storage.py` | integration |

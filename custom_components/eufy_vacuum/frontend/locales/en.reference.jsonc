@@ -13,9 +13,11 @@
   "common": {
     "cancel": "Cancel",
     "close": "Close",
+    "confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
     "delete": "Delete",
     "edit": "Edit",
     "no": "No",
+    "ok": "OK",  // Acknowledge-button label on a card-native alert dialog
     "off": "Off",  // Toggle-button label = setting DISABLED (paired with common.on); not 'leave/away' or directional
     "on": "On",  // Toggle-button label = setting ENABLED (edge-mop/rules on); not 'turn on' verb or 'on' preposition
     "rename": "Rename",
@@ -34,18 +36,23 @@
   "language": {
     "button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
     "heading": "Display language",  // heading at the top of the language dropdown menu
-    "auto": "Auto (follow Home Assistant)"  // first menu row: defer to the HA system language (no override)
+    "auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
+    "auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it."  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name
   },
   "vocab": {
     "clean_mode": {
       "vacuum": "Vacuum",  // clean mode: suction only
       "mop": "Mop",  // clean mode: mop only
-      "vacuum_mop": "Vacuum and mop"
+      "vacuum_mop": "Vacuum and mop",
+      "vacuum_and_mop": "Vacuum and mop"  // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
     },
     "fan_speed": {
       "quiet": "Quiet",  // suction level (lowest)
+      "gentle": "Gentle",  // suction level (Roborock app term)
+      "balanced": "Balanced",  // suction level (Roborock app term)
       "standard": "Standard",  // suction level
       "boost": "Boost",  // suction level
+      "turbo": "Turbo",  // suction level (Eufy app term; the value the device actually emits)
       "max": "Max"  // suction level (highest)
     },
     "water_level": {
@@ -58,7 +65,8 @@
       "quick": "Quick",  // cleaning path / intensity
       "narrow": "Narrow",  // cleaning path / intensity
       "deep": "Deep",  // cleaning path / intensity
-      "normal": "Normal"  // cleaning path / intensity (manual-only)
+      "normal": "Normal",  // cleaning path / intensity (manual-only)
+      "standard": "Standard"  // cleaning path / intensity (Eufy app term; the dominant stored value)
     },
     "metrics_tab": {
       "learning": "Learning",
@@ -72,9 +80,13 @@
       "vacuum": "Vacuum",
       "mop": "Mop",
       "vacuum_mop": "Vacuum and mop",
+      "vacuum_and_mop": "Vacuum and mop",  // alias: display-string form the stored profiles use
       "quiet": "Quiet",
+      "gentle": "Gentle",
+      "balanced": "Balanced",
       "standard": "Standard",
       "boost": "Boost",
+      "turbo": "Turbo",
       "max": "Max",
       "off": "Off",
       "low": "Low",
@@ -82,7 +94,8 @@
       "high": "High"
     },
     "battery_weighted_by": {
-      "est_minutes": "Est-minutes",
+      "estimated_minutes": "Est. minutes",  // last-job %/m² weighting basis: the estimated per-room minutes
+      "actual_minutes": "Actual minutes",  // weighting basis: the actual measured minutes
       "room_count": "Room count",
       "none": "None"
     },
@@ -92,6 +105,30 @@
       "cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
       "failed": "Failed",
       "interrupted": "Interrupted"
+    },
+    "job_scope": {
+      "single_room": "Single Room",  // learning-review job coverage: one room cleaned
+      "multi_room": "Multi Room"  // learning-review job coverage: several rooms in one run
+    },
+    "device_status": {
+      "cleaning": "Cleaning",
+      "docked": "Docked",
+      "idle": "Idle",
+      "paused": "Paused",
+      "returning": "Returning",
+      "error": "Error",
+      "charging": "Charging",
+      "standby": "Standby",
+      "washing": "Washing",
+      "washing_mop": "Washing Mop",
+      "drying": "Drying",
+      "drying_mop": "Drying Mop",
+      "emptying": "Emptying",
+      "emptying_dust": "Emptying Dust",
+      "fault": "Fault",
+      "offline": "Offline",
+      "unavailable": "Unavailable",
+      "unknown": "Unknown"
     },
     "used_for_learning": {
       "true": "Used For Learning",
@@ -149,6 +186,9 @@
       "already_emptying": "The dock is already emptying dust.",
       "dock_busy": "The dock is currently busy with another service action."
     },
+    "resegment_reason": {
+      "capped_to_detectable": "Capped to the rooms detectable from this run."  // External-run review: shown when the requested room count exceeded the number of boundaries detectable from the captured run, so it was limited.
+    },
     "sort": {
       "newest": "Newest",
       "outlier": "Highest Outlier",
@@ -161,6 +201,45 @@
       "false_completion": "False Completion",
       "bad_room_attribution": "Bad Room Attribution",
       "interrupted_run": "Interrupted Run"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Cancelled run",
+      "failed": "Failed run",
+      "interrupted": "Interrupted run",
+      "failed_sanity": "Failed sanity check",
+      "floor_time_too_short": "Floor time too short",
+      "early_return_likely_cancelled": "Returned early",
+      "cancel_like": "Looks cancelled",
+      "short_duration_vs_profile": "Short vs profile",
+      "short_duration_vs_room": "Short vs room"
+    },
+    "reason_code": {
+      "completed": "This run completed normally.",
+      "cancelled": "This run ended as a cancelled job.",
+      "failed": "This run ended as a failed job.",
+      "interrupted": "This run ended as an interrupted job.",
+      "test": "This run is marked as a test job.",
+      "job_cancelled": "The job was cancelled before it finished.",
+      "job_failed": "The job failed before it finished.",
+      "job_interrupted": "The job was interrupted before it finished.",
+      "test_job": "This run is marked as a test job.",
+      "manually_excluded": "This run was manually excluded from learning.",
+      "excluded_from_learning": "This run is currently excluded from learning.",
+      "invalid_room_count": "This run did not record a valid number of rooms.",
+      "invalid_duration": "This run did not record a valid duration.",
+      "missing_resolved_rooms": "No rooms could be matched for this run.",
+      "failed_sanity": "This run failed the backend sanity checks.",
+      "short_duration_vs_profile": "Much shorter than this profile usually takes.",
+      "short_duration_vs_room": "Much shorter than this room usually takes.",
+      "cancel_like": "This run looks like a canceled run.",
+      "cancel_likely": "This run looks like it was canceled.",
+      "floor_time_too_short": "Floor-cleaning time was too short for a real run.",
+      "early_return_likely_cancelled": "The vacuum returned early, so this run was likely canceled.",
+      "short_test_cancel": "Looks like a short test run that was canceled early.",
+      "manual_test_run": "Marked as a manual test run.",
+      "false_completion": "This run appears to have ended before cleaning really completed.",
+      "bad_room_attribution": "Room attribution for this run looks unreliable.",
+      "interrupted_run": "This run appears to have been interrupted."
     },
     "theme_token": {
       "evcc_accent": "Accent",
@@ -725,6 +804,7 @@
     "confirm_overwrite_profile": "Overwrite {target} with this room's current settings?",
     "default_custom_profile_label": "Custom Room Profile",  // default display name suggested when saving a room's settings as a new reusable profile
     "failed_delete_profile": "Failed to delete room profile.",
+    "profile_already_removed": "That profile was already removed.",  // info toast: the delete found the profile already gone from the backend; the card reconciled (refreshed) rather than erroring
     "failed_overwrite_profile": "Failed to overwrite room profile.",
     "failed_rename_profile": "Failed to rename room profile.",
     "failed_save_profile": "Failed to save room profile.",

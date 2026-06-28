@@ -32,9 +32,11 @@ export const en = {
   // --- common ---
   "common.cancel": "Cancel",
   "common.close": "Close",
+  "common.confirm": "Confirm",  // Confirm-button label on a card-native confirm dialog (proceed with the action)
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.no": "No",
+  "common.ok": "OK",  // Acknowledge-button label on a card-native alert dialog
   "common.off": "Off",  // Toggle-button label = setting DISABLED (paired with common.on); not 'leave/away' or directional
   "common.on": "On",  // Toggle-button label = setting ENABLED (edge-mop/rules on); not 'turn on' verb or 'on' preposition
   "common.rename": "Rename",
@@ -54,14 +56,19 @@ export const en = {
   "language.button_title": "Language",  // tooltip/aria-label on the header globe button that opens the language menu
   "language.heading": "Display language",  // heading at the top of the language dropdown menu
   "language.auto": "Auto (follow Home Assistant)",  // first menu row: defer to the HA system language (no override)
+  "language.auto_draft_note": "{lang} is still a draft, so Auto shows English — pick it below to use it.",  // sub-note under the Auto row when the HA system language is a draft (gated to English); {lang} = that language's own name
 
   // --- vocab (adapter VOCABULARY values rendered via this.tVocab(field, value, label); keyed on the stable value, falls back to the backend English label for unkeyed values) ---
   "vocab.clean_mode.vacuum": "Vacuum",            // clean mode: suction only
   "vocab.clean_mode.mop": "Mop",                  // clean mode: mop only
-  "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both
+  "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both (code form)
+  "vocab.clean_mode.vacuum_and_mop": "Vacuum and mop", // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
   "vocab.fan_speed.quiet": "Quiet",               // suction level (lowest)
+  "vocab.fan_speed.gentle": "Gentle",             // suction level (Roborock app term)
+  "vocab.fan_speed.balanced": "Balanced",         // suction level (Roborock app term)
   "vocab.fan_speed.standard": "Standard",         // suction level
   "vocab.fan_speed.boost": "Boost",               // suction level
+  "vocab.fan_speed.turbo": "Turbo",               // suction level (Eufy app term; the value the device actually emits)
   "vocab.fan_speed.max": "Max",                   // suction level (highest)
   "vocab.water_level.off": "Off",                 // water level: no water
   "vocab.water_level.low": "Low",                 // water level
@@ -71,6 +78,7 @@ export const en = {
   "vocab.clean_intensity.narrow": "Narrow",       // cleaning path / intensity
   "vocab.clean_intensity.deep": "Deep",           // cleaning path / intensity
   "vocab.clean_intensity.normal": "Normal",       // cleaning path / intensity (manual-only)
+  "vocab.clean_intensity.standard": "Standard",   // cleaning path / intensity (Eufy app term; the dominant stored value)
 
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
@@ -145,6 +153,7 @@ export const en = {
   "bind_room_editor.confirm_overwrite_profile": "Overwrite {target} with this room's current settings?",
   "bind_room_editor.default_custom_profile_label": "Custom Room Profile",  // default display name suggested when saving a room's settings as a new reusable profile
   "bind_room_editor.failed_delete_profile": "Failed to delete room profile.",
+  "bind_room_editor.profile_already_removed": "That profile was already removed.",  // info toast: the delete found the profile already gone from the backend; the card reconciled (refreshed) rather than erroring
   "bind_room_editor.failed_overwrite_profile": "Failed to overwrite room profile.",
   "bind_room_editor.failed_rename_profile": "Failed to rename room profile.",
   "bind_room_editor.failed_save_profile": "Failed to save room profile.",
@@ -1484,15 +1493,20 @@ export const en = {
   "vocab.battery_bucket_key.vacuum": "Vacuum",
   "vocab.battery_bucket_key.mop": "Mop",
   "vocab.battery_bucket_key.vacuum_mop": "Vacuum and mop",
+  "vocab.battery_bucket_key.vacuum_and_mop": "Vacuum and mop", // alias: display-string form the stored profiles use
   "vocab.battery_bucket_key.quiet": "Quiet",
+  "vocab.battery_bucket_key.gentle": "Gentle",
+  "vocab.battery_bucket_key.balanced": "Balanced",
   "vocab.battery_bucket_key.standard": "Standard",
   "vocab.battery_bucket_key.boost": "Boost",
+  "vocab.battery_bucket_key.turbo": "Turbo",
   "vocab.battery_bucket_key.max": "Max",
   "vocab.battery_bucket_key.off": "Off",
   "vocab.battery_bucket_key.low": "Low",
   "vocab.battery_bucket_key.medium": "Medium",
   "vocab.battery_bucket_key.high": "High",
-  "vocab.battery_weighted_by.est_minutes": "Est-minutes",
+  "vocab.battery_weighted_by.estimated_minutes": "Est. minutes",  // last-job %/m² weighting basis: the estimated per-room minutes
+  "vocab.battery_weighted_by.actual_minutes": "Actual minutes",   // weighting basis: the actual measured minutes
   "vocab.battery_weighted_by.room_count": "Room count",
   "vocab.battery_weighted_by.none": "None",
   "vocab.status.completed": "Completed",
@@ -1500,6 +1514,29 @@ export const en = {
   "vocab.status.cancelled": "Cancelled",  // British spelling — the value the learning/metrics backend actually emits
   "vocab.status.failed": "Failed",
   "vocab.status.interrupted": "Interrupted",
+  "vocab.job_scope.single_room": "Single Room",  // learning-review job coverage: one room cleaned
+  "vocab.job_scope.multi_room": "Multi Room",     // learning-review job coverage: several rooms in one run
+  // Device-status VALUES shown in the header next to "Vacuum status:" / "Dock status:".
+  // Union of the HA vacuum-entity states + the Eufy dock_status sensor strings; tVocab
+  // falls back to the backend label for any state not keyed here.
+  "vocab.device_status.cleaning": "Cleaning",
+  "vocab.device_status.docked": "Docked",
+  "vocab.device_status.idle": "Idle",
+  "vocab.device_status.paused": "Paused",
+  "vocab.device_status.returning": "Returning",
+  "vocab.device_status.error": "Error",
+  "vocab.device_status.charging": "Charging",
+  "vocab.device_status.standby": "Standby",
+  "vocab.device_status.washing": "Washing",
+  "vocab.device_status.washing_mop": "Washing Mop",
+  "vocab.device_status.drying": "Drying",
+  "vocab.device_status.drying_mop": "Drying Mop",
+  "vocab.device_status.emptying": "Emptying",
+  "vocab.device_status.emptying_dust": "Emptying Dust",
+  "vocab.device_status.fault": "Fault",
+  "vocab.device_status.offline": "Offline",
+  "vocab.device_status.unavailable": "Unavailable",
+  "vocab.device_status.unknown": "Unknown",
   "vocab.used_for_learning.true": "Used For Learning",
   "vocab.used_for_learning.false": "Excluded From Learning",  // matches the backend filter label
   "vocab.trust_level.none": "None",  // learning trust/confidence tier on a room/profile estimate
@@ -1546,6 +1583,7 @@ export const en = {
   "vocab.dock_reason.not_drying": "Stop dry is only useful while the dock is actively drying.",
   "vocab.dock_reason.already_emptying": "The dock is already emptying dust.",
   "vocab.dock_reason.dock_busy": "The dock is currently busy with another service action.",
+  "vocab.resegment_reason.capped_to_detectable": "Capped to the rooms detectable from this run.",  // External-run review: shown when the requested room count exceeded the number of boundaries detectable from the captured run, so it was limited.
   "vocab.sort.newest": "Newest",
   "vocab.sort.outlier": "Highest Outlier",
   "vocab.sort.suggested": "Suggested Exclude",
@@ -1555,6 +1593,51 @@ export const en = {
   "vocab.exclude_reason.false_completion": "False Completion",
   "vocab.exclude_reason.bad_room_attribution": "Bad Room Attribution",
   "vocab.exclude_reason.interrupted_run": "Interrupted Run",
+  // Auto-exclude suggestion BADGE on Learning Review job cards — terse chip labels
+  // keyed on the stable exclude_suggested_reason code (manager.py emits cancelled/
+  // failed/interrupted/failed_sanity/cancel-detection reason/short_duration_vs_*).
+  // tVocabRaw'd at review.js; falls back to the backend label for any unkeyed code.
+  "vocab.exclude_suggested_reason.cancelled": "Cancelled run",
+  "vocab.exclude_suggested_reason.failed": "Failed run",
+  "vocab.exclude_suggested_reason.interrupted": "Interrupted run",
+  "vocab.exclude_suggested_reason.failed_sanity": "Failed sanity check",
+  "vocab.exclude_suggested_reason.floor_time_too_short": "Floor time too short",
+  "vocab.exclude_suggested_reason.early_return_likely_cancelled": "Returned early",
+  "vocab.exclude_suggested_reason.cancel_like": "Looks cancelled",
+  "vocab.exclude_suggested_reason.short_duration_vs_profile": "Short vs profile",
+  "vocab.exclude_suggested_reason.short_duration_vs_room": "Short vs room",
+  // Per-job "This run …" explanatory NOTE on Learning Review job cards — full
+  // sentences keyed on the stable reason code. One shared namespace because the
+  // note sources overlap (status / learning blockers / sanity flags / cancel
+  // reasons / exclude reasons reuse the same codes). Sourced verbatim from the
+  // backend _reason_text() where present; fresh sentences for codes that only
+  // title-cased before. tVocabRaw'd; falls back per-code to the backend sentence.
+  "vocab.reason_code.completed": "This run completed normally.",
+  "vocab.reason_code.cancelled": "This run ended as a cancelled job.",
+  "vocab.reason_code.failed": "This run ended as a failed job.",
+  "vocab.reason_code.interrupted": "This run ended as an interrupted job.",
+  "vocab.reason_code.test": "This run is marked as a test job.",
+  "vocab.reason_code.job_cancelled": "The job was cancelled before it finished.",
+  "vocab.reason_code.job_failed": "The job failed before it finished.",
+  "vocab.reason_code.job_interrupted": "The job was interrupted before it finished.",
+  "vocab.reason_code.test_job": "This run is marked as a test job.",
+  "vocab.reason_code.manually_excluded": "This run was manually excluded from learning.",
+  "vocab.reason_code.excluded_from_learning": "This run is currently excluded from learning.",
+  "vocab.reason_code.invalid_room_count": "This run did not record a valid number of rooms.",
+  "vocab.reason_code.invalid_duration": "This run did not record a valid duration.",
+  "vocab.reason_code.missing_resolved_rooms": "No rooms could be matched for this run.",
+  "vocab.reason_code.failed_sanity": "This run failed the backend sanity checks.",
+  "vocab.reason_code.short_duration_vs_profile": "Much shorter than this profile usually takes.",
+  "vocab.reason_code.short_duration_vs_room": "Much shorter than this room usually takes.",
+  "vocab.reason_code.cancel_like": "This run looks like a canceled run.",
+  "vocab.reason_code.cancel_likely": "This run looks like it was canceled.",
+  "vocab.reason_code.floor_time_too_short": "Floor-cleaning time was too short for a real run.",
+  "vocab.reason_code.early_return_likely_cancelled": "The vacuum returned early, so this run was likely canceled.",
+  "vocab.reason_code.short_test_cancel": "Looks like a short test run that was canceled early.",
+  "vocab.reason_code.manual_test_run": "Marked as a manual test run.",
+  "vocab.reason_code.false_completion": "This run appears to have ended before cleaning really completed.",
+  "vocab.reason_code.bad_room_attribution": "Room attribution for this run looks unreliable.",
+  "vocab.reason_code.interrupted_run": "This run appears to have been interrupted.",
   "mapping_review.filter_all_rooms": "All Rooms",
   "mapping_review.filter_has_bounds": "Has Bounds",
   "mapping_review.filter_no_bounds": "No Bounds",

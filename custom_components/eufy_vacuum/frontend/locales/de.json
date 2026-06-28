@@ -11,7 +11,9 @@
     "reset": "Zurücksetzen",
     "save": "Speichern",
     "saving": "Wird gespeichert…",
-    "yes": "Ja"
+    "yes": "Ja",
+    "confirm": "Bestätigen",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Aktion verfügbar",
@@ -106,7 +108,8 @@
     "label_required": "Eine Bezeichnung für das Raumprofil ist erforderlich.",
     "rename_key_prompt": "Optional: gib einen neuen Backend-Profilschlüssel ein.",
     "rename_label_prompt": "Gib die neue Anzeigebezeichnung für dieses Raumprofil ein:",
-    "save_new_profile_prompt": "Aktuelle Raumeinstellungen als neues Profil speichern. Gib eine Anzeigebezeichnung ein:"
+    "save_new_profile_prompt": "Aktuelle Raumeinstellungen als neues Profil speichern. Gib eine Anzeigebezeichnung ein:",
+    "profile_already_removed": "Dieses Profil wurde bereits entfernt."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "Das Backend hat diese Regel abgelehnt.",
@@ -249,7 +252,8 @@
   "language": {
     "button_title": "Sprache",
     "heading": "Anzeigesprache",
-    "auto": "Auto (folgt Home Assistant)"
+    "auto": "Auto (folgt Home Assistant)",
+    "auto_draft_note": "{lang} ist noch ein Entwurf, daher zeigt Auto Englisch — wähle es unten aus, um es zu verwenden."
   },
   "learning": {
     "all_rooms_complete": "Alle Räume abgeschlossen",
@@ -1617,13 +1621,17 @@
     "clean_mode": {
       "vacuum": "Saugen",
       "mop": "Wischen",
-      "vacuum_mop": "Saugen und Wischen"
+      "vacuum_mop": "Saugen und Wischen",
+      "vacuum_and_mop": "Saugen und Wischen"
     },
     "fan_speed": {
       "quiet": "Leise",
       "standard": "Standard",
       "boost": "Boost",
-      "max": "Max"
+      "max": "Max",
+      "turbo": "Turbo",
+      "gentle": "Sanft",
+      "balanced": "Ausgewogen"
     },
     "water_level": {
       "off": "Aus",
@@ -1635,7 +1643,8 @@
       "quick": "Schnell",
       "narrow": "Eng",
       "deep": "Gründlich",
-      "normal": "Normal"
+      "normal": "Normal",
+      "standard": "Standard"
     },
     "metrics_tab": {
       "learning": "Lernen",
@@ -1656,12 +1665,17 @@
       "off": "Aus",
       "low": "Niedrig",
       "medium": "Mittel",
-      "high": "Hoch"
+      "high": "Hoch",
+      "vacuum_and_mop": "Saugen und Wischen",
+      "turbo": "Turbo",
+      "gentle": "Sanft",
+      "balanced": "Ausgewogen"
     },
     "battery_weighted_by": {
-      "est_minutes": "Gesch. Minuten",
       "room_count": "Anzahl Räume",
-      "none": "Keine"
+      "none": "Keine",
+      "estimated_minutes": "Gesch. Minuten",
+      "actual_minutes": "Tatsächliche Minuten"
     },
     "status": {
       "completed": "Abgeschlossen",
@@ -2215,6 +2229,72 @@
       "not_drying": "Das Stoppen der Trocknung ist nur sinnvoll, während das Dock aktiv trocknet.",
       "already_emptying": "Das Dock entleert bereits den Staub.",
       "dock_busy": "Das Dock ist derzeit mit einer anderen Serviceaktion beschäftigt."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Auf die in diesem Lauf erkennbaren Räume begrenzt."
+    },
+    "job_scope": {
+      "single_room": "Einzelner Raum",
+      "multi_room": "Mehrere Räume"
+    },
+    "device_status": {
+      "cleaning": "Reinigt",
+      "docked": "Angedockt",
+      "idle": "Bereit",
+      "paused": "Pausiert",
+      "returning": "Rückkehr",
+      "error": "Fehler",
+      "charging": "Lädt",
+      "standby": "Standby",
+      "washing": "Wäscht",
+      "washing_mop": "Wischmopp wird gewaschen",
+      "drying": "Trocknet",
+      "drying_mop": "Wischmopp wird getrocknet",
+      "emptying": "Entleert",
+      "emptying_dust": "Staub wird entleert",
+      "fault": "Störung",
+      "offline": "Offline",
+      "unavailable": "Nicht verfügbar",
+      "unknown": "Unbekannt"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Abgebrochener Lauf",
+      "failed": "Fehlgeschlagener Lauf",
+      "interrupted": "Unterbrochener Lauf",
+      "failed_sanity": "Plausibilitätsprüfung nicht bestanden",
+      "floor_time_too_short": "Bodenzeit zu kurz",
+      "early_return_likely_cancelled": "Früh zurückgekehrt",
+      "cancel_like": "Wirkt abgebrochen",
+      "short_duration_vs_profile": "Kurz vs. Profil",
+      "short_duration_vs_room": "Kurz vs. Raum"
+    },
+    "reason_code": {
+      "completed": "Dieser Lauf wurde normal abgeschlossen.",
+      "cancelled": "Dieser Lauf endete als abgebrochener Auftrag.",
+      "failed": "Dieser Lauf endete als fehlgeschlagener Auftrag.",
+      "interrupted": "Dieser Lauf endete als unterbrochener Auftrag.",
+      "test": "Dieser Lauf ist als Testauftrag markiert.",
+      "cancel_like": "Dieser Lauf sieht aus wie ein abgebrochener Lauf.",
+      "excluded_from_learning": "Dieser Lauf ist derzeit vom Lernen ausgeschlossen.",
+      "job_cancelled": "Der Auftrag wurde abgebrochen, bevor er fertig war.",
+      "job_failed": "Der Auftrag ist fehlgeschlagen, bevor er fertig war.",
+      "job_interrupted": "Der Auftrag wurde unterbrochen, bevor er fertig war.",
+      "test_job": "Dieser Lauf ist als Testauftrag markiert.",
+      "manually_excluded": "Dieser Lauf wurde manuell vom Lernen ausgeschlossen.",
+      "invalid_room_count": "Dieser Lauf hat keine gültige Anzahl an Räumen erfasst.",
+      "invalid_duration": "Dieser Lauf hat keine gültige Dauer erfasst.",
+      "missing_resolved_rooms": "Für diesen Lauf konnten keine Räume zugeordnet werden.",
+      "failed_sanity": "Dieser Lauf hat die Plausibilitätsprüfungen des Backends nicht bestanden.",
+      "short_duration_vs_profile": "Viel kürzer, als dieses Profil normalerweise dauert.",
+      "short_duration_vs_room": "Viel kürzer, als dieser Raum normalerweise dauert.",
+      "cancel_likely": "Dieser Lauf sieht aus, als wäre er abgebrochen worden.",
+      "floor_time_too_short": "Die Bodenreinigungszeit war für einen echten Lauf zu kurz.",
+      "early_return_likely_cancelled": "Der Saugroboter ist früh zurückgekehrt, daher wurde dieser Lauf wahrscheinlich abgebrochen.",
+      "short_test_cancel": "Sieht aus wie ein kurzer Testlauf, der früh abgebrochen wurde.",
+      "manual_test_run": "Als manueller Testlauf markiert.",
+      "false_completion": "Dieser Lauf scheint geendet zu haben, bevor die Reinigung wirklich abgeschlossen war.",
+      "bad_room_attribution": "Die Raumzuordnung für diesen Lauf wirkt unzuverlässig.",
+      "interrupted_run": "Dieser Lauf scheint unterbrochen worden zu sein."
     }
   },
   "order_modal": {

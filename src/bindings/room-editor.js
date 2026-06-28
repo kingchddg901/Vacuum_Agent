@@ -68,7 +68,7 @@ export function applyRoomEditorBindings(proto) {
    *
    * @returns {string|null} Profile name key, or null if the user cancelled.
    */
-  proto._resolveEditableRoomProfileTarget = function () {
+  proto._resolveEditableRoomProfileTarget = async function () {
     const selected = this.card._state.currentEditorManagedProfileName?.();
     if (selected && !this.card._state.isProtectedRoomProfile?.(selected)) {
       return selected;
@@ -78,9 +78,9 @@ export function applyRoomEditorBindings(proto) {
     if (!customProfiles.length) return null;
 
     const choiceText = this._roomProfileTargetChoices();
-    const entered = window.prompt(
+    const entered = await this.card._prompt(
       this.t("bind_room_editor.choose_custom_profile_key", { choiceText }),
-      customProfiles[0]?.name ?? ""
+      { defaultValue: customProfiles[0]?.name ?? "" }
     );
 
     const target = String(entered ?? "").trim();
@@ -103,9 +103,12 @@ export function applyRoomEditorBindings(proto) {
    * @param {string} fallbackMessage - Shown when `result` has no message.
    */
   proto._alertRoomProfileResult = function (result, fallbackMessage) {
-    const message = String(result?.message ?? result?.reason ?? fallbackMessage ?? "").trim();
+    // Prefer a human-readable backend message; NEVER surface the raw reason CODE
+    // (e.g. "profile_not_found") to the user — fall back to the friendly,
+    // localized fallback instead.
+    const message = String(result?.message ?? fallbackMessage ?? "").trim();
     if (message) {
-      window.alert(message);
+      this.card.showToast(message, { kind: "error" });
     }
   };
 
@@ -144,9 +147,9 @@ export function applyRoomEditorBindings(proto) {
     const room = this.card._state.activeEditorRoom?.();
     if (!room) return;
 
-    const label = window.prompt(
+    const label = await this.card._prompt(
       this.t("bind_room_editor.save_new_profile_prompt"),
-      this._defaultRoomProfileLabel()
+      { defaultValue: this._defaultRoomProfileLabel() }
     );
 
     const trimmedLabel = String(label ?? "").trim();
@@ -183,14 +186,15 @@ export function applyRoomEditorBindings(proto) {
     const room = this.card._state.activeEditorRoom?.();
     if (!room) return;
 
-    const targetProfileName = this._resolveEditableRoomProfileTarget();
+    const targetProfileName = await this._resolveEditableRoomProfileTarget();
     if (!targetProfileName) return;
 
     const targetProfile = this.card._state.roomProfileDefinition?.(targetProfileName);
-    const confirmed = window.confirm(
+    const confirmed = await this.card._confirm(
       this.t("bind_room_editor.confirm_overwrite_profile", {
         target: targetProfile?.label ?? targetProfileName,
-      })
+      }),
+      { danger: true }
     );
     if (!confirmed) return;
 
@@ -215,7 +219,7 @@ export function applyRoomEditorBindings(proto) {
    * Prompt for a new label and optional key, then rename a custom profile.
    */
   proto._handleRenameRoomProfile = async function () {
-    const targetProfileName = this._resolveEditableRoomProfileTarget();
+    const targetProfileName = await this._resolveEditableRoomProfileTarget();
     if (!targetProfileName) return;
 
     const targetProfile = this.card._state.roomProfileDefinition?.(targetProfileName);
@@ -223,22 +227,22 @@ export function applyRoomEditorBindings(proto) {
       return;
     }
 
-    const nextLabel = window.prompt(
+    const nextLabel = await this.card._prompt(
       this.t("bind_room_editor.rename_label_prompt"),
-      targetProfile.label
+      { defaultValue: targetProfile.label }
     );
     if (nextLabel == null) return;
 
     const trimmedLabel = String(nextLabel).trim();
     if (!trimmedLabel) {
-      window.alert(this.t("bind_room_editor.label_required"));
+      this.card.showToast(this.t("bind_room_editor.label_required"), { kind: "error" });
       return;
     }
 
     const suggestedKey = this.card._state.makeRoomProfileName?.(trimmedLabel, targetProfileName);
-    const nextProfileName = window.prompt(
+    const nextProfileName = await this.card._prompt(
       this.t("bind_room_editor.rename_key_prompt"),
-      suggestedKey ?? targetProfileName
+      { defaultValue: suggestedKey ?? targetProfileName }
     );
     if (nextProfileName == null) return;
 
@@ -277,7 +281,7 @@ export function applyRoomEditorBindings(proto) {
    * Confirm and delete a custom room profile. Resets the editor to the default profile on success.
    */
   proto._handleDeleteRoomProfile = async function () {
-    const targetProfileName = this._resolveEditableRoomProfileTarget();
+    const targetProfileName = await this._resolveEditableRoomProfileTarget();
     if (!targetProfileName) return;
 
     const targetProfile = this.card._state.roomProfileDefinition?.(targetProfileName);
@@ -285,8 +289,9 @@ export function applyRoomEditorBindings(proto) {
       return;
     }
 
-    const confirmed = window.confirm(
-      this.t("bind_room_editor.confirm_delete_profile", { label: targetProfile.label })
+    const confirmed = await this.card._confirm(
+      this.t("bind_room_editor.confirm_delete_profile", { label: targetProfile.label }),
+      { danger: true }
     );
     if (!confirmed) return;
 
@@ -294,7 +299,13 @@ export function applyRoomEditorBindings(proto) {
       profile_name: targetProfileName,
     });
 
-    if (!response?.deleted) {
+    // "deleted" AND "already gone" (profile_not_found) mean the same thing: the
+    // backend no longer holds this profile, so reconcile the card to that truth.
+    // The library fetch is fresh, so refreshing DROPS the (possibly stale) entry
+    // and resets the editor — without this, a profile_not_found returned early
+    // and the deleted profile kept rendering with a raw "profile_not_found" toast.
+    const goneFromBackend = response?.deleted || response?.reason === "profile_not_found";
+    if (!goneFromBackend) {
       this._alertRoomProfileResult(response, this.t("bind_room_editor.failed_delete_profile"));
       return;
     }
@@ -302,6 +313,11 @@ export function applyRoomEditorBindings(proto) {
     await this._refreshRoomProfileLibrary();
     this.card._state._syncEditorProfileFromFields?.();
     this.card._scheduleRender();
+
+    if (!response?.deleted) {
+      // It was already gone (our copy was stale) — reconciled quietly, no error.
+      this.card.showToast(this.t("bind_room_editor.profile_already_removed"), { kind: "info" });
+    }
   };
 
   proto._bindRoomEditorOpen = function () {

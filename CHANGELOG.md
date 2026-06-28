@@ -10,6 +10,278 @@ only.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-27
+
+**The card speaks your language.** The whole card UI is now localizable — every
+tab, the adapter vocabulary, relative timestamps, toasts, and the maintenance
+guides all read from a translation catalog instead of hardcoded English. This
+release ships **seven languages** (German, French, Spanish, Dutch, Italian,
+Portuguese, Russian), a per-user language picker in the card header, a per-user
+localized upkeep guide, and a security gate that lets you safely drop in your own
+translations. Plus: Eufy scalar/Tuya device support, and Roborock duration /
+live-room fixes from an external contributor.
+
+### Added
+- **Pick your card language.** A language globe in the card header lets each user
+  switch the card's display language on the fly. The choice is saved per-user on
+  the server (Home Assistant frontend user-data), so it follows you across every
+  device and browser; **Auto** defers to your Home Assistant language. A
+  per-dashboard **Display language** override is also available in YAML
+  (`config.i18n.locale`) and as a dropdown in the visual config editor, so one
+  dashboard can force a specific language (or English) regardless of the system
+  language.
+- **Seven languages, full parity.** German (de), French (fr), Spanish (es), Dutch
+  (nl), Italian (it), Portuguese (pt), and Russian (ru) — each a complete
+  translation with **English filling in automatically** for anything a locale
+  leaves untranslated. Essentially the entire card is covered: Setup and Rooms
+  onboarding, the shell/header, the live Map and mapping-review, Upkeep/Maintenance
+  and Base Station, the Room rule editor, Metrics, Learning Review/History,
+  External Jobs, the Theme editor and preview, and the standalone room card.
+- **Localized adapter vocabulary.** Clean mode, fan speed, water level, clean
+  intensity, run status, sort/filter chips, confidence/trust tiers, maintenance
+  labels, and theme-editor token/group/facet/tag names now render in the card
+  language rather than the backend's English (any unkeyed value safely falls back
+  to its English label). Relative timestamps ("just now", "yesterday", "5m ago")
+  and the fresh-install "setup needed" placeholder are localized too, and
+  event-driven toasts, confirmations, and inline errors now appear in your
+  language.
+- **Localized maintenance guides, following the card language.** The cleaning
+  steps, notes, and recommended frequencies for the filter, rolling brush, side
+  brush, sensors, and dust collector now appear in your language — sourced verbatim
+  from Eufy's official X10 Pro Omni (T2351) manuals for de/es/fr/nl/it/pt, with
+  Russian translated and cross-checked against those official versions (Eufy
+  publishes no Russian manual). The guide now follows the **per-user** language
+  globe, fixing a reported split where ~95% of the card followed the user's
+  language but the guide stayed on the Home Assistant instance language; 286
+  missing frequency phrases were back-filled across all model families.
+- **Per-language plurals.** Count-driven strings now use each language's own
+  grammar via `Intl.PluralRules`, so a translation supplies as many plural forms
+  as its language needs (Russian's one/few/many/other, Arabic's six) and the right
+  form is chosen by count automatically.
+- **Bring your own language.** Drop a JSON locale into
+  `config/eufy_vacuum/locales/` and the integration auto-discovers and serves it;
+  the card lists it in the language globe under its native name. A locale can also
+  be pointed at by URL from the dashboard config (single `url` or a per-language
+  `url_map`), fetched and validated at runtime (same-origin only). A generated
+  translator reference (`en.reference.jsonc`) ships alongside the locales with the
+  full key structure, the English value, and an inline context note per string
+  (1,373 keys, 533 with notes) as a copy-from template that is never itself loaded.
+  Translators author in a readable nested structure with shared `commons`; the card
+  flattens it at load time, so the organization costs nothing at render.
+- **Documentation.** A user guide for choosing a language, and a contributor
+  translating guide covering the authoring format, plural rules, dropping in your
+  own locale, the draft-to-stable review path, and exactly what the intake gate
+  allows, scrubs, and quarantines.
+- **The learning data reads your language too.** The Learning Review job cards —
+  the auto-exclude suggestion badges and the per-run "this run …" explanation — the
+  composed room-profile labels in the Metrics and Learning Review filters, chips,
+  and cards, and the fallback label for an unnamed map all localize now. Each is
+  keyed on a stable backend code with the English text as a per-value fallback, so
+  a code we haven't translated still reads in English rather than a raw key.
+
+### Changed
+- **Drafts don't activate automatically.** The seven new languages ship as
+  AI-assisted drafts pending native-speaker review, and are draft-gated: a draft
+  language reached via your Home Assistant system language quietly falls back to
+  English until it is native-reviewed. You can still explicitly opt into any
+  language (or force English) from the globe or the dashboard config, which
+  bypasses the gate. Russian is the live pilot under native review.
+- **Pickers always read in their own script.** The language menu and draft tags
+  render in each language's own name and script (for example "Deutsch (Entwurf)",
+  "Русский (черновик)"), so the menu stays readable even from inside an unfamiliar
+  translation.
+- **Untrusted translations are hardened on two independent layers.** Every catalog
+  string is HTML-escaped by default at the rendering sink, so a translation value
+  can never inject markup; custom drop-in locales additionally pass through a
+  sanitize-or-quarantine intake gate (below) before being registered. The first-
+  party locales shipped with the card are vetted at build time and are unaffected.
+- **Drop-in locales get three clear outcomes.** A dropped-in locale loads as-is if
+  clean, loads with disallowed formatting scrubbed (a friendly allowlist keeps
+  `<strong>`, `<em>`, `<code>`, and `<a>` links to github.com /
+  kingchddg901.github.io, showing other tags as visible literal text so a
+  translator sees the mistake), or is rejected wholesale if it contains active
+  content (`script`/`iframe`, `on*` handlers, or `javascript:`/`data:`/protocol-
+  relative URLs). The gate parses strings through the same browser HTML parser the
+  display code uses, so encoded evasion like `java&#9;script:` is caught for what it
+  really is. Rejected files are remembered by content hash and skipped silently on
+  reload; fixing the file clears it, and a diagnostics report shows what was
+  quarantined and why.
+- **Translations are layout-gated in CI.** Every shipped locale is rendered under
+  deliberately lengthened text (desktop and mobile) and the build fails if any
+  translated string breaks the layout, so a card in your language stays usable and
+  free of unwanted horizontal scrolling.
+- **Maintenance values prefer structured backend fields.** Percent remaining,
+  hours, and used-since-reset are now read as structured fields (instead of echoing
+  a pre-built English summary), so numbers and units format correctly in each
+  language; trust-reason and dock action-gate messages are keyed on stable reason
+  codes so they localize cleanly. Animal/companion names and the "Rainbow Bridge"
+  idiom translate via established renderings, while protected proper names (e.g. the
+  "Rainbow Bridge — Mittens" memorial) stay untranslated.
+- **Deleting an unnamed map is now a one-click confirm.** The backend no longer
+  synthesizes an English "Map 6" name for an unnamed map — which leaked English in
+  every language and forced you to type an English token to delete it. Unnamed maps
+  render the localized "Map {id}" label and drop their high-protection delete from
+  "type the exact name" to a single explicit confirm; named maps still require
+  typing their (locale-invariant) stored name.
+
+### Fixed
+- **The renderer now actually switches language.** A renderer-layer bug read the
+  wrong Home Assistant handle and always fell through to English, silently making
+  roughly 1,350 translated keys inert for language switching; the entire tab UI had
+  been rendering in English regardless of your chosen language. A standalone
+  room-card placed without a main card had the same problem (the runtime locale
+  load was only wired into the main card). Both are fixed.
+- **German "fan speed."** Corrected "Lüftergeschwindigkeit" (fan-blade RPM) to
+  "Saugkraft" (suction) in four places to match vacuum terminology.
+- **German/Dutch furnished-map labels.** An uploaded graphic was labelled
+  "Kunst"/"kunst" (artwork) across nine strings; changed to "Grafik" (de) and
+  "Afbeelding" (nl) to fit an uploaded floor-plan image.
+- **Spanish/Portuguese accents.** Theme-editor labels were missing their diacritics
+  after a first pass dropped them; re-translated with proper native spelling
+  (Spanish restored across 95 labels, Portuguese across 212). Portuguese
+  relative-time "mes" corrected to "mês".
+- **Setup headings and floor-type chips.** Wizard step headings and floor-type
+  chips (Hardwood, Tile, Carpet, …) were baked-in English data values that fell
+  back to English even when a translation was active; they now translate in all
+  seven languages (e.g. German Setup headings now render in German).
+- **English-leaking maintenance sections.** Filled four guide sections that
+  rendered in English inside otherwise-localized cards (mopping cloth, swivel wheel,
+  rolling-brush guard note, dust-collector tank note) across all seven languages,
+  and cleaned up Italian/Portuguese/Dutch notes that had leaked manual-section
+  references.
+- **Latent encoding/empty-value bugs.** Fixed double-encoding that would have shown
+  literal HTML entities (e.g. a French "l'eau", a group name like "Status,
+  Confidence & Alerts") in room-estimate rows, the mapping-review outlier badge, and
+  theme group-filter chips; a Metrics cell that rendered blank because an empty
+  translation was mistaken for "no value"; and a status slug so the backend's
+  British "cancelled" is recognized and translated rather than leaking raw.
+- **Restored the card shell styling.** A stray backtick in a stylesheet comment
+  truncated the bundled CSS, leaving the header unstyled and tab scrolling broken
+  with no error. The styling is back, and a build guard now fails loudly on this
+  class of breakage rather than shipping it silently.
+- **Smaller card download.** Non-English locales no longer ship inside the card
+  bundle — they are served as JSON and loaded at runtime, shrinking the card from
+  ~1.93 MB to ~1.15 MB (about 40% / 772 KB smaller).
+- **No stray English on the profile cards.** The "save candidate" badge and a few
+  setting values ("Vacuum and mop", "Standard", "Turbo") rendered English on the
+  Metrics → Profiles cards and filters because the stored values were un-normalized
+  display strings; they now localize.
+- **The room editor only offers settings your robot has.** Each picker (suction /
+  mode / water / intensity) listed values aggregated from *every* saved profile, so
+  a value from one brand's template (e.g. a Eufy "Standard" suction) appeared as a
+  selectable option on another robot — including a Roborock, whose suction set is
+  only gentle/quiet/balanced/turbo/max. Pickers now show the adapter's declared
+  options plus the room's own current value, nothing else.
+
+### Eufy scalar/Tuya devices
+- **Support for reduced-transport ("scalar/Tuya") Eufy robots.** Vacuum Agent now
+  drives Eufy robots on eufy-clean's legacy path, where the robot exposes its room
+  list as a vacuum attribute but never creates an active-map sensor. These devices
+  can now import rooms and run per-room cleans — anchoring to a single implicit map
+  when there is no active-map sensor but the room list is populated, instead of
+  failing with a red "No active map detected" warning. The X10 Pro Omni is verified;
+  the other mapper families (X / S / L / LR / Omni) are expected to work and are
+  test-and-report. Live map still needs the smcneece eufy-clean fork.
+- **Model detected from the device registry.** A scalar-provisioned X10 (model
+  T2351) now detects as the "x10" family instead of falling back to "generic",
+  restoring its mop, mop-wash/dry, dust-empty, and path-control capability hints.
+  Existing installs self-heal on the next restart, and a capability refresh no
+  longer reverts a correctly detected model back to "generic" (which had silently
+  disabled rooms on scalar devices).
+- **Diagnostics now open with a plain-English `self_check`.** The diagnostics
+  download leads with a summary answering "why can't I import my rooms?" — the
+  transport mode (full MQTT vs. reduced scalar/Tuya), whether room control/import
+  are available, whether the map picture can render, and the detected model — without
+  reading the raw internals.
+- **Docs: which Eufy models Vacuum Agent can drive.** The README "Tested hardware"
+  section and the user-guide overview gained a "Will my Eufy vacuum work?" guide:
+  per-room cleaning, the live map, room rollover, and learning/ETA all require an
+  Eufy that builds a room map with per-room segments. The basic-navigation RoboVac
+  C-series and G-series build no room map and are documented as unsupported (owners
+  are pointed to eufy-clean directly).
+
+### Roborock (external contribution by [@Nebr88](https://github.com/Nebr88), [#19](https://github.com/kingchddg901/Vacuum_Agent/pull/19))
+- **Cleaning durations are recorded correctly.** Roborock reports cleaning time as a
+  duration sensor (minutes, sometimes hours or milliseconds) rather than raw
+  seconds; Vacuum Agent now converts using the sensor's unit before storing, so runs
+  and the learning/ETA system are no longer off by a factor of 60 (a 6.15-minute
+  clean records as 369 s, not 6).
+- **Live room tracking no longer completes rooms prematurely.** Roborock's
+  current-room signal is a live pointer that can revisit rooms while it optimizes its
+  route; pointer changes are now treated as position updates only, deferring room
+  completion to the final job snapshot. Per-room fan speed is still pushed live as
+  the robot moves through its optimized order.
+- **No spurious anomaly warnings on optimized routes.** Stall, running-long, and
+  skipped-room checks assumed queue-order cleaning; for path-optimizing devices that
+  legitimately jump ahead, those checks are now suppressed so a normal optimized
+  route is not misreported as a problem.
+
+### Internal
+- **i18n contract + reachability gates.** A framework-free `npm run check:i18n`
+  suite (grew from 11 to 26 assertions) asserts the fallback chain, interpolation,
+  plural selection, escape-by-default, the draft-gate, locale validation, and
+  prototype-pollution defenses, plus an orphan/dead-key check (orphan = fatal) that
+  proves key reachability from source rather than a hand-maintained allowlist. A
+  central `validateLocale()` drops bad entries while keeping the rest, blocks
+  `__proto__`/`constructor`/`prototype` keys, enforces placeholder parity, and keeps
+  the clean catalog a strict subset so English fallback is never removable.
+- **Locale-intake sanitiser.** `src/i18n/sanitize-locale.js` parses via a real
+  `<template>` walk (matching the actual sink) with an escape-visible scrub, a tag/
+  link-host allowlist, URL-parser-based scheme checks, FNV-1a content-hash
+  quarantine, and DOMPurify as a final hardening pass; covered by a real-Chromium
+  adversarial suite (mutation-XSS, namespace payloads, host-confusion) and vetted by
+  three blind security reviewers.
+- **Harness hardening.** Added a pseudo-long/Cyrillic locale generator, a property-
+  based layout-overflow gate at desktop @500px and mobile @390px, a real-locale
+  `shoot-locales` render path (7 languages × 10 tabs, zero real overflow), and an
+  `i18n-locale` spec that proves the UI actually switches language — the regression
+  the English-only harness had missed. A build-time `check-styles.mjs` guard
+  verifies brace balance to prevent silent CSS truncation. English output stayed
+  byte-identical across every migration wave.
+- **Misc.** De-bundled locale loading shares one catalog load with no double-fetch;
+  context-free primitives (Save/Edit/On/Off/…) hoisted to `common.*`; removed the
+  dead `_slugify_profile_name` slugifier; `deploy-live.ps1` gained an optional
+  `-LiveRoot` to target a clone instance. Roborock tests realigned to live-pointer
+  behavior; lifecycle/dock-drift test flakes stabilized (2,771 passed, 1 skipped).
+  Developer reference (`docs/dev/33-i18n-system.md`) added; `mkdocs --strict` clean.
+- **Settings normalized to canonical codes.** Observed clean-mode / clean-intensity
+  / fan-speed / water-level values are normalized through adapter-owned alias maps
+  (mirroring the existing water-level aliases) before they reach the card, so it
+  always receives a code its vocabulary is keyed on — no future un-keyed display
+  string can leak from that path. Each brand declares its own maps in its adapter.
+  Backed by a code-first reason-code path: the learning manager emits stable codes
+  (status, sanity flags, learning blockers, exclude/cancel reasons) and the card
+  localizes them, keeping the English text only as the fallback.
+
+## [1.2.5] - 2026-06-23
+
+### Fixed
+- **Empty-rooms hint points to the right place.** When a managed vacuum has no
+  rooms yet, its empty-state hint now directs you to **Setup → Import Active
+  Map** (the path that actually populates rooms) instead of a stale instruction.
+
+## [1.2.4] - 2026-06-23
+
+### Fixed
+- **Stable room identity for non-Latin names.** Room slugs are now NFC-normalized
+  before becoming identifiers, so Cyrillic/accented room names that differ only by
+  Unicode composition resolve to one stable identity across reconciliation.
+- **Unnamed Roborock map imports.** A Roborock map with no name no longer fails to
+  import (external contribution by [@Nebr88](https://github.com/Nebr88),
+  [#18](https://github.com/kingchddg901/Vacuum_Agent/pull/18)).
+- **DOM-XSS hardening.** Map-tooltip room labels are HTML-escaped before they reach
+  the DOM, so a crafted room name can't inject markup into the map overlay.
+
+### Changed
+- **Live-map / zone messaging retargeted to the jeppesens fork.** The Eufy
+  live-map and zone-clean docs now point at the maintained `jeppesens` eufy-clean
+  fork (v1.11.1+) instead of the older smcneece fork.
+
+### Internal
+- Closed `map_source_coordinator` + `_common` coverage gaps and reconciled the
+  testing docs; refreshed the README Screenshots + Documentation sections for the
+  GitHub Pages hub.
+
 ## [1.2.3] - 2026-06-22
 
 ### Added

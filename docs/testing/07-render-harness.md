@@ -37,8 +37,12 @@ builder — are tested separately with `node --test`; see [CI](#ci).)
 | `intake.spec.mjs` | the ingest gate skips malformed / unknown-namespace exports and clamps every value | everywhere |
 | `device-theme.spec.mjs` | per-device theme resolution: the real `VacuumCardState.effectiveActiveThemeId()` fallback chain keeps a device pin through a pre-load, resolves it once the library loads, and clears it only when genuinely stale | everywhere (also re-run in `card-visual` CI) |
 | `tab-gating.spec.mjs` | capability tab gating: `renderHeader` hides the Base Station + Map Bounds nav tabs when `supportsBaseStation()` / `supportsMapBounds()` are false (the S6 case), default-shown otherwise (Eufy-safe) | everywhere |
+| `i18n-locale.spec.mjs` | the renderers resolve the *user's* language: a tab rendered under a registered foreign catalog switches its strings (the rest of the harness only ever renders English); no-language still renders English | everywhere |
+| `i18n-layout.spec.mjs` | a translated locale must not break the layout — **property**-based, not pixel-pinned: under a pseudo-lengthened catalog assert nothing escapes its box, at desktop @500px and mobile @390px | everywhere |
 
-`npm run test:harness` runs all of them (visual auto-skips off-CI).
+`npm run test:harness` runs all of them (visual auto-skips off-CI). The i18n
+strings + intake security gate are covered separately — see [i18n system](../dev/33-i18n-system.md)
+(`check:i18n` + the real-Chromium `scripts/sanitize-locale.test.mjs`).
 
 ---
 
@@ -98,17 +102,20 @@ failing screenshots are the blast radius — then re-run with it to accept.
 | Workflow | Trigger | Does |
 |---|---|---|
 | `.github/workflows/card-visual.yml` | PR (any branch) or push **to `master`** touching `src/**`, `harness/**`, `package.json`, `package-lock.json`, or the workflow file | runs `visual` + `device-theme` in the pinned image; uploads the diff report on failure |
+| `.github/workflows/node-tests.yml` | PR or push **to `master`** touching `scripts/**`, `src/theme-tags/**`, `harness/lib/**`, the animal-svg frontend, gallery animals, or `package.json` | `node --test scripts/*.test.mjs harness/lib/*.test.mjs` in the **pinned Playwright image** — covers the Chromium-driven sanitiser gates (animal SVG **and** the locale intake `sanitize-locale.test.mjs`), the submission/PR-gate cores, and the gallery-HTML builder |
 | `.github/workflows/theme-intake.yml` | `workflow_dispatch`, or push/PR to `gallery/themes/*.json`, `docs/**`, `mkdocs.yml`, or `harness/**` (push also on the workflow file) | four jobs (gallery / docs / publish / deploy): renders each theme export through the ingest gate **and** builds the MkDocs docs site (`mkdocs build --strict`); uploads PNG + docs artifacts (PR/dispatch) and **on push to master publishes both to the one GitHub Pages site — gallery at `/`, docs at `/docs`** — one-time: enable Pages → *GitHub Actions* source |
 | `.github/workflows/theme-submission.yml` | a `theme-submission`-labelled issue is opened | validates a pasted export, renders its preview, and opens a reviewable PR with the preview inline ([dev/27 §8](../dev/27-render-harness.md#8-theme-submission-issue--pr)) — not a gate, no spec; one-time: a `theme-submission` label + "Allow Actions to create PRs" |
 
 Both run in the pinned image, so local-Docker and CI agree byte-for-byte. They
 require `package-lock.json` to be committed (for `npm ci`).
 
-`tests.yml` is the separate Python gate — but it now has a second `node scripts`
-job (node-24, no `npm install`) that runs the dependency-free JS tooling units
-with `node --test scripts/process-submission.test.mjs harness/lib/gallery-html.test.mjs`.
-That guards the gallery-submission bot core (`scripts/process-submission.mjs`) and
-the gallery-HTML builder — a non-Playwright track outside the harness specs above.
+`tests.yml` is the separate Python (pytest) gate. The Node test suites have their
+own workflow, `node-tests.yml` (above): it runs **every** `scripts/*.test.mjs`
+plus `harness/lib/*.test.mjs` in the pinned Playwright image — the
+security-critical intake **sanitiser gates** (animal SVG via DOMPurify, and the
+locale intake `sanitize-locale.test.mjs`) drive real Chromium, alongside the
+gallery-submission bot core (`scripts/process-submission.mjs`) and the
+gallery-HTML builder.
 
 ---
 

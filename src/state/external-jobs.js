@@ -123,7 +123,7 @@ export function applyExternalJobsState(proto) {
     w.activeBoundaries = Array.isArray(record.active_boundaries) ? record.active_boundaries.map(Number) : [];
     if (record.suggested_room_count != null) w.suggestedRoomCount = Number(record.suggested_room_count);
     w.resegmentMeta = (record.capped || record.message)
-      ? { capped: !!record.capped, capped_at: record.capped_at, message: record.message || null }
+      ? { capped: !!record.capped, capped_at: record.capped_at, reason: record.reason || null, message: record.message || null }
       : null;
   };
 

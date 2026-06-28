@@ -11,7 +11,9 @@
     "reset": "Resetten",
     "save": "Opslaan",
     "saving": "Opslaan…",
-    "yes": "Ja"
+    "yes": "Ja",
+    "confirm": "Bevestigen",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Actie beschikbaar",
@@ -106,7 +108,8 @@
     "label_required": "Een label voor het kamerprofiel is verplicht.",
     "rename_key_prompt": "Optioneel: voer een nieuwe backend-profielsleutel in.",
     "rename_label_prompt": "Voer het nieuwe weergavelabel voor dit kamerprofiel in:",
-    "save_new_profile_prompt": "Sla de huidige kamerinstellingen op als nieuw profiel. Voer een weergavelabel in:"
+    "save_new_profile_prompt": "Sla de huidige kamerinstellingen op als nieuw profiel. Voer een weergavelabel in:",
+    "profile_already_removed": "Dat profiel was al verwijderd."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "De backend heeft deze regel afgewezen.",
@@ -249,7 +252,8 @@
   "language": {
     "button_title": "Taal",
     "heading": "Weergavetaal",
-    "auto": "Auto (volg Home Assistant)"
+    "auto": "Auto (volg Home Assistant)",
+    "auto_draft_note": "{lang} is nog een concept, dus Auto toont Engels — kies het hieronder om het te gebruiken."
   },
   "learning": {
     "all_rooms_complete": "Alle kamers voltooid",
@@ -1617,13 +1621,17 @@
     "clean_mode": {
       "vacuum": "Stofzuigen",
       "mop": "Dweilen",
-      "vacuum_mop": "Stofzuigen en dweilen"
+      "vacuum_mop": "Stofzuigen en dweilen",
+      "vacuum_and_mop": "Stofzuigen en dweilen"
     },
     "fan_speed": {
       "quiet": "Stil",
       "standard": "Standaard",
       "boost": "Boost",
-      "max": "Max"
+      "max": "Max",
+      "turbo": "Turbo",
+      "gentle": "Zacht",
+      "balanced": "Gebalanceerd"
     },
     "water_level": {
       "off": "Uit",
@@ -1635,7 +1643,8 @@
       "quick": "Snel",
       "narrow": "Smal",
       "deep": "Grondig",
-      "normal": "Normaal"
+      "normal": "Normaal",
+      "standard": "Standaard"
     },
     "metrics_tab": {
       "learning": "Leren",
@@ -1656,12 +1665,17 @@
       "off": "Uit",
       "low": "Laag",
       "medium": "Gemiddeld",
-      "high": "Hoog"
+      "high": "Hoog",
+      "vacuum_and_mop": "Stofzuigen en dweilen",
+      "turbo": "Turbo",
+      "gentle": "Zacht",
+      "balanced": "Gebalanceerd"
     },
     "battery_weighted_by": {
-      "est_minutes": "Gesch. minuten",
       "room_count": "Aantal kamers",
-      "none": "Geen"
+      "none": "Geen",
+      "estimated_minutes": "Gesch. minuten",
+      "actual_minutes": "Werkelijke minuten"
     },
     "status": {
       "completed": "Voltooid",
@@ -2215,6 +2229,72 @@
       "not_drying": "Drogen stoppen is alleen nuttig terwijl het dock actief aan het drogen is.",
       "already_emptying": "Het dock is het stof al aan het legen.",
       "dock_busy": "Het dock is momenteel bezig met een andere serviceactie."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Beperkt tot de kamers die in deze run detecteerbaar zijn."
+    },
+    "job_scope": {
+      "single_room": "Eén kamer",
+      "multi_room": "Meerdere kamers"
+    },
+    "device_status": {
+      "cleaning": "Aan het stofzuigen",
+      "docked": "Gedockt",
+      "idle": "Inactief",
+      "paused": "Gepauzeerd",
+      "returning": "Keert terug",
+      "error": "Fout",
+      "charging": "Opladen",
+      "standby": "Stand-by",
+      "washing": "Wassen",
+      "washing_mop": "Mop wassen",
+      "drying": "Drogen",
+      "drying_mop": "Mop drogen",
+      "emptying": "Legen",
+      "emptying_dust": "Stof legen",
+      "fault": "Storing",
+      "offline": "Offline",
+      "unavailable": "Niet beschikbaar",
+      "unknown": "Onbekend"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Geannuleerde run",
+      "failed": "Mislukte run",
+      "interrupted": "Onderbroken run",
+      "failed_sanity": "Plausibiliteitscontrole mislukt",
+      "floor_time_too_short": "Vloertijd te kort",
+      "early_return_likely_cancelled": "Vroeg teruggekeerd",
+      "cancel_like": "Lijkt geannuleerd",
+      "short_duration_vs_profile": "Kort t.o.v. profiel",
+      "short_duration_vs_room": "Kort t.o.v. kamer"
+    },
+    "reason_code": {
+      "completed": "Deze run is normaal voltooid.",
+      "cancelled": "Deze run eindigde als een geannuleerde taak.",
+      "failed": "Deze run eindigde als een mislukte taak.",
+      "interrupted": "Deze run eindigde als een onderbroken taak.",
+      "test": "Deze run is gemarkeerd als een testtaak.",
+      "cancel_like": "Deze run lijkt op een geannuleerde run.",
+      "excluded_from_learning": "Deze run is momenteel uitgesloten van leren.",
+      "job_cancelled": "De taak werd geannuleerd voordat deze klaar was.",
+      "job_failed": "De taak mislukte voordat deze klaar was.",
+      "job_interrupted": "De taak werd onderbroken voordat deze klaar was.",
+      "test_job": "Deze run is gemarkeerd als een testtaak.",
+      "manually_excluded": "Deze run is handmatig uitgesloten van leren.",
+      "invalid_room_count": "Deze run registreerde geen geldig aantal kamers.",
+      "invalid_duration": "Deze run registreerde geen geldige duur.",
+      "missing_resolved_rooms": "Er konden geen kamers aan deze run worden gekoppeld.",
+      "failed_sanity": "Deze run is niet door de plausibiliteitscontroles van de backend gekomen.",
+      "short_duration_vs_profile": "Veel korter dan dit profiel normaal duurt.",
+      "short_duration_vs_room": "Veel korter dan deze kamer normaal duurt.",
+      "cancel_likely": "Deze run lijkt te zijn geannuleerd.",
+      "floor_time_too_short": "De vloerschoonmaaktijd was te kort voor een echte run.",
+      "early_return_likely_cancelled": "De stofzuiger keerde vroeg terug, dus deze run is waarschijnlijk geannuleerd.",
+      "short_test_cancel": "Lijkt op een korte testrun die vroegtijdig is geannuleerd.",
+      "manual_test_run": "Gemarkeerd als een handmatige testrun.",
+      "false_completion": "Deze run lijkt te zijn geëindigd voordat de schoonmaak echt voltooid was.",
+      "bad_room_attribution": "De kamertoewijzing voor deze run lijkt onbetrouwbaar.",
+      "interrupted_run": "Deze run lijkt te zijn onderbroken."
     }
   },
   "order_modal": {

@@ -144,20 +144,6 @@ export function applyRoomEditorState(proto) {
      SHARED OPTION HELPERS
      ========================================================= */
 
-  proto._profileDerivedOptions = function (fieldName) {
-    const profiles = this.availableEditorProfiles();
-    const values = new Set();
-
-    Object.values(profiles).forEach((profile) => {
-      const value = profile?.[fieldName];
-      if (value != null && String(value).trim() !== "") {
-        values.add(String(value));
-      }
-    });
-
-    return Array.from(values);
-  };
-
   proto._normalizeOptionList = function (values) {
     const seen = new Set();
     const result = [];
@@ -514,7 +500,6 @@ export function applyRoomEditorState(proto) {
     // the picker" contract (e.g. Roborock has no per-room clean_mode / clean
     // intensity, so those rows must not appear).
     if (adapterOptions.length === 0) return [];
-    const profileOptions = this._profileDerivedOptions(profileFieldName);
     const seen = new Set();
     const result = [];
 
@@ -529,17 +514,15 @@ export function applyRoomEditorState(proto) {
         label: String(opt?.label ?? value),
       });
     }
-    for (const value of profileOptions) {
-      const text = String(value ?? "").trim();
-      if (!text) continue;
-      const key = text.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      // Legacy profile values that the adapter doesn't list — display
-      // verbatim. Not a stylistic concern; users rarely see these
-      // (only when migrating from an older profile that used a value
-      // the current adapter doesn't declare).
-      result.push({ value: text, label: text });
+    // Keep ONLY the CURRENT room's saved value as a legacy fallback, so a value
+    // the adapter doesn't declare stays visible + re-selectable for THIS room.
+    // Previously this merged EVERY profile template's value, which bled foreign
+    // values across adapters — e.g. a template's Eufy "Standard" fan speed
+    // surfacing in a Roborock room's suction picker (which declares only
+    // gentle/quiet/balanced/turbo/max and never "Standard").
+    const currentValue = String(this.editorFields?.()?.[profileFieldName] ?? "").trim();
+    if (currentValue && !seen.has(currentValue.toLowerCase())) {
+      result.push({ value: currentValue, label: currentValue });
     }
     return result;
   };

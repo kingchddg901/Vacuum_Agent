@@ -19,7 +19,7 @@ Architecture reference: [docs/dev/04-listeners.md](../../dev/04-listeners.md)
 |---------------|------:|----:|------------|-------|
 | `lifecycle.py` | 121 | 95% | `test_listeners_state_driven.py`, `test_listeners_active.py`, `test_listeners_registration.py` | integration |
 | `path_blockers.py` | 103 | 99% | `test_listeners_state_driven.py`, `test_listeners_path_blockers.py` | integration |
-| `job_metrics.py` | 67 | 97% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
+| `job_metrics.py` | 82 | 92% | `test_listeners_active.py`, `test_listeners_job_metrics_negative.py` | integration |
 | `dock_events.py` | 64 | 90% | `test_listeners_active.py`, `test_listeners_state_driven.py` | integration |
 | `discovery.py` | 72 | 99% | `test_listeners_timers.py` | integration |
 | `pause_timeout.py` | 48 | 94% | `test_listeners_timers.py` | integration |

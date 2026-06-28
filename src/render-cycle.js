@@ -82,6 +82,7 @@ export function buildRenderContext(card) {
     langOverride:      card._langOverride ?? "auto",
     currentLang:       card._i18nLanguage?.() ?? "en",
     languageMenuOpen:  !!card._languageMenuOpen,
+    autoInfo:          card._autoLangInfo?.() ?? { systemLang: "en", gatedToEnglish: false },
   };
 }
 
@@ -151,7 +152,7 @@ function getDockStatusClass(dockStatus) {
 export function renderHeader(ctx) {
   const { state, renderers, vacuumName, vacuumStatus, vacuumStatusLabel,
           dockStatus, dockStatusLabel, battery, view,
-          langOverride, currentLang, languageMenuOpen } = ctx;
+          langOverride, currentLang, languageMenuOpen, autoInfo } = ctx;
 
   const batteryText = battery != null ? `${battery}%` : "";
 
@@ -159,9 +160,13 @@ export function renderHeader(ctx) {
   // adapter vocabulary stays the source of truth. Title-case fallback
   // covers the first frame after mount, before the dashboard snapshot
   // has populated.
-  const vacuumText = vacuumStatusLabel ?? fallbackTitleCase(vacuumStatus);
-  const dockText = dockStatusLabel
-    ?? (dockStatus ? fallbackTitleCase(dockStatus) : "");
+  // Localize the device-status VALUE (Docked / Idle / Cleaning / Washing …) via
+  // the adapter vocab, falling back to the backend-provided label (then a
+  // title-cased raw) for any state not yet keyed. tVocabRaw — the sink escapes.
+  const vacuumText = renderers.tVocabRaw("device_status", vacuumStatus, vacuumStatusLabel ?? fallbackTitleCase(vacuumStatus));
+  const dockText = dockStatus
+    ? renderers.tVocabRaw("device_status", dockStatus, dockStatusLabel ?? fallbackTitleCase(dockStatus))
+    : "";
 
   return `
     <div class="evcc-header">
@@ -191,7 +196,7 @@ export function renderHeader(ctx) {
 
       <div class="evcc-header-right">
         ${renderLanguageControl(renderers, {
-          langOverride, currentLang, open: languageMenuOpen,
+          langOverride, currentLang, open: languageMenuOpen, autoInfo,
         })}
       </div>
 

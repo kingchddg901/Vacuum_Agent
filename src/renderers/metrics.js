@@ -56,7 +56,7 @@ export function applyMetricsRenderers(proto) {
               <div>
                 <div class="evcc-metrics-panel-title">${this.t("metrics.panel_title")}</div>
                 <div class="evcc-metrics-panel-subtitle">
-                  ${this.escapeHtml(snapshot.message || this.t("metrics.panel_subtitle"))}
+                  ${this.t("metrics.panel_subtitle")}
                 </div>
               </div>
             </div>
@@ -79,13 +79,9 @@ export function applyMetricsRenderers(proto) {
 
             <div class="evcc-metrics-filters">
               ${this._renderMetricsChipFilter(this.t("metrics.filter_room"), "room_slug", state.metricsFilterRoomOptions?.(), state.metricsFilters?.().room_slug, this.t("metrics.filter_all_rooms"))}
-              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key", state.metricsFilterProfileOptions?.().map((option) => ({
-                value: option?.value,
-                label: option?.label ?? option?.value ?? this.t("metrics.profile_fallback"),
-                title: option?.subtitle
-                  ? `${option?.label ?? option?.value ?? this.t("metrics.profile_fallback")} | ${option.subtitle}`
-                  : (option?.label ?? option?.value ?? this.t("metrics.profile_fallback")),
-              })), state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
+              ${this._renderMetricsChipFilter(this.t("metrics.filter_profile"), "profile_key",
+                this._localizedProfileOptions(state.metricsFilterProfileOptions?.() ?? []),
+                state.metricsFilters?.().profile_key, this.t("metrics.filter_all_profiles"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_status"), "status", state.metricsFilterStatusOptions?.(), state.metricsFilters?.().status, this.t("metrics.filter_all_statuses"))}
               ${this._renderMetricsChipFilter(this.t("metrics.filter_learning_use"), "used_for_learning", state.metricsFilterUsedOptions?.().map((option) => ({
                 value: option?.value_key ?? option?.value,
@@ -523,8 +519,8 @@ export function applyMetricsRenderers(proto) {
    */
   proto._localizedProfile = function (profile) {
     const fallback = {
-      label: String(profile?.profile_label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || ""),
-      subtitle: String(profile?.profile_subtitle || ""),
+      label: String(profile?.profile_label || profile?.label || profile?.selected_profile_label || profile?.resolved_profile_label || profile?.profile_key || ""),
+      subtitle: String(profile?.profile_subtitle || profile?.subtitle || ""),
     };
     const hasSettings = profile?.clean_mode != null || profile?.clean_intensity != null || profile?.fan_speed != null || profile?.water_level != null;
     if (!hasSettings) return fallback;
@@ -556,6 +552,41 @@ export function applyMetricsRenderers(proto) {
     return { label: label || fallback.label, subtitle: sub.join(" • ") || fallback.subtitle };
   };
 
+  /**
+   * Localize + disambiguate a list of profile filter options for the CARD's
+   * per-user language. Each option carries the raw settings codes the backend
+   * now sends; _localizedProfile recomposes a localized label + subtitle, and we
+   * append the localized subtitle for any label that collides with a namesake.
+   *
+   * The ambiguity is (re)computed on the LOCALIZED label — NOT the backend's
+   * pre-folded English label/subtitle — so two variants that share a name still
+   * read apart after translation (and two that only collide once translated are
+   * caught). The stable `value`/`profile_key` is never touched, so filtering
+   * still targets the exact variant. Falls back to the backend English label for
+   * any option without raw settings (graceful, e.g. sensor-only catalog rows).
+   *
+   * @param {Array<object>} options - backend filter options (value/label/…+settings).
+   * @returns {Array<object>} options with localized, disambiguated label/subtitle/title.
+   */
+  proto._localizedProfileOptions = function (options) {
+    if (!Array.isArray(options) || !options.length) return [];
+    const st = this.card?._state;
+    const localized = options.map((o) => {
+      const lp = this._localizedProfile(o);
+      return { o, label: lp.label, subtitle: String(lp.subtitle ?? "").trim() };
+    });
+    st?._noteAmbiguousProfiles?.(localized.map((x) => x.label));
+    return localized.map(({ o, label, subtitle }) => {
+      const ambiguous = !!(st?._isAmbiguousProfileLabel?.(label) && subtitle);
+      return {
+        ...o,
+        label: ambiguous ? `${label} · ${subtitle}` : label,
+        subtitle: ambiguous ? "" : subtitle,
+        title: subtitle ? `${label} | ${subtitle}` : label,
+      };
+    });
+  };
+
   proto._renderMetricsRoomProfileCard = function (profile) {
     const lp = this._localizedProfile(profile);
     const title = profile?._settings_in_title ? `${lp.label} · ${lp.subtitle}` : (lp.label || this.t("metrics.profile_fallback"));
@@ -568,8 +599,8 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate_title"))}">
-              ${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate"))}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(this.t("metrics.save_candidate_title"))}">
+              ${this.escapeHtml(this.t("metrics.save_candidate"))}
             </span>
           ` : ""}
         </div>
@@ -586,7 +617,7 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_profile_title"))}"
+              title="${this.escapeHtml(this.t("metrics.save_profile_title"))}"
             >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}
@@ -618,8 +649,8 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate_title"))}">
-              ${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_candidate"))}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(this.t("metrics.save_candidate_title"))}">
+              ${this.escapeHtml(this.t("metrics.save_candidate"))}
             </span>
           ` : ""}
         </div>
@@ -636,7 +667,7 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(profile?.save_suggested_label || this.t("metrics.save_profile_title"))}"
+              title="${this.escapeHtml(this.t("metrics.save_profile_title"))}"
             >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}
@@ -878,7 +909,9 @@ export function applyMetricsRenderers(proto) {
       }
       return keys.map((k) => `
         <tr>
-          <td>${this.tVocab("battery_bucket_key", k, k)}</td>
+          <!-- battery buckets carry clean_mode as a DISPLAY label ("vacuum and
+               mop"); collapse " and " so tVocab's slug matches the vocab code key. -->
+          <td>${this.tVocab("battery_bucket_key", String(k).replace(/\s+and\s+/gi, " "), k)}</td>
           <td>${this.escapeHtml(numFmt(obj[k]?.mean, 3))}</td>
           <td>${this.escapeHtml(String(obj[k]?.count ?? 0))}</td>
         </tr>
@@ -932,7 +965,7 @@ export function applyMetricsRenderers(proto) {
           <tr><td>${this.t("metrics.battery_row_drain_rate")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_min, 2, " %/min"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_hour")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_hour, 1, " %/h"))}</td></tr>
           <tr><td>${this.t("metrics.battery_row_drain_per_m2")}</td><td>${this.escapeHtml(sensorVal(m.last_job_per_m2, 3, " %/m²"))}</td></tr>
-          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", lastJob.single_clean_mode, lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
+          <tr><td>${this.t("metrics.battery_row_single_clean_mode")}</td><td>${lastJob.single_clean_mode ? this.tVocab("clean_mode", String(lastJob.single_clean_mode).replace(/\s+and\s+/gi, " "), lastJob.single_clean_mode) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_fan_speed")}</td><td>${lastJob.single_fan_speed ? this.tVocab("fan_speed", lastJob.single_fan_speed, lastJob.single_fan_speed) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_single_water_level")}</td><td>${lastJob.single_water_level ? this.tVocab("water_level", lastJob.single_water_level, lastJob.single_water_level) : this.t("metrics.battery_mixed")}</td></tr>
           <tr><td>${this.t("metrics.battery_row_weighted_by")}</td><td>${lastJob.weighted_by ? this.tVocab("battery_weighted_by", lastJob.weighted_by, lastJob.weighted_by) : "—"}</td></tr>

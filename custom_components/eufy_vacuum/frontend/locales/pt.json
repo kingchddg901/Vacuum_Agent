@@ -11,7 +11,9 @@
     "reset": "Repor",
     "save": "Guardar",
     "saving": "A guardar…",
-    "yes": "Sim"
+    "yes": "Sim",
+    "confirm": "Confirmar",
+    "ok": "OK"
   },
   "base_station": {
     "action_available": "Ação disponível",
@@ -107,7 +109,8 @@
     "label_required": "É necessária uma etiqueta para o perfil de divisão.",
     "rename_key_prompt": "Opcional: introduza uma nova chave de perfil do backend.",
     "rename_label_prompt": "Introduza a nova etiqueta de apresentação para este perfil de divisão:",
-    "save_new_profile_prompt": "Guardar as definições atuais da divisão como novo perfil. Introduza uma etiqueta de apresentação:"
+    "save_new_profile_prompt": "Guardar as definições atuais da divisão como novo perfil. Introduza uma etiqueta de apresentação:",
+    "profile_already_removed": "Esse perfil já tinha sido removido."
   },
   "bind_room_rules": {
     "backend_rejected_rule": "O backend rejeitou esta regra.",
@@ -251,7 +254,8 @@
   "language": {
     "button_title": "Idioma",
     "heading": "Idioma de exibição",
-    "auto": "Auto (seguir o Home Assistant)"
+    "auto": "Auto (seguir o Home Assistant)",
+    "auto_draft_note": "{lang} ainda é um rascunho, então Auto mostra inglês — selecione-o abaixo para usá-lo."
   },
   "learning": {
     "all_rooms_complete": "Todas as divisões concluídas",
@@ -1630,13 +1634,17 @@
     "clean_mode": {
       "vacuum": "Aspirar",
       "mop": "Esfregar",
-      "vacuum_mop": "Aspirar e esfregar"
+      "vacuum_mop": "Aspirar e esfregar",
+      "vacuum_and_mop": "Aspirar e esfregar"
     },
     "fan_speed": {
       "quiet": "Silencioso",
       "standard": "Padrão",
       "boost": "Turbo",
-      "max": "Máx"
+      "max": "Máx",
+      "turbo": "Turbo",
+      "gentle": "Suave",
+      "balanced": "Equilibrado"
     },
     "water_level": {
       "off": "Desligado",
@@ -1648,7 +1656,8 @@
       "quick": "Rápida",
       "narrow": "Estreita",
       "deep": "Profunda",
-      "normal": "Normal"
+      "normal": "Normal",
+      "standard": "Padrão"
     },
     "metrics_tab": {
       "learning": "Aprendizagem",
@@ -1669,12 +1678,17 @@
       "off": "Desligado",
       "low": "Baixo",
       "medium": "Médio",
-      "high": "Alto"
+      "high": "Alto",
+      "vacuum_and_mop": "Aspirar e esfregar",
+      "turbo": "Turbo",
+      "gentle": "Suave",
+      "balanced": "Equilibrado"
     },
     "battery_weighted_by": {
-      "est_minutes": "Minutos est.",
       "room_count": "Nº de divisões",
-      "none": "Nenhum"
+      "none": "Nenhum",
+      "estimated_minutes": "Minutos est.",
+      "actual_minutes": "Minutos reais"
     },
     "status": {
       "completed": "Concluído",
@@ -2228,6 +2242,72 @@
       "not_drying": "Parar a secagem só é útil enquanto a base está secando ativamente.",
       "already_emptying": "A base já está esvaziando a poeira.",
       "dock_busy": "A base está atualmente ocupada com outra ação de serviço."
+    },
+    "resegment_reason": {
+      "capped_to_detectable": "Limitado aos cômodos detectáveis nesta execução."
+    },
+    "job_scope": {
+      "single_room": "Cômodo único",
+      "multi_room": "Vários cômodos"
+    },
+    "device_status": {
+      "cleaning": "A limpar",
+      "docked": "Na base",
+      "idle": "Inativo",
+      "paused": "Em pausa",
+      "returning": "A regressar",
+      "error": "Erro",
+      "charging": "A carregar",
+      "standby": "Em espera",
+      "washing": "A lavar",
+      "washing_mop": "A lavar mopa",
+      "drying": "A secar",
+      "drying_mop": "A secar mopa",
+      "emptying": "A esvaziar",
+      "emptying_dust": "A esvaziar pó",
+      "fault": "Avaria",
+      "offline": "Offline",
+      "unavailable": "Indisponível",
+      "unknown": "Desconhecido"
+    },
+    "exclude_suggested_reason": {
+      "cancelled": "Execução cancelada",
+      "failed": "Execução com falha",
+      "interrupted": "Execução interrompida",
+      "failed_sanity": "Falhou verificação de integridade",
+      "floor_time_too_short": "Tempo de limpeza curto",
+      "early_return_likely_cancelled": "Regressou cedo",
+      "cancel_like": "Parece cancelada",
+      "short_duration_vs_profile": "Curta vs. perfil",
+      "short_duration_vs_room": "Curta vs. divisão"
+    },
+    "reason_code": {
+      "completed": "Esta execução foi concluída normalmente.",
+      "cancelled": "Esta execução terminou como um trabalho cancelado.",
+      "failed": "Esta execução terminou como um trabalho com falha.",
+      "interrupted": "Esta execução terminou como um trabalho interrompido.",
+      "test": "Esta execução está marcada como um trabalho de teste.",
+      "cancel_like": "Esta execução parece uma execução cancelada.",
+      "excluded_from_learning": "Esta execução está atualmente excluída do aprendizado.",
+      "job_cancelled": "O trabalho foi cancelado antes de terminar.",
+      "job_failed": "O trabalho falhou antes de terminar.",
+      "job_interrupted": "O trabalho foi interrompido antes de terminar.",
+      "test_job": "Esta execução está marcada como um trabalho de teste.",
+      "manually_excluded": "Esta execução foi excluída manualmente da aprendizagem.",
+      "invalid_room_count": "Esta execução não registou um número válido de divisões.",
+      "invalid_duration": "Esta execução não registou uma duração válida.",
+      "missing_resolved_rooms": "Não foi possível associar nenhuma divisão a esta execução.",
+      "failed_sanity": "Esta execução não passou nas verificações de integridade do backend.",
+      "short_duration_vs_profile": "Muito mais curta do que este perfil costuma demorar.",
+      "short_duration_vs_room": "Muito mais curta do que esta divisão costuma demorar.",
+      "cancel_likely": "Esta execução parece ter sido cancelada.",
+      "floor_time_too_short": "O tempo de limpeza do chão foi demasiado curto para uma execução real.",
+      "early_return_likely_cancelled": "O aspirador regressou cedo, pelo que esta execução foi provavelmente cancelada.",
+      "short_test_cancel": "Parece uma execução de teste curta que foi cancelada cedo.",
+      "manual_test_run": "Marcada como execução de teste manual.",
+      "false_completion": "Esta execução parece ter terminado antes de a limpeza estar realmente concluída.",
+      "bad_room_attribution": "A atribuição de divisões desta execução parece pouco fiável.",
+      "interrupted_run": "Esta execução parece ter sido interrompida."
     }
   },
   "order_modal": {
