@@ -16,11 +16,12 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 - **Room rules** — attach per-room rules (e.g. mop-only, skip when occupied) that are applied automatically when a job is built.
 - **Learning system and ETA** — the integration records how long each room takes and uses that data to estimate job completion times. Estimates improve with each run.
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
-- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Surfaces twelve sensors plus a dedicated **Metrics → Battery** sub-tab. Spots a degrading battery 6-12 months before it impacts cleaning.
+- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), CC/CV charge-speed indices, per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Designed to spot battery degradation trends 6–12 months before they impact cleaning.
 - **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
 - **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
-- **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs an eufy-clean build with zone-clean support. (A repeat-passes count is available via the `start_zone_clean` service for automations.)
-- **Live map, furnished render & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
+- **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs **eufy-clean v1.11.1 or later** (which adds zone-clean support). (A repeat-passes count is available via the `start_zone_clean` service for automations.)
+- **Live map & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas.
+- **Furnished render** — on a live-map layout, overlay a to-scale drawing of your real home: trace over the saved map, upload your furnished art, then blend and align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
 - **Speaks your language** — a per-user language globe in the header, **seven built-in translations** (German, French, Spanish, Dutch, Italian, Portuguese, Russian — AI-drafted + [native-reviewable](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)) plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
@@ -60,7 +61,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
 
-- A provider **map / camera / image entity** for the live-map backdrop and richer map views.
+- A provider **map / camera / image entity** for the live-map backdrop and richer map views. On **Eufy** this comes from **eufy-clean v1.11.1 or later**, which renders the robot's map as a `camera.<device>_map` entity; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
 - The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
 - Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 
@@ -84,7 +85,7 @@ If you submitted setup without picking a vacuum, the sidebar entry still appears
 | Field | Required | Description |
 |---|---|---|
 | **Vacuum** | Optional | The `vacuum.*` entity from your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy; the built-in Roborock integration for Roborock). Leave blank to skip for now and set it later via **Configure**. |
-| **Tested model** | Required | The model you are setting up. Used to select the correct adapter config and capability declarations. Defaults to the currently tested model. |
+| **Tested model** | Required | The model you are setting up. Used to select the correct adapter config and capability declarations. Defaults to the **Eufy X10 Pro Omni**. |
 | **Notes** | Optional | Free-form text for your own reference. Shown in the integration entry in **Settings → Devices & Services**. |
 
 ### Options flow (Configure button)
@@ -242,6 +243,14 @@ Under the hood the integration is **adapter-driven**: every brand-specific fact 
 The Eufy adapter at `custom_components/eufy_vacuum/adapters/eufy/` is the reference implementation. Adding support for a different vacuum brand is a config-only change: write a parallel `adapters/<brand>/` folder, declare what your brand exposes, register the adapter at integration setup. The framework, the card, the learning system, and the dispatch path all consume whatever the adapter declares.
 
 See the [porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) for the vacuum-specific workflow including a four-brand catalog (Eufy, Roborock, Dreame, Narwal) of sample dispatch configs. For the general pattern as a reusable architecture — applicable to any multi-vendor HA integration — see [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern).
+
+## Contributors
+
+Built and maintained by [@kingchddg901](https://github.com/kingchddg901), with contributions from the community:
+
+- [@Nebr88](https://github.com/Nebr88) (Andrey Dmitriyev) — Roborock adapter fixes: clean-duration and live-room tracking ([#19](https://github.com/kingchddg901/Vacuum_Agent/pull/19)) and unnamed-map imports ([#18](https://github.com/kingchddg901/Vacuum_Agent/pull/18)).
+
+**Translations.** The seven built-in language packs — German, French, Spanish, Dutch, Italian, Portuguese, and Russian — are AI-drafted and ship as `draft` until a native speaker reviews them (a `draft` pack never auto-activates from your Home Assistant language; you pick it from the globe). Corrections, promotions to `stable`, and brand-new locales are all welcome — start in the [translation discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25) or follow the [Translate the card](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/translating/) guide (a translation is data, not code). Community translators are credited here.
 
 ## Acknowledgements
 
