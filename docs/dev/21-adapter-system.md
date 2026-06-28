@@ -193,6 +193,9 @@ State string sets (all normalized to lowercase before matching unless noted):
 | `cancel_detection_states` | dict[str, Any] | Normalized task_status transition strings the cancel detector matches: `active` (cleaning state — string or list), `returning` (return-to-dock state), `paused`; a cancel is active→returning or paused→returning |
 | `water_level_aliases` | dict[str, str] | Brand display strings → canonical water level keys |
 | `wash_frequency_mode_aliases` | dict[str, str] | Brand display strings → canonical frequency keys |
+| `clean_mode_aliases` | dict[str, str] | Brand clean-mode display strings → canonical codes (e.g. `"vacuum and mop"` → `vacuum_mop`) the card vocab is keyed on |
+| `clean_intensity_aliases` | dict[str, str] | Brand clean-intensity display strings → canonical codes (may be empty when values already slug to the code) |
+| `fan_speed_aliases` | dict[str, str] | Brand suction/fan-speed display strings → canonical codes (e.g. `"boostiq"` → `boost`) |
 | `clean_mode_options` | list[{value, label}] | Card dropdown options for clean mode |
 | `fan_speed_options` | list[{value, label}] | Card dropdown options for fan speed |
 | `water_level_options` | list[{value, label}] | Card dropdown options for water level |
@@ -338,7 +341,7 @@ Called once per managed vacuum at startup from `async_setup_entry`. Idempotent �
 | `adapters/eufy/const.py` | `ADAPTER_ID`, `STORAGE_KEY` |
 | `adapters/eufy/constants.py` | `POST_JOB_AMENDMENT_MIN_WASH_INTERVAL_SECONDS`, `POST_JOB_AMENDMENT_TIMEOUT_SECONDS` |
 | `adapters/eufy/entities.py` | `build_entity_id()`, all `SUFFIX_*` and `DOMAIN_*` constants |
-| `adapters/eufy/vocabulary.py` | `HARD_SERVICE_STATES`, `DRYING_STATES`, `ACTIVE_RUN_TASK_STATES`, `HA_ACTIVE_VACUUM_STATES`, `DOCK_EVENT_TRIGGERS`, `WATER_LEVEL_ALIASES`, `WASH_FREQUENCY_MODE_ALIASES`, `NOT_ERROR_SENTINELS`, `CANCEL_SERVICE_EXCLUSION_STATES` |
+| `adapters/eufy/vocabulary.py` | `HARD_SERVICE_STATES`, `DRYING_STATES`, `ACTIVE_RUN_TASK_STATES`, `HA_ACTIVE_VACUUM_STATES`, `DOCK_EVENT_TRIGGERS`, `WATER_LEVEL_ALIASES`, `WASH_FREQUENCY_MODE_ALIASES`, `CLEAN_MODE_ALIASES`, `CLEAN_INTENSITY_ALIASES`, `FAN_SPEED_ALIASES`, `NOT_ERROR_SENTINELS`, `CANCEL_SERVICE_EXCLUSION_STATES` |
 | `adapters/eufy/maintenance_components.py` | `MAINTENANCE_COMPONENTS` |
 | `adapters/eufy/model_catalog.py` | `detect_model_family()` |
 | `adapters/eufy/upkeep_catalog.py` | `UPKEEP_GUIDE_FAMILY_NAMES`, `UPKEEP_MODEL_GUIDE_FAMILIES`, `UPKEEP_MODEL_NAMES` |

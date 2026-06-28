@@ -136,7 +136,7 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `setup_import_active_map` | `vacuum_entity_id` |
 | `setup_get_map_rooms` | `vacuum_entity_id`, `map_id` |
 | `setup_save_rooms` | `vacuum_entity_id`, `map_id`, `enabled_room_ids`, `floor_types` |
-| `setup_delete_map` | `vacuum_entity_id`, `map_id`; optional `confirmation_token` (required for high-protection maps) |
+| `setup_delete_map` | `vacuum_entity_id`, `map_id`; optional `confirmation_token` — required for any protected map. A **named** high-protection map needs a typed token matching the map's stored name (`requires_typed_confirmation`); an **unnamed** high-protection map and any elevated map need only a one-click confirm, any non-empty token (`requires_confirmation`). The card reads those two protection fields to choose the prompt. |
 | `setup_set_panel_title` | `vacuum_entity_id`; optional `title` (blank reverts to the default). Renames the vacuum's sidebar panel and re-registers it live (refresh the browser to repaint the sidebar) |
 | `setup_set_map_camera` | `vacuum_entity_id`; optional `entity_id` (blank clears the override → falls back to the adapter's `live_map_image_entity_pattern`). Sets the per-vacuum live-map image/camera override the dashboard snapshot prefers over the pattern (see § 1.1 Live-map backdrop read model) |
 
@@ -604,7 +604,7 @@ The active map ID comes from `sensor.{object_id}_active_map` state value.
 - `start_zone_clean` — dispatches an ad-hoc free-form zone clean (rectangles drawn on the live map) on `supports_zone_clean` providers. Fire-and-forget — it carries no room ids and never touches the job/queue/learning store, so there is no tracked active job to pause/resume/cancel afterward.
 - `clear_queue` — empties the pending run queue only; does **not** disable rooms (the card UI disables rooms as a separate composite action before calling it).
 - `finalize_learning_job` — fires `eufy_vacuum_run_incomplete` if rooms were missed. Call only when a job ends.
-- `setup_delete_map` — destroys a map and all its room data. Requires a confirmation token for high-protection maps.
+- `setup_delete_map` — destroys a map and all its room data. A protected map needs a `confirmation_token`: a **named** high-protection map needs a typed token matching the map name; an **unnamed** high-protection map and any elevated map need only a one-click confirm (any non-empty token).
 - `wash_mop`, `dry_mop`, `empty_dust` — physically operate dock hardware.
 - `update_room_fields` — null optional fields (e.g. `water_level`) must be omitted, not sent as null. HA schema validation will reject them.
 - `apply_run_profile` — overwrites current room selection and settings with saved profile values.

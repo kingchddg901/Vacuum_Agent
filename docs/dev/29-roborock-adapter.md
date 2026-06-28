@@ -54,7 +54,7 @@ modules are simply absent (the blocks degrade gracefully).
 | `adapter.py` | Assembly + `register_roborock_adapter_for_vacuum()`. Pure assembly, as in Eufy. |
 | `const.py` | Identity strings (`DOMAIN`, `NAME`, `SUPPORTED_TESTED_MODEL`), the brand-level `ADAPTER_ID`, and `LOW_BATTERY_THRESHOLD_PERCENT`. |
 | `entities.py` | `build_entity_id()` + the Roborock-core entity suffixes (`_status`, `_current_room`, `_cleaning_time`, …). |
-| `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. |
+| `vocabulary.py` | Task-status / error / completion state sets + the fan-speed `*_options` (card vocab) and the per-room-live fan `options_key` vocabulary guard. A brand may also declare display→canonical alias maps (`clean_mode_aliases` / `clean_intensity_aliases` / `fan_speed_aliases`) so the learning manager hands the card a canonical code for observed settings; the S6's values already slug to canonical (`gentle`/`balanced`/…), so it declares none. |
 | `model_catalog.py` | `profile_for_model()` — maps `roborock.vacuum.s6` → the s6 **capability profile** (a dict: `family`/`display_name`/`has_dock`/`has_mop`/`supports_segments`), not a family string like Eufy's `detect_model_family()`. |
 | `maintenance_components.py` | The 4 consumables (main/side brush, filter, sensor) as device-owned `*_time_left` countdowns. |
 
