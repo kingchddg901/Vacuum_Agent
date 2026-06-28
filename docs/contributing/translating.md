@@ -88,6 +88,12 @@ shipped locale moves between; the
 defines exactly what each status controls (and how it differs from the intake
 gate's safety outcomes).
 
+The per-language **[native-review worklist](translation-review.md)** lists the
+specific judgment-calls flagged for each shipped locale
+(`de`/`fr`/`es`/`nl`/`it`/`pt`/`ru`) — a native speaker's to-do list. Confirm or
+correct an item there or in the
+[translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).
+
 To contribute a language upstream, open a PR adding `<code>.json` to the served
 locales folder and its status to the locale tables in `src/i18n/index.js`. The
 [i18n reference](../dev/33-i18n-system.md) covers the manifest, plural mechanism,
