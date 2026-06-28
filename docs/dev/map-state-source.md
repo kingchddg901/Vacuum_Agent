@@ -5,7 +5,7 @@
 the live-map camera. Roborock (memory backend) returns 10 rooms with normalized bboxes, read from
 the parsed `MapData` on the map image entity (`_home_trait._map_content.map_data`) and projected via
 the parser's own `ImageDimensions.to_img(...).rotated(...)` transform (the live transform was
-verified exact by hand against the raw room coords). No consumer wiring yet (Wave 3). No fork
+verified exact by hand against the raw room coords). No consumer wiring yet (Wave 3). No eufy-clean
 changes required.
 
 ### Roborock specifics (learned at runtime, 2026-06-19)
@@ -69,7 +69,7 @@ provider coupling is isolated to one adapter-configured reader.
 | Exact outline | `room_pixels` raster (**free, L-exact**) | reconstruct (color-seg render / re-parse segment layer) |
 | Offline-readable | yes (proven) | no (geometry is in HA memory) |
 
-The Eufy fork is unusually generous (persists decoded `room_pixels`); Roborock keeps geometry
+eufy-clean is unusually generous (persists decoded `room_pixels`); Roborock keeps geometry
 in-memory. Hence a per-adapter pointer that supports **storage** and **memory** backends.
 
 ## Adapter config contract (`map_state_source`)
@@ -104,7 +104,7 @@ Each backend is **active only when its source artifact is present** — the *sam
 presence mechanism the VA already uses (`cv_available`, `supports_map_bounds`, …):
 
 - **Eufy:** active iff the camera/map artifact exists (`camera.<device>_map` resolved **and**
-  `.storage` `map_data` present). Plain non-fork Eufy → inactive → segmentation features hide.
+  `.storage` `map_data` present). An older or plain Eufy install (no live-map camera) → inactive → segmentation features hide.
 - **Roborock:** active iff `hass.data["roborock"]` coordinator + a parsed `MapData` exist.
 - **Future models:** declare their own `present_when`. Core just asks "is the source present?" —
   degrade to `unavailable`/hidden when not, never crash.
@@ -168,7 +168,7 @@ live-map rotation is gated on `hasLiveImage` not `isLiveImageDisplayed`.
 
 The card draws its OWN full-grid map backdrop from the device's room raster — no server
 dependency (no Pillow). The VA owns the frame, so the overlays align perfectly (no
-fork-camera crop). Adapter-driven, brand-agnostic core + card.
+live-map-camera crop). Adapter-driven, brand-agnostic core + card.
 
 - **Adapter:** a `map_render: {format}` block declares the decode format (Eufy
   `eufy_room_pixels_v1`) and **reuses the `map_state_source` store pointer** (no duplicate
@@ -207,7 +207,7 @@ fork-camera crop). Adapter-driven, brand-agnostic core + card.
 
 ## Defensive contract
 
-Adapter-config paths (re-point, don't rewrite, when the fork schema shifts at #136); Store-`version`
+Adapter-config paths (re-point, don't rewrite, when eufy-clean's schema shifts at #136); Store-`version`
 guard; degrade-to-`unavailable` on any mismatch; brand-agnostic core, coupling only in adapter +
 reader.
 

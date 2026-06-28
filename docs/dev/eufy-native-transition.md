@@ -16,7 +16,7 @@ and must be re-confirmed at implementation time (verify-vs-code rule).
 
 ## The question
 
-Eufy now exposes a per-frame `current_room` (read from the eufy-clean fork's in-memory `MapData`,
+Eufy now exposes a per-frame `current_room` (read from eufy-clean's in-memory `MapData`,
 surfaced on the map-overlays sensor). Historically Eufy had no native current-room, so run-time
 room-transition detection used the **counter-plateau / timing heuristic** (`eufy_counter_v1`).
 Roborock instead gets a **native** rollover via the brand-agnostic `live_transition` seam. Can
@@ -123,7 +123,7 @@ The flag flip + per-room-live-settings reuse are nearly free; shims 1–4 are th
 
 **Result — the gate PASSED on all three numbers:**
 1. **Refresh server-side, card closed: YES.** 351 distinct anchors / 375 consecutive changes over the
-   external run — the fork pushes pose via MQTT independent of any UI poll. So **shim #3 may be
+   external run — eufy-clean pushes pose via MQTT independent of any UI poll. So **shim #3 may be
    unnecessary** (the signal is already live without us driving it). *Caveat:* no in-repo proof the
    `_robot_pixel` frame is stable mid-run; observed-only.
 2. **Flicker: 0 single-tick room blips** on the dispatched run; on the external run the only 1-tick
@@ -306,7 +306,7 @@ plays today, but grounded in observed position + device area.
   - **W5d (later)** — opt-in auto-confirm for proven high-confidence robust runs.
 
   **W5 gating + adapter discipline.** The native path rides `current_room`, which is *derived from
-  map data* (`current_room_for_pixel` over the fork's in-memory `MapData` raster — `map_source.py:231`;
+  map data* (`current_room_for_pixel` over eufy-clean's in-memory `MapData` raster — `map_source.py:231`;
   no map → `async_get_map_live_pose` returns `{present:false, reason:"no_geom"}`. That method moved to
   `mapping/map_source_coordinator.py` (class `MapSourceCoordinator`); the `no_geom` return is at
   `mapping/map_source_coordinator.py:412`. `core/manager.py:3742` keeps only a thin delegator that calls
@@ -328,9 +328,9 @@ plays today, but grounded in observed position + device area.
 
 ## Open unknowns (honest)
 
-- No in-code assertion that the live `_robot_pixel` frame is stable mid-run — inferred from fork
+- No in-code assertion that the live `_robot_pixel` frame is stable mid-run — inferred from eufy-clean's
   behavior, not proven here (`mapping/map_source.py:407-415`).
-- Device→fork→render latency rides on top of our freshness guarantee and is outside this repo; the
+- Device→eufy-clean→render latency rides on top of our freshness guarantee and is outside this repo; the
   seam's idempotency absorbs a coarse cadence, but the settle value (N) must come from W0 data.
 
 ## Related

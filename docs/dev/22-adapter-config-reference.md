@@ -1111,8 +1111,8 @@ data — into normalized, VA-owned room bboxes plus dock / robot anchors.
 This makes room regions, current-room, and mascot anchors **auto-derived**
 rather than hand-composed, and (for Eufy) immune to the per-session raw
 coordinate-frame re-basing that makes absolute robot coordinates
-non-comparable across sessions. The Eufy adapter declares it against the
-eufy-clean fork's decoded map; brands whose in-memory map is already
+non-comparable across sessions. The Eufy adapter declares it against
+eufy-clean's decoded map; brands whose in-memory map is already
 frame-fresh (Roborock) omit it.
 
 The whole block is optional. Absent → no provider-map read; trace-based
@@ -1122,11 +1122,11 @@ room bounds and the CV image segmenter keep working unchanged.
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `backend` | `str` | Which read strategy to use. Eufy: `"storage"` (the fork persists its decoded map to an HA `Store` file). |
+| `backend` | `str` | Which read strategy to use. Eufy: `"storage"` (eufy-clean persists its decoded map to an HA `Store` file). |
 | `identifier_domain` | `str` | Device-registry identifier domain used to resolve the device (Eufy: `"robovac_mqtt"`). |
 | `store_key` | `str` | `Store` file key, with `{device_id}` filled from the `(identifier_domain, <serial>)` device-registry identifier (Eufy: `"robovac_mqtt.{device_id}"`). |
 | `store_version` | `int` | Expected store wrapper version. A mismatch is treated as unavailable (re-point this number, don't rewrite, if the provider bumps it). |
-| `present_requires_live_map_image` | `bool` | When `True`, presence is gated on the live-map camera artifact (the same gate as the live backdrop), so a plain non-fork install resolves to "not present" and the feature hides. |
+| `present_requires_live_map_image` | `bool` | When `True`, presence is gated on the live-map camera artifact (the same gate as the live backdrop), so an older or plain install (no live-map camera) resolves to "not present" and the feature hides. |
 | `live_pose` | `dict` | In-memory live-pose source — the fresh moving overlays (robot / dock / trail) read from the provider's live coordinator rather than the save-throttled `.storage` snapshot. Keys: `hass_data_domain`, `robot_pixel_attrs`, `dock_pixel_attrs`, `trail_pixel_attrs`, `heading_attrs` (each an ordered attr-name list tried in turn; absence → no override, stays on `.storage`). |
 | `memory` | `dict` | In-memory `MapData` source — the same live coordinator also holds the full decoded map (fresher than `.storage`, loop-safe). Keys: `hass_data_domain`, `mapdata_attrs` (and optional per-field remap `field_attrs`). |
 

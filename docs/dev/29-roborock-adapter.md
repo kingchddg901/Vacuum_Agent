@@ -146,7 +146,7 @@ bare dict). Roborock-specific keys with no Eufy equivalent:
   so the native rollover + per-room fan track at ~15 s. It is **LAN-gated** (`local_gate`
   keys off the *absence* of the upstream `cloud_api_used` repair issue — cloud ⇒ skip,
   re-checked each pulse) and **excluded for strict-order/phased runs** (each per-room
-  dock already forces a free refresh). Eufy omits this block (it has a ~2 s fork pose) →
+  dock already forces a free refresh). Eufy omits this block (it has a ~2 s eufy-clean pose) →
   no-op. Owner: `live_refresh/LiveRoomRefreshManager` (core delegates via
   `maybe_pulse_live_room_refresh`).
 
