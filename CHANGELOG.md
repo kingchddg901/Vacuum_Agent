@@ -72,6 +72,12 @@ live-room fixes from an external contributor.
   translating guide covering the authoring format, plural rules, dropping in your
   own locale, the draft-to-stable review path, and exactly what the intake gate
   allows, scrubs, and quarantines.
+- **The learning data reads your language too.** The Learning Review job cards —
+  the auto-exclude suggestion badges and the per-run "this run …" explanation — the
+  composed room-profile labels in the Metrics and Learning Review filters, chips,
+  and cards, and the fallback label for an unnamed map all localize now. Each is
+  keyed on a stable backend code with the English text as a per-value fallback, so
+  a code we haven't translated still reads in English rather than a raw key.
 
 ### Changed
 - **Drafts don't activate automatically.** The seven new languages ship as
@@ -111,6 +117,12 @@ live-room fixes from an external contributor.
   codes so they localize cleanly. Animal/companion names and the "Rainbow Bridge"
   idiom translate via established renderings, while protected proper names (e.g. the
   "Rainbow Bridge — Mittens" memorial) stay untranslated.
+- **Deleting an unnamed map is now a one-click confirm.** The backend no longer
+  synthesizes an English "Map 6" name for an unnamed map — which leaked English in
+  every language and forced you to type an English token to delete it. Unnamed maps
+  render the localized "Map {id}" label and drop their high-protection delete from
+  "type the exact name" to a single explicit confirm; named maps still require
+  typing their (locale-invariant) stored name.
 
 ### Fixed
 - **The renderer now actually switches language.** A renderer-layer bug read the
@@ -150,6 +162,16 @@ live-room fixes from an external contributor.
 - **Smaller card download.** Non-English locales no longer ship inside the card
   bundle — they are served as JSON and loaded at runtime, shrinking the card from
   ~1.93 MB to ~1.15 MB (about 40% / 772 KB smaller).
+- **No stray English on the profile cards.** The "save candidate" badge and a few
+  setting values ("Vacuum and mop", "Standard", "Turbo") rendered English on the
+  Metrics → Profiles cards and filters because the stored values were un-normalized
+  display strings; they now localize.
+- **The room editor only offers settings your robot has.** Each picker (suction /
+  mode / water / intensity) listed values aggregated from *every* saved profile, so
+  a value from one brand's template (e.g. a Eufy "Standard" suction) appeared as a
+  selectable option on another robot — including a Roborock, whose suction set is
+  only gentle/quiet/balanced/turbo/max. Pickers now show the adapter's declared
+  options plus the room's own current value, nothing else.
 
 ### Eufy scalar/Tuya devices
 - **Support for reduced-transport ("scalar/Tuya") Eufy robots.** Vacuum Agent now
@@ -222,6 +244,14 @@ live-room fixes from an external contributor.
   `-LiveRoot` to target a clone instance. Roborock tests realigned to live-pointer
   behavior; lifecycle/dock-drift test flakes stabilized (2,771 passed, 1 skipped).
   Developer reference (`docs/dev/33-i18n-system.md`) added; `mkdocs --strict` clean.
+- **Settings normalized to canonical codes.** Observed clean-mode / clean-intensity
+  / fan-speed / water-level values are normalized through adapter-owned alias maps
+  (mirroring the existing water-level aliases) before they reach the card, so it
+  always receives a code its vocabulary is keyed on — no future un-keyed display
+  string can leak from that path. Each brand declares its own maps in its adapter.
+  Backed by a code-first reason-code path: the learning manager emits stable codes
+  (status, sanity flags, learning blockers, exclude/cancel reasons) and the card
+  localizes them, keeping the English text only as the fallback.
 
 ## [1.2.5] - 2026-06-23
 
