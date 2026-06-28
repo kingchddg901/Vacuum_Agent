@@ -924,51 +924,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           </svg>
           ${this.t("rooms.configure")}
         </button>
-        <select
-          class="evcc-rooms-animal-select"
-          data-action="map-animal-select"
-          title="${this.t("rooms.companion_animal")}"
-          aria-label="${this.t("rooms.companion_animal")}"
-        >
-          ${(()=>{let r=window.AnimalSVG?.list?.()??["cat","dog","raccoon","parrot","snake"],n=e.mapAnimalSelection?.()??"cat",o=l=>{let u=window.AnimalSVG?.get?.(l)?.label??l.charAt(0).toUpperCase()+l.slice(1).replace(/_/g," ");return`<option value="${l}"${n===l?" selected":""}>${u}</option>`},s=r.filter(l=>window.AnimalSVG?.get?.(l)?.memorial);return r.filter(l=>!window.AnimalSVG?.get?.(l)?.memorial).map(o).join("")+(s.length?`<optgroup label="\u{1F308} ${this.t("rooms.rainbow_bridge")}">${s.map(o).join("")}</optgroup>`:"")})()}
-        </select>
-        <input
-          type="range"
-          class="evcc-rooms-animal-scale"
-          data-action="map-animal-scale"
-          min="0.5" max="3" step="0.25"
-          value="${e.mapAnimalScale?.()??1}"
-          title="${this.t("rooms.icon_size")}"
-          aria-label="${this.t("rooms.icon_size")}"
-        >
-        <button
-          class="evcc-rooms-view-toggle-btn${e.mapAnimalEnabled?.()??!0?" active":""}"
-          data-action="map-animal-toggle"
-          title="${e.mapAnimalEnabled?.()??!0?this.t("rooms.hide_companion"):this.t("rooms.show_companion")}"
-          aria-label="${e.mapAnimalEnabled?.()??!0?this.t("rooms.hide_companion"):this.t("rooms.show_companion")}"
-          aria-pressed="${e.mapAnimalEnabled?.()??!0?"true":"false"}"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" stroke="none">
-            <ellipse cx="8" cy="10.5" rx="3" ry="2.3"/>
-            <circle cx="3.8" cy="7" r="1.3"/>
-            <circle cx="6.5" cy="4.8" r="1.3"/>
-            <circle cx="9.5" cy="4.8" r="1.3"/>
-            <circle cx="12.2" cy="7" r="1.3"/>
-          </svg>
-        </button>
-        <button
-          class="evcc-rooms-view-toggle-btn${e.mapAnimalFollowsRobot?.()??!1?" active":""}"
-          data-action="map-animal-follow-toggle"
-          title="${e.mapAnimalFollowsRobot?.()??!1?this.t("rooms.mascot_follow_on"):this.t("rooms.mascot_follow_off")}"
-          aria-label="${this.t("rooms.mascot_follows_robot")}"
-          aria-pressed="${e.mapAnimalFollowsRobot?.()??!1?"true":"false"}"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
-            <circle cx="8" cy="8" r="3"/>
-            <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
-            <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
-          </svg>
-        </button>
+        ${this._renderMapAnimalControls(e)}
         <button
           class="evcc-rooms-view-toggle-btn${e.mapFloorTextureEnabled?.()??!0?" active":""}"
           data-action="map-texture-toggle"
@@ -3678,7 +3634,52 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
         </div>
 
       </div>
-    `},i._overlayTransform=function(e){let t=e.mapImageSize?.(),a=100,r=100,n=0,o=0;if(Array.isArray(t)&&t.length===2&&t[0]>0&&t[1]>0){let s=Number(t[0]),c=Number(t[1]);a=s>=c?100:100*s/c,r=c>=s?100:100*c/s,n=(100-a)/2,o=(100-r)/2}return{sx:a,sy:r,tx:s=>n+Number(s)*a,ty:s=>o+Number(s)*r}},i._renderFurnishedArt=function(e,t){let a=e.furnishedHomeArtUrl?.();if(!a)return"";let r=t?e.furnishedArtTransform?.()??{tx:0,ty:0,scale:1,rotation:0}:e.furnishedHomeArtTransform?.()??null,n=Number(r?.tx??0),o=Number(r?.ty??0),s=Number(r?.scale??1)||1,c=Number(r?.rotation??0),l=`translate(${n.toFixed(3)}%, ${o.toFixed(3)}%) rotate(${c}deg) scale(${s})`,d=t&&e.composeSelectedId?.()!=null,u="evcc-map-art"+(t?" evcc-map-art--editable":"")+(d?" evcc-map-art--passthrough":""),m=t&&!d?' data-action="furnished-art-drag"':"";return`<img class="${u}" src="${this.escapeHtml(a)}" alt="${this.t("map.furnished_art_alt")}" draggable="false" style="transform:${l}"${m}>`},i._renderDeviceOverlaySvg=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present)return"";let a=m=>e.isOverlayVisible?.(m)??!1,{tx:r,ty:n,sx:o,sy:s}=this._overlayTransform(e),c=m=>m.toFixed(2),l=m=>m.map(p=>`${c(r(p[0]))},${c(n(p[1]))}`).join(" "),d=(m,p,v,f,_)=>{let b=r(Math.min(p,f)),w=n(Math.min(v,_));return`<rect class="${m}" x="${c(b)}" y="${c(w)}" width="${c(Math.abs(f-p)*o)}" height="${c(Math.abs(_-v)*s)}" />`},u="";if(a("current_room")&&t.current_room!=null){let m=(t.rooms||[]).find(p=>p.number===t.current_room);m&&Array.isArray(m.bbox)&&m.bbox.length===4&&(u+=d("evcc-map-ov-current",m.bbox[0],m.bbox[1],m.bbox[2],m.bbox[3]))}if(a("no_go"))for(let m of t.no_go||[])Array.isArray(m)&&m.length>=3&&(u+=`<polygon class="evcc-map-ov-nogo" points="${l(m)}" />`);if(a("no_mop"))for(let m of t.no_mop||[])Array.isArray(m)&&m.length>=3&&(u+=`<polygon class="evcc-map-ov-nomop" points="${l(m)}" />`);if(a("zones"))for(let m of t.zones||[])Array.isArray(m)&&m.length===4&&(u+=d("evcc-map-ov-zone",m[0],m[1],m[2],m[3]));if(a("walls"))for(let m of t.walls||[])Array.isArray(m)&&m.length===2&&Array.isArray(m[0])&&Array.isArray(m[1])&&(u+=`<line class="evcc-map-ov-wall" x1="${c(r(m[0][0]))}" y1="${c(n(m[0][1]))}" x2="${c(r(m[1][0]))}" y2="${c(n(m[1][1]))}" />`);return a("path")&&Array.isArray(t.path)&&t.path.length>=2&&(u+=`<polyline class="evcc-map-ov-path" points="${l(t.path)}" />`),u},i._renderDeviceOverlayHtml=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present)return"";let a=l=>e.isOverlayVisible?.(l)??!1,{tx:r,ty:n}=this._overlayTransform(e),o=l=>l.toFixed(2),s="",c=(e.mapAnimalFollowsRobot?.()??!1)&&(e.mapAnimalEnabled?.()??!0);if(a("robot")&&!c&&Array.isArray(t.robot_anchor)&&t.robot_anchor.length===2){let[l,d]=t.robot_anchor,u=Number(t.robot_heading??0);s+=`<div class="evcc-map-ov-robot" style="left:${o(r(l))}%;top:${o(n(d))}%"><span class="evcc-map-ov-robot-arrow" style="transform:rotate(${u}deg)"></span></div>`}if(a("dock")&&Array.isArray(t.dock_anchor)&&t.dock_anchor.length===2){let[l,d]=t.dock_anchor;s+=`<div class="evcc-map-ov-dock" style="left:${o(r(l))}%;top:${o(n(d))}%" title="${this.t("map.dock")}"></div>`}if(a("obstacles"))for(let l of t.obstacles||[]){if(!l||!Array.isArray(l.pos)||l.pos.length!==2)continue;let d=l.has_photo?" evcc-map-ov-obstacle--photo":"";s+=`<div class="evcc-map-ov-obstacle${d}" style="left:${o(r(l.pos[0]))}%;top:${o(n(l.pos[1]))}%" title="${l.type!=null?this.escapeHtml(String(l.type)):this.t("map.obstacle")}"></div>`}if(a("room_area"))for(let l of t.rooms||[]){if(l.area_m2==null||!Array.isArray(l.bbox)||l.bbox.length!==4)continue;let[d,u,m,p]=l.bbox,v=e.areaLabelAnchor?.(l.number),f=v?Number(v.pct_x):r((d+m)/2),_=v?Number(v.pct_y):n((u+p)/2);s+=`<div class="evcc-map-ov-area" data-action="area-label-drag" data-room="${this.escapeHtml(String(l.number))}" style="left:${o(f)}%;top:${o(_)}%">${this.escapeHtml(String(l.area_m2))} m\xB2</div>`}return s},i._renderDeviceRoomLabels=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present||!Array.isArray(t.rooms))return"";let{tx:a,ty:r}=this._overlayTransform(e),n=e.getRoomsForActiveMap?.()??[],o=this._selectedRoomOrder(e);return t.rooms.map(s=>{if(!Array.isArray(s.bbox)||s.bbox.length!==4)return"";let l=n.find(p=>String(p.id)===String(s.number))?.name??s?.name;if(!l)return"";let d=o.has(Number(s.number)),u=Math.min(Math.max(+a((s.bbox[0]+s.bbox[2])/2),5),95),m=Math.min(Math.max(+r((s.bbox[1]+s.bbox[3])/2),6),94);return`<div class="evcc-map-label${d?" evcc-map-label--selected":""}" style="left:${u}%;top:${m}%"><span class="evcc-map-label-name">${this.escapeHtml(String(l))}</span></div>`}).join("")},i._renderHiddenRegions=function(e,t){let a=e.hiddenRegions?.()??[];if(!a.length||!(e.isOverlayVisible?.("hidden_regions")??!0)&&!t)return"";let{tx:n,ty:o}=this._overlayTransform(e),s=d=>d.toFixed(2),c="evcc-hidden-region"+(t?" evcc-hidden-region--edit":""),l="";for(let d=0;d<a.length;d++){let u=a[d];if(!Array.isArray(u)||u.length!==4)continue;let m=n(u[0]),p=o(u[1]),v=n(u[2])-m,f=o(u[3])-p;l+=`<div class="${c}" style="left:${s(m)}%;top:${s(p)}%;width:${s(v)}%;height:${s(f)}%">`+(t?`<button class="evcc-hidden-region-del" data-action="delete-hidden-region" data-index="${d}" title="${this.t("map.remove_hidden_area_title")}" aria-label="${this.t("map.remove_hidden_area_aria")}">\xD7</button>`:"")+"</div>"}return l},i._selectedRoomOrder=function(e){let t=(e.getRoomsForActiveMap?.()??[]).filter(r=>r.enabled),a=new Map;return[...t].sort((r,n)=>(r.order??999)-(n.order??999)).forEach((r,n)=>a.set(Number(r.id),n+1)),a},i._renderSelectionScrim=function(e){if(!(e.overlaysAligned?.()??!1))return"";let t=e.mapRenderData?.();if(!t||!t.present)return"";let a=this._selectedRoomOrder(e),r=(e.getRoomsForActiveMap?.()??[]).length;return a.size===0||a.size>=r?"":`<canvas class="evcc-map-image evcc-map-selection-canvas" data-sel-key="${this.escapeHtml(String(t.version)+":"+[...a.keys()].sort((n,o)=>n-o).join(","))}"></canvas>`},i._renderRoomSelection=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present||!Array.isArray(t.rooms))return"";let a=this._selectedRoomOrder(e);if(a.size===0)return"";let{tx:r,ty:n}=this._overlayTransform(e),o=c=>c.toFixed(2),s="";for(let c of t.rooms){let l=a.get(Number(c.number));if(l==null||!Array.isArray(c.bbox)||c.bbox.length!==4)continue;let[d,u,m,p]=c.bbox;s+=`<div class="evcc-map-ov-selnum" style="left:${o(r(Math.min(d,m)))}%;top:${o(n(Math.min(u,p)))}%">${l}</div>`}return s},i._renderMapLayersPanel=function(e){let t=e.mapOverlayVisibility?.()??{},a=e.isLiveImageDisplayed?.()??!1,r=[{key:"current_room",label:this.t("map.layer_current_room")},{key:"robot",label:this.t("map.layer_robot")},{key:"dock",label:this.t("map.layer_dock")},{key:"room_area",label:this.t("map.layer_room_area")},{key:"no_go",label:this.t("map.layer_no_go")},{key:"no_mop",label:this.t("map.layer_no_mop")},{key:"walls",label:this.t("map.layer_walls")},{key:"zones",label:this.t("map.layer_zones")},{key:"path",label:this.t("map.layer_path")},{key:"obstacles",label:this.t("map.layer_obstacles")},{key:"hidden_regions",label:this.t("map.layer_hidden_areas")}],n=e.canDrawHideArea?.()??!1,o=n&&(e.hideDrawMode?.()??!1),s=(e.hiddenRegions?.()??[]).length;return`
+    `},i._overlayTransform=function(e){let t=e.mapImageSize?.(),a=100,r=100,n=0,o=0;if(Array.isArray(t)&&t.length===2&&t[0]>0&&t[1]>0){let s=Number(t[0]),c=Number(t[1]);a=s>=c?100:100*s/c,r=c>=s?100:100*c/s,n=(100-a)/2,o=(100-r)/2}return{sx:a,sy:r,tx:s=>n+Number(s)*a,ty:s=>o+Number(s)*r}},i._renderFurnishedArt=function(e,t){let a=e.furnishedHomeArtUrl?.();if(!a)return"";let r=t?e.furnishedArtTransform?.()??{tx:0,ty:0,scale:1,rotation:0}:e.furnishedHomeArtTransform?.()??null,n=Number(r?.tx??0),o=Number(r?.ty??0),s=Number(r?.scale??1)||1,c=Number(r?.rotation??0),l=`translate(${n.toFixed(3)}%, ${o.toFixed(3)}%) rotate(${c}deg) scale(${s})`,d=t&&e.composeSelectedId?.()!=null,u="evcc-map-art"+(t?" evcc-map-art--editable":"")+(d?" evcc-map-art--passthrough":""),m=t&&!d?' data-action="furnished-art-drag"':"";return`<img class="${u}" src="${this.escapeHtml(a)}" alt="${this.t("map.furnished_art_alt")}" draggable="false" style="transform:${l}"${m}>`},i._renderDeviceOverlaySvg=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present)return"";let a=m=>e.isOverlayVisible?.(m)??!1,{tx:r,ty:n,sx:o,sy:s}=this._overlayTransform(e),c=m=>m.toFixed(2),l=m=>m.map(p=>`${c(r(p[0]))},${c(n(p[1]))}`).join(" "),d=(m,p,v,f,_)=>{let b=r(Math.min(p,f)),w=n(Math.min(v,_));return`<rect class="${m}" x="${c(b)}" y="${c(w)}" width="${c(Math.abs(f-p)*o)}" height="${c(Math.abs(_-v)*s)}" />`},u="";if(a("current_room")&&t.current_room!=null){let m=(t.rooms||[]).find(p=>p.number===t.current_room);m&&Array.isArray(m.bbox)&&m.bbox.length===4&&(u+=d("evcc-map-ov-current",m.bbox[0],m.bbox[1],m.bbox[2],m.bbox[3]))}if(a("no_go"))for(let m of t.no_go||[])Array.isArray(m)&&m.length>=3&&(u+=`<polygon class="evcc-map-ov-nogo" points="${l(m)}" />`);if(a("no_mop"))for(let m of t.no_mop||[])Array.isArray(m)&&m.length>=3&&(u+=`<polygon class="evcc-map-ov-nomop" points="${l(m)}" />`);if(a("zones"))for(let m of t.zones||[])Array.isArray(m)&&m.length===4&&(u+=d("evcc-map-ov-zone",m[0],m[1],m[2],m[3]));if(a("walls"))for(let m of t.walls||[])Array.isArray(m)&&m.length===2&&Array.isArray(m[0])&&Array.isArray(m[1])&&(u+=`<line class="evcc-map-ov-wall" x1="${c(r(m[0][0]))}" y1="${c(n(m[0][1]))}" x2="${c(r(m[1][0]))}" y2="${c(n(m[1][1]))}" />`);return a("path")&&Array.isArray(t.path)&&t.path.length>=2&&(u+=`<polyline class="evcc-map-ov-path" points="${l(t.path)}" />`),u},i._renderDeviceOverlayHtml=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present)return"";let a=l=>e.isOverlayVisible?.(l)??!1,{tx:r,ty:n}=this._overlayTransform(e),o=l=>l.toFixed(2),s="",c=(e.mapAnimalFollowsRobot?.()??!1)&&(e.mapAnimalEnabled?.()??!0);if(a("robot")&&!c&&Array.isArray(t.robot_anchor)&&t.robot_anchor.length===2){let[l,d]=t.robot_anchor,u=Number(t.robot_heading??0);s+=`<div class="evcc-map-ov-robot" style="left:${o(r(l))}%;top:${o(n(d))}%"><span class="evcc-map-ov-robot-arrow" style="transform:rotate(${u}deg)"></span></div>`}if(a("dock")&&Array.isArray(t.dock_anchor)&&t.dock_anchor.length===2){let[l,d]=t.dock_anchor;s+=`<div class="evcc-map-ov-dock" style="left:${o(r(l))}%;top:${o(n(d))}%" title="${this.t("map.dock")}"></div>`}if(a("obstacles"))for(let l of t.obstacles||[]){if(!l||!Array.isArray(l.pos)||l.pos.length!==2)continue;let d=l.has_photo?" evcc-map-ov-obstacle--photo":"";s+=`<div class="evcc-map-ov-obstacle${d}" style="left:${o(r(l.pos[0]))}%;top:${o(n(l.pos[1]))}%" title="${l.type!=null?this.escapeHtml(String(l.type)):this.t("map.obstacle")}"></div>`}if(a("room_area"))for(let l of t.rooms||[]){if(l.area_m2==null||!Array.isArray(l.bbox)||l.bbox.length!==4)continue;let[d,u,m,p]=l.bbox,v=e.areaLabelAnchor?.(l.number),f=v?Number(v.pct_x):r((d+m)/2),_=v?Number(v.pct_y):n((u+p)/2);s+=`<div class="evcc-map-ov-area" data-action="area-label-drag" data-room="${this.escapeHtml(String(l.number))}" style="left:${o(f)}%;top:${o(_)}%">${this.escapeHtml(String(l.area_m2))} m\xB2</div>`}return s},i._renderDeviceRoomLabels=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present||!Array.isArray(t.rooms))return"";let{tx:a,ty:r}=this._overlayTransform(e),n=e.getRoomsForActiveMap?.()??[],o=this._selectedRoomOrder(e);return t.rooms.map(s=>{if(!Array.isArray(s.bbox)||s.bbox.length!==4)return"";let l=n.find(p=>String(p.id)===String(s.number))?.name??s?.name;if(!l)return"";let d=o.has(Number(s.number)),u=Math.min(Math.max(+a((s.bbox[0]+s.bbox[2])/2),5),95),m=Math.min(Math.max(+r((s.bbox[1]+s.bbox[3])/2),6),94);return`<div class="evcc-map-label${d?" evcc-map-label--selected":""}" style="left:${u}%;top:${m}%"><span class="evcc-map-label-name">${this.escapeHtml(String(l))}</span></div>`}).join("")},i._renderHiddenRegions=function(e,t){let a=e.hiddenRegions?.()??[];if(!a.length||!(e.isOverlayVisible?.("hidden_regions")??!0)&&!t)return"";let{tx:n,ty:o}=this._overlayTransform(e),s=d=>d.toFixed(2),c="evcc-hidden-region"+(t?" evcc-hidden-region--edit":""),l="";for(let d=0;d<a.length;d++){let u=a[d];if(!Array.isArray(u)||u.length!==4)continue;let m=n(u[0]),p=o(u[1]),v=n(u[2])-m,f=o(u[3])-p;l+=`<div class="${c}" style="left:${s(m)}%;top:${s(p)}%;width:${s(v)}%;height:${s(f)}%">`+(t?`<button class="evcc-hidden-region-del" data-action="delete-hidden-region" data-index="${d}" title="${this.t("map.remove_hidden_area_title")}" aria-label="${this.t("map.remove_hidden_area_aria")}">\xD7</button>`:"")+"</div>"}return l},i._selectedRoomOrder=function(e){let t=(e.getRoomsForActiveMap?.()??[]).filter(r=>r.enabled),a=new Map;return[...t].sort((r,n)=>(r.order??999)-(n.order??999)).forEach((r,n)=>a.set(Number(r.id),n+1)),a},i._renderSelectionScrim=function(e){if(!(e.overlaysAligned?.()??!1))return"";let t=e.mapRenderData?.();if(!t||!t.present)return"";let a=this._selectedRoomOrder(e),r=(e.getRoomsForActiveMap?.()??[]).length;return a.size===0||a.size>=r?"":`<canvas class="evcc-map-image evcc-map-selection-canvas" data-sel-key="${this.escapeHtml(String(t.version)+":"+[...a.keys()].sort((n,o)=>n-o).join(","))}"></canvas>`},i._renderRoomSelection=function(e){let t=e.mapOverlayData?.()??e.mapStateSource?.();if(!t||!t.present||!Array.isArray(t.rooms))return"";let a=this._selectedRoomOrder(e);if(a.size===0)return"";let{tx:r,ty:n}=this._overlayTransform(e),o=c=>c.toFixed(2),s="";for(let c of t.rooms){let l=a.get(Number(c.number));if(l==null||!Array.isArray(c.bbox)||c.bbox.length!==4)continue;let[d,u,m,p]=c.bbox;s+=`<div class="evcc-map-ov-selnum" style="left:${o(r(Math.min(d,m)))}%;top:${o(n(Math.min(u,p)))}%">${l}</div>`}return s},i._renderMapAnimalControls=function(e){return`
+        <select
+          class="evcc-rooms-animal-select"
+          data-action="map-animal-select"
+          title="${this.t("rooms.companion_animal")}"
+          aria-label="${this.t("rooms.companion_animal")}"
+        >
+          ${(()=>{let t=window.AnimalSVG?.list?.()??["cat","dog","raccoon","parrot","snake"],a=e.mapAnimalSelection?.()??"cat",r=s=>{let l=window.AnimalSVG?.get?.(s)?.label??s.charAt(0).toUpperCase()+s.slice(1).replace(/_/g," ");return`<option value="${s}"${a===s?" selected":""}>${l}</option>`},n=t.filter(s=>window.AnimalSVG?.get?.(s)?.memorial);return t.filter(s=>!window.AnimalSVG?.get?.(s)?.memorial).map(r).join("")+(n.length?`<optgroup label="\u{1F308} ${this.t("rooms.rainbow_bridge")}">${n.map(r).join("")}</optgroup>`:"")})()}
+        </select>
+        <input
+          type="range"
+          class="evcc-rooms-animal-scale"
+          data-action="map-animal-scale"
+          min="0.5" max="3" step="0.25"
+          value="${e.mapAnimalScale?.()??1}"
+          title="${this.t("rooms.icon_size")}"
+          aria-label="${this.t("rooms.icon_size")}"
+        >
+        <button
+          class="evcc-rooms-view-toggle-btn${e.mapAnimalEnabled?.()??!0?" active":""}"
+          data-action="map-animal-toggle"
+          title="${e.mapAnimalEnabled?.()??!0?this.t("rooms.hide_companion"):this.t("rooms.show_companion")}"
+          aria-label="${e.mapAnimalEnabled?.()??!0?this.t("rooms.hide_companion"):this.t("rooms.show_companion")}"
+          aria-pressed="${e.mapAnimalEnabled?.()??!0?"true":"false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" stroke="none">
+            <ellipse cx="8" cy="10.5" rx="3" ry="2.3"/>
+            <circle cx="3.8" cy="7" r="1.3"/>
+            <circle cx="6.5" cy="4.8" r="1.3"/>
+            <circle cx="9.5" cy="4.8" r="1.3"/>
+            <circle cx="12.2" cy="7" r="1.3"/>
+          </svg>
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${e.mapAnimalFollowsRobot?.()??!1?" active":""}"
+          data-action="map-animal-follow-toggle"
+          title="${e.mapAnimalFollowsRobot?.()??!1?this.t("rooms.mascot_follow_on"):this.t("rooms.mascot_follow_off")}"
+          aria-label="${this.t("rooms.mascot_follows_robot")}"
+          aria-pressed="${e.mapAnimalFollowsRobot?.()??!1?"true":"false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
+            <circle cx="8" cy="8" r="3"/>
+            <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
+            <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
+          </svg>
+        </button>`},i._renderMapLayersPanel=function(e){let t=e.mapOverlayVisibility?.()??{},a=e.isLiveImageDisplayed?.()??!1,r=[{key:"current_room",label:this.t("map.layer_current_room")},{key:"robot",label:this.t("map.layer_robot")},{key:"dock",label:this.t("map.layer_dock")},{key:"room_area",label:this.t("map.layer_room_area")},{key:"no_go",label:this.t("map.layer_no_go")},{key:"no_mop",label:this.t("map.layer_no_mop")},{key:"walls",label:this.t("map.layer_walls")},{key:"zones",label:this.t("map.layer_zones")},{key:"path",label:this.t("map.layer_path")},{key:"obstacles",label:this.t("map.layer_obstacles")},{key:"hidden_regions",label:this.t("map.layer_hidden_areas")}],n=e.canDrawHideArea?.()??!1,o=n&&(e.hideDrawMode?.()??!1),s=(e.hiddenRegions?.()??[]).length;return`
       <div class="evcc-map-layers-panel">
         <div class="evcc-map-layers-title">${this.t("map.layers_title")}</div>
         ${a?"":`<div class="evcc-map-layers-hint">${this.t("map.layers_hint")}</div>`}

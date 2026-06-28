@@ -32,6 +32,11 @@ const EMBED_CSS = `
   .evcc-map-embed { display: flex; flex-direction: column; gap: 10px; }
   .evcc-map-embed-controls { display: flex; flex-direction: column; gap: 10px; }
   .evcc-map-embed-controls:empty { display: none; }
+  .map-mascot-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .map-collapse-head { display: flex; align-items: center; gap: 8px; width: 100%; cursor: pointer; background: transparent; border: none; padding: 6px 4px; color: var(--evcc-text-muted, rgba(240,242,245,0.48)); font: 600 0.72rem/1.4 sans-serif; text-transform: uppercase; letter-spacing: 0.05em; }
+  .map-collapse-chev { margin-left: auto; transition: transform 150ms ease; }
+  .map-collapse:not(.is-collapsed) .map-collapse-chev { transform: rotate(180deg); }
+  .map-collapse .evcc-map-layers-title { display: none; }
 `;
 
 class EufyVacuumMap extends HTMLElement {
@@ -43,6 +48,7 @@ class EufyVacuumMap extends HTMLElement {
     this._config = null;
     this._view = VIEWS.ROOMS;
     this._renderScheduled = false;
+    this._layersCollapsed = true;   // the layers checklist folds by default
     // Transient scratch flags the map bindings read/write on the host.
     this._mapDragOccurred = false;
     this._mapVariantDeleteArmTimer = null;
@@ -234,6 +240,9 @@ class EufyVacuumMap extends HTMLElement {
       //   - the ZONE panel (settings + drawn-zone list + Clean/Clear) when draw mode is on,
       //   - the render-LAYERS panel (VA-render toggle + overlay visibility) when overlays align.
       // Same gates + signatures as renderers/rooms.js; _bindMap (below) wires both.
+      const mascot = (state.isMapViewActive?.() && typeof r._renderMapAnimalControls === "function")
+        ? `<div class="map-mascot-bar">${r._renderMapAnimalControls(state)}</div>`
+        : "";
       const zonePanel =
         (state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
           ? r._renderZonePanel(state, state.zoneDrafts?.() ?? [], state.zoneCount?.() ?? 0, state.zoneMax?.() ?? 10)
@@ -242,11 +251,23 @@ class EufyVacuumMap extends HTMLElement {
         (state.isMapViewActive?.() && (state.overlaysAligned?.() ?? false) && typeof r._renderMapLayersPanel === "function")
           ? r._renderMapLayersPanel(state)
           : "";
+      // The layers panel folds behind a collapse header (it's a tall checklist).
+      const layersSection = layersPanel ? `
+        <div class="map-collapse ${this._layersCollapsed ? "is-collapsed" : ""}">
+          <button class="map-collapse-head" id="map-layers-toggle" aria-expanded="${!this._layersCollapsed}">
+            <span>${r.t("map.layers_title")}</span><span class="map-collapse-chev">▾</span>
+          </button>
+          ${this._layersCollapsed ? "" : layersPanel}
+        </div>` : "";
       this.shadowRoot.innerHTML =
         `<style>:host{display:block}${mapStyles}${EMBED_CSS}</style>` +
         `<div class="evcc-map-embed">${map}` +
-        `<div class="evcc-map-embed-controls">${zonePanel}${layersPanel}</div></div>`;
+        `<div class="evcc-map-embed-controls">${mascot}${zonePanel}${layersSection}</div></div>`;
       this._bindings._bindMap();
+      // Host-added collapse toggle (not a map binding); wire after _bindMap. Fresh
+      // element each render (innerHTML wipe) so addEventListener never double-binds.
+      const lt = this.shadowRoot.getElementById("map-layers-toggle");
+      if (lt) lt.addEventListener("click", () => { this._layersCollapsed = !this._layersCollapsed; this._scheduleRender(); });
     } catch (err) {
       console.error("[eufy-vacuum-map] render failed", err);
     }

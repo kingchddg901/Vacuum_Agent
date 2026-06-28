@@ -165,67 +165,7 @@ export function applyRoomsRenderers(proto) {
           </svg>
           ${this.t("rooms.configure")}
         </button>
-        <select
-          class="evcc-rooms-animal-select"
-          data-action="map-animal-select"
-          title="${this.t("rooms.companion_animal")}"
-          aria-label="${this.t("rooms.companion_animal")}"
-        >
-          ${(() => {
-            const list    = window.AnimalSVG?.list?.() ?? ["cat","dog","raccoon","parrot","snake"];
-            const current = state.mapAnimalSelection?.() ?? "cat";
-            const opt = (a) => {
-              const def   = window.AnimalSVG?.get?.(a);
-              const label = def?.label ?? (a.charAt(0).toUpperCase() + a.slice(1).replace(/_/g, " "));
-              return `<option value="${a}"${current === a ? " selected" : ""}>${label}</option>`;
-            };
-            // Memorial companions sit in their own "Rainbow Bridge" optgroup, set
-            // apart from the everyday animals.
-            const memorial = list.filter((a) => window.AnimalSVG?.get?.(a)?.memorial);
-            const regular  = list.filter((a) => !window.AnimalSVG?.get?.(a)?.memorial);
-            return regular.map(opt).join("")
-              + (memorial.length
-                  ? `<optgroup label="🌈 ${this.t("rooms.rainbow_bridge")}">${memorial.map(opt).join("")}</optgroup>`
-                  : "");
-          })()}
-        </select>
-        <input
-          type="range"
-          class="evcc-rooms-animal-scale"
-          data-action="map-animal-scale"
-          min="0.5" max="3" step="0.25"
-          value="${state.mapAnimalScale?.() ?? 1.0}"
-          title="${this.t("rooms.icon_size")}"
-          aria-label="${this.t("rooms.icon_size")}"
-        >
-        <button
-          class="evcc-rooms-view-toggle-btn${(state.mapAnimalEnabled?.() ?? true) ? " active" : ""}"
-          data-action="map-animal-toggle"
-          title="${(state.mapAnimalEnabled?.() ?? true) ? this.t("rooms.hide_companion") : this.t("rooms.show_companion")}"
-          aria-label="${(state.mapAnimalEnabled?.() ?? true) ? this.t("rooms.hide_companion") : this.t("rooms.show_companion")}"
-          aria-pressed="${(state.mapAnimalEnabled?.() ?? true) ? "true" : "false"}"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" stroke="none">
-            <ellipse cx="8" cy="10.5" rx="3" ry="2.3"/>
-            <circle cx="3.8" cy="7" r="1.3"/>
-            <circle cx="6.5" cy="4.8" r="1.3"/>
-            <circle cx="9.5" cy="4.8" r="1.3"/>
-            <circle cx="12.2" cy="7" r="1.3"/>
-          </svg>
-        </button>
-        <button
-          class="evcc-rooms-view-toggle-btn${(state.mapAnimalFollowsRobot?.() ?? false) ? " active" : ""}"
-          data-action="map-animal-follow-toggle"
-          title="${(state.mapAnimalFollowsRobot?.() ?? false) ? this.t("rooms.mascot_follow_on") : this.t("rooms.mascot_follow_off")}"
-          aria-label="${this.t("rooms.mascot_follows_robot")}"
-          aria-pressed="${(state.mapAnimalFollowsRobot?.() ?? false) ? "true" : "false"}"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4">
-            <circle cx="8" cy="8" r="3"/>
-            <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
-            <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
-          </svg>
-        </button>
+        ${this._renderMapAnimalControls(state)}
         <button
           class="evcc-rooms-view-toggle-btn${(state.mapFloorTextureEnabled?.() ?? true) ? " active" : ""}"
           data-action="map-texture-toggle"
