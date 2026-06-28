@@ -228,6 +228,7 @@ Full docs live at **[kingchddg901.github.io/Vacuum_Agent/docs](https://kingchddg
 - [Porting guide](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/porting-guide/) — adapting the adapter to other brands (Roborock, Dreame, Narwal, …)
 - [Adapter config reference](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/22-adapter-config-reference/) — the per-vacuum brand-config schema
 - [Theme authoring](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/theme-authoring/) · [Animal authoring](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/animal-authoring/) — submit a card theme or a map companion
+- [Translate the card](https://kingchddg901.github.io/Vacuum_Agent/docs/contributing/translating/) — add or fix a language (a translation is data, not code). Start from the [`en.reference.jsonc`](custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc) template — the full key list with a context note per string
 - [Render harness](https://kingchddg901.github.io/Vacuum_Agent/docs/dev/27-render-harness/) — headless visual-regression + the live galleries ([how to run](https://kingchddg901.github.io/Vacuum_Agent/docs/testing/07-render-harness/))
 - [ha-adapter-pattern](https://github.com/kingchddg901/ha-adapter-pattern) — the runtime-configurable adapter pattern as a standalone, domain-agnostic guide
 - [Release checklist](RELEASE_CHECKLIST.md) — the cold-install smoke pass + tag-and-publish ritual

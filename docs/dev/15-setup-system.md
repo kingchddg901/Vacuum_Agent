@@ -242,7 +242,7 @@ Called by the panel on load. Returns:
 
 **Drift probe:** `compute_room_drift()` is called **without** a live discovery probe — reflects the latest stored history. Discovery passes update history out-of-band via listener triggers.
 
-**Maps list:** Each entry includes a `protection` sub-dict from `evaluate_map_protection()` for imported maps.
+**Maps list:** Each entry carries `map_id` (str), `display_name` (`str | None`), `room_count` (int), `imported` (bool), and a `protection` sub-dict from `evaluate_map_protection()` for imported maps. `display_name` is the raw stored name or **`None`** when the map is unnamed — `status.py` no longer fabricates an English `"Map {map_id}"`; the **card** renders the localized `setup.map_n` ("Map {id}") fallback.
 
 ---
 
@@ -258,8 +258,9 @@ Returns:
 {
     "protection_level":            "normal" | "elevated" | "high",
     "reasons": [{"code": str, "message": str}, ...],
-    "requires_typed_confirmation": bool,
-    "typed_confirmation_value":    str,   # map display name
+    "requires_typed_confirmation": bool,        # True ONLY for a NAMED high map
+    "requires_confirmation":       bool,        # one-click confirm (elevated, or an unnamed high map)
+    "typed_confirmation_value":    str | None,  # the stored map name; None when the map is unnamed
 }
 ```
 
@@ -281,9 +282,12 @@ elif len(reasons) >= 2:              → "high"
 elif len(reasons) == 1:              → "elevated"
 else:                                → "normal"
 
-requires_typed_confirmation = (level == "high")
-typed_confirmation_value    = map display name (from metadata.display_name or "Map {map_id}")
+requires_typed_confirmation = (level == "high") and bool(stored_name)   # NAMED high maps only
+requires_confirmation       = (level != "normal")                       # elevated, or an unnamed high map
+typed_confirmation_value    = stored_name if requires_typed else None    # raw metadata.display_name
 ```
+
+The backend **never fabricates** a `"Map {id}"` name. `stored_name` is `metadata.display_name` or `None`; an unnamed map keeps high-level friction via a one-click confirm rather than demanding a typed token it has no locale-invariant name for. The card renders the localized `setup.map_n` label when `display_name` is `None`.
 
 ---
 
@@ -294,9 +298,11 @@ async def delete_map(hass, *, vacuum_entity_id, map_id, confirmation_token=None)
 ```
 
 **Protection gate:**
-- `"high"` protection: `confirmation_token` must be provided and must exactly match `typed_confirmation_value` (map display name). Returns `"requires_confirmation"` if token absent; `"blocked"` if token mismatches.
-- `"elevated"` protection: any truthy `confirmation_token` accepted (one-click confirm). Returns `"requires_confirmation"` if token absent.
+- **NAMED `"high"` map** (`requires_typed_confirmation`): `confirmation_token` must be provided and exactly match `typed_confirmation_value` (the stored map name — a locale-invariant token). Returns `"requires_confirmation"` if absent; `"blocked"` on mismatch.
+- **UNNAMED `"high"` map, or any `"elevated"` map** (`requires_confirmation`, typed dropped): any truthy `confirmation_token` accepted (one-click confirm). Returns `"requires_confirmation"` if absent. An unnamed map has no locale-invariant name to type, so it drops to a one-click confirm rather than round-tripping a per-locale `"Map N"` token through the backend.
 - `"normal"` protection: proceeds without confirmation.
+
+`delete.py` uses a safe `display_label` (stored name or `"Map {id}"`) for response messages and log lines **only** — never as the wire token (which stays the raw stored name, non-`None` only when `requires_typed_confirmation`).
 
 **On confirmed delete:**
 1. `manager.remove_map(vacuum_entity_id, map_id_str)` — removes all data for the map.

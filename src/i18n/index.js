@@ -54,7 +54,8 @@ const CATALOGS = { en };
  * native-reviewed — it must NOT auto-activate from the HA system language (it can
  * only be reached by an EXPLICIT choice: a config.i18n.locale pin or the display-
  * language override). Promote to `stable` after native review (a one-line change).
- * English is always stable. See resolveLang for the gate, and TRANSLATION_NOTES.md.
+ * English is always stable. See resolveLang for the gate, and the per-locale
+ * native-review worklist in docs/contributing/translation-review.md.
  */
 const LOCALE_STATUS = {
   en: "stable",

@@ -122,6 +122,20 @@ component) as English labels. `this.tVocab(field, value, fallback)` localizes th
   few sinks that escape downstream (e.g. a value dropped into a data object the
   renderer `escapeHtml`s later — using `tVocab` there would double-escape).
 
+For room-**setting** values (`clean_mode` / `clean_intensity` / `fan_speed` /
+`water_level`) the slug-derives-the-key contract only lands if the value the card
+receives is already the canonical code. Stored settings are un-normalized display
+strings ("Vacuum and mop", "Standard", "BoostIQ"), whose slug (`vacuum_and_mop` /
+`standard` / `boostiq`) would miss the canonical key (`vacuum_mop` / `boost`) and
+silently fall back to English. So the **backend normalizes** them first: each
+brand's adapter declares display→canonical alias maps
+(`adapter_config.vocabulary.{clean_mode,clean_intensity,fan_speed,water_level}_aliases`),
+and `learning/manager.py::_normalize_profile_setting` canonicalizes every observed
+room-profile setting before emitting — the card always gets a code its vocab is
+keyed on. (Reason-code surfaces follow the same contract: the Learning Review
+badges + per-job notes `tVocabRaw` the stable backend code — `vocab.reason_code.*`,
+`vocab.exclude_suggested_reason.*` — with the English text as the per-code fallback.)
+
 The template literal **must be inline in the `t()` call**
 (`this.t(\`vocab.${field}.${slug}\`)`) so the [reachability check](#checki18n)
 sees every `vocab.*` key — a `this.t(varKey)` would read as a dead key. Standalone

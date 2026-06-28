@@ -233,6 +233,9 @@ title-cased firmware strings exactly as they appear in HA.
 | `cancel_detection_states` | `dict[str, str]` (normalized) | Normalized `task_status` transition strings the cancel detector matches. Keys: `active`, `returning`, `paused`. A cancel-like transition is `active`→`returning` or `paused`→`returning`. Defaults to the HA-standard `cleaning`/`returning`/`paused`. |
 | `water_level_aliases` | `dict[str, str]` | Maps lowercased water-level display strings to canonical keys (`low`/`medium`/`high`) for water-rate lookup. |
 | `wash_frequency_mode_aliases` | `dict[str, str]` | Maps lowercased wash-frequency mode strings to canonical keys (`by_room`/`by_time`/`off`). |
+| `clean_mode_aliases` | `dict[str, str]` | Maps clean-mode display strings (lowercased, non-alnum → one space) to the canonical codes the card vocab is keyed on (`vacuum`/`mop`/`vacuum_mop`). The learning manager normalizes observed room-profile settings through this so the card receives a code, not a raw display string (which would slug to a missing `vocab.clean_mode.*` key and leak English). |
+| `clean_intensity_aliases` | `dict[str, str]` | Same, for clean intensity → `quick`/`narrow`/`deep`/`normal`/`standard`. May be empty when the brand's display values already slug to the canonical code. |
+| `fan_speed_aliases` | `dict[str, str]` | Same, for suction/fan speed → `quiet`/`gentle`/`standard`/`boost`/`turbo`/`max`. E.g. `{"boostiq": "boost"}`. |
 | `clean_mode_options` | `list[dict]` | User-facing dropdown options for clean mode. Each entry is `{value, label}`. Read by the card's room editor and rule editor to populate the cleaning-mode picker. Eufy: 3 entries (vacuum/mop/vacuum_mop). |
 | `fan_speed_options` | `list[dict]` | User-facing dropdown options for fan speed. Each entry is `{value, label}`. Eufy: 4 entries (Quiet/Standard/Boost/Max). A Roborock adapter with Max+ would declare 5. |
 | `water_level_options` | `list[dict]` | User-facing dropdown options for water level (mop-capable models only). Each entry is `{value, label}`. Eufy: 4 entries (Off/Low/Medium/High). |
@@ -253,6 +256,9 @@ title-cased firmware strings exactly as they appear in HA.
     "cancel_detection_states": {"active": "cleaning", "returning": "returning", "paused": "paused"},
     "water_level_aliases": {"quiet": "low", "automatic": "medium", "auto": "medium", "strong": "high"},
     "wash_frequency_mode_aliases": {"by room": "by_room", "room": "by_room", "by time": "by_time", "off": "off", "disabled": "off"},
+    "clean_mode_aliases": {"vacuum and mop": "vacuum_mop", "vacuum & mop": "vacuum_mop"},
+    "clean_intensity_aliases": {},
+    "fan_speed_aliases": {"boostiq": "boost", "boost iq": "boost"},
     "clean_mode_options": [
         {"value": "vacuum",     "label": "Vacuum"      },
         {"value": "mop",        "label": "Mop"         },
@@ -1959,7 +1965,7 @@ this table maps schema sections to the modules that consume them:
 | Section | Primary consumers |
 |---------|-------------------|
 | `entities` | `core/manager.py`, `core/error_tracker.py`, `core/water_amendment.py`, `learning/estimator.py`, `learning/job_finalizer.py`, `__init__.py` (lifecycle listeners) |
-| `vocabulary` | `core/manager.py` (`get_lifecycle_state`, `get_dock_action_status`), `learning/estimator.py` (alias maps) |
+| `vocabulary` | `core/manager.py` (`get_lifecycle_state`, `get_dock_action_status`), `learning/estimator.py` (water/wash alias maps), `learning/manager.py` (`_normalize_profile_setting` — `clean_mode`/`clean_intensity`/`fan_speed`/`water_level` alias maps, canonicalizing observed room-profile settings before they reach the card) |
 | `completion` | `__init__.py` (`_completed_finalize_signals`), `core/manager.py` |
 | `charging` | `core/charging.py` (`is_low_battery_return_state`), via `jobs/active_job.py` and `core/manager.py` |
 | `error_tracking` | `core/error_tracker.py` |

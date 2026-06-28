@@ -1,5 +1,11 @@
 # Translation review notes (AI drafts → native review)
 
+> **Native speaker?** If you can confirm or correct any item below for your
+> language, please reply in the
+> [translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)
+> — one-word fixes are welcome and quick to apply. New to translating? Start with
+> the [translating guide](translating.md).
+
 `ru` + T1 (`de`/`fr`/`es`/`nl`/`it`/`pt`) are AI-generated drafts. Structure is
 machine-verified (full key parity, placeholder parity, plural shapes, markup —
 all pass `npm run check:i18n`) and a semantic QA pass found **no English-leakage**

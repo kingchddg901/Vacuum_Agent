@@ -11,15 +11,13 @@ the [i18n system reference](../dev/33-i18n-system.md).
 English (`src/i18n/en.js`) is the source of truth and the complete key list —
 ~1,900 keys. A locale is a **subset**: anything you leave out (or get wrong)
 falls back to English, so a partial translation is perfectly valid and ships
-fine. Start from the generated English reference, which carries a context comment
-on every ambiguous key:
+fine. Start from the generated English reference — it carries a context comment
+on every ambiguous key, so you can translate without reading the source:
 
-```
-custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc
-```
+**→ [Open `en.reference.jsonc`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc)** — click **Raw** (or **⋯ → Download**) to grab it, translate the values, and save as `<code>.json`.
 
-The shipped locales (`de/fr/es/nl/it/pt/ru.json` in that folder) are good models
-for structure.
+(Repo path: `custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc`. The
+shipped locales — [`de`](https://github.com/kingchddg901/Vacuum_Agent/blob/master/custom_components/eufy_vacuum/frontend/locales/de.json) / `fr` / `es` / `nl` / `it` / `pt` / `ru.json` in that same folder — are good models for structure.)
 
 ## Authoring format
 
@@ -89,6 +87,12 @@ shipped locale moves between; the
 [review-status taxonomy](../dev/33-i18n-system.md#review-status-and-auto-activation)
 defines exactly what each status controls (and how it differs from the intake
 gate's safety outcomes).
+
+The per-language **[native-review worklist](translation-review.md)** lists the
+specific judgment-calls flagged for each shipped locale
+(`de`/`fr`/`es`/`nl`/`it`/`pt`/`ru`) — a native speaker's to-do list. Confirm or
+correct an item there or in the
+[translate discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).
 
 To contribute a language upstream, open a PR adding `<code>.json` to the served
 locales folder and its status to the locale tables in `src/i18n/index.js`. The
