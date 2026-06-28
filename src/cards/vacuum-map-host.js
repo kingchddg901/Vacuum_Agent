@@ -22,6 +22,7 @@ import { VacuumCardActions } from "../actions/index.js";
 import { applyCardDomHelpers } from "../bindings/core.js";
 import { VIEWS } from "../render-cycle.js";
 import { mapStyles } from "../styles/map.js";
+import { ensureLocalesLoaded } from "../i18n/index.js";
 
 const ANIMAL_SVG_URL = "/eufy_vacuum/frontend/animal-svg/manifest.js";
 let _animalSvgLoaded = false;
@@ -72,6 +73,10 @@ class EufyVacuumMap extends HTMLElement {
 
   set hass(h) {
     this._hass = h;
+    // This is a SEPARATE bundle with its own i18n registry — load the runtime
+    // (non-English) catalogs into it too, or the map renders English even when the
+    // card's language is German.
+    ensureLocalesLoaded(() => this._render());
     if (this._state) {
       this._state.sync(h, this._config);
       this._actions?.sync?.(h, this._state);

@@ -515,7 +515,6 @@ class EufyRoomCard extends HTMLElement {
         .spinning { animation: spin 0.9s linear infinite; display: inline-block; }
         ${LANG_CSS}
         .footer .room-lang { margin-right: auto; }
-        .room-lang .va-lang-menu { top: auto; bottom: calc(100% + 4px); }
       </style>
 
       <div class="card">

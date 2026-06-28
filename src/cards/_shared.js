@@ -163,9 +163,26 @@ export function renderLangControl({ t, override, currentLang, open }) {
 
 /** Wire the globe control. Callbacks: toggle() / close() / set(code). */
 export function wireLangControl(shadowRoot, { toggle, close, set }) {
-  shadowRoot.getElementById("lang-toggle")?.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
+  const btn = shadowRoot.getElementById("lang-toggle");
+  btn?.addEventListener("click", (e) => { e.stopPropagation(); toggle(); });
   shadowRoot.getElementById("lang-backdrop")?.addEventListener("click", () => close());
-  shadowRoot.querySelectorAll(".va-lang-opt").forEach((b) => b.addEventListener("click", () => set(b.dataset.lang)));
+  shadowRoot.querySelectorAll(".va-lang-opt").forEach((b) =>
+    b.addEventListener("click", (e) => { e.stopPropagation(); set(b.dataset.lang); }));
+  // Position the OPEN menu as fixed (viewport-relative) so it escapes the card's
+  // overflow:hidden clip and never spills off a narrow card: anchored under the
+  // globe, flipped above when there's no room below, clamped to the viewport.
+  const menu = shadowRoot.querySelector(".va-lang-menu");
+  if (menu && btn) {
+    const r = btn.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.right = "auto";
+    menu.style.bottom = "auto";
+    const mh = menu.offsetHeight || 260;
+    const mw = menu.offsetWidth || 184;
+    const below = r.bottom + 4;
+    menu.style.top = `${(below + mh <= window.innerHeight - 8) ? below : Math.max(8, r.top - mh - 4)}px`;
+    menu.style.left = `${Math.max(8, Math.min(r.right - mw, window.innerWidth - mw - 8))}px`;
+  }
 }
 
 /** CSS for the language control — uses theme tokens with literal fallbacks. */

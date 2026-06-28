@@ -847,7 +847,8 @@ class EufyDashboardCard extends HTMLElement {
     if (!slot) return;
     if (this._mapEl) {
       if (this._mapEl.parentNode !== slot) slot.appendChild(this._mapEl); // sync re-parent
-      this._mapEl.hass = this._hass;                                       // forward latest hass
+      this._mapEl._langOverride = this._langOverride;                      // keep language in sync
+      this._mapEl.hass = this._hass;                                       // forward latest hass (re-renders)
       return;
     }
     this._loadAndMountMap(slot);
