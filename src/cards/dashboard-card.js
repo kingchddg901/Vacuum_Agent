@@ -309,7 +309,14 @@ class EufyDashboardCard extends HTMLElement {
   _sceneOptions() {
     const id = this._sceneEntityId();
     const opts = id ? this._hass?.states?.[id]?.attributes?.options : null;
-    return Array.isArray(opts) ? opts : [];
+    if (!Array.isArray(opts)) return [];
+    // eufy-clean seeds the scene select with a default "None" entry — drop it (and any
+    // blank). The launcher gates the scenes group on a non-empty list, so a select that
+    // only has "None" leaves no real scenes and the group is hidden entirely.
+    return opts.filter((o) => {
+      const v = String(o ?? "").trim();
+      return v !== "" && v.toLowerCase() !== "none";
+    });
   }
 
   _profilesShown() {
