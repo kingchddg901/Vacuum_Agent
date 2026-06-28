@@ -22,7 +22,7 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 - **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs an eufy-clean build with zone-clean support. (A repeat-passes count is available via the `start_zone_clean` service for automations.)
 - **Live map, furnished render & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
-- **Speaks your language** — the whole panel card is localizable: a per-user language globe in the header, with **seven built-in translations** (German, French, Spanish, Dutch, Italian, Portuguese, Russian — AI-drafted, [native-reviewable](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)) plus drop-in support for your own locale. Follows your Home Assistant language by default; anything untranslated falls back to English.
+- **Speaks your language** — a per-user language globe in the header, **seven built-in translations** (German, French, Spanish, Dutch, Italian, Portuguese, Russian — AI-drafted + [native-reviewable](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)) plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
 
 ## Tested hardware
@@ -73,7 +73,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 5. Restart Home Assistant.
 6. Go to **Settings → Devices & Services → Add Integration** and search for **Vacuum Agent**.
 7. In the setup form, **pick your vacuum entity** from the **Vacuum** dropdown. This is the `vacuum.*` entity provided by your brand's upstream integration ([eufy-clean](https://github.com/jeppesens/eufy-clean) for Eufy, the built-in Roborock integration for Roborock) — you need that integration installed and working first. The Vacuum field is optional during setup; you can leave it blank now and fill it in later via **Configure**.
-8. A **Eufy Vacuum** item appears in your sidebar. The panel card is registered automatically — no manual dashboard editing required.
+8. A **Vacuum Agent** item appears in your sidebar (the default panel title; rename it per-vacuum later). The panel card is registered automatically — no manual dashboard editing required.
 
 If you submitted setup without picking a vacuum, the sidebar entry still appears but shows a "setup needed" placeholder pointing you back to **Settings → Devices & Services → Vacuum Agent → Configure** to add it.
 
