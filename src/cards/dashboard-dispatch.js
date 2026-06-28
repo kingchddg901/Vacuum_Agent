@@ -27,6 +27,19 @@ export function emptyArmed() {
   return { source: null, selectedRoomIds: [], profileId: null, sceneOption: null };
 }
 
+/**
+ * Drop keys whose value is null/undefined. A per-room draft is seeded from the
+ * room's committed fields, which carry null for any unset setting (a vacuum-only
+ * room has no water_level/clean_intensity). The update_room_fields backend schema
+ * types those as optional STRINGS and rejects a PRESENT null (vol.Optional governs
+ * key absence only) — so a present null aborts the whole dispatch. Stripping nulls
+ * means "update only the fields I actually have a value for", which is also the
+ * correct semantics (there's no UI to set a field TO null).
+ */
+function dropNullish(obj) {
+  return Object.fromEntries(Object.entries(obj ?? {}).filter(([, v]) => v != null));
+}
+
 function toggleId(ids, id) {
   const has = ids.some((x) => String(x) === String(id));
   return has ? ids.filter((x) => String(x) !== String(id)) : [...ids, id];
@@ -148,7 +161,8 @@ export function planStart(armed, ctx) {
             vacuum_entity_id,
             map_id: String(r.mapId ?? ctx?.mapId ?? ""),
             room_id: r.roomId,
-            ...r.fields,
+            // Strip unset (null) fields — the backend schema rejects a present null.
+            ...dropNullish(r.fields),
           },
         });
       }

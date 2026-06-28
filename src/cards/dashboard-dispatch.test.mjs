@@ -198,6 +198,41 @@ test("planStart: dirty per-room fields are persisted before the run", () => {
   assert.ok(plan.some((c) => c.service === "turn_off" && c.data.entity_id === "switch.alfred_lounge"));
 });
 
+test("planStart: null fields from a committed-seeded draft are stripped (backend rejects present null)", () => {
+  // Regression for DC-1: a vacuum-only room's committed fields carry null
+  // fan_speed/water_level/clean_intensity; the backend update_room_fields schema
+  // types those as optional strings and rejects a PRESENT null, which would abort
+  // the whole Start. The dispatched payload must contain no null values.
+  const armed = nextArmed(emptyArmed(), { type: "toggleRoom", roomId: 3 });
+  const ctx = {
+    ...CTX,
+    rooms: [
+      ...CTX.rooms.slice(0, 2),
+      {
+        entityId: "switch.alfred_bedroom", roomId: 3, mapId: "6", currentlyOn: false,
+        dirty: true,
+        fields: {
+          clean_mode: "vacuum", fan_speed: null, water_level: null,
+          clean_intensity: null, clean_passes: 1, edge_mopping: false,
+        },
+      },
+    ],
+  };
+  const update = planStart(armed, ctx).find((c) => c.service === "update_room_fields");
+  assert.ok(update, "expected an update_room_fields call");
+  // No null/undefined values reach the backend.
+  for (const [k, v] of Object.entries(update.data)) {
+    assert.ok(v != null, `field ${k} must not be null/undefined in the dispatched payload`);
+  }
+  // The fields that DO have values survive (incl. falsy-but-valid edge_mopping:false).
+  assert.equal(update.data.clean_mode, "vacuum");
+  assert.equal(update.data.clean_passes, 1);
+  assert.equal(update.data.edge_mopping, false);
+  assert.ok(!("fan_speed" in update.data), "null fan_speed stripped");
+  assert.ok(!("water_level" in update.data), "null water_level stripped");
+  assert.ok(!("clean_intensity" in update.data), "null clean_intensity stripped");
+});
+
 test("planStart: rooms armed but selection empty after filtering → no calls", () => {
   // armed claims room 9 which isn't in ctx.rooms.
   const armed = { source: "rooms", selectedRoomIds: [9], profileId: null, sceneOption: null };

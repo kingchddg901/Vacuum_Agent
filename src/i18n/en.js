@@ -997,6 +997,7 @@ export const en = {
   "vacuum_card.scenes_label": "App scenes",  // section label for the vendor-app (Eufy) scenes launcher
   "vacuum_card.scenes_placeholder": "— run an app scene —",  // dropdown placeholder before a scene is armed
   "vacuum_card.start": "Start",  // button that dispatches the armed run (rooms / profile / scene), not a generic begin
+  "vacuum_card.start_failed": "Couldn't start the run — check the vacuum and try again.",  // toast when a service call fails mid-dispatch
   "vacuum_card.starting": "Starting…",  // transient Start-button label while the run is being dispatched
   "vacuum_card.status.cleaning": "Cleaning",  // live vacuum activity shown in the header
   "vacuum_card.status.docked": "Docked",

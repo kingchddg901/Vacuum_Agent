@@ -331,13 +331,15 @@ class EufyDashboardCard extends HTMLElement {
     // Inline template so check-i18n sees vacuum_card.status.* as reachable.
     const statusTxt = this.t(`vacuum_card.status.${state}`);
     const status = statusTxt === `vacuum_card.status.${state}` ? esc(state) : statusTxt;
-    const battery = vacuumState?.attributes?.battery_level;
+    // Coerce + finite-check (the codebase idiom): a transient "unknown"/"" firmware
+    // report must suppress the chip, not render "🔋 NaN%" / "🔋 0%".
+    const battery = Number(vacuumState?.attributes?.battery_level);
     return `
       <div class="header">
         <span class="title">${esc(title)}</span>
         <span class="meta">
           ${status}
-          ${battery != null ? `<span class="batt">🔋 ${esc(Math.round(battery))}%</span>` : ""}
+          ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}%</span>` : ""}
         </span>
       </div>
     `;
@@ -377,7 +379,9 @@ class EufyDashboardCard extends HTMLElement {
     const water      = isMop && !isCarpet ? adapterOptions(attrs, "water_level_options") : [];
     const intensity  = adapterOptions(attrs, "clean_intensity_options");
     const showEdge   = isMop && !isCarpet;
-    const maxPasses  = Number(this._snapshot?.max_clean_passes ?? 2) || 2;
+    // Clamp to [2, 9] (mirrors room-editor's maxCleanPasses) so a bad snapshot
+    // value can't spin a huge chip loop.
+    const maxPasses  = Math.min(Number(this._snapshot?.max_clean_passes ?? 2) || 2, 9);
 
     const passesRow = () => {
       const chips = [];
@@ -538,6 +542,15 @@ class EufyDashboardCard extends HTMLElement {
         await this._hass.callService(call.domain, call.service, call.data);
       }
       for (const id of persistedRoomIds) delete this._rowFields[id];
+    } catch (err) {
+      // A mid-plan service failure must not vanish silently — surface a toast so
+      // the user knows the run didn't start (and the spinner clearing isn't read
+      // as success). Next Start re-reads live state and re-reconciles.
+      console.error("[vacuum-agent] start failed mid-dispatch", err);
+      this.dispatchEvent(new CustomEvent("hass-notification", {
+        detail: { message: this.t("vacuum_card.start_failed") },
+        bubbles: true, composed: true,
+      }));
     } finally {
       this._starting = false;
       this._render();

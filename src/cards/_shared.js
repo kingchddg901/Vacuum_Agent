@@ -110,6 +110,17 @@ export async function callResponse(hass, domain, service, data = {}) {
   }
 }
 
+/**
+ * Drop keys whose value is null/undefined. A per-room draft is seeded from the
+ * room's committed fields, which carry null for any unset setting (a vacuum-only
+ * room has no water_level/clean_intensity). update_room_fields types those as
+ * optional STRINGS and rejects a PRESENT null, which would abort the whole call —
+ * so send only the fields that actually have a value (there's no UI to set null).
+ */
+export function stripNull(obj) {
+  return Object.fromEntries(Object.entries(obj ?? {}).filter(([, v]) => v != null));
+}
+
 /** Register a card in window.customCards once (idempotent across reloads). */
 export function registerCard(entry) {
   window.customCards = window.customCards || [];

@@ -2,7 +2,7 @@
 
 import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
 import {
-  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
+  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull,
 } from "./cards/_shared.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
@@ -591,7 +591,7 @@ class EufyRoomCard extends HTMLElement {
         vacuum_entity_id: this._config.vacuum_entity_id,
         map_id:           String(sw.attrs.map_id),
         room_id:          this._config.room_id,
-        ...this._fields,
+        ...stripNull(this._fields),
       });
       this._fields = null;
     } finally {
@@ -612,7 +612,7 @@ class EufyRoomCard extends HTMLElement {
           vacuum_entity_id: this._config.vacuum_entity_id,
           map_id:           String(sw.attrs.map_id),
           room_id:          this._config.room_id,
-          ...this._fields,
+          ...stripNull(this._fields),
         });
         this._fields = null;
       }
