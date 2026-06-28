@@ -1644,7 +1644,8 @@
       "boost": "Turbo",
       "max": "Max",
       "turbo": "Turbo",
-      "gentle": "Doux"
+      "gentle": "Doux",
+      "balanced": "Équilibré"
     },
     "water_level": {
       "off": "Désactivé",
@@ -1681,7 +1682,8 @@
       "high": "Élevé",
       "vacuum_and_mop": "Aspiration et serpillière",
       "turbo": "Turbo",
-      "gentle": "Doux"
+      "gentle": "Doux",
+      "balanced": "Équilibré"
     },
     "battery_weighted_by": {
       "room_count": "Nombre de pièces",

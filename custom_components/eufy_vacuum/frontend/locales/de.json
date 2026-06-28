@@ -1630,7 +1630,8 @@
       "boost": "Boost",
       "max": "Max",
       "turbo": "Turbo",
-      "gentle": "Sanft"
+      "gentle": "Sanft",
+      "balanced": "Ausgewogen"
     },
     "water_level": {
       "off": "Aus",
@@ -1667,7 +1668,8 @@
       "high": "Hoch",
       "vacuum_and_mop": "Saugen und Wischen",
       "turbo": "Turbo",
-      "gentle": "Sanft"
+      "gentle": "Sanft",
+      "balanced": "Ausgewogen"
     },
     "battery_weighted_by": {
       "room_count": "Anzahl Räume",

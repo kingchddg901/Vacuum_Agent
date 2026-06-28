@@ -709,26 +709,30 @@ proto.renderRoomsActionBar = function (
 proto.renderRoomCard = function (room, state) {
   const normalizedRoom = this._normalizeRoomDisplayData(room);
 
+  // Localize each per-room setting chip by its stable VALUE, falling back to the
+  // backend label (then a title-cased format). tVocabRaw — the chips are
+  // escapeHtml'd at render below; this mirrors the room editor + standalone card,
+  // which already localized while these compact cards showed the English label.
   const modeChip = normalizedRoom.cleanMode
-    ? (normalizedRoom.cleanModeLabel || this._formatCleanMode(normalizedRoom.cleanMode))
+    ? this.tVocabRaw("clean_mode", normalizedRoom.cleanMode, normalizedRoom.cleanModeLabel || this._formatCleanMode(normalizedRoom.cleanMode))
     : null;
 
   const isDefaultPower = !normalizedRoom.fanSpeed ||
     ["off", "normal"].includes(String(normalizedRoom.fanSpeed).toLowerCase());
   const powerChip = !isDefaultPower
-    ? (normalizedRoom.fanSpeedLabel || this._formatFanSpeed(normalizedRoom.fanSpeed))
+    ? this.tVocabRaw("fan_speed", normalizedRoom.fanSpeed, normalizedRoom.fanSpeedLabel || this._formatFanSpeed(normalizedRoom.fanSpeed))
     : null;
 
   const isDefaultPath = !normalizedRoom.cleanIntensity ||
     String(normalizedRoom.cleanIntensity).toLowerCase() === "standard";
   const pathChip = !isDefaultPath
-    ? (normalizedRoom.cleanIntensityLabel || this._formatCleanIntensity(normalizedRoom.cleanIntensity))
+    ? this.tVocabRaw("clean_intensity", normalizedRoom.cleanIntensity, normalizedRoom.cleanIntensityLabel || this._formatCleanIntensity(normalizedRoom.cleanIntensity))
     : null;
 
   const waterChip = this._isMopMode(normalizedRoom.cleanMode) &&
     normalizedRoom.waterLevel &&
     String(normalizedRoom.waterLevel).toLowerCase() !== "off"
-    ? (normalizedRoom.waterLevelLabel || this._formatWaterLevel(normalizedRoom.waterLevel))
+    ? this.tVocabRaw("water_level", normalizedRoom.waterLevel, normalizedRoom.waterLevelLabel || this._formatWaterLevel(normalizedRoom.waterLevel))
     : null;
 
   const edgeMopChip = this._isMopMode(normalizedRoom.cleanMode) && normalizedRoom.edgeMopping

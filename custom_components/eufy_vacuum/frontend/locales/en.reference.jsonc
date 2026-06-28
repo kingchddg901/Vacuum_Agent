@@ -48,7 +48,8 @@
     },
     "fan_speed": {
       "quiet": "Quiet",  // suction level (lowest)
-      "gentle": "Gentle",  // suction level (Eufy app term)
+      "gentle": "Gentle",  // suction level (Roborock app term)
+      "balanced": "Balanced",  // suction level (Roborock app term)
       "standard": "Standard",  // suction level
       "boost": "Boost",  // suction level
       "turbo": "Turbo",  // suction level (Eufy app term; the value the device actually emits)
@@ -82,6 +83,7 @@
       "vacuum_and_mop": "Vacuum and mop",  // alias: display-string form the stored profiles use
       "quiet": "Quiet",
       "gentle": "Gentle",
+      "balanced": "Balanced",
       "standard": "Standard",
       "boost": "Boost",
       "turbo": "Turbo",

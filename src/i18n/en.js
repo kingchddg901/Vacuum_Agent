@@ -64,7 +64,8 @@ export const en = {
   "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both (code form)
   "vocab.clean_mode.vacuum_and_mop": "Vacuum and mop", // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
   "vocab.fan_speed.quiet": "Quiet",               // suction level (lowest)
-  "vocab.fan_speed.gentle": "Gentle",             // suction level (Eufy app term)
+  "vocab.fan_speed.gentle": "Gentle",             // suction level (Roborock app term)
+  "vocab.fan_speed.balanced": "Balanced",         // suction level (Roborock app term)
   "vocab.fan_speed.standard": "Standard",         // suction level
   "vocab.fan_speed.boost": "Boost",               // suction level
   "vocab.fan_speed.turbo": "Turbo",               // suction level (Eufy app term; the value the device actually emits)
@@ -1495,6 +1496,7 @@ export const en = {
   "vocab.battery_bucket_key.vacuum_and_mop": "Vacuum and mop", // alias: display-string form the stored profiles use
   "vocab.battery_bucket_key.quiet": "Quiet",
   "vocab.battery_bucket_key.gentle": "Gentle",
+  "vocab.battery_bucket_key.balanced": "Balanced",
   "vocab.battery_bucket_key.standard": "Standard",
   "vocab.battery_bucket_key.boost": "Boost",
   "vocab.battery_bucket_key.turbo": "Turbo",

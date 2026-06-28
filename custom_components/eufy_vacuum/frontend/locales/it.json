@@ -1630,7 +1630,8 @@
       "boost": "Potenziato",
       "max": "Max",
       "turbo": "Turbo",
-      "gentle": "Delicato"
+      "gentle": "Delicato",
+      "balanced": "Bilanciato"
     },
     "water_level": {
       "off": "Disattivato",
@@ -1667,7 +1668,8 @@
       "high": "Alto",
       "vacuum_and_mop": "Aspirazione e lavaggio",
       "turbo": "Turbo",
-      "gentle": "Delicato"
+      "gentle": "Delicato",
+      "balanced": "Bilanciato"
     },
     "battery_weighted_by": {
       "room_count": "Numero stanze",

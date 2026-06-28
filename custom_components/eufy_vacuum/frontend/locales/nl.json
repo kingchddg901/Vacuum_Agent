@@ -1630,7 +1630,8 @@
       "boost": "Boost",
       "max": "Max",
       "turbo": "Turbo",
-      "gentle": "Zacht"
+      "gentle": "Zacht",
+      "balanced": "Gebalanceerd"
     },
     "water_level": {
       "off": "Uit",
@@ -1667,7 +1668,8 @@
       "high": "Hoog",
       "vacuum_and_mop": "Stofzuigen en dweilen",
       "turbo": "Turbo",
-      "gentle": "Zacht"
+      "gentle": "Zacht",
+      "balanced": "Gebalanceerd"
     },
     "battery_weighted_by": {
       "room_count": "Aantal kamers",
