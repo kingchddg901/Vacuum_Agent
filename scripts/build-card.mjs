@@ -37,11 +37,6 @@ function hashTextures(dir) {
 
 const deploy = process.argv.includes("--deploy");
 const outDir = deploy ? "custom_components/eufy_vacuum/frontend" : "dist";
-const outfile = `${outDir}/eufy-vacuum-command-center.js`;
-// Second, panel-free bundle: just the standalone Lovelace cards. Registered as a
-// global frontend module (add_extra_module_url) so the cards are defined on every
-// page, including a cold dashboard that never opens the sidebar panel.
-const cardsOutfile = `${outDir}/eufy-vacuum-cards.js`;
 
 const assetVer = hashTextures(TEXTURES_DIR);
 
@@ -50,10 +45,27 @@ const shared = {
   minify: true,
   format: "esm",
   target: "es2020",
+  // Lazy runtime loads of already-served bundles (the map host, the animal-svg
+  // manifest) import by their /eufy_vacuum/frontend/ URL. Mark that prefix external
+  // so esbuild leaves the dynamic import() as a runtime URL instead of trying to
+  // resolve/bundle it (the map host is a BUILD OUTPUT, not a source file).
+  external: ["/eufy_vacuum/frontend/*"],
   define: { __ASSET_VER__: JSON.stringify(assetVer) },
 };
 
-await esbuild.build({ ...shared, entryPoints: ["src/all-cards.js"], outfile });
-await esbuild.build({ ...shared, entryPoints: ["src/cards-standalone.js"], outfile: cardsOutfile });
+// THREE self-contained ESM bundles (no code-splitting):
+//   1. the sidebar PANEL (command-center),
+//   2. the always-loaded standalone CARDS bundle (room-card + dashboard card),
+//   3. the heavy MAP HOST (the full map subsystem).
+// The cards bundle does NOT import the map host statically — the dashboard card loads
+// it on demand via a dynamic import of its ABSOLUTE served URL
+// (/eufy_vacuum/frontend/eufy-vacuum-map.js), the same external-dynamic-import pattern
+// main.js already uses for animal-svg. So the map's ~1MB graph loads only when show_map
+// is on, and the always-loaded cards bundle stays lean. Self-contained bundles avoid
+// the shared-chunk fragility of esbuild splitting; the duplicated common code is the
+// price of a lazy, independently-cacheable map module.
+await esbuild.build({ ...shared, entryPoints: ["src/all-cards.js"], outfile: `${outDir}/eufy-vacuum-command-center.js` });
+await esbuild.build({ ...shared, entryPoints: ["src/cards-standalone.js"], outfile: `${outDir}/eufy-vacuum-cards.js` });
+await esbuild.build({ ...shared, entryPoints: ["src/cards/vacuum-map-host.js"], outfile: `${outDir}/eufy-vacuum-map.js` });
 
-console.log(`built ${outfile}\n      ${cardsOutfile}  (texture asset ver ${assetVer})`);
+console.log(`built command-center + cards + map-host bundles  (texture asset ver ${assetVer})`);

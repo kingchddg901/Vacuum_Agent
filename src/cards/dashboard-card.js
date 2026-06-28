@@ -528,6 +528,7 @@ class EufyDashboardCard extends HTMLElement {
 
   _wire() {
     this._wireZoneMap();
+    this._maybeMountMap();
     // Collapse / expand the whole Rooms group
     const roomsToggle = this.shadowRoot.getElementById("rooms-toggle");
     if (roomsToggle) {
@@ -715,6 +716,39 @@ class EufyDashboardCard extends HTMLElement {
     this.shadowRoot.getElementById("zone-times-2")?.addEventListener("click", () => { this._cleanTimes = 2; this._render(); });
     this.shadowRoot.getElementById("zone-clear")?.addEventListener("click", () => { this._zoneDrafts = []; this._render(); });
     this.shadowRoot.getElementById("zone-clean")?.addEventListener("click", () => this._handleCleanZones());
+  }
+
+  /* ---- W2b: the full <eufy-vacuum-map> host (lazy chunk) ---- */
+
+  _wantsFullMap() {
+    // W2b-1 flips this on: show_map && (live map || VA render || segments).
+    // OFF for now — the lightweight zone-draw map (above) stays the active surface
+    // until the host renders the real map; this keeps the dynamic-import split point
+    // present (esbuild code-splits the heavy chunk) without changing runtime UI yet.
+    return false;
+  }
+
+  async _maybeMountMap() {
+    if (!this._wantsFullMap() || this._mapEl) return;
+    // Load the heavy map bundle ONLY when the full map is wanted — a dynamic import
+    // of its ABSOLUTE served URL (external; esbuild leaves it alone, like main.js's
+    // animal-svg load), so it never bloats the always-loaded cards bundle.
+    if (!this._mapModulePromise) {
+      this._mapModulePromise = import("/eufy_vacuum/frontend/eufy-vacuum-map.js");
+    }
+    await this._mapModulePromise;
+    if (!this._wantsFullMap()) return;
+    const slot = this.shadowRoot.getElementById("map-slot");
+    if (!slot) return;
+    if (!this._mapEl) {
+      this._mapEl = document.createElement("eufy-vacuum-map");
+      this._mapEl.config = this._config;
+      this._mapEl.hass = this._hass;
+      this._mapEl.setSnapshot?.(this._snapshot);
+    }
+    // Re-parent into the freshly-rendered slot; the element instance (and its zoom/
+    // pan/zone state, which live on the JS instance) survives the card's innerHTML wipe.
+    slot.appendChild(this._mapEl);
   }
 
   async _handleCleanZones() {
