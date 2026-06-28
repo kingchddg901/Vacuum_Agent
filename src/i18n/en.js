@@ -61,10 +61,13 @@ export const en = {
   // --- vocab (adapter VOCABULARY values rendered via this.tVocab(field, value, label); keyed on the stable value, falls back to the backend English label for unkeyed values) ---
   "vocab.clean_mode.vacuum": "Vacuum",            // clean mode: suction only
   "vocab.clean_mode.mop": "Mop",                  // clean mode: mop only
-  "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both
+  "vocab.clean_mode.vacuum_mop": "Vacuum and mop",// clean mode: both (code form)
+  "vocab.clean_mode.vacuum_and_mop": "Vacuum and mop", // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
   "vocab.fan_speed.quiet": "Quiet",               // suction level (lowest)
+  "vocab.fan_speed.gentle": "Gentle",             // suction level (Eufy app term)
   "vocab.fan_speed.standard": "Standard",         // suction level
   "vocab.fan_speed.boost": "Boost",               // suction level
+  "vocab.fan_speed.turbo": "Turbo",               // suction level (Eufy app term; the value the device actually emits)
   "vocab.fan_speed.max": "Max",                   // suction level (highest)
   "vocab.water_level.off": "Off",                 // water level: no water
   "vocab.water_level.low": "Low",                 // water level
@@ -74,6 +77,7 @@ export const en = {
   "vocab.clean_intensity.narrow": "Narrow",       // cleaning path / intensity
   "vocab.clean_intensity.deep": "Deep",           // cleaning path / intensity
   "vocab.clean_intensity.normal": "Normal",       // cleaning path / intensity (manual-only)
+  "vocab.clean_intensity.standard": "Standard",   // cleaning path / intensity (Eufy app term; the dominant stored value)
 
   // --- base_station (Base Station / dock: status, water, activity, controls) ---
   "base_station.action_available": "Action available",
@@ -1488,9 +1492,12 @@ export const en = {
   "vocab.battery_bucket_key.vacuum": "Vacuum",
   "vocab.battery_bucket_key.mop": "Mop",
   "vocab.battery_bucket_key.vacuum_mop": "Vacuum and mop",
+  "vocab.battery_bucket_key.vacuum_and_mop": "Vacuum and mop", // alias: display-string form the stored profiles use
   "vocab.battery_bucket_key.quiet": "Quiet",
+  "vocab.battery_bucket_key.gentle": "Gentle",
   "vocab.battery_bucket_key.standard": "Standard",
   "vocab.battery_bucket_key.boost": "Boost",
+  "vocab.battery_bucket_key.turbo": "Turbo",
   "vocab.battery_bucket_key.max": "Max",
   "vocab.battery_bucket_key.off": "Off",
   "vocab.battery_bucket_key.low": "Low",

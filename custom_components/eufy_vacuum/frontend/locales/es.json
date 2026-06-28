@@ -1635,13 +1635,16 @@
     "clean_mode": {
       "vacuum": "Aspirar",
       "mop": "Fregar",
-      "vacuum_mop": "Aspirar y fregar"
+      "vacuum_mop": "Aspirar y fregar",
+      "vacuum_and_mop": "Aspirar y fregar"
     },
     "fan_speed": {
       "quiet": "Silencioso",
       "standard": "Estándar",
       "boost": "Turbo",
-      "max": "Máx."
+      "max": "Máx.",
+      "turbo": "Turbo",
+      "gentle": "Suave"
     },
     "water_level": {
       "off": "Desactivado",
@@ -1653,7 +1656,8 @@
       "quick": "Rápida",
       "narrow": "Estrecha",
       "deep": "Profunda",
-      "normal": "Normal"
+      "normal": "Normal",
+      "standard": "Estándar"
     },
     "metrics_tab": {
       "learning": "Aprendizaje",
@@ -1674,7 +1678,10 @@
       "off": "Desactivado",
       "low": "Bajo",
       "medium": "Medio",
-      "high": "Alto"
+      "high": "Alto",
+      "vacuum_and_mop": "Aspirar y fregar",
+      "turbo": "Turbo",
+      "gentle": "Suave"
     },
     "battery_weighted_by": {
       "room_count": "Nº de habitaciones",

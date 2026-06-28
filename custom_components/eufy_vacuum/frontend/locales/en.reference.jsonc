@@ -43,12 +43,15 @@
     "clean_mode": {
       "vacuum": "Vacuum",  // clean mode: suction only
       "mop": "Mop",  // clean mode: mop only
-      "vacuum_mop": "Vacuum and mop"
+      "vacuum_mop": "Vacuum and mop",
+      "vacuum_and_mop": "Vacuum and mop"  // alias: stored profiles use the display-string form "Vacuum and mop" (slug vacuum_and_mop), not the vacuum_mop code
     },
     "fan_speed": {
       "quiet": "Quiet",  // suction level (lowest)
+      "gentle": "Gentle",  // suction level (Eufy app term)
       "standard": "Standard",  // suction level
       "boost": "Boost",  // suction level
+      "turbo": "Turbo",  // suction level (Eufy app term; the value the device actually emits)
       "max": "Max"  // suction level (highest)
     },
     "water_level": {
@@ -61,7 +64,8 @@
       "quick": "Quick",  // cleaning path / intensity
       "narrow": "Narrow",  // cleaning path / intensity
       "deep": "Deep",  // cleaning path / intensity
-      "normal": "Normal"  // cleaning path / intensity (manual-only)
+      "normal": "Normal",  // cleaning path / intensity (manual-only)
+      "standard": "Standard"  // cleaning path / intensity (Eufy app term; the dominant stored value)
     },
     "metrics_tab": {
       "learning": "Learning",
@@ -75,9 +79,12 @@
       "vacuum": "Vacuum",
       "mop": "Mop",
       "vacuum_mop": "Vacuum and mop",
+      "vacuum_and_mop": "Vacuum and mop",  // alias: display-string form the stored profiles use
       "quiet": "Quiet",
+      "gentle": "Gentle",
       "standard": "Standard",
       "boost": "Boost",
+      "turbo": "Turbo",
       "max": "Max",
       "off": "Off",
       "low": "Low",

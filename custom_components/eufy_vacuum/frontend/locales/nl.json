@@ -1621,13 +1621,16 @@
     "clean_mode": {
       "vacuum": "Stofzuigen",
       "mop": "Dweilen",
-      "vacuum_mop": "Stofzuigen en dweilen"
+      "vacuum_mop": "Stofzuigen en dweilen",
+      "vacuum_and_mop": "Stofzuigen en dweilen"
     },
     "fan_speed": {
       "quiet": "Stil",
       "standard": "Standaard",
       "boost": "Boost",
-      "max": "Max"
+      "max": "Max",
+      "turbo": "Turbo",
+      "gentle": "Zacht"
     },
     "water_level": {
       "off": "Uit",
@@ -1639,7 +1642,8 @@
       "quick": "Snel",
       "narrow": "Smal",
       "deep": "Grondig",
-      "normal": "Normaal"
+      "normal": "Normaal",
+      "standard": "Standaard"
     },
     "metrics_tab": {
       "learning": "Leren",
@@ -1660,7 +1664,10 @@
       "off": "Uit",
       "low": "Laag",
       "medium": "Gemiddeld",
-      "high": "Hoog"
+      "high": "Hoog",
+      "vacuum_and_mop": "Stofzuigen en dweilen",
+      "turbo": "Turbo",
+      "gentle": "Zacht"
     },
     "battery_weighted_by": {
       "room_count": "Aantal kamers",
