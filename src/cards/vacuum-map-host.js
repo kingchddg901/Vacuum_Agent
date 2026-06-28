@@ -2,16 +2,18 @@
 //
 // Mounts the EXISTING map subsystem (the same VacuumCardState / Renderers / Bindings
 // / Actions classes the panel uses) on a small, self-contained custom element, so the
-// dashboard card can show the VA-rendered room-blob map with rotate / pan / zoom /
+// dashboard card shows the VA-rendered room-blob map with rotate / pan / zoom /
 // overlays / zone-draw — reusing every line of the map code rather than rewriting it.
 //
 // This module statically imports that heavy class graph; the dashboard card loads it
-// ONLY via dynamic import() when show_map is on, so esbuild code-splits it into a
-// separate chunk and the always-loaded cards bundle stays lean.
+// ONLY via a dynamic import of this bundle's served URL when show_map is on, so the
+// always-loaded cards bundle stays lean.
 //
-// W2b-1 (next) wires the real render loop (renderMapRoomView + _bindMap) and the
-// host shim (isMapViewActive→true, _scheduleRender, setSnapshot, the frame pollers).
-// This file is the SHELL + the chunk boundary.
+// The host provides exactly the surface the map renderer + bindings + actions reach:
+// shadowRoot, _on/_onAll (applyCardDomHelpers), _state/_renderers/_actions/_bindings,
+// _scheduleRender, _view, setView (stub), showToast, the transient scratch flags, and
+// the two frame pollers. isMapViewActive is forced true INSTANCE-locally (never
+// setMapViewActive — that writes the panel's localStorage).
 
 import { VacuumCardState } from "../state/index.js";
 import { VacuumCardRenderers } from "../renderers/index.js";
@@ -21,35 +23,213 @@ import { applyCardDomHelpers } from "../bindings/core.js";
 import { VIEWS } from "../render-cycle.js";
 import { mapStyles } from "../styles/map.js";
 
-// Hold the heavy graph in this chunk (W2b-1 instantiates these in the host shim).
-const MAP_DEPS = {
-  VacuumCardState, VacuumCardRenderers, VacuumCardBindings, VacuumCardActions,
-  applyCardDomHelpers, VIEWS,
-};
+const ANIMAL_SVG_URL = "/eufy_vacuum/frontend/animal-svg/manifest.js";
+let _animalSvgLoaded = false;
 
 class EufyVacuumMap extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: "open" });
-    this._deps = MAP_DEPS;   // retained for W2b-1 wiring (prevents tree-shake)
+    applyCardDomHelpers(this);   // installs $, $all, _on, _onAll (idempotent binder)
     this._hass = null;
     this._config = null;
-    this._snapshot = null;
+    this._view = VIEWS.ROOMS;
+    this._renderScheduled = false;
+    // Transient scratch flags the map bindings read/write on the host.
+    this._mapDragOccurred = false;
+    this._mapVariantDeleteArmTimer = null;
+    this._furnishedGestureActive = false;
+    this._renderDataMapId = null;
+    this._vaRenderFetching = false;
+    this._vaImageCache = new Map();
+    this._scrimCache = null;
   }
 
-  set hass(h) { this._hass = h; this._render(); }
-  set config(c) { this._config = c; }
-  setSnapshot(s) { this._snapshot = s; this._render(); }
+  /* =========================================================
+     INPUTS — the parent dashboard card drives these
+     ========================================================= */
 
-  connectedCallback() { this._render(); }
+  set config(c) {
+    this._config = c;
+    if (this._state) this._state.sync(this._hass, c);
+    else this._initStack();
+    this._scheduleRender();
+  }
+
+  set hass(h) {
+    this._hass = h;
+    if (this._state) {
+      this._state.sync(h, this._config);
+      this._actions?.sync?.(h, this._state);
+    } else if (this._config) {
+      this._initStack();
+    }
+    this._scheduleRender();
+    this._scheduleLiveMapRefresh();
+    this._scheduleLivePosePoll();
+  }
+
+  // The parent already fetched get_dashboard_snapshot — push it in (no duplicate fetch).
+  setSnapshot(payload) {
+    if (payload && this._state?.setDashboardSnapshot) {
+      this._state.setDashboardSnapshot(payload);
+      this._maybeDefaultVaRender();   // supports_va_render is known only after the snapshot
+      this._scheduleRender();
+      this._scheduleLiveMapRefresh();
+      this._scheduleLivePosePoll();
+    }
+  }
+
+  // Prefer the VA-rendered room-blob backdrop when the brand supports it (the clean
+  // look, not the raw camera image); the user can still toggle it in the map. Once.
+  _maybeDefaultVaRender() {
+    if (this._vaDefaulted || !this._state) return;
+    try {
+      if (this._state.supportsVaRender?.() && this._state.useVaRender
+          && !this._state.useVaRender() && this._state.setUseVaRender) {
+        this._state.setUseVaRender(true);
+      }
+    } catch { /* best-effort default */ }
+    this._vaDefaulted = true;
+  }
+
+  _initStack() {
+    if (this._state || !this._config) return;
+    this._state = new VacuumCardState(this._hass, this._config);
+    this._renderers = new VacuumCardRenderers(this);
+    this._actions = new VacuumCardActions(this._hass, this._state);
+    this._bindings = new VacuumCardBindings(this);
+    // The embedded map is ALWAYS the active map view — force it instance-locally so
+    // the map gates fire, WITHOUT writing the panel's per-vacuum localStorage key.
+    this._state.isMapViewActive = () => true;
+  }
+
+  /* =========================================================
+     HOST SHIM — methods the map bindings call on the host
+     ========================================================= */
+
+  _scheduleRender() {
+    if (this._furnishedGestureActive) return;   // don't interrupt an alignment drag
+    if (this._renderScheduled) return;
+    this._renderScheduled = true;
+    Promise.resolve().then(() => { this._renderScheduled = false; this._render(); });
+  }
+
+  // The embedded map never opens the composer / map-config view.
+  setView() { /* no-op */ }
+
+  showToast(message, opts = {}) {
+    if (!this._state?.pushToast) return null;
+    const id = this._state.pushToast(message, opts);
+    this._scheduleRender();
+    const ttl = Number.isFinite(opts?.ttl) ? Math.max(1000, opts.ttl) : 3500;
+    setTimeout(() => this._scheduleRender(), ttl + 80);
+    return id;
+  }
+
+  /* =========================================================
+     FRAME POLLERS — copied from main.js (self-contained on _state/_actions)
+     ========================================================= */
+
+  _scheduleLiveMapRefresh() {
+    const REFRESH_MS = 2000;
+    const liveCamera =
+      !!this._state?.isMapViewActive?.() &&
+      !!this._state?.isLiveBackdropActive?.() &&
+      !!this._state?.liveMapImageEntity?.()?.startsWith?.("camera.");
+    if (!liveCamera) {
+      if (this._liveMapRefreshTimer) { clearInterval(this._liveMapRefreshTimer); this._liveMapRefreshTimer = null; }
+      return;
+    }
+    if (this._liveMapRefreshTimer) return;
+    this._liveMapRefreshTimer = setInterval(() => {
+      if (!this._state?.isMapViewActive?.() || !this._state?.isLiveBackdropActive?.()) {
+        clearInterval(this._liveMapRefreshTimer); this._liveMapRefreshTimer = null; return;
+      }
+      if (document.hidden) return;
+      this._state.bumpLiveMapTick?.();
+      this._scheduleRender();
+    }, REFRESH_MS);
+  }
+
+  _scheduleLivePosePoll() {
+    const REFRESH_MS = 2000;
+    const wantPoll =
+      !this._livePoseUnsupported &&
+      !!this._state?.isMapViewActive?.() &&
+      !!this._state?.overlaysAligned?.() &&
+      !!this._state?.mapStateSource?.()?.present;
+    if (!wantPoll) {
+      if (this._livePosePollTimer) { clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; }
+      return;
+    }
+    if (this._livePosePollTimer) return;
+    const tick = async () => {
+      if (this._livePoseUnsupported || !this._state?.isMapViewActive?.() || !this._state?.overlaysAligned?.()) {
+        clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; return;
+      }
+      if (document.hidden) return;
+      try {
+        const resp = await this._actions?.getMapLivePose?.();
+        if (resp == null) return;
+        if (resp.present === false && resp.reason === "not_configured") {
+          this._livePoseUnsupported = true;
+          this._state?.setLivePose?.(null);
+          clearInterval(this._livePosePollTimer); this._livePosePollTimer = null;
+          this._scheduleRender();
+          return;
+        }
+        this._state?.setLivePose?.(resp);
+        this._scheduleRender();
+      } catch { /* transient WS drop — keep last pose, retry next tick */ }
+    };
+    this._livePosePollTimer = setInterval(tick, REFRESH_MS);
+    tick();
+  }
+
+  /* =========================================================
+     LIFECYCLE
+     ========================================================= */
+
+  connectedCallback() {
+    this._loadAnimalSvg();
+    this._scheduleRender();
+    this._scheduleLiveMapRefresh();
+    this._scheduleLivePosePoll();
+  }
+
+  disconnectedCallback() {
+    if (this._liveMapRefreshTimer) { clearInterval(this._liveMapRefreshTimer); this._liveMapRefreshTimer = null; }
+    if (this._livePosePollTimer) { clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; }
+  }
+
+  _loadAnimalSvg() {
+    if (_animalSvgLoaded) return;
+    _animalSvgLoaded = true;
+    import(ANIMAL_SVG_URL).then(() => this._scheduleRender()).catch(() => { /* mascot renders empty */ });
+  }
+
+  /* =========================================================
+     RENDER — the map fragment + its bindings, in our own shadowRoot
+     ========================================================= */
 
   _render() {
-    // STUB — W2b-1 replaces with: ctx = {card:this, state, renderers, vacuumStatus};
-    // shadowRoot.innerHTML = `<style>${mapStyles}…</style>` + renderMapRoomView(ctx);
-    // then this._bindings._bindMap().
-    this.shadowRoot.innerHTML =
-      `<style>${mapStyles}</style>` +
-      `<div class="evcc-map-view" style="padding:14px;font:0.8rem sans-serif;color:var(--evcc-text-muted,#888)">Map host loaded — wiring in progress.</div>`;
+    if (!this._hass || !this._config || !this._state || !this._renderers) return;
+    // Minimal ctx — renderMapRoomView only reads ctx.{state,vacuumStatus} + this.* helpers.
+    const ctx = {
+      card: this,
+      state: this._state,
+      renderers: this._renderers,
+      vacuumStatus: this._state.vacuumState?.() ?? "unknown",
+    };
+    try {
+      this.shadowRoot.innerHTML =
+        `<style>:host{display:block}${mapStyles}</style>` +
+        this._renderers.renderMapRoomView(ctx);
+      this._bindings._bindMap();
+    } catch (err) {
+      console.error("[eufy-vacuum-map] render failed", err);
+    }
   }
 }
 

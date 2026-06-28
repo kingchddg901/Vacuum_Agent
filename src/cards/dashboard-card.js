@@ -166,7 +166,16 @@ class EufyDashboardCard extends HTMLElement {
     this._snapshot = null;
     this._profiles = [];
     this._fetchedFor = null;     // re-fetch snapshot/profiles for the new vacuum
+    // Tear down the embedded map so it rebuilds for the (possibly new) vacuum.
+    this._mapEl?.remove();
+    this._mapEl = null;
     this._render();
+  }
+
+  disconnectedCallback() {
+    // Drop the map element so its pollers/timers tear down with the card.
+    this._mapEl?.remove();
+    this._mapEl = null;
   }
 
   set hass(hass) {
@@ -235,6 +244,7 @@ class EufyDashboardCard extends HTMLElement {
       if (this._vacuumId() !== vid) return;
       this._snapshot = snap ?? null;
       this._profiles = Array.isArray(profs?.profiles) ? profs.profiles : [];
+      this._mapEl?.setSnapshot?.(this._snapshot);   // forward to the embedded map
     } finally {
       this._fetching = false;
       this._render();
@@ -339,7 +349,7 @@ class EufyDashboardCard extends HTMLElement {
       <style>${CARD_CSS}</style>
       <div class="card">
         ${this._renderHeader(title, vacuumState)}
-        ${this._renderZoneMap()}
+        ${this._renderMapSection()}
         ${rooms.length
           ? `<div class="section rooms ${disabled ? "is-disabled" : ""} ${this._roomsCollapsed ? "is-collapsed" : ""}">
                <div class="group-head" id="rooms-toggle" role="button" tabindex="0" aria-expanded="${!this._roomsCollapsed}">
@@ -721,34 +731,62 @@ class EufyDashboardCard extends HTMLElement {
   /* ---- W2b: the full <eufy-vacuum-map> host (lazy chunk) ---- */
 
   _wantsFullMap() {
-    // W2b-1 flips this on: show_map && (live map || VA render || segments).
-    // OFF for now — the lightweight zone-draw map (above) stays the active surface
-    // until the host renders the real map; this keeps the dynamic-import split point
-    // present (esbuild code-splits the heavy chunk) without changing runtime UI yet.
-    return false;
+    // The full map host is worth loading when there's an actual map to draw on:
+    // a live-map image OR the brand's VA room-blob render. Gated by show_map.
+    return this._config?.show_map !== false
+      && (!!this._liveMapUrl() || this._snapshot?.supports_va_render === true);
   }
 
-  async _maybeMountMap() {
-    if (!this._wantsFullMap() || this._mapEl) return;
-    // Load the heavy map bundle ONLY when the full map is wanted — a dynamic import
-    // of its ABSOLUTE served URL (external; esbuild leaves it alone, like main.js's
-    // animal-svg load), so it never bloats the always-loaded cards bundle.
-    if (!this._mapModulePromise) {
-      this._mapModulePromise = import("/eufy_vacuum/frontend/eufy-vacuum-map.js");
-    }
-    await this._mapModulePromise;
+  // Section under the header: the full <eufy-vacuum-map> slot when wanted, else the
+  // lightweight W2a zone-draw map (which also covers a brand with zones but no map).
+  _renderMapSection() {
+    if (!this._wantsFullMap()) return this._renderZoneMap();
+    const loading = this._mapEl ? "" : `<div class="map-loading">${this.t("vacuum_card.map_loading")}</div>`;
+    return `
+      <div class="section map-section">
+        <div class="section-label">${this.t("vacuum_card.map_label")}</div>
+        <div class="map-slot" id="map-slot">${loading}</div>
+      </div>`;
+  }
+
+  // Called after every render. Re-parents the persistent map element into the fresh
+  // slot (it survives the card's innerHTML wipe — its zoom/pan/zone state lives on the
+  // JS instance), or lazily loads + creates it the first time.
+  _maybeMountMap() {
     if (!this._wantsFullMap()) return;
     const slot = this.shadowRoot.getElementById("map-slot");
     if (!slot) return;
-    if (!this._mapEl) {
-      this._mapEl = document.createElement("eufy-vacuum-map");
-      this._mapEl.config = this._config;
-      this._mapEl.hass = this._hass;
-      this._mapEl.setSnapshot?.(this._snapshot);
+    if (this._mapEl) {
+      if (this._mapEl.parentNode !== slot) slot.appendChild(this._mapEl); // sync re-parent
+      this._mapEl.hass = this._hass;                                       // forward latest hass
+      return;
     }
-    // Re-parent into the freshly-rendered slot; the element instance (and its zoom/
-    // pan/zone state, which live on the JS instance) survives the card's innerHTML wipe.
+    this._loadAndMountMap(slot);
+  }
+
+  async _loadAndMountMap() {
+    if (this._mapEl || this._mapLoading) return;
+    this._mapLoading = true;
+    try {
+      // Dynamic import of the heavy map bundle's ABSOLUTE served URL (external; esbuild
+      // leaves it a runtime load, like main.js's animal-svg) — loads only on demand.
+      if (!this._mapModulePromise) {
+        this._mapModulePromise = import("/eufy_vacuum/frontend/eufy-vacuum-map.js");
+      }
+      await this._mapModulePromise;
+    } finally {
+      this._mapLoading = false;
+    }
+    if (this._mapEl || !this._wantsFullMap()) return;
+    const slot = this.shadowRoot.getElementById("map-slot");
+    if (!slot) return;
+    this._mapEl = document.createElement("eufy-vacuum-map");
+    // hass before config so the host builds its state stack with hass already present.
+    this._mapEl.hass = this._hass;
+    this._mapEl.config = this._config;
+    this._mapEl.setSnapshot?.(this._snapshot);
     slot.appendChild(this._mapEl);
+    this._render();  // re-render so the section drops the loading hint
   }
 
   async _handleCleanZones() {
@@ -855,6 +893,10 @@ const CARD_CSS = `
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }
   .zone-hint { font-size: 0.72rem; color: var(--text-muted); }
+
+  .map-section { padding: 4px 12px 8px; }
+  .map-slot { display: block; min-height: 40px; }
+  .map-loading { padding: 24px 12px; text-align: center; font-size: 0.78rem; color: var(--text-muted); }
 
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }

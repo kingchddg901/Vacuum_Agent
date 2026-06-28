@@ -990,6 +990,7 @@ export const en = {
   "vacuum_card.editor_title_placeholder": "Leave blank to use the vacuum name",
   "vacuum_card.include_room": "Include this room in the run",  // tooltip on the per-room include checkbox
   "vacuum_card.map_label": "Map",  // section label above the live-map zone-draw surface
+  "vacuum_card.map_loading": "Loading map…",  // placeholder while the full map bundle loads on first use
   "vacuum_card.zone_remove": "Tap to remove this zone",  // tooltip on a drawn zone rectangle
   "vacuum_card.zones_at_cap": "max zones",  // appended to the hint when the per-clean zone cap is reached
   "vacuum_card.zones_clean": { one: "Clean {count} zone", other: "Clean {count} zones" },  // button: start cleaning the drawn zones

@@ -1656,6 +1656,7 @@
     "editor_title_placeholder": "Leave blank to use the vacuum name",
     "include_room": "Include this room in the run",  // tooltip on the per-room include checkbox
     "map_label": "Map",  // section label above the live-map zone-draw surface
+    "map_loading": "Loading map…",  // placeholder while the full map bundle loads on first use
     "zone_remove": "Tap to remove this zone",  // tooltip on a drawn zone rectangle
     "zones_at_cap": "max zones",  // appended to the hint when the per-clean zone cap is reached
     "zones_clean": {"one":"Clean {count} zone","other":"Clean {count} zones"},  // button: start cleaning the drawn zones
