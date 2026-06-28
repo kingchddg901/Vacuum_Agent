@@ -36,6 +36,9 @@ from .vocabulary import (
     DOCK_EVENT_TRIGGERS,
     WATER_LEVEL_ALIASES,
     WASH_FREQUENCY_MODE_ALIASES,
+    CLEAN_MODE_ALIASES,
+    CLEAN_INTENSITY_ALIASES,
+    FAN_SPEED_ALIASES,
     NOT_ERROR_SENTINELS,
     CANCEL_SERVICE_EXCLUSION_STATES,
 )
@@ -377,6 +380,13 @@ def register_eufy_adapter_for_vacuum(
             # Sourced from vocabulary.py WATER_LEVEL_ALIASES / WASH_FREQUENCY_MODE_ALIASES.
             "water_level_aliases": dict(WATER_LEVEL_ALIASES),
             "wash_frequency_mode_aliases": dict(WASH_FREQUENCY_MODE_ALIASES),
+            # Profile-setting display-string -> canonical-code maps. The learning
+            # manager normalizes observed clean_mode/clean_intensity/fan_speed
+            # through these so the card always receives a canonical code (which
+            # its vocab is keyed on) instead of a raw display string.
+            "clean_mode_aliases": dict(CLEAN_MODE_ALIASES),
+            "clean_intensity_aliases": dict(CLEAN_INTENSITY_ALIASES),
+            "fan_speed_aliases": dict(FAN_SPEED_ALIASES),
 
             # User-facing dropdown option lists. The card reads these to
             # populate clean_mode / fan_speed / water_level / clean_intensity

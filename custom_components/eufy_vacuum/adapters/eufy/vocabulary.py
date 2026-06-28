@@ -138,6 +138,45 @@ WASH_FREQUENCY_MODE_ALIASES: dict[str, str] = {
     "none": "off",
 }
 
+# === PROFILE SETTING ALIASES =============================================
+# Map Eufy clean-mode / clean-intensity / suction(fan-speed) DISPLAY strings to
+# the canonical codes the card's vocab is keyed on (vocab.clean_mode.* etc.).
+#
+# Why these exist: room-profile settings are stored as un-normalized display
+# strings (mixed case, spaces — e.g. "Vacuum and mop", "Standard", "BoostIQ"),
+# so their card-side slug (lowercased, non-alnum -> "_") would miss the vocab
+# key and fall back to English. The learning manager normalizes through these
+# maps before emitting, so the card always receives a canonical code.
+#
+# Keys are normalized to .strip().lower() with non-alphanumerics collapsed to a
+# single space before lookup (see _normalize_profile_setting). Canonical codes
+# already equal their own slug, so they pass through unchanged and need no entry
+# — only display variants that DON'T slug to the canonical code go here.
+#
+# A port to another brand provides its own maps (Roborock's Gentle/Balanced/
+# Turbo/Max+/Custom, etc.) and exposes them under the same adapter_config keys.
+
+# Canonical codes: vacuum, mop, vacuum_mop.
+CLEAN_MODE_ALIASES: dict[str, str] = {
+    "vacuum and mop": "vacuum_mop",
+    "vacuum mop": "vacuum_mop",
+    "vacuum & mop": "vacuum_mop",
+    "vacuum plus mop": "vacuum_mop",
+    "mop and vacuum": "vacuum_mop",
+}
+
+# Canonical codes: quick, narrow, deep, normal, standard.
+# Eufy's stored values (Quick/Narrow/Deep/Standard/Normal) already slug to the
+# canonical code; no display variants need remapping today.
+CLEAN_INTENSITY_ALIASES: dict[str, str] = {}
+
+# Canonical codes: quiet, gentle, standard, boost, turbo, max.
+# "BoostIQ" is Eufy's auto-boost label -> canonical "boost".
+FAN_SPEED_ALIASES: dict[str, str] = {
+    "boost iq": "boost",
+    "boostiq": "boost",
+}
+
 # === ERROR SENTINEL VALUES ===============================================
 # String values that the Eufy/robovac_mqtt error_message sensor may emit
 # that mean "no error is present". Anything not in this set is treated as

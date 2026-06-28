@@ -17,11 +17,21 @@ Coverage targets
 [PNL-1] a replacement-keyed name maps to its curated label (replacements branch).
 [PNL-2] a non-keyed name falls through to _display_label(normalized) (line 144).
 [PNL-3] an empty value short-circuits to None (empty-text guard).
+[NPS-1..5] _normalize_profile_setting maps stored display strings to the canonical
+        codes the card vocab is keyed on (via the adapter alias maps).
 """
 
 from __future__ import annotations
 
-from custom_components.eufy_vacuum.learning.manager import _profile_name_label, _settings_profile_label
+from custom_components.eufy_vacuum.adapters.eufy.vocabulary import (
+    CLEAN_MODE_ALIASES,
+    FAN_SPEED_ALIASES,
+)
+from custom_components.eufy_vacuum.learning.manager import (
+    _normalize_profile_setting,
+    _profile_name_label,
+    _settings_profile_label,
+)
 
 
 def test_settings_profile_label_full_subtitle():
@@ -120,3 +130,44 @@ def test_profile_name_label_fallback_display_label():
 def test_profile_name_label_empty_is_none():
     """[PNL-3] empty value returns None (no label to build)."""
     assert _profile_name_label("") is None
+
+
+# ---------------------------------------------------------------------------
+# _normalize_profile_setting — display-string -> canonical-code normalizer.
+#
+# Room-profile settings are stored as un-normalized display strings; the card's
+# vocab is keyed on canonical codes. The learning manager normalizes through the
+# adapter's alias maps before emitting so the card never gets a raw display
+# string (which would slug to a missing vocab key and leak English).
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_profile_setting_aliased_to_canonical():
+    """[NPS-1] an aliased display string resolves to its canonical code."""
+    assert _normalize_profile_setting("Vacuum and mop", CLEAN_MODE_ALIASES) == "vacuum_mop"
+
+
+def test_normalize_profile_setting_alias_variants_all_resolve():
+    """[NPS-2] case + punctuation + whitespace variants normalize identically."""
+    for raw in ("vacuum & mop", "VACUUM AND MOP", "  Vacuum   and  mop "):
+        assert _normalize_profile_setting(raw, CLEAN_MODE_ALIASES) == "vacuum_mop"
+    assert _normalize_profile_setting("BoostIQ", FAN_SPEED_ALIASES) == "boost"
+
+
+def test_normalize_profile_setting_canonical_passthrough():
+    """[NPS-3] a value that already slugs to its canonical code is unchanged."""
+    assert _normalize_profile_setting("vacuum", CLEAN_MODE_ALIASES) == "vacuum"
+    assert _normalize_profile_setting("Vacuum", CLEAN_MODE_ALIASES) == "vacuum"
+    assert _normalize_profile_setting("Standard", FAN_SPEED_ALIASES) == "standard"
+    assert _normalize_profile_setting("turbo", FAN_SPEED_ALIASES) == "turbo"
+
+
+def test_normalize_profile_setting_unaliased_slugs():
+    """[NPS-4] an un-aliased multi-word value slugs to underscores (graceful)."""
+    assert _normalize_profile_setting("Some New Mode", {}) == "some_new_mode"
+
+
+def test_normalize_profile_setting_empty_passthrough():
+    """[NPS-5] empty/None stays falsy — 'no setting configured' is preserved."""
+    assert _normalize_profile_setting("", CLEAN_MODE_ALIASES) == ""
+    assert _normalize_profile_setting(None, CLEAN_MODE_ALIASES) is None
