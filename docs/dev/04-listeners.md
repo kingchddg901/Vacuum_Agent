@@ -262,7 +262,7 @@ Records the per-tick robot pose time-series during an **external** (app-started)
 - **Live-pose-capable vacuums only.** The vacuum's adapter must declare `map_state_source.live_pose`; without it `current_room` is always `None` and sampling is pointless.
 - **Live pose present this tick.** `manager.async_get_map_live_pose()` must return `present` — otherwise the tick is skipped rather than polluting the buffer with `None`.
 
-On each qualifying tick it reads the declared `entities.cleaning_area` value and records one sample via `manager.record_pose_sample(...)` (`current_room`, `anchor`, `cleaning_area`, `heading`). While the robot is parked/docked — detected primarily from the MQTT `task_status` not being one of the adapter's `vocabulary.active_run_task_states` (more reliable than the fork's pose `robot_docked` flag), with the pose flag as a fallback — `current_room` and `anchor` are nulled so a dock-sitting tick is not mis-attributed to the dock's room.
+On each qualifying tick it reads the declared `entities.cleaning_area` value and records one sample via `manager.record_pose_sample(...)` (`current_room`, `anchor`, `cleaning_area`, `heading`). While the robot is parked/docked — detected primarily from the MQTT `task_status` not being one of the adapter's `vocabulary.active_run_task_states` (more reliable than eufy-clean's pose `robot_docked` flag), with the pose flag as a fallback — `current_room` and `anchor` are nulled so a dock-sitting tick is not mis-attributed to the dock's room.
 
 **Capture-only / inert** — nothing consumes `pose_samples` yet; the engine wiring is W5c.
 

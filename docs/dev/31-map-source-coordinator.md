@@ -6,7 +6,7 @@
 
 ## 1. Overview
 
-`map_state_source` is the **VA-owned read of the device/fork's OWN map segmentation** — the provider's authoritative per-room geometry, current room, and live robot/dock pose — normalized into a brand-general payload the card and consumers use. It is **distinct from the CV segmentor** ([26-eufy-segmentor](26-eufy-segmentor.md)): the segmentor *infers* rooms from an uploaded map *image* with computer vision; `map_state_source` *reads* the segmentation the device already computed (room-id raster on Eufy, the parsed `MapData` on Roborock) and never guesses. It is also distinct from the legacy trace-bounds path ([11-mapping-system](11-mapping-system.md) §3), which derived bounds from drifting robot samples; `map_state_source` is immune to the per-session coordinate drift (see `reference_eufy_intersession_coord_drift`) because it consumes the provider's own segmentation, not accumulated poses.
+`map_state_source` is the **VA-owned read of the device/integration's OWN map segmentation** — the provider's authoritative per-room geometry, current room, and live robot/dock pose — normalized into a brand-general payload the card and consumers use. It is **distinct from the CV segmentor** ([26-eufy-segmentor](26-eufy-segmentor.md)): the segmentor *infers* rooms from an uploaded map *image* with computer vision; `map_state_source` *reads* the segmentation the device already computed (room-id raster on Eufy, the parsed `MapData` on Roborock) and never guesses. It is also distinct from the legacy trace-bounds path ([11-mapping-system](11-mapping-system.md) §3), which derived bounds from drifting robot samples; `map_state_source` is immune to the per-session coordinate drift (see `reference_eufy_intersession_coord_drift`) because it consumes the provider's own segmentation, not accumulated poses.
 
 `MapSourceCoordinator` is constructed with the core manager (the bundled-subsystem pattern, the same shape as `ActiveJobTracker`, `PhaseRunner`, `LiveRoomRefreshManager`):
 
@@ -24,8 +24,8 @@ It uses `manager.hass`, writes its normalized result into `manager._map_state_so
 ### 1.1 What it owns
 
 - The pre-warm dispatcher (`async_refresh_map_state_source`) that fans out to the three backends and populates the manager cache off-loop.
-- The three backend branches: **storage**, **memory-primary** (Eufy fork), and **memory introspect** (Roborock).
-- The live-pose overlay path — layering the fork's fresh in-memory robot/dock/trail onto the static segmentation.
+- The three backend branches: **storage**, **memory-primary** (Eufy), and **memory introspect** (Roborock).
+- The live-pose overlay path — layering eufy-clean's fresh in-memory robot/dock/trail onto the static segmentation.
 - The lightweight live-pose poll (`async_get_map_live_pose`), the verify probe (`async_compare_map_sources`), and the card own-render raster fetch (`async_get_map_render_data`).
 - Its two backend-internal caches: `_mem_rooms_cache` (content-versioned static scan) and `_live_pose_geom_cache` (mtime-cached geometry).
 
@@ -63,7 +63,7 @@ Most backends require the live-map artifact (the same gate as the live backdrop)
 
 Dispatched when `backend == "storage"`. Two sub-paths:
 
-- **Memory-primary** — when the adapter declares a `memory` block (the Eufy fork holds the same `MapData` in memory, fresher + loop-safe). Runs `_refresh_eufy_map_source`, which **falls back to the `.storage` read** internally when the in-memory `MapData` is absent/malformed.
+- **Memory-primary** — when the adapter declares a `memory` block (eufy-clean holds the same `MapData` in memory, fresher + loop-safe). Runs `_refresh_eufy_map_source`, which **falls back to the `.storage` read** internally when the in-memory `MapData` is absent/malformed.
 - **Plain `.storage`** — when there's no `memory` block (legacy / other forks). Runs `_refresh_storage_map_source`.
 
 The `.storage` read (`map_source_runtime.load_store_json`) is blocking — it's a ~200 KB JSON + base64 decode — so it runs through `hass.async_add_executor_job` and is cached by file **mtime** (plus the presence gate): an unchanged map costs one `stat`, not a re-parse, on every snapshot.
@@ -109,7 +109,7 @@ Pre-warm: dispatches to the backend, applies the presence gate, and writes the n
 async_get_map_live_pose(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
-Returns **only the moving overlays** (robot/dock anchors + `current_room` + heading + live `path`) from the fork's fresh in-memory pose — the lightweight payload the card polls at the ~2s live cadence, vs the full snapshot. It reads the in-memory pose (`_read_inmem_pose`), loads the mtime-cached static geometry (`_load_live_pose_geom`) the normalization needs, and runs `map_source.live_pose_overlay`. Degrades to `{present: False, reason, diagnostics}`. (Used by the card *and* by the `_handle_get_map_live_pose` service and the server-side pose-sampler probe in `mapping/mapping_services.py`.)
+Returns **only the moving overlays** (robot/dock anchors + `current_room` + heading + live `path`) from eufy-clean's fresh in-memory pose — the lightweight payload the card polls at the ~2s live cadence, vs the full snapshot. It reads the in-memory pose (`_read_inmem_pose`), loads the mtime-cached static geometry (`_load_live_pose_geom`) the normalization needs, and runs `map_source.live_pose_overlay`. Degrades to `{present: False, reason, diagnostics}`. (Used by the card *and* by the `_handle_get_map_live_pose` service and the server-side pose-sampler probe in `mapping/mapping_services.py`.)
 
 ### 3.3 `async_compare_map_sources`
 
@@ -117,7 +117,7 @@ Returns **only the moving overlays** (robot/dock anchors + `current_room` + head
 async_compare_map_sources(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
-Diagnostic **verify probe (P1)**: reads the fork's in-memory `_map_data` AND the `.storage` `map_data` and compares them field-by-field via `map_source.compare_map_data`, to confirm the in-memory bytes are byte-identical *before* repointing the source to memory. Returns `{in_memory_present, storage_present, diagnostics, compare?}`, where `compare` carries a per-field comparison (rasters by len+sha1) and a `normalization_safe` verdict over the geometry/raster fields the decoders use. Adapter-driven via `map_state_source.memory`; degrades to a marker on absence.
+Diagnostic **verify probe (P1)**: reads eufy-clean's in-memory `_map_data` AND the `.storage` `map_data` and compares them field-by-field via `map_source.compare_map_data`, to confirm the in-memory bytes are byte-identical *before* repointing the source to memory. Returns `{in_memory_present, storage_present, diagnostics, compare?}`, where `compare` carries a per-field comparison (rasters by len+sha1) and a `normalization_safe` verdict over the geometry/raster fields the decoders use. Adapter-driven via `map_state_source.memory`; degrades to a marker on absence.
 
 ### 3.4 `async_get_map_render_data`
 
@@ -125,7 +125,7 @@ Diagnostic **verify probe (P1)**: reads the fork's in-memory `_map_data` AND the
 async_get_map_render_data(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
-Returns the raster + decode params for the card's **own** map render (Wave 1). Adapter-driven: the adapter's `map_render.format` selects the decode (only `eufy_room_pixels_v1` today), and the **source pointer is reused from `map_state_source`** (no duplicate schema). Memory-primary again — when a `memory` block is declared it reads the fork's in-memory raster first (`render_data_from_storage`) and falls back to the off-loop `.storage` read (`eufy_render_data_from_store`). The card calls this on demand (when the VA-rendered backdrop is selected) and caches by the returned `version`; the raster is static (changes only on a re-map), so it's fetch-once, not snapshot bloat. Degrades to `{present: False, reason}`.
+Returns the raster + decode params for the card's **own** map render (Wave 1). Adapter-driven: the adapter's `map_render.format` selects the decode (only `eufy_room_pixels_v1` today), and the **source pointer is reused from `map_state_source`** (no duplicate schema). Memory-primary again — when a `memory` block is declared it reads eufy-clean's in-memory raster first (`render_data_from_storage`) and falls back to the off-loop `.storage` read (`eufy_render_data_from_store`). The card calls this on demand (when the VA-rendered backdrop is selected) and caches by the returned `version`; the raster is static (changes only on a re-map), so it's fetch-once, not snapshot bloat. Degrades to `{present: False, reason}`.
 
 ---
 
@@ -145,14 +145,14 @@ The `_mem_rooms_cache` entry holds `{version, result, map_data}`. On a cache hit
 
 ## 5. The live-pose overlay path
 
-The static segmentation comes from `.storage` (or the in-memory `MapData`), but the robot *position* there (`robot_trail[-1]`) lags the fork's save-throttle and is the stale "robot frozen in the kitchen" ghost. So both the storage and memory backends layer the fork's fresh in-memory pose on top:
+The static segmentation comes from `.storage` (or the in-memory `MapData`), but the robot *position* there (`robot_trail[-1]`) lags eufy-clean's save-throttle and is the stale "robot frozen in the kitchen" ghost. So both the storage and memory backends layer eufy-clean's fresh in-memory pose on top:
 
-1. `_read_inmem_pose` finds the pose **holder** (the object carrying both a robot- and a dock-pixel attr, matched by **presence** because the fork *nulls* `_robot_pixel` while docked) via `map_source_runtime.eufy_live_pose_from_candidates`, and reads robot pixel (None when docked), dock pixel, trail, and heading off it.
+1. `_read_inmem_pose` finds the pose **holder** (the object carrying both a robot- and a dock-pixel attr, matched by **presence** because eufy-clean *nulls* `_robot_pixel` while docked) via `map_source_runtime.eufy_live_pose_from_candidates`, and reads robot pixel (None when docked), dock pixel, trail, and heading off it.
 2. `_apply_inmem_pose_to_result` builds the overlay (`map_source.live_pose_overlay`) and merges it with `map_source.apply_live_pose_override`, which **clears the live-pose-owned keys** (`current_room`, `path`) before merging so a stale `.storage` value can't survive next to a fresh dock anchor.
 
-Docked semantics: when the robot pixel is absent but a dock pixel resolves, the robot anchor resolves *to the dock* and `robot_docked` is flagged — mirroring the fork's own render and killing the stale-pose ghost. The whole override is defensive (a raising provider-internal property degrades to the base overlays rather than aborting the on-loop snapshot).
+Docked semantics: when the robot pixel is absent but a dock pixel resolves, the robot anchor resolves *to the dock* and `robot_docked` is flagged — mirroring eufy-clean's own render and killing the stale-pose ghost. The whole override is defensive (a raising provider-internal property degrades to the base overlays rather than aborting the on-loop snapshot).
 
-> The Eufy fork exposes the pose on `hass.data["robovac_mqtt"][<entry>]["coordinators"][0]` (an `EufyCleanCoordinator`): `_robot_pixel` (nulled while docked), `_dock_pixel`, `_robot_trail`. There is **no** in-memory heading attr (the fork bakes orientation into the rendered bytes); `heading_attrs` is kept future-proof but matches nothing today. See the adapter's `live_pose` block in [25-eufy-adapter](25-eufy-adapter.md#map_state_source).
+> The eufy-clean integration exposes the pose on `hass.data["robovac_mqtt"][<entry>]["coordinators"][0]` (an `EufyCleanCoordinator`): `_robot_pixel` (nulled while docked), `_dock_pixel`, `_robot_trail`. There is **no** in-memory heading attr (eufy-clean bakes orientation into the rendered bytes); `heading_attrs` is kept future-proof but matches nothing today. See the adapter's `live_pose` block in [25-eufy-adapter](25-eufy-adapter.md#map_state_source).
 
 ---
 

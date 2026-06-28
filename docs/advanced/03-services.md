@@ -479,7 +479,7 @@ Returns the raster plus decode parameters for the card's own map render — the 
 
 #### `get_map_live_pose`
 
-Returns only the live moving overlays — robot/dock anchors, current room, and heading — from the brand fork's fresh in-memory pose. This is the lightweight payload the card polls at the ~2-second live cadence, distinct from the full snapshot. Degrades gracefully when no live pose is available.
+Returns only the live moving overlays — robot/dock anchors, current room, and heading — from the brand integration's fresh in-memory pose. This is the lightweight payload the card polls at the ~2-second live cadence, distinct from the full snapshot. Degrades gracefully when no live pose is available.
 
 | Parameter | Required |
 |---|---|
@@ -487,7 +487,7 @@ Returns only the live moving overlays — robot/dock anchors, current room, and 
 
 #### `compare_map_sources`
 
-Diagnostic verify probe: compares the fork's in-memory `_map_data` against the `.storage` map data (rasters by length + SHA-1, per field) to confirm the in-memory bytes are byte-identical before repointing the map source to memory.
+Diagnostic verify probe: compares eufy-clean's in-memory `_map_data` against the `.storage` map data (rasters by length + SHA-1, per field) to confirm the in-memory bytes are byte-identical before repointing the map source to memory.
 
 | Parameter | Required |
 |---|---|
