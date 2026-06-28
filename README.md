@@ -101,6 +101,8 @@ After the initial install, open **Settings → Devices & Services → Vacuum Age
 
 Go to **Settings → Devices & Services**, find **Vacuum Agent**, and delete it. No extra steps are required — all integration data is stored inside Home Assistant and is removed with the entry.
 
+**Remove a single vacuum** (keeping the others): open **Settings → Devices & Services → Vacuum Agent**, click that vacuum's device, and choose **Delete**. Its sidebar panel, entities, and stored data are removed and the other managed vacuums are left untouched. Its learning history and saved map images stay on disk, so re-adding the same vacuum restores them.
+
 Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides the underlying `vacuum.*` entity. Removing Vacuum Agent does not remove eufy-clean; remove that separately if you no longer need it.
 
 ## What's included

@@ -10,6 +10,29 @@ only.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-28
+
+**Remove one vacuum, not the whole integration.** You can now delete a single
+managed vacuum from its device page — its panel, entities, and data are removed
+while your other vacuums keep running. Plus documentation refreshes.
+
+### Added
+- **Remove a single vacuum.** Deleting a managed vacuum's device in
+  **Settings → Devices & Services → Vacuum Agent** now removes just that vacuum
+  (its sidebar panel, entities, trackers, and stored data) instead of only
+  offering "Disable." The other managed vacuums are left untouched, and its
+  learning history and saved map images are retained on disk so re-adding the
+  same vacuum restores them. (Implements Home Assistant's
+  `async_remove_config_entry_device` hook.)
+
+### Documentation
+- README refreshed: a **Contributors** section (thanks @Nebr88 for the Roborock
+  duration / live-room fixes), the language packs surfaced, the live-map
+  prerequisite corrected to **eufy-clean v1.11.1+** (now in jeppesens mainline —
+  no fork), and the battery / map-tools wording tightened.
+- Developer docs: corrected the Eufy live-map sourcing throughout (jeppesens
+  mainline, not a community fork).
+
 ## [1.3.0] - 2026-06-27
 
 **The card speaks your language.** The whole card UI is now localizable — every
