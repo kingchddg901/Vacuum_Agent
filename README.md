@@ -22,6 +22,7 @@ A stock vacuum integration exposes basic start/stop/pause and a few entity state
 - **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs an eufy-clean build with zone-clean support. (A repeat-passes count is available via the `start_zone_clean` service for automations.)
 - **Live map, furnished render & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas. On a live-map layout you can also overlay a to-scale render of your real home: save the live map image to trace over, upload furnished art, then blend/align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
 - **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
+- **Speaks your language** — the whole panel card is localizable: a per-user language globe in the header, with **seven built-in translations** (German, French, Spanish, Dutch, Italian, Portuguese, Russian — AI-drafted, [native-reviewable](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)) plus drop-in support for your own locale. Follows your Home Assistant language by default; anything untranslated falls back to English.
 - **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
 
 ## Tested hardware
@@ -203,6 +204,7 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 - Maintenance tracking — reset maintenance counters from the UI; lifetime usage totals and dock firmware where the device reports them
 - Room drift detection — auto-surfaces new rooms for review, suppresses phantoms
 - Theme system — full theme editor with clipboard and file-based import/export
+- Multi-language card — per-user language picker, 7 built-in translations + drop-in locales (English fallback)
 - Accessibility — a validated colorblind-safe theme plus always-on shape-coded status badges
 
 ## Documentation
