@@ -2,7 +2,7 @@
 
 import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
 import {
-  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull,
+  esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull, defineCard,
 } from "./cards/_shared.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
@@ -154,7 +154,7 @@ class EufyRoomCardEditor extends HTMLElement {
   }
 }
 
-customElements.define(ROOM_CARD_EDITOR, EufyRoomCardEditor);
+defineCard(ROOM_CARD_EDITOR, EufyRoomCardEditor);
 
 /* ================================================================
    CARD
@@ -642,7 +642,7 @@ class EufyRoomCard extends HTMLElement {
   }
 }
 
-customElements.define(ROOM_CARD_NAME, EufyRoomCard);
+defineCard(ROOM_CARD_NAME, EufyRoomCard);
 
 window.customCards = window.customCards || [];
 window.customCards.push({

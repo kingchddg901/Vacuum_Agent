@@ -36,20 +36,24 @@ function hashTextures(dir) {
 }
 
 const deploy = process.argv.includes("--deploy");
-const outfile = deploy
-  ? "custom_components/eufy_vacuum/frontend/eufy-vacuum-command-center.js"
-  : "dist/eufy-vacuum-command-center.js";
+const outDir = deploy ? "custom_components/eufy_vacuum/frontend" : "dist";
+const outfile = `${outDir}/eufy-vacuum-command-center.js`;
+// Second, panel-free bundle: just the standalone Lovelace cards. Registered as a
+// global frontend module (add_extra_module_url) so the cards are defined on every
+// page, including a cold dashboard that never opens the sidebar panel.
+const cardsOutfile = `${outDir}/eufy-vacuum-cards.js`;
 
 const assetVer = hashTextures(TEXTURES_DIR);
 
-await esbuild.build({
-  entryPoints: ["src/all-cards.js"],
+const shared = {
   bundle: true,
   minify: true,
   format: "esm",
   target: "es2020",
   define: { __ASSET_VER__: JSON.stringify(assetVer) },
-  outfile,
-});
+};
 
-console.log(`built ${outfile}  (texture asset ver ${assetVer})`);
+await esbuild.build({ ...shared, entryPoints: ["src/all-cards.js"], outfile });
+await esbuild.build({ ...shared, entryPoints: ["src/cards-standalone.js"], outfile: cardsOutfile });
+
+console.log(`built ${outfile}\n      ${cardsOutfile}  (texture asset ver ${assetVer})`);

@@ -128,3 +128,14 @@ export function registerCard(entry) {
     window.customCards.push(entry);
   }
 }
+
+/**
+ * Define a custom element ONCE. The standalone cards ship in TWO bundles — the
+ * panel bundle (loaded when the sidebar panel opens) and the global cards bundle
+ * (loaded on every page via add_extra_module_url so the card is defined on a cold
+ * dashboard). Both try to define the same elements; a plain customElements.define
+ * throws "already defined" on the second. This guard makes it idempotent.
+ */
+export function defineCard(name, cls) {
+  if (!customElements.get(name)) customElements.define(name, cls);
+}

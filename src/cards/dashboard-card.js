@@ -14,7 +14,7 @@
 import {
   translate, resolveLang, ensureLocalesLoaded,
   esc, vocab, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
-  chipRow, callResponse, registerCard,
+  chipRow, callResponse, registerCard, defineCard,
 } from "./_shared.js";
 import { emptyArmed, nextArmed, roomsDisabled, planStart, armedIsValid } from "./dashboard-dispatch.js";
 
@@ -122,7 +122,7 @@ class EufyDashboardCardEditor extends HTMLElement {
   }
 }
 
-customElements.define(CARD_EDITOR, EufyDashboardCardEditor);
+defineCard(CARD_EDITOR, EufyDashboardCardEditor);
 
 /* ================================================================
    CARD
@@ -632,7 +632,7 @@ const CARD_CSS = `
   .spin { animation: spin 0.9s linear infinite; display: inline-block; }
 `;
 
-customElements.define(CARD_NAME, EufyDashboardCard);
+defineCard(CARD_NAME, EufyDashboardCard);
 
 registerCard({
   type: CARD_NAME,

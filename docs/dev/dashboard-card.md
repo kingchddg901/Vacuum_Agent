@@ -19,11 +19,19 @@
 > - Backend: `scene_select` declared in the Eufy adapter `entities` block, surfaced
 >   (existence-checked) on `get_dashboard_snapshot`, documented in
 >   `adapters/config_schema.py`. Roborock degrades to `None` (no scenes group).
-> - i18n: 27 new `vacuum_card.*` keys in `en.js` (7-locale translation = rollout track).
+> - Global cards bundle: `src/cards-standalone.js` builds to
+>   `frontend/eufy-vacuum-cards.js` (cards only, no panel) and is registered as a
+>   global ES module via `frontend.add_extra_js_url` in `async_setup` — so the card
+>   is defined on every page, including a cold dashboard that never opens the
+>   sidebar panel. A `defineCard` guard makes the panel bundle's duplicate define a
+>   no-op. (Resolves audit finding BUILD-3.)
+> - i18n: 28 new `vacuum_card.*` keys in `en.js` (7-locale translation = rollout track).
 >
-> **Verified:** 181 frontend `node --test` + 2786 backend pytest green; i18n +
-> styles gates clean; two-agent adversarial review (backend clean; 6 frontend
-> findings fixed). **Pending:** on-device visual check (clone), render-harness
+> **Verified:** 182 frontend `node --test` + 2787 backend pytest green; i18n +
+> styles gates clean; multi-agent adversarial review + a 12-agent pre-prod audit
+> (1 prod-blocker DC-1 — null per-room fields rejected by the backend schema,
+> aborting Start silently — fixed in both cards + regression-tested; plus 4
+> robustness/build nits). **Pending:** on-device visual check, render-harness
 > coverage, then merge → release (version bump + CHANGELOG + HACS).
 
 ## 1. Goal

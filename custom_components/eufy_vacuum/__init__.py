@@ -31,7 +31,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.helpers.event import async_call_later
 
-from ._frontend_url import panel_js_url
+from ._frontend_url import cards_module_url, panel_js_url
 from .panels import async_register_vacuum_panel, effective_panel_title, panel_url_for
 from .const import (
     CONF_VACUUM_ENTITY_ID,
@@ -199,6 +199,20 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
             StaticPathConfig("/eufy_vacuum/locales", locales_dir, cache_headers=False),
         ]
     )
+
+    # Register the standalone cards bundle as a GLOBAL frontend module, so the
+    # room-card and the dashboard card are defined on every HA page — including a
+    # cold dashboard that never opens the sidebar panel (a wall tablet, a hard
+    # refresh). add_extra_js_url with es5=False registers an ES module
+    # (DATA_EXTRA_MODULE_URL -> <script type="module">), which is the bundle's
+    # format. Two guards: the bundle must exist (an older deploy skips it rather
+    # than advertise a 404), and the frontend component must be set up (it's an
+    # after_dependency — present in real HA, absent in headless/test contexts, so
+    # we skip cleanly there). The full panel bundle also defines these cards; the
+    # frontend defineCard guard makes the double-registration a no-op.
+    cards_url = cards_module_url()
+    if cards_url and frontend.DATA_EXTRA_MODULE_URL in hass.data:
+        frontend.add_extra_js_url(hass, cards_url)
 
     return True
 

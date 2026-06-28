@@ -108,6 +108,25 @@ async def test_setup_and_unload(hass, mock_config_entry):
     assert DATA_RUNTIME not in hass.data.get(DOMAIN, {})
 
 
+async def test_global_cards_module_registered(hass, mock_config_entry):
+    """[INIT-1b] When the frontend component is present, async_setup registers the
+    standalone cards bundle as a GLOBAL es-module so the room-card + dashboard card
+    are defined on a cold dashboard that never opens the sidebar panel. The default
+    harness has no frontend (the call is guarded out), so seed the module-URL store
+    to exercise the positive path.
+    """
+    from homeassistant.components import frontend
+
+    hass.data[frontend.DATA_EXTRA_MODULE_URL] = set()
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+    registered = hass.data[frontend.DATA_EXTRA_MODULE_URL]
+    assert any("eufy-vacuum-cards.js" in u for u in registered), (
+        f"global cards module not registered: {registered}"
+    )
+
+
 async def test_setup_no_vacuum(hass, mock_entry_no_vacuum):
     """[INIT-2] no configured vacuum still loads (fallback panel branch)."""
     ok = await _setup(hass, mock_entry_no_vacuum)
