@@ -3,6 +3,7 @@
 import { translate, resolveLang, ensureLocalesLoaded } from "./i18n/index.js";
 import {
   esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull, defineCard,
+  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./cards/_shared.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
@@ -60,7 +61,11 @@ class EufyRoomCardEditor extends HTMLElement {
   }
 
   _fire(config) {
-    if (!config?.vacuum_entity_id || config?.room_id == null) return;
+    // Fire on any change once a vacuum is chosen — including when room_id is cleared
+    // (which happens on a vacuum SWAP). The old `room_id == null` guard swallowed that
+    // event, so the editor never re-registered the new vacuum and its rooms couldn't be
+    // picked. The card itself stays blank until a room is also chosen (its own guard).
+    if (!config?.vacuum_entity_id) return;
     this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
   }
 
@@ -169,6 +174,9 @@ class EufyRoomCard extends HTMLElement {
     this._fields   = null;   // unsaved local overrides
     this._saving   = false;
     this._starting = false;
+    this._langOverride = "auto";  // per-user language choice (loaded once)
+    this._langMenuOpen = false;
+    this._langLoaded   = false;
   }
 
   setConfig(config) {
@@ -179,6 +187,7 @@ class EufyRoomCard extends HTMLElement {
 
   set hass(hass) {
     this._hass = hass;
+    this._maybeLoadLang();
     // The non-English locales are runtime-loaded (ripped out of the bundle).
     // A standalone room-card on a view with NO main card is the only thing that
     // triggers this, so a German-pinned room-card isn't stuck on English.
@@ -186,8 +195,19 @@ class EufyRoomCard extends HTMLElement {
     this._render();
   }
 
-  t(key, vars)    { return translate(resolveLang(this._hass, this._config), key, vars); }
-  tRaw(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars, { raw: true }); }
+  // Load the per-user language choice ONCE (server-side, cross-device). Fails soft.
+  _maybeLoadLang() {
+    if (this._langLoaded || !this._hass) return;
+    this._langLoaded = true;
+    getStoredLang(this._hass).then((code) => {
+      if (this._langPicked || code == null || code === this._langOverride) return;
+      this._langOverride = code;
+      this._render();
+    });
+  }
+
+  t(key, vars)    { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars); }
+  tRaw(key, vars) { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars, { raw: true }); }
   tVocab(field, value, fallback) {
     if (value == null || value === "") return esc(fallback ?? "");
     const slug = String(value).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
@@ -493,6 +513,9 @@ class EufyRoomCard extends HTMLElement {
 
         @keyframes spin { to { transform: rotate(360deg); } }
         .spinning { animation: spin 0.9s linear infinite; display: inline-block; }
+        ${LANG_CSS}
+        .footer .room-lang { margin-right: auto; }
+        .room-lang .va-lang-menu { top: auto; bottom: calc(100% + 4px); }
       </style>
 
       <div class="card">
@@ -515,6 +538,12 @@ class EufyRoomCard extends HTMLElement {
         </div>
 
         <div class="footer">
+          <div class="room-lang">${renderLangControl({
+            t: (k, v) => this.t(k, v),
+            override: this._langOverride,
+            currentLang: resolveLang(this._hass, this._config, this._langOverride),
+            open: this._langMenuOpen,
+          })}</div>
           ${dirty ? `
           <button class="btn btn-save" id="save-btn" ${this._saving ? "disabled" : ""}>
             ${this._saving ? `<span class="spinning">↻</span> ${this.t("common.saving")}` : this.t("common.save")}
@@ -550,6 +579,19 @@ class EufyRoomCard extends HTMLElement {
     /* ---- save / start ---- */
     this.shadowRoot.getElementById("save-btn")?.addEventListener("click", () => this._handleSave());
     this.shadowRoot.getElementById("start-btn")?.addEventListener("click", () => this._handleStart());
+
+    /* ---- language control ---- */
+    wireLangControl(this.shadowRoot, {
+      toggle: () => { this._langMenuOpen = !this._langMenuOpen; this._render(); },
+      close:  () => { this._langMenuOpen = false; this._render(); },
+      set: (code) => {
+        this._langPicked = true;
+        this._langOverride = code;
+        this._langMenuOpen = false;
+        setStoredLang(this._hass, code);   // persist per-user (cross-device)
+        this._render();
+      },
+    });
   }
 
   // Toggle this room on (exclusive) or off. Turns off all other enabled rooms first.

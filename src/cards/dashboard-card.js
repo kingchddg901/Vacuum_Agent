@@ -15,6 +15,7 @@ import {
   translate, resolveLang, ensureLocalesLoaded,
   esc, vocab, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
   chipRow, callResponse, registerCard, defineCard, stripNull,
+  renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./_shared.js";
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
@@ -140,6 +141,9 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
+    this._langOverride = "auto"; // per-user language choice (loaded once)
+    this._langMenuOpen = false;
+    this._langLoaded = false;
     this._strictOrder = false;   // force strict room order on the run (Roborock)
     this._zoneDrafts = [];       // committed zone rects {x,y,w,h} in container pct
     this._cleanTimes = 1;        // start_zone_clean repeat count
@@ -183,6 +187,7 @@ class EufyDashboardCard extends HTMLElement {
   set hass(hass) {
     const prev = this._hass;
     this._hass = hass;
+    this._maybeLoadLang();
     ensureLocalesLoaded(() => this._render());
     const relevant = this._shouldRender(prev, hass);
     // If the card loaded before the integration was ready, the one-shot fetch
@@ -218,8 +223,19 @@ class EufyDashboardCard extends HTMLElement {
   getCardSize() { return 4; }
 
   /* ---- i18n shims ---- */
-  t(key, vars) { return translate(resolveLang(this._hass, this._config), key, vars); }
+  t(key, vars) { return translate(resolveLang(this._hass, this._config, this._langOverride), key, vars); }
   _tVocab(field, value, fallback) { return vocab((k, v) => this.t(k, v), field, value, fallback); }
+
+  // Load the per-user language choice ONCE (server-side, cross-device). Fails soft.
+  _maybeLoadLang() {
+    if (this._langLoaded || !this._hass) return;
+    this._langLoaded = true;
+    getStoredLang(this._hass).then((code) => {
+      if (this._langPicked || code == null || code === this._langOverride) return;
+      this._langOverride = code;
+      this._render();
+    });
+  }
 
   _vacuumId() { return this._config?.vacuum_entity_id ?? ""; }
 
@@ -349,7 +365,7 @@ class EufyDashboardCard extends HTMLElement {
     const armedSomething = this._armed.source != null || onCount > 0;
 
     this.shadowRoot.innerHTML = `
-      <style>${CARD_CSS}</style>
+      <style>${CARD_CSS}${LANG_CSS}</style>
       <div class="card">
         ${this._renderHeader(title, vacuumState)}
         ${this._renderMapSection()}
@@ -397,6 +413,12 @@ class EufyDashboardCard extends HTMLElement {
           ${status}
           ${Number.isFinite(battery) ? `<span class="batt">🔋 ${esc(Math.round(battery))}%</span>` : ""}
         </span>
+        ${renderLangControl({
+          t: (k, v) => this.t(k, v),
+          override: this._langOverride,
+          currentLang: resolveLang(this._hass, this._config, this._langOverride),
+          open: this._langMenuOpen,
+        })}
       </div>
     `;
   }
@@ -555,6 +577,18 @@ class EufyDashboardCard extends HTMLElement {
   _wire() {
     this._wireZoneMap();
     this._maybeMountMap();
+    wireLangControl(this.shadowRoot, {
+      toggle: () => { this._langMenuOpen = !this._langMenuOpen; this._render(); },
+      close: () => { this._langMenuOpen = false; this._render(); },
+      set: (code) => {
+        this._langPicked = true;
+        this._langOverride = code;
+        this._langMenuOpen = false;
+        setStoredLang(this._hass, code);   // persist per-user (cross-device)
+        this._syncMapLang();
+        this._render();
+      },
+    });
     // Collapse / expand the whole Rooms group
     const roomsToggle = this.shadowRoot.getElementById("rooms-toggle");
     if (roomsToggle) {
@@ -819,6 +853,11 @@ class EufyDashboardCard extends HTMLElement {
     this._loadAndMountMap(slot);
   }
 
+  // Push the card's language to the embedded map (its renderers read card._langOverride).
+  _syncMapLang() {
+    if (this._mapEl) { this._mapEl._langOverride = this._langOverride; this._mapEl._scheduleRender?.(); }
+  }
+
   async _loadAndMountMap() {
     if (this._mapEl || this._mapLoading) return;
     this._mapLoading = true;
@@ -836,6 +875,7 @@ class EufyDashboardCard extends HTMLElement {
     const slot = this.shadowRoot.getElementById("map-slot");
     if (!slot) return;
     this._mapEl = document.createElement("eufy-vacuum-map");
+    this._mapEl._langOverride = this._langOverride;   // map follows the card's language
     // hass before config so the host builds its state stack with hass already present.
     this._mapEl.hass = this._hass;
     this._mapEl.config = this._config;
@@ -897,6 +937,7 @@ const CARD_CSS = `
   .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; max-width: 480px; }
 
   .header { display: flex; align-items: baseline; gap: 10px; padding: 14px 16px 10px; flex-wrap: wrap; }
+  .header .va-lang { margin-left: auto; align-self: center; }
   .title { font-size: 1.0rem; font-weight: 700; color: var(--text-primary); }
   .meta { font-size: 0.80rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 8px; }
   .batt { white-space: nowrap; }
