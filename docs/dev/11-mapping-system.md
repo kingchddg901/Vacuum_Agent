@@ -754,7 +754,7 @@ This section is an orientation only; the full design — wave scope, both brand 
 | Module | Role |
 |--------|------|
 | `mapping/map_source.py` | Brand-agnostic, **HA-free pure** core. Turns the device's segmentation (raster + anchors) into normalised room data (per-room bbox + name + dock/robot anchors), in 0–1 of the *rendered* image (top-left origin, Y-flip applied) — the same space the card draws zones/labels in. Unit-testable without Home Assistant. |
-| `mapping/map_source_runtime.py` | The HA-aware runtime **locators** that find the provider's data and hand plain dicts to the pure core. Eufy uses the **storage backend** (reads the eufy-clean fork's `.storage/robovac_mqtt.<serial>` Store); Roborock uses the **memory backend** (a defensive introspector over the in-memory parsed `MapData` on the map image entity). Both apply the live-map presence gate and degrade to an absent marker — never raise. |
+| `mapping/map_source_runtime.py` | The HA-aware runtime **locators** that find the provider's data and hand plain dicts to the pure core. Eufy uses the **storage backend** (reads eufy-clean's `.storage/robovac_mqtt.<serial>` Store); Roborock uses the **memory backend** (a defensive introspector over the in-memory parsed `MapData` on the map image entity). Both apply the live-map presence gate and degrade to an absent marker — never raise. |
 | `mapping/map_source_coordinator.py` | `MapSourceCoordinator` — the async backend dispatcher (bundled-subsystem pattern, constructed with the core manager; extracted from `core/manager.py`, which keeps one-line delegators). |
 
 ### 11.2 Coordinator surface

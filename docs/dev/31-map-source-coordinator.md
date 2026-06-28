@@ -57,7 +57,7 @@ present = (live_img is not None) if source_cfg.get(
 ) else True
 ```
 
-Most backends require the live-map artifact (the same gate as the live backdrop), so plain non-fork eufy-clean — which has no `camera.<device>_map` — resolves to *not present* and segmentation features hide, exactly like the model/CV presence gates. An adapter can opt out with `present_requires_live_map_image: False`. The resolved `live_img` is also handed to the Roborock introspector (the parsed `MapData` likely lives on that image entity object).
+Most backends require the live-map artifact (the same gate as the live backdrop), so an older or plain eufy-clean install — which has no `camera.<device>_map` — resolves to *not present* and segmentation features hide, exactly like the model/CV presence gates. An adapter can opt out with `present_requires_live_map_image: False`. The resolved `live_img` is also handed to the Roborock introspector (the parsed `MapData` likely lives on that image entity object).
 
 ### 2.2 `storage` (and memory-primary)
 

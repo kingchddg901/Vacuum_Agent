@@ -198,10 +198,12 @@ which is a separate subsystem.
 
 The block also declares a best-effort live-map pattern,
 `"live_map_image_entity_pattern": "camera.{object_id}_map"`, targeting the
-community eufy-clean fork's `camera.<device>_map` live-map entity. Core fills
+`camera.<device>_map` live-map entity that jeppesens eufy-clean exposes in
+mainline (v1.11.0+). Core fills
 `{object_id}` from the vacuum entity's object_id and **existence-checks** the
-result, so a default-named fork install auto-resolves without picking, while
-plain (non-fork) Eufy installs resolve to `None` and are unaffected. When the
+result, so a default-named install auto-resolves without picking, while
+older or plain Eufy installs (no live-map camera) resolve to `None` and are
+unaffected. When the
 vacuum entity was renamed and the guess misses, the per-vacuum override (Setup
 tab "Live map camera", set via `setup_set_map_camera`) wins.
 **Pattern:** the live-map pattern is a brand-default guess, existence-gated, with
@@ -215,11 +217,11 @@ mascot anchors are auto-derived (immune to the per-session raw coordinate drift)
 Consumed by `mapping/map_source_coordinator.py`. Eufy declares a `storage` backend:
 `identifier_domain: "robovac_mqtt"`, a `store_key: "robovac_mqtt.{device_id}"`
 (filled from the `(robovac_mqtt, <serial>)` device-registry identifier), and a
-`store_version` guarding the fork's stored-wrapper shape (re-point the number if the
-fork bumps it). `present_requires_live_map_image: True` gates the whole block on the
-`camera.<device>_map` artifact, so plain non-fork installs resolve to "not present"
+`store_version` guarding eufy-clean's stored-wrapper shape (re-point the number if
+eufy-clean bumps it). `present_requires_live_map_image: True` gates the whole block on the
+`camera.<device>_map` artifact, so older or plain installs (no live-map camera) resolve to "not present"
 and the segmentation features hide — same presence-gate idea as the model/CV gates.
-Two sub-blocks override the static-storage source with the fork's **fresher
+Two sub-blocks override the static-storage source with eufy-clean's **fresher
 in-memory** state: `live_pose` (the `EufyCleanCoordinator`'s `_robot_pixel` /
 `_dock_pixel` / `_robot_trail` for the moving overlays, ~2 s fresh vs the
 save-throttled `.storage`) and `memory` (the in-memory `_map_data` MapData, fresher
@@ -230,7 +232,7 @@ presence gate) and *which* in-memory holders supersede it; core owns the read.
 
 ### `map_render`
 The VA-owned client-side map render — declares **how** the card sources the raster
-to draw its own full-grid backdrop (so overlays align with no fork-camera crop and
+to draw its own full-grid backdrop (so overlays align with no live-map-camera crop and
 the look is themeable). One key, `format: "eufy_room_pixels_v1"`, naming the decode;
 the card applies the explicit params `get_map_render_data` returns, so core/card stay
 brand-agnostic. The **source pointer** (`store_key` / `identifier_domain` /
