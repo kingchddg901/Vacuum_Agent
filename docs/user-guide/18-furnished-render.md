@@ -2,7 +2,7 @@
 
 Furnished render lets you put a **to-scale picture of your actual home** — with its real furniture — under the live map, so when the robot cleans you watch it drive across your living room, not an abstract blob map. The live robot, dock, cleaning path, and room overlays always ride on top.
 
-It works on any **live-map layout** (Roborock, and Eufy via the community camera fork) — the same live map you'd draw rooms over in [Making your own maps](16-making-your-own-maps.md). There's no complicated calibration: you line the art up over the live map once, by eye, and that alignment is all it needs.
+It works on any **live-map layout** (Roborock, and Eufy via the eufy-clean live-map camera) — the same live map you'd draw rooms over in [Making your own maps](16-making-your-own-maps.md). There's no complicated calibration: you line the art up over the live map once, by eye, and that alignment is all it needs.
 
 > **Where it lives:** open the map, go to **map configuration**, and select a **Live map** custom layout. The **Furnished render** panel appears in the side panel. It only shows on a live-map layout — if you don't see it, switch the layout's backdrop to the live map first.
 

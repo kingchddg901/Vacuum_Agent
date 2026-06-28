@@ -243,7 +243,7 @@ context in [Roborock adapter](../dev/29-roborock-adapter.md).
   geometry, plus the **in-memory live pose** for the moving overlays. `map_render`
   declares how the card sources the raster for its own VA-owned backdrop (the
   source pointer is reused from `map_state_source`, no duplicate schema). Eufy
-  declares both against the eufy-clean fork's storage backend; a brand whose
+  declares both against eufy-clean's storage backend; a brand whose
   integration already exposes frame-fresh map data (Roborock) omits them.
 - `room_attribution` — a pluggable engine that recovers **which** managed rooms an
   **external** (undispatched) run cleaned, from a per-tick pose time-series. A
