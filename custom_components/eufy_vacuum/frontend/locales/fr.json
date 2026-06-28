@@ -2330,5 +2330,60 @@
       "many": "{count} Passage",
       "other": "{count} Passages"
     }
+  },
+  "vacuum_card": {
+    "dock": "Station",
+    "start": "Démarrer",
+    "starting": "Démarrage…",
+    "start_failed": "Impossible de démarrer la tâche — vérifiez l'aspirateur et réessayez.",
+    "map_label": "Carte",
+    "map_loading": "Chargement de la carte…",
+    "rooms_label": "Pièces",
+    "no_rooms": "Aucune pièce trouvée pour cet aspirateur — importez d'abord une carte et configurez les pièces.",
+    "include_room": "Inclure cette pièce dans la tâche",
+    "profiles_label": "Vos profils",
+    "profiles_placeholder": "— lancer un profil enregistré —",
+    "scenes_label": "Scènes de l'application",
+    "scenes_placeholder": "— lancer une scène de l'application —",
+    "scenes_hint": "Sélectionner une scène l'arme ; elle se lance lorsque vous appuyez sur Démarrer.",
+    "zones_clear": "Effacer",
+    "zones_at_cap": "zones max",
+    "zones_hint": "Faites glisser sur la carte pour dessiner une zone à nettoyer",
+    "zones_failed": "Impossible de démarrer le nettoyage de zone — réessayez.",
+    "zone_remove": "Appuyez pour retirer cette zone",
+    "editor_title_label": "Titre de la carte",
+    "editor_title_placeholder": "Laissez vide pour utiliser le nom de l'aspirateur",
+    "editor_sections_label": "Sections",
+    "editor_sections_hint": "Masquez une section pour garder la carte compacte ; les sections se masquent aussi quand l'aspirateur ne les prend pas en charge.",
+    "editor_show_dock": "Afficher le bouton Station",
+    "editor_show_map": "Afficher la carte (dessiner des zones)",
+    "editor_show_profiles": "Afficher les profils enregistrés",
+    "editor_show_scenes": "Afficher les scènes de l'application",
+    "passes_n": {
+      "one": "{count} passage",
+      "other": "{count} passages"
+    },
+    "zones_clean": {
+      "one": "Nettoyer {count} zone",
+      "other": "Nettoyer {count} zones"
+    },
+    "zones_drawn": {
+      "one": "{count} zone dessinée",
+      "other": "{count} zones dessinées"
+    },
+    "rooms_selected": {
+      "one": "{count} sélectionnée",
+      "other": "{count} sélectionnées"
+    },
+    "status": {
+      "cleaning": "Nettoyage",
+      "docked": "À la station",
+      "error": "Erreur",
+      "idle": "Inactif",
+      "paused": "En pause",
+      "returning": "Retour à la station",
+      "unavailable": "Indisponible",
+      "unknown": "Inconnu"
+    }
   }
 }

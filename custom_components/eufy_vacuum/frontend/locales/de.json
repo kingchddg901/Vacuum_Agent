@@ -2315,5 +2315,60 @@
       "one": "{count} Durchgang",
       "other": "{count} Durchgänge"
     }
+  },
+  "vacuum_card": {
+    "dock": "Station",
+    "start": "Start",
+    "starting": "Wird gestartet…",
+    "start_failed": "Lauf konnte nicht gestartet werden — prüfe den Saugroboter und versuche es erneut.",
+    "map_label": "Karte",
+    "map_loading": "Karte wird geladen…",
+    "rooms_label": "Räume",
+    "no_rooms": "Keine Räume für diesen Saugroboter gefunden — importiere zuerst eine Karte und konfiguriere Räume.",
+    "include_room": "Diesen Raum in den Lauf einbeziehen",
+    "profiles_label": "Deine Profile",
+    "profiles_placeholder": "— gespeichertes Profil ausführen —",
+    "scenes_label": "App-Szenen",
+    "scenes_placeholder": "— App-Szene ausführen —",
+    "scenes_hint": "Das Auswählen einer Szene aktiviert sie; sie läuft, wenn du auf Start drückst.",
+    "zones_clear": "Löschen",
+    "zones_at_cap": "max. Zonen",
+    "zones_hint": "Auf der Karte ziehen, um eine Zone zum Reinigen zu zeichnen",
+    "zones_failed": "Zonenreinigung konnte nicht gestartet werden — versuche es erneut.",
+    "zone_remove": "Tippen, um diese Zone zu entfernen",
+    "editor_title_label": "Kartentitel",
+    "editor_title_placeholder": "Leer lassen, um den Saugroboternamen zu verwenden",
+    "editor_sections_label": "Abschnitte",
+    "editor_sections_hint": "Blende einen Abschnitt aus, um die Karte kompakt zu halten; Abschnitte werden auch ausgeblendet, wenn der Saugroboter sie nicht unterstützt.",
+    "editor_show_dock": "Stationsschaltfläche anzeigen",
+    "editor_show_map": "Karte anzeigen (Zonen zeichnen)",
+    "editor_show_profiles": "Gespeicherte Profile anzeigen",
+    "editor_show_scenes": "App-Szenen anzeigen",
+    "passes_n": {
+      "one": "{count} Durchgang",
+      "other": "{count} Durchgänge"
+    },
+    "zones_clean": {
+      "one": "{count} Zone reinigen",
+      "other": "{count} Zonen reinigen"
+    },
+    "zones_drawn": {
+      "one": "{count} Zone gezeichnet",
+      "other": "{count} Zonen gezeichnet"
+    },
+    "rooms_selected": {
+      "one": "{count} ausgewählt",
+      "other": "{count} ausgewählt"
+    },
+    "status": {
+      "cleaning": "Reinigt",
+      "docked": "Angedockt",
+      "error": "Fehler",
+      "idle": "Inaktiv",
+      "paused": "Pausiert",
+      "returning": "Rückkehr zur Station",
+      "unavailable": "Nicht verfügbar",
+      "unknown": "Unbekannt"
+    }
   }
 }

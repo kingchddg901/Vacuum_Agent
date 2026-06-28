@@ -2315,5 +2315,60 @@
       "one": "{count} veegbeurt",
       "other": "{count} veegbeurten"
     }
+  },
+  "vacuum_card": {
+    "dock": "Dock",
+    "start": "Starten",
+    "starting": "Starten…",
+    "start_failed": "Kan de run niet starten — controleer de stofzuiger en probeer het opnieuw.",
+    "map_label": "Kaart",
+    "map_loading": "Kaart laden…",
+    "rooms_label": "Kamers",
+    "no_rooms": "Geen kamers gevonden voor deze stofzuiger — importeer eerst een kaart en configureer kamers.",
+    "include_room": "Deze kamer in de run opnemen",
+    "profiles_label": "Jouw profielen",
+    "profiles_placeholder": "— een opgeslagen profiel uitvoeren —",
+    "scenes_label": "App-scènes",
+    "scenes_placeholder": "— een app-scène uitvoeren —",
+    "scenes_hint": "Een scène selecteren activeert deze; hij wordt uitgevoerd als je op Starten drukt.",
+    "zones_clear": "Wissen",
+    "zones_at_cap": "max. zones",
+    "zones_hint": "Sleep over de kaart om een zone te tekenen om schoon te maken",
+    "zones_failed": "Kan het zone schoonmaken niet starten — probeer het opnieuw.",
+    "zone_remove": "Tik om deze zone te verwijderen",
+    "editor_title_label": "Kaarttitel",
+    "editor_title_placeholder": "Laat leeg om de stofzuigernaam te gebruiken",
+    "editor_sections_label": "Secties",
+    "editor_sections_hint": "Verberg een sectie om de kaart compact te houden; secties worden ook verborgen als de stofzuiger ze niet ondersteunt.",
+    "editor_show_dock": "Dockknop tonen",
+    "editor_show_map": "Kaart tonen (zones tekenen)",
+    "editor_show_profiles": "Opgeslagen profielen tonen",
+    "editor_show_scenes": "App-scènes tonen",
+    "passes_n": {
+      "one": "{count} beurt",
+      "other": "{count} beurten"
+    },
+    "zones_clean": {
+      "one": "{count} zone schoonmaken",
+      "other": "{count} zones schoonmaken"
+    },
+    "zones_drawn": {
+      "one": "{count} zone getekend",
+      "other": "{count} zones getekend"
+    },
+    "rooms_selected": {
+      "one": "{count} geselecteerd",
+      "other": "{count} geselecteerd"
+    },
+    "status": {
+      "cleaning": "Schoonmaken",
+      "docked": "Gedockt",
+      "error": "Fout",
+      "idle": "Inactief",
+      "paused": "Gepauzeerd",
+      "returning": "Keert terug naar dock",
+      "unavailable": "Niet beschikbaar",
+      "unknown": "Onbekend"
+    }
   }
 }

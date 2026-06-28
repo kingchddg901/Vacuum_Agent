@@ -2329,5 +2329,60 @@
       "one": "{count} pasada",
       "other": "{count} pasadas"
     }
+  },
+  "vacuum_card": {
+    "dock": "Base",
+    "start": "Iniciar",
+    "starting": "Iniciando…",
+    "start_failed": "No se pudo iniciar la limpieza; revisa el aspirador e inténtalo de nuevo.",
+    "map_label": "Mapa",
+    "map_loading": "Cargando mapa…",
+    "rooms_label": "Habitaciones",
+    "no_rooms": "No se encontraron habitaciones para este aspirador; importa un mapa y configura las habitaciones primero.",
+    "include_room": "Incluir esta habitación en la limpieza",
+    "profiles_label": "Tus perfiles",
+    "profiles_placeholder": "— ejecuta un perfil guardado —",
+    "scenes_label": "Escenas de la app",
+    "scenes_placeholder": "— ejecuta una escena de la app —",
+    "scenes_hint": "Al seleccionar una escena, queda lista; se ejecuta cuando pulsas Iniciar.",
+    "zones_clear": "Borrar",
+    "zones_at_cap": "máx. de zonas",
+    "zones_hint": "Arrastra sobre el mapa para dibujar una zona a limpiar",
+    "zones_failed": "No se pudo iniciar la limpieza por zona; inténtalo de nuevo.",
+    "zone_remove": "Toca para quitar esta zona",
+    "editor_title_label": "Título de la tarjeta",
+    "editor_title_placeholder": "Déjalo en blanco para usar el nombre del aspirador",
+    "editor_sections_label": "Secciones",
+    "editor_sections_hint": "Oculta una sección para mantener la tarjeta compacta; las secciones también se ocultan cuando el aspirador no las admite.",
+    "editor_show_dock": "Mostrar botón de base",
+    "editor_show_map": "Mostrar mapa (dibujar zonas)",
+    "editor_show_profiles": "Mostrar perfiles guardados",
+    "editor_show_scenes": "Mostrar escenas de la app",
+    "passes_n": {
+      "one": "{count} pasada",
+      "other": "{count} pasadas"
+    },
+    "zones_clean": {
+      "one": "Limpiar {count} zona",
+      "other": "Limpiar {count} zonas"
+    },
+    "zones_drawn": {
+      "one": "{count} zona dibujada",
+      "other": "{count} zonas dibujadas"
+    },
+    "rooms_selected": {
+      "one": "{count} seleccionada",
+      "other": "{count} seleccionadas"
+    },
+    "status": {
+      "cleaning": "Limpiando",
+      "docked": "En la base",
+      "error": "Error",
+      "idle": "Inactivo",
+      "paused": "Pausado",
+      "returning": "Regresando a la base",
+      "unavailable": "No disponible",
+      "unknown": "Desconocido"
+    }
   }
 }

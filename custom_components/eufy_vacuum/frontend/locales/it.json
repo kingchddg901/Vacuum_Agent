@@ -2315,5 +2315,60 @@
       "one": "{count} passaggio",
       "other": "{count} passaggi"
     }
+  },
+  "vacuum_card": {
+    "dock": "Base",
+    "start": "Avvia",
+    "starting": "Avvio…",
+    "start_failed": "Impossibile avviare l'esecuzione — controlla l'aspirapolvere e riprova.",
+    "map_label": "Mappa",
+    "map_loading": "Caricamento mappa…",
+    "rooms_label": "Stanze",
+    "no_rooms": "Nessuna stanza trovata per questo aspirapolvere — importa prima una mappa e configura le stanze.",
+    "include_room": "Includi questa stanza nell'esecuzione",
+    "profiles_label": "I tuoi profili",
+    "profiles_placeholder": "— esegui un profilo salvato —",
+    "scenes_label": "Scene dell'app",
+    "scenes_placeholder": "— esegui una scena dell'app —",
+    "scenes_hint": "Selezionando una scena la attivi; verrà eseguita quando premi Avvia.",
+    "zones_clear": "Cancella",
+    "zones_at_cap": "max zone",
+    "zones_hint": "Trascina sulla mappa per disegnare una zona da pulire",
+    "zones_failed": "Impossibile avviare la pulizia a zone — riprova.",
+    "zone_remove": "Tocca per rimuovere questa zona",
+    "editor_title_label": "Titolo della scheda",
+    "editor_title_placeholder": "Lascia vuoto per usare il nome dell'aspirapolvere",
+    "editor_sections_label": "Sezioni",
+    "editor_sections_hint": "Nascondi una sezione per mantenere compatta la scheda; le sezioni si nascondono anche quando l'aspirapolvere non le supporta.",
+    "editor_show_dock": "Mostra pulsante base",
+    "editor_show_map": "Mostra mappa (disegna zone)",
+    "editor_show_profiles": "Mostra profili salvati",
+    "editor_show_scenes": "Mostra scene dell'app",
+    "passes_n": {
+      "one": "{count} passaggio",
+      "other": "{count} passaggi"
+    },
+    "zones_clean": {
+      "one": "Pulisci {count} zona",
+      "other": "Pulisci {count} zone"
+    },
+    "zones_drawn": {
+      "one": "{count} zona disegnata",
+      "other": "{count} zone disegnate"
+    },
+    "rooms_selected": {
+      "one": "{count} selezionata",
+      "other": "{count} selezionate"
+    },
+    "status": {
+      "cleaning": "In pulizia",
+      "docked": "In base",
+      "error": "Errore",
+      "idle": "Inattivo",
+      "paused": "In pausa",
+      "returning": "Ritorno alla base",
+      "unavailable": "Non disponibile",
+      "unknown": "Sconosciuto"
+    }
   }
 }

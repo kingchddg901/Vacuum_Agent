@@ -2328,5 +2328,60 @@
       "one": "{count} passagem",
       "other": "{count} passagens"
     }
+  },
+  "vacuum_card": {
+    "dock": "Para a base",
+    "start": "Iniciar",
+    "starting": "A iniciar…",
+    "start_failed": "Não foi possível iniciar a execução — verifique o aspirador e tente novamente.",
+    "map_label": "Mapa",
+    "map_loading": "A carregar o mapa…",
+    "rooms_label": "Divisões",
+    "no_rooms": "Nenhuma divisão encontrada para este aspirador — importe um mapa e configure as divisões primeiro.",
+    "include_room": "Incluir esta divisão na execução",
+    "profiles_label": "Os seus perfis",
+    "profiles_placeholder": "— executar um perfil guardado —",
+    "scenes_label": "Cenas da aplicação",
+    "scenes_placeholder": "— executar uma cena da aplicação —",
+    "scenes_hint": "Selecionar uma cena arma-a; é executada quando premir Iniciar.",
+    "zones_clear": "Limpar",
+    "zones_at_cap": "máx. de zonas",
+    "zones_hint": "Arraste no mapa para desenhar uma zona a limpar",
+    "zones_failed": "Não foi possível iniciar a limpeza por zona — tente novamente.",
+    "zone_remove": "Toque para remover esta zona",
+    "editor_title_label": "Título do cartão",
+    "editor_title_placeholder": "Deixe em branco para usar o nome do aspirador",
+    "editor_sections_label": "Secções",
+    "editor_sections_hint": "Oculte uma secção para manter o cartão compacto; as secções também são ocultadas quando o aspirador não as suporta.",
+    "editor_show_dock": "Mostrar botão da base",
+    "editor_show_map": "Mostrar mapa (desenhar zonas)",
+    "editor_show_profiles": "Mostrar perfis guardados",
+    "editor_show_scenes": "Mostrar cenas da aplicação",
+    "passes_n": {
+      "one": "{count} passagem",
+      "other": "{count} passagens"
+    },
+    "zones_clean": {
+      "one": "Limpar {count} zona",
+      "other": "Limpar {count} zonas"
+    },
+    "zones_drawn": {
+      "one": "{count} zona desenhada",
+      "other": "{count} zonas desenhadas"
+    },
+    "rooms_selected": {
+      "one": "{count} selecionada",
+      "other": "{count} selecionadas"
+    },
+    "status": {
+      "cleaning": "A limpar",
+      "docked": "Na base",
+      "error": "Erro",
+      "idle": "Inativo",
+      "paused": "Em pausa",
+      "returning": "A regressar à base",
+      "unavailable": "Indisponível",
+      "unknown": "Desconhecido"
+    }
   }
 }
