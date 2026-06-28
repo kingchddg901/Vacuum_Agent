@@ -26,6 +26,14 @@ import { mapStyles } from "../styles/map.js";
 const ANIMAL_SVG_URL = "/eufy_vacuum/frontend/animal-svg/manifest.js";
 let _animalSvgLoaded = false;
 
+// The panel lays the map + its control panels out in a 2-column workspace; the narrow
+// embedded card stacks them vertically instead (map on top, controls below).
+const EMBED_CSS = `
+  .evcc-map-embed { display: flex; flex-direction: column; gap: 10px; }
+  .evcc-map-embed-controls { display: flex; flex-direction: column; gap: 10px; }
+  .evcc-map-embed-controls:empty { display: none; }
+`;
+
 class EufyVacuumMap extends HTMLElement {
   constructor() {
     super();
@@ -215,17 +223,29 @@ class EufyVacuumMap extends HTMLElement {
 
   _render() {
     if (!this._hass || !this._config || !this._state || !this._renderers) return;
+    const state = this._state;
+    const r = this._renderers;
     // Minimal ctx — renderMapRoomView only reads ctx.{state,vacuumStatus} + this.* helpers.
-    const ctx = {
-      card: this,
-      state: this._state,
-      renderers: this._renderers,
-      vacuumStatus: this._state.vacuumState?.() ?? "unknown",
-    };
+    const ctx = { card: this, state, renderers: r, vacuumStatus: state.vacuumState?.() ?? "unknown" };
     try {
+      const map = r.renderMapRoomView(ctx);
+      // The map's CONTROL panels render in the panel's sidebar column, NOT inside
+      // renderMapRoomView — bring them in (stacked under the map for the narrow card):
+      //   - the ZONE panel (settings + drawn-zone list + Clean/Clear) when draw mode is on,
+      //   - the render-LAYERS panel (VA-render toggle + overlay visibility) when overlays align.
+      // Same gates + signatures as renderers/rooms.js; _bindMap (below) wires both.
+      const zonePanel =
+        (state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
+          ? r._renderZonePanel(state, state.zoneDrafts?.() ?? [], state.zoneCount?.() ?? 0, state.zoneMax?.() ?? 10)
+          : "";
+      const layersPanel =
+        (state.isMapViewActive?.() && (state.overlaysAligned?.() ?? false) && typeof r._renderMapLayersPanel === "function")
+          ? r._renderMapLayersPanel(state)
+          : "";
       this.shadowRoot.innerHTML =
-        `<style>:host{display:block}${mapStyles}</style>` +
-        this._renderers.renderMapRoomView(ctx);
+        `<style>:host{display:block}${mapStyles}${EMBED_CSS}</style>` +
+        `<div class="evcc-map-embed">${map}` +
+        `<div class="evcc-map-embed-controls">${zonePanel}${layersPanel}</div></div>`;
       this._bindings._bindMap();
     } catch (err) {
       console.error("[eufy-vacuum-map] render failed", err);
