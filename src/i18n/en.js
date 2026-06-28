@@ -983,11 +983,20 @@ export const en = {
   "vacuum_card.editor_sections_hint": "Hide a section to keep the card compact; sections also hide when the vacuum doesn't support them.",
   "vacuum_card.editor_sections_label": "Sections",  // editor group label for the show/hide toggles below it
   "vacuum_card.editor_show_dock": "Show dock button",
+  "vacuum_card.editor_show_map": "Show map (draw zones)",  // toggle: show the live-map zone-draw section
   "vacuum_card.editor_show_profiles": "Show saved profiles",  // toggle: show the saved run-profiles dropdown
   "vacuum_card.editor_show_scenes": "Show app scenes",  // toggle: show the vendor-app scenes dropdown (Eufy only)
   "vacuum_card.editor_title_label": "Card title",
   "vacuum_card.editor_title_placeholder": "Leave blank to use the vacuum name",
   "vacuum_card.include_room": "Include this room in the run",  // tooltip on the per-room include checkbox
+  "vacuum_card.map_label": "Map",  // section label above the live-map zone-draw surface
+  "vacuum_card.zone_remove": "Tap to remove this zone",  // tooltip on a drawn zone rectangle
+  "vacuum_card.zones_at_cap": "max zones",  // appended to the hint when the per-clean zone cap is reached
+  "vacuum_card.zones_clean": { one: "Clean {count} zone", other: "Clean {count} zones" },  // button: start cleaning the drawn zones
+  "vacuum_card.zones_clear": "Clear",  // button: discard all drawn zones
+  "vacuum_card.zones_drawn": { one: "{count} zone drawn", other: "{count} zones drawn" },  // status: how many zones are drawn
+  "vacuum_card.zones_failed": "Couldn't start the zone clean — try again.",  // toast when start_zone_clean fails
+  "vacuum_card.zones_hint": "Drag on the map to draw a zone to clean",  // instruction shown before any zone is drawn
   "vacuum_card.no_rooms": "No rooms found for this vacuum — import a map and configure rooms first.",
   "vacuum_card.passes_n": { one: "{count} Pass", other: "{count} Passes" },  // chip: number of cleaning sweeps over the room
   "vacuum_card.profiles_label": "Your profiles",  // section label for the saved run-profiles launcher

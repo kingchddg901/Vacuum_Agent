@@ -17,6 +17,7 @@ import {
   chipRow, callResponse, registerCard, defineCard,
 } from "./_shared.js";
 import { emptyArmed, nextArmed, roomsDisabled, planStart, armedIsValid } from "./dashboard-dispatch.js";
+import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -93,6 +94,7 @@ class EufyDashboardCardEditor extends HTMLElement {
           <label class="toggle"><input id="show_profiles" type="checkbox" ${bool("show_profiles", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_profiles")}</label>
           <label class="toggle"><input id="show_scenes" type="checkbox" ${bool("show_scenes", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_scenes")}</label>
           <label class="toggle"><input id="show_dock" type="checkbox" ${bool("show_dock", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_dock")}</label>
+          <label class="toggle"><input id="show_map" type="checkbox" ${bool("show_map", true) ? "checked" : ""}> ${this.t("vacuum_card.editor_show_map")}</label>
         </div>
         <div class="hint">${this.t("vacuum_card.editor_sections_hint")}</div>
       </div>
@@ -107,7 +109,7 @@ class EufyDashboardCardEditor extends HTMLElement {
       if (val) next.title = val; else delete next.title;
       this._fire(next);
     });
-    for (const key of ["show_profiles", "show_scenes", "show_dock"]) {
+    for (const key of ["show_profiles", "show_scenes", "show_dock", "show_map"]) {
       this.shadowRoot.getElementById(key)?.addEventListener("change", (e) => {
         this._fire({ ...this._config, [key]: e.target.checked });
       });
@@ -138,6 +140,10 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
+    this._zoneDrafts = [];       // committed zone rects {x,y,w,h} in container pct
+    this._cleanTimes = 1;        // start_zone_clean repeat count
+    this._drawing = false;       // active rubber-band drag (suppresses re-render)
+    this._cleaningZones = false; // zone dispatch in flight
     this._snapshot = null;       // get_dashboard_snapshot payload (fetched once)
     this._profiles = [];         // get_saved_run_profiles list (fetched once)
     this._fetchedFor = null;     // vacuum id the above were fetched for
@@ -152,6 +158,10 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
+    this._zoneDrafts = [];
+    this._cleanTimes = 1;
+    this._drawing = false;
+    this._cleaningZones = false;
     this._starting = false;
     this._snapshot = null;
     this._profiles = [];
@@ -176,9 +186,11 @@ class EufyDashboardCard extends HTMLElement {
     if (relevant) this._render();
   }
 
-  /** True iff the vacuum, a managed room switch, or the scene entity changed. */
+  /** True iff the vacuum, a managed room switch, the scene, or the live map changed. */
   _shouldRender(prev, hass) {
     if (!prev) return true;
+    // Never rebuild the DOM mid-draw — it would wipe the in-progress zone box.
+    if (this._drawing) return false;
     const vid = this._vacuumId();
     if (prev.states?.[vid] !== hass.states?.[vid]) return true;
     const ids = new Set();
@@ -187,6 +199,8 @@ class EufyDashboardCard extends HTMLElement {
     for (const id of ids) if (prev.states?.[id] !== hass.states?.[id]) return true;
     const scene = this._snapshot?.scene_select;
     if (scene && prev.states?.[scene] !== hass.states?.[scene]) return true;
+    const mapEnt = this._snapshot?.live_map_image_entity;
+    if (mapEnt && prev.states?.[mapEnt] !== hass.states?.[mapEnt]) return true;
     return false;
   }
 
@@ -236,6 +250,28 @@ class EufyDashboardCard extends HTMLElement {
     // resolves the active map itself rather than receiving an empty string.
     return mapId != null ? String(mapId) : undefined;
   }
+
+  /* ---- zone map (draw-a-box → start_zone_clean) ---- */
+
+  _liveMapUrl() {
+    const id = this._snapshot?.live_map_image_entity;
+    return id ? (this._hass?.states?.[id]?.attributes?.entity_picture ?? null) : null;
+  }
+
+  // The zone-draw map shows only when enabled + the provider supports zone clean +
+  // a live-map image actually resolves (you draw the box on that image).
+  _canZone() {
+    return this._config?.show_map !== false
+      && this._snapshot?.supports_zone_clean === true
+      && !!this._liveMapUrl();
+  }
+
+  _zoneMax() {
+    const m = this._snapshot?.zone_max;
+    return (typeof m === "number" && m > 0) ? m : ZONE_MAX_FALLBACK;
+  }
+
+  _mapRotation() { return normRotation(this._snapshot?.live_map_rotation ?? 0); }
 
   _sceneEntityId() {
     if (this._config?.show_scenes === false) return null;
@@ -303,6 +339,7 @@ class EufyDashboardCard extends HTMLElement {
       <style>${CARD_CSS}</style>
       <div class="card">
         ${this._renderHeader(title, vacuumState)}
+        ${this._renderZoneMap()}
         ${rooms.length
           ? `<div class="section rooms ${disabled ? "is-disabled" : ""} ${this._roomsCollapsed ? "is-collapsed" : ""}">
                <div class="group-head" id="rooms-toggle" role="button" tabindex="0" aria-expanded="${!this._roomsCollapsed}">
@@ -418,6 +455,42 @@ class EufyDashboardCard extends HTMLElement {
     `;
   }
 
+  _renderZoneMap() {
+    if (!this._canZone()) return "";
+    const url = this._liveMapUrl();
+    const rot = this._mapRotation();
+    const n = this._zoneDrafts.length;
+    const atCap = n >= this._zoneMax();
+    const rects = this._zoneDrafts.map((d, i) => `
+      <div class="zone-rect" data-zone="${i}" style="left:${d.x}%;top:${d.y}%;width:${d.w}%;height:${d.h}%" title="${this.t("vacuum_card.zone_remove")}">
+        <span class="zone-num">${i + 1}</span>
+      </div>`).join("");
+    return `
+      <div class="section zone">
+        <div class="section-label">${this.t("vacuum_card.map_label")}</div>
+        <div class="zone-surface" id="zone-surface">
+          <div class="zone-rotator" style="transform: rotate(${rot}deg)">
+            <img class="zone-img" id="zone-img" src="${esc(url)}" draggable="false" alt="">
+          </div>
+          <div class="zone-overlay">
+            ${rects}
+            <div class="zone-draft-live" id="zone-draft-live"></div>
+          </div>
+        </div>
+        <div class="zone-bar">
+          <span class="zone-hint">${n ? this.t("vacuum_card.zones_drawn", { count: n }) : this.t("vacuum_card.zones_hint")}${atCap ? ` · ${this.t("vacuum_card.zones_at_cap")}` : ""}</span>
+          <span class="spacer"></span>
+          <button class="chip ${this._cleanTimes === 1 ? "active" : ""}" id="zone-times-1">1×</button>
+          <button class="chip ${this._cleanTimes === 2 ? "active" : ""}" id="zone-times-2">2×</button>
+          ${n ? `<button class="btn" id="zone-clear">${this.t("vacuum_card.zones_clear")}</button>` : ""}
+          <button class="btn btn-start" id="zone-clean" ${(!n || this._cleaningZones) ? "disabled" : ""}>
+            ${this._cleaningZones ? `<span class="spin">↻</span> ` : ""}${this.t("vacuum_card.zones_clean", { count: n })}
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
   _renderLauncher() {
     const showProfiles = this._profilesShown();
     const scenes = this._sceneOptions();
@@ -454,6 +527,7 @@ class EufyDashboardCard extends HTMLElement {
      ========================================================= */
 
   _wire() {
+    this._wireZoneMap();
     // Collapse / expand the whole Rooms group
     const roomsToggle = this.shadowRoot.getElementById("rooms-toggle");
     if (roomsToggle) {
@@ -579,6 +653,98 @@ class EufyDashboardCard extends HTMLElement {
     await this._hass.callService("vacuum", "return_to_base", { entity_id: this._vacuumId() });
   }
 
+  /* =========================================================
+     ZONE MAP — draw-a-box, then Clean N zones
+     ========================================================= */
+
+  _wireZoneMap() {
+    const surface = this.shadowRoot.getElementById("zone-surface");
+    if (!surface) return;
+    const live = this.shadowRoot.getElementById("zone-draft-live");
+
+    // Pointer position as 0-100 pct of the (unrotated) square surface, clamped.
+    const pct = (e) => {
+      const r = surface.getBoundingClientRect();
+      const clamp = (v) => Math.min(Math.max(v, 0), 100);
+      return { x: clamp(((e.clientX - r.left) / r.width) * 100), y: clamp(((e.clientY - r.top) / r.height) * 100) };
+    };
+    let start = null;
+    const boxOf = (a, b) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) });
+
+    surface.addEventListener("pointerdown", (e) => {
+      // Clicking an existing zone removes it (handled below); don't start a draw.
+      if (e.target.closest(".zone-rect")) return;
+      if (this._zoneDrafts.length >= this._zoneMax()) return;
+      start = pct(e);
+      this._drawing = true;   // suppress hass-driven re-render mid-draw
+      surface.setPointerCapture?.(e.pointerId);
+      e.preventDefault();
+    });
+    surface.addEventListener("pointermove", (e) => {
+      if (!start || !live) return;
+      const b = boxOf(start, pct(e));
+      live.style.cssText = `display:block;left:${b.x}%;top:${b.y}%;width:${b.w}%;height:${b.h}%`;
+    });
+    const finish = (e) => {
+      if (!start) return;
+      const b = boxOf(start, pct(e));
+      start = null;
+      this._drawing = false;
+      if (live) live.style.cssText = "display:none";
+      // Drop a stray tap (needs a real box); cap defended here too.
+      if (b.w >= 1 && b.h >= 1 && this._zoneDrafts.length < this._zoneMax()) {
+        this._zoneDrafts.push(b);
+      }
+      this._render();
+    };
+    surface.addEventListener("pointerup", finish);
+    surface.addEventListener("pointercancel", finish);
+
+    // Remove a committed zone by clicking it.
+    this.shadowRoot.querySelectorAll(".zone-rect").forEach((el) => {
+      el.addEventListener("click", () => {
+        const i = Number(el.dataset.zone);
+        if (Number.isInteger(i) && i >= 0 && i < this._zoneDrafts.length) {
+          this._zoneDrafts.splice(i, 1);
+          this._render();
+        }
+      });
+    });
+
+    this.shadowRoot.getElementById("zone-times-1")?.addEventListener("click", () => { this._cleanTimes = 1; this._render(); });
+    this.shadowRoot.getElementById("zone-times-2")?.addEventListener("click", () => { this._cleanTimes = 2; this._render(); });
+    this.shadowRoot.getElementById("zone-clear")?.addEventListener("click", () => { this._zoneDrafts = []; this._render(); });
+    this.shadowRoot.getElementById("zone-clean")?.addEventListener("click", () => this._handleCleanZones());
+  }
+
+  async _handleCleanZones() {
+    if (this._cleaningZones || !this._hass) return;
+    const img = this.shadowRoot.getElementById("zone-img");
+    const dims = { width: img?.naturalWidth ?? 0, height: img?.naturalHeight ?? 0 };
+    // pct rects → normalized [x0,y0,x1,y1] (un-rotated + letterbox-corrected).
+    const zones = draftsToNormalizedRects(this._zoneDrafts, dims, this._mapRotation());
+    if (!zones.length) return;
+    this._cleaningZones = true;
+    this._render();
+    try {
+      await this._hass.callService("eufy_vacuum", "start_zone_clean", {
+        vacuum_entity_id: this._vacuumId(),
+        zones,
+        clean_times: this._cleanTimes,
+      });
+      this._zoneDrafts = [];
+    } catch (err) {
+      console.error("[vacuum-agent] start_zone_clean failed", err);
+      this.dispatchEvent(new CustomEvent("hass-notification", {
+        detail: { message: this.t("vacuum_card.zones_failed") },
+        bubbles: true, composed: true,
+      }));
+    } finally {
+      this._cleaningZones = false;
+      this._render();
+    }
+  }
+
   static getConfigElement() { return document.createElement(CARD_EDITOR); }
 
   static getStubConfig(hass) {
@@ -642,6 +808,19 @@ const CARD_CSS = `
   .launch-group { display: flex; flex-direction: column; gap: 4px; }
   select { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text-primary); font-size: 0.88rem; appearance: none; -webkit-appearance: none; }
   .hint { font-size: 0.72rem; color: var(--text-muted); padding: 0 2px; }
+
+  .zone { display: flex; flex-direction: column; gap: 8px; }
+  .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.18); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+  .zone-rotator { position: absolute; inset: 0; }
+  .zone-img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
+  .zone-overlay { position: absolute; inset: 0; pointer-events: none; }
+  .zone-rect { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; cursor: pointer; pointer-events: auto; }
+  .zone-rect:hover { background: color-mix(in srgb, var(--accent) 36%, transparent); }
+  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
+  .zone-draft-live { position: absolute; display: none; box-sizing: border-box; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .zone-bar .spacer { flex: 1; }
+  .zone-hint { font-size: 0.72rem; color: var(--text-muted); }
 
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
