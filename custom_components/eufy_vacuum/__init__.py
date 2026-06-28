@@ -26,9 +26,10 @@ import voluptuous as vol
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import DeviceEntry
+from homeassistant.helpers.event import async_call_later
 
 from ._frontend_url import panel_js_url
 from .panels import async_register_vacuum_panel, effective_panel_title, panel_url_for
@@ -618,6 +619,36 @@ async def _teardown_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
         await manager.async_save()
 
 
+@callback
+def _schedule_clear_configured_vacuum(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clear ``CONF_VACUUM_ENTITY_ID`` from the entry, deferred to the next tick.
+
+    Dropping the configured vacuum's record isn't enough on its own:
+    ``async_setup_entry`` re-creates it from ``CONF_VACUUM_ENTITY_ID`` on every
+    load (``ensure_vacuum_record(configured_vacuum)``), so without this it would
+    **resurrect** on the next reload/restart. We can't clear it inline —
+    ``async_update_entry`` fires the entry's update listener, which reloads the
+    entry, and doing that mid-device-removal would race HA's own device+entity
+    deletion. So we defer the update (and therefore its reload) until after the
+    current removal stack unwinds.
+    """
+
+    @callback
+    def _clear(_now: object = None) -> None:
+        data = {k: v for k, v in entry.data.items() if k != CONF_VACUUM_ENTITY_ID}
+        options = {k: v for k, v in entry.options.items() if k != CONF_VACUUM_ENTITY_ID}
+        try:
+            hass.config_entries.async_update_entry(entry, data=data, options=options)
+        except Exception:  # pragma: no cover - the entry may already be gone
+            _LOGGER.debug(
+                "eufy_vacuum: could not clear configured vacuum from entry %s",
+                entry.entry_id,
+                exc_info=True,
+            )
+
+    async_call_later(hass, 0, _clear)
+
+
 async def async_remove_config_entry_device(
     hass: HomeAssistant,
     config_entry: ConfigEntry,
@@ -668,6 +699,16 @@ async def async_remove_config_entry_device(
         return True
 
     await _teardown_vacuum(hass, vacuum_entity_id)
+
+    # If we just removed the vacuum the entry was set up with, clear it from the
+    # entry too — otherwise async_setup_entry re-creates ("resurrects") it from
+    # CONF_VACUUM_ENTITY_ID on the next load. (Deferred — see the helper.)
+    configured = config_entry.options.get(
+        CONF_VACUUM_ENTITY_ID, config_entry.data.get(CONF_VACUUM_ENTITY_ID)
+    )
+    if configured == vacuum_entity_id:
+        _schedule_clear_configured_vacuum(hass, config_entry)
+
     _LOGGER.info(
         "eufy_vacuum: removed managed vacuum %s (device deleted from UI)",
         vacuum_entity_id,

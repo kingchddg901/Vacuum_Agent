@@ -10,6 +10,15 @@ only.
 
 ## [Unreleased]
 
+## [1.4.1] - 2026-06-28
+
+### Fixed
+- **Removing the original (config-flow) vacuum no longer brings it back.**
+  Deleting the vacuum the integration was first set up with now also clears it
+  from the config entry, so it doesn't reappear on the next reload/restart.
+  (1.4.0 dropped the vacuum's data but left it in `CONF_VACUUM_ENTITY_ID`, which
+  setup re-created on load — thanks to Pistakkio for catching it.)
+
 ## [1.4.0] - 2026-06-28
 
 **Remove one vacuum, not the whole integration.** You can now delete a single

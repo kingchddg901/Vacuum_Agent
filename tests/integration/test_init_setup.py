@@ -44,6 +44,7 @@ from custom_components.eufy_vacuum import (
     async_remove_entry,
 )
 from custom_components.eufy_vacuum.const import (
+    CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
     DATA_ERROR_TRACKER,
     DATA_RUNTIME,
@@ -360,13 +361,22 @@ async def test_remove_entry_clears_storage(hass, mock_config_entry):
     mock_remove.assert_awaited_once()
 
 
-async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry):
-    """[INIT-9] Deleting a vacuum's device tears that vacuum down IN PLACE.
+def _capture_call_later(scheduled):
+    """A fake async_call_later that records the scheduled callback (no reload)."""
+    def _fake(_hass, _delay, cb):
+        scheduled.append(cb)
+        return lambda: None
+    return _fake
 
-    No config-entry reload (that would bounce the other vacuums + race HA's own
-    device removal): the vacuum's trackers + adapter + sidebar panel + storage
-    are unwound directly, and the hook returns True so HA removes the device +
-    entities.
+
+async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry):
+    """[INIT-9] Deleting a vacuum's device tears it down IN PLACE, and — because
+    _VAC is the config-flow vacuum — also clears it from the entry so
+    async_setup_entry can't resurrect it on the next load.
+
+    No inline reload (that would bounce the other vacuums + race HA's own device
+    removal): the trackers + adapter + panel + storage are unwound directly, and
+    the entry-clear is deferred.
     """
     from homeassistant.helpers import device_registry as dr
 
@@ -376,28 +386,78 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
     dd = hass.data[DOMAIN]
     rt = dd[DATA_RUNTIME]
     assert _VAC in rt.data["vacuums"]
-    # the vacuum is wired into the per-vacuum trackers
     assert _VAC in dd[DATA_BATTERY]._vacuum_unsubs
     assert _VAC in dd[DATA_ERROR_TRACKER]._vacuum_unsubs
 
-    dev_reg = dr.async_get(hass)
-    device = dev_reg.async_get_device(
+    device = dr.async_get(hass).async_get_device(
         identifiers={(DOMAIN, _VAC.replace(".", "_"))}
     )
     assert device is not None
 
-    # The teardown removes the real sidebar panel — patch it so we can assert it
-    # fired for exactly this vacuum's panel url (and don't need the frontend).
-    with patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
+    # Capture the deferred entry-clear so the real reload never runs in the test.
+    scheduled: list = []
+    with patch("custom_components.eufy_vacuum.async_call_later",
+               _capture_call_later(scheduled)), \
+         patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
         result = await async_remove_config_entry_device(
             hass, mock_config_entry, device
         )
 
     assert result is True
-    assert _VAC not in rt.data["vacuums"]               # storage dropped
-    assert _VAC not in dd[DATA_BATTERY]._vacuum_unsubs  # battery torn down
+    assert _VAC not in rt.data["vacuums"]                     # storage dropped
+    assert _VAC not in dd[DATA_BATTERY]._vacuum_unsubs        # battery torn down
     assert _VAC not in dd[DATA_ERROR_TRACKER]._vacuum_unsubs  # error torn down
     mock_panel.assert_called_once_with(hass, "eufy-vacuum-alfred")  # panel removed
+
+    # _VAC was the configured vacuum → a deferred entry-clear was scheduled;
+    # running it removes CONF_VACUUM_ENTITY_ID so a reload can't resurrect it.
+    assert len(scheduled) == 1
+    with patch.object(hass.config_entries, "async_update_entry") as mock_update:
+        scheduled[0](None)
+    _, kw = mock_update.call_args
+    assert CONF_VACUUM_ENTITY_ID not in kw.get("data", {})
+    assert CONF_VACUUM_ENTITY_ID not in kw.get("options", {})
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_remove_non_configured_vacuum_keeps_entry(
+    hass, hass_storage, mock_config_entry
+):
+    """[INIT-9b] Deleting a NON-configured vacuum tears it down but does NOT clear
+    the entry or schedule a reload — the configured vacuum + the others are left
+    exactly as they were."""
+    from homeassistant.helpers import device_registry as dr
+
+    _VAC2 = "vacuum.bertie"
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    hass.states.async_set(_VAC2, "docked", {"supported_features": 0})
+    # two managed vacuums; _VAC stays the config-flow (configured) vacuum
+    hass_storage[_STORAGE_KEY] = {"version": 1, "data": {
+        "vacuums": {_VAC: {"name": "Alfred"}, _VAC2: {"name": "Bertie"}},
+    }}
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+    assert _VAC2 in rt.data["vacuums"]
+
+    device2 = dr.async_get(hass).async_get_device(
+        identifiers={(DOMAIN, _VAC2.replace(".", "_"))}
+    )
+    assert device2 is not None
+
+    scheduled: list = []
+    with patch("custom_components.eufy_vacuum.async_call_later",
+               _capture_call_later(scheduled)), \
+         patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
+        result = await async_remove_config_entry_device(hass, mock_config_entry, device2)
+
+    assert result is True
+    assert _VAC2 not in rt.data["vacuums"]   # the deleted (non-configured) one is gone
+    assert _VAC in rt.data["vacuums"]        # the configured one is untouched
+    mock_panel.assert_called_once_with(hass, "eufy-vacuum-bertie")
+    assert scheduled == []                   # NOT the configured vacuum → no entry clear
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
@@ -406,8 +466,8 @@ async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry
 async def test_remove_config_entry_device_unknown_is_safe(hass, mock_config_entry):
     """[INIT-10] Deleting a stale/unrelated device is a safe no-op → still True.
 
-    No matching vacuum → no teardown at all (panel untouched, record intact),
-    but still return True so HA can clean up the orphan device.
+    No matching vacuum → no teardown and no entry clear, but still return True so
+    HA can clean up the orphan device.
     """
     hass.states.async_set(_VAC, "docked", {"supported_features": 0})
     ok = await _setup(hass, mock_config_entry)
@@ -418,7 +478,10 @@ async def test_remove_config_entry_device_unknown_is_safe(hass, mock_config_entr
         # identifier matches no managed vacuum
         identifiers = {(DOMAIN, "vacuum_ghost")}
 
-    with patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
+    scheduled: list = []
+    with patch("custom_components.eufy_vacuum.async_call_later",
+               _capture_call_later(scheduled)), \
+         patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
         result = await async_remove_config_entry_device(
             hass, mock_config_entry, _FakeDevice()
         )
@@ -426,6 +489,7 @@ async def test_remove_config_entry_device_unknown_is_safe(hass, mock_config_entr
     assert result is True              # HA may still remove the stale device
     assert _VAC in rt.data["vacuums"]  # the real vacuum is untouched
     mock_panel.assert_not_called()     # no teardown for an unknown device
+    assert scheduled == []             # and no entry clear
 
     assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
     await hass.async_block_till_done()
