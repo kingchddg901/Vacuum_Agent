@@ -28,9 +28,10 @@ from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry, ConfigEntryNotReady
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.device_registry import DeviceEntry
 
 from ._frontend_url import panel_js_url
-from .panels import async_register_vacuum_panel, effective_panel_title
+from .panels import async_register_vacuum_panel, effective_panel_title, panel_url_for
 from .const import (
     CONF_VACUUM_ENTITY_ID,
     DATA_BATTERY,
@@ -543,3 +544,132 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     store = Store[dict](hass, STORAGE_VERSION, STORAGE_KEY)
     await store.async_remove()
     _LOGGER.debug("eufy_vacuum: storage cleared on entry removal")
+
+
+def _remove_panel_for_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
+    """Remove one vacuum's sidebar panel + drop its url from the tracking list."""
+    panel_url = panel_url_for(vacuum_entity_id)
+    try:
+        frontend.async_remove_panel(hass, panel_url)
+    except Exception:  # pragma: no cover - defensive (panel may not exist)
+        _LOGGER.debug("eufy_vacuum: no panel /%s to remove", panel_url, exc_info=True)
+    # Drop it from whichever _panels_<entry_id> list holds it so a later unload
+    # doesn't try to remove an already-gone panel.
+    for key, urls in hass.data.get(DOMAIN, {}).items():
+        if key.startswith("_panels_") and isinstance(urls, list) and panel_url in urls:
+            urls.remove(panel_url)
+
+
+async def _teardown_vacuum(hass: HomeAssistant, vacuum_entity_id: str) -> None:
+    """Tear down ONE managed vacuum in place — without touching the others.
+
+    Deliberately does NOT reload the config entry. This is a singleton domain
+    where one entry manages many vacuums, so a reload would bounce every other
+    vacuum's panel + entities, and (because ``async_schedule_reload`` starts the
+    unload eagerly) would also race HA's own post-hook device+entity removal.
+    Instead we unwind exactly this vacuum's in-memory subsystem wiring + sidebar
+    panel, then drop its storage; HA removes the device + its entities itself
+    (the caller returns True). The global listeners are left to self-correct on
+    the next reload/restart — a subscription to a now-deleted entity is inert.
+    """
+    domain_data = hass.data.get(DOMAIN, {})
+
+    # In-memory per-vacuum subsystem teardown — each best-effort + isolated so
+    # one failure can't strand the rest.
+    mapping_tracker = domain_data.get("mapping_tracker")
+    if mapping_tracker is not None:
+        try:
+            mapping_tracker.unregister_vacuum(vacuum_entity_id)
+        except Exception:  # pragma: no cover
+            _LOGGER.exception(
+                "eufy_vacuum: mapping-tracker teardown failed for %s", vacuum_entity_id
+            )
+    battery_manager = domain_data.get(DATA_BATTERY)
+    if battery_manager is not None:
+        try:
+            battery_manager.unregister_vacuum(vacuum_entity_id)
+        except Exception:  # pragma: no cover
+            _LOGGER.exception(
+                "eufy_vacuum: battery teardown failed for %s", vacuum_entity_id
+            )
+    error_tracker = domain_data.get(DATA_ERROR_TRACKER)
+    if error_tracker is not None:
+        try:
+            error_tracker.unregister_vacuum(vacuum_entity_id)
+        except Exception:  # pragma: no cover
+            _LOGGER.exception(
+                "eufy_vacuum: error-tracker teardown failed for %s", vacuum_entity_id
+            )
+    try:
+        unregister_adapter_config(vacuum_entity_id)
+    except Exception:  # pragma: no cover
+        _LOGGER.exception(
+            "eufy_vacuum: adapter unregister failed for %s", vacuum_entity_id
+        )
+
+    # Sidebar panel — the user-visible "still there after disable" symptom.
+    _remove_panel_for_vacuum(hass, vacuum_entity_id)
+
+    # Storage last: drop the record + every per-vacuum bucket, then persist so
+    # the removal survives a restart and can't resurrect on a later reload.
+    manager = domain_data.get(DATA_RUNTIME)
+    if manager is not None:
+        manager.remove_vacuum_record(vacuum_entity_id=vacuum_entity_id)
+        await manager.async_save()
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    device_entry: DeviceEntry,
+) -> bool:
+    """Let a user remove ONE managed vacuum by deleting its device in the UI.
+
+    Without this hook HA only offers "Disable" on the device page — there is no
+    "Delete". Each managed vacuum is its OWN service device, identified by
+    ``(DOMAIN, vacuum_entity_id.replace(".", "_"))`` (see
+    ``entity_helpers.build_vacuum_device_info``), so one device maps to exactly
+    one vacuum. We tear that vacuum down in place (its trackers, adapter, sidebar
+    panel, and stored data) WITHOUT disturbing the other managed vacuums, then
+    return ``True`` so HA removes the device and its entities.
+
+    An in-flight strict-order run's detached phase-watchdog (if any) is left to
+    self-terminate — its active-job storage was just dropped, so it exits on its
+    next guard check; nothing here cancels it.
+    """
+    manager = hass.data.get(DOMAIN, {}).get(DATA_RUNTIME)
+    identifier = next(
+        (value for (domain, value) in device_entry.identifiers if domain == DOMAIN),
+        None,
+    )
+    if identifier is None or manager is None:
+        # Not one of ours, or nothing loaded — let HA remove the (stale) device.
+        return True
+
+    # The identifier is the sanitised entity_id (dots -> underscores). Match it
+    # back by comparing against the known vacuums rather than reversing "_" -> "."
+    # (which is ambiguous when an object_id itself contains underscores).
+    vacuum_entity_id = next(
+        (
+            vid
+            for vid in manager.get_known_vacuum_ids()
+            if vid.replace(".", "_") == identifier
+        ),
+        None,
+    )
+    if vacuum_entity_id is None:
+        # Ours, but no matching record (already removed, or a sanitisation
+        # collision). Let HA drop the device; surface the oddity.
+        _LOGGER.warning(
+            "eufy_vacuum: device id %r is ours but matches no managed vacuum — "
+            "removing the HA device only",
+            identifier,
+        )
+        return True
+
+    await _teardown_vacuum(hass, vacuum_entity_id)
+    _LOGGER.info(
+        "eufy_vacuum: removed managed vacuum %s (device deleted from UI)",
+        vacuum_entity_id,
+    )
+    return True

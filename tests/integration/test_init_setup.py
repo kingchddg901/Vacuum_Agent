@@ -39,7 +39,10 @@ from homeassistant.config_entries import ConfigEntryState
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import async_fire_time_changed
 
-from custom_components.eufy_vacuum import async_remove_entry
+from custom_components.eufy_vacuum import (
+    async_remove_config_entry_device,
+    async_remove_entry,
+)
 from custom_components.eufy_vacuum.const import (
     DATA_BATTERY,
     DATA_ERROR_TRACKER,
@@ -355,3 +358,74 @@ async def test_remove_entry_clears_storage(hass, mock_config_entry):
                AsyncMock()) as mock_remove:
         await async_remove_entry(hass, mock_config_entry)
     mock_remove.assert_awaited_once()
+
+
+async def test_remove_config_entry_device_removes_vacuum(hass, mock_config_entry):
+    """[INIT-9] Deleting a vacuum's device tears that vacuum down IN PLACE.
+
+    No config-entry reload (that would bounce the other vacuums + race HA's own
+    device removal): the vacuum's trackers + adapter + sidebar panel + storage
+    are unwound directly, and the hook returns True so HA removes the device +
+    entities.
+    """
+    from homeassistant.helpers import device_registry as dr
+
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+    dd = hass.data[DOMAIN]
+    rt = dd[DATA_RUNTIME]
+    assert _VAC in rt.data["vacuums"]
+    # the vacuum is wired into the per-vacuum trackers
+    assert _VAC in dd[DATA_BATTERY]._vacuum_unsubs
+    assert _VAC in dd[DATA_ERROR_TRACKER]._vacuum_unsubs
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get_device(
+        identifiers={(DOMAIN, _VAC.replace(".", "_"))}
+    )
+    assert device is not None
+
+    # The teardown removes the real sidebar panel — patch it so we can assert it
+    # fired for exactly this vacuum's panel url (and don't need the frontend).
+    with patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
+        result = await async_remove_config_entry_device(
+            hass, mock_config_entry, device
+        )
+
+    assert result is True
+    assert _VAC not in rt.data["vacuums"]               # storage dropped
+    assert _VAC not in dd[DATA_BATTERY]._vacuum_unsubs  # battery torn down
+    assert _VAC not in dd[DATA_ERROR_TRACKER]._vacuum_unsubs  # error torn down
+    mock_panel.assert_called_once_with(hass, "eufy-vacuum-alfred")  # panel removed
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_remove_config_entry_device_unknown_is_safe(hass, mock_config_entry):
+    """[INIT-10] Deleting a stale/unrelated device is a safe no-op → still True.
+
+    No matching vacuum → no teardown at all (panel untouched, record intact),
+    but still return True so HA can clean up the orphan device.
+    """
+    hass.states.async_set(_VAC, "docked", {"supported_features": 0})
+    ok = await _setup(hass, mock_config_entry)
+    assert ok is True
+    rt = hass.data[DOMAIN][DATA_RUNTIME]
+
+    class _FakeDevice:
+        # identifier matches no managed vacuum
+        identifiers = {(DOMAIN, "vacuum_ghost")}
+
+    with patch("homeassistant.components.frontend.async_remove_panel") as mock_panel:
+        result = await async_remove_config_entry_device(
+            hass, mock_config_entry, _FakeDevice()
+        )
+
+    assert result is True              # HA may still remove the stale device
+    assert _VAC in rt.data["vacuums"]  # the real vacuum is untouched
+    mock_panel.assert_not_called()     # no teardown for an unknown device
+
+    assert await hass.config_entries.async_unload(mock_config_entry.entry_id)
+    await hass.async_block_till_done()

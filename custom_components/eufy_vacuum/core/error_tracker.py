@@ -275,6 +275,33 @@ class ErrorTracker:
         self._source_to_vacuum.clear()
         self._vacuum_entities.clear()
 
+    def unregister_vacuum(self, vacuum_entity_id: str) -> None:
+        """Tear down ONE vacuum's listeners + grace timer — per-vacuum stop().
+
+        Used when a single managed vacuum is removed (its device deleted) while
+        the others keep running. IN-MEMORY ONLY: the persisted ``error_tracker``
+        record is dropped separately by
+        ``EufyVacuumManager.remove_vacuum_record`` — this just unsubscribes the
+        state listeners, cancels any pending grace-window timer, and forgets the
+        lookup maps so a removed vacuum leaves no stale subscription behind.
+        """
+        for unsub in self._vacuum_unsubs.pop(vacuum_entity_id, []):
+            try:
+                unsub()
+            except Exception:  # pragma: no cover
+                pass
+        cancel = self._grace_cancels.pop(vacuum_entity_id, None)
+        if cancel is not None:
+            try:
+                cancel()
+            except Exception:  # pragma: no cover
+                pass
+        # _source_to_vacuum is keyed by every source entity (+ the vacuum id),
+        # all mapping to the vacuum id — drop every entry pointing at this vacuum.
+        for key in [k for k, v in self._source_to_vacuum.items() if v == vacuum_entity_id]:
+            self._source_to_vacuum.pop(key, None)
+        self._vacuum_entities.pop(vacuum_entity_id, None)
+
     def _wire_vacuum(self, vacuum_entity_id: str) -> None:
         if vacuum_entity_id in self._vacuum_unsubs:
             return

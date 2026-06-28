@@ -971,6 +971,51 @@ class EufyVacuumManager:
 
         return record
 
+    def remove_vacuum_record(self, *, vacuum_entity_id: str) -> dict[str, Any]:
+        """Remove ALL persisted ``self.data`` for one managed vacuum — the
+        inverse of ``ensure_vacuum_record`` plus every per-vacuum sub-data writer.
+
+        Pops the vacuum's entry from every TOP-LEVEL storage bucket keyed by
+        ``vacuum_entity_id`` (``vacuums``, ``maps``, ``active_jobs``, ``queue``,
+        ``payloads``, ``discovery``, ``room_history``, ``room_rule_status``,
+        ``run_profiles``, ``capabilities``, ``maintenance``, ``error_tracker``,
+        ``setup_progress``, …) — the scan means a new top-level bucket can never
+        be silently missed — PLUS the two NESTED per-vacuum buckets
+        ``data["theme"]["vacuums"]`` and ``data["battery"]["vacuums"]`` (the only
+        two that live one level down rather than at the top).
+
+        STORAGE-ONLY, and only over ``self.data``. The CALLER owns the in-memory
+        per-vacuum teardown (sidebar panel, mapping/battery/error trackers,
+        adapter registry) and MUST ``await async_save()`` afterwards so the change
+        survives a restart. Two deliberate NON-goals: (1) the global listeners
+        self-correct on the next reload/restart — a subscription to a
+        now-deleted entity is inert; (2) per-vacuum FILESYSTEM data — learning
+        history under the vacuum slug and map images under
+        ``eufy_vacuum/maps/<slug>/`` — is RETAINED by design, so re-adding the
+        same vacuum recovers its history/maps (delete those dirs by hand for a
+        clean wipe).
+
+        Returns ``{"vacuum_entity_id", "removed_buckets"}``.
+        """
+        removed: list[str] = []
+        for key, bucket in list(self.data.items()):
+            if isinstance(bucket, dict) and vacuum_entity_id in bucket:
+                bucket.pop(vacuum_entity_id, None)
+                removed.append(key)
+        # The two NESTED per-vacuum buckets live one level down, so the
+        # top-level scan can't reach them: data["theme"]["vacuums"] and
+        # data["battery"]["vacuums"].
+        for parent_key in ("theme", "battery"):
+            parent = self.data.get(parent_key)
+            if isinstance(parent, dict):
+                nested = parent.get("vacuums")
+                if (
+                    isinstance(nested, dict)
+                    and nested.pop(vacuum_entity_id, None) is not None
+                ):
+                    removed.append(f"{parent_key}.vacuums")
+        return {"vacuum_entity_id": vacuum_entity_id, "removed_buckets": removed}
+
     def get_managed_vacuums(self) -> dict[str, Any]:
         """Return summary of managed vacuums."""
         self.data.setdefault("vacuums", {})

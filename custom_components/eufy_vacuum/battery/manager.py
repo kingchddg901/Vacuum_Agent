@@ -323,6 +323,27 @@ class BatteryHealthManager:
         self._vacuum_unsubs.clear()
         self._battery_to_vacuum.clear()
 
+    def unregister_vacuum(self, vacuum_entity_id: str) -> None:
+        """Tear down ONE vacuum's live state — the per-vacuum analogue of stop().
+
+        Used when a single managed vacuum is removed (its device deleted) while
+        the others keep running. IN-MEMORY ONLY: the persisted battery record is
+        dropped separately by ``EufyVacuumManager.remove_vacuum_record`` — this
+        just unsubscribes the state listeners and forgets the lookup maps so a
+        removed vacuum leaves no stale subscription behind.
+        """
+        for unsub in self._vacuum_unsubs.pop(vacuum_entity_id, []):
+            try:
+                unsub()
+            except Exception:  # pragma: no cover
+                pass
+        # _battery_to_vacuum is keyed by BOTH the battery-sensor id and the
+        # vacuum id, each mapping to the vacuum id — drop every entry pointing
+        # at this vacuum (value match avoids recomputing the sensor id).
+        for key in [k for k, v in self._battery_to_vacuum.items() if v == vacuum_entity_id]:
+            self._battery_to_vacuum.pop(key, None)
+        self._pending_post_job.pop(vacuum_entity_id, None)
+
     def _wire_vacuum(self, vacuum_entity_id: str) -> None:
         if vacuum_entity_id in self._vacuum_unsubs:
             return

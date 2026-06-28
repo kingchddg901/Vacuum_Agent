@@ -547,6 +547,7 @@ class MappingTracker:
         self._samples_since_flush.pop(vacuum_entity_id, None)
         self._last_recorded_pos.pop(vacuum_entity_id, None)
         self._last_dock_pos.pop(vacuum_entity_id, None)
+        self._sampling_paused.discard(vacuum_entity_id)
 
     def unregister_all(self) -> None:
         """Remove all position listeners — called on integration unload."""
