@@ -217,6 +217,7 @@ async def test_dock_drift_log(tracker, hass):
     """[MTE-11] With NO active job and the vacuum docked, each distinct position
     reading is logged to the dock-drift JSONL (with a delta); an unchanged reading
     and a non-docked state are both skipped."""
+    import asyncio
     import json
 
     _register(tracker)
@@ -245,13 +246,34 @@ async def test_dock_drift_log(tracker, hass):
     tracker._get_raw_position = lambda vacuum_entity_id: (15010.0, 4250.0)
     tracker._handle_position_update(_VAC)
 
-    await hass.async_block_till_done()  # let the executor appends complete
-
+    # The dock-drift appends run FIRE-AND-FORGET on the executor
+    # (async_add_executor_job, deliberately not awaited — file I/O must not block
+    # position updates), so async_block_till_done() does not reliably drain them.
+    # Reading the file once was the historical flake (the 2nd append sometimes
+    # hadn't flushed -> len 1). Poll until both expected records land, then settle.
     path = tracker._dock_drift_path(_VAC)
-    recs = [
-        json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()
-        if ln.strip() and '"_meta"' not in ln
-    ]
+
+    def _drift_recs():
+        if not path.exists():
+            return []
+        return [
+            json.loads(ln) for ln in path.read_text(encoding="utf-8").splitlines()
+            if ln.strip() and '"_meta"' not in ln
+        ]
+
+    recs = _drift_recs()
+    for _ in range(50):  # up to ~5s
+        await hass.async_block_till_done()
+        recs = _drift_recs()
+        if len(recs) >= 2:
+            break
+        await asyncio.sleep(0.1)
+    # Settle: give any (incorrectly logged) non-docked append a chance to surface,
+    # so the len==2 "skipped" assertion below keeps its teeth.
+    await asyncio.sleep(0.1)
+    await hass.async_block_till_done()
+    recs = _drift_recs()
+
     assert len(recs) == 2  # first + the drift; dup and the cleaning-state read skipped
     assert (recs[0]["vx"], recs[0]["vy"]) == (15000.0, 4000.0)
     assert "dx" not in recs[0]                 # no delta on the first reading
