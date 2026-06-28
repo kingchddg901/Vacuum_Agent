@@ -14,9 +14,9 @@
 import {
   translate, resolveLang, ensureLocalesLoaded,
   esc, vocab, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode,
-  chipRow, callResponse, registerCard, defineCard,
+  chipRow, callResponse, registerCard, defineCard, stripNull,
 } from "./_shared.js";
-import { emptyArmed, nextArmed, roomsDisabled, planStart, armedIsValid } from "./dashboard-dispatch.js";
+import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
@@ -140,6 +140,7 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
+    this._strictOrder = false;   // force strict room order on the run (Roborock)
     this._zoneDrafts = [];       // committed zone rects {x,y,w,h} in container pct
     this._cleanTimes = 1;        // start_zone_clean repeat count
     this._drawing = false;       // active rubber-band drag (suppresses re-render)
@@ -158,6 +159,7 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
+    this._strictOrder = false;
     this._zoneDrafts = [];
     this._cleanTimes = 1;
     this._drawing = false;
@@ -342,8 +344,9 @@ class EufyDashboardCard extends HTMLElement {
     const vacuumState = this._hass?.states?.[vid];
     const title = this._config.title ?? vacuumState?.attributes?.friendly_name ?? vid;
     const rooms = this._rooms();
-    const disabled = roomsDisabled(this._armed);
-    const armedSomething = this._armed.source != null;
+    // Room selection is the live switch state (shared with the map → they sync).
+    const onCount = rooms.filter((r) => r.state === "on").length;
+    const armedSomething = this._armed.source != null || onCount > 0;
 
     this.shadowRoot.innerHTML = `
       <style>${CARD_CSS}</style>
@@ -351,15 +354,13 @@ class EufyDashboardCard extends HTMLElement {
         ${this._renderHeader(title, vacuumState)}
         ${this._renderMapSection()}
         ${rooms.length
-          ? `<div class="section rooms ${disabled ? "is-disabled" : ""} ${this._roomsCollapsed ? "is-collapsed" : ""}">
+          ? `<div class="section rooms ${this._roomsCollapsed ? "is-collapsed" : ""}">
                <div class="group-head" id="rooms-toggle" role="button" tabindex="0" aria-expanded="${!this._roomsCollapsed}">
                  <span class="section-label">${this.t("vacuum_card.rooms_label")}</span>
-                 ${this._armed.selectedRoomIds.length
-                   ? `<span class="count">${this.t("vacuum_card.rooms_selected", { count: this._armed.selectedRoomIds.length })}</span>`
-                   : ""}
+                 ${onCount ? `<span class="count">${this.t("vacuum_card.rooms_selected", { count: onCount })}</span>` : ""}
                  <span class="group-chevron">▾</span>
                </div>
-               ${this._roomsCollapsed ? "" : rooms.map((r) => this._renderRoomRow(r)).join("")}
+               ${this._roomsCollapsed ? "" : rooms.map((r) => this._renderRoomRow(r)).join("") + this._renderStrictOrder(onCount)}
              </div>`
           : `<div class="empty">${this.t("vacuum_card.no_rooms")}</div>`}
         ${this._renderLauncher()}
@@ -404,7 +405,9 @@ class EufyDashboardCard extends HTMLElement {
     const attrs = room.attrs;
     const roomId = String(attrs.room_id);
     const name = attrs.room_name ?? attrs.friendly_name ?? this.t("room_card.room_fallback", { room_id: roomId });
-    const selected = this._armed.selectedRoomIds.some((x) => String(x) === roomId);
+    // Selection is the live switch state — shared with the map, so tapping a room
+    // on the map and toggling it here are the same thing (they stay in sync).
+    const selected = room.state === "on";
     const isOpen = this._expanded.has(roomId);
     return `
       <div class="room-row ${selected ? "is-selected" : ""} ${isOpen ? "is-open" : ""}">
@@ -419,6 +422,19 @@ class EufyDashboardCard extends HTMLElement {
         ${isOpen ? `<div class="room-body">${this._renderRoomBody(room)}</div>` : ""}
       </div>
     `;
+  }
+
+  // Strict-order toggle — only for brands that path-optimize and ignore the dispatched
+  // order (Roborock; honors_clean_order=false) and only when ≥2 rooms are selected.
+  _renderStrictOrder(onCount) {
+    if (this._snapshot?.honors_clean_order !== false || onCount < 2) return "";
+    const on = this._strictOrder;
+    return `
+      <div class="strict-order">
+        <button class="chip ${on ? "active" : ""}" id="strict-order-toggle" aria-pressed="${on}">
+          ${on ? this.t("rooms.strict_order_on_label") : this.t("rooms.force_exact_order")}
+        </button>
+      </div>`;
   }
 
   _renderRoomBody(room) {
@@ -548,14 +564,23 @@ class EufyDashboardCard extends HTMLElement {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
       });
     }
-    // Room include toggles
+    // Room include toggles — flip the live switch (shared with the map). Arm-only
+    // still holds: flipping a switch marks the room for the next run, it doesn't run.
     this.shadowRoot.querySelectorAll(".include").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (roomsDisabled(this._armed)) return;
+      btn.addEventListener("click", async () => {
         const roomId = btn.dataset.room;
-        this._armed = nextArmed(this._armed, { type: "toggleRoom", roomId: Number.isFinite(Number(roomId)) ? Number(roomId) : roomId });
+        const room = this._rooms().find((r) => String(r.attrs.room_id) === roomId);
+        if (!room || !this._hass) return;
+        // A room is its own run source — clear any armed profile/scene.
+        if (this._armed.source) this._armed = emptyArmed();
+        await this._hass.callService("switch", room.state === "on" ? "turn_off" : "turn_on", { entity_id: room.entityId });
         this._render();
       });
+    });
+    // Strict-order toggle (Roborock)
+    this.shadowRoot.getElementById("strict-order-toggle")?.addEventListener("click", () => {
+      this._strictOrder = !this._strictOrder;
+      this._render();
     });
     // Expand / collapse a room's settings body
     this.shadowRoot.querySelectorAll("[data-expand]").forEach((el) => {
@@ -577,13 +602,16 @@ class EufyDashboardCard extends HTMLElement {
         this._setRoomField(scope, field, parsed);
       });
     });
-    // Run-launcher dropdowns (arm only — never fire here)
+    // Run-launcher dropdowns (arm only — never fire here). Arming a profile/scene is a
+    // complete run, so it clears the room selection (turns off the room switches).
     this.shadowRoot.getElementById("profile-select")?.addEventListener("change", (e) => {
       this._armed = nextArmed(this._armed, { type: "pickProfile", profileId: e.target.value });
+      if (e.target.value) this._turnOffAllRooms();
       this._render();
     });
     this.shadowRoot.getElementById("scene-select")?.addEventListener("change", (e) => {
       this._armed = nextArmed(this._armed, { type: "pickScene", option: e.target.value });
+      if (e.target.value) this._turnOffAllRooms();
       this._render();
     });
     // Actions
@@ -616,47 +644,74 @@ class EufyDashboardCard extends HTMLElement {
     };
   }
 
+  async _turnOffAllRooms() {
+    if (!this._hass) return;
+    await Promise.all(
+      this._rooms().filter((r) => r.state === "on")
+        .map((r) => this._hass.callService("switch", "turn_off", { entity_id: r.entityId })),
+    );
+  }
+
+  _startFailed(err) {
+    console.error("[vacuum-agent] start failed", err);
+    this.dispatchEvent(new CustomEvent("hass-notification", {
+      detail: { message: this.t("vacuum_card.start_failed") },
+      bubbles: true, composed: true,
+    }));
+  }
+
   async _handleStart() {
     if (this._starting || !this._hass) return;
-    // Re-validate the armed source against LIVE data before dispatching: a scene
-    // option or saved profile can vanish (vendor-app / library edit) between
-    // arming and Start. Never fire select_option for a removed scene — selecting
-    // IS the run, so a stale value would be an accidental clean.
-    if (!armedIsValid(this._armed, {
-      sceneOptions: this._sceneOptions(),
-      profileIds: this._profiles.map((p) => p.id),
-    })) {
-      this._armed = emptyArmed();
+
+    // PROFILE / SCENE: the arm-only dispatcher. Re-validate first — a scene option or
+    // saved profile can vanish (vendor-app / library edit) between arming and Start; a
+    // stale scene must never fire select_option (selecting IS the run).
+    if (this._armed.source) {
+      if (!armedIsValid(this._armed, {
+        sceneOptions: this._sceneOptions(),
+        profileIds: this._profiles.map((p) => p.id),
+      })) {
+        this._armed = emptyArmed();
+        this._render();
+        return;
+      }
+      const plan = planStart(this._armed, this._startContext());
+      if (!plan.length) return;
+      this._starting = true;
       this._render();
+      try {
+        for (const call of plan) await this._hass.callService(call.domain, call.service, call.data);
+      } catch (err) { this._startFailed(err); }
+      finally { this._starting = false; this._render(); }
       return;
     }
-    const plan = planStart(this._armed, this._startContext());
-    if (!plan.length) return;
-    // Only the rooms this run actually persists should have their drafts cleared,
-    // so unsaved edits on rooms NOT in the run survive (no silent data loss).
-    const persistedRoomIds = this._armed.source === "rooms"
-      ? this._armed.selectedRoomIds.map(String)
-      : [];
+
+    // ROOMS: switch-based selection (synced with the map). Persist any unsaved per-row
+    // edits for the rooms that are on, then start; strict_order forces ordered cleaning.
+    const onRooms = this._rooms().filter((r) => r.state === "on");
+    if (!onRooms.length) return;
+    const mapId = this._activeMapId();
     this._starting = true;
     this._render();
     try {
-      for (const call of plan) {
-        await this._hass.callService(call.domain, call.service, call.data);
+      for (const r of onRooms) {
+        const id = String(r.attrs.room_id);
+        if (this._roomDirty(r) && this._rowFields[id]) {
+          await this._hass.callService("eufy_vacuum", "update_room_fields", {
+            vacuum_entity_id: this._vacuumId(),
+            map_id: String(r.attrs.map_id ?? mapId ?? ""),
+            room_id: r.attrs.room_id,
+            ...stripNull(this._rowFields[id]),
+          });
+          delete this._rowFields[id];
+        }
       }
-      for (const id of persistedRoomIds) delete this._rowFields[id];
-    } catch (err) {
-      // A mid-plan service failure must not vanish silently — surface a toast so
-      // the user knows the run didn't start (and the spinner clearing isn't read
-      // as success). Next Start re-reads live state and re-reconciles.
-      console.error("[vacuum-agent] start failed mid-dispatch", err);
-      this.dispatchEvent(new CustomEvent("hass-notification", {
-        detail: { message: this.t("vacuum_card.start_failed") },
-        bubbles: true, composed: true,
-      }));
-    } finally {
-      this._starting = false;
-      this._render();
-    }
+      const data = { vacuum_entity_id: this._vacuumId() };
+      if (mapId != null) data.map_id = mapId;
+      if (this._strictOrder) data.strict_order = true;
+      await this._hass.callService("eufy_vacuum", "start_selected_rooms", data);
+    } catch (err) { this._startFailed(err); }
+    finally { this._starting = false; this._render(); }
   }
 
   async _handleDock() {
@@ -893,6 +948,8 @@ const CARD_CSS = `
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }
   .zone-hint { font-size: 0.72rem; color: var(--text-muted); }
+
+  .strict-order { display: flex; padding: 8px 4px 2px; }
 
   .map-section { padding: 4px 12px 8px; }
   .map-slot { display: block; min-height: 40px; }

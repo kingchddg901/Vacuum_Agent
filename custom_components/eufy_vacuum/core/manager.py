@@ -3657,6 +3657,10 @@ class EufyVacuumManager:
         # Per-clean zone cap surfaced to the card so the draw stops at the brand limit
         # (Eufy 10, Roborock S6 5). Per-zone SIZE limits are enforced server-side at dispatch.
         zone_max = int(_caps_cfg.get("zone_max", 10) or 10)
+        # Whether the brand cleans rooms in the DISPATCHED order (Eufy) or path-optimizes
+        # and ignores it (Roborock -> False). Surfaced so the dashboard card offers the
+        # strict-order toggle only where it matters (it's a no-op on order-honoring brands).
+        honors_clean_order = bool(_caps_cfg.get("honors_clean_order", True))
         # The vacuum's provider setting entities (suction / mode / intensity / water
         # level selects), resolved + existence-checked from the adapter's
         # `settings_selects` (the same block the external-run capture uses). Surfaced
@@ -3757,6 +3761,7 @@ class EufyVacuumManager:
             "supports_map_bounds": supports_map_bounds,
             "supports_zone_clean": supports_zone_clean,
             "zone_max": zone_max,
+            "honors_clean_order": honors_clean_order,
             "setting_entities": setting_entities,
             "scene_select": scene_select,
             "cv_available": cv_available,
