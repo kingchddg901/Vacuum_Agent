@@ -1,0 +1,30 @@
+name: release assets
+
+# On every published GitHub release, attach the generated translator reference
+# (en.reference.jsonc — the full key list + a per-string context note) as a
+# downloadable asset, so translators can grab it straight from the Releases page
+# without digging into custom_components/.../frontend/locales/. The file is
+# committed in-tree and is current at the tagged commit.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  translator-reference:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Attach en.reference.jsonc to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            custom_components/eufy_vacuum/frontend/locales/en.reference.jsonc \
+            --clobber
