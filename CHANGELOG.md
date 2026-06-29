@@ -18,7 +18,9 @@ dashboards straight from the card picker — no resources to register. The **Vac
 Agent — Dashboard Mode** card is a compact multi-room control surface (pick rooms +
 their settings, run a saved profile or an Eufy app scene, see the map, Start / Dock);
 the **Eufy Room Card** is one card per room. Both carry the per-user language globe,
-and the embedded map is the full map from the panel.
+and the embedded map is the full map from the panel. Thanks to
+[@Pistakkio](https://github.com/Pistakkio) for the request
+([#34](https://github.com/kingchddg901/Vacuum_Agent/issues/34)).
 
 ### Added
 - **Dashboard Mode card** (`vacuum-agent-dashboard`) — a compact, embeddable
