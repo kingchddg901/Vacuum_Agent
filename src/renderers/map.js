@@ -209,7 +209,14 @@ export function applyMapRenderers(proto) {
               if (!label) return "";
               const selOrder = selectedSegments.findIndex((s) => String(s.segment_id) === String(seg.segment_id));
               const isSel    = selOrder >= 0;
-              return `<div class="evcc-map-label${isSel ? " evcc-map-label--selected" : ""}" style="left:${lx}%;top:${ly}%">
+              // Draggable name: a saved per-device anchor (localStorage, % of the content box)
+              // overrides the centroid; data-room is the anchor key, data-segment lets a TAP
+              // (no drag) still select the room (see bindings _bindRoomNameDrag).
+              const anchorKey = roomId != null ? String(roomId) : `seg:${seg.segment_id}`;
+              const na = state.roomNameAnchor?.(anchorKey);
+              const px = na ? Math.min(Math.max(na.x, 0), 100) : lx;
+              const py = na ? Math.min(Math.max(na.y, 0), 100) : ly;
+              return `<div class="evcc-map-label evcc-map-label--draggable${isSel ? " evcc-map-label--selected" : ""}" data-action="room-name-drag" data-room="${this.escapeHtml(anchorKey)}" data-segment="${this.escapeHtml(String(seg.segment_id))}" data-cx="${lx}" data-cy="${ly}" style="left:${px}%;top:${py}%">
                 ${isSel ? `<span class="evcc-map-label-order">${selOrder + 1}</span>` : ""}
                 <span class="evcc-map-label-name">${this.escapeHtml(label)}</span>
               </div>`;

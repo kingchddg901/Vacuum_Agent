@@ -168,7 +168,15 @@ export function applyMapState(proto) {
       this._furnishedArtDraftKey = null;
       this._furnishedModeOverlay = null;
       if (data?.map_id !== oldMapId) {
-        this.resetMapTransform();
+        // Reset the PINNED pan/zoom only on a genuine switch between two REAL maps —
+        // never on first load (oldMapId undefined) or a transient null-clear, which
+        // would wipe the just-restored saved view (and delete its localStorage key).
+        // _xformMapId tracks the last real map id we've settled the transform for.
+        const newMapId = data?.map_id;
+        if (newMapId != null && this._xformMapId != null && this._xformMapId !== newMapId) {
+          this.resetMapTransform();
+        }
+        if (newMapId != null) this._xformMapId = newMapId;
         // Rotation is stored per-map; drop a pending optimistic overlay so a freshly
         // switched map renders at ITS rotation, not the previous map's.
         this._mapRotationOverlay = null;
@@ -692,6 +700,48 @@ export function applyMapState(proto) {
   proto.setAreaLabelAnchorLocal = function (roomKey, pctX, pctY) {
     if (!this._areaLabelOverlay) this._areaLabelOverlay = {};
     this._areaLabelOverlay[String(roomKey)] = { pct_x: pctX, pct_y: pctY };
+  };
+
+  /* =========================================================
+     ROOM-NAME LABEL ANCHORS — per room, localStorage (per-device).
+     Lets the user drag the room-NAME label off its centroid; the
+     position is in map-content-box % (container-independent, so it
+     rides across the panel + card maps). Unlike the area-label (m²)
+     anchors, these are device-local (user choice) — see the action
+     layer's backend anchors for the cross-device variant.
+     {key -> {x,y}} keyed per vacuum + active map.
+     ========================================================= */
+  proto._roomNameAnchors = null;       // {key:{x,y}} | null = not yet loaded
+  proto._roomNameAnchorsFor = null;    // the storage key the cache was loaded for
+  proto._roomNameStorageKey = function () {
+    return `evcc_map_room_names_${vacuumObjectId(this.config?.vacuum ?? "")}_${this.activeMapId?.() ?? "main"}`;
+  };
+  proto._loadRoomNameAnchors = function () {
+    const key = this._roomNameStorageKey();
+    if (this._roomNameAnchors !== null && this._roomNameAnchorsFor === key) return this._roomNameAnchors;
+    this._roomNameAnchorsFor = key;
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : null;
+      this._roomNameAnchors = (parsed && typeof parsed === "object") ? parsed : {};
+    } catch (_) {
+      this._roomNameAnchors = {};
+    }
+    return this._roomNameAnchors;
+  };
+  proto.roomNameAnchor = function (roomKey) {
+    const a = this._loadRoomNameAnchors()[String(roomKey)];
+    return (a && Number.isFinite(a.x) && Number.isFinite(a.y)) ? a : null;
+  };
+  proto.setRoomNameAnchorLocal = function (roomKey, pctX, pctY) {
+    const anchors = this._loadRoomNameAnchors();
+    anchors[String(roomKey)] = { x: pctX, y: pctY };
+    try { localStorage.setItem(this._roomNameStorageKey(), JSON.stringify(anchors)); } catch (_) {}
+  };
+  proto.clearRoomNameAnchor = function (roomKey) {
+    const anchors = this._loadRoomNameAnchors();
+    delete anchors[String(roomKey)];
+    try { localStorage.setItem(this._roomNameStorageKey(), JSON.stringify(anchors)); } catch (_) {}
   };
 
   /* =========================================================
@@ -1539,28 +1589,88 @@ export function applyMapState(proto) {
   proto._mapZoom = 1;
   proto._mapTranslateX = 0;
   proto._mapTranslateY = 0;
+  proto._mapTransformLoaded = false;
+  proto._xformMapId = null;   // last real map id the pinned transform was settled for (reset-on-switch guard)
 
-  proto.mapZoom = function () { return this._mapZoom; };
-  proto.mapTranslateX = function () { return this._mapTranslateX; };
-  proto.mapTranslateY = function () { return this._mapTranslateY; };
+  // Pinned pan/zoom (per-device viewport pref) — localStorage, like _useVaRender. Keyed per
+  // vacuum AND context: the sidebar panel and the embedded dashboard-card map have different
+  // container sizes and translate is in container px, so each pins its own view. `_mapCtx`
+  // is set by the embedded map host ("card"); the panel leaves it default ("panel").
+  proto._mapTransformKey = function () {
+    const ctx = this._mapCtx || "panel";
+    return `evcc_map_xform_${ctx}_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+  };
+  proto._loadMapTransform = function () {
+    if (this._mapTransformLoaded) return;
+    this._mapTransformLoaded = true;
+    try {
+      const raw = localStorage.getItem(this._mapTransformKey());
+      if (!raw) return;
+      const v = JSON.parse(raw);
+      const z = Number(v?.z), tx = Number(v?.tx), ty = Number(v?.ty);
+      if (Number.isFinite(z) && Number.isFinite(tx) && Number.isFinite(ty)) {
+        this._mapZoom = Math.max(0.5, Math.min(8, z));
+        this._mapTranslateX = tx;
+        this._mapTranslateY = ty;
+      }
+    } catch (_) {}
+  };
+  proto._persistMapTransform = function () {
+    // Debounced: a pan drag calls applyMapPan continuously; coalesce the writes.
+    if (this._mapXformSaveTimer) clearTimeout(this._mapXformSaveTimer);
+    this._mapXformSaveTimer = setTimeout(() => {
+      this._mapXformSaveTimer = null;
+      try {
+        localStorage.setItem(this._mapTransformKey(), JSON.stringify({
+          z: this._mapZoom, tx: this._mapTranslateX, ty: this._mapTranslateY,
+        }));
+      } catch (_) {}
+    }, 250);
+  };
+
+  // Flush a pending debounced save NOW (called on teardown): a pan/zoom in the last
+  // 250ms isn't lost, and the timer can't fire (writing localStorage) after the host
+  // element is gone. No-op when nothing is queued (e.g. right after a reset).
+  proto.flushMapTransform = function () {
+    if (!this._mapXformSaveTimer) return;
+    clearTimeout(this._mapXformSaveTimer);
+    this._mapXformSaveTimer = null;
+    try {
+      localStorage.setItem(this._mapTransformKey(), JSON.stringify({
+        z: this._mapZoom, tx: this._mapTranslateX, ty: this._mapTranslateY,
+      }));
+    } catch (_) {}
+  };
+
+  // Getters lazy-restore the saved view on first read (the first render), then return live state.
+  proto.mapZoom = function () { this._loadMapTransform(); return this._mapZoom; };
+  proto.mapTranslateX = function () { this._loadMapTransform(); return this._mapTranslateX; };
+  proto.mapTranslateY = function () { this._loadMapTransform(); return this._mapTranslateY; };
 
   proto.resetMapTransform = function () {
+    if (this._mapXformSaveTimer) { clearTimeout(this._mapXformSaveTimer); this._mapXformSaveTimer = null; }
     this._mapZoom = 1;
     this._mapTranslateX = 0;
     this._mapTranslateY = 0;
+    this._mapTransformLoaded = true;   // a later getter must NOT reload the now-cleared saved view
+    try { localStorage.removeItem(this._mapTransformKey()); } catch (_) {}
   };
 
   proto.applyMapZoom = function (newZoom, originX, originY) {
+    this._loadMapTransform();
     const clamped = Math.max(0.5, Math.min(8, newZoom));
     const ratio = clamped / this._mapZoom;
     this._mapTranslateX = originX - (originX - this._mapTranslateX) * ratio;
     this._mapTranslateY = originY - (originY - this._mapTranslateY) * ratio;
     this._mapZoom = clamped;
+    this._persistMapTransform();
   };
 
   proto.applyMapPan = function (dx, dy) {
+    this._loadMapTransform();
     this._mapTranslateX += dx;
     this._mapTranslateY += dy;
+    this._persistMapTransform();
   };
 
   /* =========================================================

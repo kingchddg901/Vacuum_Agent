@@ -115,6 +115,7 @@ class EufyVacuumMap extends HTMLElement {
   _initStack() {
     if (this._state || !this._config) return;
     this._state = new VacuumCardState(this._hass, this._config);
+    this._state._mapCtx = "card";  // pin pan/zoom under a key separate from the sidebar panel
     this._renderers = new VacuumCardRenderers(this);
     this._actions = new VacuumCardActions(this._hass, this._state);
     this._bindings = new VacuumCardBindings(this);
@@ -220,6 +221,7 @@ class EufyVacuumMap extends HTMLElement {
   disconnectedCallback() {
     if (this._liveMapRefreshTimer) { clearInterval(this._liveMapRefreshTimer); this._liveMapRefreshTimer = null; }
     if (this._livePosePollTimer) { clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; }
+    this._state?.flushMapTransform?.();   // persist a last-moment pan/zoom + kill its pending timer
   }
 
   _loadAnimalSvg() {

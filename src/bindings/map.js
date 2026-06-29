@@ -46,6 +46,7 @@ export function applyMapBindings(proto) {
     this._bindMapZoomPan(root);
     this._bindMapAnimal(root);
     this._bindAreaLabelDrag(root);
+    this._bindRoomNameDrag(root);
     this._bindFurnishedArt(root);
     this._bindMapAnimalSelect(root);
     this._bindMapLayersPanel(root);
@@ -1479,6 +1480,119 @@ export function applyMapBindings(proto) {
         el.addEventListener("pointercancel", finish);
       });
     });
+  };
+
+  /* =========================================================
+     ROOM-NAME LABEL DRAG — move a room's name off its centroid.
+     Mirrors _bindAreaLabelDrag: a drag repositions the label (saved per-device in
+     localStorage, % of the content box); a TAP (no drag) keeps today's behavior and
+     selects the room. Reset = drag it back toward the centre. (No backend; user choice.)
+     ========================================================= */
+  proto._bindRoomNameDrag = function (root) {
+    root.querySelectorAll("[data-action='room-name-drag']").forEach((el) => {
+      const layers = root.querySelector(".evcc-map-layers");
+      if (!layers) return;
+
+      this.card._on(el, "pointerdown", (e) => {
+        if (e.button !== 0) return;
+        // Don't swallow a rubber-band (zone/hide draw) that starts over a label.
+        if (this.card._state.zoneDrawMode?.() || this.card._state.hideDrawMode?.()) return;
+        e.stopPropagation();   // keep the pan handler from starting a drag
+        e.preventDefault();
+
+        const roomKey = el.dataset.room;
+        if (roomKey == null || roomKey === "") return;
+
+        el.setPointerCapture(e.pointerId);
+
+        const layerRect = layers.getBoundingClientRect();
+        const rot = this.card._state.effectiveMapRotation?.() ?? 0;
+        const ptrContentPct = (clientX, clientY) =>
+          this.card._state.unrotatePct(
+            (clientX - layerRect.left) / layerRect.width  * 100,
+            (clientY - layerRect.top)  / layerRect.height * 100,
+            rot,
+          );
+
+        const curPctX = parseFloat(el.style.left) || 0;
+        const curPctY = parseFloat(el.style.top)  || 0;
+        const [grabX, grabY] = ptrContentPct(e.clientX, e.clientY);
+        const grabOffX = grabX - curPctX;
+        const grabOffY = grabY - curPctY;
+        const startClientX = e.clientX;
+        const startClientY = e.clientY;
+        // The auto-placement (room centroid) the renderer used — dropping the name back
+        // near here clears the anchor (the reset gesture; restores automatic positioning).
+        const homeX = parseFloat(el.dataset.cx);
+        const homeY = parseFloat(el.dataset.cy);
+        let livePctX = curPctX;
+        let livePctY = curPctY;
+        let moved = false;
+
+        const onMove = (ev) => {
+          // Pixel-based dead-zone (container-size independent, matching the pan handler's 3px)
+          // so a jittery tap on the small embedded card map isn't promoted to a drag.
+          if (!moved && Math.abs(ev.clientX - startClientX) < 3 && Math.abs(ev.clientY - startClientY) < 3) return;
+          const [mx, my] = ptrContentPct(ev.clientX, ev.clientY);
+          livePctX = Math.max(0, Math.min(100, mx - grabOffX));
+          livePctY = Math.max(0, Math.min(100, my - grabOffY));
+          moved = true;
+          el.classList.add("evcc-map-label--dragging");
+          el.style.left = `${livePctX}%`;
+          el.style.top  = `${livePctY}%`;
+        };
+
+        const cleanup = () => {
+          el.removeEventListener("pointermove",   onMove);
+          el.removeEventListener("pointerup",     onUp);
+          el.removeEventListener("pointercancel", onCancel);
+          el.classList.remove("evcc-map-label--dragging");
+        };
+        const onUp = () => {
+          cleanup();
+          if (moved) {
+            const nearHome = Number.isFinite(homeX) && Number.isFinite(homeY)
+              && Math.abs(livePctX - homeX) < 3 && Math.abs(livePctY - homeY) < 3;
+            if (nearHome) this.card._state.clearRoomNameAnchor?.(roomKey);   // snap back to auto
+            else          this.card._state.setRoomNameAnchorLocal?.(roomKey, livePctX, livePctY);
+            this.card._scheduleRender();
+          } else {
+            // A tap, not a drag — preserve the prior behavior: select the room.
+            this._selectSegmentFromLabelTap(el.dataset.segment);
+          }
+        };
+        const onCancel = () => {
+          // An ABORTED gesture (scroll/gesture takeover, focus loss) is NOT a tap — never
+          // select; just drop the in-progress move and let the next render revert the label.
+          cleanup();
+          if (moved) this.card._scheduleRender();
+        };
+
+        el.addEventListener("pointermove",   onMove);
+        el.addEventListener("pointerup",     onUp);
+        el.addEventListener("pointercancel", onCancel);
+      });
+    });
+  };
+
+  // Single-tap select forwarded from a name-label tap — mirrors the polygon single-click
+  // path (toggle the segment + sync the room enable), minus the dbl-click editor timer.
+  proto._selectSegmentFromLabelTap = function (segmentId) {
+    if (segmentId == null || segmentId === "") return;
+    const st = this.card._state;
+    const wasSelected = st.isSegmentSelected?.(segmentId);
+    st.toggleSegmentSelected?.(segmentId);
+    const rooms  = st.getRoomsForActiveMap?.() ?? [];
+    const roomId = st.roomIdForSegment?.(segmentId);
+    const room   = roomId != null ? rooms.find((r) => String(r.id) === String(roomId)) : null;
+    if (room && this.card._actions?.toggleRoomEnabled) {
+      this.card._actions
+        .toggleRoomEnabled(room.mapId, room.id, wasSelected)
+        .then(() => this.card._scheduleRender())
+        .catch((err) => console.error("[eufy-vacuum-command-center] Room sync failed:", err));
+    } else {
+      this.card._scheduleRender();
+    }
   };
 
   /* =========================================================

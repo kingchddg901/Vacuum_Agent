@@ -629,6 +629,19 @@ export const mapStyles = `
     z-index:        5;
   }
 
+  /* Segment name labels are drag-to-move (the device-room fallback labels keep the base
+     pointer-events:none so taps fall through to select). touch-action:none so a touch
+     drag moves the name instead of scrolling/panning the map. */
+  .evcc-map-label--draggable {
+    pointer-events: auto;
+    cursor:         grab;
+    touch-action:   none;
+  }
+  .evcc-map-label--dragging {
+    cursor:  grabbing;
+    z-index: 7;
+  }
+
   .evcc-map-label-name {
     font-size:     0.82rem;
     font-weight:   700;
