@@ -10,6 +10,59 @@ only.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-06-28
+
+**Drive your vacuum from your own dashboard.** Beyond the sidebar panel, the
+integration now ships **two drop-in Lovelace cards** you add to your normal
+dashboards straight from the card picker — no resources to register. The **Vacuum
+Agent — Dashboard Mode** card is a compact multi-room control surface (pick rooms +
+their settings, run a saved profile or an Eufy app scene, see the map, Start / Dock);
+the **Eufy Room Card** is one card per room. Both carry the per-user language globe,
+and the embedded map is the full map from the panel.
+
+### Added
+- **Dashboard Mode card** (`vacuum-agent-dashboard`) — a compact, embeddable
+  multi-room control card: a status header, a collapsible map, a collapsing per-room
+  accordion (toggle a room, expand it to set that room's own mode / suction / water /
+  path / passes), a run-launcher for your saved profiles and (Eufy) app scenes, and
+  Start / Dock. **Arm-then-Start:** choosing rooms, a profile, or a scene is inert —
+  nothing runs until you press Start. Hide any section from the visual editor.
+- **Embedded map in the cards.** The full map — the VA-rendered room-blob backdrop,
+  rotate, pan/zoom, overlay layers, the map companion, and "draw a box" zone clean —
+  now runs inside the dashboard card too, not just the panel (lazily loaded so the
+  card stays light until the map is shown).
+- **Pin your map view.** The map remembers your pan and zoom between reloads (per
+  device); the fit button resets it.
+- **Move room names.** Drag a room's name label anywhere on the map (handy when a name
+  sits over a doorway); drag it back to the room's centre to restore automatic
+  placement.
+- **Language globe in both cards.** The same per-user language picker the panel has —
+  your choice follows you across devices.
+- **Strict cleaning order (Roborock).** When a vacuum cleans rooms in a fixed order
+  rather than path-optimising, the card offers a "use strict order" toggle.
+
+### Fixed
+- **Translations render correctly.** Fixed a double-escaping bug where a translated
+  string containing an apostrophe (e.g. French *"Niveau d'aspiration"*) showed the raw
+  `&#39;` entity, and a stale-cache bug where a freshly translated locale could load an
+  old copy (newly added keys falling back to English). Translated the new card strings
+  into all seven shipped languages.
+- **Map view stays put.** The pinned pan/zoom is no longer wiped on first load, and a
+  window/container resize can no longer scroll the map off-screen.
+- **Eufy scene picker.** The Eufy app-scene dropdown no longer lists the placeholder
+  "None" option, and hides entirely when there's nothing to pick.
+- **Room card vacuum swap.** Changing the vacuum in a Room card's editor now correctly
+  refreshes its room list.
+
+### Changed
+- The map and the Rooms list in the dashboard card are **collapsible**, to keep the
+  card compact.
+
+### Documentation
+- New **[Dashboard & Room cards](docs/user-guide/20-dashboard-and-room-cards.md)** user
+  guide; the developer **card-architecture** reference gained a section on the
+  standalone cards, the three-bundle build, and the `<eufy-vacuum-map>` host.
+
 ## [1.4.1] - 2026-06-28
 
 ### Fixed
