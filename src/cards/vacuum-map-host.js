@@ -222,6 +222,7 @@ class EufyVacuumMap extends HTMLElement {
     if (this._liveMapRefreshTimer) { clearInterval(this._liveMapRefreshTimer); this._liveMapRefreshTimer = null; }
     if (this._livePosePollTimer) { clearInterval(this._livePosePollTimer); this._livePosePollTimer = null; }
     this._state?.flushMapTransform?.();   // persist a last-moment pan/zoom + kill its pending timer
+    this._bindings?._teardownMapResize?.();   // drop the map container ResizeObserver
   }
 
   _loadAnimalSvg() {

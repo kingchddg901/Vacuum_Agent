@@ -1952,6 +1952,15 @@ export function applyMapBindings(proto) {
     const applyTransform = () => {
       const layers = container.querySelector(".evcc-map-layers");
       if (!layers) return;
+      // Re-clamp the pinned translate to the LIVE container before applying, so a
+      // view restored from storage (or panned to the edge) can't strand the map
+      // off-screen after a container resize. clientWidth/Height are the
+      // untransformed box (CSS transforms don't affect them) and the container has
+      // no border/padding, so they equal the .evcc-map-layers box. Persist any
+      // correction (debounced) so the next reload starts from an on-screen view.
+      if (this.card._state.clampMapTransform?.(container.clientWidth, container.clientHeight)) {
+        this.card._state._persistMapTransform?.();
+      }
       const z  = this.card._state.mapZoom?.()        ?? 1;
       const tx = this.card._state.mapTranslateX?.()  ?? 0;
       const ty = this.card._state.mapTranslateY?.()  ?? 0;
@@ -2296,6 +2305,38 @@ export function applyMapBindings(proto) {
       });
       if (Object.keys(_activeTouches).length < 2) _lastPinchDist = null;
     });
+
+    // Clamp + apply NOW: the freshly-mounted container is measurable, so a restored
+    // view that no longer fits this container is corrected synchronously (before
+    // paint) — no blank-map flash. The renderer baked the stored (possibly
+    // off-screen) transform into the inline style; this overwrites it.
+    applyTransform();
+    // ...and keep it on-screen through a LIVE resize (window resize / rotation while
+    // mounted, no reload): observe the container so its size changes re-clamp.
+    this._observeMapResize(container, applyTransform);
+  };
+
+  // One container ResizeObserver per bindings instance. The container is recreated
+  // on each render that swaps the map HTML, so re-point the observer at the fresh
+  // node (keeping it when the node is unchanged avoids churn on no-op renders). RO
+  // fires once on observe() and on every later size change, re-running applyTransform
+  // (which clamps) — covers a live resize that doesn't trigger a re-render.
+  proto._observeMapResize = function (container, applyTransform) {
+    this._mapResizeApply = applyTransform;
+    if (typeof ResizeObserver === "undefined") return;
+    if (this._mapResizeObserver && this._mapResizeTarget === container) return;
+    if (this._mapResizeObserver) this._mapResizeObserver.disconnect();
+    this._mapResizeTarget = container;
+    this._mapResizeObserver = new ResizeObserver(() => this._mapResizeApply?.());
+    this._mapResizeObserver.observe(container);
+  };
+
+  // Host teardown: drop the observer so it can't fire (or pin a detached container)
+  // after the card is removed. Mirrors flushMapTransform's disconnectedCallback care.
+  proto._teardownMapResize = function () {
+    if (this._mapResizeObserver) { this._mapResizeObserver.disconnect(); this._mapResizeObserver = null; }
+    this._mapResizeTarget = null;
+    this._mapResizeApply = null;
   };
 }
 

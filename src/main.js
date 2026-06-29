@@ -1742,6 +1742,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     clearInterval(this._livePosePollTimer);
     this._livePosePollTimer = null;
     this._state?.flushMapTransform?.();   // persist a last-moment pan/zoom + kill its pending timer
+    this._bindings?._teardownMapResize?.();   // drop the map container ResizeObserver
   }
 
   _handleVisibilityChange() {

@@ -3,6 +3,14 @@
 
 import { vacuumObjectId } from "../constants.js";
 
+// Smallest slice of the scaled map content (in container px) that must stay
+// inside the viewport. The pinned translate is stored in absolute container px,
+// so a view saved for one container size and restored into a smaller one (window
+// resize between reloads, sidebar↔dashboard, phone rotation) can place the
+// content entirely outside the box → blank map. clampMapTransform keeps at least
+// this much on-screen so the map is always reachable (and pannable back).
+const MAP_VIEW_MARGIN_PX = 32;
+
 export function applyMapState(proto) {
   proto._mapViewActive = null; // null = not yet read from localStorage
   proto._mapSegmentsData = null;
@@ -1671,6 +1679,31 @@ export function applyMapState(proto) {
     this._mapTranslateX += dx;
     this._mapTranslateY += dy;
     this._persistMapTransform();
+  };
+
+  // Clamp the pinned translate to the CURRENT container so the scaled content can
+  // never be pushed fully off-screen. `viewW`/`viewH` are the container's CSS px
+  // (== the untransformed .evcc-map-layers box, which is inset:0). With
+  // transform-origin 0 0 the scaled content spans [tx, tx + viewW*z]; we keep a
+  // MAP_VIEW_MARGIN_PX slice of it inside [0, viewW] (same for y). Pure on the
+  // viewport size — callers measure the live rect (a resize between save and a
+  // later reload would otherwise strand a px translate). Returns true iff a value
+  // changed, so the caller can persist the correction. No-op without a real size.
+  proto.clampMapTransform = function (viewW, viewH) {
+    this._loadMapTransform();
+    if (!(viewW > 0) || !(viewH > 0)) return false;
+    const z = this._mapZoom;
+    const mx = Math.min(MAP_VIEW_MARGIN_PX, viewW / 2);
+    const my = Math.min(MAP_VIEW_MARGIN_PX, viewH / 2);
+    // lo: content's right/bottom edge stays >= margin; hi: its left/top edge stays
+    // <= viewport - margin. lo <= hi for any z >= 0 with margin < half-viewport.
+    const clamp = (v, lo, hi) => (lo > hi ? (lo + hi) / 2 : Math.min(Math.max(v, lo), hi));
+    const nx = clamp(this._mapTranslateX, mx - viewW * z, viewW - mx);
+    const ny = clamp(this._mapTranslateY, my - viewH * z, viewH - my);
+    const changed = nx !== this._mapTranslateX || ny !== this._mapTranslateY;
+    this._mapTranslateX = nx;
+    this._mapTranslateY = ny;
+    return changed;
   };
 
   /* =========================================================
