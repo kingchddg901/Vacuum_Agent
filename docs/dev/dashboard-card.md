@@ -1,38 +1,45 @@
-# Dashboard control card (DESIGN + W1)
+# Dashboard control card (DESIGN + shipped W1–W3)
 
-> **Status: W1 IMPLEMENTED** (branch `feat/dashboard-card`, 2026-06-28). The
-> list-based control card ships; the map (W2) and polish (W3) remain. Design-first
-> artifact for the compact, embeddable Lovelace card requested in issue #34.
-> Authored 2026-06-28.
+> **Status: W1–W3 SHIPPED** (branch `feat/dashboard-card`). The compact multi-room
+> control card, the embedded map, and the polish pass are all live. This file keeps
+> the original design rationale below (issue #34); the banner tracks what actually
+> shipped. For the *architecture* of the cards + bundles + map host, see
+> [19 — Card Architecture](19-card-architecture.md) §8.
 >
-> **What W1 shipped:**
+> **W1 — control card (list-based):**
 > - `src/cards/dashboard-dispatch.js` — pure, unit-tested run-launcher logic
 >   (`nextArmed` mutual-exclusivity reducer, `planStart` dispatcher, `armedIsValid`
->   re-validation). 22 `node --test` cases in `dashboard-dispatch.test.mjs`.
+>   re-validation). `dashboard-dispatch.test.mjs`.
 > - `src/cards/_shared.js` — helpers shared with the room-card (`esc`, `vocab`,
 >   `roomSwitchesFor`, `adapterOptions`, `committedRoomFields`, `isMopMode`,
->   `chipRow`, `callResponse`, `registerCard`). `src/room-card.js` refactored to
->   import these (behavior-identical, single source).
-> - `src/cards/dashboard-card.js` — the `vacuum-agent-dashboard` element + editor:
->   header, collapsing per-room rows (accordion), run-launcher (profiles + Eufy
->   scenes), arm-only Start dispatcher, Dock. Wired into `src/all-cards.js`.
+>   `chipRow`, `callResponse`, `registerCard`, `defineCard`, the language control).
+> - `src/cards/dashboard-card.js` — the `vacuum-agent-dashboard` element + editor.
 > - Backend: `scene_select` declared in the Eufy adapter `entities` block, surfaced
->   (existence-checked) on `get_dashboard_snapshot`, documented in
->   `adapters/config_schema.py`. Roborock degrades to `None` (no scenes group).
-> - Global cards bundle: `src/cards-standalone.js` builds to
->   `frontend/eufy-vacuum-cards.js` (cards only, no panel) and is registered as a
->   global ES module via `frontend.add_extra_js_url` in `async_setup` — so the card
->   is defined on every page, including a cold dashboard that never opens the
->   sidebar panel. A `defineCard` guard makes the panel bundle's duplicate define a
->   no-op. (Resolves audit finding BUILD-3.)
-> - i18n: 28 new `vacuum_card.*` keys in `en.js` (7-locale translation = rollout track).
+>   (existence-checked) on `get_dashboard_snapshot`. Roborock degrades to `None`.
+> - Global cards bundle: `src/cards-standalone.js` → `frontend/eufy-vacuum-cards.js`
+>   (cards only, no panel), registered as a global ES module via
+>   `frontend.add_extra_js_url` in `async_setup` — defined on every page, even a cold
+>   dashboard. `defineCard` makes the panel bundle's duplicate define a no-op.
 >
-> **Verified:** 182 frontend `node --test` + 2787 backend pytest green; i18n +
-> styles gates clean; multi-agent adversarial review + a 12-agent pre-prod audit
-> (1 prod-blocker DC-1 — null per-room fields rejected by the backend schema,
-> aborting Start silently — fixed in both cards + regression-tested; plus 4
-> robustness/build nits). **Pending:** on-device visual check, render-harness
-> coverage, then merge → release (version bump + CHANGELOG + HACS).
+> **W2 — the embedded map.** The map subsystem was extracted into a reusable
+> `<eufy-vacuum-map>` custom element (`src/cards/vacuum-map-host.js`) that mounts the
+> existing `VacuumCard{State,Renderers,Bindings,Actions}` mixins onto a card-shim host.
+> It ships as its own lazily-loaded bundle (`frontend/eufy-vacuum-map.js`), imported on
+> demand by the dashboard card. Full VA-render backdrop, zone-draw, rotate, layers
+> panel, mascot controls — the same map as the panel. See
+> [19 — Card Architecture](19-card-architecture.md) §8.3.
+>
+> **W3 — polish.** Collapsible map + Rooms groups; the per-user **language globe** in
+> both cards; **strict-order** toggle (Roborock); Eufy scene **"None"** filter; pinned
+> **pan/zoom** across reloads (per-device, per-context); **drag-to-move room-name
+> labels** (per-device). Locale files de-bundled + cache-busted; `vacuum_card.*` keys
+> translated into all 7 shipped locales.
+>
+> **Verified:** frontend `node --test` + backend pytest green; i18n + styles gates
+> clean; multi-agent adversarial review at each wave (notably: a first-load
+> `resetMapTransform` that wiped the restored pan/zoom, and a double-escape class —
+> `esc()` over already-escaped `t()` output — both caught + fixed). **Pending:** merge
+> → release (version bump + CHANGELOG + HACS).
 
 ## 1. Goal
 
@@ -196,8 +203,9 @@ thing that triggers the loader).
   advisory (path-optimizing), mirroring the panel.
 - **`max_clean_passes`** caps the passes chips (Eufy 2, Roborock 3); `passes_is_global`
   changes per-room vs whole-run semantics.
-- **Two cards on one dashboard** — the panel's map zoom/pan state is card-wide; if the
-  map lands (W2), namespace per-instance so two cards don't share zoom.
+- **Two cards on one dashboard** — ✅ pan/zoom (and moved room-name labels) are keyed
+  per *context* (panel vs card) + per device, so the panel and a dashboard card keep
+  independent map views (`_mapCtx` on the state; see [19 — Card Architecture](19-card-architecture.md) §8.3).
 - **No live entity** — degrade every section independently; a missing snapshot field
   hides its control, never throws (wrap reads).
 - **Mid-run** — show progress in the header; Start becomes "already cleaning" / the
@@ -210,9 +218,12 @@ thing that triggers the loader).
   multi-room chip select + mode/passes; **run-launcher** (profiles + Eufy scenes,
   adapter-declared `scene_select`); arm-only/Start dispatcher; Clean / Dock. Eufy +
   Roborock (scenes Eufy-only). `vacuum_card.*` i18n. **No map.**
-- **W2 — the map.** Extract `<eufy-vacuum-map>` (or static tap-map), wire `show_map`.
-- **W3 — polish.** Saved-defaults, compact/expanded variants, dock-action buttons,
-  per-room settings in multi-select.
+- **W2 — the map.** ✅ Extracted the reusable `<eufy-vacuum-map>` host
+  (`src/cards/vacuum-map-host.js`), lazily loaded; full VA-render map, zone-draw,
+  rotate, layers, mascot.
+- **W3 — polish.** ✅ Collapsible map + Rooms; language globe in both cards;
+  strict-order toggle (Roborock); scene "None" filter; pinned pan/zoom across reloads;
+  drag-to-move room-name labels.
 
 ## 12. Testing
 
