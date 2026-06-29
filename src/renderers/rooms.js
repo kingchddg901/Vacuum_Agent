@@ -793,7 +793,7 @@ proto.renderRoomCard = function (room, state) {
             ].filter(Boolean).join(" · ")
           )}"
         >
-          ${this.escapeHtml(this.t("rooms.water_ml", { ml: Math.round(projectedWaterMl) }))}
+          ${this.t("rooms.water_ml", { ml: Math.round(projectedWaterMl) })}
         </div>
       `;
     }
@@ -880,7 +880,7 @@ proto.renderRoomCard = function (room, state) {
               ].filter(Boolean).join(" · ")
             )}"
           >
-            ${this.escapeHtml(this.t("rooms.percent_complete", { pct: progressSnapshot.percent }))}
+            ${this.t("rooms.percent_complete", { pct: progressSnapshot.percent })}
           </div>
 
           ${Number.isFinite(progressSnapshot.remainingMinutes) ? `
@@ -896,7 +896,7 @@ proto.renderRoomCard = function (room, state) {
                 ].filter(Boolean).join(" · ")
               )}"
             >
-              ${this.escapeHtml(this.t("rooms.remaining_left", { value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) }))}
+              ${this.t("rooms.remaining_left", { value: this._formatLearningMinutes(progressSnapshot.remainingMinutes) })}
             </div>
           ` : ""}
         </div>

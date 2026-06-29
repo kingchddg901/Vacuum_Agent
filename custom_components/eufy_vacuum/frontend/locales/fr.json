@@ -1027,6 +1027,7 @@
     "passes_2": "2 passages",
     "passes_label": "Passages",
     "room_fallback": "Pièce {room_id}",
+    "select_hint": "Cliquez sur le nom de la pièce pour la sélectionner — cela retire toutes les autres pièces de la file.",
     "start": "Démarrer",
     "starting": "Démarrage…",
     "suction_level_label": "Niveau d'aspiration",

@@ -238,7 +238,7 @@ export function applyMobileShellRenderer(proto) {
             data-action="mobile-more-select"
             role="menuitem"
           >
-            ${this.escapeHtml(this.t(tab.labelKey))}
+            ${this.t(tab.labelKey)}
           </button>
         `).join("")}
       </div>

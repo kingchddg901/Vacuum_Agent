@@ -204,7 +204,7 @@ export function applyBaseStationRenderers(proto) {
     return `
       <div class="evcc-base-station-stat">
         <div class="evcc-base-station-stat-value">${this.escapeHtml(value)}</div>
-        <div class="evcc-base-station-stat-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-base-station-stat-label">${label}</div>
       </div>
     `;
   };
@@ -221,7 +221,7 @@ export function applyBaseStationRenderers(proto) {
   proto._renderBaseStationActivityCard = function (label, lastAt, count, extra = null) {
     return `
       <div class="evcc-base-station-activity-card">
-        <div class="evcc-base-station-activity-title">${this.escapeHtml(label)}</div>
+        <div class="evcc-base-station-activity-title">${label}</div>
         <div class="evcc-base-station-activity-time">${this.escapeHtml(this._formatBaseStationTimestamp(lastAt)) || this.t("base_station.no_activity_yet")}</div>
         <div class="evcc-base-station-activity-detail">
           ${this.t("base_station.recorded_count", { count: Number(count ?? 0) })}
@@ -256,9 +256,9 @@ export function applyBaseStationRenderers(proto) {
         class="evcc-base-station-action-card ${allowed ? "evcc-base-station-action-card--allowed" : "evcc-base-station-action-card--blocked"}"
         data-dock-action="${this.escapeHtml(action)}"
         ${allowed && !pending ? "" : "disabled"}
-        title="${this.escapeHtml(reasonText) || (allowed ? this.escapeHtml(label) : this.t("base_station.action_unavailable"))}"
+        title="${this.escapeHtml(reasonText) || (allowed ? label : this.t("base_station.action_unavailable"))}"
       >
-        <div class="evcc-base-station-action-title">${this.escapeHtml(label)}</div>
+        <div class="evcc-base-station-action-title">${label}</div>
         <div class="evcc-base-station-action-state">
           ${pending ? this.t("base_station.state_running") : allowed ? this.t("base_station.state_ready") : this.t("base_station.state_unavailable")}
         </div>

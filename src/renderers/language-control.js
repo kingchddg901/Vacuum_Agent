@@ -64,9 +64,12 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
   // bundled alphabetically, then any drop-in "custom" locales). listLocales
   // orders them and labels drafts in their own language (e.g. "Русский
   // (черновик)") + custom drop-ins as "<Endonym> (custom)".
+  // label is pre-escaped (t() escapes by trust-model B; raw endonyms get esc'd once)
+  // so it interpolates directly below — re-esc()'ing would double-escape (apostrophe
+  // → &#39; → &amp;#39;, shown literally).
   const rows = [
     { code: "auto", label: t("language.auto"), note: autoNote },
-    ...locales.map((l) => ({ code: l.code, label: l.label })),
+    ...locales.map((l) => ({ code: l.code, label: esc(l.label) })),
   ];
 
   const items = rows
@@ -80,7 +83,7 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
                 class="evcc-lang-option${isActive ? " is-active" : ""}"
                 data-action="set-language" data-lang="${esc(r.code)}">
           <span class="evcc-lang-check" aria-hidden="true">${isActive ? "✓" : ""}</span>
-          <span class="evcc-lang-label">${esc(r.label)}</span>
+          <span class="evcc-lang-label">${r.label}</span>
           ${noteHtml}
         </button>`;
     })
@@ -91,15 +94,15 @@ export function renderLanguageControl(renderers, { langOverride, currentLang, op
       <button type="button" class="evcc-lang-button"
               data-action="toggle-language-menu"
               aria-haspopup="menu" aria-expanded="${open ? "true" : "false"}"
-              title="${esc(t("language.button_title"))}"
-              aria-label="${esc(t("language.button_title"))}">
+              title="${t("language.button_title")}"
+              aria-label="${t("language.button_title")}">
         <span class="evcc-lang-globe" aria-hidden="true">🌐</span>
         <span class="evcc-lang-code">${esc(badge)}</span>
       </button>
       ${open
         ? `<div class="evcc-lang-backdrop" data-action="close-language-menu"></div>
-           <div class="evcc-lang-menu" role="menu" aria-label="${esc(t("language.heading"))}">
-             <div class="evcc-lang-menu-heading">${esc(t("language.heading"))}</div>
+           <div class="evcc-lang-menu" role="menu" aria-label="${t("language.heading")}">
+             <div class="evcc-lang-menu-heading">${t("language.heading")}</div>
              ${items}
            </div>`
         : ""}

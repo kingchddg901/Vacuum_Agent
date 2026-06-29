@@ -1027,6 +1027,7 @@
     "passes_2": "2 pasadas",
     "passes_label": "Pasadas",
     "room_fallback": "Habitación {room_id}",
+    "select_hint": "Clic en el nombre de la habitación para seleccionarla para la limpieza — esto vacía las demás habitaciones de la cola.",
     "start": "Iniciar",
     "starting": "Iniciando…",
     "suction_level_label": "Nivel de succión",

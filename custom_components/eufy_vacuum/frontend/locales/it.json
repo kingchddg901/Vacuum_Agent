@@ -1016,6 +1016,7 @@
     "passes_2": "2 passaggi",
     "passes_label": "Passaggi",
     "room_fallback": "Stanza {room_id}",
+    "select_hint": "Clicca il nome della stanza per selezionarla per la pulizia — rimuove dalla coda tutte le altre stanze.",
     "start": "Avvia",
     "starting": "Avvio…",
     "suction_level_label": "Livello aspirazione",

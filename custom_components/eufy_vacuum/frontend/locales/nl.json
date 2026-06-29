@@ -1016,6 +1016,7 @@
     "passes_2": "2 beurten",
     "passes_label": "Beurten",
     "room_fallback": "Kamer {room_id}",
+    "select_hint": "Klik op de kamernaam om deze te selecteren om schoon te maken — dit wist alle andere kamers in de wachtrij.",
     "start": "Starten",
     "starting": "Starten…",
     "suction_level_label": "Zuigkrachtniveau",

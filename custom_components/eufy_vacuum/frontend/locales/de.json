@@ -1016,6 +1016,7 @@
     "passes_2": "2 Durchgänge",
     "passes_label": "Durchgänge",
     "room_fallback": "Raum {room_id}",
+    "select_hint": "Auf den Raumnamen klicken, um nur diesen Raum zur Reinigung auszuwählen — alle anderen Räume in der Warteschlange werden entfernt.",
     "start": "Start",
     "starting": "Wird gestartet…",
     "suction_level_label": "Saugstufe",

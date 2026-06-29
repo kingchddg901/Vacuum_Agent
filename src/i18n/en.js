@@ -972,6 +972,7 @@ export const en = {
   "room_card.passes_2": "2 Passes",  // chip value: two cleaning sweeps over the room (passes count = 2)
   "room_card.passes_label": "Passes",  // chip-row header for number of cleaning passes (1 or 2 sweeps), not a passcode/permit
   "room_card.room_fallback": "Room {room_id}",  // display name when a room has no name; {room_id} is the numeric id
+  "room_card.select_hint": "Click the room name to select it for cleaning — this clears all other rooms in the queue.",  // hint under the header: clicking the room name does an EXCLUSIVE select (deselects every other room) before the run
   "room_card.start": "Start",  // button that starts cleaning this single room now (run action), not a generic begin
   "room_card.starting": "Starting…",  // transient label on the Start button while the clean is being dispatched
   "room_card.suction_level_label": "Suction Level",

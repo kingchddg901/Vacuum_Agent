@@ -1027,6 +1027,7 @@
     "passes_2": "2 passagens",
     "passes_label": "Passagens",
     "room_fallback": "Divisão {room_id}",
+    "select_hint": "Clique no nome da divisão para a selecionar para limpeza — isto remove todas as outras divisões da fila.",
     "start": "Iniciar",
     "starting": "A iniciar…",
     "suction_level_label": "Nível de sucção",

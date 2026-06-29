@@ -83,7 +83,7 @@ export function chipRow(label, fieldKey, options, currentVal, tVocabFn, idPrefix
   const pre = idPrefix ? `data-scope="${esc(idPrefix)}" ` : "";
   return `
     <div class="field-group">
-      <div class="field-label">${esc(label)}</div>
+      <div class="field-label">${label}</div>
       <div class="chips">
         ${options.map((opt) => `
           <button
@@ -142,20 +142,23 @@ export function stripNull(obj) {
 export function renderLangControl({ t, override, currentLang, open }) {
   const active = override && override !== "auto" ? String(override) : "auto";
   const badge = String(currentLang || "en").split("-")[0].toUpperCase();
-  const rows = [{ code: "auto", label: t("language.auto") }, ...listLocales().map((l) => ({ code: l.code, label: l.label }))];
+  // r.label is pre-escaped here (t() escapes by trust-model B; raw endonyms get esc'd
+  // once) so it interpolates directly below — re-esc()'ing it would double-escape (e.g.
+  // an apostrophe → &#39; → &amp;#39;, rendered literally).
+  const rows = [{ code: "auto", label: t("language.auto") }, ...listLocales().map((l) => ({ code: l.code, label: esc(l.label) }))];
   const items = rows.map((r) => {
     const on = r.code === active;
-    return `<button type="button" role="menuitemradio" aria-checked="${on}" class="va-lang-opt ${on ? "active" : ""}" data-lang="${esc(r.code)}">${on ? "✓ " : ""}${esc(r.label)}</button>`;
+    return `<button type="button" role="menuitemradio" aria-checked="${on}" class="va-lang-opt ${on ? "active" : ""}" data-lang="${esc(r.code)}">${on ? "✓ " : ""}${r.label}</button>`;
   }).join("");
   return `
     <div class="va-lang ${open ? "is-open" : ""}">
-      <button type="button" class="va-lang-btn" id="lang-toggle" aria-haspopup="menu" aria-expanded="${open}" title="${esc(t("language.button_title"))}">
+      <button type="button" class="va-lang-btn" id="lang-toggle" aria-haspopup="menu" aria-expanded="${open}" title="${t("language.button_title")}">
         <span aria-hidden="true">🌐</span><span class="va-lang-code">${esc(badge)}</span>
       </button>
       ${open
         ? `<div class="va-lang-backdrop" id="lang-backdrop"></div>
-           <div class="va-lang-menu" role="menu" aria-label="${esc(t("language.heading"))}">
-             <div class="va-lang-head">${esc(t("language.heading"))}</div>${items}
+           <div class="va-lang-menu" role="menu" aria-label="${t("language.heading")}">
+             <div class="va-lang-head">${t("language.heading")}</div>${items}
            </div>`
         : ""}
     </div>`;

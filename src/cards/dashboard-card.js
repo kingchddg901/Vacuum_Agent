@@ -141,6 +141,7 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};        // roomId -> draft field overrides (unsaved)
     this._expanded = new Set();  // roomIds whose settings body is open
     this._roomsCollapsed = false; // whether the whole Rooms group is collapsed
+    this._mapCollapsed = false;  // whether the map section is collapsed
     this._langOverride = "auto"; // per-user language choice (loaded once)
     this._langMenuOpen = false;
     this._langLoaded = false;
@@ -163,6 +164,7 @@ class EufyDashboardCard extends HTMLElement {
     this._rowFields = {};
     this._expanded = new Set();
     this._roomsCollapsed = false;
+    this._mapCollapsed = false;
     this._strictOrder = false;
     this._zoneDrafts = [];
     this._cleanTimes = 1;
@@ -510,6 +512,8 @@ class EufyDashboardCard extends HTMLElement {
     `;
   }
 
+  // The lightweight zone-draw map BODY (no outer section/label — _renderMapSection
+  // supplies the collapsible chrome). Returns "" when there's nothing to draw on.
   _renderZoneMap() {
     if (!this._canZone()) return "";
     const url = this._liveMapUrl();
@@ -521,8 +525,7 @@ class EufyDashboardCard extends HTMLElement {
         <span class="zone-num">${i + 1}</span>
       </div>`).join("");
     return `
-      <div class="section zone">
-        <div class="section-label">${this.t("vacuum_card.map_label")}</div>
+      <div class="zone">
         <div class="zone-surface" id="zone-surface">
           <div class="zone-rotator" style="transform: rotate(${rot}deg)">
             <img class="zone-img" id="zone-img" src="${esc(url)}" draggable="false" alt="">
@@ -602,6 +605,16 @@ class EufyDashboardCard extends HTMLElement {
       const toggle = () => { this._roomsCollapsed = !this._roomsCollapsed; this._render(); };
       roomsToggle.addEventListener("click", toggle);
       roomsToggle.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+      });
+    }
+    // Collapse / expand the Map section (body drops from the DOM; _maybeMountMap
+    // re-parents the persistent map element when it comes back on expand)
+    const mapToggle = this.shadowRoot.getElementById("map-toggle");
+    if (mapToggle) {
+      const toggle = () => { this._mapCollapsed = !this._mapCollapsed; this._render(); };
+      mapToggle.addEventListener("click", toggle);
+      mapToggle.addEventListener("keydown", (e) => {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
       });
     }
@@ -835,13 +848,26 @@ class EufyDashboardCard extends HTMLElement {
 
   // Section under the header: the full <eufy-vacuum-map> slot when wanted, else the
   // lightweight W2a zone-draw map (which also covers a brand with zones but no map).
+  // Wrapped in a collapsible group (mirrors the Rooms group) so the card stays compact;
+  // when collapsed the body is dropped from the DOM — the map element survives on the
+  // JS instance (this._mapEl) and is re-parented when expanded (see _maybeMountMap).
   _renderMapSection() {
-    if (!this._wantsFullMap()) return this._renderZoneMap();
-    const loading = this._mapEl ? "" : `<div class="map-loading">${this.t("vacuum_card.map_loading")}</div>`;
+    let body;
+    if (this._wantsFullMap()) {
+      const loading = this._mapEl ? "" : `<div class="map-loading">${this.t("vacuum_card.map_loading")}</div>`;
+      body = `<div class="map-slot" id="map-slot">${loading}</div>`;
+    } else {
+      body = this._renderZoneMap();   // "" when there's nothing to draw on → no section
+      if (!body) return "";
+    }
+    const collapsed = this._mapCollapsed;
     return `
-      <div class="section map-section">
-        <div class="section-label">${this.t("vacuum_card.map_label")}</div>
-        <div class="map-slot" id="map-slot">${loading}</div>
+      <div class="section map-section ${collapsed ? "is-collapsed" : ""}">
+        <div class="group-head" id="map-toggle" role="button" tabindex="0" aria-expanded="${!collapsed}">
+          <span class="section-label">${this.t("vacuum_card.map_label")}</span>
+          <span class="group-chevron">▾</span>
+        </div>
+        ${collapsed ? "" : body}
       </div>`;
   }
 
@@ -957,7 +983,8 @@ const CARD_CSS = `
   .group-head .section-label { flex: 0 0 auto; }
   .group-head .count { font-size: 0.68rem; font-weight: 600; color: color-mix(in srgb, var(--accent) 90%, white); background: color-mix(in srgb, var(--accent) 16%, transparent); border-radius: 10px; padding: 1px 8px; }
   .group-chevron { margin-left: auto; color: var(--text-muted); font-size: 0.9rem; transition: transform 150ms ease; }
-  .rooms:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
+  .rooms:not(.is-collapsed) .group-chevron,
+  .map-section:not(.is-collapsed) .group-chevron { transform: rotate(180deg); }
   .empty { padding: 16px; font-size: 0.85rem; color: var(--text-muted); }
 
   .room-row { border: 1px solid var(--border); border-radius: 8px; margin: 4px 0; overflow: hidden; }

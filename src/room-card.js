@@ -329,7 +329,7 @@ class EufyRoomCard extends HTMLElement {
       if (!options.length) return "";
       return `
         <div class="field-group">
-          <div class="field-label">${esc(label)}</div>
+          <div class="field-label">${label}</div>
           <div class="chips">
             ${options.map((opt) => `
               <button
@@ -418,6 +418,14 @@ class EufyRoomCard extends HTMLElement {
           border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
           border-radius: 4px; padding: 1px 6px;
           flex-shrink: 0;
+        }
+
+        /* ---- select hint (explains the clickable room-name header) ---- */
+        .select-hint {
+          margin: 0 16px 8px;
+          font-size: 0.72rem;
+          line-height: 1.35;
+          color: var(--text-muted);
         }
 
         /* ---- carpet notice ---- */
@@ -524,6 +532,8 @@ class EufyRoomCard extends HTMLElement {
           <span class="room-name">${esc(name)}</span>
           ${dirty ? `<span class="dirty-badge">${this.t("room_card.unsaved_badge")}</span>` : ""}
         </div>
+
+        <div class="select-hint">${this.t("room_card.select_hint")}</div>
 
         ${isCarpet ? `<div class="carpet-notice">🪵 ${this.t("room_card.carpet_notice")}</div>` : ""}
 

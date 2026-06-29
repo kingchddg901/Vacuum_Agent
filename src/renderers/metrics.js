@@ -599,8 +599,8 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(this.t("metrics.save_candidate_title"))}">
-              ${this.escapeHtml(this.t("metrics.save_candidate"))}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.t("metrics.save_candidate_title")}">
+              ${this.t("metrics.save_candidate")}
             </span>
           ` : ""}
         </div>
@@ -617,7 +617,7 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(this.t("metrics.save_profile_title"))}"
+              title="${this.t("metrics.save_profile_title")}"
             >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}
@@ -649,8 +649,8 @@ export function applyMetricsRenderers(proto) {
         <div class="evcc-metrics-card-header">
           <div class="evcc-metrics-card-title">${this.escapeHtml(title)}</div>
           ${profile?.save_candidate === true ? `
-            <span class="evcc-chip evcc-metrics-card-badge" title="${this.escapeHtml(this.t("metrics.save_candidate_title"))}">
-              ${this.escapeHtml(this.t("metrics.save_candidate"))}
+            <span class="evcc-chip evcc-metrics-card-badge" title="${this.t("metrics.save_candidate_title")}">
+              ${this.t("metrics.save_candidate")}
             </span>
           ` : ""}
         </div>
@@ -667,7 +667,7 @@ export function applyMetricsRenderers(proto) {
               data-profile-key="${this.escapeHtml(String(profile?.profile_key ?? ""))}"
               data-room-slug="${this.escapeHtml(String(profile?.room_slug ?? ""))}"
               ${pending ? "disabled" : ""}
-              title="${this.escapeHtml(this.t("metrics.save_profile_title"))}"
+              title="${this.t("metrics.save_profile_title")}"
             >${pending ? this.t("metrics.saving") : this.t("metrics.save_profile")}</button>
           </div>
         ` : ""}

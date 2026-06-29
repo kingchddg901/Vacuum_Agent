@@ -309,7 +309,7 @@ export function applyExternalJobsRenderers(proto) {
     }).join("");
     return `
       <div class="evcc-editor-field-group">
-        <div class="evcc-field-label">${this.escapeHtml(label)}</div>
+        <div class="evcc-field-label">${label}</div>
         <div class="evcc-chip-row">${chips}</div>
       </div>`;
   };
