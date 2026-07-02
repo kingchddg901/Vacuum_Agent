@@ -92,24 +92,10 @@ class EufyVacuumMap extends HTMLElement {
   setSnapshot(payload) {
     if (payload && this._state?.setDashboardSnapshot) {
       this._state.setDashboardSnapshot(payload);
-      this._maybeDefaultVaRender();   // supports_va_render is known only after the snapshot
       this._scheduleRender();
       this._scheduleLiveMapRefresh();
       this._scheduleLivePosePoll();
     }
-  }
-
-  // Prefer the VA-rendered room-blob backdrop when the brand supports it (the clean
-  // look, not the raw camera image); the user can still toggle it in the map. Once.
-  _maybeDefaultVaRender() {
-    if (this._vaDefaulted || !this._state) return;
-    try {
-      if (this._state.supportsVaRender?.() && this._state.useVaRender
-          && !this._state.useVaRender() && this._state.setUseVaRender) {
-        this._state.setUseVaRender(true);
-      }
-    } catch { /* best-effort default */ }
-    this._vaDefaulted = true;
   }
 
   _initStack() {
@@ -122,6 +108,13 @@ class EufyVacuumMap extends HTMLElement {
     // The embedded map is ALWAYS the active map view — force it instance-locally so
     // the map gates fire, WITHOUT writing the panel's per-vacuum localStorage key.
     this._state.isMapViewActive = () => true;
+    // The card always shows the clean VA-rendered backdrop (the raw camera map is too
+    // noisy at card size), so there's NO VA-render toggle on the card (the renderer gates
+    // it via embeddedInCard). Force it on instance-locally + neuter the setter so the card
+    // never writes the SHARED evcc_va_render_<vac> key — the panel keeps its own choice
+    // (issue #35). supportsVaRender still gates whether the render actually applies.
+    this._state.useVaRender = () => true;
+    this._state.setUseVaRender = () => {};
   }
 
   /* =========================================================

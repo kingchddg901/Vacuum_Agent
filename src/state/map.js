@@ -965,6 +965,14 @@ export function applyMapState(proto) {
     return Boolean(this.dashboardSnapshot?.()?.supports_va_render);
   };
 
+  // True when this state drives the EMBEDDED dashboard-card map (the host sets
+  // _mapCtx = "card"), vs the sidebar panel. Used to trim controls that don't suit the
+  // small card — e.g. the VA-render toggle: the raw camera backdrop is too noisy at card
+  // size, so the card always shows the clean VA render and drops the toggle (issue #35).
+  proto.embeddedInCard = function () {
+    return this._mapCtx === "card";
+  };
+
   proto._useVaRender = null; // null = not yet read from localStorage
   proto._useVaRenderKey = function () {
     return `evcc_va_render_${vacuumObjectId(this.config?.vacuum ?? "")}`;

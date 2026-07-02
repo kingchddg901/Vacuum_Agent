@@ -247,7 +247,7 @@ export function applyMapRenderers(proto) {
             ${(hasLiveImage || vaActive) ? `
             <button class="evcc-map-zoom-btn" data-action="map-rotate"
                     title="${this.t("map.rotate")}" aria-label="${this.t("map.rotate_aria")}">↻</button>` : ""}
-            ${(state.supportsVaRender?.() ?? false) ? `
+            ${((state.supportsVaRender?.() ?? false) && !(state.embeddedInCard?.() ?? false)) ? `
             <button class="evcc-map-zoom-btn${(state.useVaRender?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-va-render"
                     title="${this.t("map.toggle_va_render")}" aria-label="${this.t("map.toggle_va_render")}">▦</button>` : ""}
