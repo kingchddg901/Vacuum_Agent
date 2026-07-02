@@ -48,6 +48,10 @@ export function applyMapState(proto) {
     for (const p of PREFIXES) move(p, p + vac);
     // Room-name anchors are `<pfx><vac>_<mapId>`; the empty-vac legacy is `<pfx>_<mapId>`
     // (double underscore). Collect THEN move (don't mutate localStorage mid-iteration).
+    // NOTE the scan assumes a vacuum object_id never begins with "_" (HA strips leading
+    // underscores from slugs), so the double-underscore form uniquely marks the empty-vac
+    // legacy — a `<pfx>_<mapId>` real key would only arise from an entity like `vacuum._x`,
+    // which HA won't produce (and move()'s null-destination guard prevents data loss anyway).
     try {
       const RN = "evcc_map_room_names_";
       const legacy = [];
@@ -57,6 +61,12 @@ export function applyMapState(proto) {
       }
       for (const k of legacy) move(k, RN + vac + k.slice(RN.length));
     } catch (_) {}
+    // DELIBERATELY NOT migrated: `evcc_seg_rooms_<vac>_<mapId>` + `evcc_dot_anchors_<vac>_<mapId>`.
+    // Those two ALSO carried the empty-id bug, but they are one-way localStorage→backend DRAIN
+    // keys (read once → push to backend → removeItem; no active setItem write path), so any
+    // remnant was already drained under the old code and the backend is now canonical. Moving a
+    // stale remnant onto the per-vac key would risk the drain path pushing it OVER good backend
+    // data — leaving it orphaned (and ignored) is the safer choice.
   };
 
   proto.isMapViewActive = function () {
