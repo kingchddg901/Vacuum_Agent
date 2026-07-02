@@ -10,6 +10,24 @@ only.
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-07-02
+
+A couple of fixes for the new dashboard card, both reported after 1.5.0.
+
+### Fixed
+- **The card's map no longer flips back to rendered on reload.** The dashboard card's
+  map is now **VA-render only** — the "toggle rendered map" button has been removed,
+  because the raw camera map is too busy at the small card size. The card always shows
+  the clean VA-rendered map; the render ↔ raw toggle stays on the sidebar panel, which
+  has room for it. (Thanks @Pistakkio — [#35](https://github.com/kingchddg901/Vacuum_Agent/issues/35).)
+- **Per-vacuum map preferences no longer bleed between vacuums.** On a multi-vacuum
+  setup, per-vacuum settings saved in the browser — pinned map pan/zoom, the map
+  companion (species/scale/follow), floor textures, the panel's VA-render toggle, the
+  last-open tab, moved room-name labels, and label visibility — were being shared across
+  all your vacuums (e.g. re-centering one vacuum's map moved another's). They're now
+  correctly per-vacuum. A one-time migration carries your current values over, so nothing
+  resets.
+
 ## [1.5.0] - 2026-06-28
 
 **Drive your vacuum from your own dashboard.** Beyond the sidebar panel, the
