@@ -40,6 +40,7 @@ export class VacuumCardState {
   constructor(hass, config) {
     this.hass = hass;
     this.config = config;
+    this._migrateLegacyVacKeys?.();   // carry over pre-fix suffix-less localStorage prefs
   }
 
   /**
@@ -49,6 +50,7 @@ export class VacuumCardState {
   sync(hass, config) {
     this.hass = hass;
     this.config = config;
+    this._migrateLegacyVacKeys?.();   // retry the one-time prefs migration once the vacuum is known
     return this;
   }
 }

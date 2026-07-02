@@ -1,8 +1,6 @@
 // Card-local state for the map view: zoom/pan transform, segment selection, segment↔room associations,
 // dot anchor positions, robot-position room detection, and animal companion settings.
 
-import { vacuumObjectId } from "../constants.js";
-
 // Smallest slice of the scaled map content (in container px) that must stay
 // inside the viewport. The pinned translate is stored in absolute container px,
 // so a view saved for one container size and restored into a smaller one (window
@@ -17,7 +15,48 @@ export function applyMapState(proto) {
   proto._selectedSegmentIds = null; // lazily created Set
 
   proto._mapViewStorageKey = function () {
-    return `evcc_map_view_active_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_map_view_active_${(this.vacuumObjectId() || "")}`;
+  };
+
+  // ONE-TIME migration for the empty-vacuum-id bug: the per-vacuum localStorage keys used
+  // to read config.vacuum (undefined → an EMPTY id), so every vacuum shared a single
+  // suffix-less key (e.g. `evcc_animal_`) — which is why alfred + ivy shared the map view /
+  // mascot / textures / pan-zoom. Now the keys are correctly per-vacuum; carry each legacy
+  // value over to THIS vacuum's key on first sync so nothing resets (both vacuums seed from
+  // the shared value, then diverge). Idempotent; the legacy key is left in place so a second
+  // vacuum can migrate from it too.
+  proto._migrateLegacyVacKeys = function () {
+    if (this._legacyVacKeysMigrated) return;
+    const vac = this.vacuumObjectId?.();
+    if (!vac) return;   // vacuum not resolvable yet — retried on the next sync
+    this._legacyVacKeysMigrated = true;
+    const move = (legacyKey, newKey) => {
+      try {
+        if (legacyKey !== newKey && localStorage.getItem(newKey) === null) {
+          const v = localStorage.getItem(legacyKey);
+          if (v !== null) localStorage.setItem(newKey, v);
+        }
+      } catch (_) {}
+    };
+    // Fixed-prefix keys — the legacy key is the prefix with an EMPTY vacuum id appended.
+    const PREFIXES = [
+      "evcc_map_view_active_", "evcc_va_render_", "evcc_map_labels_",
+      "evcc_animal_", "evcc_animal_scale_", "evcc_animal_on_", "evcc_animal_follow_",
+      "evcc_map_xform_panel_", "evcc_map_xform_card_",
+      "evcc_floor_tex_map_", "evcc_floor_tex_rooms_",
+    ];
+    for (const p of PREFIXES) move(p, p + vac);
+    // Room-name anchors are `<pfx><vac>_<mapId>`; the empty-vac legacy is `<pfx>_<mapId>`
+    // (double underscore). Collect THEN move (don't mutate localStorage mid-iteration).
+    try {
+      const RN = "evcc_map_room_names_";
+      const legacy = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(RN + "_")) legacy.push(k);   // the empty-vac form only
+      }
+      for (const k of legacy) move(k, RN + vac + k.slice(RN.length));
+    } catch (_) {}
   };
 
   proto.isMapViewActive = function () {
@@ -722,7 +761,7 @@ export function applyMapState(proto) {
   proto._roomNameAnchors = null;       // {key:{x,y}} | null = not yet loaded
   proto._roomNameAnchorsFor = null;    // the storage key the cache was loaded for
   proto._roomNameStorageKey = function () {
-    return `evcc_map_room_names_${vacuumObjectId(this.config?.vacuum ?? "")}_${this.activeMapId?.() ?? "main"}`;
+    return `evcc_map_room_names_${(this.vacuumObjectId() || "")}_${this.activeMapId?.() ?? "main"}`;
   };
   proto._loadRoomNameAnchors = function () {
     const key = this._roomNameStorageKey();
@@ -975,7 +1014,7 @@ export function applyMapState(proto) {
 
   proto._useVaRender = null; // null = not yet read from localStorage
   proto._useVaRenderKey = function () {
-    return `evcc_va_render_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_va_render_${(this.vacuumObjectId() || "")}`;
   };
   proto.useVaRender = function () {
     if (this._useVaRender === null) {
@@ -1439,7 +1478,7 @@ export function applyMapState(proto) {
 
   proto._segRoomLegacyKey = function () {
     const mapId = this._mapSegmentsData?.map_id ?? "unknown";
-    const vacId = vacuumObjectId(this.config?.vacuum ?? "");
+    const vacId = (this.vacuumObjectId() || "");
     return `evcc_seg_rooms_${vacId}_${mapId}`;
   };
 
@@ -1614,7 +1653,7 @@ export function applyMapState(proto) {
   // is set by the embedded map host ("card"); the panel leaves it default ("panel").
   proto._mapTransformKey = function () {
     const ctx = this._mapCtx || "panel";
-    return `evcc_map_xform_${ctx}_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_map_xform_${ctx}_${(this.vacuumObjectId() || "")}`;
   };
   proto._loadMapTransform = function () {
     if (this._mapTransformLoaded) return;
@@ -1734,7 +1773,7 @@ export function applyMapState(proto) {
 
   proto._dotAnchorLegacyKey = function () {
     const mapId = this._mapSegmentsData?.map_id ?? "unknown";
-    const vacId = vacuumObjectId(this.config?.vacuum ?? "");
+    const vacId = (this.vacuumObjectId() || "");
     return `evcc_dot_anchors_${vacId}_${mapId}`;
   };
 
@@ -1838,7 +1877,7 @@ export function applyMapState(proto) {
   proto._mapAnimalSelection = null; // null = not yet read
 
   proto._animalSelectionKey = function () {
-    return `evcc_animal_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_animal_${(this.vacuumObjectId() || "")}`;
   };
 
   proto.mapAnimalSelection = function () {
@@ -1871,7 +1910,7 @@ export function applyMapState(proto) {
   proto._mapAnimalScale = null; // null = not yet read
 
   proto._animalScaleKey = function () {
-    return `evcc_animal_scale_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_animal_scale_${(this.vacuumObjectId() || "")}`;
   };
 
   proto.mapAnimalScale = function () {
@@ -1901,7 +1940,7 @@ export function applyMapState(proto) {
      animal. Default on. */
   proto._mapAnimalEnabled = null; // null = not yet read
   proto._animalEnabledKey = function () {
-    return `evcc_animal_on_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_animal_on_${(this.vacuumObjectId() || "")}`;
   };
   proto.mapAnimalEnabled = function () {
     if (this._mapAnimalEnabled === null) {
@@ -1929,7 +1968,7 @@ export function applyMapState(proto) {
      the mascot still homes to the dock spot in BOTH modes, so dragging survives. */
   proto._mapAnimalFollowsRobot = null; // null = not yet read
   proto._animalFollowsRobotKey = function () {
-    return `evcc_animal_follow_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_animal_follow_${(this.vacuumObjectId() || "")}`;
   };
   proto.mapAnimalFollowsRobot = function () {
     if (this._mapAnimalFollowsRobot === null) {
@@ -1959,7 +1998,7 @@ export function applyMapState(proto) {
      would stack on top into noise — this toggle hides VA's labels. Default on. */
   proto._mapRoomLabelsEnabled = null; // null = not yet read
   proto._roomLabelsEnabledKey = function () {
-    return `evcc_map_labels_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_map_labels_${(this.vacuumObjectId() || "")}`;
   };
   proto.mapRoomLabelsEnabled = function () {
     if (this._mapRoomLabelsEnabled === null) {
@@ -1991,14 +2030,14 @@ export function applyMapState(proto) {
   proto._mapFloorTextureEnabled  = null; // null = not yet read
   proto._roomFloorTextureEnabled = null;
   proto._floorTexKey = function (which) {
-    return `evcc_floor_tex_${which}_${vacuumObjectId(this.config?.vacuum ?? "")}`;
+    return `evcc_floor_tex_${which}_${(this.vacuumObjectId() || "")}`;
   };
   proto._readFloorTex = function (which) {
     try {
       const v = localStorage.getItem(this._floorTexKey(which));
       if (v !== null) return v !== "0";
       // Migrate from the legacy unified key (absent => default on).
-      const legacy = localStorage.getItem(`evcc_floor_tex_${vacuumObjectId(this.config?.vacuum ?? "")}`);
+      const legacy = localStorage.getItem(`evcc_floor_tex_${(this.vacuumObjectId() || "")}`);
       return legacy !== "0";
     } catch (_) {
       return true;
