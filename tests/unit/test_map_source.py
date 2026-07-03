@@ -138,13 +138,16 @@ def test_build_map_source_result():
 # --- review-driven gap closes (adversarial review 2026-06-18) -------------------
 
 def test_rooms_from_room_pixels_outline_offset():
-    """[MS-1c] non-zero room_outline offset (the proven inverse transform) IS applied —
-    pins the single most regression-prone coordinate math (a sign flip mislocates rooms)."""
+    """[MS-1c] non-zero room_outline offset IS applied with the VERIFIED sign — pins the
+    single most regression-prone coordinate math. ro_dx = (room_outline_origin - origin)/res:
+    outline origin -10 is +10 cm right of the map origin -20, so ro_dx=ro_dy=+2. (On a real
+    X10 map this sign overlays the segmentation floor on the rendered floor at ~93%; the
+    inverted sign gives <1% — rooms slide off-grid.)"""
     md = {
         "width": 10, "height": 10, "resolution": 5,
         "room_outline_width": 10, "room_outline_height": 10,
-        "origin_x": 0, "origin_y": 0,
-        "room_outline_origin_x": -10, "room_outline_origin_y": -10,  # -> ro_dx=ro_dy=2
+        "origin_x": -20, "origin_y": -20,
+        "room_outline_origin_x": -10, "room_outline_origin_y": -10,  # -> ro_dx=ro_dy=+2
         "room_names": {"1": "Kitchen"},
         "room_pixels": _raster(10, 10, [(1, 0, 2, 0, 2)]),
     }
@@ -297,6 +300,16 @@ def test_current_room_for_pixel():
     assert current_room_for_pixel(md, 50, 50) is None   # off-map
     assert current_room_for_pixel(md, 0, 0) is None     # byte 0 -> not a room
     assert current_room_for_pixel(md, "x", 2) is None   # non-numeric
+
+
+def test_current_room_for_pixel_with_outline_offset():
+    """[MS-13b] the inverse lookup applies the VERIFIED offset sign on a realistic map
+    (outline origin RIGHT of the map origin, as on a real X10). ro_dx=+2, so a main-grid
+    pixel maps to (px - ro_dx) in the raster; the inverted sign would look up the wrong cell."""
+    md = _md([(5, 2, 2, 2, 2)], origin_x=-20, origin_y=-20,
+             room_outline_origin_x=-10, room_outline_origin_y=-10)   # ro_dx=ro_dy=+2
+    assert current_room_for_pixel(md, 4, 4) == 5     # main (4,4) -> outline (2,2) = room 5
+    assert current_room_for_pixel(md, 2, 2) is None  # main (2,2) -> outline (0,0) = empty
 
 
 def test_live_pose_overlay():

@@ -568,23 +568,43 @@ def _synthetic_map_data(byte_list):
 
 def test_zone_membership_computes_room_and_area():
     """[ZONE-4] zone_membership: >=90% floor dominance -> that room; split -> None;
-    over background only -> None; area from in-zone cell count; malformed -> both None."""
+    over background only -> None. area is the bbox's world FOOTPRINT (fork de-normalization:
+    Δnx*Δny*width*height*res^2), NOT a raster cell count; malformed -> both None."""
     from custom_components.eufy_vacuum.mapping.map_source import zone_membership
-    whole = [[-1.0, -1.0], [2.0, -1.0], [2.0, 2.0], [-1.0, 2.0]]   # contains every cell
-    area = round(16 * (10 / 100.0) ** 2, 1)
+    whole = [[-0.5, -0.5], [1.5, -0.5], [1.5, 1.5], [-0.5, 1.5]]   # strictly contains every cell
+    # width=4 height=4 res=10 -> full-bbox footprint = Δnx*Δny*4*4*(10/100)^2, Δ=2 each
+    whole_area = round(2.0 * 2.0 * 4 * 4 * (10 / 100.0) ** 2, 1)   # 0.64
 
     dom = zone_membership(_synthetic_map_data([5 << 2] * 15 + [9 << 2]), whole)
-    assert dom["room_number"] == 5 and dom["area_m2"] == area      # 15/16 = 93.75%
+    assert dom["room_number"] == 5 and dom["area_m2"] == whole_area  # 15/16 = 93.75%
 
     split = zone_membership(_synthetic_map_data([5 << 2] * 8 + [9 << 2] * 8), whole)
-    assert split["room_number"] is None and split["area_m2"] == area
+    assert split["room_number"] is None and split["area_m2"] == whole_area
 
     bg = zone_membership(_synthetic_map_data([0] * 16), whole)     # no floor cells
-    assert bg["room_number"] is None and bg["area_m2"] == area
+    assert bg["room_number"] is None and bg["area_m2"] == whole_area
+
+    # area tracks the bbox, not the raster: half the image in each axis -> a quarter the area
+    half = [[0.0, 0.0], [0.5, 0.0], [0.5, 0.5], [0.0, 0.5]]
+    half_area = round(0.5 * 0.5 * 4 * 4 * (10 / 100.0) ** 2, 1)    # 0.16
+    assert zone_membership(_synthetic_map_data([5 << 2] * 16), half)["area_m2"] == half_area
 
     assert zone_membership(_synthetic_map_data([5 << 2] * 16), [[0.0, 0.0]]) == {
         "area_m2": None, "room_number": None}                      # < 3 points
     assert zone_membership({}, whole) == {"area_m2": None, "room_number": None}
+
+
+def test_zone_membership_area_is_offset_independent():
+    """[ZONE-4b] the area = bbox world footprint (fork de-normalization), so it depends ONLY
+    on width/height/resolution — NOT on the room_outline offset. This is what keeps the size
+    correct even on maps whose segmentation raster is offset from the render grid."""
+    from custom_components.eufy_vacuum.mapping.map_source import zone_membership
+    box = [[0.25, 0.25], [0.75, 0.25], [0.75, 0.75], [0.25, 0.75]]
+    expect = round(0.5 * 0.5 * 4 * 4 * (10 / 100.0) ** 2, 1)       # 0.04
+    md0 = _synthetic_map_data([5 << 2] * 16)
+    md_off = {**md0, "room_outline_origin_x": 40, "room_outline_origin_y": 40}  # big offset
+    assert zone_membership(md0, box)["area_m2"] == expect
+    assert zone_membership(md_off, box)["area_m2"] == expect       # offset changes nothing
 
 
 async def test_create_saved_zone_computes_filing_when_map_present(hass, mapping_services, monkeypatch):

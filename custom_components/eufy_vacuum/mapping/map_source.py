@@ -221,9 +221,15 @@ def _outline_geometry(map_data: dict[str, Any]):
     """Shared Eufy room_pixels geometry: (ro_w, ro_h, ro_dx, ro_dy, res, width, height).
 
     The room_pixels raster is in the room_outline frame; (ro_dx, ro_dy) is the integer
-    offset to the MAIN grid (= round((origin - room_outline_origin)/res)). Returns None
-    when the required dims are missing. Single source for both the per-room extraction
-    and the robot-pixel current-room lookup, so the inverse transform can't drift.
+    offset that maps an outline cell to the MAIN render grid. Both grids use the
+    ``origin + index*res`` convention (the fork's own ``_pose_to_pixel``), so outline cell
+    ``rx`` lands at main-grid pixel ``rx + (room_outline_origin - origin)/res``.
+
+    The sign is VERIFIED against the fork's rendered map: on a stored X10 map whose outline
+    origin sits +105 cells from the map origin, this sign overlays the segmentation floor
+    onto the rendered floor at ~93%; the inverted sign gives <1% (rooms slide off-grid).
+    Returns None when the required dims are missing. Single source for the per-room
+    extraction, the current-room lookup, and saved-zone filing, so the transform can't drift.
     """
     width = _as_int(map_data.get("width"))
     height = _as_int(map_data.get("height"))
@@ -234,8 +240,8 @@ def _outline_geometry(map_data: dict[str, Any]):
         return None
     ox = _as_int(map_data.get("origin_x"))
     oy = _as_int(map_data.get("origin_y"))
-    ro_dx = round((ox - _as_int(map_data.get("room_outline_origin_x"), ox)) / res)
-    ro_dy = round((oy - _as_int(map_data.get("room_outline_origin_y"), oy)) / res)
+    ro_dx = round((_as_int(map_data.get("room_outline_origin_x"), ox) - ox) / res)
+    ro_dy = round((_as_int(map_data.get("room_outline_origin_y"), oy) - oy) / res)
     return ro_w, ro_h, ro_dx, ro_dy, res, width, height
 
 
@@ -312,75 +318,86 @@ def rooms_from_room_pixels(map_data: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> dict[str, Any]:
-    """Filing + size for a saved zone against the Eufy ``room_pixels`` raster (Wave 2).
+    """Filing + size for a saved zone against the Eufy map (Wave 2).
 
     Returns ``{"area_m2": float | None, "room_number": int | None}``:
 
+    - ``area_m2`` — the zone bbox's real-world FOOTPRINT, computed EXACTLY as the fork
+      de-normalizes a zone clean (``coordinator.normalized_rects_to_quads_cm``): the world
+      span of the bbox is ``(Δnx*width*res, Δny*height*res)`` cm, so the footprint is
+      ``Δnx*Δny*width*height*res^2``. This is what ``clean_saved_zone`` actually dispatches
+      (the bbox), so "size shown == size cleaned", and — crucially — it depends ONLY on
+      ``width``/``height``/``resolution``, never on the room_outline offset, so it is immune
+      to any raster-alignment issue.
     - ``room_number`` — the room holding **>= 90% of the SEGMENTED FLOOR cells** whose
       centre falls inside the zone polygon. Furniture-footprint / background cells are
       excluded from the denominator (the same ``0 < rid < _CATCH_ALL_RID`` filter
       ``rooms_from_room_pixels`` applies), so a big-furniture zone isn't wrongly split.
       ``None`` when no room dominates or the zone covers no floor (Unassigned). FILING
       ONLY — never affects dispatch.
-    - ``area_m2`` — every in-polygon cell (floor or not) times the cell area, i.e. the
-      zone's real footprint, via ``_area_m2`` (the same convention as per-room area).
 
-    Pure + defensive: both fields ``None`` when the raster/geometry is missing or
-    malformed; never raises. Eufy-only — Roborock has no per-pixel raster, so the caller
-    passes ``None`` map_data and both stay ``None``.
+    Pure + defensive: fields are ``None`` when the map/geometry is missing or malformed;
+    never raises. Roborock has no per-pixel raster, so ``room_number`` stays ``None`` there
+    (and ``area_m2`` needs the Eufy ``width``/``height``/``resolution`` dims).
     """
     from .boundary import point_in_polygon  # local import: no import cycle at module load
 
     empty = {"area_m2": None, "room_number": None}
     if not (isinstance(geometry, list) and len(geometry) >= 3):
         return empty
-    geom = _outline_geometry(map_data)
-    if geom is None:
-        return empty
-    ro_w, ro_h, ro_dx, ro_dy, res, width, height = geom
-    rp_b64 = map_data.get("room_pixels")
-    if not rp_b64:
-        return empty
     try:
-        room_px = base64.b64decode(rp_b64)
-    except (ValueError, TypeError):
+        xs = [float(p[0]) for p in geometry]
+        ys = [float(p[1]) for p in geometry]
+    except (TypeError, ValueError, IndexError):
         return empty
-
-    # Cheap normalized-bbox reject before the per-cell ray-cast — a zone is a small
-    # fraction of the map, so most cells short-circuit here.
-    xs = [float(p[0]) for p in geometry]
-    ys = [float(p[1]) for p in geometry]
     bx0, bx1, by0, by1 = min(xs), max(xs), min(ys), max(ys)
 
-    in_poly = 0                      # every in-zone cell -> area footprint
-    floor_total = 0                  # in-zone SEGMENTED-floor cells -> filing denominator
-    per_rid: dict[int, int] = {}
-    for ry in range(ro_h):
-        row = ry * ro_w
-        for rx in range(ro_w):
-            idx = row + rx
-            if idx >= len(room_px):
-                break
-            nx, ny = normalize_rendered(rx + ro_dx, ry + ro_dy, width, height)
-            if nx < bx0 or nx > bx1 or ny < by0 or ny > by1:
-                continue
-            if not point_in_polygon((nx, ny), geometry):
-                continue
-            in_poly += 1
-            rid = room_px[idx] >> 2
-            if 0 < rid < _CATCH_ALL_RID:
-                floor_total += 1
-                per_rid[rid] = per_rid.get(rid, 0) + 1
+    # AREA — mirror the fork's de-normalization exactly; OFFSET-INDEPENDENT of the raster.
+    width = _as_int(map_data.get("width"))
+    height = _as_int(map_data.get("height"))
+    res = _as_int(map_data.get("resolution"), 5) or 5
+    area_m2: float | None = None
+    if width and height:
+        dx_cm = (bx1 - bx0) * width * res
+        dy_cm = (by1 - by0) * height * res
+        area_m2 = round(abs(dx_cm) * abs(dy_cm) / 10_000.0, 1)
 
+    # ROOM FILING — floor-dominance from the room_pixels raster (the offset now overlays the
+    # rendered floor; see _outline_geometry). A cheap bbox reject precedes the per-cell
+    # ray-cast. Best-effort: any missing/bad piece leaves room_number None (Unassigned)
+    # without disturbing area.
     room_number: int | None = None
-    if floor_total:
-        best_rid, best_cnt = max(per_rid.items(), key=lambda kv: kv[1])
-        if best_cnt / floor_total >= 0.90:
-            room_number = best_rid
-    return {
-        "area_m2": _area_m2(in_poly, res) if in_poly else 0.0,
-        "room_number": room_number,
-    }
+    geom = _outline_geometry(map_data)
+    rp_b64 = map_data.get("room_pixels")
+    if geom is not None and rp_b64:
+        try:
+            room_px = base64.b64decode(rp_b64)
+        except (ValueError, TypeError):
+            room_px = b""
+        if room_px:
+            ro_w, ro_h, ro_dx, ro_dy, _res, _w, _h = geom
+            floor_total = 0              # in-zone SEGMENTED-floor cells -> filing denominator
+            per_rid: dict[int, int] = {}
+            for ry in range(ro_h):
+                row = ry * ro_w
+                for rx in range(ro_w):
+                    idx = row + rx
+                    if idx >= len(room_px):
+                        break
+                    nx, ny = normalize_rendered(rx + ro_dx, ry + ro_dy, _w, _h)
+                    if nx < bx0 or nx > bx1 or ny < by0 or ny > by1:
+                        continue
+                    if not point_in_polygon((nx, ny), geometry):
+                        continue
+                    rid = room_px[idx] >> 2
+                    if 0 < rid < _CATCH_ALL_RID:
+                        floor_total += 1
+                        per_rid[rid] = per_rid.get(rid, 0) + 1
+            if floor_total:
+                best_rid, best_cnt = max(per_rid.items(), key=lambda kv: kv[1])
+                if best_cnt / floor_total >= 0.90:
+                    room_number = best_rid
+    return {"area_m2": area_m2, "room_number": room_number}
 
 
 def current_room_for_pixel(map_data: dict[str, Any], px: Any, py: Any) -> int | None:
