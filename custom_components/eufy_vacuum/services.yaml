@@ -2612,6 +2612,39 @@ set_saved_zone_room:
         number:
           mode: box
 
+clean_saved_zone:
+  name: Clean saved zone
+  description: >
+    Fire a saved zone as an ad-hoc zone clean (fire-and-forget, not tracked in the
+    job queue). Only works when the zone's map is the currently active map — otherwise
+    it refuses (switch to that map first).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    zone_id:
+      name: Zone ID
+      required: true
+      selector:
+        text: {}
+    clean_times:
+      name: Clean times
+      description: Number of cleaning passes.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
 create_custom_layout:
   name: Create custom layout
   description: >

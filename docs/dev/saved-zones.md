@@ -2,8 +2,10 @@
 
 **Status:** **Waves 1 + 2 BUILT + adversarially reviewed** — W1 storage + CRUD + read; W2 filing
 (`room_number` at ≥90%-of-floor via `zone_membership`) + `area_m2` + the `set_saved_zone_room`
-override. 2794 tests green, 2026-07-02. **Wave 3** (card UX + clean dispatch) pending. This doc is
-the contract; each wave is additive.
+override; **W3a `clean_saved_zone` dispatch** (resolve zone → bbox rect → the shared
+`dispatch_zone_clean`, active-map-guarded, fire-and-forget). 2795 tests green, 2026-07-02.
+**Wave 3b** (the card UX: draw→save, room-grouped list, pick-and-clean) pending. This doc is the
+contract; each wave is additive.
 
 > **Scope:** persist **named, reusable zones** on a map ("the couch", "the stove", "under the
 > table") that a user can draw once, name, bucket under a room, and re-clean on demand. It is a

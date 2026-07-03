@@ -649,6 +649,52 @@ async def test_set_saved_zone_room(hass, mapping_services):
     assert bad["saved"] is False and bad["reason"] == "zone_not_found"
 
 
+async def test_clean_saved_zone_dispatches_bbox(hass, mapping_services, monkeypatch):
+    """[ZONE-8] clean_saved_zone resolves the zone -> its bbox rect -> dispatch_zone_clean;
+    guards to the active map; not-found + map-mismatch refuse WITHOUT dispatching."""
+    from custom_components.eufy_vacuum.const import (
+        SERVICE_CLEAN_SAVED_ZONE,
+        SERVICE_CREATE_SAVED_ZONE,
+    )
+    captured = {}
+
+    async def _fake_dispatch(*, vacuum_entity_id, zones, clean_times=1, map_id=None):
+        captured["zones"] = zones
+        captured["clean_times"] = clean_times
+        return {"dispatched": True}
+    monkeypatch.setattr(mapping_services, "dispatch_zone_clean", _fake_dispatch)
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: _MAP)
+
+    geom = [[0.2, 0.3], [0.6, 0.25], [0.55, 0.7], [0.15, 0.65]]   # non-rect -> bbox
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z", "geometry": geom})
+    zid = a["zone_id"]
+    xs = [p[0] for p in a["zone"]["geometry"]]
+    ys = [p[1] for p in a["zone"]["geometry"]]
+
+    r = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid, "clean_times": 2})
+    assert r["cleaned"] is True and r["zone_id"] == zid
+    assert captured["zones"] == [[min(xs), min(ys), max(xs), max(ys)]]
+    assert captured["clean_times"] == 2
+
+    captured.clear()
+    nf = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": "nope"})
+    assert nf["cleaned"] is False and nf["reason"] == "zone_not_found"
+    assert captured == {}                                          # never dispatched
+
+    monkeypatch.setattr(   # zone's map != active map -> refuse, no dispatch
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: "999")
+    mm = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
+    assert mm["cleaned"] is False and mm["reason"] == "map_not_active"
+    assert captured == {}
+
+
 async def test_create_custom_layout_live_backdrop_source(hass, mapping_services):
     """[LAYOUT-11] create_custom_layout with backdrop_source='live' pins the layout to
     the live map (surfaced in the get_map_segments summary so the card's "Live map" chip

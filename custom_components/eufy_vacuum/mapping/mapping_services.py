@@ -43,6 +43,7 @@ from ..const import (
     SERVICE_RENAME_SAVED_ZONE,
     SERVICE_DELETE_SAVED_ZONE,
     SERVICE_SET_SAVED_ZONE_ROOM,
+    SERVICE_CLEAN_SAVED_ZONE,
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
     SERVICE_SET_ROOM_VIEWPORT,
@@ -147,6 +148,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_RENAME_SAVED_ZONE,
     SERVICE_DELETE_SAVED_ZONE,
     SERVICE_SET_SAVED_ZONE_ROOM,
+    SERVICE_CLEAN_SAVED_ZONE,
     # Furnished custom render
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
@@ -532,6 +534,17 @@ SET_SAVED_ZONE_ROOM_SCHEMA = vol.Schema(
         vol.Required("zone_id"): cv.string,
         # null / omitted -> clear to Unassigned; an int files under that room.
         vol.Optional("room_number", default=None): vol.Any(None, vol.Coerce(int)),
+    }
+)
+
+# Fire a saved zone's geometry as an ad-hoc zone clean (Wave 3). Reuses the shared
+# dispatch (device-limit + size validation live there); guarded to the active map.
+CLEAN_SAVED_ZONE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("zone_id"): cv.string,
+        vol.Optional("clean_times", default=1): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )
 
@@ -2665,6 +2678,62 @@ async def _handle_set_saved_zone_room(hass: HomeAssistant, call: ServiceCall) ->
     return {"saved": True, "zone_id": zone_id, "zone": dict(zone)}
 
 
+async def _handle_clean_saved_zone(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Fire a saved zone's geometry as an ad-hoc zone clean (Wave 3).
+
+    Resolves the zone, takes its normalized bounding-box rect, and dispatches through
+    the shared ``dispatch_zone_clean`` (which owns the per-brand coordinate conversion
+    + the device zone-count/size limits). GUARDED to the active map: a saved zone's
+    geometry is only valid on ITS map, so cleaning it while a different map is loaded
+    would clean the wrong area — refuse and tell the caller which map is active.
+    Fire-and-forget: no job/queue/learning (same as ``start_zone_clean``).
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    zone_id: str = call.data["zone_id"]
+    clean_times: int = int(call.data.get("clean_times", 1))
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
+    if not isinstance(zone, dict):
+        return {"cleaned": False, "reason": "zone_not_found"}
+
+    from ..rooms.room_discovery import get_active_map_id
+    try:
+        active_map_id = get_active_map_id(hass, vacuum_entity_id)
+    except Exception:  # noqa: BLE001
+        active_map_id = None
+    if active_map_id is not None and str(active_map_id) != str(map_id):
+        return {
+            "cleaned": False, "reason": "map_not_active",
+            "active_map_id": str(active_map_id),
+        }
+
+    pts = [
+        p for p in (zone.get("geometry") or [])
+        if isinstance(p, (list, tuple)) and len(p) == 2
+    ]
+    if len(pts) < 3:
+        return {"cleaned": False, "reason": "bad_geometry"}
+    xs = [float(p[0]) for p in pts]
+    ys = [float(p[1]) for p in pts]
+    rect = [min(xs), min(ys), max(xs), max(ys)]
+
+    try:
+        payload = await manager.dispatch_zone_clean(
+            vacuum_entity_id=vacuum_entity_id, zones=[rect],
+            clean_times=clean_times, map_id=map_id,
+        )
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to clean saved zone: {err}") from err
+    _LOGGER.debug("clean_saved_zone: %s/%s -> %s", vacuum_entity_id, zone_id, payload)
+    return {"cleaned": True, "zone_id": zone_id, "dispatch": payload}
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -3088,6 +3157,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_saved_zone_room(call: ServiceCall) -> dict:
         return await _handle_set_saved_zone_room(hass, call)
 
+    async def clean_saved_zone(call: ServiceCall) -> dict:
+        return await _handle_clean_saved_zone(hass, call)
+
     async def set_furnished_art_placement(call: ServiceCall) -> dict:
         return await _handle_set_furnished_art_placement(hass, call)
 
@@ -3204,6 +3276,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_SAVED_ZONE_ROOM, set_saved_zone_room,
         schema=SET_SAVED_ZONE_ROOM_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAN_SAVED_ZONE, clean_saved_zone,
+        schema=CLEAN_SAVED_ZONE_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, set_furnished_art_placement,
