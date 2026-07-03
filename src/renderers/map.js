@@ -678,20 +678,28 @@ export function applyMapRenderers(proto) {
      ZONE-CLEAN PANEL (rendered in the right column, under Run Profiles)
      ========================================================= */
 
-  proto._renderZonePanel = function (state, zoneDrafts, zoneCount, zoneMax) {
+  /**
+   * The vacuum's clean-setting selects (Suction / Mode / Intensity / Water), rendered
+   * live from the real provider entities. Shared by the ad-hoc zone panel AND the Saved
+   * Zones panel — a zone clean (drawn or saved) runs off these current DEVICE settings,
+   * so there is ONE source of truth. ``action`` scopes the change binding to the caller
+   * (map panel = "zone-setting", saved-zones panel = "sz-setting") so the two don't
+   * double-fire. Returns "" when the vacuum exposes no setting selects.
+   *
+   * @param {object} state
+   * @param {string} [action="zone-setting"] data-action for the change binding.
+   * @returns {string} HTML rows.
+   */
+  proto._renderZoneSettingRows = function (state, action = "zone-setting") {
     const esc = (s) => this.escapeHtml(String(s));
     const settingEntities = state.settingEntities?.() ?? {};
-
-    // The vacuum's setting selects, in display order. Each is rendered live from
-    // the real provider entity (current value + options); changing it calls
-    // select.select_option — a zone clean runs off these current settings.
     const SETTINGS = [
       { key: "fan_speed",       label: this.t("map.zone_setting_suction") },
       { key: "clean_mode",      label: this.t("map.zone_setting_mode") },
       { key: "clean_intensity", label: this.t("map.zone_setting_intensity") },
       { key: "water_level",     label: this.t("map.zone_setting_water") },
     ];
-    const settingRows = SETTINGS.map(({ key, label }) => {
+    return SETTINGS.map(({ key, label }) => {
       const eid = settingEntities[key];
       if (!eid) return "";
       const ent = state.entity?.(eid);
@@ -701,12 +709,16 @@ export function applyMapRenderers(proto) {
       return `
         <label class="evcc-zone-setting">
           <span class="evcc-zone-setting-label">${label}</span>
-          <select class="evcc-zone-setting-select" data-action="zone-setting"
+          <select class="evcc-zone-setting-select" data-action="${esc(action)}"
                   data-entity-id="${esc(eid)}">
             ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}
           </select>
         </label>`;
     }).join("");
+  };
+
+  proto._renderZonePanel = function (state, zoneDrafts, zoneCount, zoneMax) {
+    const settingRows = this._renderZoneSettingRows(state, "zone-setting");
 
     const zoneList = zoneDrafts.map((_, i) => `
       <li class="evcc-zone-list-item">

@@ -122,6 +122,14 @@ export const SERVICE_RENAME_CUSTOM_LAYOUT     = "rename_custom_layout";
 export const SERVICE_DELETE_CUSTOM_LAYOUT     = "delete_custom_layout";
 export const SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout";
 
+// --- Saved zones (named reusable clean regions) ---
+export const SERVICE_CREATE_SAVED_ZONE        = "create_saved_zone";
+export const SERVICE_RENAME_SAVED_ZONE        = "rename_saved_zone";
+export const SERVICE_DELETE_SAVED_ZONE        = "delete_saved_zone";
+export const SERVICE_SET_SAVED_ZONE_ROOM      = "set_saved_zone_room";
+export const SERVICE_CLEAN_SAVED_ZONE         = "clean_saved_zone";
+export const SERVICE_CLEAN_SAVED_ZONES        = "clean_saved_zones";
+
 // --- Furnished custom render (Wave 1: whole-home art over the live map) ---
 export const SERVICE_SET_FURNISHED_ART_PLACEMENT = "set_furnished_art_placement";
 export const SERVICE_SET_FURNISHED_RENDER_MODE   = "set_furnished_render_mode";

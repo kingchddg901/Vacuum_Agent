@@ -175,6 +175,14 @@ export const en = {
   "bind_run_profiles.unable_delete": "Unable to delete run profile.",
   "bind_run_profiles.unable_overwrite": "Unable to overwrite run profile.",
   "bind_run_profiles.unable_save": "Unable to save run profile.",
+  "bind_saved_zones.bad_geometry": "This zone has no valid area to clean.",
+  "bind_saved_zones.clean_failed": "Couldn't clean the selected zones — check the count and size.",
+  "bind_saved_zones.cleaning_selected": { one: "Cleaning {count} zone…", other: "Cleaning {count} zones…" },
+  "bind_saved_zones.confirm_delete": "Delete saved zone \"{name}\"?",
+  "bind_saved_zones.map_not_active": "That zone belongs to a different map — switch to its map first.",
+  "bind_saved_zones.no_zones": "No zones to clean.",
+  "bind_saved_zones.unable_delete": "Unable to delete the saved zone.",
+  "bind_saved_zones.zone_not_found": "That saved zone no longer exists.",
   "bind_setup.failed_add_vacuum": "Failed to add vacuum: {error}",
   "bind_setup.failed_delete_map": "Failed to delete map: {error}",
   "bind_setup.failed_delete_map_plain": "Failed to delete map.",
@@ -1233,6 +1241,19 @@ export const en = {
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
   "run_profiles.subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
   "run_profiles.title": "Run Profiles",  // Feature name = saved room-queue setups; 'Run'=a cleaning run, 'Profiles'=named setups
+
+  // --- saved zones ---
+  "saved_zones.area_m2": "{area} m²",  // Zone size chip; {area}=one-decimal number, m²=square metres
+  "saved_zones.clean_selected": { one: "Clean {count} selected", other: "Clean {count} selected" },  // primary action; {count}=selected zone count
+  "saved_zones.clean_selected_empty": "Clean selected",  // disabled label when nothing is selected
+  "saved_zones.clear": "Clear",  // clear the zone multi-selection
+  "saved_zones.empty": "No saved zones yet.",
+  "saved_zones.over_cap": "Max {max} zones per clean",  // shown when more than the device limit are selected
+  "saved_zones.select_zone": "Select {name}",  // aria-label on a zone's select checkbox
+  "saved_zones.selected_badge": { one: "{count} selected", other: "{count} selected" },  // collapsed-header count badge
+  "saved_zones.subtitle": "Named spots you can re-clean any time — filed under the room they're in.",
+  "saved_zones.title": "Saved Zones",
+  "saved_zones.unassigned": "Unassigned",  // Section header for zones not filed under a room
 
   // --- setup ---
   "setup.add": "Add",

@@ -82,6 +82,9 @@ export function applyRoomsRenderers(proto) {
             ${typeof this.renderRunProfilesPanel === "function"
               ? this.renderRunProfilesPanel(state)
               : ""}
+            ${typeof this.renderSavedZonesPanel === "function"
+              ? this.renderSavedZonesPanel(state)
+              : ""}
             ${(state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
               ? this._renderZonePanel(
                   state,

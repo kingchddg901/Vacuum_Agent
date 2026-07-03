@@ -31,6 +31,7 @@ import { roomAccessStyles                    } from "./room-access.js";
 import { roomEstimateStyles                  } from "./room-estimate.js";
 import { roomRulesStyles                     } from "./room-rules.js";
 import { runProfileStyles                    } from "./run-profiles.js";
+import { savedZonesStyles                    } from "./saved-zones.js";
 import { maintenanceStyles, maintenanceModalHostStyles } from "./maintenance.js";
 import { modalStyles                         } from "./modals.js";
 import { learningStyles                      } from "./learning.js";
@@ -58,6 +59,7 @@ export const STYLES = [
   roomEstimateStyles,
   roomRulesStyles,
   runProfileStyles,
+  savedZonesStyles,
   maintenanceStyles,
   modalStyles,
   learningStyles,

@@ -550,6 +550,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     this._scheduleMetricsRefresh();
     this._scheduleLearningHistoryRefresh();
     this._scheduleRunProfilesRefresh();
+    this._scheduleSavedZonesRefresh();
     this._scheduleIncompleteRunLogRefresh();
     this._scheduleTroubleRoomsLogRefresh();
     this._scheduleLiveMapRefresh();
@@ -653,6 +654,7 @@ class EufyVacuumCommandCenter extends HTMLElement {
     }
     if (view === VIEWS.ROOMS) {
       this._scheduleRunProfilesRefresh();
+      this._scheduleSavedZonesRefresh();
     }
     if (view === VIEWS.SETUP) {
       this._scheduleSetupStatusRefresh();
@@ -1005,6 +1007,36 @@ class EufyVacuumCommandCenter extends HTMLElement {
     clearTimeout(this._runProfilesTimer);
     this._runProfilesTimer = setTimeout(() => {
       this.refreshRunProfiles();
+    }, 450);
+  }
+
+  async refreshSavedZones() {
+    if (!this._state || !this._actions) return null;
+    if (this._view !== VIEWS.ROOMS) return null;
+
+    const mapId = this._state.activeMapId();
+    const vacuumEntityId = this._state.vacuumEntityId();
+    if (!vacuumEntityId || !mapId) return null;
+
+    // Fetch into the ISOLATED saved-zones slot — NOT through setMapSegmentsData — so a
+    // background refresh can't drop the map's optimistic overlays (mirrors
+    // refreshRunProfiles, which writes its own library slot).
+    const zones = await this._actions.getSavedZones({
+      vacuum_entity_id: vacuumEntityId,
+      map_id: mapId,
+    });
+    this._state.setSavedZonesLibrary?.(zones ?? []);
+    this._scheduleRender();
+    return zones;
+  }
+
+  _scheduleSavedZonesRefresh() {
+    if (!this._state || !this._actions) return;
+    if (this._view !== VIEWS.ROOMS) return;
+
+    clearTimeout(this._savedZonesTimer);
+    this._savedZonesTimer = setTimeout(() => {
+      this.refreshSavedZones();
     }, 450);
   }
 
