@@ -1,8 +1,9 @@
 # Saved Zones — Named, Human-Semantic Clean Regions
 
-**Status:** **Wave 1 BUILT + adversarially reviewed** (storage + CRUD + read surface), 2790 tests
-green, 2026-07-02 (approved: "lets start it"). Waves 2 (filing `room_number` + `area_m2`) and 3
-(card UX + clean dispatch) pending. This doc is the contract; each wave is additive.
+**Status:** **Waves 1 + 2 BUILT + adversarially reviewed** — W1 storage + CRUD + read; W2 filing
+(`room_number` at ≥90%-of-floor via `zone_membership`) + `area_m2` + the `set_saved_zone_room`
+override. 2794 tests green, 2026-07-02. **Wave 3** (card UX + clean dispatch) pending. This doc is
+the contract; each wave is additive.
 
 > **Scope:** persist **named, reusable zones** on a map ("the couch", "the stove", "under the
 > table") that a user can draw once, name, bucket under a room, and re-clean on demand. It is a
@@ -189,6 +190,16 @@ overrides are stable across sessions (the normalized frame doesn't drift).
 same class — the `geometry` schema accepted **non-finite** (NaN/inf, which orjson silently nulls on
 save) and **out-of-range** coords. Fixed by `_saved_zone_coord`: reject non-numeric/bool/non-finite
 (fail loud), clamp finite to 0-1, round — mirroring `_handle_set_hidden_regions`. Locked by a test.
+
+**Wave 2 (2026-07-02):** `zone_membership` (pure raster tally in `map_source.py`, reusing
+`_area_m2`/`normalize_rendered`/`point_in_polygon`) + `async_get_map_data_dict` (coordinator accessor,
+memory→`.storage`, Eufy-only, degrade-to-None) + best-effort compute in `create_saved_zone` +
+`set_saved_zone_room` filing override. **Review → 1 finding (map-mismatch):** the compute read the
+*current* map's raster with no check it matched the zone's `map_id` — could file wrong-map
+membership on a multi-map device. **Fixed:** only compute when `map_id` == the active map
+(`get_active_map_id`), else leave `None` — mirroring the dispatch-path `map_mismatch` guard. Locked
+by a test. (LOW severity — unreachable via the card's author-on-active-map flow + the fork can't read
+a non-active raster until PR #150, but the guard makes it correct-by-construction.)
 
 ## Cross-links
 

@@ -42,6 +42,7 @@ from ..const import (
     SERVICE_CREATE_SAVED_ZONE,
     SERVICE_RENAME_SAVED_ZONE,
     SERVICE_DELETE_SAVED_ZONE,
+    SERVICE_SET_SAVED_ZONE_ROOM,
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
     SERVICE_SET_ROOM_VIEWPORT,
@@ -55,6 +56,7 @@ from .map_source import (
     OVERLAY_VISIBILITY_DEFAULTS,
     resolve_furnished_render,
     resolve_overlay_visibility,
+    zone_membership,
 )
 from .segment_primitives import polygon_area, rasterize_primitives
 from .tracker import EVENT_BOUNDARY_SAVED
@@ -144,6 +146,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_CREATE_SAVED_ZONE,
     SERVICE_RENAME_SAVED_ZONE,
     SERVICE_DELETE_SAVED_ZONE,
+    SERVICE_SET_SAVED_ZONE_ROOM,
     # Furnished custom render
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
@@ -517,6 +520,18 @@ DELETE_SAVED_ZONE_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("zone_id"): cv.string,
+    }
+)
+
+# Filing override (Wave 2): set/clear which room a zone is bucketed under. null =
+# Unassigned. FILING ONLY — never affects the clean dispatch.
+SET_SAVED_ZONE_ROOM_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("zone_id"): cv.string,
+        # null / omitted -> clear to Unassigned; an int files under that room.
+        vol.Optional("room_number", default=None): vol.Any(None, vol.Coerce(int)),
     }
 )
 
@@ -2562,6 +2577,27 @@ async def _handle_create_saved_zone(hass: HomeAssistant, call: ServiceCall) -> d
     )
     _migrate_saved_zones(map_bucket)
     zone = _create_saved_zone(map_bucket, name, geometry, kind=kind)
+
+    # Wave 2: fill area_m2 + room_number (filing) from the map segmentation. Best-effort —
+    # the compute must NEVER break create: old install / no map / Roborock -> stay None.
+    # GUARD: the fork exposes only the CURRENT map's raster, so only compute when the
+    # zone's map_id IS the active map — else we'd file membership/size from the WRONG map
+    # (mirrors the dispatch-path map_mismatch guard). Indeterminate active map -> compute.
+    try:
+        from ..rooms.room_discovery import get_active_map_id
+        try:
+            active_map_id = get_active_map_id(hass, vacuum_entity_id)
+        except Exception:  # noqa: BLE001
+            active_map_id = None
+        if active_map_id is None or str(active_map_id) == str(map_id):
+            map_data = await manager.async_get_map_data_dict(vacuum_entity_id=vacuum_entity_id)
+            if isinstance(map_data, dict):
+                membership = zone_membership(map_data, zone["geometry"])
+                zone["area_m2"] = membership.get("area_m2")
+                zone["room_number"] = membership.get("room_number")
+    except Exception:  # noqa: BLE001 — filing/area is advisory; never fail the create
+        _LOGGER.debug("create_saved_zone membership compute failed", exc_info=True)
+
     await manager.async_save()
     _LOGGER.debug("create_saved_zone: %s/%s -> %s", vacuum_entity_id, map_id, zone["id"])
     return {"saved": True, "zone_id": zone["id"], "zone": dict(zone)}
@@ -2605,6 +2641,28 @@ async def _handle_delete_saved_zone(hass: HomeAssistant, call: ServiceCall) -> d
     zones.pop(zone_id, None)
     await manager.async_save()
     return {"saved": True, "deleted": True, "zone_id": zone_id}
+
+
+async def _handle_set_saved_zone_room(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Set/clear which room a saved zone is FILED under (``room_number``). ``null`` =
+    Unassigned. Filing only — never touches geometry or the clean dispatch (Wave 2)."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    zone_id: str = call.data["zone_id"]
+    room_number = call.data["room_number"]  # int or None
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
+    if not isinstance(zone, dict):
+        return {"saved": False, "reason": "zone_not_found"}
+    zone["room_number"] = room_number
+    zone["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    return {"saved": True, "zone_id": zone_id, "zone": dict(zone)}
 
 
 # ---------------------------------------------------------------------------
@@ -3027,6 +3085,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def delete_saved_zone(call: ServiceCall) -> dict:
         return await _handle_delete_saved_zone(hass, call)
 
+    async def set_saved_zone_room(call: ServiceCall) -> dict:
+        return await _handle_set_saved_zone_room(hass, call)
+
     async def set_furnished_art_placement(call: ServiceCall) -> dict:
         return await _handle_set_furnished_art_placement(hass, call)
 
@@ -3139,6 +3200,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_SAVED_ZONE, delete_saved_zone,
         schema=DELETE_SAVED_ZONE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_SAVED_ZONE_ROOM, set_saved_zone_room,
+        schema=SET_SAVED_ZONE_ROOM_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, set_furnished_art_placement,

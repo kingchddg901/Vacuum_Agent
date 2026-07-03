@@ -560,3 +560,50 @@ class MapSourceCoordinator:
         return _msr.eufy_render_data_from_store(
             store_json, expected_version=source_cfg.get("store_version")
         )
+
+    async def async_get_map_data_dict(
+        self, *, vacuum_entity_id: str,
+    ) -> dict[str, Any] | None:
+        """Return the raw decoded Eufy ``map_data`` dict (room_pixels + origin/res/dims)
+        for a vacuum's CURRENT map — the input the pure readers (``rooms_from_room_pixels``,
+        ``current_room_for_pixel``, ``zone_membership``) consume. Memory-PRIMARY (the fork's
+        in-memory ``_map_data``, loop-safe) with an off-loop ``.storage`` fallback.
+
+        Returns ``None`` for a non-raster backend (Roborock memory), an old install with no
+        map, or any read failure — callers degrade gracefully. Never raises.
+        """
+        from ..mapping import map_source_runtime as _msr
+
+        try:
+            adapter_cfg = _get_adapter_config(vacuum_entity_id) or {}
+            source_cfg = adapter_cfg.get("map_state_source")
+            # Only the Eufy storage backend carries a room_pixels raster; the Roborock
+            # memory backend has no per-pixel room mask (no map_data dict of this shape).
+            if not (isinstance(source_cfg, dict) and source_cfg.get("backend") == "storage"):
+                return None
+
+            # Memory-PRIMARY: the fork's in-memory _map_data (same dict shape, fresher).
+            mem_cfg = source_cfg.get("memory")
+            if isinstance(mem_cfg, dict):
+                candidates = _msr.eufy_inmem_candidates(self._manager.hass, mem_cfg)
+                mem = _msr.eufy_mapdata_from_candidates(
+                    candidates, mapdata_attrs=mem_cfg.get("mapdata_attrs"),
+                    field_attrs=mem_cfg.get("field_attrs"),
+                )
+                if mem.get("present") and isinstance(mem.get("map_data"), dict):
+                    return mem["map_data"]
+
+            # .storage fallback (or no memory block).
+            path = _msr.eufy_store_path(self._manager.hass, vacuum_entity_id, source_cfg)
+            if not path:
+                return None
+            store_json = await self._manager.hass.async_add_executor_job(
+                _msr.load_store_json, path
+            )
+            map_data = ((store_json or {}).get("data") or {}).get("map_data")
+            return map_data if isinstance(map_data, dict) else None
+        except Exception:  # noqa: BLE001 — best-effort accessor, never break the caller
+            _LOGGER.debug(
+                "async_get_map_data_dict failed for %s", vacuum_entity_id, exc_info=True
+            )
+            return None

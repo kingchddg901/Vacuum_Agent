@@ -187,6 +187,7 @@ SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout"
 SERVICE_CREATE_SAVED_ZONE = "create_saved_zone"
 SERVICE_RENAME_SAVED_ZONE = "rename_saved_zone"
 SERVICE_DELETE_SAVED_ZONE = "delete_saved_zone"
+SERVICE_SET_SAVED_ZONE_ROOM = "set_saved_zone_room"  # filing only (room_number)
 
 # Furnished custom render (Wave 0) — per-layout furnished-art overlay data so a
 # later frontend wave can composite user art over the live map. All three write

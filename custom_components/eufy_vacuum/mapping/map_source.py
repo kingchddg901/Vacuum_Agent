@@ -311,6 +311,78 @@ def rooms_from_room_pixels(map_data: dict[str, Any]) -> list[dict[str, Any]]:
     return rooms
 
 
+def zone_membership(map_data: dict[str, Any], geometry: list[list[float]]) -> dict[str, Any]:
+    """Filing + size for a saved zone against the Eufy ``room_pixels`` raster (Wave 2).
+
+    Returns ``{"area_m2": float | None, "room_number": int | None}``:
+
+    - ``room_number`` — the room holding **>= 90% of the SEGMENTED FLOOR cells** whose
+      centre falls inside the zone polygon. Furniture-footprint / background cells are
+      excluded from the denominator (the same ``0 < rid < _CATCH_ALL_RID`` filter
+      ``rooms_from_room_pixels`` applies), so a big-furniture zone isn't wrongly split.
+      ``None`` when no room dominates or the zone covers no floor (Unassigned). FILING
+      ONLY — never affects dispatch.
+    - ``area_m2`` — every in-polygon cell (floor or not) times the cell area, i.e. the
+      zone's real footprint, via ``_area_m2`` (the same convention as per-room area).
+
+    Pure + defensive: both fields ``None`` when the raster/geometry is missing or
+    malformed; never raises. Eufy-only — Roborock has no per-pixel raster, so the caller
+    passes ``None`` map_data and both stay ``None``.
+    """
+    from .boundary import point_in_polygon  # local import: no import cycle at module load
+
+    empty = {"area_m2": None, "room_number": None}
+    if not (isinstance(geometry, list) and len(geometry) >= 3):
+        return empty
+    geom = _outline_geometry(map_data)
+    if geom is None:
+        return empty
+    ro_w, ro_h, ro_dx, ro_dy, res, width, height = geom
+    rp_b64 = map_data.get("room_pixels")
+    if not rp_b64:
+        return empty
+    try:
+        room_px = base64.b64decode(rp_b64)
+    except (ValueError, TypeError):
+        return empty
+
+    # Cheap normalized-bbox reject before the per-cell ray-cast — a zone is a small
+    # fraction of the map, so most cells short-circuit here.
+    xs = [float(p[0]) for p in geometry]
+    ys = [float(p[1]) for p in geometry]
+    bx0, bx1, by0, by1 = min(xs), max(xs), min(ys), max(ys)
+
+    in_poly = 0                      # every in-zone cell -> area footprint
+    floor_total = 0                  # in-zone SEGMENTED-floor cells -> filing denominator
+    per_rid: dict[int, int] = {}
+    for ry in range(ro_h):
+        row = ry * ro_w
+        for rx in range(ro_w):
+            idx = row + rx
+            if idx >= len(room_px):
+                break
+            nx, ny = normalize_rendered(rx + ro_dx, ry + ro_dy, width, height)
+            if nx < bx0 or nx > bx1 or ny < by0 or ny > by1:
+                continue
+            if not point_in_polygon((nx, ny), geometry):
+                continue
+            in_poly += 1
+            rid = room_px[idx] >> 2
+            if 0 < rid < _CATCH_ALL_RID:
+                floor_total += 1
+                per_rid[rid] = per_rid.get(rid, 0) + 1
+
+    room_number: int | None = None
+    if floor_total:
+        best_rid, best_cnt = max(per_rid.items(), key=lambda kv: kv[1])
+        if best_cnt / floor_total >= 0.90:
+            room_number = best_rid
+    return {
+        "area_m2": _area_m2(in_poly, res) if in_poly else 0.0,
+        "room_number": room_number,
+    }
+
+
 def current_room_for_pixel(map_data: dict[str, Any], px: Any, py: Any) -> int | None:
     """Eufy: the room id at a MAIN-grid pixel, by exact raster lookup.
 

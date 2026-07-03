@@ -554,6 +554,101 @@ def test_saved_zone_geometry_coord_validation():
     assert all(math.isfinite(c) for pt in out["geometry"] for c in pt)
 
 
+def _synthetic_map_data(byte_list):
+    """A tiny 4x4 room_pixels raster (each byte >> 2 = room id) with identity geometry."""
+    import base64
+    return {
+        "room_pixels": base64.b64encode(bytes(byte_list)).decode(),
+        "width": 4, "height": 4, "resolution": 10,
+        "room_outline_width": 4, "room_outline_height": 4,
+        "origin_x": 0, "origin_y": 0,
+        "room_outline_origin_x": 0, "room_outline_origin_y": 0,
+    }
+
+
+def test_zone_membership_computes_room_and_area():
+    """[ZONE-4] zone_membership: >=90% floor dominance -> that room; split -> None;
+    over background only -> None; area from in-zone cell count; malformed -> both None."""
+    from custom_components.eufy_vacuum.mapping.map_source import zone_membership
+    whole = [[-1.0, -1.0], [2.0, -1.0], [2.0, 2.0], [-1.0, 2.0]]   # contains every cell
+    area = round(16 * (10 / 100.0) ** 2, 1)
+
+    dom = zone_membership(_synthetic_map_data([5 << 2] * 15 + [9 << 2]), whole)
+    assert dom["room_number"] == 5 and dom["area_m2"] == area      # 15/16 = 93.75%
+
+    split = zone_membership(_synthetic_map_data([5 << 2] * 8 + [9 << 2] * 8), whole)
+    assert split["room_number"] is None and split["area_m2"] == area
+
+    bg = zone_membership(_synthetic_map_data([0] * 16), whole)     # no floor cells
+    assert bg["room_number"] is None and bg["area_m2"] == area
+
+    assert zone_membership(_synthetic_map_data([5 << 2] * 16), [[0.0, 0.0]]) == {
+        "area_m2": None, "room_number": None}                      # < 3 points
+    assert zone_membership({}, whole) == {"area_m2": None, "room_number": None}
+
+
+async def test_create_saved_zone_computes_filing_when_map_present(hass, mapping_services, monkeypatch):
+    """[ZONE-5] create wires zone_membership output into the zone when map_data is
+    available (accessor monkeypatched); the existing crud test covers the None fallback."""
+    from custom_components.eufy_vacuum.const import SERVICE_CREATE_SAVED_ZONE
+
+    async def _fake_map_data(**_kwargs):
+        return _synthetic_map_data([7 << 2] * 16)                  # all room 7
+    monkeypatch.setattr(mapping_services, "async_get_map_data_dict", _fake_map_data)
+    monkeypatch.setattr(                                            # zone's map IS active
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: _MAP)
+
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "couch",
+        "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
+    assert a["zone"]["room_number"] == 7
+    assert a["zone"]["area_m2"] is not None and a["zone"]["area_m2"] > 0
+
+
+async def test_create_saved_zone_skips_compute_on_map_mismatch(hass, mapping_services, monkeypatch):
+    """[ZONE-7] filing/area compute is skipped when the zone's map_id != the active map
+    (the fork exposes only the current map's raster), so no wrong-map data is filed."""
+    from custom_components.eufy_vacuum.const import SERVICE_CREATE_SAVED_ZONE
+
+    async def _fake_map_data(**_kwargs):
+        return _synthetic_map_data([7 << 2] * 16)
+    monkeypatch.setattr(mapping_services, "async_get_map_data_dict", _fake_map_data)
+    monkeypatch.setattr(                                            # active map != _MAP ("6")
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: "999")
+
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z",
+        "geometry": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]})
+    assert a["zone"]["room_number"] is None   # mismatch -> not computed (no wrong-map data)
+    assert a["zone"]["area_m2"] is None
+
+
+async def test_set_saved_zone_room(hass, mapping_services):
+    """[ZONE-6] set_saved_zone_room files / clears a zone's room_number (filing only)."""
+    from custom_components.eufy_vacuum.const import (
+        SERVICE_CREATE_SAVED_ZONE,
+        SERVICE_SET_SAVED_ZONE_ROOM,
+    )
+    quad = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z", "geometry": quad})
+    zid = a["zone_id"]
+
+    r = await _call(hass, SERVICE_SET_SAVED_ZONE_ROOM, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid, "room_number": 7})
+    assert r["saved"] and r["zone"]["room_number"] == 7
+
+    c = await _call(hass, SERVICE_SET_SAVED_ZONE_ROOM, {   # omit -> clear to Unassigned
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
+    assert c["saved"] and c["zone"]["room_number"] is None
+
+    bad = await _call(hass, SERVICE_SET_SAVED_ZONE_ROOM, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": "nope", "room_number": 1})
+    assert bad["saved"] is False and bad["reason"] == "zone_not_found"
+
+
 async def test_create_custom_layout_live_backdrop_source(hass, mapping_services):
     """[LAYOUT-11] create_custom_layout with backdrop_source='live' pins the layout to
     the live map (surfaced in the get_map_segments summary so the card's "Live map" chip

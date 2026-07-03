@@ -2580,6 +2580,38 @@ delete_saved_zone:
       selector:
         text: {}
 
+set_saved_zone_room:
+  name: Set saved-zone room
+  description: >
+    Set or clear which room a saved zone is FILED under (its section in the list).
+    Leave room_number empty to move it to the Unassigned section. Filing only — this
+    never affects what the zone cleans.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    zone_id:
+      name: Zone ID
+      required: true
+      selector:
+        text: {}
+    room_number:
+      name: Room number
+      description: The room id to file the zone under; leave empty for Unassigned.
+      required: false
+      selector:
+        number:
+          mode: box
+
 create_custom_layout:
   name: Create custom layout
   description: >

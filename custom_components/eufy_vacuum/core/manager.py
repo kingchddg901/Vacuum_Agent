@@ -3866,6 +3866,14 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id
         )
 
+    async def async_get_map_data_dict(
+        self, *, vacuum_entity_id: str
+    ) -> dict[str, Any] | None:
+        """Raw Eufy map_data dict (room_pixels + geometry) — delegate to MapSourceCoordinator."""
+        return await self.map_source.async_get_map_data_dict(
+            vacuum_entity_id=vacuum_entity_id
+        )
+
 
     # Job finalization — delegates to ActiveJobTracker
 
