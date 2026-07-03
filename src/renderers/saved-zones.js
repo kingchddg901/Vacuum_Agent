@@ -44,27 +44,26 @@ export function applySavedZonesRenderers(proto) {
       return `<aside class="evcc-saved-zones-panel is-collapsed">${header}</aside>`;
     }
 
-    if (!total) {
-      return `
-        <aside class="evcc-saved-zones-panel">
-          ${header}
-          <div class="evcc-saved-zones-empty">${this.t("saved_zones.empty")}</div>
-        </aside>`;
-    }
-
-    // Shared clean-setting selects (device-level) — a saved-zone clean runs off these,
-    // scoped to the "sz-setting" change binding so it doesn't collide with the map panel.
-    const settingRows = this._renderZoneSettingRows?.(state, "sz-setting") ?? "";
-    const settings = settingRows
+    // Draw-to-save (Cut 3): while a save-draw is active, a banner drives the map drag ->
+    // "Save zone"; otherwise a "+ Draw a zone" button (only over a live map — you draw on it).
+    const drawing = (state.zoneDrawMode?.() ?? false) && (state.zoneDrawPurpose?.() === "save");
+    const canDraw = state.canDrawZone?.() ?? false;
+    const drawCount = state.zoneCount?.() ?? 0;
+    const drawUi = drawing
       ? `
-        <div class="evcc-saved-zones-settings">
-          <div class="evcc-saved-zones-section-title">${this.t("map.zone_settings")}
-            <span class="evcc-saved-zones-note">${this.t("map.zone_settings_note")}</span></div>
-          ${settingRows}
+        <div class="evcc-saved-zones-draw">
+          <div class="evcc-saved-zones-draw-hint">${this.t("saved_zones.draw_hint")}</div>
+          <div class="evcc-saved-zones-draw-actions">
+            <button type="button" class="evcc-chip evcc-chip--save"
+                    data-action="save-drawn-zone"${drawCount === 0 ? " disabled" : ""}>${this.t("saved_zones.save_drawn")}</button>
+            <button type="button" class="evcc-chip" data-action="cancel-draw-saved-zone">${this.t("saved_zones.cancel_draw")}</button>
+          </div>
         </div>`
-      : "";
+      : (canDraw
+          ? `<button type="button" class="evcc-chip evcc-saved-zones-drawbtn" data-action="draw-saved-zone">${this.t("saved_zones.draw")}</button>`
+          : "");
 
-    const list = groups.map((group) => `
+    const listInner = groups.map((group) => `
       <div class="evcc-saved-zones-room-group">
         <div class="evcc-saved-zones-room-header">
           ${group.room_id == null
@@ -91,6 +90,39 @@ export function applySavedZonesRenderers(proto) {
           </div>`;
         }).join("")}
       </div>`).join("");
+    const listBlock = total ? `<div class="evcc-saved-zones-list">${listInner}</div>` : "";
+
+    // While drawing-to-save, keep it focused: banner + the existing list (to spot dupes),
+    // but drop the clean settings + "Clean N selected" actions (they're for cleaning, not saving).
+    if (drawing) {
+      return `
+        <aside class="evcc-saved-zones-panel">
+          ${header}
+          ${drawUi}
+          ${listBlock}
+        </aside>`;
+    }
+
+    if (!total) {
+      return `
+        <aside class="evcc-saved-zones-panel">
+          ${header}
+          ${drawUi}
+          <div class="evcc-saved-zones-empty">${this.t("saved_zones.empty")}</div>
+        </aside>`;
+    }
+
+    // Shared clean-setting selects (device-level) — a saved-zone clean runs off these,
+    // scoped to the "sz-setting" change binding so it doesn't collide with the map panel.
+    const settingRows = this._renderZoneSettingRows?.(state, "sz-setting") ?? "";
+    const settings = settingRows
+      ? `
+        <div class="evcc-saved-zones-settings">
+          <div class="evcc-saved-zones-section-title">${this.t("map.zone_settings")}
+            <span class="evcc-saved-zones-note">${this.t("map.zone_settings_note")}</span></div>
+          ${settingRows}
+        </div>`
+      : "";
 
     const actions = `
       <div class="evcc-saved-zones-actions">
@@ -111,8 +143,9 @@ export function applySavedZonesRenderers(proto) {
     return `
       <aside class="evcc-saved-zones-panel">
         ${header}
+        ${drawUi}
         ${settings}
-        <div class="evcc-saved-zones-list">${list}</div>
+        ${listBlock}
         ${actions}
       </aside>`;
   };

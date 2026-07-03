@@ -181,4 +181,29 @@ export const savedZonesStyles = `
     font-weight: 600;
     color: var(--evcc-danger, #e5534b);
   }
+
+  .evcc-saved-zones-drawbtn {
+    align-self: flex-start;
+    font-weight: 700;
+  }
+
+  .evcc-saved-zones-draw {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--evcc-radius-inner, 12px);
+    border: 1px dashed var(--evcc-accent, #4c9be8);
+    background: color-mix(in srgb, var(--evcc-accent, #4c9be8) 10%, transparent);
+  }
+  .evcc-saved-zones-draw-hint {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    color: var(--evcc-text-secondary);
+  }
+  .evcc-saved-zones-draw-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 `;

@@ -87,3 +87,18 @@ export function draftsToNormalizedRects(drafts, dims, rot = 0) {
     .map((d) => rectToNormalized(unrotateRectPct(d, rot), dims))
     .filter(Boolean);
 }
+
+/**
+ * A normalized [x0,y0,x1,y1] rect → the 4-corner polygon [[x0,y0],[x1,y0],[x1,y1],[x0,y1]]
+ * (top-left, clockwise) that ``create_saved_zone`` wants (it stores geometry as a polygon
+ * of >= 3 points, not a rect). Null on a malformed / non-finite rect.
+ *
+ * @param {number[]} rect  [x0,y0,x1,y1] in 0-1
+ * @returns {number[][]|null}
+ */
+export function rectToPolygon(rect) {
+  if (!Array.isArray(rect) || rect.length !== 4) return null;
+  const [x0, y0, x1, y1] = rect.map(Number);
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return null;
+  return [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+}

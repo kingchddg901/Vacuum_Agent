@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  rectToNormalized, draftsToNormalizedRects, unrotatePct, normRotation,
+  rectToNormalized, draftsToNormalizedRects, unrotatePct, normRotation, rectToPolygon,
 } from "./zone-geometry.js";
 
 const approx = (a, b, eps = 1e-3) => Math.abs(a - b) <= eps;
@@ -80,4 +80,26 @@ test("[ZG-11] normRotation snaps to the nearest quarter turn", () => {
   assert.equal(normRotation(-90), 270);
   assert.equal(normRotation(360), 0);
   assert.equal(normRotation(405), 90);
+});
+
+test("[ZG-12] rectToPolygon: normalized rect -> 4-corner CW polygon", () => {
+  assert.deepEqual(
+    rectToPolygon([0.1, 0.2, 0.6, 0.7]),
+    [[0.1, 0.2], [0.6, 0.2], [0.6, 0.7], [0.1, 0.7]],
+  );
+});
+
+test("[ZG-13] rectToPolygon: malformed / non-finite -> null", () => {
+  assert.equal(rectToPolygon(null), null);
+  assert.equal(rectToPolygon([0, 0, 1]), null);       // wrong length
+  assert.equal(rectToPolygon([0, 0, 1, NaN]), null);  // non-finite
+  assert.equal(rectToPolygon([0, 0, 1, "x"]), null);  // non-numeric
+});
+
+test("[ZG-14] rectToPolygon: a drawn box's polygon bbox == the rect", () => {
+  const rect = rectToNormalized({ x: 25, y: 25, w: 50, h: 50 }, { width: 100, height: 100 });
+  const poly = rectToPolygon(rect);
+  const xs = poly.map((p) => p[0]);
+  const ys = poly.map((p) => p[1]);
+  assert.deepEqual([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], rect);
 });

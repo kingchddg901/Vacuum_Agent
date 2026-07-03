@@ -11,6 +11,8 @@
  * ============================================================
  */
 
+import { rectToPolygon } from "../cards/zone-geometry.js";
+
 export function applySavedZonesBindings(proto) {
   proto._bindSavedZones = function () {
     const card = this.card;
@@ -85,7 +87,47 @@ export function applySavedZonesBindings(proto) {
         this.t("bind_saved_zones.cleaning_selected", { count: ids.length }),
         { kind: "success" },
       );
-      card._state.clearSavedZoneSelection?.();
+      // Keep the selection so the map keeps drawing the zone(s) WHILE they clean (that's
+      // the "where am I cleaning" the overlay is for). The user drops it with "Clear".
+      card._scheduleRender?.();
+    });
+
+    // --- draw a new zone to save (Cut 3) ------------------------------------
+    card._onAll("[data-action='draw-saved-zone']", "click", () => {
+      card._state.setZoneDrawMode?.(true, "save");
+      card._scheduleRender?.();
+    });
+    card._onAll("[data-action='cancel-draw-saved-zone']", "click", () => {
+      card._state.setZoneDrawMode?.(false);
+      card._scheduleRender?.();
+    });
+    card._onAll("[data-action='save-drawn-zone']", "click", async (e) => {
+      // The live backdrop's natural px letterbox-corrects the drawn box into the image's 0-1
+      // frame (same _liveMapDims the ad-hoc zone-clean uses — handles <img> AND <canvas>
+      // backdrops). We save the FIRST drawn box as one named zone.
+      const dims = this._liveMapDims?.(e.currentTarget.getRootNode?.());
+      const rects = card._state.zoneDraftsToNormalizedRects?.(dims) ?? [];
+      const geometry = rects.length ? rectToPolygon(rects[0]) : null;
+      if (!geometry) {
+        card.showToast(this.t("bind_saved_zones.nothing_drawn"), { kind: "error" });
+        return;
+      }
+      const name = ((await card._prompt(this.t("bind_saved_zones.name_prompt"))) ?? "").trim();
+      if (!name) return;  // cancelled / empty
+
+      const result = await card._actions.createSavedZone({
+        vacuum_entity_id: card._state.vacuumEntityId?.(),
+        map_id: card._state.activeMapId?.(),
+        name,
+        geometry,
+      });
+      if (!result || result.saved === false) {
+        card.showToast(this.t("bind_saved_zones.save_failed"), { kind: "error" });
+        return;
+      }
+      card._state.setZoneDrawMode?.(false);          // exit draw + clear drafts
+      await card.refreshSavedZones?.();
+      card.showToast(this.t("bind_saved_zones.saved", { name }), { kind: "success" });
       card._scheduleRender?.();
     });
 

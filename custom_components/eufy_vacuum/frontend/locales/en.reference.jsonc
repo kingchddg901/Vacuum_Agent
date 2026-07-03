@@ -839,7 +839,11 @@
     "cleaning_selected": {"one":"Cleaning {count} zone…","other":"Cleaning {count} zones…"},
     "confirm_delete": "Delete saved zone \"{name}\"?",
     "map_not_active": "That zone belongs to a different map — switch to its map first.",
+    "name_prompt": "Name this zone (e.g. \"the couch\"):",  // prompt after drawing a box to save
     "no_zones": "No zones to clean.",
+    "nothing_drawn": "Draw a box on the map first.",  // save pressed with no box drawn
+    "save_failed": "Couldn't save the zone.",  // create_saved_zone failed
+    "saved": "Saved \"{name}\".",  // zone created successfully
     "unable_delete": "Unable to delete the saved zone.",
     "zone_not_found": "That saved zone no longer exists."
   },
@@ -1918,11 +1922,15 @@
   },
   "saved_zones": {
     "area_m2": "{area} m²",  // Zone size chip; {area}=one-decimal number, m²=square metres
+    "cancel_draw": "Cancel",  // exit draw-to-save without saving
     "clean_selected": {"one":"Clean {count} selected","other":"Clean {count} selected"},  // primary action; {count}=selected zone count
     "clean_selected_empty": "Clean selected",  // disabled label when nothing is selected
     "clear": "Clear",  // clear the zone multi-selection
+    "draw": "+ Draw a zone",  // button: enter draw-a-box-to-save mode on the live map
+    "draw_hint": "Drag a box on the map, then Save.",  // instruction shown while drawing a zone to save
     "empty": "No saved zones yet.",
     "over_cap": "Max {max} zones per clean",  // shown when more than the device limit are selected
+    "save_drawn": "Save zone",  // commit the drawn box as a named saved zone
     "select_zone": "Select {name}",  // aria-label on a zone's select checkbox
     "selected_badge": {"one":"{count} selected","other":"{count} selected"},  // collapsed-header count badge
     "subtitle": "Named spots you can re-clean any time — filed under the room they're in.",

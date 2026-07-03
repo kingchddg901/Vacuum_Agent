@@ -180,7 +180,11 @@ export const en = {
   "bind_saved_zones.cleaning_selected": { one: "Cleaning {count} zone…", other: "Cleaning {count} zones…" },
   "bind_saved_zones.confirm_delete": "Delete saved zone \"{name}\"?",
   "bind_saved_zones.map_not_active": "That zone belongs to a different map — switch to its map first.",
+  "bind_saved_zones.name_prompt": "Name this zone (e.g. \"the couch\"):",  // prompt after drawing a box to save
   "bind_saved_zones.no_zones": "No zones to clean.",
+  "bind_saved_zones.nothing_drawn": "Draw a box on the map first.",  // save pressed with no box drawn
+  "bind_saved_zones.save_failed": "Couldn't save the zone.",  // create_saved_zone failed
+  "bind_saved_zones.saved": "Saved \"{name}\".",  // zone created successfully
   "bind_saved_zones.unable_delete": "Unable to delete the saved zone.",
   "bind_saved_zones.zone_not_found": "That saved zone no longer exists.",
   "bind_setup.failed_add_vacuum": "Failed to add vacuum: {error}",
@@ -1244,11 +1248,15 @@ export const en = {
 
   // --- saved zones ---
   "saved_zones.area_m2": "{area} m²",  // Zone size chip; {area}=one-decimal number, m²=square metres
+  "saved_zones.cancel_draw": "Cancel",  // exit draw-to-save without saving
   "saved_zones.clean_selected": { one: "Clean {count} selected", other: "Clean {count} selected" },  // primary action; {count}=selected zone count
   "saved_zones.clean_selected_empty": "Clean selected",  // disabled label when nothing is selected
   "saved_zones.clear": "Clear",  // clear the zone multi-selection
+  "saved_zones.draw": "+ Draw a zone",  // button: enter draw-a-box-to-save mode on the live map
+  "saved_zones.draw_hint": "Drag a box on the map, then Save.",  // instruction shown while drawing a zone to save
   "saved_zones.empty": "No saved zones yet.",
   "saved_zones.over_cap": "Max {max} zones per clean",  // shown when more than the device limit are selected
+  "saved_zones.save_drawn": "Save zone",  // commit the drawn box as a named saved zone
   "saved_zones.select_zone": "Select {name}",  // aria-label on a zone's select checkbox
   "saved_zones.selected_badge": { one: "{count} selected", other: "{count} selected" },  // collapsed-header count badge
   "saved_zones.subtitle": "Named spots you can re-clean any time — filed under the room they're in.",

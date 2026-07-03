@@ -590,8 +590,13 @@ export function applyMapState(proto) {
   proto._ZONE_MAX = 10;
   proto._zoneDrawMode = false;
   proto._zoneDrafts = null; // lazily []
+  // What the current draw is FOR: "clean" (ad-hoc zone clean — the default) or "save"
+  // (draw a box to store as a named saved zone, Cut 3). Gates which panel/commit shows;
+  // the drag + zoneDraftsToNormalizedRects are shared.
+  proto._zoneDrawPurpose = "clean";
 
   proto.zoneDrawMode = function () { return this._zoneDrawMode; };
+  proto.zoneDrawPurpose = function () { return this._zoneDrawPurpose; };
   proto.zoneDrafts = function () {
     if (this._zoneDrafts === null) this._zoneDrafts = [];
     return this._zoneDrafts;
@@ -603,8 +608,9 @@ export function applyMapState(proto) {
   };
   proto.zoneAtCap = function () { return this.zoneCount() >= this.zoneMax(); };
 
-  proto.setZoneDrawMode = function (on) {
+  proto.setZoneDrawMode = function (on, purpose = "clean") {
     this._zoneDrawMode = Boolean(on);
+    this._zoneDrawPurpose = this._zoneDrawMode && purpose === "save" ? "save" : "clean";
     if (!this._zoneDrawMode) this._zoneDrafts = [];
   };
 

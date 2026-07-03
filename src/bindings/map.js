@@ -27,6 +27,25 @@ const _VA_ROOM_COLORS = [
  */
 export function applyMapBindings(proto) {
 
+  /**
+   * The live-map backdrop's natural pixel dims {width,height}, for letterbox-correcting a
+   * drawn zone. The backdrop is an <img> (has naturalWidth) OR a <canvas> (VA-render /
+   * selection scrim — has .width, NO naturalWidth), both sharing the .evcc-map-image class,
+   * so accept EITHER and take the first element that actually reports dims. null when nothing
+   * usable is mounted. Shared by the ad-hoc zone-clean confirm AND the saved-zone draw-to-save.
+   *
+   * @param {ParentNode} root  node to query within (map container or shadow root)
+   */
+  proto._liveMapDims = function (root) {
+    if (!root || typeof root.querySelectorAll !== "function") return null;
+    for (const el of root.querySelectorAll(".evcc-map-image")) {
+      const w = el.naturalWidth || el.width || 0;
+      const h = el.naturalHeight || el.height || 0;
+      if (w > 0 && h > 0) return { width: w, height: h };
+    }
+    return null;
+  };
+
   /* =========================================================
      BIND MAP
      =========================================================
@@ -2062,13 +2081,11 @@ export function applyMapBindings(proto) {
           this.card._scheduleRender?.();
           return;
         }
-        // The live image's natural pixel size lets us letterbox-correct the pct
-        // draft into the image's normalized frame (object-fit:contain on a square
-        // container letterboxes a non-square map).
-        const liveImg = root.querySelector(".evcc-map-image");
-        const dims = (liveImg && liveImg.naturalWidth > 0)
-          ? { width: liveImg.naturalWidth, height: liveImg.naturalHeight }
-          : null;
+        // The live backdrop's natural pixel size lets us letterbox-correct the pct draft into
+        // the image's normalized frame (object-fit:contain on a square container letterboxes a
+        // non-square map). Backdrop may be an <img> OR a <canvas> (VA render) — _liveMapDims
+        // handles both.
+        const dims = this._liveMapDims(root);
         const rects = this.card._state.zoneDraftsToNormalizedRects?.(dims) ?? [];
         if (!rects.length) {
           console.warn(

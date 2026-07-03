@@ -245,7 +245,8 @@ class EufyVacuumMap extends HTMLElement {
         ? `<div class="map-mascot-bar">${r._renderMapAnimalControls(state)}</div>`
         : "";
       const zonePanel =
-        (state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false))
+        (state.isMapViewActive?.() && (state.canDrawZone?.() ?? false) && (state.zoneDrawMode?.() ?? false)
+         && (state.zoneDrawPurpose?.() !== "save"))
           ? r._renderZonePanel(state, state.zoneDrafts?.() ?? [], state.zoneCount?.() ?? 0, state.zoneMax?.() ?? 10)
           : "";
       const layersPanel =
