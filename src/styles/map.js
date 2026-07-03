@@ -793,6 +793,41 @@ export const mapStyles = `
   }
   .evcc-map-ov-area--dragging { opacity: 0.85; cursor: grabbing; z-index: 7; }
 
+  /* Saved zones — the user's named clean regions, drawn as their bbox. Distinct purple so
+     they don't read as a device zone / hazard. Selected zones fill + solidify. */
+  .evcc-map-ov-savedzone {
+    fill:             var(--evcc-map-ov-savedzone, rgba(167, 139, 250, 0.85));
+    fill-opacity:     0.14;
+    stroke:           var(--evcc-map-ov-savedzone, rgba(167, 139, 250, 0.85));
+    stroke-width:     1.5;
+    stroke-dasharray: 5 3;
+    vector-effect:    non-scaling-stroke;
+    pointer-events:   none;
+  }
+  .evcc-map-ov-savedzone--selected {
+    fill-opacity:     0.30;
+    stroke-width:     2.5;
+    stroke-dasharray: none;
+  }
+  .evcc-map-ov-savedzone-label {
+    position:      absolute;
+    transform:     translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    font-size:     0.64rem;
+    font-weight:   700;
+    color:         var(--evcc-map-ov-savedzone-text, #ffffff);
+    background:    var(--evcc-map-label-bg, rgba(15, 18, 22, 0.60));
+    padding:       0 5px;
+    border-radius: 6px;
+    text-shadow:   0 0 2px rgba(0, 0, 0, 0.85);
+    white-space:   nowrap;
+    pointer-events: none;
+    z-index:       5;
+  }
+  .evcc-map-ov-savedzone-label--selected {
+    outline: 1.5px solid var(--evcc-map-ov-savedzone, rgba(167, 139, 250, 0.95));
+    outline-offset: 1px;
+  }
+
   /* Auto-derived click-target SELECTION (subtractive): the scrim canvas dims UN-selected rooms
      per-pixel (exact shapes) right over the backdrop, so selected rooms stay bright with no
      overlap. Positioned like the backdrop (.evcc-map-image); just needs to be click-through. */

@@ -49,6 +49,23 @@ function _polygonCentroid(points) {
   return [cx / (6 * area), cy / (6 * area)];
 }
 
+// The axis-aligned bbox [x0,y0,x1,y1] of a saved zone's normalized geometry, or null when
+// the geometry is missing / degenerate. The clean dispatches this bbox, so it's what the map
+// draws + highlights (matches what actually gets cleaned).
+function _savedZoneBbox(zone) {
+  const g = zone?.geometry;
+  if (!Array.isArray(g) || g.length < 3) return null;
+  const xs = [], ys = [];
+  for (const p of g) {
+    if (!Array.isArray(p) || p.length !== 2) continue;
+    const x = Number(p[0]), y = Number(p[1]);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    xs.push(x); ys.push(y);
+  }
+  if (xs.length < 3) return null;
+  return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+}
+
 const _SEGMENT_COLORS = [
   "#00e5ff", "#ff6b35", "#a3e635", "#e879f9",
   "#fbbf24", "#a78bfa", "#fb7185", "#34d399",
@@ -392,6 +409,15 @@ export function applyMapRenderers(proto) {
     if (vis("path") && Array.isArray(mss.path) && mss.path.length >= 2) {
       out += `<polyline class="evcc-map-ov-path" points="${pts(mss.path)}" />`;
     }
+    // Saved zones: draw ONLY the SELECTED set — the map is "here's what I'm about to clean".
+    // Driven purely by the panel selection (NOT a Map Layers toggle), each as its bbox rect
+    // (what a clean actually dispatches). Read straight from card state.
+    for (const z of (state.savedZones?.() ?? [])) {
+      if (!(state.isSavedZoneSelected?.(z.id) ?? false)) continue;
+      const box = _savedZoneBbox(z);
+      if (!box) continue;
+      out += rect("evcc-map-ov-savedzone evcc-map-ov-savedzone--selected", box[0], box[1], box[2], box[3]);
+    }
     return out;
   };
 
@@ -437,6 +463,20 @@ export function applyMapRenderers(proto) {
              + `style="left:${f(lx)}%;top:${f(ly)}%">`
              + `${this.escapeHtml(String(r.area_m2))} m²</div>`;
       }
+    }
+    // Saved-zone name (+ m²) labels — only for the SELECTED set (mirrors the boxes above),
+    // at each zone's bbox centre via the same overlay transform, so they ride the rotator upright.
+    for (const z of (state.savedZones?.() ?? [])) {
+      if (!(state.isSavedZoneSelected?.(z.id) ?? false)) continue;
+      const box = _savedZoneBbox(z);
+      if (!box) continue;
+      const cx = (box[0] + box[2]) / 2;
+      const cy = (box[1] + box[3]) / 2;
+      const area = z.area_m2 != null
+        ? ` · ${this.t("saved_zones.area_m2", { area: this.escapeHtml((Number(z.area_m2) || 0).toFixed(1)) })}`
+        : "";
+      out += `<div class="evcc-map-ov-savedzone-label evcc-map-ov-savedzone-label--selected" `
+           + `style="left:${f(tx(cx))}%;top:${f(ty(cy))}%">${this.escapeHtml(z.name)}${area}</div>`;
     }
     return out;
   };

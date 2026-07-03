@@ -545,7 +545,7 @@ export const en = {
   "map.layer_robot": "Robot + heading",
   "map.layer_room_area": "Room area (m²)",  // Map-layer toggle 'Room area (m²)'; shows each room's floor area in square metres, keep m² unit
   "map.layer_walls": "Virtual walls",  // 'Virtual walls' = app-drawn no-cross barriers (vacuum term of art)
-  "map.layer_zones": "Saved zones",
+  "map.layer_zones": "Device zones",  // the vacuum app's OWN saved zones from the device map (distinct from the card's Saved Zones panel)
   "map.layers_hint": "Overlays appear on the live-map backdrop.",
   "map.layers_title": "Map Layers",
   "map.layout_create": "Create",

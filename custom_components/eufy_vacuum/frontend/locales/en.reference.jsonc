@@ -1208,7 +1208,7 @@
     "layer_robot": "Robot + heading",
     "layer_room_area": "Room area (m²)",  // Map-layer toggle 'Room area (m²)'; shows each room's floor area in square metres, keep m² unit
     "layer_walls": "Virtual walls",  // 'Virtual walls' = app-drawn no-cross barriers (vacuum term of art)
-    "layer_zones": "Saved zones",
+    "layer_zones": "Device zones",  // the vacuum app's OWN saved zones from the device map (distinct from the card's Saved Zones panel)
     "layers_hint": "Overlays appear on the live-map backdrop.",
     "layers_title": "Map Layers",
     "layout_create": "Create",
