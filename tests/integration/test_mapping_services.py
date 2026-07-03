@@ -472,6 +472,88 @@ async def test_custom_layout_crud(hass, mapping_services):
     assert d2["segmentation_mode"] == "cv"               # last delete flips to CV
 
 
+async def test_saved_zone_crud(hass, mapping_services):
+    """[ZONE-1] create / rename / delete saved-zone lifecycle: distinct ids, persistence
+    on the map bucket, W1 filing fields default None, unknown-id -> zone_not_found."""
+    from custom_components.eufy_vacuum.const import (
+        SERVICE_CREATE_SAVED_ZONE,
+        SERVICE_DELETE_SAVED_ZONE,
+        SERVICE_RENAME_SAVED_ZONE,
+    )
+    quad = [[0.1, 0.1], [0.4, 0.1], [0.4, 0.5], [0.1, 0.5]]
+    a = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "The couch", "geometry": quad})
+    assert a["saved"] and a["zone_id"]
+    zid = a["zone_id"]
+    assert a["zone"]["name"] == "The couch"
+    assert a["zone"]["geometry"] == quad
+    assert a["zone"]["room_number"] is None   # W1: filing lands in W2
+    assert a["zone"]["area_m2"] is None        # W1: computed in W2
+    assert a["zone"]["kind"] == "clean"
+
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    assert zid in bucket["saved_zones"]
+
+    b = await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "The stove", "geometry": quad})
+    assert b["zone_id"] != zid                 # distinct id even same-second
+
+    ren = await _call(hass, SERVICE_RENAME_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid, "name": "Under the table"})
+    assert ren["saved"] and ren["zone"]["name"] == "Under the table"
+
+    # the read surface (get_map_segments) lists all saved zones for the card
+    got = await _call(hass, SERVICE_GET_MAP_SEGMENTS, {"vacuum_entity_id": _VAC, "map_id": _MAP})
+    listed = {z["id"]: z["name"] for z in got["saved_zones"]}
+    assert listed == {zid: "Under the table", b["zone_id"]: "The stove"}
+
+    bad = await _call(hass, SERVICE_RENAME_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": "nope", "name": "x"})
+    assert bad["saved"] is False and bad["reason"] == "zone_not_found"
+
+    d = await _call(hass, SERVICE_DELETE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
+    assert d["saved"] and d["deleted"]
+    assert zid not in bucket["saved_zones"]
+
+    d2 = await _call(hass, SERVICE_DELETE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
+    assert d2["saved"] is False and d2["reason"] == "zone_not_found"
+
+
+async def test_saved_zones_migration_idempotent(hass, mapping_services):
+    """[ZONE-2] _migrate_saved_zones seeds {} once and never clobbers existing zones."""
+    from custom_components.eufy_vacuum.mapping.mapping_services import _migrate_saved_zones
+    bucket = ensure_map_bucket(data=mapping_services.data, vacuum_entity_id=_VAC, map_id=_MAP)
+    _migrate_saved_zones(bucket)
+    assert bucket["saved_zones"] == {}
+    bucket["saved_zones"]["sz_x"] = {"id": "sz_x", "name": "keep"}
+    _migrate_saved_zones(bucket)               # idempotent — must not wipe
+    assert bucket["saved_zones"] == {"sz_x": {"id": "sz_x", "name": "keep"}}
+
+
+def test_saved_zone_geometry_coord_validation():
+    """[ZONE-3] geometry coords: non-finite / non-numeric rejected (fail loud, so
+    NaN/inf never persist and get orjson-nulled on save); out-of-range clamped to 0-1."""
+    import math
+
+    import voluptuous as vol
+
+    from custom_components.eufy_vacuum.mapping.mapping_services import (
+        CREATE_SAVED_ZONE_SCHEMA,
+    )
+    base = {"vacuum_entity_id": _VAC, "map_id": _MAP, "name": "z"}
+    for bad in (float("nan"), float("inf"), float("-inf"), "nan", "inf", "abc", True):
+        with pytest.raises(vol.Invalid):
+            CREATE_SAVED_ZONE_SCHEMA(
+                {**base, "geometry": [[bad, 0.0], [0.0, 0.0], [1.0, 1.0]]})
+    # finite but out of the normalized 0-1 range -> clamped, not rejected
+    out = CREATE_SAVED_ZONE_SCHEMA(
+        {**base, "geometry": [[5.0, -3.0], [100.0, 0.5], [1.0, 1.0]]})
+    assert out["geometry"] == [[1.0, 0.0], [1.0, 0.5], [1.0, 1.0]]
+    assert all(math.isfinite(c) for pt in out["geometry"] for c in pt)
+
+
 async def test_create_custom_layout_live_backdrop_source(hass, mapping_services):
     """[LAYOUT-11] create_custom_layout with backdrop_source='live' pins the layout to
     the live map (surfaced in the get_map_segments summary so the card's "Live map" chip

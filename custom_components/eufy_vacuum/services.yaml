@@ -2495,6 +2495,91 @@ debug_log_live_room:
       selector:
         boolean:
 
+create_saved_zone:
+  name: Create saved zone
+  description: >
+    Create a named, reusable saved zone (a clean region — "the couch", "the stove")
+    on a map from a normalized 0-1 polygon. Wave 1 stores geometry + name; filing by
+    room and cleaning land in later waves. Returns the new zone_id.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: Zone name
+      required: true
+      selector:
+        text: {}
+    geometry:
+      name: Geometry
+      description: Normalized 0-1 polygon as a list of [x, y] points (at least 3).
+      required: true
+      selector:
+        object: {}
+    kind:
+      name: Kind
+      required: false
+      selector:
+        text: {}
+
+rename_saved_zone:
+  name: Rename saved zone
+  description: Rename an existing saved zone.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    zone_id:
+      name: Zone ID
+      required: true
+      selector:
+        text: {}
+    name:
+      name: New name
+      required: true
+      selector:
+        text: {}
+
+delete_saved_zone:
+  name: Delete saved zone
+  description: Delete a saved zone from a map.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    zone_id:
+      name: Zone ID
+      required: true
+      selector:
+        text: {}
+
 create_custom_layout:
   name: Create custom layout
   description: >

@@ -39,6 +39,9 @@ from ..const import (
     SERVICE_RENAME_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+    SERVICE_CREATE_SAVED_ZONE,
+    SERVICE_RENAME_SAVED_ZONE,
+    SERVICE_DELETE_SAVED_ZONE,
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
     SERVICE_SET_ROOM_VIEWPORT,
@@ -137,6 +140,10 @@ ALL_MAPPING_SERVICES = (
     SERVICE_RENAME_CUSTOM_LAYOUT,
     SERVICE_DELETE_CUSTOM_LAYOUT,
     SERVICE_SET_ACTIVE_CUSTOM_LAYOUT,
+    # Saved zones (named reusable clean regions)
+    SERVICE_CREATE_SAVED_ZONE,
+    SERVICE_RENAME_SAVED_ZONE,
+    SERVICE_DELETE_SAVED_ZONE,
     # Furnished custom render
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
@@ -463,6 +470,53 @@ DELETE_CUSTOM_LAYOUT_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("layout_id"): cv.string,
+    }
+)
+
+# Saved zones (named reusable clean regions — a map holds many). geometry is a
+# normalized 0-1 point list (the drawn polygon); dispatch works off it directly.
+def _saved_zone_coord(v: Any) -> float:
+    """Coerce one zone coordinate to a FINITE float clamped to normalized 0-1
+    (mirrors the hidden-regions sanitizer at ``_handle_set_hidden_regions``): reject
+    non-numeric / bool / NaN / inf outright — bad input must never persist (orjson
+    would silently turn NaN/inf into ``null`` on save) — and clamp a value that
+    drifts a hair past the edge on a drag; round to kill float noise."""
+    if isinstance(v, bool):
+        raise vol.Invalid("coordinate must be a number, not a bool")
+    try:
+        f = float(v)
+    except (TypeError, ValueError) as err:
+        raise vol.Invalid("coordinate must be a number") from err
+    if not math.isfinite(f):
+        raise vol.Invalid("coordinate must be a finite number")
+    return round(max(0.0, min(1.0, f)), 5)
+
+
+_SAVED_ZONE_POINT = vol.All([_saved_zone_coord], vol.Length(min=2, max=2))
+CREATE_SAVED_ZONE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("name"): cv.string,
+        vol.Required("geometry"): vol.All([_SAVED_ZONE_POINT], vol.Length(min=3)),
+        vol.Optional("kind"): cv.string,
+    }
+)
+
+RENAME_SAVED_ZONE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("zone_id"): cv.string,
+        vol.Required("name"): cv.string,
+    }
+)
+
+DELETE_SAVED_ZONE_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        vol.Required("zone_id"): cv.string,
     }
 )
 
@@ -1242,12 +1296,21 @@ async def _handle_get_map_segments(hass: HomeAssistant, call: ServiceCall) -> di
         if isinstance(lay, dict)
     ]
 
+    # Saved zones (named reusable clean regions). Light payload (geometry is a small
+    # point list), so the whole zone rides in — the card lists + picks straight off it.
+    _migrate_saved_zones(map_bucket)
+    saved_zones = [
+        dict(z) for z in (map_bucket.get("saved_zones") or {}).values()
+        if isinstance(z, dict)
+    ]
+
     return {
         "vacuum_entity_id": vacuum_entity_id,
         "map_id": map_id,
         "segmentation_mode": mode,
         "active_custom_layout_id": map_bucket.get("active_custom_layout_id"),
         "custom_layouts": layouts_summary,
+        "saved_zones": saved_zones,
         "segment_room_links": dict(links) if isinstance(links, dict) else {},
         "available": bool(raw.get("available", False)),
         "analyzed_at": raw.get("analyzed_at"),
@@ -1330,6 +1393,50 @@ def _generate_custom_layout_id(existing) -> str:
     while f"{base}_{n}" in existing:
         n += 1
     return f"{base}_{n}"
+
+
+def _generate_saved_zone_id(existing) -> str:
+    """Stable unique id for a new saved zone (mirrors _generate_custom_layout_id),
+    with a same-second collision guard so rapid creates (and tests) never clash."""
+    base = f"sz_{datetime.now().strftime('%Y%m%dT%H%M%S')}"
+    if base not in existing:
+        return base
+    n = 2
+    while f"{base}_{n}" in existing:
+        n += 1
+    return f"{base}_{n}"
+
+
+def _migrate_saved_zones(map_bucket: dict) -> None:
+    """Ensure the ``saved_zones`` collection exists on the map bucket. Idempotent;
+    unlike ``_migrate_custom_layouts`` there is no legacy store to fold (saved zones
+    are new), so this just seeds an empty dict on first touch."""
+    if not isinstance(map_bucket.get("saved_zones"), dict):
+        map_bucket["saved_zones"] = {}
+
+
+def _create_saved_zone(
+    map_bucket: dict, name: str, geometry: list, *, kind: str = "clean"
+) -> dict:
+    """Mint a saved zone on the map bucket (mirrors ``_create_layout``). Wave 1 stores
+    geometry + name only; the computed fields (``area_m2`` from map dims, ``room_number``
+    from the room-mask) land in Wave 2 and stay ``None`` until then. ``geometry`` is a
+    normalized 0-1 point list — the zone itself; dispatch works off it directly."""
+    zones = map_bucket.setdefault("saved_zones", {})
+    zone_id = _generate_saved_zone_id(set(zones))
+    now = utc_now_iso()
+    zone = {
+        "id": zone_id,
+        "name": (name or "").strip() or "Zone",
+        "geometry": [[float(x), float(y)] for x, y in geometry],
+        "area_m2": None,      # Wave 2: computed from map geometry at author time
+        "room_number": None,  # Wave 2: filing bucket (>=90%-of-floor dominance, else None)
+        "kind": (kind or "clean").strip() or "clean",
+        "created_at": now,
+        "updated_at": now,
+    }
+    zones[zone_id] = zone
+    return zone
 
 
 def _active_custom_layout(map_bucket: dict) -> dict | None:
@@ -2435,6 +2542,72 @@ async def _handle_set_active_custom_layout(hass: HomeAssistant, call: ServiceCal
 
 
 # ---------------------------------------------------------------------------
+# Saved-zone CRUD (Wave 1 — storage only; filing + dispatch are later waves)
+# ---------------------------------------------------------------------------
+
+
+async def _handle_create_saved_zone(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Create a named saved zone (a reusable clean region) on a map."""
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    name: str = str(call.data.get("name") or "").strip()
+    if not name:
+        return {"saved": False, "reason": "missing_name"}
+    geometry = call.data["geometry"]
+    kind: str = str(call.data.get("kind") or "clean").strip() or "clean"
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zone = _create_saved_zone(map_bucket, name, geometry, kind=kind)
+    await manager.async_save()
+    _LOGGER.debug("create_saved_zone: %s/%s -> %s", vacuum_entity_id, map_id, zone["id"])
+    return {"saved": True, "zone_id": zone["id"], "zone": dict(zone)}
+
+
+async def _handle_rename_saved_zone(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    zone_id: str = call.data["zone_id"]
+    name: str = str(call.data["name"]).strip()
+    if not name:
+        return {"saved": False, "reason": "missing_name"}
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zone = (map_bucket.get("saved_zones") or {}).get(zone_id)
+    if not isinstance(zone, dict):
+        return {"saved": False, "reason": "zone_not_found"}
+    zone["name"] = name
+    zone["updated_at"] = utc_now_iso()
+    await manager.async_save()
+    return {"saved": True, "zone_id": zone_id, "zone": dict(zone)}
+
+
+async def _handle_delete_saved_zone(hass: HomeAssistant, call: ServiceCall) -> dict:
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    zone_id: str = call.data["zone_id"]
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zones = map_bucket.get("saved_zones") or {}
+    if zone_id not in zones:
+        return {"saved": False, "reason": "zone_not_found"}
+    zones.pop(zone_id, None)
+    await manager.async_save()
+    return {"saved": True, "deleted": True, "zone_id": zone_id}
+
+
+# ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
 
@@ -2845,6 +3018,15 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def set_active_custom_layout(call: ServiceCall) -> dict:
         return await _handle_set_active_custom_layout(hass, call)
 
+    async def create_saved_zone(call: ServiceCall) -> dict:
+        return await _handle_create_saved_zone(hass, call)
+
+    async def rename_saved_zone(call: ServiceCall) -> dict:
+        return await _handle_rename_saved_zone(hass, call)
+
+    async def delete_saved_zone(call: ServiceCall) -> dict:
+        return await _handle_delete_saved_zone(hass, call)
+
     async def set_furnished_art_placement(call: ServiceCall) -> dict:
         return await _handle_set_furnished_art_placement(hass, call)
 
@@ -2945,6 +3127,18 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_SET_ACTIVE_CUSTOM_LAYOUT, set_active_custom_layout,
         schema=SET_ACTIVE_CUSTOM_LAYOUT_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CREATE_SAVED_ZONE, create_saved_zone,
+        schema=CREATE_SAVED_ZONE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_RENAME_SAVED_ZONE, rename_saved_zone,
+        schema=RENAME_SAVED_ZONE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_DELETE_SAVED_ZONE, delete_saved_zone,
+        schema=DELETE_SAVED_ZONE_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, set_furnished_art_placement,

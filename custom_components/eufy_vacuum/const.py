@@ -182,6 +182,12 @@ SERVICE_RENAME_CUSTOM_LAYOUT = "rename_custom_layout"
 SERVICE_DELETE_CUSTOM_LAYOUT = "delete_custom_layout"
 SERVICE_SET_ACTIVE_CUSTOM_LAYOUT = "set_active_custom_layout"
 
+# Saved zones — named, reusable clean regions per map ("the couch", "the stove").
+# Wave 1 = CRUD/storage only; filing (room_number) + clean dispatch land in later waves.
+SERVICE_CREATE_SAVED_ZONE = "create_saved_zone"
+SERVICE_RENAME_SAVED_ZONE = "rename_saved_zone"
+SERVICE_DELETE_SAVED_ZONE = "delete_saved_zone"
+
 # Furnished custom render (Wave 0) — per-layout furnished-art overlay data so a
 # later frontend wave can composite user art over the live map. All three write
 # onto the ACTIVE custom layout (whole-home `home_art` + per-room `rooms[*]`
