@@ -21,6 +21,10 @@ Coverage targets
 [ZC-10] more zones than the brand's capabilities.zone_max -> ValueError, no dispatch.
 [ZC-11] a zone larger than zone_max_area_m2 (device mm²) -> ValueError, no dispatch.
 [ZC-12] a zone smaller than zone_min_area_m2 -> ValueError, no dispatch.
+[ZC-13] Eufy per-side: a side over zone_max_side_m -> ValueError, no dispatch.
+[ZC-14] Eufy per-side: a side under zone_min_side_m -> ValueError, no dispatch.
+[ZC-15] Eufy zone within the per-side bounds -> dispatches the 0-1 rect verbatim.
+[ZC-16] Eufy side caps declared but no live map -> check skipped (dispatches, no false refuse).
 """
 
 from __future__ import annotations
@@ -267,3 +271,79 @@ async def test_zone_too_small_refuses(hass, manager, monkeypatch):
             vacuum_entity_id=_VAC, zones=[[0.4, 0.4, 0.43, 0.43]]
         )
     assert calls == []
+
+
+# --- Eufy per-SIDE bounds (verbatim branch) ----------------------------------
+# Eufy ships the 0-1 rects verbatim; the per-SIDE cap (0.5-10 m) is checked against the
+# live map dims via the fork's own de-normalization (side_m = Δnorm * dim * res / 100).
+_EUFY_SIDE_CAPS = {"zone_max": 10, "zone_min_side_m": 0.5, "zone_max_side_m": 10.0}
+
+
+def _register_eufy_caps(hass):
+    register_adapter_config(_VAC, {
+        "adapter_id": "eufy", "source": "code",
+        "dispatch": dict(_EUFY_DISPATCH),
+        "capabilities": dict(_EUFY_SIDE_CAPS),
+    })
+
+
+def _stub_map_dims(manager, monkeypatch, width, height, res):
+    async def _md(**_kw):
+        return {"width": width, "height": height, "resolution": res}
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _md, raising=False)
+
+
+async def test_eufy_zone_side_too_long_refuses(hass, manager, monkeypatch):
+    """[ZC-13] Eufy: a side over zone_max_side_m -> ValueError, nothing dispatched.
+    Map 360x300 @res 5 = 18x15 m; a 0.7-wide rect = 12.6 m > 10 m."""
+    _register_eufy_caps(hass)
+    calls = _capture_send(hass)
+    _stub_map_dims(manager, monkeypatch, 360, 300, 5)
+    with pytest.raises(ValueError, match="too long"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]
+        )
+    assert calls == []
+
+
+async def test_eufy_zone_side_too_short_refuses(hass, manager, monkeypatch):
+    """[ZC-14] Eufy: a side under zone_min_side_m -> ValueError, nothing dispatched.
+    Map 360x300 @res 5; a 0.02-wide rect = 0.36 m < 0.5 m (still above the degenerate floor)."""
+    _register_eufy_caps(hass)
+    calls = _capture_send(hass)
+    _stub_map_dims(manager, monkeypatch, 360, 300, 5)
+    with pytest.raises(ValueError, match="too short"):
+        await manager.dispatch_zone_clean(
+            vacuum_entity_id=_VAC, zones=[[0.10, 0.10, 0.12, 0.40]]
+        )
+    assert calls == []
+
+
+async def test_eufy_zone_side_within_bounds_dispatches(hass, manager, monkeypatch):
+    """[ZC-15] Eufy: a zone with both sides in [0.5, 10] m dispatches the 0-1 rect verbatim."""
+    _register_eufy_caps(hass)
+    calls = _capture_send(hass)
+    _stub_map_dims(manager, monkeypatch, 360, 300, 5)
+    # 0.3 wide = 5.4 m, 0.3 tall = 4.5 m -> both inside the bounds.
+    out = await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.6, 0.6]]
+    )
+    assert calls[0]["command"] == "zone_clean"
+    assert calls[0]["params"] == {"zones": [[0.3, 0.3, 0.6, 0.6]], "clean_times": 1}
+    assert out["zone_count"] == 1
+
+
+async def test_eufy_zone_side_check_skipped_without_map(hass, manager, monkeypatch):
+    """[ZC-16] with side caps declared but NO live map, the check degrades to skip (the card
+    validates at draw time) — the zone still dispatches rather than falsely refusing."""
+    _register_eufy_caps(hass)
+    calls = _capture_send(hass)
+
+    async def _no_md(**_kw):
+        return None
+    monkeypatch.setattr(manager, "async_get_map_data_dict", _no_md, raising=False)
+    out = await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.1, 0.1, 0.8, 0.3]]  # would be too long IF dims known
+    )
+    assert calls[0]["command"] == "zone_clean"
+    assert out["zone_count"] == 1

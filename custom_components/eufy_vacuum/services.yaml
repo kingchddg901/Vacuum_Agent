@@ -2645,6 +2645,41 @@ clean_saved_zone:
           min: 1
           mode: box
 
+clean_saved_zones:
+  name: Clean saved zones
+  description: >
+    Clean several saved zones together in one ad-hoc zone clean (fire-and-forget, not
+    tracked in the job queue). The device cleans the whole selected set in a single run.
+    Only works when the zones' map is the currently active map. Per-brand caps apply
+    (Eufy: up to 10 zones, each side 0.5-10 m; Roborock: up to 5 zones, 1 ft²-3.05 m² each).
+  fields:
+    vacuum_entity_id:
+      name: Vacuum
+      required: true
+      selector:
+        entity:
+          integration: eufy_vacuum
+          domain: vacuum
+    map_id:
+      name: Map ID
+      required: true
+      selector:
+        text: {}
+    zone_ids:
+      name: Zone IDs
+      description: The saved-zone ids to clean together.
+      required: true
+      selector:
+        object: {}
+    clean_times:
+      name: Clean times
+      description: Number of cleaning passes.
+      required: false
+      selector:
+        number:
+          min: 1
+          mode: box
+
 create_custom_layout:
   name: Create custom layout
   description: >

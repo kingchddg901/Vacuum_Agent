@@ -712,6 +712,51 @@ async def test_clean_saved_zone_dispatches_bbox(hass, mapping_services, monkeypa
     mm = await _call(hass, SERVICE_CLEAN_SAVED_ZONE, {
         "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_id": zid})
     assert mm["cleaned"] is False and mm["reason"] == "map_not_active"
+
+
+async def test_clean_saved_zones_dispatches_combined_bboxes(hass, mapping_services, monkeypatch):
+    """[ZONE-9] clean_saved_zones resolves EACH id -> its bbox -> ONE dispatch carrying all
+    rects; active-map guard; a missing id refuses the WHOLE batch (atomic) without dispatch."""
+    from custom_components.eufy_vacuum.const import (
+        SERVICE_CLEAN_SAVED_ZONES,
+        SERVICE_CREATE_SAVED_ZONE,
+    )
+    captured = {}
+
+    async def _fake_dispatch(*, vacuum_entity_id, zones, clean_times=1, map_id=None):
+        captured["zones"] = zones
+        captured["clean_times"] = clean_times
+        return {"dispatched": True}
+    monkeypatch.setattr(mapping_services, "dispatch_zone_clean", _fake_dispatch)
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: _MAP)
+
+    g1 = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.3], [0.1, 0.3]]
+    g2 = [[0.5, 0.5], [0.8, 0.5], [0.8, 0.75], [0.5, 0.75]]
+    id1 = (await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "a", "geometry": g1}))["zone_id"]
+    id2 = (await _call(hass, SERVICE_CREATE_SAVED_ZONE, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "name": "b", "geometry": g2}))["zone_id"]
+
+    r = await _call(hass, SERVICE_CLEAN_SAVED_ZONES, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_ids": [id1, id2], "clean_times": 2})
+    assert r["cleaned"] is True and r["zone_count"] == 2
+    assert captured["zones"] == [[0.1, 0.1, 0.3, 0.3], [0.5, 0.5, 0.8, 0.75]]  # both bboxes, one call
+    assert captured["clean_times"] == 2
+
+    captured.clear()
+    nf = await _call(hass, SERVICE_CLEAN_SAVED_ZONES, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_ids": [id1, "nope"]})
+    assert nf["cleaned"] is False and nf["reason"] == "zone_not_found"
+    assert captured == {}                                          # atomic: nothing dispatched
+
+    monkeypatch.setattr(
+        "custom_components.eufy_vacuum.rooms.room_discovery.get_active_map_id",
+        lambda hass, vid: "999")
+    mm = await _call(hass, SERVICE_CLEAN_SAVED_ZONES, {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "zone_ids": [id1]})
+    assert mm["cleaned"] is False and mm["reason"] == "map_not_active"
     assert captured == {}
 
 

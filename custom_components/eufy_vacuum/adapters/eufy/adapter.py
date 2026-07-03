@@ -787,6 +787,14 @@ def register_eufy_adapter_for_vacuum(
             # live-map image: the version (v1.11.0+) that adds zone_clean is the same one
             # exposing camera.<device>_map, so older installs (no live map) never see it.
             "supports_zone_clean": True,
+            # Eufy zone-clean device limits (mirror the app): up to 10 zones per clean, and
+            # each zone SIDE 0.5-10 m. This is a per-SIDE bound (checked against the live map
+            # dims in dispatch_zone_clean), NOT Roborock's per-zone AREA bound. 100 m² (10x10 m)
+            # is a silly-large ceiling but it's the real device limit — we match the capability,
+            # not a stricter guess.
+            "zone_max": 10,
+            "zone_min_side_m": 0.5,
+            "zone_max_side_m": 10.0,
             # Eufy firmware re-bases the raw coordinate frame every session, so
             # cross-session bounds geometry is unusable for room detection. The
             # room detector only trusts position/bounds when this is True (core

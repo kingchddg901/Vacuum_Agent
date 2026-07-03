@@ -44,6 +44,7 @@ from ..const import (
     SERVICE_DELETE_SAVED_ZONE,
     SERVICE_SET_SAVED_ZONE_ROOM,
     SERVICE_CLEAN_SAVED_ZONE,
+    SERVICE_CLEAN_SAVED_ZONES,
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
     SERVICE_SET_ROOM_VIEWPORT,
@@ -149,6 +150,7 @@ ALL_MAPPING_SERVICES = (
     SERVICE_DELETE_SAVED_ZONE,
     SERVICE_SET_SAVED_ZONE_ROOM,
     SERVICE_CLEAN_SAVED_ZONE,
+    SERVICE_CLEAN_SAVED_ZONES,
     # Furnished custom render
     SERVICE_SET_FURNISHED_ART_PLACEMENT,
     SERVICE_SET_FURNISHED_RENDER_MODE,
@@ -544,6 +546,16 @@ CLEAN_SAVED_ZONE_SCHEMA = vol.Schema(
         vol.Required("vacuum_entity_id"): cv.entity_id,
         vol.Required("map_id"): cv.string,
         vol.Required("zone_id"): cv.string,
+        vol.Optional("clean_times", default=1): vol.All(vol.Coerce(int), vol.Range(min=1)),
+    }
+)
+
+CLEAN_SAVED_ZONES_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Required("map_id"): cv.string,
+        # The selected set (panel multi-select). Cleaned together in ONE dispatch.
+        vol.Required("zone_ids"): vol.All(cv.ensure_list, [cv.string], vol.Length(min=1)),
         vol.Optional("clean_times", default=1): vol.All(vol.Coerce(int), vol.Range(min=1)),
     }
 )
@@ -2734,6 +2746,82 @@ async def _handle_clean_saved_zone(hass: HomeAssistant, call: ServiceCall) -> di
     return {"cleaned": True, "zone_id": zone_id, "dispatch": payload}
 
 
+async def _handle_clean_saved_zones(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Fire SEVERAL saved zones as a single ad-hoc zone clean (Wave 3b, Cut 2).
+
+    Resolves each ``zone_id`` to its normalized bbox rect and dispatches them all in ONE
+    ``dispatch_zone_clean`` call, so the device cleans the whole selected set in one run.
+    Same guards as the singular clean: active-map only (a zone's geometry is valid only on
+    its own map). The per-brand zone COUNT + SIZE caps (Eufy 10 zones / 0.5-10 m per side,
+    Roborock 5 zones / 1 ft²-3.05 m²) are enforced inside ``dispatch_zone_clean`` — it
+    raises on violation, surfaced here as an error. Atomic: any missing / bad-geometry zone
+    refuses the whole batch (the card keeps its selection in sync, so this is an edge case).
+    """
+    vacuum_entity_id: str = call.data["vacuum_entity_id"]
+    map_id: str = call.data["map_id"]
+    zone_ids: list[str] = [str(z) for z in call.data["zone_ids"]]
+    clean_times: int = int(call.data.get("clean_times", 1))
+
+    manager = hass.data[DOMAIN][DATA_RUNTIME]
+    map_bucket = ensure_map_bucket(
+        data=manager.data, vacuum_entity_id=vacuum_entity_id, map_id=map_id,
+    )
+    _migrate_saved_zones(map_bucket)
+    zones_store = map_bucket.get("saved_zones") or {}
+
+    from ..rooms.room_discovery import get_active_map_id
+    try:
+        active_map_id = get_active_map_id(hass, vacuum_entity_id)
+    except Exception:  # noqa: BLE001
+        active_map_id = None
+    if active_map_id is not None and str(active_map_id) != str(map_id):
+        return {
+            "cleaned": False, "reason": "map_not_active",
+            "active_map_id": str(active_map_id),
+        }
+
+    rects: list[list[float]] = []
+    missing: list[str] = []
+    bad: list[str] = []
+    for zid in zone_ids:
+        zone = zones_store.get(zid)
+        if not isinstance(zone, dict):
+            missing.append(zid)
+            continue
+        pts = [
+            p for p in (zone.get("geometry") or [])
+            if isinstance(p, (list, tuple)) and len(p) == 2
+        ]
+        if len(pts) < 3:
+            bad.append(zid)
+            continue
+        xs = [float(p[0]) for p in pts]
+        ys = [float(p[1]) for p in pts]
+        rects.append([min(xs), min(ys), max(xs), max(ys)])
+    if missing:
+        return {"cleaned": False, "reason": "zone_not_found", "zone_ids": missing}
+    if bad:
+        return {"cleaned": False, "reason": "bad_geometry", "zone_ids": bad}
+    if not rects:
+        return {"cleaned": False, "reason": "no_zones"}
+
+    try:
+        payload = await manager.dispatch_zone_clean(
+            vacuum_entity_id=vacuum_entity_id, zones=rects,
+            clean_times=clean_times, map_id=map_id,
+        )
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to clean saved zones: {err}") from err
+    _LOGGER.debug(
+        "clean_saved_zones: %s/%s x%d -> %s",
+        vacuum_entity_id, map_id, len(rects), payload,
+    )
+    return {
+        "cleaned": True, "zone_ids": zone_ids, "zone_count": len(rects),
+        "dispatch": payload,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Registration
 # ---------------------------------------------------------------------------
@@ -3160,6 +3248,9 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     async def clean_saved_zone(call: ServiceCall) -> dict:
         return await _handle_clean_saved_zone(hass, call)
 
+    async def clean_saved_zones(call: ServiceCall) -> dict:
+        return await _handle_clean_saved_zones(hass, call)
+
     async def set_furnished_art_placement(call: ServiceCall) -> dict:
         return await _handle_set_furnished_art_placement(hass, call)
 
@@ -3280,6 +3371,10 @@ async def async_register_mapping_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_CLEAN_SAVED_ZONE, clean_saved_zone,
         schema=CLEAN_SAVED_ZONE_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_CLEAN_SAVED_ZONES, clean_saved_zones,
+        schema=CLEAN_SAVED_ZONES_SCHEMA, supports_response=True,
     )
     hass.services.async_register(
         DOMAIN, SERVICE_SET_FURNISHED_ART_PLACEMENT, set_furnished_art_placement,

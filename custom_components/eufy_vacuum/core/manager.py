@@ -4239,6 +4239,44 @@ class EufyVacuumManager:
                 params_as_list_override=False,  # payload is already the params list
             )
         else:
+            # Eufy ships the 0-1 image rects VERBATIM (the fork de-normalizes on its side).
+            # Enforce any per-SIDE device bound (zone_min_side_m / zone_max_side_m) here by
+            # converting each rect to metres via the live map's own dims — the SAME
+            # de-normalization the fork applies: side_m = Δnorm * dim * res / 100 (matches
+            # coordinator.normalized_rects_to_quads_cm). Refuse with a clear message rather
+            # than let the device silently reject. If no live map is readable we skip the
+            # check (the card validates at draw time; this is defence-in-depth).
+            _min_side = _zone_caps.get("zone_min_side_m")
+            _max_side = _zone_caps.get("zone_max_side_m")
+            if _min_side is not None or _max_side is not None:
+                try:
+                    _md = await self.async_get_map_data_dict(
+                        vacuum_entity_id=vacuum_entity_id,
+                    ) or {}
+                    _w = int(_md.get("width") or 0)
+                    _h = int(_md.get("height") or 0)
+                    _res = int(_md.get("resolution") or 5) or 5
+                except (TypeError, ValueError):
+                    _w = _h = 0
+                    _res = 5
+                if _w and _h:
+                    for _x0, _y0, _x1, _y1 in zones:
+                        for _side in (
+                            abs(_x1 - _x0) * _w * _res / 100.0,
+                            abs(_y1 - _y0) * _h * _res / 100.0,
+                        ):
+                            if _min_side is not None and _side < float(_min_side):
+                                raise ValueError(
+                                    f"{vacuum_entity_id}: a zone side is too short "
+                                    f"({_side:.2f} m) — the minimum is {float(_min_side):.2f} m; "
+                                    "draw a bigger box"
+                                )
+                            if _max_side is not None and _side > float(_max_side):
+                                raise ValueError(
+                                    f"{vacuum_entity_id}: a zone side is too long "
+                                    f"({_side:.2f} m) — the maximum is {float(_max_side):.2f} m; "
+                                    "draw a smaller box"
+                                )
             payload = {"zones": zones, "clean_times": int(clean_times)}
             await self._dispatch_clean_payload(
                 vacuum_entity_id=vacuum_entity_id,
