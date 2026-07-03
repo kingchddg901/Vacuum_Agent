@@ -183,6 +183,10 @@ export const en = {
   "bind_saved_zones.name_prompt": "Name this zone (e.g. \"the couch\"):",  // prompt after drawing a box to save
   "bind_saved_zones.no_zones": "No zones to clean.",
   "bind_saved_zones.nothing_drawn": "Draw a box on the map first.",  // save pressed with no box drawn
+  "bind_saved_zones.refile_failed": "Couldn't move the zone.",  // set_saved_zone_room failed
+  "bind_saved_zones.rename_failed": "Couldn't rename the zone.",  // rename_saved_zone failed
+  "bind_saved_zones.rename_prompt": "New name for this zone:",  // prompt when renaming a zone
+  "bind_saved_zones.renamed": "Renamed to \"{name}\".",  // rename succeeded
   "bind_saved_zones.save_failed": "Couldn't save the zone.",  // create_saved_zone failed
   "bind_saved_zones.saved": "Saved \"{name}\".",  // zone created successfully
   "bind_saved_zones.unable_delete": "Unable to delete the saved zone.",
@@ -1256,6 +1260,8 @@ export const en = {
   "saved_zones.draw_hint": "Drag a box on the map, then Save.",  // instruction shown while drawing a zone to save
   "saved_zones.empty": "No saved zones yet.",
   "saved_zones.over_cap": "Max {max} zones per clean",  // shown when more than the device limit are selected
+  "saved_zones.rename": "Rename",  // per-zone rename button
+  "saved_zones.room_select_aria": "File under room",  // aria-label on the per-zone room re-file select
   "saved_zones.save_drawn": "Save zone",  // commit the drawn box as a named saved zone
   "saved_zones.select_zone": "Select {name}",  // aria-label on a zone's select checkbox
   "saved_zones.selected_badge": { one: "{count} selected", other: "{count} selected" },  // collapsed-header count badge

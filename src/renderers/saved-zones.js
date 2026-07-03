@@ -63,6 +63,19 @@ export function applySavedZonesRenderers(proto) {
           ? `<button type="button" class="evcc-chip evcc-saved-zones-drawbtn" data-action="draw-saved-zone">${this.t("saved_zones.draw")}</button>`
           : "");
 
+    // Re-file picker (Cut 4): the rooms on the active map + an Unassigned option; changing it
+    // moves the zone to another room's group. room_number is matched against room_id (same
+    // space savedZonesGrouped uses).
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    const roomOptions = (roomNumber) => {
+      const cur = roomNumber == null ? "" : String(roomNumber);
+      return `<option value=""${cur === "" ? " selected" : ""}>${this.t("saved_zones.unassigned")}</option>`
+        + rooms.map((r) => {
+          const val = this.escapeHtml(String(r.room_id));
+          return `<option value="${val}"${String(r.room_id) === cur ? " selected" : ""}>${this.escapeHtml(r.name)}</option>`;
+        }).join("");
+    };
+
     const listInner = groups.map((group) => `
       <div class="evcc-saved-zones-room-group">
         <div class="evcc-saved-zones-room-header">
@@ -84,9 +97,18 @@ export function applySavedZonesRenderers(proto) {
                 ? `<span class="evcc-saved-zones-area">${this.t("saved_zones.area_m2", { area: this.escapeHtml((Number(zone.area_m2) || 0).toFixed(1)) })}</span>`
                 : ""}
             </label>
-            <button type="button" class="evcc-chip evcc-saved-zones-del"
-                    data-action="delete-saved-zone" data-zone-id="${zid}"
-            >${this.t("common.delete")}</button>
+            <div class="evcc-saved-zones-item-actions">
+              <select class="evcc-saved-zones-roomsel" data-action="set-saved-zone-room"
+                      data-zone-id="${zid}" aria-label="${this.t("saved_zones.room_select_aria")}">
+                ${roomOptions(zone.room_number)}
+              </select>
+              <button type="button" class="evcc-chip evcc-saved-zones-rename"
+                      data-action="rename-saved-zone" data-zone-id="${zid}"
+              >${this.t("saved_zones.rename")}</button>
+              <button type="button" class="evcc-chip evcc-saved-zones-del"
+                      data-action="delete-saved-zone" data-zone-id="${zid}"
+              >${this.t("common.delete")}</button>
+            </div>
           </div>`;
         }).join("")}
       </div>`).join("");

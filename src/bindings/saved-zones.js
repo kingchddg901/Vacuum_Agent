@@ -131,6 +131,49 @@ export function applySavedZonesBindings(proto) {
       card._scheduleRender?.();
     });
 
+    // --- re-file a zone's room (Cut 4) --------------------------------------
+    card._onAll("[data-action='set-saved-zone-room']", "change", async (e) => {
+      const zoneId = e.target?.dataset?.zoneId;
+      if (!zoneId) return;
+      const val = e.target.value;
+      const result = await card._actions.setSavedZoneRoom({
+        vacuum_entity_id: card._state.vacuumEntityId?.(),
+        map_id: card._state.activeMapId?.(),
+        zone_id: zoneId,
+        room_number: val === "" ? null : Number(val),
+      });
+      if (result?.saved === false) {
+        card.showToast(this.t("bind_saved_zones.refile_failed"), { kind: "error" });
+      }
+      await card.refreshSavedZones?.();   // re-group under the new room
+      card._scheduleRender?.();
+    });
+
+    // --- rename a zone (Cut 4) ----------------------------------------------
+    card._onAll("[data-action='rename-saved-zone']", "click", async (e) => {
+      const zoneId = e.currentTarget?.dataset?.zoneId;
+      if (!zoneId) return;
+      const zone = (card._state.savedZones?.() ?? []).find((z) => String(z.id) === String(zoneId));
+      const next = ((await card._prompt(
+        this.t("bind_saved_zones.rename_prompt"),
+        { defaultValue: zone?.name ?? "" },
+      )) ?? "").trim();
+      if (!next || next === (zone?.name ?? "")) return;   // cancelled / unchanged / empty
+      const result = await card._actions.renameSavedZone({
+        vacuum_entity_id: card._state.vacuumEntityId?.(),
+        map_id: card._state.activeMapId?.(),
+        zone_id: zoneId,
+        name: next,
+      });
+      if (!result || result.saved === false) {
+        card.showToast(this.t("bind_saved_zones.rename_failed"), { kind: "error" });
+        return;
+      }
+      await card.refreshSavedZones?.();
+      card.showToast(this.t("bind_saved_zones.renamed", { name: next }), { kind: "success" });
+      card._scheduleRender?.();
+    });
+
     // --- delete a zone ------------------------------------------------------
     card._onAll("[data-action='delete-saved-zone']", "click", async (e) => {
       const zoneId = e.currentTarget.dataset.zoneId;

@@ -169,6 +169,23 @@ export const savedZonesStyles = `
     white-space: nowrap;
   }
 
+  .evcc-saved-zones-item-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .evcc-saved-zones-roomsel {
+    font-size: 0.76rem;
+    padding: 4px 6px;
+    border-radius: 8px;
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-input, #222831);
+    color: var(--evcc-text-primary);
+    max-width: 150px;
+  }
+
   .evcc-saved-zones-actions {
     display: flex;
     flex-wrap: wrap;

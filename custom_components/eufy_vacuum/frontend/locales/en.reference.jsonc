@@ -842,6 +842,10 @@
     "name_prompt": "Name this zone (e.g. \"the couch\"):",  // prompt after drawing a box to save
     "no_zones": "No zones to clean.",
     "nothing_drawn": "Draw a box on the map first.",  // save pressed with no box drawn
+    "refile_failed": "Couldn't move the zone.",  // set_saved_zone_room failed
+    "rename_failed": "Couldn't rename the zone.",  // rename_saved_zone failed
+    "rename_prompt": "New name for this zone:",  // prompt when renaming a zone
+    "renamed": "Renamed to \"{name}\".",  // rename succeeded
     "save_failed": "Couldn't save the zone.",  // create_saved_zone failed
     "saved": "Saved \"{name}\".",  // zone created successfully
     "unable_delete": "Unable to delete the saved zone.",
@@ -1930,6 +1934,8 @@
     "draw_hint": "Drag a box on the map, then Save.",  // instruction shown while drawing a zone to save
     "empty": "No saved zones yet.",
     "over_cap": "Max {max} zones per clean",  // shown when more than the device limit are selected
+    "rename": "Rename",  // per-zone rename button
+    "room_select_aria": "File under room",  // aria-label on the per-zone room re-file select
     "save_drawn": "Save zone",  // commit the drawn box as a named saved zone
     "select_zone": "Select {name}",  // aria-label on a zone's select checkbox
     "selected_badge": {"one":"{count} selected","other":"{count} selected"},  // collapsed-header count badge

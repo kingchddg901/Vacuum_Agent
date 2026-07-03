@@ -102,6 +102,17 @@ export const sharedChipStyles = `
     padding: var(--evcc-chip-icon-padding, 4px 8px);
     font-size: var(--evcc-chip-icon-size, 0.8rem);
   }
+
+  /* Native <select> option popup: Windows Chrome ignores the select's var-based bg and paints
+     the OS-default (often white) popup, so light option text goes invisible (bad contrast).
+     Pin a THEMED bg + text on the OPTION itself (which the popup DOES respect) — a card-wide
+     floor for EVERY dropdown, adapting to light/dark via the tokens. A specific select can
+     still override. This rule lands in both the card foundation and the modal host, since both
+     interpolate sharedChipStyles; it supersedes the per-select copies (rooms-animal / ext-allrooms). */
+  select option {
+    background: var(--evcc-surface-panel, #1c2127);
+    color: var(--evcc-text-primary, #f0f2f5);
+  }
 `;
 
 export const foundationStyles = `
