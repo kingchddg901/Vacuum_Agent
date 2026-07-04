@@ -15,6 +15,7 @@
     "harness:preview": "node harness/build.mjs && node harness/preview.mjs",
     "harness:locales": "node harness/build.mjs && node harness/shoot-locales.mjs",
     "test:harness": "node harness/build.mjs && playwright test -c harness/playwright.config.mjs",
+    "test:units": "node --test \"src/**/*.test.mjs\"",
     "check:i18n": "node scripts/check-i18n.mjs"
   },
   "devDependencies": {

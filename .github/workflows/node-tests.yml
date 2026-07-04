@@ -1,18 +1,20 @@
 name: node tests
 
-# Runs the Node-based test suites (scripts/*.test.mjs) — the theme + animal
-# submission cores. These are NOT covered by tests.yml (that's pytest) or
-# card-visual.yml (that's the Playwright visual harness), so without this job
-# the security-critical animal contract gate + DOMPurify sanitiser would have
-# no CI. Runs in the pinned Playwright image because the sanitiser/processor/
-# PR-gate tests drive real Chromium.
+# Runs the Node-based test suites — the theme + animal submission cores
+# (scripts/*.test.mjs, harness/lib/*.test.mjs) AND the frontend logic unit tests
+# (src/**/*.test.mjs, via `npm run test:units`). These are NOT covered by tests.yml
+# (that's pytest) or card-visual.yml (that's the Playwright visual harness), so
+# without this job the security-critical animal contract gate + DOMPurify sanitiser
+# and the card's pure state/geometry/colour units would have no CI. Runs in the
+# pinned Playwright image because the sanitiser/processor/PR-gate tests drive real
+# Chromium.
 
 on:
   push:
     branches: [master]
     paths:
       - "scripts/**"
-      - "src/theme-tags/**"
+      - "src/**"
       - "harness/lib/**"
       - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "gallery/animals/**"
@@ -22,7 +24,7 @@ on:
   pull_request:
     paths:
       - "scripts/**"
-      - "src/theme-tags/**"
+      - "src/**"
       - "harness/lib/**"
       - "custom_components/eufy_vacuum/frontend/animal-svg/**"
       - "gallery/animals/**"
@@ -41,3 +43,5 @@ jobs:
         run: npm ci
       - name: Run node test suites
         run: node --test scripts/*.test.mjs harness/lib/*.test.mjs
+      - name: Run frontend unit tests
+        run: npm run test:units
