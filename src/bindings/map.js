@@ -605,18 +605,31 @@ export function applyMapBindings(proto) {
     } catch (_e) { return null; }
   };
 
-  /* Resolve a floor layer's color token off the canvas (which inherits the theme vars),
-     falling back to the registry default. Returns [r,g,b,a]; the caller folds the alpha into
-     the layer opacity so an 8-hex / oklch color with alpha reads the same as it does on the card. */
+  /* Resolve a floor layer's color to [r,g,b,a]. Resolve it ON THE HOST element (the canvas,
+     which inherits the theme vars) by applying it as a real `color` property and reading the
+     COMPUTED value — exactly how the card's CSS resolves it. This is what lets `var()` and
+     `oklch(from var(...) ...)` (the marble vein-minor default) resolve to real rgb; the bare
+     scratch-canvas parser can't resolve a var() with no element context and was painting
+     those veins BLACK. Falls back to parsing the default, then grey. The caller folds the
+     alpha into the layer opacity. */
   proto._resolveFloorColor = function (token, dflt, host) {
-    let str = dflt;
     try {
-      if (host && typeof getComputedStyle === "function") {
-        const v = getComputedStyle(host).getPropertyValue(token).trim();
-        if (v) str = v;
+      if (host && host.style && typeof getComputedStyle === "function") {
+        const tokenVal = getComputedStyle(host).getPropertyValue(token).trim();
+        const want = tokenVal || dflt;
+        const prev = host.style.color;
+        host.style.color = "";
+        host.style.color = want;                       // invalid CSS is ignored -> stays ""
+        const accepted = host.style.color;
+        const resolved = accepted ? getComputedStyle(host).color : "";  // computed rgb/oklab
+        host.style.color = prev;                        // restore (canvas ignores `color` anyway)
+        if (resolved) {
+          const rgba = this._parseCssColor(resolved);
+          if (rgba) return rgba;
+        }
       }
-    } catch (_e) { /* detached / no CSSOM — keep the default */ }
-    return this._parseCssColor(str) || this._parseCssColor(dflt) || [128, 128, 128, 1];
+    } catch (_e) { /* fall through to the default */ }
+    return this._parseCssColor(dflt) || [128, 128, 128, 1];
   };
 
   /* Resolve a floor layer's opacity token (0..1), falling back to the registry default. */
