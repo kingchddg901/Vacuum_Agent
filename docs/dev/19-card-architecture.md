@@ -455,6 +455,10 @@ The texture layers are themed entirely through the `Floor Textures — *` token 
 
 ### 4.1 Module inventory
 
+The table below covers the **`state/`** modules. For every *other* frontend module — actions,
+bindings, renderers, styles, theme-tokens, i18n, the `cards/` elements, and the entry points —
+see the per-file navigation map in [34 — Frontend Module Reference](34-frontend-module-reference.md).
+
 | Module | File | What it owns |
 |---|---|---|
 | core | `state/core.js` | `hass.states` access helpers; vacuum entity, state, attributes, battery; vacuumObjectId |
