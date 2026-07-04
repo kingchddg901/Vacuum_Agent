@@ -34,16 +34,17 @@ per-subsystem breakdown.
 |---|------|----------------|
 | 06 | [recipes](06-recipes.md) | Copy-paste templates: a service test, an entity test, a unit test, a finalize test, an adapter-config test |
 
-## Frontend (JS)
+## Frontend (JS) — its own set
 
-The card itself — a separate JS track, not part of the Python count above. Two
-layers: pure-logic **unit tests** (`node --test`) and the **render harness**
-(Playwright) that renders the real card headless.
+The card is a separate JS track (not part of the Python count above), documented
+as its own set under **[frontend/](frontend/unit-tests.md)**:
 
-| # | File | What it covers |
-|---|------|----------------|
-| 07 | [render-harness](07-render-harness.md) | The headless render-harness gates (smoke, visual regression, CVD, shape marks, intake), how to run them, and the Docker baseline workflow |
-| 08 | [frontend-units](08-frontend-units.md) | The card's pure-JS logic units — 102 cases across 13 `src/**/*.test.mjs` files (coordinate math, hit-testing, state accessors, colour resolution); `npm run test:units` |
+- **[frontend/unit-tests](frontend/unit-tests.md)** — the pure-JS logic units:
+  **505 cases across 36 `src/**/*.test.mjs` files** (coordinate math, validation
+  engines, state accessors, theme/colour resolution); `npm run test:units`.
+- **[frontend/render-harness](frontend/render-harness.md)** — the headless
+  render-harness gates (smoke, visual regression, CVD, shape marks, intake) and
+  the Docker baseline workflow; `npm run test:harness`.
 
 ## Subsystem test maps
 
@@ -67,6 +68,6 @@ coverage. Highlights:
 
 - **Run everything:** `scripts\test.bat` (from a Windows shell; it spins up the container for you).
 - **Never run pytest directly on Windows** — `pytest-homeassistant-custom-component` imports `fcntl`, which does not exist on Windows. See [02](02-running-tests.md).
-- **Frontend / card tests are separate** — pure-JS logic units run with `npm run test:units` ([08](08-frontend-units.md)); the rendered card + visual baselines run with `npm run test:harness` (Linux-only baselines, pinned Playwright image; [07](07-render-harness.md)). Neither is pytest.
+- **Frontend / card tests are separate** — pure-JS logic units run with `npm run test:units` ([frontend/unit-tests](frontend/unit-tests.md)); the rendered card + visual baselines run with `npm run test:harness` ([frontend/render-harness](frontend/render-harness.md), Linux-only baselines, pinned Playwright image). Neither is pytest.
 - **New integration test** → use the `manager_with_services` fixture and the seeding helpers in `tests/integration/conftest.py`. Start from a template in [06](06-recipes.md).
 - **Managed rooms live at `data["maps"][vac][map]["rooms"]`**, not `data["rooms"]`. This one mistake invalidates more tests than any other — see [05](05-gotchas-and-pitfalls.md).

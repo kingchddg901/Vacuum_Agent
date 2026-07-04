@@ -143,7 +143,7 @@ across OSes, so baselines are generated *and* gated in one pinned image —
 `mcr.microsoft.com/playwright:v1.60.0-noble` — making the comparison byte-for-
 byte stable. The visual specs are gated to CI / `VISUAL=1` (other platforms
 would mismatch); smoke, completeness, CVD, shape, intake, tab-gating, and
-device-theme gates run everywhere. See [testing/07-render-harness](../../testing/07-render-harness.md) for
+device-theme gates run everywhere. See [testing/frontend/render-harness](../../testing/frontend/render-harness.md) for
 the regenerate-baselines workflow.
 
 **Structural, not color.** The diff budget is an **absolute** `maxDiffPixels`,
@@ -369,4 +369,4 @@ hidden defaults:
 | CVD pass criterion | `harness/cvd/report.mjs` | 10 pairs × 3 sims, ΔE2000 ≥ 15 |
 
 How to run, regenerate baselines, and read the gates:
-[testing/07-render-harness](../../testing/07-render-harness.md).
+[testing/frontend/render-harness](../../testing/frontend/render-harness.md).

@@ -1,9 +1,9 @@
-# 07 — Render Harness Tests (frontend)
+# Render Harness Tests (frontend)
 
 A separate test track from the Python suite: JS/Playwright tests that render the
 **real card** headless and gate it for crashes, visual regressions, colorblind
 distinguishability, and theme-intake safety. Architecture lives in
-[frontend/render-harness](../dev/frontend/render-harness.md); this is how to run it.
+[frontend/render-harness](../../dev/frontend/render-harness.md); this is how to run it.
 
 The harness is where the **rendered card** is tested — the ~1,900 Python cases
 stop at the backend contract; these pick up at the shadow-DOM boundary. (A small
@@ -41,7 +41,7 @@ builder — are tested separately with `node --test`; see [CI](#ci).)
 | `i18n-layout.spec.mjs` | a translated locale must not break the layout — **property**-based, not pixel-pinned: under a pseudo-lengthened catalog assert nothing escapes its box, at desktop @500px and mobile @390px | everywhere |
 
 `npm run test:harness` runs all of them (visual auto-skips off-CI). The i18n
-strings + intake security gate are covered separately — see [i18n system](../dev/frontend/i18n-system.md)
+strings + intake security gate are covered separately — see [i18n system](../../dev/frontend/i18n-system.md)
 (`check:i18n` + the real-Chromium `scripts/sanitize-locale.test.mjs`).
 
 ---
@@ -104,7 +104,7 @@ failing screenshots are the blast radius — then re-run with it to accept.
 | `.github/workflows/card-visual.yml` | PR (any branch) or push **to `master`** touching `src/**`, `harness/**`, `package.json`, `package-lock.json`, or the workflow file | runs `visual` + `device-theme` in the pinned image; uploads the diff report on failure |
 | `.github/workflows/node-tests.yml` | PR or push **to `master`** touching `scripts/**`, `src/theme-tags/**`, `harness/lib/**`, the animal-svg frontend, gallery animals, or `package.json` | `node --test scripts/*.test.mjs harness/lib/*.test.mjs` in the **pinned Playwright image** — covers the Chromium-driven sanitiser gates (animal SVG **and** the locale intake `sanitize-locale.test.mjs`), the submission/PR-gate cores, and the gallery-HTML builder |
 | `.github/workflows/theme-intake.yml` | `workflow_dispatch`, or push/PR to `gallery/themes/*.json`, `docs/**`, `mkdocs.yml`, or `harness/**` (push also on the workflow file) | four jobs (gallery / docs / publish / deploy): renders each theme export through the ingest gate **and** builds the MkDocs docs site (`mkdocs build --strict`); uploads PNG + docs artifacts (PR/dispatch) and **on push to master publishes both to the one GitHub Pages site — gallery at `/`, docs at `/docs`** — one-time: enable Pages → *GitHub Actions* source |
-| `.github/workflows/theme-submission.yml` | a `theme-submission`-labelled issue is opened | validates a pasted export, renders its preview, and opens a reviewable PR with the preview inline ([frontend/render-harness §8](../dev/frontend/render-harness.md#8-theme-submission-issue--pr)) — not a gate, no spec; one-time: a `theme-submission` label + "Allow Actions to create PRs" |
+| `.github/workflows/theme-submission.yml` | a `theme-submission`-labelled issue is opened | validates a pasted export, renders its preview, and opens a reviewable PR with the preview inline ([frontend/render-harness §8](../../dev/frontend/render-harness.md#8-theme-submission-issue--pr)) — not a gate, no spec; one-time: a `theme-submission` label + "Allow Actions to create PRs" |
 
 Both run in the pinned image, so local-Docker and CI agree byte-for-byte. They
 require `package-lock.json` to be committed (for `npm ci`).
