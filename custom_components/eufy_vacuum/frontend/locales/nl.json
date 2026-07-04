@@ -2122,7 +2122,19 @@
       "evcc_animal_mittens_eye_warn": "Oog — waarschuwing",
       "evcc_animal_mittens_eye_low": "Oog — laag",
       "evcc_animal_mittens_eye_charging": "Oog — opladen",
-      "evcc_animal_mittens_eye": "Oogbasis"
+      "evcc_animal_mittens_eye": "Oogbasis",
+      "evcc_room_fill_1": "Kamerkleur (kaart) 1",
+      "evcc_room_fill_2": "Kamerkleur (kaart) 2",
+      "evcc_room_fill_3": "Kamerkleur (kaart) 3",
+      "evcc_room_fill_4": "Kamerkleur (kaart) 4",
+      "evcc_room_fill_5": "Kamerkleur (kaart) 5",
+      "evcc_room_fill_6": "Kamerkleur (kaart) 6",
+      "evcc_room_fill_7": "Kamerkleur (kaart) 7",
+      "evcc_room_fill_8": "Kamerkleur (kaart) 8",
+      "evcc_room_fill_9": "Kamerkleur (kaart) 9",
+      "evcc_room_fill_10": "Kamerkleur (kaart) 10",
+      "evcc_room_fill_11": "Kamerkleur (kaart) 11",
+      "evcc_room_fill_12": "Kamerkleur (kaart) 12"
     },
     "theme_group": {
       "app_shell_typography": "App-shell en typografie",

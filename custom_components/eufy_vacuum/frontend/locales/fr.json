@@ -2136,7 +2136,19 @@
       "evcc_animal_mittens_eye_warn": "Œil — Alerte",
       "evcc_animal_mittens_eye_low": "Œil — Bas",
       "evcc_animal_mittens_eye_charging": "Œil — En charge",
-      "evcc_animal_mittens_eye": "Base de l'œil"
+      "evcc_animal_mittens_eye": "Base de l'œil",
+      "evcc_room_fill_1": "Couleur de pièce (carte) 1",
+      "evcc_room_fill_2": "Couleur de pièce (carte) 2",
+      "evcc_room_fill_3": "Couleur de pièce (carte) 3",
+      "evcc_room_fill_4": "Couleur de pièce (carte) 4",
+      "evcc_room_fill_5": "Couleur de pièce (carte) 5",
+      "evcc_room_fill_6": "Couleur de pièce (carte) 6",
+      "evcc_room_fill_7": "Couleur de pièce (carte) 7",
+      "evcc_room_fill_8": "Couleur de pièce (carte) 8",
+      "evcc_room_fill_9": "Couleur de pièce (carte) 9",
+      "evcc_room_fill_10": "Couleur de pièce (carte) 10",
+      "evcc_room_fill_11": "Couleur de pièce (carte) 11",
+      "evcc_room_fill_12": "Couleur de pièce (carte) 12"
     },
     "theme_group": {
       "app_shell_typography": "Coquille d'application et typographie",

@@ -2136,7 +2136,19 @@
       "evcc_animal_mittens_eye_warn": "Ojo — Aviso",
       "evcc_animal_mittens_eye_low": "Ojo — Bajo",
       "evcc_animal_mittens_eye_charging": "Ojo — Cargando",
-      "evcc_animal_mittens_eye": "Base del ojo"
+      "evcc_animal_mittens_eye": "Base del ojo",
+      "evcc_room_fill_1": "Color de habitación (mapa) 1",
+      "evcc_room_fill_2": "Color de habitación (mapa) 2",
+      "evcc_room_fill_3": "Color de habitación (mapa) 3",
+      "evcc_room_fill_4": "Color de habitación (mapa) 4",
+      "evcc_room_fill_5": "Color de habitación (mapa) 5",
+      "evcc_room_fill_6": "Color de habitación (mapa) 6",
+      "evcc_room_fill_7": "Color de habitación (mapa) 7",
+      "evcc_room_fill_8": "Color de habitación (mapa) 8",
+      "evcc_room_fill_9": "Color de habitación (mapa) 9",
+      "evcc_room_fill_10": "Color de habitación (mapa) 10",
+      "evcc_room_fill_11": "Color de habitación (mapa) 11",
+      "evcc_room_fill_12": "Color de habitación (mapa) 12"
     },
     "theme_group": {
       "app_shell_typography": "Marco de la app y tipografía",

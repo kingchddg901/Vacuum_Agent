@@ -2135,7 +2135,19 @@
       "evcc_animal_mittens_eye_warn": "Olho — Alerta",
       "evcc_animal_mittens_eye_low": "Olho — Baixo",
       "evcc_animal_mittens_eye_charging": "Olho — Carregando",
-      "evcc_animal_mittens_eye": "Base do olho"
+      "evcc_animal_mittens_eye": "Base do olho",
+      "evcc_room_fill_1": "Cor da divisão (mapa) 1",
+      "evcc_room_fill_2": "Cor da divisão (mapa) 2",
+      "evcc_room_fill_3": "Cor da divisão (mapa) 3",
+      "evcc_room_fill_4": "Cor da divisão (mapa) 4",
+      "evcc_room_fill_5": "Cor da divisão (mapa) 5",
+      "evcc_room_fill_6": "Cor da divisão (mapa) 6",
+      "evcc_room_fill_7": "Cor da divisão (mapa) 7",
+      "evcc_room_fill_8": "Cor da divisão (mapa) 8",
+      "evcc_room_fill_9": "Cor da divisão (mapa) 9",
+      "evcc_room_fill_10": "Cor da divisão (mapa) 10",
+      "evcc_room_fill_11": "Cor da divisão (mapa) 11",
+      "evcc_room_fill_12": "Cor da divisão (mapa) 12"
     },
     "theme_group": {
       "app_shell_typography": "Estrutura da app e tipografia",

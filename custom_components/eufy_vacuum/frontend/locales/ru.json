@@ -2211,7 +2211,19 @@
       "evcc_animal_mittens_eye_warn": "Глаз — внимание",
       "evcc_animal_mittens_eye_low": "Глаз — низкий",
       "evcc_animal_mittens_eye_charging": "Глаз — зарядка",
-      "evcc_animal_mittens_eye": "Основа глаза"
+      "evcc_animal_mittens_eye": "Основа глаза",
+      "evcc_room_fill_1": "Цвет комнаты (карта) 1",
+      "evcc_room_fill_2": "Цвет комнаты (карта) 2",
+      "evcc_room_fill_3": "Цвет комнаты (карта) 3",
+      "evcc_room_fill_4": "Цвет комнаты (карта) 4",
+      "evcc_room_fill_5": "Цвет комнаты (карта) 5",
+      "evcc_room_fill_6": "Цвет комнаты (карта) 6",
+      "evcc_room_fill_7": "Цвет комнаты (карта) 7",
+      "evcc_room_fill_8": "Цвет комнаты (карта) 8",
+      "evcc_room_fill_9": "Цвет комнаты (карта) 9",
+      "evcc_room_fill_10": "Цвет комнаты (карта) 10",
+      "evcc_room_fill_11": "Цвет комнаты (карта) 11",
+      "evcc_room_fill_12": "Цвет комнаты (карта) 12"
     },
     "theme_group": {
       "app_shell_typography": "Оболочка и типографика",

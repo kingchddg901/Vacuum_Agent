@@ -2122,7 +2122,19 @@
       "evcc_animal_mittens_eye_warn": "Occhio — Allerta",
       "evcc_animal_mittens_eye_low": "Occhio — Basso",
       "evcc_animal_mittens_eye_charging": "Occhio — In carica",
-      "evcc_animal_mittens_eye": "Base occhio"
+      "evcc_animal_mittens_eye": "Base occhio",
+      "evcc_room_fill_1": "Colore stanza (mappa) 1",
+      "evcc_room_fill_2": "Colore stanza (mappa) 2",
+      "evcc_room_fill_3": "Colore stanza (mappa) 3",
+      "evcc_room_fill_4": "Colore stanza (mappa) 4",
+      "evcc_room_fill_5": "Colore stanza (mappa) 5",
+      "evcc_room_fill_6": "Colore stanza (mappa) 6",
+      "evcc_room_fill_7": "Colore stanza (mappa) 7",
+      "evcc_room_fill_8": "Colore stanza (mappa) 8",
+      "evcc_room_fill_9": "Colore stanza (mappa) 9",
+      "evcc_room_fill_10": "Colore stanza (mappa) 10",
+      "evcc_room_fill_11": "Colore stanza (mappa) 11",
+      "evcc_room_fill_12": "Colore stanza (mappa) 12"
     },
     "theme_group": {
       "app_shell_typography": "Interfaccia e tipografia",
