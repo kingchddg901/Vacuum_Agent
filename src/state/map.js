@@ -685,15 +685,23 @@ export function applyMapState(proto) {
 
   /**
    * Single source of truth for whether the ad-hoc zone-draw control may be
-   * shown AND used right now: the provider supports zone clean and a live-map
-   * backdrop is active (you draw on that image). Map rotation IS supported — the
-   * drawn rect is un-rotated to the content frame in zoneDraftsToNormalizedRects
-   * (the square container makes a 90/180/270 turn a clean corner swap). The
-   * renderer gate and the drag/confirm guards both call this so they never drift.
+   * shown AND used right now: the provider supports zone clean AND a device-
+   * accurate backdrop is on screen to draw over — either the live-image backdrop
+   * (isLiveBackdropActive, the custom-layout-pinned-to-live case) OR the decoded
+   * VA raster (isVaRenderActive). The raster is the surface brands that never
+   * enter custom mode draw on (e.g. Roborock, whose room geometry is decoded from
+   * the raw map into the same room_pixels shape) — and it's the frame the
+   * backend's normalized→device coord conversion inverts, with a round-trip
+   * refuse-gate backstopping any frame mismatch (it refuses rather than mis-cleans).
+   * Map rotation IS supported — the drawn rect is un-rotated to the content frame
+   * in zoneDraftsToNormalizedRects (the square container makes a 90/180/270 turn a
+   * clean corner swap). The renderer gate and the drag/confirm guards both call
+   * this so they never drift.
    */
   proto.canDrawZone = function () {
     return (this.supportsZoneClean?.() ?? false)
-        && (this.isLiveBackdropActive?.() ?? false);
+        && ((this.isLiveBackdropActive?.() ?? false)
+            || (this.isVaRenderActive?.() ?? false));
   };
 
   /* =========================================================

@@ -111,3 +111,24 @@ test("[ZD-11] zoneDraftsToNormalizedRects un-rotates the drawn rect at 90°", ()
   assert.ok(approx(r[0], 0.4) && approx(r[1], 0.5));
   assert.ok(approx(r[2], 0.6) && approx(r[3], 0.75));
 });
+
+test("[ZD-12] canDrawZone also lights up over an active VA raster (Roborock cv-mode path)", () => {
+  // Roborock never enters custom/live-backdrop mode (segmentationMode stays 'cv'),
+  // so isLiveBackdropActive() is false — but the decoded raw-map raster IS the
+  // on-screen backdrop, and it's the frame the backend's coord conversion inverts.
+  // canDrawZone must accept that surface too.
+  const base = () => {
+    const s = makeState();
+    s.supportsZoneClean = () => true;
+    s.isLiveBackdropActive = () => false;  // not a custom-pinned-live layout
+    s.isVaRenderActive = () => true;       // ...but the VA raster canvas is showing
+    return s;
+  };
+  assert.equal(base().canDrawZone(), true);
+  // capability still required
+  let s = base(); s.supportsZoneClean = () => false;
+  assert.equal(s.canDrawZone(), false);
+  // neither surface active -> no draw (guards against a bare cv map with no raster)
+  s = base(); s.isVaRenderActive = () => false;
+  assert.equal(s.canDrawZone(), false);
+});
