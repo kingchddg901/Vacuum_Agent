@@ -18,10 +18,21 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
 // Apparent size of the floor material on the map: the 2048² masks are drawn to fill a
 // ROOM-sized card, so at 1:1 (native) their veins/planks look "zoomed in" over the whole map.
-// Scale the mask pattern DOWN by this factor so the features are smaller + tile denser (more
-// veins per room). 1.0 = native (too big); lower = finer/denser. Tunable — the single knob for
-// "details too big / too small". (Fine wood grain softens as this drops; marble veins stay.)
-const FLOOR_TEXTURE_MASK_SCALE = 0.11;
+// Scale the mask pattern DOWN so features are smaller + tile denser (more per room). 1.0 =
+// native (too big); lower = finer/denser.
+//
+// PER-MATERIAL: materials read best at different feature sizes — marble's broad veins look
+// great tiny (0.11), but granite's fine speckle vanishes to a flat dark field when shrunk that
+// far. So each type gets its own default here; unlisted types fall back to the global. A theme
+// can override any with `--evcc-floor-<type>-map-scale` (the "slider"). Tune by eye.
+const FLOOR_TEXTURE_MASK_SCALE = 0.15; // global fallback
+const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
+  marble:   0.11,  // broad veins — confirmed great
+  tile:     0.13,  // grid + speckle — ok
+  granite:  0.4,   // FINE speckle — needs a much bigger scale or it flattens to black
+  wood:     0.22,  // planks + grain
+  concrete: 0.28,  // broad mottle + micro
+};
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
 // (roomFillRgb, reading --evcc-room-fill-N off the canvas); the hardcoded array moved to
@@ -497,6 +508,9 @@ export function applyMapBindings(proto) {
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
+      // Per-material feature scale (token override / registry default / global).
+      const scale = this._resolveFloorScale(ft, host);
+
       // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
       const resolved = entry.layers.map((layer) => ({
         url: String(layer.url),
@@ -504,7 +518,7 @@ export function applyMapBindings(proto) {
         opacity: this._resolveFloorOpacity(layer.opacityToken, layer.opacityDefault, host),
       }));
       const colorSig = resolved.map((r) => `${r.color.join(",")}:${r.opacity}`).join("|");
-      const texKey = `${ft}|${W}x${H}|${colorSig}`;
+      const texKey = `${ft}|${W}x${H}|${scale}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
       if (cachedTex) { ready.set(ft, cachedTex); continue; }
@@ -513,7 +527,7 @@ export function applyMapBindings(proto) {
       const lumArrays = [];
       let allLoaded = true;
       for (const r of resolved) {
-        const maskKey = `${r.url}|${W}x${H}`;
+        const maskKey = `${r.url}|${W}x${H}|${scale}`;
         const lum = this._floorMaskCache.get(maskKey);
         if (lum) { lumArrays.push(lum); continue; }
         allLoaded = false;
@@ -522,7 +536,7 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._decodeMaskLum(r.url, W, H)
+          this._decodeMaskLum(r.url, W, H, scale)
             .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
             .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
             .finally(() => {
@@ -557,7 +571,7 @@ export function applyMapBindings(proto) {
   /* Load a grayscale mask PNG and downscale it to W×H, returning a per-texel luminance
      array (0..255; white reveals). Same-origin (served by HA), so the canvas read is not
      tainted. Async — the caller re-renders when it resolves. */
-  proto._decodeMaskLum = async function (url, W, H) {
+  proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE) {
     if (typeof Image !== "function" || typeof document === "undefined") return null;
     const img = new Image();
     img.decoding = "async";
@@ -578,7 +592,7 @@ export function applyMapBindings(proto) {
     // shares the same map-space grid -> continuous across rooms.
     if (typeof pat.setTransform === "function" && typeof DOMMatrix === "function") {
       try {
-        pat.setTransform(new DOMMatrix([FLOOR_TEXTURE_MASK_SCALE, 0, 0, FLOOR_TEXTURE_MASK_SCALE, 0, 0]));
+        pat.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0]));
       } catch (_e) { /* older engine — fall back to native scale */ }
     }
     cx.fillStyle = pat;
@@ -658,6 +672,21 @@ export function applyMapBindings(proto) {
     } catch (_e) { /* keep default */ }
     const n = parseFloat(raw);
     return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
+  };
+
+  /* Per-material mask feature scale (see FLOOR_TEXTURE_MASK_SCALE_BY_TYPE): a theme token
+     `--evcc-floor-<type>-map-scale` overrides the per-type default, which overrides the global.
+     Clamped to a sane range so a bad value can't explode the tiling. */
+  proto._resolveFloorScale = function (floorType, host) {
+    let s = FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[floorType];
+    if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE;
+    try {
+      if (host && typeof getComputedStyle === "function") {
+        const v = getComputedStyle(host).getPropertyValue(`--evcc-floor-${floorType}-map-scale`).trim();
+        if (v) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) s = n; }
+      }
+    } catch (_e) { /* keep default */ }
+    return Math.max(0.02, Math.min(2, s));
   };
 
   /* =========================================================
