@@ -3,7 +3,7 @@
 The services subsystem is the HA service-call layer: thin async handlers that
 resolve call data, delegate to the manager, and wrap failures as
 `HomeAssistantError` / `ServiceValidationError` (the HA Silver action-exception
-contract). Covered by **170 tests across 14 files**.
+contract). Covered by **187 tests across 14 files**.
 
 Source: `custom_components/eufy_vacuum/services/`
 Architecture reference: [docs/dev/02-ha-integration.md](../../dev/02-ha-integration.md)
@@ -32,7 +32,7 @@ docs, not here:
 | `setup.py` | 128 | 91% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
 | `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
-| `rooms.py` | 95 | 77% | `test_services_rooms.py` |
+| `rooms.py` | 95 | 96% | `test_services_rooms.py` |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
 | `queue.py` | 43 | 100% | `test_services_queue.py` |
 | `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |
@@ -48,6 +48,9 @@ docs, not here:
   dashboard snapshot: returned-shape assertions through the registry.
 - **Write services** — job-control write, run-profile + room-profile + maintenance
   CRUD, queue build/clear, adapter-config set: side effects + persistence.
+- **Input validation** — the `update_room_fields` color validator normalizes raw
+  frontend input to canonical `#rrggbb` (`#rgb` expansion, hash-prepend, lowercase,
+  empty → clear) and rejects non-hex values at the service-schema boundary.
 - **Error contract** — a manager-layer failure surfaces as `HomeAssistantError`
   (run-profile save/apply/rename/overwrite/delete, maintenance reset, set-interval
   save path), and not-found conditions raise `ServiceValidationError`.
@@ -80,14 +83,15 @@ The remaining misses are almost all defensive, not untested behavior:
 - **Parse / shape fallbacks (defensive)** — `errors.py:84-85` (`limit` int-parse
   `except` → default 20). (`_common.py`'s non-dict `completed_job` guard and its
   `finalize_result`-shaped `job_path` extraction are now both covered.)
-- **Registered-wrapper closure (trivial)** — `rooms.py:165`, the `discover_rooms`
-  inner async wrapper; the `_handle_discover_rooms` it delegates to is exercised
-  directly.
+- **Registered-wrapper closures (trivial)** — `rooms.py:234`/`246`, the
+  `discover_rooms` / `reconcile_room` inner async wrappers; the `_handle_*` they
+  delegate to are exercised directly. (The two remaining `rooms.py` branch edges are
+  the `vol.Required` `vacuum_entity_id` false-arms the registered service can't reach.)
 
 Note `adapter_config.py:68-78` (missing `adapter_id` / missing `dispatch.template`
 guards) are `# pragma: no cover` by design and so are excluded from the miss list.
 
 Module coverage: `setup.py` 90%, `adapter_config.py` 94%, `errors.py` 95%,
-`rooms.py` 97%; the remaining nine modules (including `run_profiles.py` and
+`rooms.py` 96%; the remaining nine modules (including `run_profiles.py` and
 `_common.py`, now at 100%) are at 100%. The handler success + error contracts
 are covered.
