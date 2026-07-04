@@ -4,10 +4,10 @@ This is the deep dive on the card's **binding layer** and its **body-portal moda
 runtime seam that [Card Architecture](architecture-overview.md) gestures at but never details.
 
 Read first, then come back:
-- **[19 §3.1–3.2](architecture-overview.md)** owns the render cycle (`_scheduleRender` microtask
+- **[render-cycle.md](render-cycle.md)** owns the render cycle (`_scheduleRender` microtask
   dedup, the 8-step `_render()` sequence, the "innerHTML replaced → listeners discarded →
   `bindEvents()` re-attaches from scratch" invariant). This doc does **not** re-teach that.
-- **[19 §2.2](architecture-overview.md)** owns the four-layer prototype-mixin pattern
+- **[architecture-overview.md](architecture-overview.md)** owns the four-layer prototype-mixin pattern
   (actions / state / renderers / bindings).
 - **[Frontend Module Reference](module-reference.md)** owns the full `src/bindings/*.js`
   file map. Section 1 below is a wiring index, not a replacement for it.
@@ -21,7 +21,7 @@ portal, and the trigger surface that drives re-renders outside the `hass` setter
 
 `this._bindings.bindEvents()` runs at the **end of every `_render()`** (`main.js:1400`), after the
 shadow-root HTML has been (conditionally) swapped and after `_updateModalHost()`. Why re-binding
-from scratch is safe is [19 §3.2](architecture-overview.md)'s invariant — not repeated here.
+from scratch is safe is [render-cycle.md](render-cycle.md)'s invariant — not repeated here.
 
 `bindEvents()` is a flat fan-out: 21 `_bind*` calls in a fixed order (`bindings/index.js:105-127`).
 Each `_bind*` lives in its own module, mixed onto `VacuumCardBindings.prototype` by the
@@ -218,7 +218,7 @@ Same split elsewhere:
   (`theme.js:538` — range sliders flood `input` every drag pixel; skip the backend call here) and
   `"change"` for persistence (`theme.js:595`). The **color** inputs (`[data-theme-color-input]`)
   persist on `"change"` (`theme.js:573`) then call **`_scheduleDeferredRender()`** (`theme.js:592`),
-  the 600 ms debounce owned by [19 §3.1](architecture-overview.md), so the modified-badge update
+  the 600 ms debounce owned by [render-cycle.md](render-cycle.md), so the modified-badge update
   doesn't fire mid-gesture.
 
 **Inverting the split loses edits:** render on `input` → the field's node is replaced mid-gesture →
@@ -228,9 +228,9 @@ focus lost and the in-flight value discarded.
 
 ## 6. The `_scheduleRender` trigger map (non-`hass`-setter)
 
-Every re-render funnels through `card._scheduleRender()` (microtask dedup — [19 §3.1](architecture-overview.md)).
+Every re-render funnels through `card._scheduleRender()` (microtask dedup — [render-cycle.md](render-cycle.md)).
 The `hass` setter's own refresh cascade (debounced service refreshes + load-once flags) is owned by
-[19 §4.3](architecture-overview.md) — **not restated here**. Below are the triggers that fire a render
+[state-management.md](state-management.md) — **not restated here**. Below are the triggers that fire a render
 *outside* the `hass` setter.
 
 | Trigger | Fired by | file:line |
@@ -268,7 +268,7 @@ on the same batched path (e.g. `bindings/external-jobs.js:24,34,47,63,74`).
 
 ## 7. Cliffs — what breaks if you touch it
 
-Binding / modal-host specific. Anything about the render cycle itself is [19 §3.1–3.3](architecture-overview.md).
+Binding / modal-host specific. Anything about the render cycle itself is [render-cycle.md](render-cycle.md).
 
 - **Bind on the wrong path (shadow vs body) → silent no-op.** `_onAll` only sees the shadow root
   (`core.js:62`); anything rendered into `_modalHost` must be bound in `bindModalHostEvents`
@@ -295,4 +295,4 @@ Binding / modal-host specific. Anything about the render cycle itself is [19 §3
   its own `[data-evcc-dialog]` stop-propagation; the generic one catches only the first modal
   (`bindings/index.js:331-343`).
 - **Double-click disambiguation** (the 220 ms timer) is a render-cycle cliff, not a binding one —
-  see [19 §3.3](architecture-overview.md).
+  see [render-cycle.md](render-cycle.md).

@@ -1,7 +1,7 @@
 # Frontend Module Reference
 
 Per-file **navigation map** for `src/`: where each responsibility lives, who imports it,
-and what breaks if you touch it. Same spirit as [19 §4.1](state-management.md)
+and what breaks if you touch it. Same spirit as [state-management.md](state-management.md)
 (which covers `state/`) — this document covers everything else. Entries are navigation entries,
 not one-liners: what a file reads/writes, its blast radius (who imports it), the contract it must
 not break, and the **cliffs** — view-mode forks, layer ordering, intentional omissions, trust
@@ -10,7 +10,7 @@ below the table.
 
 **Source tree:** `src/` — the authoring source. The build emits bundles to
 `custom_components/eufy_vacuum/frontend/*.js`; those are artifacts and are **not** documented
-here. `state/` (26 files) is deferred to [19 §4.1](state-management.md).
+here. `state/` (26 files) is deferred to [state-management.md](state-management.md).
 
 > **Read the room before you touch it.** The frontend isn't one dragon — it's several habitats
 > with different rules. `theme-tokens/` has the highest blast radius; `renderers/map.js` is a
@@ -30,7 +30,7 @@ The `src/` root holds the **command-center card** and the two **standalone cards
 - **`eufy-vacuum-map`** (`cards/vacuum-map-host.js`) — an **embedded map host** that mounts the *same* map subsystem classes the panel uses, on a minimal element. The dashboard card lazy-loads it via a dynamic import of a separate served bundle.
 - **`vacuum-agent-dashboard`** (`cards/dashboard-card.js`) and **`eufy-room-card`** (`room-card.js`) — the drop-in Lovelace cards, each fully self-contained with its own CSS and i18n shims.
 
-The load-bearing seam: the **panel** (`main.js`) and the **embedded map-host** (`vacuum-map-host.js`) each instantiate a full `VacuumCardState`/`Renderers`/`Bindings`/`Actions` stack, but the map-host forces `isMapViewActive()`/`useVaRender()` **instance-locally** and **neuters the setters** so the embedded map never writes the panel's shared `localStorage` keys (`evcc_va_render_<vac>`, per-vacuum pan/zoom, active-view). The dashboard card owns the map element on its JS instance (`this._mapEl`) so its zoom/pan/zone state survives the card's `innerHTML` wipes; it re-parents rather than rebuilds. The **modal + toast hosts** live only on the panel — they are `document.body` children (z-index 9999 / 10000) because a shadow-root sibling could never out-stack them; the toast host must sit *above* the modal host so save/dock feedback shows through an open modal. See the four-layer contract [19 §2.2/§4.4](architecture-overview.md) and the map layer stack [map-render-layers.md](map-render-layers.md).
+The load-bearing seam: the **panel** (`main.js`) and the **embedded map-host** (`vacuum-map-host.js`) each instantiate a full `VacuumCardState`/`Renderers`/`Bindings`/`Actions` stack, but the map-host forces `isMapViewActive()`/`useVaRender()` **instance-locally** and **neuters the setters** so the embedded map never writes the panel's shared `localStorage` keys (`evcc_va_render_<vac>`, per-vacuum pan/zoom, active-view). The dashboard card owns the map element on its JS instance (`this._mapEl`) so its zoom/pan/zone state survives the card's `innerHTML` wipes; it re-parents rather than rebuilds. The **modal + toast hosts** live only on the panel — they are `document.body` children (z-index 9999 / 10000) because a shadow-root sibling could never out-stack them; the toast host must sit *above* the modal host so save/dock feedback shows through an open modal. See the four-layer contract [architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md) and the map layer stack [map-render-layers.md](map-render-layers.md).
 
 | Module | File | What it owns |
 | --- | --- | --- |
@@ -132,12 +132,12 @@ The heaviest module; pulls ~25 service names from `constants.js`. Splits into th
 
 ## 3. Bindings
 
-`src/bindings/` — wire DOM events to actions/state. Every module is a **prototype mixin**: `apply<Name>Bindings(proto)` hangs `_bind<Name>` (and helpers) onto `VacuumCardBindings.prototype`. The class instance holds `this.card` — the host `VacuumCard` element — through which all four layers are reached (`card._state`, `card._actions`, `card._renderers`, `card._scheduleRender`); a binding **must not** own state or render, it only translates a DOM event into an action/state call and schedules a render. See the four-layer contract in [card-architecture.md §2.2](architecture-overview.md) and the layer boundaries in §4.4.
+`src/bindings/` — wire DOM events to actions/state. Every module is a **prototype mixin**: `apply<Name>Bindings(proto)` hangs `_bind<Name>` (and helpers) onto `VacuumCardBindings.prototype`. The class instance holds `this.card` — the host `VacuumCard` element — through which all four layers are reached (`card._state`, `card._actions`, `card._renderers`, `card._scheduleRender`); a binding **must not** own state or render, it only translates a DOM event into an action/state call and schedules a render. See the four-layer contract in [architecture-overview.md](architecture-overview.md) and the layer boundaries in [state-management.md](state-management.md).
 
 **The two cliffs that govern this whole directory:**
 
 1. **`bindEvents()` runs after EVERY render, and the DOM is wiped + rebuilt each render.** All previously-attached listeners die with the old DOM, so every `_bind*` re-attaches from scratch. The safety net is `card._on`/`card._onAll` (from `core.js`): **idempotent** binding keyed by a per-event `dataset` marker, so when a render *doesn't* actually swap an element (viewHtml unchanged), re-binding is a no-op instead of stacking N duplicate listeners. Miss this and clicks fire N-times or file-pickers open N-in-a-row.
-2. **The body-level modal host is a SEPARATE binding path.** Modals render into `card._modalHost` (a node in `document.body`, outside the shadow root — [19 §4.4](state-management.md)). It is bound by `bindModalHostEvents(host)` (in `index.js`), called from `main.js` on every modal render, using **`host.querySelectorAll(...).forEach(el => el.addEventListener(...))`** — *raw, non-idempotent* `addEventListener`, NOT the shadow-root `_onAll`. Correctness there relies on the render replacing the host's innerHTML (fresh elements, no stale listeners) plus idempotent state resolvers; a no-swap re-render *can* double-bind, which is why those handlers are written to tolerate it.
+2. **The body-level modal host is a SEPARATE binding path.** Modals render into `card._modalHost` (a node in `document.body`, outside the shadow root — [event-binding-and-modal-host.md](event-binding-and-modal-host.md)). It is bound by `bindModalHostEvents(host)` (in `index.js`), called from `main.js` on every modal render, using **`host.querySelectorAll(...).forEach(el => el.addEventListener(...))`** — *raw, non-idempotent* `addEventListener`, NOT the shadow-root `_onAll`. Correctness there relies on the render replacing the host's innerHTML (fresh elements, no stale listeners) plus idempotent state resolvers; a no-swap re-render *can* double-bind, which is why those handlers are written to tolerate it.
 
 | Module | File | What it owns |
 |--------|------|--------------|
@@ -195,7 +195,7 @@ Wires every map interaction. `_bindMap()` re-runs after every render (rooms/map 
 
 ## 4. Renderers
 
-`src/renderers/` — the **presentation layer** (layer 2 of the four-layer contract [19 §2.2/§4.4](architecture-overview.md)). Every renderer is a **mixin**: it exports one `apply<Name>Renderers(proto)` that hangs `render*` methods off `VacuumCardRenderers.prototype` via `index.js`. Inside a method, `this` is the renderers instance — it holds `this.card`, reads state through `ctx.state` / `this.card._state`, and **must not write state** (mutation goes through `actions/` invoked by `bindings/`). All entity/user data crosses the innerHTML sink through `this.escapeHtml` and all UI text through `this.t` — both defined in **`shared.js`** and available on every renderer via prototype composition, so no renderer imports `shared.js` by name. `index.js` mix-in **order is load-bearing**: shared first (base utilities), rooms/modals next, learning + shell (`setup`, `toasts`, `dialog`) LAST so overlays stack above the views they augment.
+`src/renderers/` — the **presentation layer** (layer 2 of the four-layer contract [architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md)). Every renderer is a **mixin**: it exports one `apply<Name>Renderers(proto)` that hangs `render*` methods off `VacuumCardRenderers.prototype` via `index.js`. Inside a method, `this` is the renderers instance — it holds `this.card`, reads state through `ctx.state` / `this.card._state`, and **must not write state** (mutation goes through `actions/` invoked by `bindings/`). All entity/user data crosses the innerHTML sink through `this.escapeHtml` and all UI text through `this.t` — both defined in **`shared.js`** and available on every renderer via prototype composition, so no renderer imports `shared.js` by name. `index.js` mix-in **order is load-bearing**: shared first (base utilities), rooms/modals next, learning + shell (`setup`, `toasts`, `dialog`) LAST so overlays stack above the views they augment.
 
 Three files are **not mixins** and are imported directly (blast-radius flags): `badge-marks.js` (pure SVG-mark table → `mapping-review.js` + `styles/mapping-review.js`), `theme-preview-registry.js` (declarative routing table → `theme-preview.js`), and `language-control.js` (a bare `renderLanguageControl()` function imported by `render-cycle.js` **and** `mobile-shell.js`, NOT reached through the `index.js` barrel). `main.js` touches renderers only through the barrel (`import { VacuumCardRenderers } from "./renderers/index.js"`, instantiated once as `this._renderers`); the dashboard's map host `cards/vacuum-map-host.js` imports the same barrel.
 
@@ -242,7 +242,7 @@ Exports `applyMapRenderers(proto)`, hanging two top-level views: `renderMapRoomV
 
 `src/styles/` — 27 CSS-in-JS modules. Each exports a template-literal string of CSS; the barrel **`styles/index.js`** assembles them into three injectable bundles that `main.js` writes into DOM: `STYLES` (the card shadow-root stylesheet, injected via `_ensureShellFrame(STYLES)`), `MODAL_HOST_STYLES` (injected into the body-level modal host `<style>`), and `TOAST_HOST_STYLES` (the body-level toast host). **`styles/apply-theme.js`** is imported *directly* by `main.js` (not via the barrel) and applies the resolved theme layer as inline CSS custom properties. There is no other `<style>` anywhere in the frontend: **all CSS lives in `styles/` only — renderers emit class names, never inline `<style>` blocks or (beyond dynamic CSS-var attrs) inline `style=` rules** (`feedback_styles_in_styles_only`). Feature modules are pure data — they export a string and are consumed *only* by the barrel; their blast radius is exactly `styles/index.js`. The interesting coupling lives in the barrel (three-bundle split, modal-host token derivation) and the four host-target modules that route into `MODAL_HOST_STYLES` instead of `STYLES`.
 
-Foundation → semantic → component token cascade and the four-layer render contract: see [card-architecture.md §2.2/§4.4](architecture-overview.md). Map layer stack (room fills → texture → robot → labels): see [map-render-layers.md](map-render-layers.md). See the modal-host token derivation in the theme system.
+Foundation → semantic → component token cascade and the four-layer render contract: see [architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md). Map layer stack (room fills → texture → robot → labels): see [map-render-layers.md](map-render-layers.md). See the modal-host token derivation in the theme system.
 
 | Module | File | What it owns |
 | --- | --- | --- |
@@ -296,7 +296,7 @@ Owns the CSS surface for the map view: the view-toggle strip, config editor, sel
 
 ## 6. Theme tokens
 
-`src/theme-tokens/` — the helper-driven **theme token registry**: the single authoring surface for every `--evcc-*` custom property the theme editor exposes. **HIGHEST BLAST RADIUS in the frontend.** Two coupling hubs dominate: `helpers.js` (the factory layer, imported by 13 sibling group files — a shape change to its entry factory or range vocabulary ripples across the whole registry) and `index.js` (the combiner barrel, 2nd-highest fan-out — imported by `bindings/theme.js`, `renderers/theme.js`, `renderers/theme-preview-registry.js`, `state/theme.js`, `styles/index.js`, `styles/apply-theme.js`, `i18n/lang-store.js`). **No theme-tokens file is imported directly by `main.js`** — all consumption routes through the `bindings/renderers/state/styles/theme.js` layer per the four-layer contract [19 §2.2/§4.4](architecture-overview.md).
+`src/theme-tokens/` — the helper-driven **theme token registry**: the single authoring surface for every `--evcc-*` custom property the theme editor exposes. **HIGHEST BLAST RADIUS in the frontend.** Two coupling hubs dominate: `helpers.js` (the factory layer, imported by 13 sibling group files — a shape change to its entry factory or range vocabulary ripples across the whole registry) and `index.js` (the combiner barrel, 2nd-highest fan-out — imported by `bindings/theme.js`, `renderers/theme.js`, `renderers/theme-preview-registry.js`, `state/theme.js`, `styles/index.js`, `styles/apply-theme.js`, `i18n/lang-store.js`). **No theme-tokens file is imported directly by `main.js`** — all consumption routes through the `bindings/renderers/state/styles/theme.js` layer per the four-layer contract [architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md).
 
 **The load-bearing contract shared by every file here:** backend persistence is a **flat token dictionary — only token VALUES persist, flat**. Everything else (`group`, `label`, `type`, `min`/`max`/`step`) is **editor-only metadata** and must never leak into what gets saved. Break that split and saved themes drift or reject their own emitted values.
 
@@ -349,13 +349,13 @@ Theme overrides for the map's `<animal-svg>` companion, structured like floor-te
 - CLIFF — **override priority (high→low):** per-animal token → global animal token → animal's own baked default; the two-level fallback is wrapped in the animal-svg shadow root, not here.
 - CLIFF — **memorial ordering:** `buildAnimalGroupOrder` places memorials (`def.memorial`) under a **separate Rainbow Bridge section after** the everyday companions; the flag is orthogonal to body-plan `type` [see `project_mittens_mascot`].
 
-**Cross-refs:** four-layer contract [19 §2.2/§4.4](architecture-overview.md); map layer stack [map-render-layers.md](map-render-layers.md); editor labels route through i18n [i18n-system.md](i18n-system.md); room-fill palette resolver `cards/map-room-color.js` and `docs/dev/themeable-map-palette.md`.
+**Cross-refs:** four-layer contract [architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md); map layer stack [map-render-layers.md](map-render-layers.md); editor labels route through i18n [i18n-system.md](i18n-system.md); room-fill palette resolver `cards/map-room-color.js` and `docs/dev/themeable-map-palette.md`.
 
 ---
 
 ## 7. i18n
 
-`src/i18n/` — the per-file complement to the runtime contract in [i18n-system.md](i18n-system.md), which owns the `t()`/`tRaw()`/`tVocab()` call-site surface (mixed in via `renderers/shared.js`) and the resolution semantics. This directory holds the machinery those helpers delegate to: the `translate()` engine + locale registry, the untrusted-locale intake gate, the nested→flat authoring transform, the per-user language store, and the two generated catalogs. English (`en.js`) is the ONLY catalog bundled; the seven AI-draft locales (de/fr/es/nl/it/pt/ru) were ripped out of the bundle and load at runtime as served JSON — so most of this directory is the load/validate/register pipeline that pulls them in safely. Every string is escaped at `translate()` time (Trust Model B, [card-architecture.md §4.4](architecture-overview.md)); `sanitize-locale.js` is the second, independent layer for the ~13 `tRaw` keys that bypass that escape.
+`src/i18n/` — the per-file complement to the runtime contract in [i18n-system.md](i18n-system.md), which owns the `t()`/`tRaw()`/`tVocab()` call-site surface (mixed in via `renderers/shared.js`) and the resolution semantics. This directory holds the machinery those helpers delegate to: the `translate()` engine + locale registry, the untrusted-locale intake gate, the nested→flat authoring transform, the per-user language store, and the two generated catalogs. English (`en.js`) is the ONLY catalog bundled; the seven AI-draft locales (de/fr/es/nl/it/pt/ru) were ripped out of the bundle and load at runtime as served JSON — so most of this directory is the load/validate/register pipeline that pulls them in safely. Every string is escaped at `translate()` time (Trust Model B, [i18n-system.md](i18n-system.md)); `sanitize-locale.js` is the second, independent layer for the ~13 `tRaw` keys that bypass that escape.
 
 | Module | File | What it owns |
 | --- | --- | --- |
@@ -419,7 +419,7 @@ Trust boundaries and cliffs the code enforces:
 - **Bounds-exit poll** (see the block comment): when the backend reports `awaiting_bounds_exit`, no room event will fire until the robot leaves the room, so it polls the snapshot every 5 s and stops the instant the room rolls over or a room/job event fires.
 - **Stale-response guard** in `loadRoomEstimates()` — a monotonic `_roomEstimateRequestSeq` plus request/response vacuum+map context validation discards responses from a previous vacuum or map; estimates are cleared immediately on context change.
 
-It is a pure WRITE-side actor within the four-layer contract ([card-architecture.md §2.2/§4.4](architecture-overview.md)): it reaches state through `card._state` setters and dispatches backend calls through `card._actions.*` (`reanchorLearningTimeline`, `getNextLearningRoom`, `getRoomLearningEstimates`) — it renders nothing itself.
+It is a pure WRITE-side actor within the four-layer contract ([architecture-overview.md](architecture-overview.md) / [state-management.md](state-management.md)): it reaches state through `card._state` setters and dispatches backend calls through `card._actions.*` (`reanchorLearningTimeline`, `getNextLearningRoom`, `getRoomLearningEstimates`) — it renders nothing itself.
 
 ### 8.2 `textures/floor-texture-registry.js` — floor-material data table
 
@@ -440,6 +440,6 @@ Blast radius: consumed by `state/theme.js` (`effectiveThemeTags`, cached per the
 
 ## Cross-references
 
-- [Card Architecture](architecture-overview.md) — the four layers (§2.2), the cross-module rule (§4.4), the render cycle, and the `state/` inventory (§4.1).
+- [architecture-overview.md](architecture-overview.md) — the four layers + cross-module rule; [render-cycle.md](render-cycle.md) — the render cycle; [state-management.md](state-management.md) — the `state/` inventory.
 - [map-render-layers.md](map-render-layers.md) — the map layer stack, the `rid == room.id == room_names` identity, and the furnished-art / floor-texture fill precedence.
 - [i18n System](i18n-system.md) — the `t()`/`tRaw()`/`tVocab()` + locale-loading contract this section complements per-file.

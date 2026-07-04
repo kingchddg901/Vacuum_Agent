@@ -420,7 +420,7 @@ It REPLACES the namespace on the active theme **in place**; it does not create a
 Exports can also be published to a curated **theme gallery**: a GitHub issue form
 that a bot turns into a reviewed pull request (validate → render preview → PR →
 human merge → Pages publish). That pipeline is documented in
-[dev/27-render-harness §8](render-harness.md#8-theme-submission-issue--pr); the
+[render-harness §8](render-harness.md#8-theme-submission-issue--pr); the
 user-facing walkthrough is
 [user-guide/15-sharing-themes](../../user-guide/15-sharing-themes.md).
 

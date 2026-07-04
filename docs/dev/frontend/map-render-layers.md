@@ -87,5 +87,5 @@ Almost always a **layer covering the raster**, not a color/mapping bug:
 ## See also
 
 `docs/dev/map-state-source.md` (VA render payload + `room_names`), `docs/dev/11-mapping-system.md`,
-`docs/dev/19-card-architecture.md` (the four-layer card + floor textures),
+[architecture-overview.md](architecture-overview.md) (the four-layer card + floor textures),
 `docs/dev/32-furnished-render.md`, `docs/dev/themeable-map-palette.md` (the color feature design).
