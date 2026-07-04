@@ -66,6 +66,24 @@ export function applyMapActions(proto) {
   };
 
   /**
+   * Set the vacuum's fan speed via the HA-standard vacuum interface. Used by the zone
+   * panel's fallback suction row for brands with no provider fan-speed `select` (e.g.
+   * Roborock — its fan power is the vacuum entity's fan_speed, settable via set_fan_speed).
+   * Like setVacuumSetting, this edits the device's CURRENT setting, which the zone clean
+   * then runs off.
+   *
+   * @param {string} option  one of the vacuum entity's fan_speed_list values
+   */
+  proto.setVacuumFanSpeed = async function (option) {
+    const vacuum = this.state.vacuumEntityId();
+    if (!vacuum || option == null || option === "") return null;
+    return await this.callService("vacuum", "set_fan_speed", {
+      entity_id: vacuum,
+      fan_speed: option,
+    });
+  };
+
+  /**
    * Fetch map segments and store the result in state. Also drives the
    * one-time legacy-localStorage migration for the two map UI overlays
    * (segment_room_links, companion_anchors). The migration runs here

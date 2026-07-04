@@ -752,7 +752,7 @@ export function applyMapRenderers(proto) {
       { key: "clean_intensity", label: this.t("map.zone_setting_intensity") },
       { key: "water_level",     label: this.t("map.zone_setting_water") },
     ];
-    return SETTINGS.map(({ key, label }) => {
+    const rows = SETTINGS.map(({ key, label }) => {
       const eid = settingEntities[key];
       if (!eid) return "";
       const ent = state.entity?.(eid);
@@ -768,6 +768,35 @@ export function applyMapRenderers(proto) {
           </select>
         </label>`;
     }).join("");
+    // Fallback suction row for brands whose fan speed is the STANDARD vacuum entity
+    // (fan_speed / fan_speed_list + vacuum.set_fan_speed) rather than a provider `select`
+    // entity — e.g. Roborock, which declares fan_speed_options but no settings_select, so
+    // the loop above renders nothing for it. A zone clean runs at the device's CURRENT fan
+    // power, so editing it here (via set_fan_speed) is the same "runs off current device
+    // settings" model as the select rows. Only when there's no fan_speed select (no doubling).
+    const fanFallback = settingEntities.fan_speed ? "" : this._renderVacuumFanSpeedRow(state);
+    return fanFallback + rows;
+  };
+
+  /**
+   * A suction row backed by the HA-standard vacuum entity (fan_speed_list + fan_speed),
+   * for brands with no provider fan-speed `select`. Change -> vacuum.set_fan_speed (card-wide
+   * `zone-fanspeed` binding). Returns "" when the vacuum exposes no fan_speed_list.
+   */
+  proto._renderVacuumFanSpeedRow = function (state) {
+    const esc = (s) => this.escapeHtml(String(s));
+    const vid = state.vacuumEntityId?.();
+    const ent = vid ? state.entity?.(vid) : null;
+    const opts = ent?.attributes?.fan_speed_list;
+    if (!ent || !Array.isArray(opts) || !opts.length) return "";
+    const cur = ent.attributes?.fan_speed;
+    return `
+        <label class="evcc-zone-setting">
+          <span class="evcc-zone-setting-label">${this.t("map.zone_setting_suction")}</span>
+          <select class="evcc-zone-setting-select" data-action="zone-fanspeed">
+            ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${this.tVocab("fan_speed", o, o)}</option>`).join("")}
+          </select>
+        </label>`;
   };
 
   proto._renderZonePanel = function (state, zoneDrafts, zoneCount, zoneMax) {

@@ -2113,6 +2113,14 @@ export function applyMapBindings(proto) {
         this.card._actions.setVacuumSetting?.(sel.dataset.entityId, sel.value);
       });
     });
+    // Fallback suction row (brands with no fan-speed `select` entity, e.g. Roborock):
+    // set the device's fan power via the standard vacuum.set_fan_speed. Card-wide (covers
+    // the zone panel AND the saved-zones panel), like the sz-setting binding, so both
+    // surfaces' fallback rows are wired from one place.
+    this.card._onAll?.("[data-action='zone-fanspeed']", "change", (e) => {
+      e.stopPropagation();
+      this.card._actions.setVacuumFanSpeed?.(e.target.value);
+    });
     // Per-zone remove in the zone panel.
     root.querySelectorAll("[data-action='zone-remove']").forEach((btn) => {
       this.card._on(btn, "click", (e) => {
