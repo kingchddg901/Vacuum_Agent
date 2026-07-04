@@ -393,6 +393,8 @@ The HTML comparison (step 5) prevents unnecessary DOM churn on unchanged panels.
 
 Because `innerHTML` is replaced on change, **all previously attached DOM event listeners are discarded**. `bindEvents()` must re-attach everything from scratch on every render. This is intentional — it makes the binding layer stateless.
 
+> The binding layer and the body-level modal host (`_updateModalHost` in step 6) are documented in depth in **[35 — Event Binding & the Modal Host](35-event-binding-and-modal-host.md)**: the `_on`/`_onAll` helpers and their idempotency, why the `document.body` modal portal needs a bind path `_onAll` can't provide, the live-vs-commit (`input` vs `change`) convention, and the non-`hass` `_scheduleRender` trigger map.
+
 ### 3.3 Why `dblclick` is unreliable: the 220 ms click disambiguation timer
 
 A double-click involves two click events. Between them, `_scheduleRender()` fires (triggered by the first click changing state). The render replaces `innerHTML`, which detaches the element that received the first click. The second click either fires on nothing or on a freshly-attached clone that has no double-click handler.

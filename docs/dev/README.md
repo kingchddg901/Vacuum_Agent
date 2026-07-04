@@ -1,6 +1,6 @@
 # Developer Docs — Reading Order
 
-34 numbered files covering the integration's architecture, subsystems, and porting contract.
+35 numbered files covering the integration's architecture, subsystems, and porting contract.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -70,6 +70,7 @@ The Lovelace panel card and everything the card reads from integration state.
 | 19 | [card-architecture](19-card-architecture.md) | Panel card structure, renderer/binding pattern, service call protocol |
 | 20 | [theme-system](20-theme-system.md) | Theme editor: token hierarchy, palette → token derivation, import/export |
 | 34 | [frontend-module-reference](34-frontend-module-reference.md) | Per-file navigation map of `src/` (actions/bindings/renderers/styles/theme-tokens/i18n/cards + entry points): what each file owns, who imports it, and the cliffs — the complement to 19 §4.1's `state/` inventory |
+| 35 | [event-binding-and-modal-host](35-event-binding-and-modal-host.md) | The binding layer + the body-portal modal host: the `_on`/`_onAll` helpers, the `document.body` modal portal and why it needs a bind path `_onAll` can't reach, live-vs-commit, and the non-`hass` `_scheduleRender` trigger map — the runtime-seam complement to 19 §3 and 34 |
 | 21 | [adapter-system](21-adapter-system.md) | Adapter registration, registry, runtime lookup, adapter API contract |
 | 22 | [adapter-config-reference](22-adapter-config-reference.md) | Complete schema reference for per-vacuum adapter config dicts |
 | 25 | [eufy-adapter](25-eufy-adapter.md) | The Eufy adapter as a worked example + pattern guide for a full-feature adapter |
