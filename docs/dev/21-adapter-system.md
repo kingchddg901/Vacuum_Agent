@@ -41,6 +41,7 @@ coordinator.register_adapter_config(vacuum_entity_id, config)
 coordinator.get_adapter_config(vacuum_entity_id) -> dict | None
 coordinator.get_all_adapter_configs() -> dict[str, dict]
 coordinator.unregister_adapter_config(vacuum_entity_id) -> None
+coordinator.clear_registry()               # empties this coordinator's _registry
 coordinator.get_adapter_value(vacuum_entity_id, *path, fallback=None) -> Any
 coordinator.shutdown()               # clears _active_coordinator
 ```
@@ -123,7 +124,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `source` | `"code"` or `"config"` |
 | `display_name` | Human-readable adapter name |
 | `brand` | Short brand/app name the card uses in copy (generic phrasing when absent) |
-| `entities` | Entity ID map (17 entity keys) |
+| `entities` | Entity ID map (18 entity keys) |
 | `vocabulary` | State string sets and card dropdown options |
 | `completion` | Completion signal configuration |
 | `charging` | Charging detection configuration |
@@ -144,7 +145,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 > **Note:** the 21 keys above are the complete set in `ADAPTER_CONFIG_SCHEMA`.
 > Several blocks the Eufy adapter actually declares are **not** in the schema
 > dict — `mapping`, `job_segmenter`, `room_profiles`, `map_state_source`,
-> `map_render`, `room_attribution`, and `anomaly`. The
+> `map_render`, `room_attribution`, `anomaly`, and `wash_frequency_bounds`. The
 > schema walker iterates the *schema's* keys, so extra blocks are simply ignored
 > by the schema (declaring them there is a deferred follow-up). `_validate_adapter()`
 > nonetheless validates `mapping`, `job_segmenter`, `room_attribution`, and
@@ -154,7 +155,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 > counter/run segmenter engine is `eufy_counter_v1` in
 > `learning/job_segmenter_engines.py`.
 
-### 3.1 `entities` block (17 keys)
+### 3.1 `entities` block (18 keys)
 
 | Key | Domain | Description |
 |---|---|---|
@@ -175,6 +176,7 @@ For the per-field documentation of `dispatch` (including `phase_timing` and the 
 | `robot_position_y` | sensor | Y coordinate (vacuum space) |
 | `work_mode` | sensor | Current work/drive mode |
 | `cleaning_intensity` | select | Suction/cleaning intensity |
+| `scene_select` | select | Vendor-app scenes select (eufy-clean `select.<object_id>_scene`); options are saved app scenes and selecting one runs it immediately; surfaced on the dashboard snapshot for the card's App-scenes run-launcher; absent (Roborock) hides the group. |
 
 ### 3.2 `vocabulary` block
 
@@ -272,10 +274,18 @@ Boolean flags set by `detect_capabilities()` at adapter registration time:
 > machine. The same `capabilities` block also carries **adapter-literal behavioral
 > flags** that no entity probe can see — they describe firmware behavior and are set
 > directly in the adapter config (e.g. the Roborock S6 adapter at
-> `adapters/roborock/adapter.py`): `honors_clean_order`, `supports_base_station`,
-> `supports_map_bounds`, `supports_room_profiles`, `position_lock_reliable`, and
-> `rooms_unique_per_job`. See [Adapter config reference](22-adapter-config-reference.md)
+> `adapters/roborock/adapter.py`): `honors_clean_order`, `supports_room_profiles`,
+> `position_lock_reliable`, and `rooms_unique_per_job` (plus the Roborock zone caps
+> `supports_zone_clean` and `zone_max` at `adapters/roborock/adapter.py`). See
+> [Adapter config reference](22-adapter-config-reference.md)
 > §14 for the full set and each flag's default and effect.
+>
+> Do **not** treat `supports_base_station` and `supports_map_bounds` as
+> adapter-literal capability flags — no adapter config sets them. They are computed
+> at snapshot time in `core/manager.py::get_dashboard_snapshot`:
+> `supports_base_station` (line 3648) from `dock_events.enabled` OR the mop-wash /
+> mop-dry / empty-dust / station-water caps, and `supports_map_bounds` (line 3659)
+> from `mapping.segmenter_engine != "noop_fallback"`.
 
 > **See also:** [22-adapter-config-reference](22-adapter-config-reference.md) for the complete field-by-field documentation of every block (`entities`, `vocabulary`, `dispatch`, `maintenance_components`, `capabilities`, and all sub-schemas).
 

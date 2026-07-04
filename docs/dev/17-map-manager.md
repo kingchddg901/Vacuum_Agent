@@ -19,7 +19,7 @@ All mutations are in-place on the `data` dict. The caller is responsible for cal
 The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum_entity_id][str(map_id)]`. The bucket is a **union of two concerns** that happen to share the same per-map key:
 
 - **Map management** (owned by `maps/map_manager.py`) — `map_id`, `metadata`, `rooms`, `summary`.
-- **Image analysis + map UI state** (written by external handlers, primarily `mapping/mapping_services.py`) — `image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`.
+- **Image analysis + map UI state** (written by external handlers, primarily `mapping/mapping_services.py`) — `image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`, `saved_zones`, `hidden_regions`, `area_label_anchors`, `live_map_rotation`, `overlay_visibility`.
 
 `map_manager.py` only ever touches the first group; it never reads or initialises the image/UI-state keys. They are listed here because they live in the same bucket and any code that walks `data["maps"]` (delete protection, debug dumps) will encounter them.
 
@@ -103,6 +103,41 @@ The canonical unit is a **map bucket** — a dict stored at `data["maps"][vacuum
                                     #   docked/idle mascot homes to (NOT a room).
         "<room_id|'dock'>": {"pct_x": float, "pct_y": float},
     },
+    "saved_zones": {                # {zone_id: zone} named reusable clean regions
+                                    #   (draw-a-box saved zones). Written by
+                                    #   _create_saved_zone / _migrate_saved_zones.
+        "<zone_id>": {
+            "id":          str,
+            "name":        str,     # user label; "Zone" when blank
+            "geometry":    list,    # [[x, y], ...] normalized 0-1 point list (the
+                                    #   zone shape; dispatch works off it directly)
+            "area_m2":     float,   # or None until computed (Wave 2)
+            "room_number": int,     # filing bucket, or None until computed (Wave 2)
+            "kind":        str,     # default "clean"
+            "created_at":  str,     # iso
+            "updated_at":  str,     # iso
+        },
+    },
+    "hidden_regions": list,         # [[x0, y0, x1, y1], ...] normalized 0-1 top-left-
+                                    #   origin mask rects the card draws to hide map
+                                    #   noise. Replace-all; each entry sanitized (4
+                                    #   finite numbers, clamped 0-1, ordered min<max,
+                                    #   degenerate dropped). Written by
+                                    #   _handle_set_hidden_regions.
+    "area_label_anchors": {         # {room_id: {pct_x, pct_y}} dragged position of a
+                                    #   room's m² label chip, 0-100 % of the map content
+                                    #   box. Written by _handle_set_area_label_anchor
+                                    #   (null both to reset to room centre).
+        "<room_id>": {"pct_x": float, "pct_y": float},
+    },
+    "live_map_rotation": int,       # display-only live-map rotation ∈ {0, 90, 180, 270}.
+                                    #   Never affects cleaning/dispatch. Written by
+                                    #   _handle_set_live_map_rotation.
+    "overlay_visibility": dict,     # {layer: bool} partial delta map — stores only the
+                                    #   user's overrides, merged over defaults at read
+                                    #   time via resolve_overlay_visibility; reset:true
+                                    #   clears it. Written by
+                                    #   _handle_set_map_overlay_visibility.
 }
 ```
 
@@ -139,7 +174,7 @@ Creates the map bucket at `data["maps"][vacuum_entity_id][str(map_id)]` if it do
 
 Idempotent — safe to call even if the bucket already exists.
 
-> **Image/UI-state keys are not pre-initialised.** `ensure_map_bucket()` writes only `map_id`, `metadata`, `rooms`, and `summary`. The image-analysis / map-UI-state keys (`image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors` — see §2) are written **on demand** by the external handlers in `mapping/mapping_services.py`, each of which calls `ensure_map_bucket()` and then `setdefault()`s the key it owns. (`custom_layouts` / `active_custom_layout_id` are seeded by `_migrate_custom_layouts()`, which the layout-CRUD handlers run before mutating; legacy `custom_segments` is migrated lazily into a layout — see [Mapping system](11-mapping-system.md) §10.) Consumers must therefore read these via `bucket.get(key) or {}` rather than assuming presence.
+> **Image/UI-state keys are not pre-initialised.** `ensure_map_bucket()` writes only `map_id`, `metadata`, `rooms`, and `summary`. The image-analysis / map-UI-state keys (`image_segments`, `custom_segments`, `custom_layouts`, `active_custom_layout_id`, `segmentation_mode`, `image_segment_adjustments`, `image_variants`, `segment_room_links`, `companion_anchors`, `saved_zones`, `hidden_regions`, `area_label_anchors`, `live_map_rotation`, `overlay_visibility` — see §2) are written **on demand** by the external handlers in `mapping/mapping_services.py`, each of which calls `ensure_map_bucket()` and then `setdefault()`s the key it owns. (`custom_layouts` / `active_custom_layout_id` are seeded by `_migrate_custom_layouts()`, which the layout-CRUD handlers run before mutating; legacy `custom_segments` is migrated lazily into a layout — see [Mapping system](11-mapping-system.md) §10.) Consumers must therefore read these via `bucket.get(key) or {}` rather than assuming presence.
 
 ### 3.2 `get_map_bucket`
 
@@ -272,6 +307,11 @@ The following keys live in the same bucket but are written by `mapping/mapping_s
 | `…[str(map_id)]["image_variants"]` | dict | `{variant: {variant, path, browser_url, width, height}}` uploaded backdrops, variant ∈ default/dark/light/custom. Written by `upload_map_image`, pruned by `delete_map_image` |
 | `…[str(map_id)]["segment_room_links"]` | dict | `{segment_id: room_id}` 1:1 segment→room links. Written by `set_segment_room_link` |
 | `…[str(map_id)]["companion_anchors"]` | dict | `{room_id\|"dock": {pct_x, pct_y}}` sprite anchors (0-100 %); reserved `"dock"` key is a map-level mascot spot. Written by `set_companion_anchor` |
+| `…[str(map_id)]["saved_zones"]` | dict | `{zone_id: {id, name, geometry, area_m2, room_number, kind, created_at, updated_at}}` named reusable clean regions; `geometry` is a normalized 0-1 point list, `kind` defaults `"clean"`, `area_m2`/`room_number` are `None` until computed. Seeded by `_migrate_saved_zones`, written by `_create_saved_zone` |
+| `…[str(map_id)]["hidden_regions"]` | list | `[[x0, y0, x1, y1], …]` normalized 0-1 top-left-origin mask rects that hide map noise (replace-all; sanitized — finite, clamped 0-1, ordered min<max, degenerate dropped). Written by `_handle_set_hidden_regions` |
+| `…[str(map_id)]["area_label_anchors"]` | dict | `{room_id: {pct_x, pct_y}}` dragged m² label positions (0-100 % of the map content box); null both to reset to room centre. Written by `_handle_set_area_label_anchor` |
+| `…[str(map_id)]["live_map_rotation"]` | int | Display-only live-map rotation ∈ `{0, 90, 180, 270}`; never affects cleaning/dispatch. Written by `_handle_set_live_map_rotation` |
+| `…[str(map_id)]["overlay_visibility"]` | dict | `{layer: bool}` partial delta map storing only user overrides (merged over defaults at read time via `resolve_overlay_visibility`; `reset:true` clears it). Written by `_handle_set_map_overlay_visibility` |
 
 ---
 

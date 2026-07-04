@@ -32,10 +32,10 @@ Degrades gracefully: touch nothing → today's rainbow; set a theme palette → 
 
 ### One cascade, two consumption modes
 
-The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS vars). Both consume **one** shared source of truth (`mapping/map-room-color.js` — the default array, the index rule, the per-room lookup) so they can't drift:
+The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS vars). Both consume **one** shared source of truth (`cards/map-room-color.js` — the default array, the index rule, the per-room lookup) so they can't drift:
 
-- **SVG** — inline `--seg-color: <per-room hex>` if overridden, else `var(--evcc-room-fill-<idx>, <default hex>)`. CSS resolves theme-token-or-default and picks up a live theme change with no re-render.
-- **Raster** — a JS resolver `roomFillRgb(room, idx)` → per-room RGB, else the *computed value* of `--evcc-room-fill-<idx>` (one `getComputedStyle(host)` read per render, cached), else the default RGB. A theme change busts the `_vaImageCache` so the canvas repaints.
+- **SVG** — `roomFillCss(idx, override)` returns a CSS string: a concrete override hex if the room is overridden, else `var(--evcc-room-fill-<idx>, <default hex>)`. CSS resolves theme-token-or-default and picks up a live theme change with no re-render.
+- **Raster** — `roomFillRgb(idx, host)` reads the *computed value* of `--evcc-room-fill-<idx>` off the host as `[r,g,b]` (one `getComputedStyle(host)` read per render, cached), and `roomOverrideRgb(value)` resolves a per-room override hex to `[r,g,b]` (or `null`) when set. A theme change busts the `_vaImageCache` so the canvas repaints.
 
 ### Index vs id (the split that makes it coherent)
 
@@ -46,7 +46,7 @@ The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS var
 
 - **Storage:** `room.color` — a `#rrggbb` string or `null`, on the per-map room bucket (alongside name/settings; `room_id` storage key per the locked room-identity model). New service `set_room_color(vacuum, map_id, room_id, color|null)`, or fold into the existing room-settings save.
 - **Tokens:** `--evcc-room-fill-1` … `--evcc-room-fill-N` where **N = `_SEGMENT_COLORS.length`**, added to `MAP_TOKENS` (`theme-tokens/map.js`) — **defaults = the current `_SEGMENT_COLORS`**, so a themeless card is byte-for-byte today's render. They auto-surface in the theme editor (registry is array-driven) and resolve via `applyDynamicTheme`.
-- **Resolver:** `mapRoomColor(room, idx)` in `mapping/map-room-color.js` → `{ cssVar, rgb }` (or two thin fns). Single definition of `perRoom ?? token ?? default`.
+- **Resolver:** `cards/map-room-color.js` — the single definition of `perRoom ?? token ?? default`, exposed as three thin functions: `roomFillCss(idx, override)` → a CSS string (`"var(--evcc-room-fill-N, #default)"`, or a concrete override hex) for the SVG path; `roomFillRgb(idx, host)` → `[r,g,b]` reading the computed `--evcc-room-fill-N` token for the raster palette; and `roomOverrideRgb(value)` → `[r,g,b] | null` for the raster per-room override.
 - **Label ink:** `labelInk(fillHex)` → `"#000" | "#fff"` by WCAG relative luminance, so a light user-chosen room color keeps its centroid room-name label + m² chip readable (replaces the fixed white).
 
 ## Phases (each shippable, gated `check:i18n`/`check:styles`/build/tests)

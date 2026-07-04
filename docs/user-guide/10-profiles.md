@@ -23,7 +23,7 @@ A room profile stores these fields:
 | Suction level | Fan speed during vacuuming |
 | Water level | Water output during mopping |
 | Cleaning path | The intensity pattern the vacuum follows (called "clean_intensity" internally) |
-| Cleaning passes | 1 pass or 2 passes |
+| Cleaning passes | The number of cleaning passes, from 1 up to the adapter maximum (2 on Eufy, 3 on Roborock) |
 | Edge mopping | Whether to mop along walls and edges |
 
 A room profile does not store which rooms it applies to, or whether a room is included in the queue. It is purely a settings preset.

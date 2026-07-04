@@ -2,7 +2,7 @@
 
 The setup subsystem owns the integration lifecycle around a config entry: the
 guided setup workflow + progress, start-protection state, map deletion, and the
-room-drift detector (new/removed segments since last check). Covered by **99 tests across 9 files**.
+room-drift detector (new/removed segments since last check). Covered by **107 tests across 9 files**.
 
 Source: `custom_components/eufy_vacuum/setup/` (+ `__init__.py` entry wiring)
 Architecture reference: [docs/dev/15-setup-system.md](../../dev/15-setup-system.md)

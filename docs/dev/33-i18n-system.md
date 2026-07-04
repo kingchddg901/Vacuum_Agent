@@ -3,7 +3,7 @@
 Home Assistant localizes an integration's config flow and entity names, but it
 gives a custom Lovelace card **nothing** for its own markup — every literal in
 the card's renderers is English regardless of the user's HA language. This
-subsystem is the seam that closes that gap: ~1,900 UI strings, plural-correct in
+subsystem is the seam that closes that gap: ~2,100 UI strings, plural-correct in
 any language, switchable per-user, with community translations loadable at
 runtime behind a security gate.
 

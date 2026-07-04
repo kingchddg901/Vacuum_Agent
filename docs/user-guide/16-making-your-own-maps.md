@@ -207,6 +207,10 @@ The map view's small toolbar also controls the cosmetic layers:
 
 You can recolour the map's labels and overlays in the **Theme editor → Map** group.
 
+### Recolour a single room
+
+Open the room editor (tap a room, or its settings) and use the **Room Color** swatch to pick a custom map fill for just that room. A custom pick overrides both the shared room palette and any theme room-fill token (`--evcc-room-fill-<N>`); it applies to both the map polygon and the room card. Click **Reset** to clear it and return to **Default (palette)**.
+
 ---
 
 ## Troubleshooting

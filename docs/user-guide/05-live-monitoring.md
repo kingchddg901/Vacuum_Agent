@@ -35,15 +35,16 @@ Below the banner, a **Live Progress** list shows every room in the current job:
 | ✓ | Room is complete. The actual time taken is shown next to the name. |
 | ▶ | Room is currently being cleaned. Shows percentage done and estimated time remaining, or an ETA wall-clock time if a snapshot is available. The estimated total duration for the room is shown alongside a confidence chip. |
 | ○ | Room is queued but not yet started. An ETA wall-clock time is shown if one is available. |
-| ⌀ | Room appears to have been **skipped** — the job moved on to a later room without cleaning this one. Shown with a dashed outline and the name struck through. See [Skipped-room marker](#skipped-room-marker) below. |
 
 The list animates as rooms transition between states — you do not need to refresh the page.
+
+A room that appears to have been **skipped** is not shown as a row in this list — it is marked on the queue chips instead (dashed outline + struck-through name). See [Skipped-room marker](#skipped-room-marker) below.
 
 ---
 
 ## Live map
 
-On brands that expose a live map (Roborock), the Map view shows the vacuum's live map image as the backdrop, so you can watch progress against the actual floor plan rather than a list alone.
+On brands that expose a live map (Roborock, or Eufy with the eufy-clean fork's live camera-map entity configured), the Map view shows the vacuum's live map image as the backdrop, so you can watch progress against the actual floor plan rather than a list alone. Plain Eufy without the fork has no live-map entity, so the CV/custom map or the room list is used instead.
 
 A **Rotate** control in the map toolbar turns the map in 90° steps. The rotation is saved in the backend, so it follows you across every device that opens the card. The whole layer rotates together — the map image, the room polygons, the labels, and the mascot — but the labels and the mascot stay upright so they remain readable at any angle.
 

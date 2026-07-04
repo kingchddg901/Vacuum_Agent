@@ -390,6 +390,8 @@ if baseline.cc_min_per_pct is None or baseline.cv_min_per_pct is None:
 
 `BASELINE_SAMPLE_COUNT` (=1) is the per-install intent: the first qualifying session that fills both regimes locks the anchor. The per-regime `cc_min_per_pct` / `cv_min_per_pct` on each session summary are min/pct ratios computed at close time (see §6.4): `cc_duration_min / cc_delta_pct` and `cv_duration_min / cv_delta_pct`, each `None` if that regime window was never crossed.
 
+To clear the anchor (e.g. after a battery replacement), call the `eufy_vacuum.battery_rebaseline` service (field `vacuum_entity_id`) rather than hand-editing storage. It invokes `BatteryHealthManager.rebaseline()`, which nulls `baseline.cc_min_per_pct` / `cv_min_per_pct`, resets `session_count`/`anchored_at`, and clears the health stats so the next qualifying recharge re-anchors — leaving cycles, aggregates, session history, and job metrics untouched.
+
 ### 7.3 Health computation
 
 After anchoring, `_update_health` computes **two regime indices** via `_compute_regime_pct`, one per regime, then aliases the headline `health_pct` to the CV index:
@@ -422,6 +424,8 @@ return round(baseline_value / current * 100, 1)
 ```
 
 Both indices are "higher = healthier" ratios of baseline-to-current. There is no longer a single `baseline.min_per_pct` path. The headline `_battery_health` sensor surfaces the CV index under its legacy entity_id. This matches the per-regime formula in [advanced/09-battery-health.md](../advanced/09-battery-health.md).
+
+**Display cap.** `BatteryHealthSensor.native_value` returns `min(float(stats.health_pct), 100.0)` — the headline is capped at 100% for display (never "healthier than new"). The uncapped raw CV value (which can exceed 100 when today's charge is faster than the baseline) is surfaced via the sensor's `uncapped_pct` attribute and the `_cv_charge_speed` diagnostic sensor. The full `extra_state_attributes` set is: `uncapped_pct`, `baseline_cv_min_per_pct`, `baseline_cc_min_per_pct`, `baseline_session_count`, `baseline_anchored_at`, `completed_sessions` (`sensors.py`).
 
 ---
 
@@ -614,7 +618,7 @@ Note `kind` is in the in-memory ring buffer but **not** in the CSV (added after 
 | 3 | `ChargeRateSensor` | `charge_rate_low_zone` | `stats.rate_low_zone_per_min` |
 | 4 | `ChargeRateSensor` | `charge_rate_high_zone` | `stats.rate_high_zone_per_min` |
 | 5 | `LastChargeDurationSensor` | `last_charge_duration` | `stats.last_charge_duration_min` |
-| 6 | `BatteryHealthSensor` | `battery_health` | `stats.health_pct` (alias of CV index) |
+| 6 | `BatteryHealthSensor` | `battery_health` | `stats.health_pct` (alias of CV index), capped at 100% via `min(value, 100.0)`; exposes `uncapped_pct` + baseline attrs (see §7.3) |
 | 7 | `RegimeChargeSpeedSensor` | `cc_charge_speed` | `stats.cc_charge_speed_pct` |
 | 8 | `RegimeChargeSpeedSensor` | `cv_charge_speed` | `stats.cv_charge_speed_pct` |
 | 9 | `LastJobMetricSensor` | `last_job_drain_per_min` | `last_job.drain_per_min` |
@@ -772,7 +776,7 @@ The `try/except` is defensive — a failure here must not block job finalization
 | Cumulative cycles survive restart | Persisted in `eufy_vacuum.storage` under `battery.vacuums.<vid>.cycles` and `cumulative_drain_pct`. |
 | Drain across an HA outage | Counts toward cycles when the post-restart sample arrives. The delta is rejected if it exceeds `MAX_DELTA_PCT`, otherwise added. |
 | Rate metrics across an HA outage | Skipped — the `MAX_RATE_INTERVAL_SEC` gate rejects the first post-restart sample's rate computation (would be averaged over the gap). |
-| Health baseline | Persisted, never resets. To re-baseline, manually delete `record.baseline` from storage. |
+| Health baseline | Persisted, never resets. To re-baseline, call the `eufy_vacuum.battery_rebaseline` service (field `vacuum_entity_id`, a vacuum entity), which invokes `BatteryHealthManager.rebaseline()` to clear the CC/CV health anchor (`baseline.cc_min_per_pct` / `cv_min_per_pct`, `session_count`, `anchored_at`) and reset the health stats so the next qualifying recharge re-anchors. Do not hand-edit the storage file. |
 | Open charge session at restart | Closed implicitly on the next sample if `charging` reads false; otherwise the stale-session safeguard force-closes after `SESSION_MAX_HOURS`. |
 | Post-job charge linkage pending at restart | **Lost.** `_pending_post_job` is in-memory only. The next charge session after restart classifies as `idle`. |
 | Job aggregates | Persisted; new jobs continue contributing without recompute. |

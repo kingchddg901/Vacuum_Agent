@@ -68,6 +68,90 @@ Dispatches an ad-hoc free-form zone clean — draw one or more boxes on the live
 
 Supports response.
 
+### Saved Zones
+
+Named, persisted clean regions stored per map. Unlike `start_zone_clean` (ad-hoc, nothing persisted), a saved zone keeps its geometry and can be re-cleaned by ID. These six services create, rename, delete, file, and clean saved zones. Every one requires `map_id` explicitly — it is **not** auto-resolved from the active map — and all support response.
+
+Geometry is a list of at least three `[x, y]` points, each normalized `0–1` to the map image with a top-left origin (clamped server-side). The two clean services are **active-map-guarded** (a zone's geometry is only valid on its own map) — they return `{"cleaned": false, "reason": "map_not_active", "active_map_id": ...}` when a different map is loaded — and are fire-and-forget: like `start_zone_clean`, they touch no job, queue, or learning store. The clean geometry sent to the device is each zone's normalized bounding box, dispatched through the shared zone-clean path that enforces the per-brand zone count and size caps.
+
+#### `create_saved_zone`
+
+Creates and stores a named saved zone from drawn geometry.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `name` | Yes | Display name for the zone. |
+| `geometry` | Yes | List of at least three `[x, y]` points, each normalized `0–1` to the map image (top-left origin). |
+| `kind` | No | Optional zone kind tag. |
+
+Supports response.
+
+#### `rename_saved_zone`
+
+Updates a saved zone's display name.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `zone_id` | Yes | The zone to rename. |
+| `name` | Yes | New display name. |
+
+Supports response.
+
+#### `delete_saved_zone`
+
+Deletes a saved zone.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `zone_id` | Yes | The zone to delete. |
+
+Supports response.
+
+#### `set_saved_zone_room`
+
+Files a saved zone under a room (or clears it to Unassigned). **Filing only** — this never affects the clean dispatch; it only buckets the zone in the panel.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `zone_id` | Yes | The zone to file. |
+| `room_number` | No | Integer room number to file the zone under. Pass `null` or omit to clear it to Unassigned. |
+
+Supports response.
+
+#### `clean_saved_zone`
+
+Cleans a single saved zone. Resolves the zone's geometry to its normalized bounding box and dispatches an ad-hoc zone clean over it. Active-map-guarded and fire-and-forget (same as `start_zone_clean`).
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `zone_id` | Yes | The zone to clean. |
+| `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
+
+Supports response. Returns `{"cleaned": true, "zone_id", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, or `map_not_active`.
+
+#### `clean_saved_zones`
+
+Cleans several saved zones together in **one** dispatch — the selected set is fired as a single zone-clean run. Same active-map guard as `clean_saved_zone`. The per-brand zone count and size caps are enforced inside the shared dispatch. **Atomic:** any missing or bad-geometry zone in the set refuses the whole batch.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | Yes | Required — not auto-resolved. |
+| `zone_ids` | Yes | List of zone IDs to clean together (minimum one). |
+| `clean_times` | No | Number of passes. Minimum `1`. Default `1`. |
+
+Supports response. Returns `{"cleaned": true, "zone_ids", "zone_count", "dispatch": ...}`, or `{"cleaned": false, "reason": ...}` on `zone_not_found`, `bad_geometry`, `no_zones`, or `map_not_active`.
+
 ---
 
 ## Queue Building
@@ -126,6 +210,7 @@ Applies per-room field overrides without requiring a named profile. Only the fie
 | `clean_intensity` | No | |
 | `clean_passes` | No | `1` or `2`. |
 | `edge_mopping` | No | |
+| `color` | No | Per-room map fill-color override. A `#rrggbb` (or `#rgb`, or bare hex without `#`) string, normalized to canonical `#rrggbb`. Pass `null` or an empty string to clear the override. Omitting `color` leaves any existing override intact. |
 | `is_dock_room` | No | Mark this room as the dock/root room for the access graph. |
 | `is_transition` | No | Mark this room as a transition corridor (pass-through only, not cleaned). |
 | `grants_access_to` | No | List of downstream room IDs this room leads to in the access graph. |

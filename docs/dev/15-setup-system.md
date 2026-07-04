@@ -220,6 +220,8 @@ Called by the panel on load. Returns:
         {
             "vacuum_entity_id": str,
             "display_name":     str,
+            "panel_title":      str,          # current sidebar panel title (effective_panel_title) — user-set value or the "Vacuum Agent" default; pre-fills the Setup tab's rename field
+            "live_map_image_entity": str | None,  # user's explicit live-map camera/image override, or None to use the adapter pattern; pre-selects the Setup-tab camera picker
             "setup_steps": [
                 {"id", "label", "completed", "service"},
                 ...

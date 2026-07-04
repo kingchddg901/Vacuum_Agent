@@ -246,6 +246,15 @@ applies the appropriate profile, enforces carpet/mop protection rules, updates
 the summary, rebuilds derived queue/payload, fires room update callbacks, and
 persists. All in one atomic call.
 
+It also accepts a per-room `color` override. Unlike the `bool|None` /
+`str|None`-defaulted params (where `None` means "not provided"), `color`
+defaults to the module-level `_UNSET = object()` sentinel because `None` is
+meaningful for this field: `_UNSET` leaves the existing override untouched,
+`None` or an empty string clears the override (empty string coalesces to `None`
+so a cleared field is never stored as `""`), and any other value stores the
+schema-canonicalized hex. Ref: `manager.py:1233` (param), `manager.py:55`
+(`_UNSET` sentinel), `manager.py:1291-1295` (three-way apply logic).
+
 ### `start_selected_rooms` / `start_run_profile`
 
 Job start orchestrates: build effective start plan (run_plan), write active

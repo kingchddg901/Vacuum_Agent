@@ -1,10 +1,11 @@
 # Saved Zones — Named, Human-Semantic Clean Regions
 
-**Status:** **Waves 1 + 2 BUILT + adversarially reviewed** — W1 storage + CRUD + read; W2 filing
+**Status:** **Waves 1 + 2 + 3 BUILT + adversarially reviewed** — W1 storage + CRUD + read; W2 filing
 (`room_number` at ≥90%-of-floor via `zone_membership`) + `area_m2` + the `set_saved_zone_room`
 override; **W3a `clean_saved_zone` dispatch** (resolve zone → bbox rect → the shared
 `dispatch_zone_clean`, active-map-guarded, fire-and-forget). 2795 tests green, 2026-07-02.
-**Wave 3b** (the card UX: draw→save, room-grouped list, pick-and-clean) pending. This doc is the
+**Wave 3b** (the card UX: draw→save, room-grouped multi-select list, pick-and-clean, delete) is
+**BUILT/SHIPPED** across `src/{state,renderers,bindings,actions}/saved-zones.js`. This doc is the
 contract; each wave is additive.
 
 > **Scope:** persist **named, reusable zones** on a map ("the couch", "the stove", "under the
@@ -113,8 +114,12 @@ In `mapping/mapping_services.py`, mirroring `_handle_{create,rename,delete}_cust
 - `delete_saved_zone` — `(…, zone_id)`.
 - `set_saved_zone_room` — `(…, zone_id, room_number | null)` → sets/clears `room_number` (filing
   only; null = Unassigned; **no effect on dispatch**).
-- `clean_saved_zone` — `(…, zone_id)` → converts `geometry` → device coords **at call time** (§6)
-  and fires the existing zone-clean dispatch.
+- `clean_saved_zone` — `(…, zone_id, clean_times?)` → converts `geometry` → device coords **at call
+  time** (§6) and fires the existing zone-clean dispatch. `clean_times` is the optional number of
+  cleaning passes (min 1).
+- `clean_saved_zones` — `(vacuum_entity_id, map_id, zone_ids[], clean_times?)` → fires the whole
+  selected set as one ad-hoc zone clean (fire-and-forget; per-brand caps: Eufy up to 10 zones/side
+  0.5–10 m, Roborock up to 5 zones/1 ft²–3.05 m² each; JS wrapper `cleanSavedZones`).
 
 Each runs `_migrate_saved_zones` first, degrades safely, and the snapshot carries a
 `SavedZoneSummary` catalog (like `custom_layouts`) for the card.
@@ -152,7 +157,8 @@ through i18n.
   **Unassigned** special-cases section last). Each entry shows name + m².
 - **Reassign:** a room picker per zone (`set_saved_zone_room`) — a filing action only; None =
   Unassigned.
-- **Clean:** tap a saved zone → `clean_saved_zone`. Multi-select → batch (respecting the zone cap).
+- **Clean:** tap a saved zone → `clean_saved_zone`. Multi-select → `clean_saved_zones` batch
+  (respecting the zone cap).
 
 ## 9. Validation (free, from the size calc)
 
@@ -173,7 +179,11 @@ overrides are stable across sessions (the normalized frame doesn't drift).
    snapshot summary. No bucketing yet (flat list).
 2. **Bucketing** — the room-mask membership computation (90%-of-floor), `rooms[]`/`room_number`,
    `set_saved_zone_room` override.
-3. **Card UX** — draw→name→save, grouped list + Spans-rooms, room-picker, clean, m² + validation.
+3. **Card UX (BUILT/SHIPPED)** — draw→name→save (via `_zoneDrawPurpose="save"`), room-grouped
+   multi-select list + Spans-rooms, room-picker, clean (single + "Clean N selected" batch), delete,
+   m² + validation. Implemented across `src/{state,renderers,bindings,actions}/saved-zones.js` and
+   registered in each layer's `index.js`; the panel renders in the Rooms view (`renderers/rooms.js`
+   calls `renderSavedZonesPanel`).
 
 ## 12. Non-goals / open
 

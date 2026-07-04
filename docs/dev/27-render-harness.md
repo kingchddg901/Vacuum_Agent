@@ -69,6 +69,8 @@ freeze for deterministic capture. Both are clearly marked and never shipped.
 | `renderGallery(id, opts)` | Render an all-states gallery entry (§3). |
 | `renderThemePresets(themes, opts)` | Render the Themes-tab presets grid driven by **real** state — a `VacuumCardState` seeded with the theme library, the facet filter / search / Browse-gallery UI, so the picker is captured on genuine state (the null-object stub can't exercise the filter). Backs `shoot-theme-picker.mjs`. |
 | `ingestTheme(envelope)` | The intake gate (§6). |
+| `registerLocale(lang, catalog)` | Inject a foreign/pseudo locale catalog into the in-page i18n registry (`src/i18n/index.js`) before rendering with `opts.lang`; used by the i18n-locale / i18n-layout / pseudo gates. |
+| `makePseudoLong(base)` | Build the layout-stress (pseudo-long) catalog in-page (`harness/lib/pseudo-locale.mjs`), avoiding a Node-side `en.js` import. |
 | `semanticTokens` | The registry-derived semantic-color token set (§3). |
 | `badgeMarks`, `markViewBox` | The shape-mark SVGs (§5). |
 | `tokenMap`, `VIEWS`, `VIEW_ORDER` | Registry + view constants for tests. |
@@ -347,7 +349,7 @@ PR (also documented in the workflow header):
 | `harness/build.mjs` · `shoot.mjs` · `shoot-gallery.mjs` · `shoot-theme-picker.mjs` · `census.mjs` | esbuild + capture CLIs (`shoot-theme-picker.mjs` shoots the Themes picker with a real-state fixture). |
 | `harness/preview-index-dryrun.mjs` | Fast no-Chromium gallery-index dry-run: runs committed themes through `lib/gallery-html.mjs` with cheap swatch thumbnails to eyeball the filter bar. |
 | `harness/preview.mjs` | Builds the gallery: lobby `index.html`, per-theme detail pages, thumbnails, contact sheets. |
-| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake. |
+| `harness/tests/*.spec.mjs` | smoke · gallery-completeness · visual · cvd · shape-marks · intake · tab-gating · device-theme · i18n-layout · i18n-locale (the i18n gates render pseudo/foreign catalogs: i18n-layout asserts no layout overflow under a pseudo-long locale @500px/@390px, i18n-locale asserts the `renderers.t` wiring actually switches the UI). |
 | `src/renderers/badge-marks.js` | The six per-state shape marks (ships). |
 | `gallery/themes/*.json` | Theme exports published to the gallery (one JSON per theme). |
 | `.github/ISSUE_TEMPLATE/theme-submission.yml` | Submission issue form (the "Submit a theme" target). |

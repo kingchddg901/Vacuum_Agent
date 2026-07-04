@@ -53,6 +53,21 @@ All services live in the `eufy_vacuum` domain. Call them via `hass.callService(d
 
 Room enabled/disabled state is stored in HA **switch entities** (one per room per map per vacuum). Toggle by calling `homeassistant.turn_on` / `homeassistant.turn_off` with the switch entity ID. Room ordering is stored in HA **number entities** (one per room per map per vacuum). Update by calling `number.set_value`.
 
+#### Saved zones (response)
+
+Named, reusable clean regions ("the couch", "the stove") drawn as normalised polygons on a map. All live in the `eufy_vacuum` domain and are **response** services. The card's JS wrappers live in `src/actions/saved-zones.js`.
+
+| Service | Required fields | Notes |
+|---|---|---|
+| `create_saved_zone` | `vacuum_entity_id`, `map_id`, `name`, `geometry` | `geometry` = normalised 0–1 polygon, a list of `[x, y]` points (≥ 3). Optional: `kind`. Returns `{saved, zone_id, zone}` |
+| `rename_saved_zone` | `vacuum_entity_id`, `map_id`, `zone_id`, `name` | Renames an existing zone |
+| `delete_saved_zone` | `vacuum_entity_id`, `map_id`, `zone_id` | |
+| `set_saved_zone_room` | `vacuum_entity_id`, `map_id`, `zone_id` | Optional: `room_number` (which room the zone is **filed** under; omit/null = Unassigned). Filing only — never affects what the zone cleans |
+| `clean_saved_zone` | `vacuum_entity_id`, `map_id`, `zone_id` | Optional: `clean_times` (number of passes, min 1). Fires one saved zone as an ad-hoc, fire-and-forget zone clean; requires the zone's map to be the active map. Returns `{cleaned, reason?}` (reason ∈ `map_not_active` \| `zone_not_found` \| `bad_geometry`) |
+| `clean_saved_zones` | `vacuum_entity_id`, `map_id`, `zone_ids` | Optional: `clean_times`. Fires the whole selected set as one ad-hoc, fire-and-forget zone clean. Per-brand caps enforced service-side (Eufy: up to 10 zones, each side 0.5–10 m; Roborock: up to 5 zones, 1 ft²–3.05 m² each). Returns `{cleaned, reason?, zone_count?}` (reason ∈ `map_not_active` \| `zone_not_found` \| `bad_geometry` \| `no_zones`). JS wrapper `cleanSavedZones` |
+
+The map's saved-zone list is **not** a separate query — it rides on the **`get_map_segments`** response as `saved_zones` (a list of the map's saved zones); the card fetches it via `getSavedZones` off the same `get_map_segments` call.
+
 #### Queue
 
 | Service | Required fields |
@@ -147,7 +162,7 @@ Room enabled/disabled state is stored in HA **switch entities** (one per room pe
 | `upload_map_image` | `vacuum_entity_id`, `map_id`, `image_base64` | Optional: `variant`, `layout_id`, `image_width`, `image_height`. The `variant` validator accepts `default` \| `dark` \| `light` \| `custom` \| `custom_*` (default `default`). `dark`/`light`/`default` are segmenter inputs. `custom` and the per-layout `custom_<layout_id>` variants are manual-authoring backdrops and are **never auto-segmented** — `analyze_map_image` only probes `dark`/`default`/`light`. Passing `layout_id` forces `variant` to `custom_<layout_id>` and repoints that layout's `backdrop_variant` (returns `{saved: false, reason: "layout_not_found"}` if the layout doesn't exist). The stored variant's `image_width`/`image_height` are the pixel space `set_custom_segments` rasterises against. **response** |
 | `delete_map_image` | `vacuum_entity_id`, `map_id` | Optional: `variant` (same enum). Removes one stored variant; safe to repeat. **response** |
 | `analyze_map_image` | `vacuum_entity_id`, `map_id` | Runs the segmenter on the `dark`/`default` (and assist `light`) variants; caches `image_segments`. **response** |
-| `get_map_segments` | `vacuum_entity_id`, `map_id` | Returns the active segment set plus overlays. Response carries `segmentation_mode`; in `custom` mode it serves the **active layout's** `custom_segments` over its `custom_<layout_id>` backdrop. Also returns `custom_layouts` (list) + `active_custom_layout_id` + `segment_room_links` (see § 1.3 / § 5.1). **response** |
+| `get_map_segments` | `vacuum_entity_id`, `map_id` | Returns the active segment set plus overlays. Response carries `segmentation_mode`; in `custom` mode it serves the **active layout's** `custom_segments` over its `custom_<layout_id>` backdrop. Also returns `custom_layouts` (list) + `active_custom_layout_id` + `segment_room_links` (see § 1.3 / § 5.1), plus the map's `saved_zones` list (see § 1.1 Saved zones). **response** |
 | `set_segmentation_mode` | `vacuum_entity_id`, `map_id`, `mode` | `mode` ∈ {`cv`, `custom`}. **Flips a per-map flag only — never re-runs the segmenter.** Both the CV base (`image_segments`) and every custom layout persist; the toggle is a pointer flip, so `cv → custom → cv` is lossless. Flipping to `custom` with no active layout soft-selects the first existing layout. **response** |
 | `set_custom_segments` | `vacuum_entity_id`, `map_id`, `segments` | **Replace-all** write of manually-authored segments **into the active custom layout** (auto-creating a default layout if none exists). `segments = [{id?, primitives: [...]}]` (extra keys allowed). A primitive is `{type: rect\|circle\|polygon, op?: subtract, ...pct geom 0-100}`. Each segment is rasterised server-side (`segment_primitives.rasterize_primitives` → `mask_to_polygon`, the same tracer CV uses) into one polygon, scaled to the active layout's backdrop pixel dims. Requires that backdrop (returns `{saved: false, reason: "no_custom_backdrop"}` without it). Degenerate segments are dropped. **response** |
 | `create_custom_layout` | `vacuum_entity_id`, `map_id` | Optional: `name` (default `Custom`). Mints + **activates** a new named layout (its own `custom_<layout_id>` backdrop, segments, room links, mascot anchors) and flips the map into `custom` mode. Returns `{saved, layout_id, layout}`. **response** |
@@ -465,6 +480,8 @@ The texture layers are themed entirely through the `Floor Textures — *` token 
 | confirmations | `state/confirmations.js` | Two-tap confirm state for destructive actions |
 | toasts | `state/toasts.js` | Transient toast / notice queue |
 | viewport | `state/viewport.js` | Viewport / responsive (mobile vs desktop) state |
+| saved-zones | `state/saved-zones.js` | Saved-zone library (`savedZones` / `setSavedZonesLibrary`, backed by `_savedZonesLibrary` with a map-segments fallback); panel multi-select "will be cleaned" set (`toggleSavedZoneSelection` / `selectedSavedZoneIds` / `selectedSavedZoneCount` / `clearSavedZoneSelection`); collapsible-section state (`savedZonesCollapsed`); grouping-by-room for the panel (`savedZonesGrouped` — one group per room in map order, Unassigned bucket last). Registered in `state/index.js` via `applySavedZonesState` |
+| dialog | `state/dialog.js` | Card-native confirm/alert/prompt dialog spec (`openDialog` / `pendingDialog` / `resolveDialog` / `cancelDialog`), replacing browser-native `window.confirm/alert/prompt` (which use the browser locale and are suppressed in the HA webview). One dialog open at a time; the spec carries a `resolve` promise fn and a kind-appropriate cancel value (confirm → false, prompt → null, alert → undefined). Registered in `state/index.js` via `applyDialogState` |
 
 ### 4.2 Init shape and clear shape
 

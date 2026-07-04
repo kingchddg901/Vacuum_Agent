@@ -9,7 +9,7 @@ the [i18n system reference](../dev/33-i18n-system.md).
 ## Where strings come from
 
 English (`src/i18n/en.js`) is the source of truth and the complete key list —
-~1,900 keys. A locale is a **subset**: anything you leave out (or get wrong)
+~2,090 keys. A locale is a **subset**: anything you leave out (or get wrong)
 falls back to English, so a partial translation is perfectly valid and ships
 fine. Start from the generated English reference — it carries a context comment
 on every ambiguous key, so you can translate without reading the source:

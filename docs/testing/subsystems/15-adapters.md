@@ -35,7 +35,7 @@ Architecture reference: [docs/dev/21-adapter-system.md](../../dev/21-adapter-sys
 | `eufy/lifecycle.py` | 21 | 100% | `test_lifecycle.py` | adapter |
 | `eufy/constants.py` | 15 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/model_catalog.py` | 12 | 100% | `test_model_catalog.py` | adapter |
-| `eufy/vocabulary.py` | 9 | 100% | `tests/adapters/eufy/` | adapter |
+| `eufy/vocabulary.py` | 12 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/const.py` | 8 | 100% | `tests/adapters/eufy/` | adapter |
 | `eufy/buttons.py` | 4 | 100% | `test_buttons_entities.py` | adapter |
 | `eufy/upkeep_catalog.py` | 3 | 100% | `tests/adapters/eufy/` | adapter |

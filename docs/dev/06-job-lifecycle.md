@@ -292,12 +292,15 @@ state (e.g. `dock_drying`) could complete the job before it actually started.
 `EVENT_ROOM_STARTED` fires in two situations:
 - At job start (`source: "job_start"`), when `current_room_id` is non-null.
 - After each rollover, for the *next* room. The `source` carries the rollover
-  path: `"counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"`.
+  path: `"counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"`, or
+  `"native_signal"` (brands on the native current-room path, e.g. Roborock).
 
 `EVENT_ROOM_FINISHED` fires from `_maybe_roll_current_room_by_timing` (via
-`_apply_room_rollover`) after rollover, carrying the same `source` values.
+`_apply_room_rollover`, or via `_set_native_current_room` on the native path)
+after rollover, carrying the same `source` values.
 Within a single dispatch there is no HA-entity-state-driven *room* transition
-mechanism — room rollover is driven by the live counter signal and timing.
+mechanism — room rollover is driven by the live counter signal and timing, or
+by the device's native live current-room signal for brands that declare it.
 
 **Job model / phase transitions.** The above describes an `atomic_batch`
 job — one dispatch over a fixed room set, the model a job uses by default.
@@ -384,11 +387,28 @@ re-dispatch during the return-to-base window.
 ### Timing rollover (`_maybe_roll_current_room_by_timing`)
 
 Defined in `ActiveJobTracker` (`jobs/active_job.py`). Called from
-`get_job_progress_snapshot`. Every rollover funnels through the shared
-`_apply_room_rollover(...)` helper, which records the completed room and fires
-the `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` pair with a `source` tag
-distinguishing the path. There are **three rollover sources**, checked in this
-order:
+`get_job_progress_snapshot`. Every counter/timing rollover funnels through the
+shared `_apply_room_rollover(...)` helper, which records the completed room and
+fires the `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` pair with a `source` tag
+distinguishing the path. There are **four rollover sources**. The first is the
+native-signal path (checked before everything else); the remaining three are the
+counter/timing paths, checked in this order:
+
+**Native-signal path (device's live current room, checked first):**
+1. For adapters that declare `live_transition.native_transition_source=True`
+   (Roborock), `_maybe_roll_current_room_by_timing` short-circuits to
+   `_maybe_roll_current_room_by_native_signal` (`active_job.py:1107`) — checked
+   **before** the `current_room_id is None` guard and the three counter/timing
+   sources (`active_job.py:877-884`).
+2. Rollover **follows** the device's native live current-room signal (filtered to
+   job targets, matched by name slug, **order-agnostic**) rather than the
+   sequential counter/timing heuristic.
+3. It completes/advances rooms directly from the native signal and fires
+   `EVENT_ROOM_FINISHED` / `EVENT_ROOM_STARTED` with `source="native_signal"`
+   through `_set_native_current_room` (`active_job.py:1216`, `1227`, `1250`). The
+   native `EVENT_ROOM_FINISHED` payload does **not** carry `confidence`.
+4. The three counter/timing sources below apply only when
+   `native_transition_source` is `False` (Eufy default).
 
 **Counter-plateau path (live boundary, checked first):**
 1. Before any timing math, the tracker asks `_live_boundary_count(...)` how many
@@ -452,8 +472,12 @@ Two adapter blocks shape the result, and they are now **separate concerns**:
   tuning over its own `DEFAULT_TUNING` (defined *by reference* to the
   `counter_segmentation` module constants, so it can't drift).
 - **`live_transition`** is now **orchestration-only**: `enabled`,
-  `rollover_kinds`, and `native_transition_source` (parsed but reserved — no
-  readers yet). `_live_transition_config(vacuum_entity_id)` merges this block
+  `rollover_kinds`, and `native_transition_source` (an active orchestration flag:
+  when truthy — Roborock, `adapters/roborock/adapter.py:399` — current-room
+  rollover routes to `_maybe_roll_current_room_by_native_signal` and follows the
+  brand's native live-room signal instead of this counter/timing path; Eufy
+  leaves it `False`, `adapters/eufy/adapter.py:743`, keeping the path below
+  unchanged — see §4). `_live_transition_config(vacuum_entity_id)` merges this block
   over `_LIVE_TRANSITION_DEFAULTS`, which **no longer carries the five
   threshold keys** — they moved to `job_segmenter.tuning`. An adapter with no
   `live_transition` block behaves as before — **except** it now also rolls on a
@@ -794,8 +818,8 @@ successful run, no cancellations or stalls).
 | # | Event constant | String value | When | Key payload fields |
 |---|---|---|---|---|
 | 1 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after `vacuum.send_command`, if `current_room_id` is non-null | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `started_at`, `source: "job_start"`, `completed_room_ids: []` |
-| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"`), `actual_duration_minutes`, `confidence`, `completed_room_ids` |
-| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, or `"bounds_exit_early"` |
+| 2 | `EVENT_ROOM_FINISHED` | `eufy_vacuum_room_finished` | Each rollover (room N complete) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_at`, `source` (`"counter_plateau"` / `"timing_rollover"` / `"bounds_exit_early"` / `"native_signal"`), `actual_duration_minutes`, `confidence`, `completed_room_ids`. The `"native_signal"` variant (native current-room rollover, e.g. Roborock, `_set_native_current_room`) omits `confidence`. |
+| 3 | `EVENT_ROOM_STARTED` | `eufy_vacuum_room_started` | Immediately after each `room_finished`, for the next room | `source: "counter_plateau"`, `"timing_rollover"`, `"bounds_exit_early"`, or `"native_signal"` |
 | 4 | `EVENT_STALL_DETECTED` | `eufy_vacuum_stall_detected` | Once per room per job, when elapsed >= `stall_ratio`× timing threshold (2× default) | `vacuum_entity_id`, `map_id`, `room_id`, `room_name`, `elapsed_minutes`, `expected_minutes`, `stall_ratio` |
 | 5 | `EVENT_PATH_BLOCKED` | `eufy_vacuum_path_blocked` | When a blocker entity changes during a job (any `path_block_action`) | `vacuum_entity_id`, `map_id`, `path_block_action`, `action_taken`, `affected_remaining_room_ids` |
 | 6 | `EVENT_ROOM_SKIPPED` | `eufy_vacuum_room_skipped` | Once per room, when the live queue advances *past* an uncompleted queued room (non-sequential advance — ~never for Eufy) | `vacuum_entity_id`, `map_id`, `job_id`, `room_id`, `room_name`, `completed_room_ids` |

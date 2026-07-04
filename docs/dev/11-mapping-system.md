@@ -597,7 +597,7 @@ Each map bucket holds:
   - `companion_anchors` — `{room_id | "dock": {pct_x, pct_y}}` for *this* layout, including the reserved `"dock"` mascot spot.
 - `active_custom_layout_id` — the layout served in custom mode (or `null`).
 
-`segmentation_mode` (`"cv"` | `"custom"`, default `"cv"`) selects which segment store `get_map_segments` serves; in `custom` mode it serves the **active** layout. **All stores persist independently** — toggling the mode (or switching layouts) is a pointer change, not a regeneration. Flipping `cv → custom → cv` returns each segment set untouched, with zero re-analysis. `_handle_get_map_segments` echoes `segmentation_mode`, `active_custom_layout_id`, the `custom_layouts` summary, and the active `segment_room_links` so the card knows exactly which store it is rendering.
+`segmentation_mode` (`"cv"` | `"custom"`, default `"cv"`) selects which segment store `get_map_segments` serves; in `custom` mode it serves the **active** layout. **All stores persist independently** — toggling the mode (or switching layouts) is a pointer change, not a regeneration. Flipping `cv → custom → cv` returns each segment set untouched, with zero re-analysis. `_handle_get_map_segments` echoes `segmentation_mode`, `active_custom_layout_id`, the `custom_layouts` summary, and the active `segment_room_links` so the card knows exactly which store it is rendering. Beyond those, the response also carries `saved_zones`, `companion_anchors`, `hidden_regions` (map-level physical masks), `area_label_anchors` (map-level device-room label positions), `image_variants`, and `adjustments`. The per-layout `custom_layouts` summary now includes `backdrop_source` alongside `backdrop_variant`, plus the furnished-render keys `render_mode`, `home_art`, and `rooms` (Wave 0 furnished custom render).
 
 ### 10.2 The active-scope seam and legacy migration
 
@@ -621,12 +621,12 @@ Each custom layout needs its own backdrop image because the CV variants may not 
 
 - When `layout_id` is supplied, the server **forces** the variant to `custom_<layout_id>` (ignoring any `variant` field), validates that the layout exists (`{"saved": false, "reason": "layout_not_found"}` otherwise), writes the PNG, and repoints that layout's `backdrop_variant` to the new key (touching its `updated_at`).
 - The custom backdrops are **never auto-segmented**: `_handle_analyze_map_image` only probes `dark`/`default` (primary) and `light` (assist), so uploading any `custom*` image does not trigger the segmenter.
-- The active layout's backdrop `image_width`/`image_height` are the **rasterise canvas** — the pixel space `set_custom_segments` scales that layout's authored polygons into. `set_custom_segments` refuses to run (`{"saved": false, "reason": "no_custom_backdrop"}`) until the active layout's backdrop variant has known dimensions.
+- The active layout's backdrop `image_width`/`image_height` are the **rasterise canvas** — the pixel space `set_custom_segments` scales that layout's authored polygons into. `set_custom_segments` refuses to run (`{"saved": false, "reason": "no_custom_backdrop"}`) only when the active layout's backdrop variant has no known dimensions **and** the call sent no `backdrop_width`/`backdrop_height` fallback (a live-image-backed layout supplies those dims instead — see §10.4).
 - The card renders the custom backdrop with `object-fit: fill` (the `evcc-map-image--fill` modifier) so authored percentage coordinates map 1:1 to the displayed frame, whereas CV-mode backdrops render `object-fit: contain`.
 
 ### 10.4 `set_custom_segments` — replace-all authoring (active layout)
 
-`set_custom_segments(vacuum_entity_id, map_id, segments)` rebuilds the **active layout's** `custom_segments` store from scratch each call (replace-all), after `_ensure_default_layout` guarantees an active layout exists. The `segments` field is a list of segment dicts; extra keys are allowed (`extra=vol.ALLOW_EXTRA`):
+`set_custom_segments(vacuum_entity_id, map_id, segments, backdrop_width?, backdrop_height?)` rebuilds the **active layout's** `custom_segments` store from scratch each call (replace-all), after `_ensure_default_layout` guarantees an active layout exists. The `segments` field is a list of segment dicts; extra keys are allowed (`extra=vol.ALLOW_EXTRA`):
 
 ```json
 {
@@ -652,6 +652,8 @@ Server-side, each segment's primitive list is rasterised by `segment_primitives.
 2. Primitives are drawn **in order**: `op: subtract` clears (`fill=0`), anything else unions (`fill=1`). Order matters — a later subtract carves out earlier fills.
 3. The mask's outer boundary is traced by `mask_to_polygon` — the **same function the CV pipeline uses** (§2.7) — then scaled to the active layout's backdrop pixel dimensions, yielding a `polygon_pixel` list.
 
+A **live-image-backed layout has no uploaded backdrop**, so the card sends the optional `backdrop_width` / `backdrop_height` (coerced to `int` via `SET_CUSTOM_SEGMENTS_SCHEMA`) as the rasterise canvas — the rendered live image's natural pixel size; when they are used the handler sets that layout's image variant to `"live"`. The `no_custom_backdrop` refusal (`{"saved": false, "reason": "no_custom_backdrop"}`) is returned only when **neither** an uploaded backdrop variant with known dimensions **nor** the sent `backdrop_width`/`backdrop_height` are available.
+
 Degenerate results (nothing drawn, or no traceable boundary) are **dropped** and counted in the response's `skipped` field. Each surviving polygon is wrapped by `_build_custom_segment` into the CV segment shape (`source: "custom"`, `quality: "custom"`, `confidence: 1.0`, `structural_role: "room"`, etc.).
 
 Modelling guidance:
@@ -666,7 +668,7 @@ Four services manage the named-layout collection. All are `supports_response=Tru
 
 | Service | Effect | Returns |
 |---------|--------|---------|
-| `create_custom_layout(name?)` | Mint + activate a new layout (empty stores, per-layout `custom_<id>` backdrop variant) via `_create_layout`, then flip `segmentation_mode` to `custom`. `name` defaults to `"Custom"`. | `{saved, layout_id, layout}` |
+| `create_custom_layout(name?, backdrop_source?)` | Mint + activate a new layout (empty stores, per-layout `custom_<id>` backdrop variant) via `_create_layout`, then flip `segmentation_mode` to `custom`. `name` defaults to `"Custom"`. The optional `backdrop_source` (`CREATE_CUSTOM_LAYOUT_SCHEMA`, `vol.Optional("backdrop_source"): cv.string`) pins the backdrop: `"live"` composes the rooms straight over the brand's live-map image instead of an uploaded `custom_<id>` backdrop variant (surfaced in the `get_map_segments` layout summary). | `{saved, layout_id, layout}` |
 | `rename_custom_layout(layout_id, name)` | Rename an existing layout (touches `updated_at`). | `{saved, layout_id, layout}` or `{saved: false, reason: "layout_not_found"\|"missing_name"}` |
 | `delete_custom_layout(layout_id)` | Delete a layout and best-effort remove its backdrop image/variant. If the **active** layout is deleted, reassign active to the first remaining layout (ordered by name); if **none** remain, set `active_custom_layout_id = null` and flip `segmentation_mode` back to `cv`. | `{saved, deleted, layout_id, active_custom_layout_id, segmentation_mode}` |
 | `set_active_custom_layout(layout_id?)` | Activate a layout and flip to `custom` mode. A **null or unknown** `layout_id` auto-creates + activates a default layout (via `_create_layout`), so custom mode always resolves a live store. | `{saved, active_custom_layout_id, mode}` |

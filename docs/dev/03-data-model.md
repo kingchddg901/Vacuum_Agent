@@ -400,6 +400,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `is_transition` | `bool` | Internal / legacy; seeded `False` by backfill. Not in TypedDict. |
 | `grants_access_to` | `list[str]` | Room slugs this room grants traversal access to. Backfilled `[]`. |
 | `rules` | `list[RuleDefinition]` | Backfilled `[]`. |
+| `color` | `str \| None` | Per-room map-fill override; canonical lowercase `"#rrggbb"`, or `None`/absent to use the themeable room-fill palette. Purely presentational. Validated on write by `_hex_color_or_none` (accepts `#rgb`/`#rrggbb` with or without leading `#`, canonicalizes to lowercase `#rrggbb`; empty/None clears). Not backfilled — readers must tolerate absence. Declared on both the `RoomRecord` TypedDict and `RoomConfig` dataclass (`models/models.py`); written via the `update_room_fields` service (`services/rooms.py`) and preserved across re-save (`rooms/room_manager.py`). |
 
 **Schema migration** in `async_initialize`: `path_type`, `is_dock_room`,
 `is_transition`, `grants_access_to`, `rules`, `floor_type`, `profile_name`, and

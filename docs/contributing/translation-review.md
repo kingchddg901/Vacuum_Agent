@@ -15,11 +15,12 @@ speaker** to confirm/apply. Two objective fixes were already applied in-tree
 
 Verdicts: de = usable_with_fixes (now good after the fan-speed fix); all others = good_draft.
 
-> **New keys pending translation:** the `card_editor.*` namespace (5 keys — the Lovelace
-> visual config editor's labels) was added to en.js AFTER these drafts were produced, so the
-> locales don't carry them yet and fall back to English in the card editor. Translate them when
+> **`card_editor.*` keys — translated:** the `card_editor.*` namespace (5 keys —
+> `vacuum_label`, `pick_vacuum`, `language_label`, `language_auto`, `language_hint`, the Lovelace
+> visual config editor's labels) is now carried, fully translated, in all 7 locales
+> (de/es/fr/it/nl/pt/ru) — it no longer falls back to English. Confirm the phrasings when
 > reviewing each locale (low priority — config-time surface; the language *option* labels are
-> already native, e.g. "Deutsch (Entwurf)").
+> already native, e.g. "Deutsch (Entwurf)"). The canonical English source is `en.reference.jsonc`.
 
 ## ru (Russian — pilot, live native review)
 - `learning.queue_missed_rooms` — lost the imperative verb, reads as a fragment. → e.g. "Добавить пропущенные комнаты в очередь".

@@ -107,9 +107,19 @@ dispatch behavior:
 - **`honors_clean_order: False`** — the S6 path-optimizes, so a dispatched
   room order is advisory. This flag (a) surfaces an "order is advisory" note at
   run start and (b) gates the opt-in **strict-order** sequencing (§5).
-- **`supports_base_station: False` / `supports_map_bounds: False`** — hide the
-  Base Station and Map Bounds card tabs (the S6 has neither). Eufy defaults both
-  shown.
+- **Base Station and Map Bounds card tabs are hidden — but *not* via literal
+  capability flags.** The S6 declares neither `supports_base_station` nor
+  `supports_map_bounds` in its `capabilities` block; both card signals are
+  *derived at snapshot time* in `core/manager.py::get_dashboard_snapshot`
+  (lines 3648-3661). (a) `supports_base_station` resolves False because the
+  adapter omits the `dock_events` block entirely and all of
+  `supports_mop_wash` / `supports_mop_dry` / `supports_empty_dust` /
+  `supports_station_water` are False. (b) `supports_map_bounds` resolves False
+  because the adapter declares `mapping.segmenter_engine: "noop_fallback"` and
+  the derivation is `bool(segmenter_engine and segmenter_engine != "noop_fallback")`.
+  Both default to **shown** when the snapshot key is absent; only an adapter that
+  resolves False hides the tab. Eufy shows both because its dock/station caps are
+  True (X10 dock) and its `segmenter_engine` is a real CV engine (`eufy_cv_v1`).
 - **`supports_room_profiles: False`** — the S6 dropped per-room profile
   templates (mop/passes aren't per-room settable, below).
 - **`position_lock_reliable: False`** — same as Eufy; reserved for a future

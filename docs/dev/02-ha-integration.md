@@ -21,14 +21,20 @@ add a new entity, service, or HA event.
 
 Called once when the domain is first loaded. It:
 
-- Ensures the `eufy_vacuum/maps` directory exists under `hass.config.config_dir`
-  (user-writable map images). The `frontend` and `textures` directories are
-  package-relative — they ship inside the installed integration and are not
-  created under `config_dir`.
-- Registers three static HTTP paths via `hass.http.async_register_static_paths`:
+- Ensures two directories exist under `hass.config.config_dir`:
+  `eufy_vacuum/maps` (user-writable map images) and `eufy_vacuum/locales`
+  (user-writable drop-in translation JSON that persists across HACS updates,
+  like maps). The `locales` directory gets an auto-generated `index.json`
+  listing its `*.json` files so the card can discover and load each at runtime.
+  The `frontend` and `textures` directories are package-relative — they ship
+  inside the installed integration and are not created under `config_dir` (the
+  shipped/default `frontend/locales` directory is likewise package-relative).
+- Registers four static HTTP paths via `hass.http.async_register_static_paths`:
   - `/eufy_vacuum/maps` → persisted map image files (`cache_headers=False`)
   - `/eufy_vacuum/textures` → shipped floor-texture assets (`cache_headers=True`)
   - `/eufy_vacuum/frontend` → the compiled card JS bundle (`cache_headers=False`)
+  - `/eufy_vacuum/locales` → user-supplied drop-in translation JSON files (from
+    `config/eufy_vacuum/locales/`, `cache_headers=False`)
 
 ### `async_setup_entry` (`__init__.py`)
 
@@ -43,19 +49,19 @@ The main entry point. Called when the config entry is loaded. In order:
    load persisted storage.
 3. Stores the manager at `hass.data[DOMAIN][DATA_RUNTIME]`.
 4. Instantiates `LearningManager` and stores it at `hass.data[DOMAIN][DATA_LEARNING]`.
-5. Instantiates `MappingManager` and `MappingTracker`; stores at
-   `hass.data[DOMAIN]["mapping_manager"]` and
-   `hass.data[DOMAIN]["mapping_tracker"]`. Registers position entities for
-   vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
+5. Instantiates `BatteryHealthManager` and calls its `start(...)`; stores at
+   `hass.data[DOMAIN][DATA_BATTERY]`.
 6. Instantiates `ErrorTracker` and calls `error_tracker.start(known_vacuum_ids)`;
    stores at `hass.data[DOMAIN][DATA_ERROR_TRACKER]`.
-7. Instantiates `BatteryHealthManager` and calls its `start(...)`; stores at
-   `hass.data[DOMAIN][DATA_BATTERY]`.
-8. Calls service registration functions: `async_register_services`,
+7. Registers the inline `battery_rebaseline` service.
+8. Instantiates `MappingManager` and `MappingTracker` (last of the subsystems);
+   stores at `hass.data[DOMAIN]["mapping_manager"]` and
+   `hass.data[DOMAIN]["mapping_tracker"]`. Registers position entities for
+   vacuums whose capability map includes `robot_position_x`/`robot_position_y`.
+9. Calls the remaining service registration functions: `async_register_services`,
    `async_register_learning_services`, `async_register_theme_services`,
-   `async_register_mapping_services`, plus the inline `battery_rebaseline`
-   service.
-9. Registers background listeners by calling each listener module's
+   `async_register_mapping_services`.
+10. Registers background listeners by calling each listener module's
    `register(hass)`: `lifecycle.register(hass)`, `job_metrics.register(hass)`,
    `dock_events.register(hass)`, `path_blockers.register(hass)`,
    `pause_timeout.register(hass)`, `job_progress.register(hass)`,
@@ -63,9 +69,9 @@ The main entry point. Called when the config entry is loaded. In order:
    samples external-run robot pose while a run is active, feeding room
    auto-attribution.) See the `listeners/` package for the per-group
    implementations.
-10. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
+11. Forwards setup to entity platforms: `binary_sensor`, `button`, `switch`,
    `number`, `sensor`.
-11. Registers one sidebar panel per managed vacuum via
+12. Registers one sidebar panel per managed vacuum via
    `panels.async_register_vacuum_panel`. Panel URLs are stored at
    `hass.data[DOMAIN][f"_panels_{entry.entry_id}"]`.
 

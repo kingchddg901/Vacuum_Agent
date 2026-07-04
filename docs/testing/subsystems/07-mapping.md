@@ -14,7 +14,7 @@ A third path skips authoring entirely: the **`map_state_source` reader**
 provider's OWN segmentation + live pose into VA-owned room data (bbox/name, dock/robot
 anchors, area, current room, overlay layers), so rooms are auto-derived from the device's
 authoritative map rather than learned from drifting samples or hand-drawn.
-Covered by **505 tests across 21 files** — the trace/image primitives are
+Covered by **516 tests across 21 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -35,12 +35,12 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `segment_primitives.py` | 280 | 93% | `tests/unit/test_mapping_segment_primitives.py` | unit (pure + numpy/scipy) |
 | `segmenter_engines.py` | 132 | 100% | `tests/unit/test_mapping_segmenter_engines.py` | unit (pure) |
 | `trace_segmentation.py` | 314 | 95% | `tests/unit/test_mapping_trace_segmentation.py` | unit (pure) |
-| `tracker.py` | 406 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
+| `tracker.py` | 407 | 92% | `test_mapping_tracker.py` + `test_mapping_tracker_events.py` | unit + integration |
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `mapping_services.py` | 1198 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
-| `map_source.py` | 371 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
+| `mapping_services.py` | 1400 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
+| `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
 | `map_source_runtime.py` | 479 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 214 | 95% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
+| `map_source_coordinator.py` | 236 | 89% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
 
 ---
 

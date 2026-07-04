@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **387 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **399 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -112,7 +112,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-room-grid-gap` | Room Grid Gap | size |  |
 | `--evcc-room-grid-min` | Room Grid Min | size |  |
 
-## Map  ·  22
+## Map  ·  34
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
@@ -138,6 +138,18 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-map-ov-dock` | Overlay: Dock Marker | color |  |
 | `--evcc-map-ov-obstacle` | Overlay: Obstacle Marker | color |  |
 | `--evcc-map-ov-area-text` | Overlay: Area Label Text | color |  |
+| `--evcc-room-fill-1` | Room Fill 1 | color |  |
+| `--evcc-room-fill-2` | Room Fill 2 | color |  |
+| `--evcc-room-fill-3` | Room Fill 3 | color |  |
+| `--evcc-room-fill-4` | Room Fill 4 | color |  |
+| `--evcc-room-fill-5` | Room Fill 5 | color |  |
+| `--evcc-room-fill-6` | Room Fill 6 | color |  |
+| `--evcc-room-fill-7` | Room Fill 7 | color |  |
+| `--evcc-room-fill-8` | Room Fill 8 | color |  |
+| `--evcc-room-fill-9` | Room Fill 9 | color |  |
+| `--evcc-room-fill-10` | Room Fill 10 | color |  |
+| `--evcc-room-fill-11` | Room Fill 11 | color |  |
+| `--evcc-room-fill-12` | Room Fill 12 | color |  |
 
 ## Floor Textures  ·  4
 

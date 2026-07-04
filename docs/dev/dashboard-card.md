@@ -178,8 +178,7 @@ title: Vacuum                     # optional
 show_profiles: true               # default true (hidden if supports_room_profiles=false)
 show_scenes: auto                 # auto = show iff the scene entity resolves (Eufy)
 show_dock: true                   # default true (hidden if supports_base_station=false)
-show_map: false                   # W2+; default false until the map ships
-default_mode: vacuum_mop          # optional pre-arm of mode (still inert until Start)
+show_map: true                    # default true; the embedded map shipped (shown unless set to false)
 ```
 
 Editor: extend the `EufyRoomCardEditor` pattern — a `vacuum_entity_id` picker + the

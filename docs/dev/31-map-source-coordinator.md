@@ -27,6 +27,7 @@ It uses `manager.hass`, writes its normalized result into `manager._map_state_so
 - The three backend branches: **storage**, **memory-primary** (Eufy), and **memory introspect** (Roborock).
 - The live-pose overlay path — layering eufy-clean's fresh in-memory robot/dock/trail onto the static segmentation.
 - The lightweight live-pose poll (`async_get_map_live_pose`), the verify probe (`async_compare_map_sources`), and the card own-render raster fetch (`async_get_map_render_data`).
+- The zone-dispatch live `MapData` object lookup (`get_live_mapdata_obj`) and the raw decoded `map_data` dict feed for the pure room readers (`async_get_map_data_dict`) — see §3.5.
 - Its two backend-internal caches: `_mem_rooms_cache` (content-versioned static scan) and `_live_pose_geom_cache` (mtime-cached geometry).
 
 ### 1.2 What stays on the manager (and why)
@@ -89,9 +90,9 @@ The whole dispatch is wrapped in a `try/except` — `async_refresh_map_state_sou
 
 ---
 
-## 3. The four public readers
+## 3. The public methods
 
-All four are `async`, keyword-only, adapter-driven, and degrade to an absent marker — never raise. `core/manager.py` keeps a 1-line delegator for each (e.g. `async_refresh_map_state_source` → `self.map_source.async_refresh_map_state_source(...)`), so existing call sites are unchanged.
+`MapSourceCoordinator` exposes **six** public methods: the **four `async_*` readers** below (§3.1–§3.4) plus two more covered in §3.5 — the sync `get_live_mapdata_obj` (live parser `MapData` object for zone dispatch) and the async `async_get_map_data_dict` (raw decoded Eufy `map_data` dict feeding the pure readers). The four readers are `async`, keyword-only, adapter-driven, and degrade to an absent marker — never raise. `core/manager.py` keeps a 1-line delegator for each (e.g. `async_refresh_map_state_source` → `self.map_source.async_refresh_map_state_source(...)`), so existing call sites are unchanged.
 
 ### 3.1 `async_refresh_map_state_source`
 
@@ -126,6 +127,18 @@ async_get_map_render_data(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
 Returns the raster + decode params for the card's **own** map render (Wave 1). Adapter-driven: the adapter's `map_render.format` selects the decode (only `eufy_room_pixels_v1` today), and the **source pointer is reused from `map_state_source`** (no duplicate schema). Memory-primary again — when a `memory` block is declared it reads eufy-clean's in-memory raster first (`render_data_from_storage`) and falls back to the off-loop `.storage` read (`eufy_render_data_from_store`). The card calls this on demand (when the VA-rendered backdrop is selected) and caches by the returned `version`; the raster is static (changes only on a re-map), so it's fetch-once, not snapshot bloat. Degrades to `{present: False, reason}`.
+
+### 3.5 `get_live_mapdata_obj` + `async_get_map_data_dict`
+
+Beyond the four readers, the coordinator exposes two more public methods that feed zone dispatch and the pure-decode room readers:
+
+```python
+get_live_mapdata_obj(*, vacuum_entity_id: str, map_id: str)  # sync
+async_get_map_data_dict(*, vacuum_entity_id: str) -> dict[str, Any] | None
+```
+
+- **`get_live_mapdata_obj`** (`map_source_coordinator.py:264`) — **sync**, in-memory introspection only (no IO, loop-safe). Locates the live parser `MapData` **object** (not the normalized dict) so zone dispatch can project a drawn zone back to device-mm via the parser's *own* transform (the same projector the overlays use — the converted dict has lost it). Routes by the adapter's `map_state_source` backend. Returns `None` when no live map is available, and the caller **MUST then refuse to dispatch**. Invoked **directly on the coordinator** at `core/manager.py:4208` (zone dispatch) — there is **no** manager delegator for it. Never raises.
+- **`async_get_map_data_dict`** (`map_source_coordinator.py:564`) — returns the raw decoded Eufy `map_data` dict (room_pixels + origin/res/dims) for the current map: the input the pure readers `rooms_from_room_pixels` / `current_room_for_pixel` / `zone_membership` consume. Memory-primary (the fork's in-memory `_map_data`, loop-safe) with an off-loop `.storage` fallback. Returns `None` for a non-raster backend (Roborock memory), an old install with no map, or any read failure. It **does** have a 1-line manager delegator at `core/manager.py:3880`.
 
 ---
 
@@ -165,9 +178,11 @@ Docked semantics: when the robot pixel is absent but a dock pixel resolves, the 
 | `get_map_render_data` service | `mapping/mapping_services.py::_handle_get_map_render_data` → `manager.async_get_map_render_data` | — |
 | `get_map_live_pose` service + pose-sampler probe | `mapping/mapping_services.py::_handle_get_map_live_pose` → `manager.async_get_map_live_pose` | — |
 | `compare_map_sources` service | `mapping/mapping_services.py::_handle_compare_map_sources` → `manager.async_compare_map_sources` | — |
+| Zone dispatch (live `MapData` object) | `core/manager.py:4208` calls `self.map_source.get_live_mapdata_obj(...)` **directly** (no delegator) | — |
+| Zone dispatch / pure room readers (`map_data` dict) | `core/manager.py:3880` delegator `async_get_map_data_dict` → `self.map_source.async_get_map_data_dict` | — |
 | Snapshot `supports_va_render` flag | `core/manager.py::get_dashboard_snapshot` gates on `isinstance(adapter_cfg.get("map_render"), dict)` | — |
 
-The manager's four delegators (`async_refresh_map_state_source`, `async_get_map_live_pose`, `async_compare_map_sources`, `async_get_map_render_data`) are thin 1-line forwards to `self.map_source.*`. The cache and `_resolve_live_map_image_entity` stay on the manager (§1.2) — that is the deliberate boundary of this re-bundle, not an oversight.
+The manager's **five** delegators (`async_refresh_map_state_source`, `async_get_map_live_pose`, `async_compare_map_sources`, `async_get_map_render_data`, and `async_get_map_data_dict` at `core/manager.py:3880`) are thin 1-line forwards to `self.map_source.*`. The sixth public method, `get_live_mapdata_obj`, has **no** delegator — zone dispatch calls it **directly on the coordinator** (`core/manager.py:4208`). The cache and `_resolve_live_map_image_entity` stay on the manager (§1.2) — that is the deliberate boundary of this re-bundle, not an oversight.
 
 ---
 

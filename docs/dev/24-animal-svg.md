@@ -31,12 +31,20 @@ animal-svg/
 ├── animals/
 │   ├── cat.js
 │   ├── dog.js
+│   ├── fox.js        community animal (generated from gallery/animals/fox.json)
 │   ├── raccoon.js
 │   ├── parrot.js
 │   ├── snake.js
-│   └── mittens.js    memorial tribute (see "Memorial animals")
+│   ├── mittens.js    memorial tribute (see "Memorial animals")
+│   └── index.json    auto-generated at HA startup; enumerates the *.js above
+├── src/             declarative descriptors (cat.json, dog.json, …) that compile to animals/*.js
 └── demo.html         open in a browser to verify everything works
 ```
+
+The set above is representative, not fixed — any community animal self-registers
+from its own `animals/*.js` file and is enumerated in the auto-generated
+`animals/index.json` (see [Adding / removing / editing an animal](#adding--removing--editing-an-animal)).
+`fox.js` is one such community-generated quadruped.
 
 ## Install
 

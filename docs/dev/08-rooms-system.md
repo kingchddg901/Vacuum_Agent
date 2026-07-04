@@ -47,7 +47,13 @@ For Eufy (`entity_attribute` source): `room_list_entity = "vacuum_entity"`, `roo
 get_active_map_id(hass: HomeAssistant, vacuum_entity_id: str) -> str | None
 ```
 
-Reads the active map ID from the entity declared at `adapter_config["entities"]["active_map"]`. Returns the state value as a `str`, or `None` if the adapter is not registered, the entity is missing, or its state is an HA sentinel value (`"unknown"`, `"unavailable"`, `""`, `"none"`, `"None"`).
+Reads the active map ID from the entity declared at `adapter_config["entities"]["active_map"]`. The adapter declares `entities.active_map` from a naming pattern for every device, so "declared" does not mean "exists" — resolution keys off whether the entity actually exists, in three cases:
+
+1. **Entity present in the state machine** → return its state as a `str`, or `None` if the state is an HA sentinel value (`"unknown"`, `"unavailable"`, `""`, `"none"`, `"None"`).
+2. **Entity absent from the state machine but present in the entity registry** → a novel device whose sensor has not materialised yet (a boot/restart window) → return `None` and wait (must not fork a phantom implicit map).
+3. **Entity absent from BOTH the state machine and the entity registry** → the sensor is never created (e.g. a scalar/Tuya-transport Eufy device that surfaces its room list as a vacuum attribute) → fall back to `_implicit_attribute_map_id`, which returns `discovery.implicit_map_id` (e.g. `"main"` for Eufy) when `discovery.room_list_entity == "vacuum_entity"` and the room-list attribute currently holds at least one dict row, else `None`.
+
+Returns `None` if the adapter is not registered.
 
 ### 2.3 `discover_rooms_for_vacuum`
 
@@ -92,11 +98,13 @@ Returns `[]` if the source yields nothing — the entity is unavailable / the at
 ```python
 discover_rooms_payload(
     hass: HomeAssistant,
+    *,
     vacuum_entity_id: str,
+    map_id: str | None = None,
 ) -> dict
 ```
 
-Convenience wrapper that returns:
+When `map_id` is `None` it defaults to the active map via `get_active_map_id`. Convenience wrapper that returns:
 
 ```python
 {
@@ -169,8 +177,9 @@ Converts a raw room name to a stable slug. There is **no** regex / punctuation s
 3. Remove single quotes `'` and double quotes `"`.
 4. Replace `&` with `and`.
 5. Replace each space character with a single underscore.
+6. Unicode-normalize the result to NFC (so a name arriving as NFD on one firmware and NFC on another derives the same slug; NFC is a no-op for ASCII).
 
-All other punctuation is preserved verbatim, and internal multi-space runs become multiple underscores (each space → one `_`).
+All other punctuation is preserved verbatim, and internal multi-space runs become multiple underscores (each space → one `_`). The transform is intentionally script-agnostic: non-ASCII characters are preserved (never ASCII-folded/stripped), so Cyrillic/Greek/CJK/emoji names keep distinct, non-empty slugs rather than collapsing to empty and colliding.
 
 Examples: `"Living Room"` → `"living_room"`, `"Bedroom #2"` → `"bedroom_#2"`, `"Kids' & Guest"` → `"kids_and_guest"`.
 
@@ -228,8 +237,9 @@ Returns `{vacuum_entity_id, map_id, room_count, rooms, summary}`.
 
 ```python
 manager.room_map.remove_map(
+    *,
     vacuum_entity_id: str,
-    map_id: str | int,
+    map_id: str,
 ) -> dict
 ```
 
@@ -323,6 +333,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `is_transition` | bool | Whether this room is a transition/passage room (defaults `False`) |
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
+| `color` | str \| None | Per-room map fill override, a canonical `"#rrggbb"` (lowercased), or `None`/absent to use the themeable room-fill palette. Purely presentational; preserved across re-save (`room_manager.py`) and rebuild (`map_manager.py`). See [themeable-map-palette.md](themeable-map-palette.md). |
 
 ---
 

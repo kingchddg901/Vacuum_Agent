@@ -507,7 +507,7 @@ Five HA platforms create entities:
 
 | Platform | Entity classes |
 |---|---|
-| `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×12), ActiveRunError, LastDeviceError |
+| `sensor/` | ActiveJob, Profile, MaintenanceRemaining, DockEvent, ThemeState, Onboarding, RoomCleaningHistory, RoomRuleStatus, BatteryHealth (×12), ActiveRunError, LastDeviceError, MapOverlays |
 | `switch.py` | RoomEnabledSwitch (one per configured room) |
 | `number.py` | RoomOrderNumber (one per room), MaintenanceIntervalNumber (one per component) |
 | `button.py` | MaintenanceResetButton (one per component), SavedRunProfileButton (one per exposed profile) |

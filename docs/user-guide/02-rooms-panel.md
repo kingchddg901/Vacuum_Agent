@@ -4,10 +4,11 @@ The Rooms panel is the main day-to-day screen. From here you choose which rooms 
 
 ## Layout
 
-The panel is divided into two main areas:
+The panel is divided into two main areas, with a side column alongside them:
 
 - **Action bar** — at the top, showing the queue summary, primary action buttons, and the ordered list of queued rooms.
 - **Room grid** — below the action bar, showing a card for every room on your active map.
+- **Side column** — to the right of the room grid (or below it on narrow screens), holding the [Run Profiles panel](#run-profiles-panel) and, below it, the [Saved Zones panel](#saved-zones-panel).
 
 A toggle in the top-left of the room grid lets you switch between a list view (cards) and a map view (room positions overlaid on the floor plan). To set up that floor plan — upload a map image or draw your own rooms — see [Making your own maps](16-making-your-own-maps.md).
 
@@ -155,6 +156,16 @@ The room card shows an "Edge Mop On" chip when this is active.
 
 Marks the room as a hallway or connecting corridor. This tells the integration that the robot is passing through the space rather than cleaning it as a destination room. The integration's shape analysis may suggest this automatically if the room's geometry matches common corridor shapes; when it does, a callout appears in the editor.
 
+### Room Color
+
+Overrides this room's fill color on the map. The field shows:
+
+- A **color swatch** — a native OS color picker (an `<input type="color">`) for choosing a custom fill color for the room.
+- A **value readout** — showing the custom hex code when an override is set, or "Default (palette)" when it is not. With no override the swatch previews the room's default color from the shared themeable palette, so the picker opens at that color.
+- A **Reset** button — shown only when an override is set. It clears the override back to the shared themeable palette.
+
+Like the other editor fields, the color override is buffered while you edit and saved with the room's other settings when you click **Save**.
+
 ## Reordering rooms
 
 Every room card has a position number chip, a **Move** button, and a drag handle.
@@ -198,3 +209,13 @@ If your previous run ended before all queued rooms were cleaned (for example, be
 To the right of the room grid (or below it on narrow screens) is the Run Profiles panel. A run profile saves your entire current setup — which rooms are included, their order, and all their settings — under a name so you can restore it with one tap.
 
 See the Run Profiles section of this guide for full details.
+
+## Saved Zones panel
+
+Below the Run Profiles panel (in the same side column) is the Saved Zones panel — a collapsible list of named reusable clean regions (for example "the couch" or "the stove"), grouped by the room they're filed under. It is always visible, showing an empty-state message when you have no saved zones yet.
+
+- Each zone row is a **multi-select checkbox**, so you can pick several zones at once.
+- A shared set of **device clean settings** (Suction, Mode, Intensity, Water) sits at the top of the panel and applies to the zones you clean from here.
+- A **Clean N selected** action cleans your selected zones using those shared settings.
+- Per-zone controls let you **rename** a zone, **delete** it, or **re-file** it under a different room (or leave it Unassigned).
+- A **Draw zone to save** button lets you draw a box on the map to capture a new saved zone.

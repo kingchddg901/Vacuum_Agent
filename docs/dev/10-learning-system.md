@@ -65,7 +65,7 @@ and is applied by `_room_key`, `_room_profile_key`, the rebuilder's stored
 | `clean_intensity` | str | `resolved_rooms[].clean_intensity` (default `"standard"`) | Fan/suction level |
 | `edge_mopping` | bool | `resolved_rooms[].edge_mopping` | Edge-mop flag — part of the key (materially affects time) |
 | `sample_count` | int | Incremented once per qualifying job | How many learning jobs contributed |
-| `avg_minutes` | float | `total_estimated_minutes / sample_count` | Mean cleaning duration for this room |
+| `avg_minutes` | float | `sum(gated_minutes) / timing_sample_count` (area-gated) | Mean cleaning duration — excludes partial/interrupted cleans per the schema-6 area gate (`sample_count` still counts every contributing job) |
 | `minutes_stddev` | float | Population stddev of per-job duration samples | Spread of observed durations |
 | `minutes_min` | float | `min(samples)` | Shortest observed duration |
 | `minutes_max` | float | `max(samples)` | Longest observed duration |
@@ -858,7 +858,7 @@ The `completed_job` dict written to `jobs/{job_id}.json` is the source of truth.
 
 In `build_room_stats_payload`, the rebuilder loops over all rooms in all learning jobs. Collect per-room samples and average them in the output block, writing the result into **both** `output_exact` and `output_baselines`.
 
-**Worked example — `avg_area_m2` (implemented at schema v4):** because `cleaning_area_m2` is a job total with no per-room split, area samples are collected **only from single-room jobs** (`room_count == 1`) into `room_area_samples` / `baseline_area_samples`, then averaged with a separate `area_sample_count`. A metric that genuinely *can* be allocated per room (like duration) instead accumulates `per_room_value = total / room_count` on every job — pick whichever attribution is honest for your metric.
+**Worked example — `avg_area_m2` (schema 6):** per-room area comes from `room_timings[].area_m2` on `transit_capture_valid` jobs (a counter-plateau / `cleaning_area` delta per segment, for single **and** multi-room jobs), collected into `room_area_samples` / `baseline_area_samples` and averaged with a separate `area_sample_count`; it falls back to a single-room job's `cleaning_area_m2` total only when a room has no captured segment. (The single-room-only rule was schema v4; schema 6 removed it.) A metric that genuinely *can* be allocated per room (like duration) instead accumulates `per_room_value = total / room_count` on every job — pick whichever attribution is honest for your metric.
 
 ### Step 4 — Expose in the estimator
 

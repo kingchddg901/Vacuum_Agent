@@ -51,6 +51,9 @@ Returns the full list of entities the lifecycle listener watches for one vacuum:
 - `entities.dock_status`
 - `entities.active_cleaning_target`
 - `entities.active_map`
+- `entities.job_active`
+
+Every declared-entity item (all but `vacuum_entity_id`) is only included when the adapter declares it. `entities.job_active` is the recharge-resume binary sensor (it stays on through a mid-job recharge dock); watching it ensures its clear at the true finish re-triggers finalization. It is absent for brands that don't declare it (e.g. Eufy).
 
 ```python
 is_job_active(hass, vacuum_entity_id, *, unavailable_is_active=False) -> bool
@@ -215,15 +218,15 @@ Tracks cleaning time, cleaning area, and station water during active jobs.
 
 **Module:** `listeners/job_metrics.py`
 
-Watches three entities per vacuum (sourced from adapter `entities` block):
+Watches three entities per vacuum from two different sources: `cleaning_time` and `cleaning_area` come from the adapter `entities` block, while the station-water entity is resolved from the capabilities snapshot via `manager.get_vacuum_capabilities(vacuum_entity_id, refresh=False)` (`capabilities.entities.water_level` with a `capabilities.entities.station_water` fallback), not the adapter `entities` block.
 
 | Entity key | Active-job field written |
 |---|---|
-| `cleaning_time` | `last_cleaning_time_seconds` (int) |
-| `cleaning_area` | `last_cleaning_area_m2` (float) |
-| `entities.water_level` or station water entity | `last_station_water_percent` (float) |
+| `cleaning_time` (adapter `entities`) | `last_cleaning_time_seconds` (int) |
+| `cleaning_area` (adapter `entities`) | `last_cleaning_area_m2` (float) |
+| `capabilities.entities.water_level` (fallback `capabilities.entities.station_water`) | `last_station_water_percent` (float) |
 
-On state change: validates the new value is numeric, converts to the target type, and calls `record_active_job_sensor_value(vacuum_entity_id, key, value)`.
+On state change: validates the new value is numeric, converts to the target type, and calls `record_active_job_sensor_value(vacuum_entity_id, key, value)`. When the changed key is `last_cleaning_time_seconds` or `last_cleaning_area_m2`, the handler additionally calls `manager.record_counter_sample(vacuum_entity_id=...)`, appending one time-stamped counter sample (carrying the last-seen cleaning_time + cleaning_area + battery already pushed into the active-job state) to each in-flight job's `counter_samples` buffer, feeding `counter_segmentation.segment_counters()` for counter-plateau per-room segmentation at finalization.
 
 ---
 
@@ -239,11 +242,11 @@ Triggers room discovery on lifecycle events and periodic intervals.
 |---|---|
 | `"vacuum_docked"` | dock_status transitions to a docked-vocabulary state |
 | `"active_map_changed"` | active_map entity state changes |
-| `"config_entry_reload"` | integration startup (fires once on `register()`) |
+| `"config_entry_reload"` | one-shot pass deferred via `async_at_started` — runs once HA has fully started (or immediately if HA is already running, e.g. a live config-entry reload). Deferred rather than run at `register()`/setup time so service-response room sources (e.g. Roborock `get_maps`) are registered before the pass reads them. |
 
 **Optional periodic refresh:** `async_track_time_interval` fires every `discovery.auto_refresh_interval_seconds` seconds (default: 6 hours / 21,600 seconds). Only registered if the adapter declares a non-zero interval.
 
-On trigger: calls `run_discovery_pass(hass, manager, vacuum_entity_id)` from `setup/drift.py`.
+On trigger: each pass runs three steps in order — (1) `await async_refresh_room_source(hass, vacuum_entity_id)` (from `rooms/source_refresh.py`), which refreshes the Roborock `get_maps` service-response source into the flattened cache before the sync pass reads it (a no-op for Eufy's entity-attribute source); (2) `run_discovery_pass(hass, manager, vacuum_entity_id)` from `setup/drift.py`; (3) `await manager.async_save()` to persist.
 
 Uses `_make_run_pass(vid)` closure-binding pattern to avoid late-binding bugs in loop registration.
 
@@ -277,6 +280,6 @@ On each qualifying tick it reads the declared `entities.cleaning_area` value and
 | `path_blockers.py` | State change (binary sensors) | — | `eufy_vacuum_path_blocked` event, optional pause/cancel |
 | `pause_timeout.py` | Time interval | 1 min | Cancel timed-out paused jobs |
 | `job_progress.py` | Time interval | 5 sec | `eufy_vacuum_job_progress_tick` event (+ Lever B live-room refresh pulse on contiguous runs) |
-| `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/water into active job |
+| `job_metrics.py` | State change (metric entities) | — | Record cleaning time/area/water into active job (+ counter-sample append on time/area change) |
 | `discovery.py` | State change + time interval | 6 hr | Run discovery pass, update drift history |
 | `pose_sampler.py` | Time interval | min adapter `room_attribution.interval_s` (fallback 2 s) | Record per-tick pose sample into the external run slot (`record_pose_sample`), external-run/live-pose-gated |

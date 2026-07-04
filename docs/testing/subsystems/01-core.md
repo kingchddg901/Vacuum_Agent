@@ -15,8 +15,8 @@ Architecture reference: [docs/dev/05-core-manager.md](../../dev/05-core-manager.
 
 | Source module | Stmts | Cov | Test files | Layer |
 |---------------|------:|----:|------------|-------|
-| `manager.py` | 1690 | 97% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit |
-| `error_tracker.py` | 316 | 89% | `test_core_error_tracker.py` | integration |
+| `manager.py` | 1729 | 97% | `test_manager_lifecycle_status.py`, `test_manager_progress.py`, `test_manager_delegation.py`, `test_manager_start_selected.py`, `test_manager_external_finalize.py`, `test_manager_init_migrations.py`, `test_core_manager_registry.py`, `test_manager_compare_sources.py`, `test_manager_live_pose.py`, `test_core_manager_helpers.py` (unit) | int + unit |
+| `error_tracker.py` | 327 | 89% | `test_core_error_tracker.py` | integration |
 | `capabilities.py` | 118 | 97% | `test_core_capabilities.py` | integration |
 | `charging.py` | 39 | 100% | `test_charging.py` (unit) | unit |
 | `water_amendment.py` | 120 | 92% | `test_core_water_amendment.py` | integration |

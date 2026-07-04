@@ -282,7 +282,7 @@ plays today, but grounded in observed position + device area.
     the classified room there pre-answers the wizard with NO frontend change):
     - `learning/external_ingest.py`: `_resolve_attribution`/`_attribute` (engine + tuning from the
       adapter's `room_attribution` block, Eufy fallback — mirrors `_resolve_engine_tuning`);
-      `_apply_pose_identity` + `_dominant_cleaned_room` + `_promote_pose_room` ENRICH each counter
+      `_apply_pose_identity` + `_dominant_room` + `_promote_pose_room` ENRICH each counter
       segment with its dominant cleaned room → `shortlist[0]` (ROBUST mode only — anchor-only can
       false-positive a parked dock, so it doesn't override the settings shortlist); `build_attributed_job`
       STANDS UP a pose-only record when the counter segmenter finds nothing (the common app-run case —

@@ -33,7 +33,7 @@ After the first restart following install, twelve sensors appear under your vacu
 | `_charge_rate_high_zone` | %/min | Last rate when battery ≥ 80 %. |
 | `_mid_job_recharge_rate` | %/min | Rolling mean of mid-job recharge rates. |
 | `_last_charge_duration` | min | Length of the most recent completed charge session. |
-| `_battery_health` | % | Headline charge speed vs install baseline. Alias of `_cv_charge_speed`. |
+| `_battery_health` | % | Headline charge speed vs install baseline — the `_cv_charge_speed` signal **capped at 100 %** (never "healthier than new"). Its `uncapped_pct` attribute carries the raw, possibly-over-100 value. |
 | `_cv_charge_speed` | % | CV regime (80→90 % charging) speed vs baseline — the resistance proxy. |
 | `_cc_charge_speed` | % | CC regime (50→80 % charging) speed vs baseline — the capacity proxy. |
 | `_last_job_drain_per_min` | %/min | Battery drain rate of the most recent completed job. |
@@ -44,7 +44,9 @@ The entity ID prefix is the vacuum's object ID — for example, `vacuum.alfred` 
 
 Each sensor also exposes rich attribute data for cards and automations. The three `_last_job_*` sensors carry per-clean-mode, per-fan-speed, and per-water-level aggregate means in their attributes — see [advanced/09-battery-health.md](../advanced/09-battery-health.md) for the full attribute list.
 
-> **Why two charge-speed sensors plus a headline?** A battery's charge curve has two distinct regimes that age in **opposite directions**. Capacity loss makes the constant-current portion (50→80 %) appear *faster* per percent (less energy per percent), while resistance rise makes the constant-voltage taper (80→90 %) appear *slower* per percent (the charger has to back off sooner and longer). Averaging them into one number cancels real signal. The integration tracks each regime separately; the headline (`_battery_health`) is just an alias of the CV regime sensor (`_cv_charge_speed`), since CV-side slowdown is what most people mean by "battery health". Watch CC if you want capacity loss; watch CV (or the headline) for resistance rise.
+`_battery_health` is clamped at 100 % for the headline, but it exposes the raw (possibly over 100) CV charge-speed value on its `uncapped_pct` attribute for anyone who wants the unclamped signal. It also carries `baseline_cv_min_per_pct`, `baseline_cc_min_per_pct`, `baseline_session_count`, `baseline_anchored_at`, and `completed_sessions`.
+
+> **Why two charge-speed sensors plus a headline?** A battery's charge curve has two distinct regimes that age in **opposite directions**. Capacity loss makes the constant-current portion (50→80 %) appear *faster* per percent (less energy per percent), while resistance rise makes the constant-voltage taper (80→90 %) appear *slower* per percent (the charger has to back off sooner and longer). Averaging them into one number cancels real signal. The integration tracks each regime separately; the headline (`_battery_health`) is the CV regime sensor (`_cv_charge_speed`) capped at 100 % (a battery is never "healthier than new"), since CV-side slowdown is what most people mean by "battery health". Watch CC if you want capacity loss; watch CV (or the headline) for resistance rise.
 
 ---
 
@@ -104,9 +106,9 @@ This is a **per-install baseline**, not an estimate of factory-fresh performance
 
 ### CC vs CV: read both regimes, not just the headline
 
-The headline `_battery_health` shows the CV regime (resistance proxy). For most users, that's the signal that matters — CV-phase slowdown is the textbook "battery aging" indicator. But the two regimes age in opposite directions, so reading both gives you the full picture:
+The headline `_battery_health` shows the CV regime (resistance proxy), capped at 100 %. For most users, that's the signal that matters — CV-phase slowdown is the textbook "battery aging" indicator. But the two regimes age in opposite directions, so reading both gives you the full picture:
 
-- **`_cv_charge_speed` (= `_battery_health`)** — falls below 100 as resistance rises. The cell can't accept current as fast in the 80→90 % CV taper, so %/min slows. This is what most people mean by "battery health". A drop below 80 over months is a strong signal.
+- **`_cv_charge_speed` (the uncapped source of `_battery_health`)** — falls below 100 as resistance rises. The cell can't accept current as fast in the 80→90 % CV taper, so %/min slows. This is what most people mean by "battery health". A drop below 80 over months is a strong signal. Unlike the headline, this diagnostic sensor can read above 100 while the baseline is young.
 - **`_cc_charge_speed`** — also falls below 100 as capacity drops. Each percent of a smaller-capacity cell holds less energy, so the constant-current 50→80 % phase appears *faster* per percent (less to fill), which means the inverted ratio (baseline / current) reads lower. Counterintuitive but consistent with how the math works out.
 
 Both metrics use the same scale: **higher = healthier**, 100 = matches your baseline. Falls in *both* over a long horizon are a strong replacement signal. A fall in only one is worth watching but not acting on alone — environmental drift can move either independently for weeks.
@@ -115,9 +117,10 @@ Both metrics use the same scale: **higher = healthier**, 100 = matches your base
 
 Health % (the headline) is the ratio of baseline CV speed to current CV speed:
 
-- **100 %** — current CV charge speed matches your install baseline.
-- **Below 100 %** — current charges are slower than the baseline. A young battery hovers at 95-105 %; a moderately aged one drifts to 80-90 %; a battery approaching end-of-life drops below 70 %.
-- **Above 100 %** — current charges are faster than the baseline. This can happen briefly with environmental shifts or simply with measurement noise when the data set is small.
+- **100 %** — current CV charge speed matches (or beats) your install baseline. The headline is capped at 100 %, so a battery charging faster than its baseline reads exactly 100 here.
+- **Below 100 %** — current charges are slower than the baseline. A moderately aged battery drifts to 80-90 %; a battery approaching end-of-life drops below 70 %.
+
+The headline can never read above 100 % — a battery is never "healthier than new". A raw reading above 100 (current charges faster than the baseline, common while the baseline is young, or from measurement noise on a small data set) appears only on the uncapped `_cv_charge_speed` diagnostic sensor and in the `_battery_health` sensor's `uncapped_pct` attribute, where a young battery typically sits around 95-105 %.
 
 The window for what counts as "qualifying" is intentionally wide (50→90 rather than the textbook 30→95): a vacuum that mostly runs single-room jobs rarely drains far enough on its own for the strict window to ever trigger, which would leave the baseline unseeded for months. The 50→90 window covers both the CC region (50→80) and the CV taper (80→90), so a single qualifying recharge is enough to anchor both regimes at once.
 

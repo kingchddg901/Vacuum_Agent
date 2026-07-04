@@ -257,13 +257,15 @@ The draft uses the same three-bucket shape as a theme entry. Null or empty-strin
 
 The card's `resolvedTheme()` method in `state/theme.js` builds the final token map used for CSS injection:
 
+0. **Seed — room-fill palette defaults:** before the active-theme base, iterate `ROOM_FILL_PALETTE` (`theme.js:384-388`) and for each hex set `colorMap["--evcc-room-fill-" + (i + 1)]` to that hex and tag `sources[key] = "default"`. The room-fill tokens carry no default in `styles/index.js`, so this seed guarantees every `--evcc-room-fill-N` token has a resolvable value for the editor's color picker. The seed equals the render's own default palette, so a themeless card is net-zero; an active theme or working draft still overrides these below.
+
 1. **Base — active theme:** iterate `activeTheme.colors` → populate `colorMap`; iterate `activeTheme.alpha` → populate `alphaMap`; iterate `activeTheme.tokens` → populate `tokens`. All sources tagged `"theme"`.
 
 2. **Overlay — working draft:** iterate `workingDraft.colors` → overwrite `colorMap`; iterate `workingDraft.alpha` → overwrite `alphaMap`; iterate `workingDraft.tokens` → overwrite `tokens`. All sources tagged `"draft"`.
 
 3. **Combine color + alpha:** for every key in `colorMap`, call `_hexWithAlpha(colorHex, alphaMap[key])`. The result (an 8-char hex or the original value unchanged if it is not a valid hex) is written back into `tokens[key]`, overwriting any pre-baked value from step 1 or 2. This ensures an alpha-only draft change reflects correctly even when the color came from the theme base.
 
-Return value: `{ tokens, sources }` where `sources[key]` is `"theme"`, `"draft"`, or absent (key not in any bucket).
+Return value: `{ tokens, sources }` where `sources[key]` is `"default"` (from the Step 0 room-fill palette seed), `"theme"`, `"draft"`, or absent (key not in any bucket).
 
 The `sources` map is used by the editor to mark tokens as draft-modified (the "modified" badge and filter chip).
 
@@ -560,10 +562,13 @@ custom_components/eufy_vacuum/frontend/animal-svg/
 │   ├── raccoon.js
 │   ├── parrot.js
 │   ├── snake.js
+│   ├── fox.js
 │   ├── mittens.js    memorial mascot (registers with memorial: true)
 │   └── index.json    auto-generated manifest of the .js files above
 └── demo.html         open in a browser to verify everything works
 ```
+
+> The animal list above is illustrative — current as of writing, not exhaustive. Because `index.json` is auto-generated at startup from whatever `.js` files exist in `animals/`, the shipped set can change without this tree being updated.
 
 `animals/index.json` is **not** hand-maintained — the integration regenerates it at
 startup from whatever `.js` files exist in `animals/` (`__init__.py:129-137`, a sorted

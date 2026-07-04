@@ -32,7 +32,7 @@ docs, not here:
 | `setup.py` | 128 | 91% | `test_services_errors_setup.py` |
 | `dock.py` | 80 | 100% | `test_services_dock.py` |
 | `room_profiles.py` | 80 | 100% | `test_services_room_profiles.py` |
-| `rooms.py` | 80 | 95% | `test_services_rooms.py` |
+| `rooms.py` | 95 | 77% | `test_services_rooms.py` |
 | `maintenance.py` | 47 | 100% | `test_services_maintenance_reset.py` |
 | `queue.py` | 43 | 100% | `test_services_queue.py` |
 | `snapshots.py` | 43 | 100% | `test_services_snapshots.py` |

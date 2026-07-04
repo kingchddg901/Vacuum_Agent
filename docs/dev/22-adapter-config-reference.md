@@ -170,6 +170,7 @@ depends on them — they never raise.
 | `total_cleaning_time` | Optional | Lifetime "Total time" tile hidden in the Maintenance tab. |
 | `total_cleaning_count` | Optional | Lifetime "Cleans" tile hidden in the Maintenance tab. |
 | `dock_firmware_version` | Optional | Dock firmware line hidden in the Maintenance overview. |
+| `scene_select` | Optional | Vendor-app scenes select entity (e.g. eufy-clean `select.<object_id>_scene`). Its options are the app's saved scenes and selecting one **runs it immediately**, so the card only reads the options to build the "App scenes" run-launcher and fires `select_option` on Start. Absent (Roborock, or an eufy-clean build without scenes) → the App-scenes group is hidden. |
 
 ### Example (from Eufy adapter)
 
@@ -196,6 +197,7 @@ depends on them — they never raise.
     "robot_position_y": "sensor.alfred_robot_position_y_raw",
     "work_mode": "sensor.alfred_work_mode",
     "cleaning_intensity": "select.alfred_cleaning_intensity",
+    "scene_select": "select.alfred_scene",
 },
 ```
 
@@ -502,14 +504,23 @@ vacuum has segmented.
 
 | Field | Type | Default | Purpose |
 |-------|------|---------|---------|
+| `source` | `str` | `"entity_attribute"` | Where the room list lives. `"entity_attribute"` (default, Eufy): a live attribute on an HA entity, read synchronously. `"service_response"` (Roborock): the room list exists only in a service-call RESPONSE (`get_maps`); the framework calls the service at the async discovery boundaries, flattens it, and caches it for the sync path (see `rooms/source_refresh.py`). |
 | `room_list_entity` | `str` | `"vacuum_entity"` | Which entity exposes the list. Special value `"vacuum_entity"` means read from the vacuum entity itself; otherwise supply a full entity ID. |
 | `room_list_attribute` | `str` | – | Attribute name on the entity that contains the list. Expected to be a `list[dict]`. |
 | `room_id_key` | `str` | – | Key in each room dict that contains the room ID. Eufy: `"id"`. Roborock: `"segment_id"`. |
 | `room_name_key` | `str` | – | Key in each room dict that contains the room name. Usually `"name"`. |
+| `maps_service` | `dict` | – | For `source: "service_response"`: the response-returning service that lists maps + rooms, as `{"domain": str, "service": str}`, called with the vacuum entity as target and `return_response=True`. Roborock: `{"domain": "roborock", "service": "get_maps"}`. |
+| `maps_rooms_key` | `str` | – | For `source: "service_response"`: key in each map entry of the service response that holds the rooms (may be a `{segment_id_str: name}` mapping, flattened to list-of-dicts). Roborock: `"rooms"`. |
+| `map_name_key` | `str` | – | For `source: "service_response"`: key in each map entry that holds the map's identity; the flattened cache is keyed by this value, which must match what `entities.active_map` reports. Roborock: `"name"`. |
 | `auto_refresh_on` | `list[str]` | `["vacuum_docked", "active_map_changed", "config_entry_reload"]` | Event triggers that automatically run discovery. Closed enum; see runtime notes below. |
 | `auto_refresh_interval_seconds` | `int` | `21600` (6h) | Periodic safety-net discovery interval. `0` disables the floor. |
 | `removal_confirmation_passes` | `int` | `3` | Consecutive discovery passes a configured room must be absent from before the framework flags it as removed. Prevents transient API glitches from producing spurious "room removed" notifications. |
 | `new_room_confirmation_passes` | `int` | `1` | Consecutive passes a new room must appear in before being flagged for user review. Default `1` surfaces immediately. |
+
+`room_list_entity` / `room_list_attribute` apply only when
+`source: "entity_attribute"` (the default); `maps_service` /
+`maps_rooms_key` / `map_name_key` apply only when
+`source: "service_response"`.
 
 ### Auto-discovery cadence and drift detection
 
@@ -1650,8 +1661,13 @@ supports_mop_features      supports_water_control     supports_path_control
 supports_edge_mopping      supports_mop_wash          supports_mop_dry
 supports_empty_dust        supports_robot_position    supports_station_water
 position_lock_reliable     rooms_unique_per_job       honors_clean_order
-supports_base_station      supports_map_bounds        supports_room_profiles
+supports_room_profiles
 ```
+
+> `supports_base_station` and `supports_map_bounds` are **not** capability
+> schema keys — no adapter declares them and they are absent from
+> `adapters/config_schema.py`. They are **snapshot-derived** signals; see the
+> note below.
 
 ### Example
 
@@ -1678,16 +1694,30 @@ supports_base_station      supports_map_bounds        supports_room_profiles
 ```
 
 > **Roborock-introduced behavioral flags (Eufy omits → the defaults, so Eufy is
-> unchanged).** All four describe firmware behavior an entity probe can't see:
+> unchanged).** Both describe firmware behavior an entity probe can't see:
 >
 > - `honors_clean_order` (default `True`) — `False` for a path-optimizing brand
 >   (the S6). Gates the opt-in **strict-order** sequenced-clean mode and the
 >   run-start "order is advisory" note. Read in `planning/run_plan.py`.
-> - `supports_base_station` / `supports_map_bounds` (default `True` = shown) —
->   capability-gate the card's Base Station / Map Bounds tabs (S6 = both `False`).
->   Surfaced via `core/manager.py::get_dashboard_snapshot`.
 > - `supports_room_profiles` (default `True`) — `False` drops per-room profile
 >   templates (the S6: mop unsettable, passes global).
+>
+> **`supports_base_station` / `supports_map_bounds` are not capability flags —
+> they are snapshot-DERIVED** in `core/manager.py::get_dashboard_snapshot`
+> (lines 3648-3661), not read from the `capabilities` block (no adapter declares
+> them):
+>
+> - `supports_base_station` = `bool(dock_events.enabled)` OR any of
+>   `supports_mop_wash` / `supports_mop_dry` / `supports_empty_dust` /
+>   `supports_station_water`. Eufy (X10 dock) resolves `True`; the Roborock S6
+>   (no dock caps) resolves `False`.
+> - `supports_map_bounds` = the adapter's `mapping.segmenter_engine` is present
+>   and not `"noop_fallback"`. Eufy (`"eufy_cv_v1"`) resolves `True`; the S6
+>   (`"noop_fallback"`) resolves `False`.
+>
+> Both default to **shown** when the derivation is absent, and gate the card's
+> Base Station / Map Bounds tabs — but via the derivation, not an
+> adapter-declared boolean.
 >
 > The remaining Roborock-introduced keys live in their own blocks. Two are
 > documented in §13 above: `dispatch.per_room_live_settings` (under

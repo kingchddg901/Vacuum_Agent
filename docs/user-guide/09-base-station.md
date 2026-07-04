@@ -40,7 +40,7 @@ If an event has never been recorded, the time field shows "No activity yet".
 
 ### Pause Timeout
 
-The **Pause Timeout** section lets you set the default number of minutes the card will wait before automatically resuming or handling a paused run. Four options are available: **15 min**, **30 min**, **45 min**, and **60 min**. The currently active value is highlighted. Clicking a different value saves the change to the backend immediately.
+The **Pause Timeout** section lets you set the default number of minutes a run may remain paused before it is automatically **cancelled** — not resumed. When the timeout elapses, a background watchdog (checked once a minute) cancels the active job and finalizes it with cancellation metadata; it never resumes the paused run. Four options are available: **15 min**, **30 min**, **45 min**, and **60 min**. The currently active value is highlighted. Clicking a different value saves the change to the backend immediately.
 
 ### Dock Actions
 
