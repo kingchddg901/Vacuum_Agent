@@ -112,6 +112,8 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     caps = out.get("capabilities") or {}
     entity_res = out.get("entity_resolution") or {}
     vstate = out.get("vacuum_state") or {}
+    adapter = out.get("adapter") or {}
+    brand = adapter.get("brand")
 
     active_map_role = entity_res.get("active_map") or {}
     has_active_map_entity = bool(active_map_role.get("exists"))
@@ -119,8 +121,50 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     seg_count = vstate.get("segment_count")
     has_segments = isinstance(seg_count, int) and seg_count > 0
 
+    # Real, brand-agnostic room presence: rooms already imported (managed_rooms_by_map),
+    # any stored map carrying a room_count, the Eufy `segments` attribute, or an
+    # active-map entity. Roborock's rooms come from its OWN integration and show up
+    # in maps/managed_rooms — NOT via a Eufy transport signal — so the old check that
+    # only looked at active_map + segments wrongly reported "no rooms" for a working
+    # device.
+    managed = out.get("managed_rooms_by_map") or {}
+    imported_rooms = sum(
+        int(m.get("room_count") or 0)
+        for m in managed.values()
+        if isinstance(m, dict)
+    )
+    maps_block = out.get("maps") or {}
+    map_rooms = sum(
+        int(m.get("room_count") or 0)
+        for m in (maps_block.get("maps") or [])
+        if isinstance(m, dict)
+    )
+    room_total = imported_rooms or map_rooms
+    has_rooms = bool(room_total or has_segments or has_active_map_entity)
+
+    # Rooms sourced OUTSIDE the Eufy transport (no active_map sensor, no segments
+    # attribute) => a native brand integration (e.g. Roborock) provides them.
+    native_rooms = has_rooms and not has_active_map_entity and not has_segments
+
+    # Map availability, brand-agnostic: Eufy's active_map entity, or a decoded raster
+    # from the raw-map decode (the same layer that feeds Roborock zone-draw).
+    drift = out.get("roborock_geometry_drift") or {}
+    has_decoded_map = bool(drift.get("present"))
+
+    # supports_room_clean is the true "can this device clean rooms" capability (always
+    # True on Roborock); supports_rooms is the Eufy-shaped "how Eufy exposes rooms" flag.
+    supports_room_clean = bool(caps.get("supports_room_clean") or caps.get("supports_rooms"))
+
     if has_active_map_entity:
         transport = "full (novel / MQTT) — active_map sensor present"
+    elif native_rooms:
+        transport = (
+            f"native integration ({brand}) — rooms and map come from the {brand} "
+            "integration, not a Eufy transport"
+            if brand
+            else "native integration — rooms and map come from the device's own "
+            "HA integration, not a Eufy transport"
+        )
     elif has_segments:
         transport = (
             "attribute-mode (reduced / scalar-Tuya) — no active_map sensor; "
@@ -131,13 +175,18 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
             "unknown — no active_map sensor and no room segments visible yet"
         )
 
-    if caps.get("supports_rooms"):
+    if has_rooms and supports_room_clean:
         if has_active_map_entity:
             room_control = "available (via active map)"
         elif has_segments:
             room_control = f"available (via segments attribute — {seg_count} rooms)"
+        elif room_total:
+            src = f"the {brand} integration" if brand else "the device's integration"
+            room_control = f"available (via {src} — {room_total} rooms)"
         else:
-            room_control = "reported available, but no rooms are visible yet"
+            room_control = "available"
+    elif supports_room_clean:
+        room_control = "reported available, but no rooms are visible yet"
     else:
         room_control = "unavailable (no room source detected)"
 
@@ -145,6 +194,17 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
         map_image = (
             "active_map sensor present — live-map backdrop available when the "
             "eufy-clean fork provides a map camera"
+        )
+    elif has_decoded_map:
+        who = f"the {brand}" if brand else "the device's"
+        map_image = (
+            f"available — {who} map is decoded locally to a room raster "
+            "(live-map backdrop + zone draw work)"
+        )
+    elif native_rooms:
+        map_image = (
+            "pending — no decoded map yet; open the live map or finish a mapping "
+            "run once so the raw map can be decoded to a room raster"
         )
     else:
         map_image = (
@@ -161,12 +221,20 @@ def _self_check(out: dict[str, Any]) -> dict[str, Any]:
     else:
         model_detection = "generic (model not detected)"
 
-    importable = bool(caps.get("supports_rooms")) and (
-        bool(out.get("active_map_id")) or has_segments
-    )
+    importable = has_rooms
 
     if has_active_map_entity:
         note = "Standard transport — maps, rooms and the live map all work."
+    elif native_rooms:
+        base = f"{brand} device" if brand else "Native-integration device"
+        note = (
+            f"{base} — rooms come from its own HA integration and per-room clean "
+            + (
+                "+ zone draw work; the map is decoded locally to a room raster."
+                if has_decoded_map
+                else "works. Open the live map once so the raw map can be decoded."
+            )
+        )
     elif has_segments:
         note = (
             "No active_map sensor — your robot is on Eufy's reduced (scalar/Tuya) "
@@ -215,6 +283,19 @@ def _vacuum_diagnostics(
     # Capability flags (the entities sub-dict is already expanded above).
     if isinstance(caps, dict):
         out["capabilities"] = {k: v for k, v in caps.items() if k != "entities"}
+
+    # Adapter identity (brand) — lets _self_check phrase native-integration brands
+    # (e.g. Roborock, whose rooms/map come from their OWN HA integration rather than
+    # a Eufy transport) correctly instead of reporting Eufy-shaped 'unknown/unavailable'
+    # for a device whose rooms actually work. Best-effort; absent -> generic phrasing.
+    try:
+        from .adapters.registry import get_adapter_config as _get_cfg
+
+        _cfg = _get_cfg(vacuum_entity_id) or {}
+        if isinstance(_cfg, dict) and _cfg.get("brand"):
+            out["adapter"] = {"brand": _cfg.get("brand")}
+    except Exception:  # pragma: no cover - defensive
+        pass
 
     # Raw provider vacuum entity — state + the attributes discovery reads.
     v_state = hass.states.get(vacuum_entity_id)

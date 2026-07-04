@@ -22,6 +22,11 @@ Coverage targets
           stripped, vacuum_state.rooms (== segments) dropped.
 [DIAG-8]  self_check interprets the scalar/Tuya transport (no active_map entity
           but rooms via segments) into plain-English status lines, surfaced first.
+[DIAG-9]  self_check on a native-brand integration (Roborock): rooms come from its
+          own integration + the raw map decodes to a raster -> reports rooms/map
+          WORKING (brand-named), not the Eufy-shaped 'unknown/unavailable/no'.
+[DIAG-10] Same native brand, map not yet decoded + brand string absent: rooms still
+          read working, map reads 'pending', phrasing degrades to generic.
 """
 
 from __future__ import annotations
@@ -38,6 +43,7 @@ from custom_components.eufy_vacuum.const import (
     DOMAIN,
 )
 from custom_components.eufy_vacuum.diagnostics import (
+    _self_check,
     async_get_config_entry_diagnostics,
 )
 
@@ -329,3 +335,65 @@ async def test_diagnostics_self_check_attribute_mode(hass):
     assert sc["model_detection"] == "T2351 → x10"
     # Surfaced as the first signal, right after the id.
     assert list(vac.keys())[:2] == ["vacuum_entity_id", "self_check"]
+
+
+def test_self_check_roborock_native_brand():
+    """[DIAG-9] Roborock: rooms come from its own integration (no active_map sensor,
+    no `segments` attribute) and the raw map decodes to a raster. The summary must
+    report rooms + map WORKING — not the Eufy-shaped 'unknown / unavailable / no'
+    that the old transport-only heuristic produced for a device whose rooms work.
+
+    Pure function of `out` (the exact shape _vacuum_diagnostics assembles for Ivy),
+    so no hass / adapter registry needed."""
+    out = {
+        "capabilities": {
+            "detected_model": "roborock.vacuum.s6",
+            "model_family": "generic",
+            "supports_room_clean": True,   # true "can clean rooms" capability
+            "supports_rooms": False,       # Eufy-shaped exposure flag — False here
+        },
+        "entity_resolution": {"active_map": {"exists": False}},  # no active_map sensor
+        "vacuum_state": {"segment_count": None},                 # no Eufy segments attr
+        "adapter": {"brand": "Roborock"},
+        "maps": {"map_count": 1, "maps": [{"map_id": "Main floor", "room_count": 10}]},
+        "managed_rooms_by_map": {"Main floor": {"room_count": 10}},
+        "roborock_geometry_drift": {"present": True, "aligned": True},
+        "active_map_id": None,
+    }
+
+    sc = _self_check(out)
+
+    # transport: native-integration, brand-named — NOT "unknown".
+    assert "native integration" in sc["transport"] and "Roborock" in sc["transport"]
+    assert "unknown" not in sc["transport"]
+    # rooms: available via the brand integration, importable — NOT "unavailable".
+    assert sc["room_control"].startswith("available") and "10 rooms" in sc["room_control"]
+    assert sc["rooms_importable"] == "yes"
+    # map: decoded raster available — NOT "unavailable / needs the fork".
+    assert "decoded" in sc["map_image"] and "unavailable" not in sc["map_image"]
+    assert "eufy-clean fork" not in sc["map_image"]
+    assert sc["model_detection"] == "roborock.vacuum.s6 → generic"
+    assert "Roborock device" in sc["note"]
+
+
+def test_self_check_native_brand_map_pending():
+    """[DIAG-10] Same native brand but the raw map hasn't decoded yet (no drift block):
+    rooms still read as working, map reads 'pending' (not a Eufy-fork message), and a
+    missing brand string degrades to generic 'native integration' phrasing."""
+    out = {
+        "capabilities": {"supports_room_clean": True},
+        "entity_resolution": {"active_map": {"exists": False}},
+        "vacuum_state": {"segment_count": None},
+        # no "adapter" key -> brand unknown
+        "maps": {"map_count": 1, "maps": [{"map_id": "Main floor", "room_count": 7}]},
+        "managed_rooms_by_map": {"Main floor": {"room_count": 7}},
+        "active_map_id": None,
+    }
+
+    sc = _self_check(out)
+
+    assert "native integration" in sc["transport"]
+    assert sc["room_control"].startswith("available") and "7 rooms" in sc["room_control"]
+    assert sc["rooms_importable"] == "yes"
+    assert "pending" in sc["map_image"] and "eufy-clean fork" not in sc["map_image"]
+    assert "Native-integration device" in sc["note"]
