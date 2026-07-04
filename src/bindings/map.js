@@ -11,7 +11,7 @@
  */
 
 import { VIEWS } from "../render-cycle.js";
-import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N, hexToRgb } from "../cards/map-room-color.js";
+import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-texture-registry.js";
 import { resolveFloorType } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
@@ -536,7 +536,13 @@ export function applyMapBindings(proto) {
       const base = resolved[baseIdx >= 0 ? baseIdx : 0].color;
       const tex = compositeFloorTexture(
         W, H, base,
-        resolved.map((r, i) => ({ lum: lumArrays[i], color: r.color, opacity: r.opacity })),
+        // Fold the color's own alpha (8-hex / oklch can carry one) into the layer opacity —
+        // that's what the CSS card does implicitly, so the material tones match.
+        resolved.map((r, i) => ({
+          lum: lumArrays[i],
+          color: r.color,
+          opacity: r.opacity * (Number.isFinite(r.color?.[3]) ? r.color[3] : 1),
+        })),
       );
       this._floorTexCache.set(texKey, tex);
       ready.set(ft, tex);
@@ -569,17 +575,45 @@ export function applyMapBindings(proto) {
     return lum;
   };
 
+  /* Parse ANY CSS color string (hex 3/6/8, rgb()/hsl(), oklch(), named) to [r,g,b,a] via the
+     browser's OWN parser (a cached 1×1 scratch canvas). The registry uses 8-digit hex (e.g.
+     wood base #7A4010cf) and oklch() — the old hexToRgb only groks 3/6-digit hex and fell back
+     to GREY [128,128,128] for the rest, which is why the canvas floor rendered flat grey while
+     the CARDS (CSS, full color support) rendered fine. Returns null on an unparseable value. */
+  proto._parseCssColor = function (str) {
+    if (str == null || str === "") return null;
+    let ctx = this._colorScratchCtx;
+    if (!ctx) {
+      if (typeof document === "undefined") return null;
+      try {
+        const c = document.createElement("canvas");
+        c.width = 1; c.height = 1;
+        ctx = c.getContext("2d", { willReadFrequently: true });
+      } catch (_e) { return null; }
+      this._colorScratchCtx = ctx;
+    }
+    if (!ctx) return null;
+    try {
+      ctx.fillStyle = "#000";
+      ctx.fillStyle = String(str);   // an invalid value is IGNORED (fillStyle keeps its prior)
+      ctx.fillRect(0, 0, 1, 1);
+      const d = ctx.getImageData(0, 0, 1, 1).data;
+      return [d[0], d[1], d[2], d[3] / 255];
+    } catch (_e) { return null; }
+  };
+
   /* Resolve a floor layer's color token off the canvas (which inherits the theme vars),
-     falling back to the registry default. Mirrors roomFillRgb's read-then-parse. */
+     falling back to the registry default. Returns [r,g,b,a]; the caller folds the alpha into
+     the layer opacity so an 8-hex / oklch color with alpha reads the same as it does on the card. */
   proto._resolveFloorColor = function (token, dflt, host) {
-    let hex = dflt;
+    let str = dflt;
     try {
       if (host && typeof getComputedStyle === "function") {
         const v = getComputedStyle(host).getPropertyValue(token).trim();
-        if (v) hex = v;
+        if (v) str = v;
       }
     } catch (_e) { /* detached / no CSSOM — keep the default */ }
-    return hexToRgb(hex);
+    return this._parseCssColor(str) || this._parseCssColor(dflt) || [128, 128, 128, 1];
   };
 
   /* Resolve a floor layer's opacity token (0..1), falling back to the registry default. */
