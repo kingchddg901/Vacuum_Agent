@@ -273,6 +273,23 @@ def _vacuum_diagnostics(
             "run Setup → Import Active Map."
         )
 
+    # Roborock raw-map decode validation. Both geometry paths derive from the SAME segment
+    # layer — the parser's per-room bboxes (rooms_from_mapdata) and our raw-blob raster decode
+    # — so overlaying them checks the decode: `aligned` => correct on this device (rid /
+    # orientation / frame); a systematic centre_delta is the pose/coord calibration signal (a
+    # constant offset = the parser's trim, an inverted axis = a flip). Only the roborock memory
+    # backend carries the raw blob; absent/no-op elsewhere. Best-effort, never raises.
+    try:
+        from .adapters.registry import get_adapter_config as _get_cfg
+        from .mapping import map_source_runtime as _msr
+
+        _src = (_get_cfg(vacuum_entity_id) or {}).get("map_state_source")
+        if isinstance(_src, dict) and _src.get("backend") == "memory":
+            _cands = _msr.roborock_candidates(hass, _src)
+            out["roborock_geometry_drift"] = _msr.roborock_geometry_drift_from_candidates(_cands)
+    except Exception as err:  # pragma: no cover - defensive
+        out["roborock_geometry_drift_error"] = repr(err)
+
     # Upkeep (maintenance / dock) — side-effect-free. The per-item care guides
     # (static how-to-clean steps) are stripped: model boilerplate with no
     # diagnostic value that otherwise dominates the dump's size.
