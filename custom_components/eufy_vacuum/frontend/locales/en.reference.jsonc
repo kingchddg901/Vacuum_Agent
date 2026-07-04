@@ -792,7 +792,9 @@
     "no_active_map": "No active map found",
     "save_failed": "Save failed",
     "save_failed_reason": "Save failed: {reason}",
-    "variant_image_deleted": "{variant} image deleted"  // {variant}=map-image variant name (Dark/Light/Default), capitalized at call site
+    "variant_image_deleted": "{variant} image deleted",  // {variant}=map-image variant name (Dark/Light/Default), capitalized at call site
+    "image_too_large": "Image too large even after resizing — please pick a smaller image.",  // map-image upload rejected: payload still over HA's 4 MiB WS-frame limit after client downscale. Feeds an escapeHtml sink → keyed via tRaw
+    "upload_failed_generic": "Upload failed"  // generic fallback when a map-image upload throws with no usable message
   },
   "bind_room_access": {
     "backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
@@ -1818,6 +1820,13 @@
     "access_not_set": "Access not set",
     "another_room": "another room",
     "battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
+    "block_reason": {
+      "no_rooms_included": "No rooms included.",  // start blocked: no rooms enabled for this map. Reason CODE from state/rooms.js, localized in the renderer
+      "already_cleaning": "Already cleaning.",  // start blocked: a clean is already running
+      "returning_to_dock": "Returning to dock.",  // start blocked: vacuum is returning to its dock
+      "vacuum_error": "Vacuum has an error.",  // start blocked: vacuum is in an error state
+      "start_blocked": "Start is blocked."  // start blocked: generic fallback when no more specific reason is available
+    },
     "blocked_fallback": "Blocked",
     "blocked_rooms": "Blocked Rooms",
     "cancel_run": "Cancel Run",
