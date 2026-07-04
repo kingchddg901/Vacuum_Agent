@@ -724,6 +724,10 @@ export function applyRoomsState(proto) {
     const lastMoppedAt = attrs.last_mopped_at ?? null;
     const lastJobMode = attrs.last_job_mode ?? null;
 
+    // Per-room map fill override ("#rrggbb" or null). The map render paths read `room.color`;
+    // the resolver defensively re-validates, so a stray value just falls through to the palette.
+    const color = attrs.color ?? null;
+
     return {
       id: roomId,
       mapId,
@@ -731,6 +735,7 @@ export function applyRoomsState(proto) {
       slug,
       enabled: isEnabled,
       order,
+      color,
       profileName,
       profileLabel,
       profileSubtitle,

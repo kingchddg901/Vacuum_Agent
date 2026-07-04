@@ -160,6 +160,7 @@ class RoomRecord(TypedDict, total=False):
     is_dock_room: bool
     grants_access_to: list      # list[str] — room slugs this room grants access to
     rules: list                 # list[dict] — scheduling/condition rules
+    color: Optional[str]        # "#rrggbb" per-room map fill override, or None/absent for the palette
 
 
 @dataclass(slots=True)
@@ -199,6 +200,10 @@ class RoomConfig:
     # signals, and other consumer paths. See setup/drift.py.
     is_configured: bool = False
     configured_at: Optional[str] = None
+
+    # Per-room map fill color override — a canonical "#rrggbb" (lowercased) or None to use the
+    # themeable room-fill palette. Purely presentational; see docs/dev/themeable-map-palette.md.
+    color: Optional[str] = None
 
     def as_dict(self) -> dict[str, Any]:
         """Return the room config as a dictionary."""

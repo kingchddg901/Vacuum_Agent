@@ -4,11 +4,14 @@
  * ============================================================
  *
  * Renders the room editor modal — profile selector, clean mode,
- * suction, water level, intensity, passes, and edge mop fields.
- * Carpet-locked rooms suppress mop fields and show a notice.
+ * suction, water level, intensity, passes, edge mop, and per-room
+ * map-color fields. Carpet-locked rooms suppress mop fields and show
+ * a notice.
  *
  * ============================================================
  */
+
+import { normalizeHex, roomFillDefault } from "../cards/map-room-color.js";
 
 /**
  * Mix room editor renderer methods onto the given prototype.
@@ -78,6 +81,7 @@ export function applyRoomEditorRenderer(proto) {
             ${this._renderPassesField(fields, state.maxCleanPasses(), state.passesIsGlobal())}
             ${state.showEdgeMopping() ? this._renderEdgeMoppingField(fields) : ""}
             ${this._renderTransitionField(room)}
+            ${this._renderRoomColorField(room, fields)}
 
           </div>
 
@@ -406,6 +410,48 @@ export function applyRoomEditorRenderer(proto) {
             data-field="edge_mopping"
             data-value="false"
           >${this.t("common.off")}</button>
+        </div>
+      </div>
+    `;
+  };
+
+  /**
+   * Per-room map fill color override. A native <input type="color"> is the swatch (it opens the
+   * OS picker at the input, no positioning hack needed). Buffered in editorFields like the other
+   * settings and persisted on Save. With no override the swatch previews the room's default palette
+   * slot (by room id, the raster convention) and the picker opens there; a "reset" clears back to
+   * the palette. See docs/dev/themeable-map-palette.md.
+   */
+  proto._renderRoomColorField = function (room, fields) {
+    const override = normalizeHex(fields.color);
+    const fallback = roomFillDefault(Number(room.id) - 1);   // this room's default palette color
+    const inputValue = override || fallback;
+    const hasOverride = !!override;
+    // When unset, the swatch still previews the room's CURRENT (palette) color so the picker opens
+    // there — the --unset class dashes the swatch + mutes the label so it reads as "not a custom
+    // pick" rather than an already-set override.
+    return `
+      <div class="evcc-editor-field-group evcc-editor-field-group--color">
+        <div class="evcc-field-label">${this.t("room_editor.color_label")}</div>
+        <div class="evcc-room-color-row${hasOverride ? "" : " evcc-room-color-row--unset"}">
+          <input
+            type="color"
+            class="evcc-room-color-input"
+            data-room-color-input
+            value="${this.escapeHtml(inputValue)}"
+            title="${this.t("room_editor.color_pick_title")}"
+            aria-label="${this.t("room_editor.color_label")}"
+          />
+          <span class="evcc-room-color-value">
+            ${hasOverride ? this.escapeHtml(override) : this.t("room_editor.color_default")}
+          </span>
+          ${hasOverride ? `
+            <button
+              type="button"
+              class="evcc-chip evcc-room-color-reset"
+              data-action="reset-room-color"
+            >${this.t("room_editor.color_reset")}</button>
+          ` : ""}
         </div>
       </div>
     `;

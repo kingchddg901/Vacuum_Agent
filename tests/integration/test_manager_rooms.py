@@ -184,6 +184,43 @@ async def test_update_room_fields_clean_mode(manager):
     assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["clean_mode"] == "mop"
 
 
+async def test_update_room_fields_color_set(manager):
+    """[MR-7d] a per-room color override is stored, and a color-only change persists (updated=True)."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    result = manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, color="#00e5ff"
+    )
+    assert result.get("ok") is not False
+    assert result["updated"] is True  # a color-only change must fire async_save
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["color"] == "#00e5ff"
+
+
+async def test_update_room_fields_color_clear(manager):
+    """[MR-7e] color=None clears the override back to null."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, color="#ff6b35"
+    )
+    manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, color=None
+    )
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["color"] is None
+
+
+async def test_update_room_fields_color_untouched_when_absent(manager):
+    """[MR-7f] the _UNSET sentinel: an update that omits color must NOT wipe an existing color."""
+    setup_map(manager, _VAC, _MAP, count=2)
+    manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, color="#a3e635"
+    )
+    # A later update touching only fan_speed (no color kwarg) must leave color intact.
+    manager.update_room_fields(
+        vacuum_entity_id=_VAC, map_id=_MAP, room_id=1, fan_speed="quiet"
+    )
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["color"] == "#a3e635"
+    assert manager.data["maps"][_VAC][_MAP]["rooms"]["1"]["fan_speed"] == "quiet"
+
+
 async def test_update_room_fields_invalid_access_graph_rejected(manager):
     """[MR-10b] a structurally-illegal access-graph change (a second dock room)
     is rejected with an error payload AND the room is rolled back, not saved."""

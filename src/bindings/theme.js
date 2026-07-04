@@ -1097,6 +1097,20 @@ export function applyThemeBindings(proto) {
             if (resolved) {
               picker.value = resolved;
             }
+            // Anchor the native colour popup at the tap point. The input is
+            // position:absolute with no offsets, so it otherwise sits at the
+            // bottom of the row and the popup opens there — low in the viewport
+            // and often clipped ("almost unusable"). Move it under the cursor
+            // first, measured against its offsetParent so it stays correct
+            // through transforms/scroll. offsetParent is null for a shadow-DOM
+            // input with no positioned ancestor, in which case absolute resolves
+            // against the viewport and clientX/clientY are already right.
+            const anchor = picker.offsetParent;
+            const arect = anchor
+              ? anchor.getBoundingClientRect()
+              : { left: 0, top: 0 };
+            picker.style.left = `${startX - arect.left}px`;
+            picker.style.top = `${startY - arect.top}px`;
             picker.click();
           }
         }

@@ -290,22 +290,26 @@ export const mapStyles = `
     position:       absolute;
     box-sizing:     border-box;
     border:         2px solid var(--evcc-accent, #3b82f6);
-    background:     rgba(59, 130, 246, 0.12);
+    background:     rgba(59, 130, 246, 0.10);
     border-radius:  2px;
+    /* Light+dark CASING so the box reads over ANY room colour (incl. an accent-hued room
+       where the accent border alone would vanish) — the map-route-casing trick: a white ring
+       pops on dark rooms, the dark ring pops on light rooms, one is always visible. */
+    box-shadow:     0 0 0 1px rgba(255, 255, 255, 0.85), 0 0 0 2px rgba(0, 0, 0, 0.55);
     pointer-events: none;
     z-index:        3;
   }
   .evcc-zone-rect-num {
     position:      absolute;
-    top:           1px;
+    top:           2px;
     left:          2px;
     font-size:     10px;
     font-weight:   700;
     line-height:   1;
     color:         #fff;
-    background:     var(--evcc-accent, #3b82f6);
+    background:     rgba(15, 18, 22, 0.85);   /* neutral dark pill — always legible on any room */
     border-radius: 3px;
-    padding:       1px 3px;
+    padding:       1px 4px;
   }
 
   /* HIDDEN REGIONS — user-drawn masks covering map noise (a porch off a room). Opaque map-bg
@@ -803,6 +807,9 @@ export const mapStyles = `
     stroke-dasharray: 5 3;
     vector-effect:    non-scaling-stroke;
     pointer-events:   none;
+    /* Dark halo so the box reads over a same-hued room too (SVG casing-lite; the stroke colour
+       is a theme token, but this keeps it visible whatever colour it — or the room — is). */
+    filter:           drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
   }
   .evcc-map-ov-savedzone--selected {
     fill-opacity:     0.30;

@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { roomFillCss, normalizeHex } from "../cards/map-room-color.js";
+
 /* =========================================================
    VACUUM STATE → ANIMAL POSE
    =========================================================
@@ -66,11 +68,8 @@ function _savedZoneBbox(zone) {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
-const _SEGMENT_COLORS = [
-  "#00e5ff", "#ff6b35", "#a3e635", "#e879f9",
-  "#fbbf24", "#a78bfa", "#fb7185", "#34d399",
-  "#60a5fa", "#f472b6", "#4ade80", "#f97316",
-];
+// Room-fill colors now resolve through the shared themeable palette (roomFillCss) — the
+// hardcoded _SEGMENT_COLORS array moved to cards/map-room-color.js as ROOM_FILL_PALETTE.
 
 // Stable variant keys only — the human label + ranking hint are localized at
 // the render site (`map.variant_<key>_label` / `_hint`), so no English lives here.
@@ -204,12 +203,18 @@ export function applyMapRenderers(proto) {
                 const room   = roomId != null ? rooms.find((r) => String(r.id) === String(roomId)) : null;
                 const label  = room?.name ?? seg.name ?? seg.label ?? this.t("map.segment_fallback", { id: seg.segment_id });
                 const hint   = room ? this.t("map.segment_hint_configurable") : this.t("map.segment_hint_queue");
-                return this._renderMapSegmentPolygon(seg, selectedIds, i, label, hint);
+                return this._renderMapSegmentPolygon(seg, selectedIds, i, label, hint, room?.color);
               }).join("")}
               ${typeof this._renderFloorTexturePolygon === "function"
-                ? segments.map((seg, i) =>
-                    this._renderFloorTexturePolygon(seg, segFloorTypes[i])
-                  ).join("")
+                ? segments.map((seg, i) => {
+                    // A per-room color OVERRIDE is the room's chosen fill, so it wins over the floor
+                    // texture — skip the texture polygon, which otherwise covers the recolored raster
+                    // and lets the override peek only at the edge. Net-zero for un-overridden rooms.
+                    const rid = state.roomIdForSegment(seg.segment_id);
+                    const room = rid != null ? rooms.find((r) => String(r.id) === String(rid)) : null;
+                    if (room && normalizeHex(room.color)) return "";
+                    return this._renderFloorTexturePolygon(seg, segFloorTypes[i]);
+                  }).join("")
                 : ""}
               ${deviceOverlays ? this._renderDeviceOverlaySvg(state) : ""}
             </svg>
@@ -798,12 +803,12 @@ export function applyMapRenderers(proto) {
      SEGMENT POLYGON
      ========================================================= */
 
-  proto._renderMapSegmentPolygon = function (seg, selectedIds, segIndex, label, hint) {
+  proto._renderMapSegmentPolygon = function (seg, selectedIds, segIndex, label, hint, overrideColor) {
     const polygon = seg.polygon_pct;
     if (!Array.isArray(polygon) || polygon.length < 3) return "";
 
     const isSelected = selectedIds.has(String(seg.segment_id));
-    const color = _SEGMENT_COLORS[segIndex % _SEGMENT_COLORS.length];
+    const color = roomFillCss(segIndex, overrideColor);   // per-room override > theme palette > default
     const points = polygon.map(([x, y]) => `${x},${y}`).join(" ");
 
     return `<polygon
@@ -1040,6 +1045,8 @@ export function applyMapRenderers(proto) {
     const summary        = { ...(segmentsData?.summary ?? {}), analyzed_at: segmentsData?.analyzed_at };
     const actionStatus   = state.mapActionStatus?.() ?? null;
     const isCustom       = (state.segmentationMode?.() ?? "cv") === "custom";
+    // Per-room fill overrides, so the config editor shows the same room colors as the live map.
+    const rooms          = state.getRoomsForActiveMap?.() ?? [];
 
     // Config mode shares the same zoom state as the rooms view — same
     // bindings drive it, same toolbar reflects it. The .evcc-map-layers
@@ -1091,7 +1098,9 @@ export function applyMapRenderers(proto) {
                        ? this._renderComposerShapes(state)
                        : segments.map((seg, i) => {
                            const isThis = String(seg.segment_id) === String(selectedId ?? "");
-                           return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null, zoom);
+                           const rid = state.roomIdForSegment(seg.segment_id);
+                           const room = rid != null ? rooms.find((r) => String(r.id) === String(rid)) : null;
+                           return this._renderConfigPolygon(seg, selectedId, i, isThis ? (state.configSelectedVertexIndex?.() ?? null) : null, zoom, room?.color);
                          }).join("")}
                    </svg>
                  </div>
@@ -1139,12 +1148,12 @@ export function applyMapRenderers(proto) {
      CONFIG POLYGON
      ========================================================= */
 
-  proto._renderConfigPolygon = function (seg, selectedId, segIndex, selectedVertexIdx, zoom = 1) {
+  proto._renderConfigPolygon = function (seg, selectedId, segIndex, selectedVertexIdx, zoom = 1, overrideColor) {
     const polygon = seg.polygon_pct;
     if (!Array.isArray(polygon) || polygon.length < 3) return "";
 
     const isSelected = String(seg.segment_id) === String(selectedId ?? "");
-    const color = _SEGMENT_COLORS[segIndex % _SEGMENT_COLORS.length];
+    const color = roomFillCss(segIndex, overrideColor);   // per-room override > theme palette > default
     const points = polygon.map(([x, y]) => `${x},${y}`).join(" ");
     const segIdStr = this.escapeHtml(String(seg.segment_id));
 

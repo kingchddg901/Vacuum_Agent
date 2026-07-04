@@ -50,6 +50,10 @@ from .storage import EufyVacuumStorage
 
 _LOGGER = logging.getLogger(__name__)
 
+# Sentinel for optional update params where None is a MEANINGFUL value (e.g. clearing a per-room
+# color override) and so can't double as "argument not provided". `is _UNSET` distinguishes the two.
+_UNSET: Any = object()
+
 # Grace window before an app-started (external) run is finalized once the robot
 # reaches the dock: it may be docking MID-run (mop prewash, recharge) and about to
 # resume. If it resumes within this window the run stays one record (the dock
@@ -1226,6 +1230,7 @@ class EufyVacuumManager:
         clean_intensity: str | None = None,
         clean_passes: int | None = None,
         edge_mopping: bool | None = None,
+        color: str | None | Any = _UNSET,
         is_dock_room: bool | None = None,
         is_transition: bool | None = None,
         grants_access_to: list[int] | list[str] | None = None,
@@ -1282,6 +1287,12 @@ class EufyVacuumManager:
 
         if edge_mopping is not None:
             updates["edge_mopping"] = bool(edge_mopping)
+
+        # color: _UNSET => leave untouched; None/"" => clear the override; else store the (already
+        # schema-canonicalized) hex. Empty string coalesces to None so a cleared field isn't stored
+        # as "". The render paths defensively re-validate, so a stray direct value can't crash them.
+        if color is not _UNSET:
+            updates["color"] = color if color else None
 
         if is_dock_room is not None:
             updates["is_dock_room"] = bool(is_dock_room)

@@ -84,3 +84,14 @@ def test_rebuild_map_bucket():
     assert rooms["2"]["enabled"] is True      # new room defaults
     assert result["summary"]["enabled_count"] == 1
     assert result["summary"]["disabled_count"] == 1
+
+
+def test_rebuild_map_bucket_preserves_color():
+    """[MAP-5b] a map rebuild must not drop a per-room map fill color override."""
+    data: dict = {}
+    b = ensure_map_bucket(data=data, vacuum_entity_id=_VAC, map_id="6")
+    b["rooms"] = {"1": {"room_id": 1, "name": "Kitchen", "color": "#00ff00"}}
+    result = rebuild_map_bucket(
+        data=data, vacuum_entity_id=_VAC, map_id="6",
+        discovered_rooms=[{"room_id": 1, "name": "Kitchen"}])
+    assert result["rooms"]["1"]["color"] == "#00ff00"

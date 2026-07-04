@@ -86,6 +86,9 @@ export function applyRoomEditorState(proto) {
         "Quick",
       clean_passes: room.cleanPasses ?? 1,
       edge_mopping: room.edgeMopping ?? false,
+      // Per-room map fill override ("#rrggbb" or null for the themeable palette). Not a profile
+      // field — persisted straight through, no profile snapping.
+      color: room.color ?? null,
       profile_name: room.profileName ?? "vacuum_quick",
     };
 

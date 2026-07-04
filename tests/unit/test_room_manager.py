@@ -124,6 +124,20 @@ def test_build_preserves_existing_fan_speed():
     assert result["1"]["fan_speed"] == "quiet"
 
 
+def test_build_preserves_existing_color():
+    """A re-save (save_managed_rooms / setup wizard) must not wipe a per-room color override."""
+    result = build_managed_rooms(
+        discovered_rooms=[_disc(1)],
+        existing_rooms={"1": {"color": "#ff0000"}},
+    )
+    assert result["1"]["color"] == "#ff0000"
+
+
+def test_build_defaults_color_none_for_new_room():
+    result = build_managed_rooms(discovered_rooms=[_disc(2)])
+    assert result["2"]["color"] is None
+
+
 def test_build_preserves_existing_clean_passes():
     result = build_managed_rooms(
         discovered_rooms=[_disc(1)],

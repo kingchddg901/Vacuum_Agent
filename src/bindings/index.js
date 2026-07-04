@@ -249,6 +249,28 @@ export class VacuumCardBindings {
       });
     });
 
+    // Per-room color picker. Capture the pick LIVE on "input" WITHOUT re-rendering — the card also
+    // re-renders on HA state updates, and swapping the <input> while its native OS picker is open
+    // drops the pick. Commit + re-render on "change" (picker closed) so the hex + Reset appear.
+    host.querySelectorAll("[data-room-color-input]").forEach((input) => {
+      input.addEventListener("input", () => {
+        this.card._state.updateEditorField("color", input.value);
+      });
+      input.addEventListener("change", () => {
+        this.card._state.updateEditorField("color", input.value);
+        this.card._scheduleRender();
+      });
+    });
+
+    // Reset the per-room color back to the themeable palette default.
+    host.querySelectorAll("[data-action='reset-room-color']").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.card._state.updateEditorField("color", null);
+        this.card._scheduleRender();
+      });
+    });
+
     // Save room editor.
     const saveBtn = host.querySelector("[data-action='save-room-editor']");
     if (saveBtn) {

@@ -1713,6 +1713,10 @@
     "cleaning_passes": "Cleaning Passes",  // Field label: how many cleaning sweeps over the room (noun 'Passes', not the verb)
     "cleaning_path": "Cleaning Path",  // Field label for clean-INTENSITY chips (maps to clean_intensity), not the robot's route
     "cleaning_profile": "Cleaning Profile",  // label for the saved-preset selector (a reusable bundle of room settings)
+    "color_default": "Default (palette)",  // shown next to the swatch when the room has NO custom color — it uses the themeable palette
+    "color_label": "Room Color",  // field label: this room's fill color on the map; a custom color overrides the shared palette
+    "color_pick_title": "Pick a custom color for this room",  // tooltip on the color swatch/picker
+    "color_reset": "Reset",  // button: clear the custom color, revert to the themeable palette default
     "custom": "Custom",  // profile chip: settings are custom, not from a saved profile (a state, not 'Custom Profile')
     "edge_mopping": "Edge Mopping",  // On/off toggle label: mop along room edges/walls (term of art 'edge mop')
     "excluded": "Excluded",  // queue toggle state: room is OUT of this run's queue (not excluded from learning/bounds)

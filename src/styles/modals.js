@@ -270,6 +270,50 @@ export const modalStyles = `
     font-weight: 500;
   }
 
+  /* Per-room map color field: native swatch + hex readout + reset. */
+  .evcc-room-color-row {
+    display:     flex;
+    align-items: center;
+    gap:         10px;
+  }
+
+  .evcc-room-color-input {
+    inline-size:   38px;
+    block-size:    28px;
+    padding:       0;
+    border:        1px solid var(--evcc-modal-border, var(--evcc-border-default, rgba(255, 255, 255, 0.15)));
+    border-radius: 8px;
+    background:    transparent;
+    cursor:        pointer;
+    flex:          0 0 auto;
+  }
+  .evcc-room-color-input::-webkit-color-swatch-wrapper { padding: 3px; }
+  .evcc-room-color-input::-webkit-color-swatch { border: none; border-radius: 6px; }
+  .evcc-room-color-input::-moz-color-swatch { border: none; border-radius: 6px; }
+
+  /* Unset (no custom override): dash the swatch + mute the label so the palette-default
+     preview doesn't read as an already-set custom color. */
+  .evcc-room-color-row--unset .evcc-room-color-input {
+    border-style: dashed;
+    opacity:      0.7;
+  }
+  .evcc-room-color-row--unset .evcc-room-color-value {
+    font-style: italic;
+  }
+
+  .evcc-room-color-value {
+    font-family:    monospace;
+    font-size:      0.8rem;
+    text-transform: uppercase;
+    color:
+      var(--evcc-modal-text-muted,
+      var(--evcc-text-muted));
+  }
+
+  .evcc-room-color-reset {
+    margin-inline-start: auto;
+  }
+
   .evcc-room-editor-transition-callout {
     padding:       7px 11px;
     border-radius: 8px;

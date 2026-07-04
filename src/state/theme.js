@@ -57,6 +57,7 @@
 
 import { THEME_GROUPS } from "../theme-tokens/index.js";
 import { effectiveThemeTags } from "../theme-tags/index.mjs";
+import { ROOM_FILL_PALETTE } from "../cards/map-room-color.js";
 
 /**
  * Bake an alpha multiplier (0–1) into a CSS hex color string.
@@ -369,6 +370,22 @@ export function applyThemeState(proto) {
 
     // Effective active = the device override (if pinned) else the backend active.
     const activeTheme = state.library?.[this.effectiveActiveThemeId()] || null;
+
+    /* -------------------------------------------------------
+       0. SEED: ROOM-FILL PALETTE DEFAULTS
+       The room-fill tokens carry no default in styles/index.js (the map
+       render supplies its own fallback via roomFillCss/roomFillRgb). But
+       the theme editor reads its picker value from this map, so an unset
+       token would render an empty, un-openable swatch. Seed the palette
+       here so every room-fill token has a resolvable value. The seed EQUALS
+       the render's own default palette, so a themeless card is net-zero —
+       an active theme or working draft still overrides below.
+       ------------------------------------------------------- */
+    ROOM_FILL_PALETTE.forEach((hex, i) => {
+      const key = `--evcc-room-fill-${i + 1}`;
+      colorMap[key] = hex;
+      sources[key] = "default";
+    });
 
     /* -------------------------------------------------------
        1. BASE: ACTIVE THEME

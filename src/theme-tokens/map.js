@@ -48,4 +48,22 @@ export const MAP_TOKENS = [
   mapToken.color("--evcc-map-ov-dock", "Overlay: Dock Marker"),
   mapToken.color("--evcc-map-ov-obstacle", "Overlay: Obstacle Marker"),
   mapToken.color("--evcc-map-ov-area-text", "Overlay: Area Label Text"),
+  // Room-fill palette (docs/dev/themeable-map-palette.md, Phase 1). The map cycles these by
+  // room order (SVG) / room id (raster) via roomFillCss/roomFillRgb, each of which supplies the
+  // default rainbow as its OWN fallback — so a themeless card is unchanged. Unlike the other map
+  // tokens, the defaults are NOT in the styles/index.js :host block; state/theme.js resolvedTheme
+  // seeds the same palette so the editor's colour picker has a value to open. A per-room override
+  // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync.
+  mapToken.color("--evcc-room-fill-1",  "Room Fill 1"),
+  mapToken.color("--evcc-room-fill-2",  "Room Fill 2"),
+  mapToken.color("--evcc-room-fill-3",  "Room Fill 3"),
+  mapToken.color("--evcc-room-fill-4",  "Room Fill 4"),
+  mapToken.color("--evcc-room-fill-5",  "Room Fill 5"),
+  mapToken.color("--evcc-room-fill-6",  "Room Fill 6"),
+  mapToken.color("--evcc-room-fill-7",  "Room Fill 7"),
+  mapToken.color("--evcc-room-fill-8",  "Room Fill 8"),
+  mapToken.color("--evcc-room-fill-9",  "Room Fill 9"),
+  mapToken.color("--evcc-room-fill-10", "Room Fill 10"),
+  mapToken.color("--evcc-room-fill-11", "Room Fill 11"),
+  mapToken.color("--evcc-room-fill-12", "Room Fill 12"),
 ];

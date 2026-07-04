@@ -225,6 +225,7 @@ class EufyVacuumRoomEntity(Entity):
             "carpet": str(room.get("floor_type", "")).startswith("carpet"),
             "order": room.get("order", 0),
             "enabled": room.get("enabled", False),
+            "color": room.get("color"),  # per-room map fill override ("#rrggbb" or None)
             "is_dock_room": bool(room.get("is_dock_room", False)),
             "grants_access_to": grants_access_to,
             "rules": room.get("rules", []),

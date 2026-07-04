@@ -7,6 +7,7 @@ import {
   SERVICE_CLEAR_QUEUE,
   SERVICE_UPDATE_ROOM_FIELDS,
 } from "../constants.js";
+import { normalizeHex } from "../cards/map-room-color.js";
 
 export function applyRoomsActions(proto) {
   /**
@@ -334,6 +335,11 @@ export function applyRoomsActions(proto) {
     if (this.state.showEdgeMopping()) {
       payload.edge_mopping = Boolean(fields.edge_mopping);
     }
+
+    // Per-room map fill override. Always sent (canonical hex, or null to clear) — the editor is the
+    // source of truth for this room's color, so a reset must persist as an explicit clear. The
+    // backend only writes color when the key is present, so this never clobbers other callers.
+    payload.color = normalizeHex(fields.color);
 
     return this.updateRoomFields(room.id, payload);
   };

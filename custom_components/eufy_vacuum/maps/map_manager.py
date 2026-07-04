@@ -155,6 +155,7 @@ def rebuild_map_bucket(
             "path_type": previous.get("path_type"),
             "is_dock_room": bool(previous.get("is_dock_room", False)),
             "is_transition": bool(previous.get("is_transition", False)),
+            "color": previous.get("color"),  # preserve per-room map fill override across a rebuild
             "grants_access_to": list(previous.get("grants_access_to", []))
             if isinstance(previous.get("grants_access_to"), list)
             else [],

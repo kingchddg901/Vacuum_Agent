@@ -11,14 +11,11 @@
  */
 
 import { VIEWS } from "../render-cycle.js";
+import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 
-// Per-room fill palette for the VA-rendered backdrop (indexed by room id). Mirrors the
-// renderer's segment palette; Wave 2 will move these to themeable --evcc-map-ov-* tokens.
-const _VA_ROOM_COLORS = [
-  "#00e5ff", "#ff6b35", "#a3e635", "#e879f9",
-  "#fbbf24", "#a78bfa", "#fb7185", "#34d399",
-  "#60a5fa", "#f472b6", "#4ade80", "#f97316",
-];
+// The VA raster room-fill colors now resolve through the shared themeable palette
+// (roomFillRgb, reading --evcc-room-fill-N off the canvas); the hardcoded array moved to
+// cards/map-room-color.js as ROOM_FILL_PALETTE.
 
 /**
  * Mix map binding methods onto the given prototype.
@@ -267,11 +264,47 @@ export function applyMapBindings(proto) {
     canvas.height = H;
     const cctx = canvas.getContext("2d");
     if (!cctx) return;
-    // The canvas element is recreated on every view re-render (zoom/select/etc.), but
-    // the raster is static — decode ONCE per map version into an ImageData cached on
-    // the binding instance, then just putImageData onto each fresh canvas (cheap).
+    // Resolve the themeable room-fill palette ONCE (the canvas inherits the --evcc-room-fill-N
+    // tokens); a palette signature busts the cache so a theme recolor repaints. The canvas takes
+    // no CSS vars, so the raster reads the RESOLVED RGBs — unlike the SVG path, which uses var()
+    // live. Themeless => the default palette => byte-identical to the old render.
+    const palette = [];
+    for (let i = 0; i < ROOM_FILL_N; i++) palette[i] = roomFillRgb(i, canvas);
+    const paletteSig = palette.map((c) => c.join(",")).join("|");
+    // Per-room fill OVERRIDES: recolor each room's OWN pixels with its custom color, so the cascade
+    // (override > token > default) holds on the raster too — an exact per-pixel recolor, not an
+    // overlay. Bridge the raster's per-pixel rid to a room via the DEVICE-AUTHORITATIVE rid->name
+    // map the render payload already ships (rd.room_names = {rid: name}); our rooms carry that same
+    // name (it's what the labels show). Keying by room.id directly is WRONG — the raster rid and our
+    // stored room.id are DIFFERENT id spaces on real devices (empirically verified), so a room.id
+    // key lands on no pixels (or, worse, another room's). Name-mismatch just falls through to the
+    // palette — it never miscolors. Sparse array keyed by numeric rid so the hot pixel loop is a
+    // plain index read; an overrideSig busts the cache so a recolor repaints, like paletteSig.
+    const state = this.card._state;
+    const rooms = state?.getRoomsForActiveMap?.() ?? [];
+    const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
+    const rgbByName = new Map();
+    for (const room of rooms) {
+      const rgb = roomOverrideRgb(room.color);
+      if (rgb && room.name != null) rgbByName.set(norm(room.name), rgb);
+    }
+    const overrideByRid = [];
+    const ridNames = (rd && rd.room_names) || {};
+    for (const ridStr of Object.keys(ridNames)) {
+      const rgb = rgbByName.get(norm(ridNames[ridStr]));
+      const ridNum = Number(ridStr);
+      if (rgb && Number.isFinite(ridNum)) overrideByRid[ridNum] = rgb;
+    }
+    const overrideSig = overrideByRid
+      .map((c, i) => (c ? `${i}:${c.join(",")}` : null))
+      .filter(Boolean)
+      .join("|");
+    // The canvas element is recreated on every view re-render (zoom/select/etc.), but the raster
+    // is static per (map version, palette, overrides) — decode ONCE into an ImageData cached on the
+    // binding, then just putImageData onto each fresh canvas (cheap).
     let cache = this._vaImageCache;
-    if (!cache || cache.version !== rd.version || cache.w !== W || cache.h !== H) {
+    if (!cache || cache.version !== rd.version || cache.w !== W || cache.h !== H
+        || cache.paletteSig !== paletteSig || cache.overrideSig !== overrideSig) {
       const img = cctx.createImageData(W, H);
       const data = img.data;
       const bin = atob(rd.room_pixels || "");
@@ -291,20 +324,15 @@ export function applyMapBindings(proto) {
           if (px < 0 || px >= W || py < 0 || py >= H) continue;
           const iy = flip ? (H - 1 - py) : py;
           const o = (iy * W + px) * 4;
-          const c = this._vaRoomColor(rid);
+          const c = overrideByRid[rid]
+            || palette[(((rid - 1) % ROOM_FILL_N) + ROOM_FILL_N) % ROOM_FILL_N];
           data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
         }
       }
-      cache = { version: rd.version, w: W, h: H, img };
+      cache = { version: rd.version, w: W, h: H, paletteSig, overrideSig, img };
       this._vaImageCache = cache;
     }
     cctx.putImageData(cache.img, 0, 0);
-  };
-
-  proto._vaRoomColor = function (rid) {
-    const hex = _VA_ROOM_COLORS[(rid - 1 + _VA_ROOM_COLORS.length) % _VA_ROOM_COLORS.length];
-    const n = parseInt(hex.slice(1), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
   };
 
   /* =========================================================

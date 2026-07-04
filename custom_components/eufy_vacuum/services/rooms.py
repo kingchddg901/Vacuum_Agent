@@ -10,6 +10,7 @@ Four services:
 from __future__ import annotations
 
 import logging
+import re
 
 import voluptuous as vol
 
@@ -28,6 +29,27 @@ from ..const import (
 from ._common import get_manager, resolved_call_data
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _hex_color_or_none(value):
+    """Validate a per-room fill color: canonical ``#rrggbb`` (lowercased), or None to clear.
+
+    Accepts ``#rgb`` / ``#rrggbb`` with or without the leading ``#``; None or an empty string
+    clears the override. Mirrors the frontend ``normalizeHex`` so storage stays canonical and the
+    render paths never see a value they'd silently drop. Anything else is rejected at the boundary.
+    """
+    if value is None:
+        return None
+    s = str(value).strip().lower()
+    if not s:
+        return None
+    if not s.startswith("#"):
+        s = f"#{s}"
+    if re.fullmatch(r"#[0-9a-f]{6}", s):
+        return s
+    if re.fullmatch(r"#[0-9a-f]{3}", s):
+        return "#" + "".join(c * 2 for c in s[1:])
+    raise vol.Invalid("color must be a '#rrggbb' / '#rgb' hex string or null")
 
 
 SERVICES = (
@@ -83,6 +105,7 @@ _UPDATE_ROOM_FIELDS_SCHEMA = vol.Schema(
         vol.Optional("clean_intensity"): cv.string,
         vol.Optional("clean_passes"): vol.Coerce(int),
         vol.Optional("edge_mopping"): cv.boolean,
+        vol.Optional("color"): _hex_color_or_none,
         vol.Optional("is_dock_room"): cv.boolean,
         vol.Optional("is_transition"): cv.boolean,
         vol.Optional("grants_access_to"): vol.All(cv.ensure_list, [vol.Coerce(int)]),
@@ -174,6 +197,10 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
     """Apply per-room field overrides without a named profile."""
     manager = get_manager(hass)
     data = resolved_call_data(hass, call)
+    # `color` is passed ONLY when the caller supplied it, so the manager can tell "leave the color
+    # untouched" (key absent) from "clear the override" (key present, value None) — an automation
+    # touching only fan_speed must not wipe a room's color.
+    color_kwargs = {"color": data["color"]} if "color" in data else {}
     try:
         result = manager.update_room_fields(
             vacuum_entity_id=data["vacuum_entity_id"],
@@ -190,6 +217,7 @@ async def _handle_update_room_fields(hass: HomeAssistant, call: ServiceCall) -> 
             is_transition=data.get("is_transition"),
             grants_access_to=data.get("grants_access_to"),
             rules=data.get("rules"),
+            **color_kwargs,
         )
     except Exception as err:
         raise HomeAssistantError(f"Failed to update room fields: {err}") from err

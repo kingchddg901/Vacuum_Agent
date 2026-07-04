@@ -1043,6 +1043,10 @@ export const en = {
   "room_editor.cleaning_passes": "Cleaning Passes",  // Field label: how many cleaning sweeps over the room (noun 'Passes', not the verb)
   "room_editor.cleaning_path": "Cleaning Path",  // Field label for clean-INTENSITY chips (maps to clean_intensity), not the robot's route
   "room_editor.cleaning_profile": "Cleaning Profile",  // label for the saved-preset selector (a reusable bundle of room settings)
+  "room_editor.color_default": "Default (palette)",  // shown next to the swatch when the room has NO custom color — it uses the themeable palette
+  "room_editor.color_label": "Room Color",  // field label: this room's fill color on the map; a custom color overrides the shared palette
+  "room_editor.color_pick_title": "Pick a custom color for this room",  // tooltip on the color swatch/picker
+  "room_editor.color_reset": "Reset",  // button: clear the custom color, revert to the themeable palette default
   "room_editor.custom": "Custom",  // profile chip: settings are custom, not from a saved profile (a state, not 'Custom Profile')
   "room_editor.edge_mopping": "Edge Mopping",  // On/off toggle label: mop along room edges/walls (term of art 'edge mop')
   "room_editor.excluded": "Excluded",  // queue toggle state: room is OUT of this run's queue (not excluded from learning/bounds)

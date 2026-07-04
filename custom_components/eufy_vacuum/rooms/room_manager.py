@@ -86,6 +86,7 @@ def build_managed_rooms(
             is_dock_room=bool(existing.get("is_dock_room", False)),
             grants_access_to=list(existing.get("grants_access_to", [])),
             rules=list(existing.get("rules", [])),
+            color=existing.get("color"),  # preserve per-room map fill override across a re-save
             is_configured=True,
             configured_at=existing_configured_at or _iso_now(),
         )

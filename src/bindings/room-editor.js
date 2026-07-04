@@ -371,6 +371,9 @@ export function applyRoomEditorBindings(proto) {
       this.card._state.updateEditorField(field, value);
       this.card._scheduleRender();
     });
+    // NB: the room editor is a BODY-LEVEL modal, so its fields are actually bound in
+    // bindModalHostEvents() (bindings/index.js) via host.querySelectorAll — the room-color input +
+    // reset live there too. Shadow-root _onAll here would never match the modal.
   };
 
   proto._bindRoomEditorTransition = function () {
