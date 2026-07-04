@@ -610,3 +610,43 @@ dedicated **Rainbow Bridge** parent group (`MEMORIAL_PARENT_GROUP`,
 editor renders it because it has children.
 
 The integration side is unaffected — this is purely a card concern. The animal-svg resource and the theme system are otherwise decoupled.
+
+---
+
+## 10. The editor's frontend wiring (`bindings/theme.js`)
+
+Sections 4–5 cover the runtime CSS bridge and the working-draft lifecycle; this is how the **editor UI drives them** — the slider/picker bindings, the live-preview trick, and the debounce that keeps a drag smooth. It all lives in `src/bindings/theme.js`, mixed onto the bindings prototype and re-run every render like any binding module (see [event-binding-and-modal-host.md](event-binding-and-modal-host.md)).
+
+### Live preview — `applyThemeToCard` on every mutation
+
+Every editor control, after it writes the working draft, calls `applyThemeToCard(this.card)` **directly** (`bindings/theme.js:65` import; ~15 call sites — preset `:202/:225`, mode `:242`, token `:570/:613`, color `:591`, alpha `:642/:655`, colormix `:851/:865`). That pushes the merged draft straight to the live `--evcc-*` CSS vars on the card and modal host **without persisting and without a full re-render** — so the card previews the change the instant you touch a control. It is the same [styles-system.md](styles-system.md) `apply-theme` bridge; the editor just calls it out-of-band for immediacy.
+
+### Live-vs-commit — `input` applies, `change` persists
+
+Each token control binds **both** events (the canonical live-vs-commit split — see [event-binding-and-modal-host.md](event-binding-and-modal-host.md)):
+
+- **`input`** (`:538` sliders, `:627` alpha, `:838` colormix-ratio) — writes the draft + `applyThemeToCard` for the live preview, but **no persist, no render**. A range slider fires `input` every drag pixel; persisting/rendering there would thrash.
+- **`change`** (`:595` sliders, `:573` color pickers, `:645` alpha, `:855` colormix) — commits to the working draft **and** calls `_scheduleDeferredRender()` (`:592/:618/:656/:866`) — the 600 ms debounce ([render-cycle.md](render-cycle.md)'s `_scheduleDeferredRender`), so the modified-badge / full re-render lands only after the gesture settles.
+
+Invert this (render on `input`) and you swap the `<input>` node mid-drag and drop the value — the exact trap [event-binding-and-modal-host.md](event-binding-and-modal-host.md) documents.
+
+### The color picker opens at the cursor
+
+A theme color swatch is a hidden native `<input type="color">`; double-tapping the token opens it. Before `picker.click()` (`:1114`) the handler positions the picker at the click point, measured against its `offsetParent` (`:1108-1110`) so it stays correct through the card's transforms/scroll — `offsetParent` is `null` for a shadow-DOM-hosted element, which is why the measurement is anchored rather than absolute. (Fixed the "picker opens low / unusable" bug.)
+
+### The editor action map
+
+Non-token controls are plain click / input bindings → state mutators:
+
+| Control | Selector · line | Does |
+|---|---|---|
+| Tabs (Themes / Palette / Tokens) | `[data-theme-tab]` `:182` | switch editor tab |
+| Preset swatch | `[data-theme-preset]` `:194` | apply a palette preset to the draft |
+| Mode (light / dark) | `[data-theme-mode]` `:240` | flip the draft's scheme |
+| Group filter / toggle / search | `[data-theme-group-*]` `:474/:490/:523` | filter the token list |
+| Search / modified-only | `[data-theme-search]` `:505`, `[data-theme-modified-only]` `:511` | narrow to matching / changed tokens |
+| Reset token / group | `[data-theme-reset]` `:931`, `[data-theme-group-reset]` `:973` | clear draft overrides back to default |
+| Save theme | `[data-action='save-theme']` `:1174` | persist the draft as a named theme (§5) |
+| Delete / import / export | later handlers in `bindings/theme.js` | the import/export data flow is §7 |
+
+All editor UI state (open groups, search query, group filter, the working draft + dirty flag) lives in `state/theme.js` (§5); these bindings only read/write it and re-apply. Editor labels route through i18n like everything else ([i18n-system.md](i18n-system.md)) — the token-name labels resolve from `vocab.theme_token.*`.
