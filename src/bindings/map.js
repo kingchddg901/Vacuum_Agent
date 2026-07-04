@@ -641,17 +641,34 @@ export function applyMapBindings(proto) {
      scratch-canvas parser can't resolve a var() with no element context and was painting
      those veins BLACK. Falls back to parsing the default, then grey. The caller folds the
      alpha into the layer opacity. */
+  /* A hidden, dedicated probe element appended BESIDE the map canvas (so it inherits the same
+     theme vars) used ONLY to resolve floor colors — so color resolution never mutates the render
+     canvas, and never touches anything the room-card / swatch renderers use. Fully map-local. */
+  proto._floorColorProbe = function (host) {
+    const parent = host && host.parentNode;
+    if (!parent || typeof document === "undefined") return null;
+    let el = this._floorColorProbeEl;
+    if (!el || el.parentNode !== parent) {
+      if (el && el.parentNode) { try { el.parentNode.removeChild(el); } catch (_e) {} }
+      el = document.createElement("span");
+      el.setAttribute("aria-hidden", "true");
+      el.style.cssText =
+        "position:absolute;width:0;height:0;overflow:hidden;visibility:hidden;pointer-events:none";
+      try { parent.appendChild(el); } catch (_e) { return null; }
+      this._floorColorProbeEl = el;
+    }
+    return el;
+  };
+
   proto._resolveFloorColor = function (token, dflt, host) {
     try {
-      if (host && host.style && typeof getComputedStyle === "function") {
-        const tokenVal = getComputedStyle(host).getPropertyValue(token).trim();
+      const el = this._floorColorProbe(host);
+      if (el && typeof getComputedStyle === "function") {
+        const tokenVal = getComputedStyle(el).getPropertyValue(token).trim();
         const want = tokenVal || dflt;
-        const prev = host.style.color;
-        host.style.color = "";
-        host.style.color = want;                       // invalid CSS is ignored -> stays ""
-        const accepted = host.style.color;
-        const resolved = accepted ? getComputedStyle(host).color : "";  // computed rgb/oklab
-        host.style.color = prev;                        // restore (canvas ignores `color` anyway)
+        el.style.color = "";
+        el.style.color = want;                          // invalid CSS is ignored -> stays ""
+        const resolved = el.style.color ? getComputedStyle(el).color : "";  // computed rgb/oklab
         if (resolved) {
           const rgba = this._parseCssColor(resolved);
           if (rgba) return rgba;
