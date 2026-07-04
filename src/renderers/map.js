@@ -32,7 +32,7 @@ function _vacuumStateToPose(vacuumStatus) {
   }
 }
 
-function _polygonCentroid(points) {
+export function _polygonCentroid(points) {
   let area = 0, cx = 0, cy = 0;
   const n = points.length;
   for (let i = 0, j = n - 1; i < n; j = i++) {
@@ -54,7 +54,7 @@ function _polygonCentroid(points) {
 // The axis-aligned bbox [x0,y0,x1,y1] of a saved zone's normalized geometry, or null when
 // the geometry is missing / degenerate. The clean dispatches this bbox, so it's what the map
 // draws + highlights (matches what actually gets cleaned).
-function _savedZoneBbox(zone) {
+export function _savedZoneBbox(zone) {
   const g = zone?.geometry;
   if (!Array.isArray(g) || g.length < 3) return null;
   const xs = [], ys = [];

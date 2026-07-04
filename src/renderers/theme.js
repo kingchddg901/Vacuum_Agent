@@ -191,6 +191,16 @@ function alphaPercentFromHex(value) {
   return 100;
 }
 
+// Named exports for unit testing of the pure parsing/serialization helpers.
+// Bodies are unchanged; this only widens visibility.
+export {
+  _parseColorMix,
+  _serializeColorMix,
+  parseScalarThemeValue,
+  clampPercent,
+  alphaPercentFromHex,
+};
+
 /**
  * Mix theme editor renderer methods onto the given prototype.
  *

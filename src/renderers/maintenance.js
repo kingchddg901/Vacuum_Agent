@@ -12,6 +12,56 @@
 import { GUIDE_TRANSLATIONS } from "../i18n/guide-translations.js";
 
 /**
+ * Pure "due in N days" projection for a maintenance item.
+ *
+ * Extracted from `proto._maintenanceDueInLabel` so the `now` reference and the
+ * i18n lookup are injected (deterministic + host-free) and the projection math
+ * can be unit-tested in isolation. Behavior is identical to the inline version:
+ * only the final bucket label is localized (via the injected `t`), everything
+ * else is arithmetic + guards.
+ *
+ * Math:
+ *   days_since_reset = (now - reset_at) / day
+ *   hours_per_day    = used_since_reset_hours / days_since_reset
+ *   days_remaining   = remaining_hours / hours_per_day
+ *
+ * @param {object} item - Maintenance or replacement item.
+ * @param {number} now - Current epoch ms (inject Date.now() at the call site).
+ * @param {(key: string, vars?: object) => string} t - i18n resolver.
+ * @returns {string|null} localized due-in label, or null when the guards fail.
+ */
+export function maintenanceDueInBucket(item, now, t) {
+  if (!item || item.kind !== "maintenance") return null;
+
+  const remainingHours = Number(item.remaining_hours);
+  const usedSinceReset = Number(item.used_since_reset_hours);
+  const resetAtRaw = item.reset_at;
+  if (!Number.isFinite(remainingHours) || !Number.isFinite(usedSinceReset) || !resetAtRaw) {
+    return null;
+  }
+
+  const resetAt = Date.parse(String(resetAtRaw));
+  if (!Number.isFinite(resetAt)) return null;
+
+  const daysSinceReset = (now - resetAt) / 86_400_000;
+  if (!Number.isFinite(daysSinceReset) || daysSinceReset < 3) return null;
+
+  const hoursPerDay = usedSinceReset / daysSinceReset;
+  if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0.1) return null;
+
+  if (remainingHours <= 0) return t("maintenance.due_overdue");
+
+  const daysRemaining = remainingHours / hoursPerDay;
+  if (!Number.isFinite(daysRemaining)) return null;
+
+  if (daysRemaining < 1) return t("maintenance.due_today");
+  if (daysRemaining < 2) return t("maintenance.due_tomorrow");
+  if (daysRemaining < 14) return t("maintenance.due_in_days", { count: Math.round(daysRemaining) });
+  if (daysRemaining < 60) return t("maintenance.due_in_weeks", { count: Math.round(daysRemaining / 7) });
+  return t("maintenance.due_in_months", { count: Math.round(daysRemaining / 30) });
+}
+
+/**
  * Mix maintenance renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -765,34 +815,7 @@ export function applyMaintenanceRenderers(proto) {
    * @returns {string|null}
    */
   proto._maintenanceDueInLabel = function (item) {
-    if (!item || item.kind !== "maintenance") return null;
-
-    const remainingHours = Number(item.remaining_hours);
-    const usedSinceReset = Number(item.used_since_reset_hours);
-    const resetAtRaw = item.reset_at;
-    if (!Number.isFinite(remainingHours) || !Number.isFinite(usedSinceReset) || !resetAtRaw) {
-      return null;
-    }
-
-    const resetAt = Date.parse(String(resetAtRaw));
-    if (!Number.isFinite(resetAt)) return null;
-
-    const daysSinceReset = (Date.now() - resetAt) / 86_400_000;
-    if (!Number.isFinite(daysSinceReset) || daysSinceReset < 3) return null;
-
-    const hoursPerDay = usedSinceReset / daysSinceReset;
-    if (!Number.isFinite(hoursPerDay) || hoursPerDay < 0.1) return null;
-
-    if (remainingHours <= 0) return this.t("maintenance.due_overdue");
-
-    const daysRemaining = remainingHours / hoursPerDay;
-    if (!Number.isFinite(daysRemaining)) return null;
-
-    if (daysRemaining < 1) return this.t("maintenance.due_today");
-    if (daysRemaining < 2) return this.t("maintenance.due_tomorrow");
-    if (daysRemaining < 14) return this.t("maintenance.due_in_days", { count: Math.round(daysRemaining) });
-    if (daysRemaining < 60) return this.t("maintenance.due_in_weeks", { count: Math.round(daysRemaining / 7) });
-    return this.t("maintenance.due_in_months", { count: Math.round(daysRemaining / 30) });
+    return maintenanceDueInBucket(item, Date.now(), (key, vars) => this.t(key, vars));
   };
 
   proto._maintenancePrimaryValue = function (item) {

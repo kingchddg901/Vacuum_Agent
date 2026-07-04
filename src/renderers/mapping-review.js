@@ -12,6 +12,48 @@
 import { badgeMark } from "./badge-marks.js";
 
 /**
+ * Leave-one-out bounds-outlier detection for a single job run.
+ *
+ * Builds the union bbox of all OTHER non-excluded runs (the baseline), derives a
+ * per-axis 10% tolerance from that baseline's span, and flags the target run on each
+ * of the four sides when it exceeds the baseline edge by more than the tolerance.
+ *
+ * Pure/deterministic: no i18n, no DOM. The renderer maps the returned side flags to
+ * this.t() labels. With no other active runs there is no baseline, so nothing is flagged
+ * (this also protects the very first / only run, which has nothing to compare against).
+ *
+ * @param {{min_x:number,max_x:number,min_y:number,max_y:number,excluded?:boolean}} job
+ *   The run under test.
+ * @param {Array<{min_x:number,max_x:number,min_y:number,max_y:number,excluded?:boolean}>} otherRuns
+ *   The OTHER runs (already leave-one-out filtered by the caller); excluded ones are ignored here.
+ * @returns {{ max_x:boolean, min_x:boolean, max_y:boolean, min_y:boolean, isOutlier:boolean }}
+ *   Per-side outlier flags plus a convenience isOutlier = any side flagged.
+ */
+export function computeJobBoundsOutlier(job, otherRuns) {
+  const flags = { max_x: false, min_x: false, max_y: false, min_y: false, isOutlier: false };
+  if (job?.excluded) return flags;
+
+  const others = (otherRuns ?? []).filter(e => !e.excluded);
+  if (others.length === 0) return flags;
+
+  const ob = {
+    min_x: Math.min(...others.map(e => e.min_x)),
+    max_x: Math.max(...others.map(e => e.max_x)),
+    min_y: Math.min(...others.map(e => e.min_y)),
+    max_y: Math.max(...others.map(e => e.max_y)),
+  };
+  const tX = (ob.max_x - ob.min_x) * 0.10;
+  const tY = (ob.max_y - ob.min_y) * 0.10;
+
+  flags.max_x = job.max_x > ob.max_x + tX;
+  flags.min_x = job.min_x < ob.min_x - tX;
+  flags.max_y = job.max_y > ob.max_y + tY;
+  flags.min_y = job.min_y < ob.min_y - tY;
+  flags.isOutlier = flags.max_x || flags.min_x || flags.max_y || flags.min_y;
+  return flags;
+}
+
+/**
  * Mix mapping bounds review renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -209,24 +251,14 @@ export function applyMappingReviewRenderers(proto) {
     // Leave-one-out outlier detection: compare this run against the union of all
     // other active runs. No other active runs → no baseline → skip detection.
     // This also protects the first job, which has nothing to compare against.
-    let outlierFlags = [];
-    if (!isExcluded) {
-      const others = history.filter((e, i) => i !== jobIndex && !e.excluded);
-      if (others.length > 0) {
-        const ob = {
-          min_x: Math.min(...others.map(e => e.min_x)),
-          max_x: Math.max(...others.map(e => e.max_x)),
-          min_y: Math.min(...others.map(e => e.min_y)),
-          max_y: Math.max(...others.map(e => e.max_y)),
-        };
-        const tX = (ob.max_x - ob.min_x) * 0.10;
-        const tY = (ob.max_y - ob.min_y) * 0.10;
-        if (job.max_x > ob.max_x + tX) outlierFlags.push(this.t("mapping_review.outlier_max_x"));
-        if (job.min_x < ob.min_x - tX) outlierFlags.push(this.t("mapping_review.outlier_min_x"));
-        if (job.max_y > ob.max_y + tY) outlierFlags.push(this.t("mapping_review.outlier_max_y"));
-        if (job.min_y < ob.min_y - tY) outlierFlags.push(this.t("mapping_review.outlier_min_y"));
-      }
-    }
+    // Pure computation lives in computeJobBoundsOutlier(); labels are mapped here.
+    const others = isExcluded ? [] : history.filter((e, i) => i !== jobIndex && !e.excluded);
+    const sides  = computeJobBoundsOutlier(isExcluded ? { ...job, excluded: true } : job, others);
+    const outlierFlags = [];
+    if (sides.max_x) outlierFlags.push(this.t("mapping_review.outlier_max_x"));
+    if (sides.min_x) outlierFlags.push(this.t("mapping_review.outlier_min_x"));
+    if (sides.max_y) outlierFlags.push(this.t("mapping_review.outlier_max_y"));
+    if (sides.min_y) outlierFlags.push(this.t("mapping_review.outlier_min_y"));
 
     // outlierFlags are this.t() results — already HTML-escaped by trust model B,
     // and first-party catalog strings with no user data — so they interpolate into

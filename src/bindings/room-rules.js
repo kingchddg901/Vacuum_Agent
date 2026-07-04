@@ -261,7 +261,7 @@ export function applyRoomRulesBindings(proto) {
  * @param {object|null} descriptor - Entity descriptor for value-mode resolution.
  * @returns {object} Rule payload ready for the save service.
  */
-function _buildRulePayload(draft, descriptor) {
+export function _buildRulePayload(draft, descriptor) {
   const payload = {
     entity_id: String(draft.entity_id ?? "").trim(),
     kind: draft.kind ?? "blocker",
