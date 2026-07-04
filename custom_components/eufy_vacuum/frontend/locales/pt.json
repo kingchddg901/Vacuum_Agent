@@ -91,7 +91,9 @@
     "no_active_map": "Não foi encontrado nenhum mapa ativo",
     "save_failed": "Falha ao guardar",
     "save_failed_reason": "Falha ao guardar: {reason}",
-    "variant_image_deleted": "Imagem {variant} eliminada"
+    "variant_image_deleted": "Imagem {variant} eliminada",
+    "image_too_large": "Imagem demasiado grande mesmo após redimensionar — escolha uma imagem mais pequena.",
+    "upload_failed_generic": "Falha no carregamento"
   },
   "bind_room_access": {
     "backend_rejected_graph": "O backend rejeitou este grafo de acesso entre divisões.",
@@ -1256,6 +1258,13 @@
     "trouble_missed": {
       "one": "Falhou {miss}× de {count} execução",
       "other": "Falhou {miss}× de {count} execuções"
+    },
+    "block_reason": {
+      "no_rooms_included": "Nenhuma divisão incluída.",
+      "already_cleaning": "Já está a limpar.",
+      "returning_to_dock": "A regressar à base.",
+      "vacuum_error": "O aspirador tem um erro.",
+      "start_blocked": "O início está bloqueado."
     }
   },
   "run_profiles": {

@@ -90,7 +90,9 @@
     "no_active_map": "Geen actieve kaart gevonden",
     "save_failed": "Opslaan mislukt",
     "save_failed_reason": "Opslaan mislukt: {reason}",
-    "variant_image_deleted": "Afbeelding {variant} verwijderd"
+    "variant_image_deleted": "Afbeelding {variant} verwijderd",
+    "image_too_large": "Afbeelding te groot, zelfs na verkleinen — kies een kleinere afbeelding.",
+    "upload_failed_generic": "Uploaden mislukt"
   },
   "bind_room_access": {
     "backend_rejected_graph": "De backend heeft deze kamertoegangsgraaf afgewezen.",
@@ -1243,6 +1245,13 @@
     "trouble_missed": {
       "one": "{miss}× gemist van {count} run",
       "other": "{miss}× gemist van {count} runs"
+    },
+    "block_reason": {
+      "no_rooms_included": "Geen kamers geselecteerd.",
+      "already_cleaning": "Al aan het stofzuigen.",
+      "returning_to_dock": "Keert terug naar het dock.",
+      "vacuum_error": "De stofzuiger heeft een fout.",
+      "start_blocked": "Starten is geblokkeerd."
     }
   },
   "run_profiles": {

@@ -146,6 +146,8 @@ export const en = {
   "bind_map.save_failed": "Save failed",
   "bind_map.save_failed_reason": "Save failed: {reason}",
   "bind_map.variant_image_deleted": "{variant} image deleted",  // {variant}=map-image variant name (Dark/Light/Default), capitalized at call site
+  "bind_map.image_too_large": "Image too large even after resizing — please pick a smaller image.",  // map-image upload rejected: payload still over HA's 4 MiB WS-frame limit after client downscale. Feeds an escapeHtml sink → keyed via tRaw
+  "bind_map.upload_failed_generic": "Upload failed",  // generic fallback when a map-image upload throws with no usable message
   "bind_room_access.backend_rejected_graph": "The backend rejected this room access graph.",  // 'graph' = the room-access dependency graph (which room unlocks which); not a chart
   "bind_room_access.failed_to_save": "Failed to save room access. Check Home Assistant logs for details.",
   "bind_room_editor.choose_custom_profile_key": "Choose a custom profile key:\n\n{choiceText}",  // window.prompt; user types a profile KEY (backend id), {choiceText}=newline list of 'name (label)'
@@ -1146,6 +1148,11 @@ export const en = {
   "rooms.access_not_set": "Access not set",
   "rooms.another_room": "another room",
   "rooms.battery_label": "Battery: {value}",  // Estimate tooltip 'Battery: {value}'; {value} is the battery % the estimate assumed (a number)
+  "rooms.block_reason.no_rooms_included": "No rooms included.",  // start blocked: no rooms enabled for this map. Reason CODE from state/rooms.js, localized in the renderer
+  "rooms.block_reason.already_cleaning": "Already cleaning.",  // start blocked: a clean is already running
+  "rooms.block_reason.returning_to_dock": "Returning to dock.",  // start blocked: vacuum is returning to its dock
+  "rooms.block_reason.vacuum_error": "Vacuum has an error.",  // start blocked: vacuum is in an error state
+  "rooms.block_reason.start_blocked": "Start is blocked.",  // start blocked: generic fallback when no more specific reason is available
   "rooms.blocked_fallback": "Blocked",
   "rooms.blocked_rooms": "Blocked Rooms",
   "rooms.cancel_run": "Cancel Run",

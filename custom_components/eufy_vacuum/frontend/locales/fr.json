@@ -91,7 +91,9 @@
     "no_active_map": "Aucune carte active trouvée",
     "save_failed": "Échec de l'enregistrement",
     "save_failed_reason": "Échec de l'enregistrement : {reason}",
-    "variant_image_deleted": "Image {variant} supprimée"
+    "variant_image_deleted": "Image {variant} supprimée",
+    "image_too_large": "Image trop grande même après redimensionnement — choisissez une image plus petite.",
+    "upload_failed_generic": "Échec de l'envoi"
   },
   "bind_room_access": {
     "backend_rejected_graph": "Le backend a rejeté ce graphe d'accès aux pièces.",
@@ -1257,6 +1259,13 @@
       "one": "Manqué {miss}× sur {count} cycle",
       "many": "Manqué {miss}× sur {count} cycles",
       "other": "Manqué {miss}× sur {count} cycles"
+    },
+    "block_reason": {
+      "no_rooms_included": "Aucune pièce incluse.",
+      "already_cleaning": "Nettoyage déjà en cours.",
+      "returning_to_dock": "Retour à la base.",
+      "vacuum_error": "L'aspirateur a une erreur.",
+      "start_blocked": "Le démarrage est bloqué."
     }
   },
   "run_profiles": {

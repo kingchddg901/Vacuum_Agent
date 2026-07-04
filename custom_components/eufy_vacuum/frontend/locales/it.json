@@ -90,7 +90,9 @@
     "no_active_map": "Nessuna mappa attiva trovata",
     "save_failed": "Salvataggio non riuscito",
     "save_failed_reason": "Salvataggio non riuscito: {reason}",
-    "variant_image_deleted": "Immagine {variant} eliminata"
+    "variant_image_deleted": "Immagine {variant} eliminata",
+    "image_too_large": "Immagine troppo grande anche dopo il ridimensionamento — scegli un'immagine più piccola.",
+    "upload_failed_generic": "Caricamento non riuscito"
   },
   "bind_room_access": {
     "backend_rejected_graph": "Il backend ha rifiutato questo grafo di accesso alle stanze.",
@@ -1243,6 +1245,13 @@
     "trouble_missed": {
       "one": "Saltata {miss}× su {count} esecuzione",
       "other": "Saltata {miss}× su {count} esecuzioni"
+    },
+    "block_reason": {
+      "no_rooms_included": "Nessuna stanza inclusa.",
+      "already_cleaning": "Pulizia già in corso.",
+      "returning_to_dock": "In rientro alla base.",
+      "vacuum_error": "L'aspirapolvere ha un errore.",
+      "start_blocked": "L'avvio è bloccato."
     }
   },
   "run_profiles": {

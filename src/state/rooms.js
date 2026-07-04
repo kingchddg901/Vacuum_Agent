@@ -862,14 +862,17 @@ export function applyRoomsState(proto) {
     return normalized === "true" || normalized === "1" || normalized === "yes";
   };
 
+  // Returns a stable reason CODE (not display text) — the renderer localizes it via
+  // tRaw("rooms.block_reason.<code>"). Kept code-only so canStartCleaning can use it
+  // as a boolean block-check without pulling i18n into the state layer.
   proto._localStartBlockReason = function () {
-    if (this.enabledRoomCount() < 1) return "No rooms included.";
+    if (this.enabledRoomCount() < 1) return "no_rooms_included";
 
     const status = String(this.vacuumState() ?? "").toLowerCase();
 
-    if (status === "cleaning")  return "Already cleaning.";
-    if (status === "returning") return "Returning to dock.";
-    if (status === "error")     return "Vacuum has an error.";
+    if (status === "cleaning")  return "already_cleaning";
+    if (status === "returning") return "returning_to_dock";
+    if (status === "error")     return "vacuum_error";
 
     return null;
   };
@@ -899,7 +902,7 @@ export function applyRoomsState(proto) {
     const jobControl = this.dashboardJobControl?.();
     if (jobControl) {
       if (this._startStatusFlag("blocked")) {
-        return jobControl.message ?? jobControl.reason_detail ?? jobControl.reason ?? "Start is blocked.";
+        return jobControl.message ?? jobControl.reason_detail ?? jobControl.reason ?? "start_blocked";
       }
 
       if (this._startStatusFlag("warning")) {
@@ -912,7 +915,7 @@ export function applyRoomsState(proto) {
         return (
           this.dashboardStartStatus?.()?.message ??
           this._startStatus?.message ??
-          "Start is blocked."
+          "start_blocked"
         );
       }
 

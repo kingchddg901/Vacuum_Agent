@@ -93,7 +93,9 @@
     "no_active_map": "Активная карта не найдена",
     "save_failed": "Сохранение не удалось",
     "save_failed_reason": "Сохранение не удалось: {reason}",
-    "variant_image_deleted": "Изображение {variant} удалено"
+    "variant_image_deleted": "Изображение {variant} удалено",
+    "image_too_large": "Изображение слишком большое даже после уменьшения — выберите изображение поменьше.",
+    "upload_failed_generic": "Не удалось загрузить"
   },
   "bind_room_access": {
     "backend_rejected_graph": "Бэкенд отклонил этот граф доступа к комнатам.",
@@ -1330,6 +1332,13 @@
       "few": "Пропущено {miss}× из {count} запусков",
       "many": "Пропущено {miss}× из {count} запусков",
       "other": "Пропущено {miss}× из {count} запуска"
+    },
+    "block_reason": {
+      "no_rooms_included": "Нет выбранных комнат.",
+      "already_cleaning": "Уборка уже идёт.",
+      "returning_to_dock": "Возврат на базу.",
+      "vacuum_error": "У пылесоса ошибка.",
+      "start_blocked": "Запуск заблокирован."
     }
   },
   "run_profiles": {

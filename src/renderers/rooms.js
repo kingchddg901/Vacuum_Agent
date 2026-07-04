@@ -10,6 +10,15 @@
  */
 
 /**
+ * Local-block reason CODES that state/rooms.js returns (as opposed to raw backend
+ * messages). The renderer localizes these via tRaw("rooms.block_reason.<code>");
+ * any value NOT in this set is a backend-provided message and passes through raw.
+ */
+const BLOCK_REASON_CODES = new Set([
+  "no_rooms_included", "already_cleaning", "returning_to_dock", "vacuum_error", "start_blocked",
+]);
+
+/**
  * Mix rooms renderer methods onto the given prototype.
  *
  * @param {object} proto - VacuumCardRenderers prototype to extend.
@@ -26,7 +35,10 @@ export function applyRoomsRenderers(proto) {
     const rooms = state.getRoomsForActiveMap();
     const orderedRooms = this._withCurrentRoomPinned(rooms, state);
     const canStart = state.canStartCleaning();
-    const blockedReason = state.startBlockedReason();
+    const rawBlockReason = state.startBlockedReason();
+    const blockedReason = rawBlockReason && BLOCK_REASON_CODES.has(rawBlockReason)
+      ? this.tRaw(`rooms.block_reason.${rawBlockReason}`)
+      : rawBlockReason;
     const hasWarning = state.hasStartWarning();
     const enabledCount = state.enabledRoomCount();
     const activeJob = state.activeJobRooms();

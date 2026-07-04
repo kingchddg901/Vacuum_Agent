@@ -640,7 +640,7 @@ export function applyMapBindings(proto) {
             console.error("[eufy-vacuum-command-center] Map upload failed:", err);
             this.card._state.setMapActionStatus({
               type: "upload", variant, status: "error",
-              message: _uploadErrorMessage(err),
+              message: _uploadErrorMessage(err, this.tRaw.bind(this)),
             });
             this.card._scheduleRender();
           }
@@ -1729,7 +1729,7 @@ export function applyMapBindings(proto) {
             console.error("[eufy-vacuum-command-center] furnished art upload failed:", err);
             this.card._state.setMapActionStatus({
               type: "upload", variant: "furnished-art", status: "error",
-              message: _uploadErrorMessage(err),
+              message: _uploadErrorMessage(err, this.tRaw.bind(this)),
             });
             this.card._scheduleRender();
           }
@@ -2590,9 +2590,12 @@ async function _imageFileToFittedBase64(
 // Map a callService rejection to a user-facing message. A bare numeric 3
 // (ERR_CONNECTION_LOST) or a "Connection lost" Error means the WS frame was
 // dropped — almost always the payload still overran HA's 4 MiB limit.
-function _uploadErrorMessage(err) {
+// `tRaw` is the RAW translator (the action-status message sink escapeHtml()s it —
+// model A; passing t() would double-escape). The backend `err.message` passes
+// through raw (the sink escapes it).
+function _uploadErrorMessage(err, tRaw) {
   if (err === 3 || (err && typeof err.message === "string" && /connection lost/i.test(err.message))) {
-    return "Image too large even after resizing — please pick a smaller image.";
+    return tRaw("bind_map.image_too_large");
   }
-  return err && err.message ? err.message : "Upload failed";
+  return err && err.message ? err.message : tRaw("bind_map.upload_failed_generic");
 }

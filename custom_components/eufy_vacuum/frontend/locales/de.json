@@ -90,7 +90,9 @@
     "no_active_map": "Keine aktive Karte gefunden",
     "save_failed": "Speichern fehlgeschlagen",
     "save_failed_reason": "Speichern fehlgeschlagen: {reason}",
-    "variant_image_deleted": "Bild {variant} gelöscht"
+    "variant_image_deleted": "Bild {variant} gelöscht",
+    "image_too_large": "Bild auch nach dem Verkleinern zu groß — bitte ein kleineres Bild wählen.",
+    "upload_failed_generic": "Hochladen fehlgeschlagen"
   },
   "bind_room_access": {
     "backend_rejected_graph": "Das Backend hat diesen Raumzugriffs-Graphen abgelehnt.",
@@ -1243,6 +1245,13 @@
     "trouble_missed": {
       "one": "{miss}× von {count} Lauf verpasst",
       "other": "{miss}× von {count} Läufen verpasst"
+    },
+    "block_reason": {
+      "no_rooms_included": "Keine Räume ausgewählt.",
+      "already_cleaning": "Reinigt bereits.",
+      "returning_to_dock": "Rückkehr zur Basis.",
+      "vacuum_error": "Der Saugroboter hat einen Fehler.",
+      "start_blocked": "Start ist blockiert."
     }
   },
   "run_profiles": {
