@@ -756,7 +756,7 @@ export function applyMapRenderers(proto) {
           <span class="evcc-zone-setting-label">${label}</span>
           <select class="evcc-zone-setting-select" data-action="${esc(action)}"
                   data-entity-id="${esc(eid)}">
-            ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${esc(o)}</option>`).join("")}
+            ${opts.map((o) => `<option value="${esc(o)}"${o === cur ? " selected" : ""}>${this.tVocab(key, o, o)}</option>`).join("")}
           </select>
         </label>`;
     }).join("");
