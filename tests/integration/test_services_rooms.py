@@ -10,6 +10,7 @@ Coverage targets
 [SR-6]  handler exception wrapping: discover / save / update_room_fields.
 [SR-7]  update_room_fields handler: not-updated → no save.
 [SR-8]  reconcile_room handler: success delegates + saves; exception wrapped as HomeAssistantError.
+[SR-9]  update_room_fields color validator: normalizes #rgb/#rrggbb, clears on empty, rejects garbage.
 
 The discover_rooms handler + the error-wrapping branches run through the
 module-level _handle_* coroutines with a mock manager (the real service path
@@ -21,15 +22,18 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+import voluptuous as vol
 
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.eufy_vacuum.const import DATA_RUNTIME, DOMAIN
 from custom_components.eufy_vacuum.services.rooms import (
+    _UPDATE_ROOM_FIELDS_SCHEMA,
     _handle_discover_rooms,
     _handle_reconcile_room,
     _handle_save_managed_rooms,
     _handle_update_room_fields,
+    _hex_color_or_none,
 )
 
 from .conftest import seed_discovery, make_rooms, setup_map
@@ -264,3 +268,58 @@ async def test_reconcile_handler_raises(rmock):
     mgr.reconcile_room.side_effect = ValueError("nope")
     with pytest.raises(HomeAssistantError, match="Failed to reconcile room"):
         await _handle_reconcile_room(hass, _c(action="migrate"))
+
+
+# ---------------------------------------------------------------------------
+# [SR-9] update_room_fields color validator (_hex_color_or_none)
+#
+# The manager-level color tests call update_room_fields(color=...) directly
+# with already-canonical values, bypassing the service schema. These exercise
+# the validator's real normalization/rejection paths — the ones a user hits
+# when the update_room_fields service is called with raw frontend input.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        (None, None),             # explicit clear
+        ("", None),               # empty string clears
+        ("   ", None),            # whitespace-only clears
+        ("#00e5ff", "#00e5ff"),   # canonical passthrough
+        ("00e5ff", "#00e5ff"),    # missing hash is prepended
+        ("#00E5FF", "#00e5ff"),   # uppercase is lowercased
+        ("#0af", "#00aaff"),      # #rgb expanded to #rrggbb
+        ("0af", "#00aaff"),       # #rgb without hash
+        ("  #0AF  ", "#00aaff"),  # whitespace + case + expansion together
+    ],
+)
+def test_hex_color_or_none_normalizes(value, expected):
+    """[SR-9] The color validator canonicalizes to #rrggbb (or None to clear)."""
+    assert _hex_color_or_none(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["red", "#gg0000", "#12", "12345", "#1234567", "0x00ff00"],
+)
+def test_hex_color_or_none_rejects_garbage(value):
+    """[SR-9] Non-hex or wrong-length values are rejected at the boundary."""
+    with pytest.raises(vol.Invalid):
+        _hex_color_or_none(value)
+
+
+def test_update_room_fields_schema_normalizes_color():
+    """[SR-9] The validator is wired into the update_room_fields service schema,
+    so a #rgb value reaches the handler already canonicalized to #rrggbb."""
+    out = _UPDATE_ROOM_FIELDS_SCHEMA(
+        {"vacuum_entity_id": _VAC, "room_id": 1, "color": "0af"}
+    )
+    assert out["color"] == "#00aaff"
+
+
+def test_update_room_fields_schema_rejects_bad_color():
+    """[SR-9] A malformed color is rejected by the service schema itself."""
+    with pytest.raises(vol.Invalid):
+        _UPDATE_ROOM_FIELDS_SCHEMA(
+            {"vacuum_entity_id": _VAC, "room_id": 1, "color": "not-a-color"}
+        )

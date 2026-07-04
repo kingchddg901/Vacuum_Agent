@@ -15,6 +15,7 @@ Coverage targets
 [DR-11] update_drift_history resets missing_passes when room reappears.
 [DR-12] compute_room_drift surfaces removed_rooms after threshold misses.
 [DR-13] compute_room_drift surfaces new_rooms immediately (n_new=1 default).
+[DR-14] _list_configured_room_ids excludes is_configured=False rooms from drift tracking.
 """
 
 from __future__ import annotations
@@ -207,3 +208,31 @@ def test_compute_room_drift_surfaces_new_room_immediately(manager):
     result = compute_room_drift(manager, _VAC, discovered_room_ids={1, 99})
     new_ids = {r["room_id"] for r in result["new_rooms"]}
     assert 99 in new_ids
+
+
+# ---------------------------------------------------------------------------
+# [DR-14] _list_configured_room_ids — the is_configured gate
+# ---------------------------------------------------------------------------
+
+def test_unconfigured_room_excluded_from_drift_tracking(manager):
+    """[DR-14] A room sitting in a map bucket with is_configured=False is
+    excluded from the configured set, so it is never drift-tracked.
+
+    Guards the load-bearing configured-vs-discovered distinction in
+    _list_configured_room_ids: with both rooms absent from discovery, only the
+    configured room accrues a missing pass; the unconfigured one (a freshly
+    discovered room not yet through the save_rooms step) is not tracked at all.
+    Every other drift test marks all rooms configured, so the exclusion branch
+    is otherwise unexercised.
+    """
+    setup_map(manager, _VAC, _MAP, count=2)
+    # room_id 1 configured; room_id 2 left unconfigured.
+    for room in manager.data["maps"][_VAC][_MAP]["rooms"].values():
+        room["is_configured"] = room.get("room_id") == 1
+
+    # Neither room appears in this discovery pass.
+    update_drift_history(manager, _VAC, discovered_room_ids=set())
+    history = manager.data["setup_progress"][_VAC]["room_drift_history"]
+
+    assert history.get("1", {}).get("missing_passes") == 1
+    assert "2" not in history
