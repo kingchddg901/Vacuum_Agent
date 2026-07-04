@@ -54,16 +54,16 @@ export const MAP_TOKENS = [
   // tokens, the defaults are NOT in the styles/index.js :host block; state/theme.js resolvedTheme
   // seeds the same palette so the editor's colour picker has a value to open. A per-room override
   // lands in Phase 2. Count = ROOM_FILL_N in cards/map-room-color.js — keep them in sync.
-  mapToken.color("--evcc-room-fill-1",  "Room Fill 1"),
-  mapToken.color("--evcc-room-fill-2",  "Room Fill 2"),
-  mapToken.color("--evcc-room-fill-3",  "Room Fill 3"),
-  mapToken.color("--evcc-room-fill-4",  "Room Fill 4"),
-  mapToken.color("--evcc-room-fill-5",  "Room Fill 5"),
-  mapToken.color("--evcc-room-fill-6",  "Room Fill 6"),
-  mapToken.color("--evcc-room-fill-7",  "Room Fill 7"),
-  mapToken.color("--evcc-room-fill-8",  "Room Fill 8"),
-  mapToken.color("--evcc-room-fill-9",  "Room Fill 9"),
-  mapToken.color("--evcc-room-fill-10", "Room Fill 10"),
-  mapToken.color("--evcc-room-fill-11", "Room Fill 11"),
-  mapToken.color("--evcc-room-fill-12", "Room Fill 12"),
+  mapToken.color("--evcc-room-fill-1",  "Map Room Color 1"),
+  mapToken.color("--evcc-room-fill-2",  "Map Room Color 2"),
+  mapToken.color("--evcc-room-fill-3",  "Map Room Color 3"),
+  mapToken.color("--evcc-room-fill-4",  "Map Room Color 4"),
+  mapToken.color("--evcc-room-fill-5",  "Map Room Color 5"),
+  mapToken.color("--evcc-room-fill-6",  "Map Room Color 6"),
+  mapToken.color("--evcc-room-fill-7",  "Map Room Color 7"),
+  mapToken.color("--evcc-room-fill-8",  "Map Room Color 8"),
+  mapToken.color("--evcc-room-fill-9",  "Map Room Color 9"),
+  mapToken.color("--evcc-room-fill-10", "Map Room Color 10"),
+  mapToken.color("--evcc-room-fill-11", "Map Room Color 11"),
+  mapToken.color("--evcc-room-fill-12", "Map Room Color 12"),
 ];

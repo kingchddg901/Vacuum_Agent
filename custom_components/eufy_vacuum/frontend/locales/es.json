@@ -1801,7 +1801,7 @@
       "evcc_room_chip_bg": "Fondo de chip de habitación",
       "evcc_room_chip_border": "Borde de chip de habitación",
       "evcc_room_chip_text": "Texto de chip de habitación",
-      "evcc_room_fill_opacity": "Opacidad de relleno de habitación",
+      "evcc_room_fill_opacity": "Opacidad de la tarjeta de habitación",
       "evcc_room_grid_columns": "Columnas de cuadrícula de habitaciones",
       "evcc_room_grid_gap": "Espacio de cuadrícula de habitaciones",
       "evcc_room_grid_min": "Mínimo de cuadrícula de habitaciones",

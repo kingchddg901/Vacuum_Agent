@@ -1377,7 +1377,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:456 (--evcc-chip-text)
 - src/styles/theme-preview.js:317 (color)
 
-**`--evcc-room-fill-opacity`** — Room Fill Opacity · default src/styles/rooms.js:1081, src/styles/rooms.js:1085, src/styles/rooms.js:1089
+**`--evcc-room-fill-opacity`** — Room Card Opacity · default src/styles/rooms.js:1081, src/styles/rooms.js:1085, src/styles/rooms.js:1089
 - src/styles/rooms.js:969 (opacity)
 - src/styles/theme-preview.js:272
 - src/styles/theme-preview.js:282
@@ -1490,40 +1490,40 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-map-ov-area-text`** — Overlay: Area Label Text · default src/styles/index.js:380
 - src/styles/map.js:787 (color)
 
-**`--evcc-room-fill-1`** — Room Fill 1 · default —
+**`--evcc-room-fill-1`** — Map Room Color 1 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-2`** — Room Fill 2 · default —
+**`--evcc-room-fill-2`** — Map Room Color 2 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-3`** — Room Fill 3 · default —
+**`--evcc-room-fill-3`** — Map Room Color 3 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-4`** — Room Fill 4 · default —
+**`--evcc-room-fill-4`** — Map Room Color 4 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-5`** — Room Fill 5 · default —
+**`--evcc-room-fill-5`** — Map Room Color 5 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-6`** — Room Fill 6 · default —
+**`--evcc-room-fill-6`** — Map Room Color 6 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-7`** — Room Fill 7 · default —
+**`--evcc-room-fill-7`** — Map Room Color 7 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-8`** — Room Fill 8 · default —
+**`--evcc-room-fill-8`** — Map Room Color 8 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-9`** — Room Fill 9 · default —
+**`--evcc-room-fill-9`** — Map Room Color 9 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-10`** — Room Fill 10 · default —
+**`--evcc-room-fill-10`** — Map Room Color 10 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-11`** — Room Fill 11 · default —
+**`--evcc-room-fill-11`** — Map Room Color 11 · default —
 - _no consumer — only seeded_
 
-**`--evcc-room-fill-12`** — Room Fill 12 · default —
+**`--evcc-room-fill-12`** — Map Room Color 12 · default —
 - _no consumer — only seeded_
 
 ## Floor Textures  ·  4/4 consumed

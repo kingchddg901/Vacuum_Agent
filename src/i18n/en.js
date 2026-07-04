@@ -1808,7 +1808,7 @@ export const en = {
   "vocab.theme_token.evcc_room_chip_bg": "Room Chip BG",
   "vocab.theme_token.evcc_room_chip_border": "Room Chip Border",
   "vocab.theme_token.evcc_room_chip_text": "Room Chip Text",
-  "vocab.theme_token.evcc_room_fill_opacity": "Room Fill Opacity",
+  "vocab.theme_token.evcc_room_fill_opacity": "Room Card Opacity",
   "vocab.theme_token.evcc_room_grid_columns": "Room Grid Columns",
   "vocab.theme_token.evcc_room_grid_gap": "Room Grid Gap",
   "vocab.theme_token.evcc_room_grid_min": "Room Grid Min",

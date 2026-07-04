@@ -313,7 +313,7 @@
       "evcc_room_chip_bg": "Room Chip BG",
       "evcc_room_chip_border": "Room Chip Border",
       "evcc_room_chip_text": "Room Chip Text",
-      "evcc_room_fill_opacity": "Room Fill Opacity",
+      "evcc_room_fill_opacity": "Room Card Opacity",
       "evcc_room_grid_columns": "Room Grid Columns",
       "evcc_room_grid_gap": "Room Grid Gap",
       "evcc_room_grid_min": "Room Grid Min",

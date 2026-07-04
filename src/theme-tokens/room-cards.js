@@ -29,7 +29,7 @@ export const ROOM_CARD_TOKENS = [
   roomToken.color("--evcc-room-chip-bg", "Room Chip BG"),
   roomToken.color("--evcc-room-chip-border", "Room Chip Border"),
   roomToken.color("--evcc-room-chip-text", "Room Chip Text"),
-  roomToken.number("--evcc-room-fill-opacity", "Room Fill Opacity"),
+  roomToken.number("--evcc-room-fill-opacity", "Room Card Opacity"),
   roomToken.size("--evcc-room-grid-columns", "Room Grid Columns"),
   roomToken.size("--evcc-room-grid-gap", "Room Grid Gap"),
   roomToken.size("--evcc-room-grid-min", "Room Grid Min"),

@@ -1787,7 +1787,7 @@
       "evcc_room_chip_bg": "Raum-Chip Hintergrund",
       "evcc_room_chip_border": "Raum-Chip Rahmen",
       "evcc_room_chip_text": "Raum-Chip Text",
-      "evcc_room_fill_opacity": "Raum-Fülldeckkraft",
+      "evcc_room_fill_opacity": "Raumkarten-Deckkraft",
       "evcc_room_grid_columns": "Raum-Rasterspalten",
       "evcc_room_grid_gap": "Raum-Rasterabstand",
       "evcc_room_grid_min": "Raum-Raster Min",

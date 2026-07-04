@@ -1876,7 +1876,7 @@
       "evcc_room_chip_bg": "Фон чипа комнаты",
       "evcc_room_chip_border": "Граница чипа комнаты",
       "evcc_room_chip_text": "Текст чипа комнаты",
-      "evcc_room_fill_opacity": "Непрозрачность заливки комнаты",
+      "evcc_room_fill_opacity": "Непрозрачность карточки комнаты",
       "evcc_room_grid_columns": "Столбцы сетки комнат",
       "evcc_room_grid_gap": "Отступ сетки комнат",
       "evcc_room_grid_min": "Мин. сетки комнат",

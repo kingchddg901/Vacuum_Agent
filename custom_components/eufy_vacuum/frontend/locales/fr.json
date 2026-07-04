@@ -1801,7 +1801,7 @@
       "evcc_room_chip_bg": "Arrière-plan chip pièce",
       "evcc_room_chip_border": "Bordure chip pièce",
       "evcc_room_chip_text": "Texte chip pièce",
-      "evcc_room_fill_opacity": "Opacité remplissage pièce",
+      "evcc_room_fill_opacity": "Opacité de la carte de pièce",
       "evcc_room_grid_columns": "Colonnes grille pièces",
       "evcc_room_grid_gap": "Espacement grille pièces",
       "evcc_room_grid_min": "Largeur min. grille pièces",
