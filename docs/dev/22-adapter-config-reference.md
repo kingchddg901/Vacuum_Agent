@@ -426,7 +426,7 @@ Configures the dock event recorder (`last_mop_wash`, `last_dust_empty`,
 | `enabled` | `bool` | `False` | Whether to record dock events at all. Set `False` for brands with no dock actions. |
 | `triggers` | `dict[str, list[str]]` | – | Maps framework event type keys to the normalized `dock_status` strings that trigger them. |
 | `debounce_seconds` | `dict[str, float]` | `{}` | Per-event-type cooldown collapsing noisy `dock_status` flips into one counted event. Keys match `triggers`. Also gates the active-job mop-wash observation via `last_mop_wash`. Absent key (or `0`) = no debounce. |
-| `action_buttons` | `dict[str, dict]` | `{}` | Resolves the upstream button entity for each dock action (`wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`). Each value: `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets": [[str]]}` all-tokens-must-match registry fallbacks. Absent action = reported unavailable. |
+| `action_buttons` | `dict[str, dict]` | `{}` | Resolves the upstream button entity for each dock action (`wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`). Each value: `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets":}` all-tokens-must-match registry fallbacks. Absent action = reported unavailable. |
 
 Framework event type keys: `last_mop_wash`, `last_dust_empty`,
 `last_dry_start`. Absent keys produce no events of that type.
@@ -1778,7 +1778,7 @@ Top-level is `dict[component_id, ComponentEntry]`. Each entry:
 |-------|------|----------|---------|
 | `sensor_suffix` | `str \| None` | yes | Full suffix appended to `sensor.{object_id}_` to form the counter sensor entity ID (e.g. `"filter_remaining"` → `sensor.{object_id}_filter_remaining`). `None` when the component has no own counter and sources only via `proxy_for`. |
 | `proxy_for` | `str \| None` | no | Component ID whose sensor this component sources from when present, falling back to this component's own `sensor_suffix`. Used when firmware shares a counter between components (e.g. swivel_wheel proxies filter). |
-| `reset_button` | `dict` | no | Resolves the upstream replacement-counter reset button. `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets": [[str]]}` all-tokens-must-match registry fallbacks. Absent = no reset button. |
+| `reset_button` | `dict` | no | Resolves the upstream replacement-counter reset button. `{"entity_suffixes": [str]}` appended to `button.{object_id}_` (tried first), `{"token_sets":}` all-tokens-must-match registry fallbacks. Absent = no reset button. |
 | `default_interval_hours` | `float` | yes | Manufacturer guide recommendation. Reference anchor for the user's configured interval. |
 | `max_interval_hours` | `float` | yes | Ceiling for user-configured interval override. |
 | `label` | `str` | yes | Human-readable component name for display. |

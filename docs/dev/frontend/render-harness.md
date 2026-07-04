@@ -14,7 +14,7 @@ differs only in the token bundle supplied and what's done with the output.
 
 ## 1. The load-bearing property
 
-Two facts about the card (see [19-card-architecture](19-card-architecture.md))
+Two facts about the card (see [19-card-architecture](architecture-overview.md))
 make a headless harness cheap:
 
 1. **Renderers are pure.** Every renderer is `render(ctx) → HTML string`,
@@ -143,7 +143,7 @@ across OSes, so baselines are generated *and* gated in one pinned image —
 `mcr.microsoft.com/playwright:v1.60.0-noble` — making the comparison byte-for-
 byte stable. The visual specs are gated to CI / `VISUAL=1` (other platforms
 would mismatch); smoke, completeness, CVD, shape, intake, tab-gating, and
-device-theme gates run everywhere. See [testing/07-render-harness](../testing/07-render-harness.md) for
+device-theme gates run everywhere. See [testing/07-render-harness](../../testing/07-render-harness.md) for
 the regenerate-baselines workflow.
 
 **Structural, not color.** The diff budget is an **absolute** `maxDiffPixels`,
@@ -194,7 +194,7 @@ none desaturates into grey.
 overriding the five anchors recolors the whole semantic palette. That palette
 ships as the selectable **"Colorblind Safe"** preloaded theme
 (`custom_components/eufy_vacuum/themes/preloaded.py`); see
-[20-theme-system](20-theme-system.md).
+[20-theme-system](theme-system.md).
 
 > The five hexes live in both `harness/bundles/cvd-safe.mjs` (JS, harness-
 > validated) and `themes/preloaded.py` (Python). Cross-language, comment-linked —
@@ -230,7 +230,7 @@ pair and is held to a higher bar.
 ## 7. Theme-export intake
 
 The harness accepts any theme **export** (the export/import schema, see
-[20-theme-system](20-theme-system.md)) and renders a preview of the real card
+[20-theme-system](theme-system.md)) and renders a preview of the real card
 recolored by it — the config is the seed, the render is the deliverable.
 
 - **Ingest gate** (`window.__evcc.ingestTheme`, `harness/tests/intake.spec.mjs`)
@@ -369,4 +369,4 @@ hidden defaults:
 | CVD pass criterion | `harness/cvd/report.mjs` | 10 pairs × 3 sims, ΔE2000 ≥ 15 |
 
 How to run, regenerate baselines, and read the gates:
-[testing/07-render-harness](../testing/07-render-harness.md).
+[testing/07-render-harness](../../testing/07-render-harness.md).

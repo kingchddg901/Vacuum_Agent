@@ -1,8 +1,8 @@
 # Authoring themes with an AI
 
 You don't need to understand the token system to theme it — an assistant, the three
-references below, and the [render harness](../27-render-harness.md) are enough. Writing the
-JSON [by hand](../20-theme-system.md#authoring-a-theme-json-by-hand) is the power-user move;
+references below, and the [render harness](../frontend/render-harness.md) are enough. Writing the
+JSON [by hand](../frontend/theme-system.md#authoring-a-theme-json-by-hand) is the power-user move;
 handing it to an AI is the accessible one.
 
 It works because every layer is **constrained**: the catalog bounds what's legal, the
@@ -16,7 +16,7 @@ renders the import format.
 |---|---|
 | [Theme Token Map](THEME_TOKEN_MAP.md) | **the spec** — every legal `--evcc-*` key, its type and range |
 | [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md) | **the targeting map** — which CSS property each token paints |
-| [The import envelope](../20-theme-system.md#authoring-a-theme-json-by-hand) | **the output contract** — `{ name, colors, alpha, tokens }` |
+| [The import envelope](../frontend/theme-system.md#authoring-a-theme-json-by-hand) | **the output contract** — `{ name, colors, alpha, tokens }` |
 
 ## The loop
 
@@ -26,7 +26,7 @@ renders the import format.
    so a final check against each token's **Range** is worth it.
 2. **It emits the envelope** — `{ name, colors, alpha, tokens }`, which *is* the import
    payload. No conversion step.
-3. **Render it.** Run the export through the [render harness](../27-render-harness.md) (that
+3. **Render it.** Run the export through the [render harness](../frontend/render-harness.md) (that
    doc covers how) — it recolors the real card and writes preview images. That's the eval,
    and a multimodal model can read the image back.
 4. **Critique the image, fix by token.** This is where the usage trace pays off: look up the

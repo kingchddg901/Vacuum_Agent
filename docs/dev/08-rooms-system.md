@@ -333,7 +333,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `is_transition` | bool | Whether this room is a transition/passage room (defaults `False`) |
 | `rules` | list | Automation rules (see [09-room-rules-system.md](09-room-rules-system.md)) |
 | `grants_access_to` | list | Access graph (room IDs this room grants access to) |
-| `color` | str \| None | Per-room map fill override, a canonical `"#rrggbb"` (lowercased), or `None`/absent to use the themeable room-fill palette. Purely presentational; preserved across re-save (`room_manager.py`) and rebuild (`map_manager.py`). See [themeable-map-palette.md](themeable-map-palette.md). |
+| `color` | str \| None | Per-room map fill override, a canonical `"#rrggbb"` (lowercased), or `None`/absent to use the themeable room-fill palette. Purely presentational; preserved across re-save (`room_manager.py`) and rebuild (`map_manager.py`). See [themeable-map-palette.md](frontend/themeable-map-palette.md). |
 
 ---
 

@@ -62,4 +62,4 @@ In every mode the **live robot, dock, cleaning path, and room overlays ride on t
 - **It's per layout.** Each custom layout has its own art, so you can keep a plain "rooms only" layout and a "furnished" one and switch between them.
 - **Zone clean over your furniture:** because zone-draw sits a layer above the art, you can draw a zone-clean straight onto your furnished room and it cleans the right spot — on Eufy and Roborock, at any map rotation.
 
-For the services behind the panel, see [Services → Furnished Render](../advanced/03-services.md#furnished-render); for the technical design, see the [developer deep-dive](../dev/32-furnished-render.md).
+For the services behind the panel, see [Services → Furnished Render](../advanced/03-services.md#furnished-render); for the technical design, see the [developer deep-dive](../dev/frontend/furnished-render.md).

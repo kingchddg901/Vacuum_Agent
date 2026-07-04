@@ -14,7 +14,7 @@ this document is the contract reference for two audiences:
 - **Creature-pack authors** who add new animals.
 
 **Sharing an animal in the gallery?** Start with the descriptor guide —
-[Authoring an animal](../contributing/animal-authoring.md) — submissions are
+[Authoring an animal](../../contributing/animal-authoring.md) — submissions are
 **declarative data, not JavaScript**. This document is the runtime `register()`
 contract those descriptors compile down to (and the maintainer raw-JS path).
 
@@ -259,7 +259,7 @@ content: |
 
 This is the runtime mechanic — how the integration *loads* animals. To **share**
 a companion in the gallery, author a declarative descriptor instead (no JS) — see
-[Authoring an animal](../contributing/animal-authoring.md); the raw-JS route below
+[Authoring an animal](../../contributing/animal-authoring.md); the raw-JS route below
 is for maintainers and your own install.
 
 Each animal is its own self-registering file in `animals/`. The integration
@@ -460,11 +460,11 @@ attribute inside your render callback.
 The bundled animals are placeholder quality — built to validate the
 framework, not to look polished. Two guides cover making your own:
 
-- **[Authoring an animal](../contributing/animal-authoring.md)** — the public
+- **[Authoring an animal](../../contributing/animal-authoring.md)** — the public
   path: a **declarative descriptor** (sanitised SVG + colour tokens) that the
   intake validates and *generates* the runtime module from. This is how shared
   gallery companions are submitted — no hand-written JavaScript.
-- **[Mascot authoring](../contributing/mascot-authoring.md)** — the maintainer /
+- **[Mascot authoring](../../contributing/mascot-authoring.md)** — the maintainer /
   runtime path: adding `animals/<id>.js` directly (`register()`,
   `type: 'custom'`), reviewed as code. It also carries the **craft standards**
   (pose silhouette, palette intent, stroke hierarchy, warning expression) that

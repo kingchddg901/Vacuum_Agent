@@ -4,7 +4,7 @@
 
 # Theme Token CSS-Usage Trace
 
-> Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token Map](THEME_TOKEN_MAP.md).
+> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token Map](THEME_TOKEN_MAP.md).
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 

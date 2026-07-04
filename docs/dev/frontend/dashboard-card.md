@@ -4,7 +4,7 @@
 > control card, the embedded map, and the polish pass are all live. This file keeps
 > the original design rationale below (issue #34); the banner tracks what actually
 > shipped. For the *architecture* of the cards + bundles + map host, see
-> [19 — Card Architecture](19-card-architecture.md) §8.
+> [19 — Card Architecture](architecture-overview.md) §8.
 >
 > **W1 — control card (list-based):**
 > - `src/cards/dashboard-dispatch.js` — pure, unit-tested run-launcher logic
@@ -27,7 +27,7 @@
 > It ships as its own lazily-loaded bundle (`frontend/eufy-vacuum-map.js`), imported on
 > demand by the dashboard card. Full VA-render backdrop, zone-draw, rotate, layers
 > panel, mascot controls — the same map as the panel. See
-> [19 — Card Architecture](19-card-architecture.md) §8.3.
+> [19 — Card Architecture](architecture-overview.md) §8.3.
 >
 > **W3 — polish.** Collapsible map + Rooms groups; the per-user **language globe** in
 > both cards; **strict-order** toggle (Roborock); Eufy scene **"None"** filter; pinned
@@ -122,11 +122,11 @@ The control card is **multi-room + profiles + scenes + dock** — a different sh
 i18n helpers, the draft-state pattern — into a small `src/cards/_shared.js` both import),
 rather than overloading the room-card with a mode flag. Both register in
 `window.customCards`; both ship in the existing bundle (`npm run build:deploy`, never
-hand-edit the minified bundle — [[frontend-build]]).
+hand-edit the minified bundle —).
 
 ## 6. App scenes — Eufy-only, fires-on-select, adapter-gated
 
-Confirmed on-device ([[eufy-scene-select-fires]]): selecting an option in eufy-clean's
+Confirmed on-device (): selecting an option in eufy-clean's
 `select.<object_id>_scene` **immediately runs** the scene. So:
 
 - Build the dropdown from the entity's **`options` attribute** (read-only — safe).
@@ -187,8 +187,7 @@ Editor: extend the `EufyRoomCardEditor` pattern — a `vacuum_entity_id` picker 
 ## 9. i18n
 
 New `vacuum_card.*` keys for the new labels (Rooms / Your profiles / App scenes /
-Clean / Clean all / Dock / "scene runs immediately" hint / etc.) — keyed at creation per
-[[feedback_no_string_without_i18n]], +7 locales drafted as usual. Slot *values*
+Clean / Clean all / Dock / "scene runs immediately" hint / etc.) — keyed at creation per, +7 locales drafted as usual. Slot *values*
 (modes/suction/etc.) reuse the existing `vocab.*`. The card runtime-loads non-English
 locales the same way the room-card does (a card on a view with no main panel is the only
 thing that triggers the loader).
@@ -204,7 +203,7 @@ thing that triggers the loader).
   changes per-room vs whole-run semantics.
 - **Two cards on one dashboard** — ✅ pan/zoom (and moved room-name labels) are keyed
   per *context* (panel vs card) + per device, so the panel and a dashboard card keep
-  independent map views (`_mapCtx` on the state; see [19 — Card Architecture](19-card-architecture.md) §8.3).
+  independent map views (`_mapCtx` on the state; see [19 — Card Architecture](architecture-overview.md) §8.3).
 - **No live entity** — degrade every section independently; a missing snapshot field
   hides its control, never throws (wrap reads).
 - **Mid-run** — show progress in the header; Start becomes "already cleaning" / the
@@ -255,6 +254,6 @@ that hides the scenes group). The backend services are already covered. Gate:
   + `src/bindings/map.js`, `custom_components/eufy_vacuum/services.yaml`,
   `adapters/{config_schema,eufy/adapter,roborock/adapter}.py`, `profiles/manager.py`,
   `core/manager.py::get_dashboard_snapshot`.
-- Memory: [[eufy-scene-select-fires]] (scene fires-on-select), [[frontend-build]]
-  (edit src/, build:deploy), [[feedback-no-string-without-i18n]], the voice wizard's
-  sibling "meet users where they are" play in [[voice-room-control]].
+- Memory: (scene fires-on-select),
+  (edit src/, build:deploy),, the voice wizard's
+  sibling "meet users where they are" play in.

@@ -181,7 +181,7 @@ module (flat file) or a subsystem package. Here is the full map:
 `switch.py` — each owns its `async_setup_entry` and entity classes. Room
 entities share the base class in `room_entities.py`.
 
-> **See also — subsystem deep dives:** [05-core-manager](05-core-manager.md) · [06-job-lifecycle](06-job-lifecycle.md) · [07-queue-engine](07-queue-engine.md) · [08-rooms-system](08-rooms-system.md) · [09-room-rules-system](09-room-rules-system.md) · [10-learning-system](10-learning-system.md) · [11-mapping-system](11-mapping-system.md) · [12-battery-system](12-battery-system.md) · [13-maintenance-manager](13-maintenance-manager.md) · [14-dock-manager](14-dock-manager.md) · [15-setup-system](15-setup-system.md) · [16-profile-manager](16-profile-manager.md) · [17-map-manager](17-map-manager.md) · [18-onboarding-manager](18-onboarding-manager.md) · [19-card-architecture](19-card-architecture.md) · [20-theme-system](20-theme-system.md) · [23-error-tracker](23-error-tracker.md)
+> **See also — subsystem deep dives:** [05-core-manager](05-core-manager.md) · [06-job-lifecycle](06-job-lifecycle.md) · [07-queue-engine](07-queue-engine.md) · [08-rooms-system](08-rooms-system.md) · [09-room-rules-system](09-room-rules-system.md) · [10-learning-system](10-learning-system.md) · [11-mapping-system](11-mapping-system.md) · [12-battery-system](12-battery-system.md) · [13-maintenance-manager](13-maintenance-manager.md) · [14-dock-manager](14-dock-manager.md) · [15-setup-system](15-setup-system.md) · [16-profile-manager](16-profile-manager.md) · [17-map-manager](17-map-manager.md) · [18-onboarding-manager](18-onboarding-manager.md) · [19-card-architecture](frontend/architecture-overview.md) · [20-theme-system](frontend/theme-system.md) · [23-error-tracker](23-error-tracker.md)
 
 ---
 
@@ -532,7 +532,7 @@ Dynamic entities (room-based sensors/switches/numbers) are added and removed at
 runtime via `register_room_update_callback`. When `_notify_rooms_updated` fires,
 each platform's callback adds new entities and removes stale ones.
 
-> **See also:** [02-ha-integration](02-ha-integration.md) for entity registration detail and the platform `async_setup_entry` pattern; [19-card-architecture](19-card-architecture.md) for how the panel card reads entity state.
+> **See also:** [02-ha-integration](02-ha-integration.md) for entity registration detail and the platform `async_setup_entry` pattern; [19-card-architecture](frontend/architecture-overview.md) for how the panel card reads entity state.
 
 ---
 

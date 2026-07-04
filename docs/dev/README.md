@@ -1,6 +1,7 @@
 # Developer Docs — Reading Order
 
-35 numbered files covering the integration's architecture, subsystems, and porting contract.
+The backend integration's architecture, subsystems, and porting contract, in reading order.
+The **frontend / Lovelace-card** docs are their own set — see **[frontend/](frontend/architecture-overview.md)**.
 Read them in this order if you are new to the codebase; jump in anywhere if you know what you're looking for.
 
 ---
@@ -61,22 +62,17 @@ Higher-level managers that sit above the subsystems.
 
 ---
 
-## UI Contract
+## Adapters
 
-The Lovelace panel card and everything the card reads from integration state.
+The adapter layer — how a vacuum brand plugs into the core.
 
 | # | File | What it covers |
 |---|---|---|
-| 19 | [card-architecture](19-card-architecture.md) | Panel card structure, renderer/binding pattern, service call protocol |
-| 20 | [theme-system](20-theme-system.md) | Theme editor: token hierarchy, palette → token derivation, import/export |
-| 34 | [frontend-module-reference](34-frontend-module-reference.md) | Per-file navigation map of `src/` (actions/bindings/renderers/styles/theme-tokens/i18n/cards + entry points): what each file owns, who imports it, and the cliffs — the complement to 19 §4.1's `state/` inventory |
-| 35 | [event-binding-and-modal-host](35-event-binding-and-modal-host.md) | The binding layer + the body-portal modal host: the `_on`/`_onAll` helpers, the `document.body` modal portal and why it needs a bind path `_onAll` can't reach, live-vs-commit, and the non-`hass` `_scheduleRender` trigger map — the runtime-seam complement to 19 §3 and 34 |
 | 21 | [adapter-system](21-adapter-system.md) | Adapter registration, registry, runtime lookup, adapter API contract |
 | 22 | [adapter-config-reference](22-adapter-config-reference.md) | Complete schema reference for per-vacuum adapter config dicts |
 | 25 | [eufy-adapter](25-eufy-adapter.md) | The Eufy adapter as a worked example + pattern guide for a full-feature adapter |
 | 26 | [eufy-segmentor](26-eufy-segmentor.md) | The Eufy CV room segmentor and the segmenter-engine pattern for a new brand |
 | 29 | [roborock-adapter](29-roborock-adapter.md) | The **second-brand** worked example — Roborock (native `get_maps`, path-optimized order, live map image, strict-order); the foil to the Eufy adapter |
-| 33 | [i18n-system](33-i18n-system.md) | The card i18n / translation system: the translation key catalog, `translate`/`tVocab` runtime, per-user language selection, and drop-in locale JSON |
 
 ---
 
@@ -85,17 +81,6 @@ The Lovelace panel card and everything the card reads from integration state.
 | # | File | What it covers |
 |---|---|---|
 | 23 | [error-tracker](23-error-tracker.md) | Error classification, per-vacuum error state, repair-issue patterns |
-| 24 | [animal-svg](24-animal-svg.md) | Map-view animal companions: SVG structure, state→pose mapping, battery-state eye color, theme tokens, memorial animals, authoring rules |
-
----
-
-## Frontend Quality & Tooling
-
-Headless rendering of the real card for regression, accessibility, and sharing.
-
-| # | File | What it covers |
-|---|---|---|
-| 27 | [render-harness](27-render-harness.md) | Headless render harness: the pure-renderer mount, all-states galleries, visual regression, CVD/colorblind validation + the Colorblind Safe theme, badge shape marks, theme-export intake, and the theme **gallery + issue→PR submission** pipeline. Test/run companion: [testing/07](../testing/07-render-harness.md) |
 
 ---
 
@@ -106,7 +91,15 @@ Cross-cutting features that span several subsystems.
 | # | File | What it covers |
 |---|---|---|
 | 28 | [external-run-ingestion](28-external-run-ingestion.md) | App-started (external) runs: detection, capture, blind segmentation, the review card + confirm wizard, the tier-1 identity gate, and graduating into the learned baselines |
-| 32 | [furnished-render](32-furnished-render.md) | Furnished custom render: overlay a to-scale home render over the live map (no georeference — the light path), the per-layout data model, the three services, `resolve_furnished_render`, and the frontend art layer / render modes |
+
+---
+
+## Frontend
+
+The Lovelace panel card — the render cycle, event binding, styles, state, the frontend↔backend
+contract, theming, i18n, the standalone cards, and every card feature — is documented as its own
+set in **[frontend/](frontend/architecture-overview.md)**. Start with the **architecture overview**
+(the hub), which maps the whole set.
 
 ---
 

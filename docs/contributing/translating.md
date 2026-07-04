@@ -4,7 +4,7 @@ So you want the card to speak another language — to keep for yourself, or to
 contribute back. A translation is **data, not code**: a JSON file of
 `key → string`. You can drop one in, restart, and pick it from the header globe —
 no rebuild. This page is about making one *good*; the machinery underneath is in
-the [i18n system reference](../dev/33-i18n-system.md).
+the [i18n system reference](../dev/frontend/i18n-system.md).
 
 ## Where strings come from
 
@@ -60,7 +60,7 @@ time. A flat `{ "rooms.empty": "…" }` file is the degenerate case and also wor
 ## What the intake gate allows
 
 A dropped locale is **untrusted** — some of its values are rendered as markup — so
-it passes through a [sanitize-or-quarantine gate](../dev/33-i18n-system.md#the-intake-gate)
+it passes through a [sanitize-or-quarantine gate](../dev/frontend/i18n-system.md#the-intake-gate)
 before it loads. Knowing the rules keeps your file from being rejected:
 
 - **Allowed markup:** `<strong>`, `<em>`, `<code>`, and `<a href="…">` pointing at
@@ -84,7 +84,7 @@ explicit pick, but it won't auto-activate. Once a native speaker has reviewed it
 promote it to `stable` (a one-line `LOCALE_STATUS` change) so it can follow the HA
 system language automatically. `draft` and `stable` are the two review states a
 shipped locale moves between; the
-[review-status taxonomy](../dev/33-i18n-system.md#review-status-and-auto-activation)
+[review-status taxonomy](../dev/frontend/i18n-system.md#review-status-and-auto-activation)
 defines exactly what each status controls (and how it differs from the intake
 gate's safety outcomes).
 
@@ -96,5 +96,5 @@ correct an item there or in the
 
 To contribute a language upstream, open a PR adding `<code>.json` to the served
 locales folder and its status to the locale tables in `src/i18n/index.js`. The
-[i18n reference](../dev/33-i18n-system.md) covers the manifest, plural mechanism,
+[i18n reference](../dev/frontend/i18n-system.md) covers the manifest, plural mechanism,
 and the `check:i18n` gate your file is validated against.

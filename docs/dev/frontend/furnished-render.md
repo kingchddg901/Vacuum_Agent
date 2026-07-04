@@ -8,7 +8,7 @@ It is a cross-cutting feature — a per-layout data model, a pure resolver, thre
 
 ## 1. Data model (per custom layout)
 
-The furnished state lives on each `custom_layouts[<id>]` record (see [data model](03-data-model.md)), never at the map-bucket level (so it can't leak across layouts):
+The furnished state lives on each `custom_layouts[<id>]` record (see [data model](../03-data-model.md)), never at the map-bucket level (so it can't leak across layouts):
 
 - `home_art: {art_variant, art_placement_transform: {tx, ty, scale, rotation}}` — the whole-home art.
 - `rooms: {<room_id>: {art_variant?, art_placement_transform?, viewport?: {cx, cy, zoom}, render_mode?}}` — per-room overrides.
@@ -20,7 +20,7 @@ Transforms and viewports are **resolution-independent percentage floats** (`scal
 
 ## 2. Services
 
-All three are map-scoped (operate on the **active** custom layout, returning `no_active_layout` when none is active), `supports_response`, and return the resolved `furnished_render`. See the [services reference](../advanced/03-services.md#furnished-render) for parameters.
+All three are map-scoped (operate on the **active** custom layout, returning `no_active_layout` when none is active), `supports_response`, and return the resolved `furnished_render`. See the [services reference](../../advanced/03-services.md#furnished-render) for parameters.
 
 | Service | Writes |
 |---|---|
@@ -58,4 +58,4 @@ The whole feature rests on one property: the live overlays are placed in the **d
 
 The cost is that the art is pinned to the live map's current crop/scale: if the brand re-renders its map differently between sessions (Eufy re-localizes per session), the art can drift and needs a re-nudge — accepted as a known limitation, with the re-align controls always available. Zone-draw, which lives one z-layer above the art, therefore works over the furnished art on any brand that supports zone cleaning (Eufy and Roborock), at any map rotation, with no extra plumbing.
 
-See also: [map-state-source](map-state-source.md) (the overlay frame the art rides), [map configuration reference](../advanced/08-map-configuration.md#furnished-render), and the [user guide](../user-guide/18-furnished-render.md).
+See also: [map-state-source](../map-state-source.md) (the overlay frame the art rides), [map configuration reference](../../advanced/08-map-configuration.md#furnished-render), and the [user guide](../../user-guide/18-furnished-render.md).

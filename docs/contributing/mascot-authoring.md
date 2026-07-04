@@ -29,7 +29,7 @@ something to aim at.
 
 The technical contract (definition shape, coordinate space, allowed poses,
 battery-state hook, theme tokens) lives in the integration's
-[animal-svg dev doc](../dev/24-animal-svg.md). This file is about *making them
+[animal-svg dev doc](../dev/frontend/animal-svg.md). This file is about *making them
 look good* (any animal) and the maintainer **runtime** path (raw-JS animals).
 
 ## What "good" means here
@@ -172,7 +172,7 @@ A few non-goals worth stating:
   doesn't need them — empty strings or absent keys are fine.
 - **Don't fight the coordinate space.** ViewBox is `-10 -10 500 340` and
   anatomy anchors are documented in the
-  [animal-svg dev doc](../dev/24-animal-svg.md) under "Coordinate space".
+  [animal-svg dev doc](../dev/frontend/animal-svg.md) under "Coordinate space".
   You can deviate, but pose
   transforms pivot around those anchors regardless, so significant
   deviation produces strange motion.
@@ -289,7 +289,7 @@ Two things set a memorial apart from a normal animal:
 Everything else is the same as any animal: it still has to express all six poses
 and obey the coordinate space — it just does so as a faithful portrait rather than
 a placeholder. The technical specifics (the `memorial` flag, the colors-derived
-token list) are in the [animal-svg dev doc](../dev/24-animal-svg.md#memorial-animals-rainbow-bridge).
+token list) are in the [animal-svg dev doc](../dev/frontend/animal-svg.md#memorial-animals-rainbow-bridge).
 
 ### Sanity check before submitting
 

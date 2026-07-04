@@ -146,7 +146,7 @@ reopen your submission to retry.
 
 The mechanics of what happens behind the submission form — validation, preview
 rendering, and publishing — are documented for maintainers in
-[dev/27-render-harness](../dev/27-render-harness.md#8-theme-submission-issue--pr).
+[dev/27-render-harness](../dev/frontend/render-harness.md#8-theme-submission-issue--pr).
 
 ---
 

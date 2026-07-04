@@ -58,8 +58,8 @@ The static groups below are the fixed editor order. Between **Modals & Overlays*
 | **Shared Foundations** | Spacing, radius, typography, and motion primitives shared across all components |
 
 > The complete per-token catalog — every `--evcc-*` key with its editor label, type, and
-> range, grouped — is generated into **[Theme Token Map](reference/THEME_TOKEN_MAP.md)**, and
-> **[Theme Token CSS-Usage Trace](reference/THEME_TOKEN_USAGE.md)** traces where each token is
+> range, grouped — is generated into **[Theme Token Map](../reference/THEME_TOKEN_MAP.md)**, and
+> **[Theme Token CSS-Usage Trace](../reference/THEME_TOKEN_USAGE.md)** traces where each token is
 > consumed in the card CSS (and flags any token that nothing reads). Both regenerate with
 > `node scripts/gen-theme-token-docs.mjs` — run it after adding, removing, or renaming a token.
 
@@ -227,7 +227,7 @@ separate by CIEDE2000 ≥ 15 across all ten group pairs under simulated
 protanopia, deuteranopia, and tritanopia; everything else cascades from those
 five via `var()` (`_build_release_theme_colors`). The simulation + ΔE gate, and
 the always-on per-state badge shape marks that back it up, live in the render
-harness — see [27-render-harness](27-render-harness.md) §5–6. The exact hexes are
+harness — see [27-render-harness](render-harness.md) §5–6. The exact hexes are
 mirrored (comment-linked) in `harness/bundles/cvd-safe.mjs`, which the harness
 CVD gate validates.
 
@@ -420,14 +420,14 @@ It REPLACES the namespace on the active theme **in place**; it does not create a
 Exports can also be published to a curated **theme gallery**: a GitHub issue form
 that a bot turns into a reviewed pull request (validate → render preview → PR →
 human merge → Pages publish). That pipeline is documented in
-[dev/27-render-harness §8](27-render-harness.md#8-theme-submission-issue--pr); the
+[dev/27-render-harness §8](render-harness.md#8-theme-submission-issue--pr); the
 user-facing walkthrough is
-[user-guide/15-sharing-themes](../user-guide/15-sharing-themes.md).
+[user-guide/15-sharing-themes](../../user-guide/15-sharing-themes.md).
 
 ### Authoring a theme JSON by hand
 
 You don't *need* the editor — the import envelope is plain JSON, and the
-[Theme Token Map](reference/THEME_TOKEN_MAP.md) is its spec. For someone who knows
+[Theme Token Map](../reference/THEME_TOKEN_MAP.md) is its spec. For someone who knows
 exactly what they want, hand-writing a theme is mechanical: take keys from the catalog,
 give each a value of its declared **Type** (within its **Range**), and import.
 
@@ -461,7 +461,7 @@ The envelope is the same `theme` object an export produces:
 - **Partial is fine.** Include only the keys you want — anything you omit falls through
   to the card's built-in defaults (the `foundation.js` `:host` seeds), since
   `applyDynamicTheme()` only sets the keys present.
-- **Targeting:** the [Theme Token CSS-Usage Trace](reference/THEME_TOKEN_USAGE.md) lists
+- **Targeting:** the [Theme Token CSS-Usage Trace](../reference/THEME_TOKEN_USAGE.md) lists
   the exact CSS property each token paints, so you can retheme one surface without hunting.
 
 **The shortcut, if you'd rather not start blank:** export an existing theme (above) for a
@@ -474,7 +474,7 @@ and adds it as a **new** library theme — a malformed payload is rejected whole
 
 > Prefer to hand this off to an AI? The catalog, the usage trace, and this envelope are
 > exactly the spec an assistant needs — see
-> **[Authoring themes with an AI](reference/ai-theme-authoring.md)**.
+> **[Authoring themes with an AI](../reference/ai-theme-authoring.md)**.
 
 ---
 
@@ -501,8 +501,8 @@ and adds it as a **new** library theme — a malformed payload is rejected whole
    ```
    node scripts/gen-theme-token-docs.mjs
    ```
-   This rewrites [reference/THEME_TOKEN_MAP.md](reference/THEME_TOKEN_MAP.md) and
-   [reference/THEME_TOKEN_USAGE.md](reference/THEME_TOKEN_USAGE.md) from the live registry + CSS.
+   This rewrites [reference/THEME_TOKEN_MAP.md](../reference/THEME_TOKEN_MAP.md) and
+   [reference/THEME_TOKEN_USAGE.md](../reference/THEME_TOKEN_USAGE.md) from the live registry + CSS.
    The usage trace flags the new token if nothing consumes it yet (an un-wired knob), and surfaces
    the inverse too — a `var(--evcc-…)` the CSS uses that isn't in the registry.
 

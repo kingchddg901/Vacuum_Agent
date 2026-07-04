@@ -30,7 +30,7 @@ write one in a text editor — take keys from the catalog, give each a legal val
 import. It's mechanical and rarely worth it over the editor, but it's there. The
 full envelope, the `colors`/`alpha`-vs-`tokens` distinction, and the
 "export-then-edit" shortcut are in
-[Authoring a theme JSON by hand](../dev/20-theme-system.md#authoring-a-theme-json-by-hand).
+[Authoring a theme JSON by hand](../dev/frontend/theme-system.md#authoring-a-theme-json-by-hand).
 
 ### With an AI
 

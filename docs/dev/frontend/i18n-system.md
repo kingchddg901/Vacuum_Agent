@@ -16,7 +16,7 @@ Two audiences:
 
 - **Card developers** adding or touching UI strings — read [Authoring strings](#authoring-strings).
 - **Translators / contributors** adding a language — start with the how-to,
-  [Contributing a translation](../contributing/translating.md); this page is the
+  [Contributing a translation](../../contributing/translating.md); this page is the
   mechanism underneath it.
 
 ## Files
@@ -78,7 +78,7 @@ system language.
 Consequence today: **all shipped non-English locales are `draft`**, so **`Auto`
 (follow-the-system-language) resolves to English for everyone** until a locale is
 promoted — by design (an unreviewed translation never activates silently), but the
-[user-facing language page](../user-guide/19-language.md) makes that visible to the
+[user-facing language page](../../user-guide/19-language.md) makes that visible to the
 user rather than leaving `Auto` looking broken.
 
 ## Trust Model B
@@ -250,4 +250,4 @@ The **intake gate** has its own real-Chromium adversarial suite
 (`scripts/sanitize-locale.test.mjs`) — jsdom would test a *different* parser than
 the runtime sink, exactly where mutation-XSS hides, so it bundles the real
 `index.js` and runs `loadLocale` end-to-end in the browser. See
-[Testing](../testing/01-overview.md).
+[Testing](../../testing/01-overview.md).
