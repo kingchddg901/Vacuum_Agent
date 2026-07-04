@@ -433,14 +433,11 @@ export function applyMapBindings(proto) {
       }
     }
 
-    // Tile the material at ~ROOM scale (one swatch ≈ one room, like the cards) instead of
-    // stretching one swatch over the whole map — the "scaling" flatness. The masks are
-    // room-scale swatches (~7 planks etc.) drawn to fill a ~300px card; cover-once put <1
-    // plank in a room. Composite the swatch at T×T (card-scale detail from the 2048 mask),
-    // then sample it with a modulo below so it TILES continuously across the map (adjacent
-    // same-type rooms stay seamless). T ≈ 1/3 of the map's long side ≈ a room.
-    const T = Math.max(192, Math.min(640, Math.round(Math.max(CW, CH) / 3.2)));
-    const { ready } = this._ensureFloorTextures(presentTypes, T, T, canvas);
+    // Composite each present material at the canvas res, with the masks drawn at NATIVE
+    // resolution (see _decodeMaskLum) so the fine grain/plank-seam detail survives — the
+    // detail is what makes it read as a floor. Map-space + native-tiled -> continuous across
+    // same-type rooms. (Downscaling the masks to map size averaged the detail to flat.)
+    const { ready } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
 
     // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
     // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
@@ -462,10 +459,9 @@ export function applyMapBindings(proto) {
           const ft = floorTypeByRid[rid];
           const tex = ft ? ready.get(ft) : null;
           if (tex) {
-            // Tiled map-space sample (modulo T): continuous across rooms, ~one swatch per room.
-            const to = ((oy % T) * T + (ox % T)) * 4;
-            data[o] = tex.data[to]; data[o + 1] = tex.data[to + 1];
-            data[o + 2] = tex.data[to + 2]; data[o + 3] = 255;
+            // 1:1 map-space sample (tex is CW×CH from a native-res mask) -> crisp + continuous.
+            data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
+            data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
           } else {
             const c = flatColor(rid);
             data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
@@ -564,7 +560,14 @@ export function applyMapBindings(proto) {
     c.width = W; c.height = H;
     const cx = c.getContext("2d", { willReadFrequently: true });
     if (!cx) return null;
-    cx.drawImage(img, 0, 0, W, H);
+    // Fill at NATIVE resolution (repeat-pattern), NOT downscaled to W×H. Downscaling the fine
+    // grain/seam detail (1-3px in the 2048 mask) to map size averages it to nothing -> flat.
+    // Native res keeps it crisp — the same way the card shows the mask at native size — and the
+    // pattern wraps for canvases larger than the mask.
+    const pat = cx.createPattern(img, "repeat");
+    if (!pat) return null;
+    cx.fillStyle = pat;
+    cx.fillRect(0, 0, W, H);
     const d = cx.getImageData(0, 0, W, H).data;
     const n = W * H;
     const lum = new Uint8ClampedArray(n);
