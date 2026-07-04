@@ -11,7 +11,10 @@
  */
 
 import { VIEWS } from "../render-cycle.js";
-import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
+import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N, hexToRgb } from "../cards/map-room-color.js";
+import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-texture-registry.js";
+import { resolveFloorType } from "../textures/floor-texture-resolver.js";
+import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
 // (roomFillRgb, reading --evcc-room-fill-N off the canvas); the hardcoded array moved to
@@ -140,6 +143,12 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    root.querySelectorAll("[data-action='toggle-floor-texture']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleUseFloorTexture?.();
+        this.card._scheduleRender();
+      });
+    });
   };
 
   /**
@@ -189,10 +198,16 @@ export function applyMapBindings(proto) {
 
     const canvas = root.querySelector("canvas.evcc-map-render-canvas");
     if (!canvas || !rd || !rd.present) return;
-    if (canvas._evccDrawnVersion === rd.version) return; // already drawn this version
+    // Floor-texture mode paints the same raster with per-room material textures; the
+    // draw-key includes the mode so a flat<->floor toggle repaints (and the async
+    // texture decode's re-render lands on a fresh canvas anyway).
+    const floor = state.isFloorRenderActive?.() ?? false;
+    const drawKey = `${rd.version}|${floor ? "floor" : "flat"}`;
+    if (canvas._evccDrawnKey === drawKey) return; // already drawn this (version, mode)
     try {
-      this._drawVaRender(canvas, rd);
-      canvas._evccDrawnVersion = rd.version;
+      if (floor) this._drawVaFloorRender(canvas, rd);
+      else this._drawVaRender(canvas, rd);
+      canvas._evccDrawnKey = drawKey;
     } catch (err) {
       console.error("[eufy-vacuum-command-center] map render draw failed:", err);
     }
@@ -333,6 +348,212 @@ export function applyMapBindings(proto) {
       this._vaImageCache = cache;
     }
     cctx.putImageData(cache.img, 0, 0);
+  };
+
+  /* =========================================================
+     FLOOR-TEXTURE RENDER (mechanism A — raster clip)
+     =========================================================
+     Same per-pixel room_pixels decode as _drawVaRender, but each room's pixels are
+     painted from its floor-TYPE's composited material texture instead of a flat
+     palette color. Continuous by construction: the texture is composited at the
+     canvas W×H in FINAL image coords, so two adjacent same-type rooms sample the
+     same map-space texel — one continuous floor, no per-room offset/hash. Textures
+     decode async (PNG mask -> luminance -> composite); until a type is ready its
+     rooms paint the flat palette color as a placeholder and the decode re-renders
+     on completion. Untextured rooms (no floor_type / no asset) always use the flat
+     palette, so a partial-floor map still reads. Works on any brand with a raster
+     (Eufy CV + Roborock decode). */
+  proto._drawVaFloorRender = function (canvas, rd) {
+    const W = rd.width | 0, H = rd.height | 0;
+    if (W <= 0 || H <= 0) return;
+    canvas.width = W;
+    canvas.height = H;
+    const cctx = canvas.getContext("2d");
+    if (!cctx) return;
+
+    const state = this.card._state;
+    const rooms = state?.getRoomsForActiveMap?.() ?? [];
+    const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
+
+    // rid -> floorType, via the SAME device-authoritative rid->name bridge _drawVaRender
+    // uses for colors (rd.room_names = {rid: name}; our rooms carry that name + floor_type).
+    const floorByName = new Map();
+    for (const room of rooms) {
+      const ft = resolveFloorType({
+        floor_type:  room?.floor_type  ?? room?.floorType  ?? "",
+        carpet_type: room?.carpet_type ?? room?.carpetType ?? "",
+      });
+      if (ft && room.name != null) floorByName.set(norm(room.name), ft);
+    }
+    const floorTypeByRid = [];
+    const ridNames = (rd && rd.room_names) || {};
+    for (const ridStr of Object.keys(ridNames)) {
+      const ft = floorByName.get(norm(ridNames[ridStr]));
+      const ridNum = Number(ridStr);
+      if (ft && Number.isFinite(ridNum)) floorTypeByRid[ridNum] = ft;
+    }
+    // "default" = no floor type set -> stays flat (palette); only real, textured types paint.
+    const presentTypes = [...new Set(floorTypeByRid.filter(Boolean))]
+      .filter((ft) => ft !== "default" && getPrimaryTextureUrl(ft));
+
+    // Flat palette — fallback for untextured rooms AND placeholder before textures load.
+    const palette = [];
+    for (let i = 0; i < ROOM_FILL_N; i++) palette[i] = roomFillRgb(i, canvas);
+    const flatColor = (rid) => palette[(((rid - 1) % ROOM_FILL_N) + ROOM_FILL_N) % ROOM_FILL_N];
+
+    // Decoded+composited textures (map W×H) for the ready types; kicks async decode for
+    // the rest (which re-renders on completion).
+    const { ready } = this._ensureFloorTextures(presentTypes, W, H, canvas);
+
+    const img = cctx.createImageData(W, H);
+    const data = img.data;
+    const bin = atob(rd.room_pixels || "");
+    const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+    const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+    const shift = rd.rid_shift | 0;
+    const catchAll = rd.catch_all_rid | 0;
+    const flip = rd.flip_y !== false;
+    for (let ry = 0; ry < roH; ry++) {
+      const rowOff = ry * roW;
+      for (let rx = 0; rx < roW; rx++) {
+        const idx = rowOff + rx;
+        if (idx >= bin.length) break;
+        const rid = bin.charCodeAt(idx) >> shift;
+        if (!(rid > 0 && rid < catchAll)) continue;
+        const px = rx + dx, py = ry + dy;
+        if (px < 0 || px >= W || py < 0 || py >= H) continue;
+        const iy = flip ? (H - 1 - py) : py;
+        const o = (iy * W + px) * 4;
+        const ft = floorTypeByRid[rid];
+        const tex = ft ? ready.get(ft) : null;
+        if (tex) {
+          // Map-space sample: texture is W×H in the SAME final-image coords as `o`.
+          data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
+          data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
+        } else {
+          const c = flatColor(rid);
+          data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+        }
+      }
+    }
+    cctx.putImageData(img, 0, 0);
+  };
+
+  /* Ensure each present floorType's material is decoded + composited at W×H. Returns
+     `{ ready: Map<floorType, {data}> }` of the types ready THIS frame; missing ones kick
+     an async mask decode that re-renders on completion. Two caches on the binding: raw
+     mask luminance (theme-independent, keyed by URL+size) and the composited texture
+     (theme-dependent, keyed by resolved colors/opacities). */
+  proto._ensureFloorTextures = function (presentTypes, W, H, host) {
+    this._floorMaskCache = this._floorMaskCache || new Map();    // maskKey -> Uint8ClampedArray lum
+    this._floorMaskPending = this._floorMaskPending || new Set();
+    this._floorTexCache = this._floorTexCache || new Map();      // texKey -> composited {data}
+
+    const ready = new Map();
+
+    for (const ft of presentTypes) {
+      const entry = FLOOR_TEXTURE_REGISTRY[ft];
+      if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
+
+      // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
+      const resolved = entry.layers.map((layer) => ({
+        url: String(layer.url),
+        color: this._resolveFloorColor(layer.colorToken, layer.colorDefault, host),
+        opacity: this._resolveFloorOpacity(layer.opacityToken, layer.opacityDefault, host),
+      }));
+      const colorSig = resolved.map((r) => `${r.color.join(",")}:${r.opacity}`).join("|");
+      const texKey = `${ft}|${W}x${H}|${colorSig}`;
+
+      const cachedTex = this._floorTexCache.get(texKey);
+      if (cachedTex) { ready.set(ft, cachedTex); continue; }
+
+      // Need every layer's mask decoded to a luminance array.
+      const lumArrays = [];
+      let allLoaded = true;
+      for (const r of resolved) {
+        const maskKey = `${r.url}|${W}x${H}`;
+        const lum = this._floorMaskCache.get(maskKey);
+        if (lum) { lumArrays.push(lum); continue; }
+        allLoaded = false;
+        if (!this._floorMaskPending.has(maskKey)) {
+          this._floorMaskPending.add(maskKey);
+          // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
+          // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
+          // of never caching -> re-kicking every render -> an infinite render loop.
+          this._decodeMaskLum(r.url, W, H)
+            .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
+            .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
+            .finally(() => {
+              this._floorMaskPending.delete(maskKey);
+              this.card._scheduleRender?.();
+            });
+        }
+      }
+      if (!allLoaded) continue;
+
+      // Base = the "base"-role layer's color (else layer 0) — what shows in any gaps the
+      // masks leave. Composite all layers over it (pure; unit-tested).
+      const baseIdx = entry.layers.findIndex((l) => l.role === "base");
+      const base = resolved[baseIdx >= 0 ? baseIdx : 0].color;
+      const tex = compositeFloorTexture(
+        W, H, base,
+        resolved.map((r, i) => ({ lum: lumArrays[i], color: r.color, opacity: r.opacity })),
+      );
+      this._floorTexCache.set(texKey, tex);
+      ready.set(ft, tex);
+    }
+
+    return { ready };
+  };
+
+  /* Load a grayscale mask PNG and downscale it to W×H, returning a per-texel luminance
+     array (0..255; white reveals). Same-origin (served by HA), so the canvas read is not
+     tainted. Async — the caller re-renders when it resolves. */
+  proto._decodeMaskLum = async function (url, W, H) {
+    if (typeof Image !== "function" || typeof document === "undefined") return null;
+    const img = new Image();
+    img.decoding = "async";
+    img.src = url;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    const cx = c.getContext("2d", { willReadFrequently: true });
+    if (!cx) return null;
+    cx.drawImage(img, 0, 0, W, H);
+    const d = cx.getImageData(0, 0, W, H).data;
+    const n = W * H;
+    const lum = new Uint8ClampedArray(n);
+    for (let i = 0; i < n; i++) {
+      const o = i * 4;
+      lum[i] = d[o] * 0.299 + d[o + 1] * 0.587 + d[o + 2] * 0.114;
+    }
+    return lum;
+  };
+
+  /* Resolve a floor layer's color token off the canvas (which inherits the theme vars),
+     falling back to the registry default. Mirrors roomFillRgb's read-then-parse. */
+  proto._resolveFloorColor = function (token, dflt, host) {
+    let hex = dflt;
+    try {
+      if (host && typeof getComputedStyle === "function") {
+        const v = getComputedStyle(host).getPropertyValue(token).trim();
+        if (v) hex = v;
+      }
+    } catch (_e) { /* detached / no CSSOM — keep the default */ }
+    return hexToRgb(hex);
+  };
+
+  /* Resolve a floor layer's opacity token (0..1), falling back to the registry default. */
+  proto._resolveFloorOpacity = function (token, dflt, host) {
+    let raw = dflt;
+    try {
+      if (host && typeof getComputedStyle === "function") {
+        const v = getComputedStyle(host).getPropertyValue(token).trim();
+        if (v) raw = v;
+      }
+    } catch (_e) { /* keep default */ }
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 1;
   };
 
   /* =========================================================

@@ -273,6 +273,10 @@ export function applyMapRenderers(proto) {
             <button class="evcc-map-zoom-btn${(state.useVaRender?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-va-render"
                     title="${this.t("map.toggle_va_render")}" aria-label="${this.t("map.toggle_va_render")}">▦</button>` : ""}
+            ${(vaActive && !(state.embeddedInCard?.() ?? false)) ? `
+            <button class="evcc-map-zoom-btn${(state.useFloorTexture?.() ?? false) ? " evcc-map-zoom-btn--on" : ""}"
+                    data-action="toggle-floor-texture"
+                    title="${this.t("map.toggle_floor_texture")}" aria-label="${this.t("map.toggle_floor_texture")}">▨</button>` : ""}
             ${canZone ? `
             <button class="evcc-map-zoom-btn${zoneMode ? " evcc-map-zoom-btn--on" : ""}"
                     data-action="toggle-zone-draw"

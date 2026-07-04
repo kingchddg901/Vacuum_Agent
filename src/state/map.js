@@ -1083,6 +1083,36 @@ export function applyMapState(proto) {
         && Boolean(this.mapRenderData()?.present);
   };
 
+  // Floor-texture paint is a FLAVOR of the VA raster (the same room_pixels canvas), so it
+  // only applies once that canvas is the backdrop — floor just swaps each room's flat fill
+  // for its floor-type material. Per-vacuum localStorage, mirroring _useVaRender.
+  proto._useFloorTexture = null; // null = not yet read from localStorage
+  proto._useFloorTextureKey = function () {
+    return `evcc_floor_texture_${(this.vacuumObjectId() || "")}`;
+  };
+  proto.useFloorTexture = function () {
+    if (this._useFloorTexture === null) {
+      try {
+        this._useFloorTexture = localStorage.getItem(this._useFloorTextureKey()) === "1";
+      } catch (_) {
+        this._useFloorTexture = false;
+      }
+    }
+    return this._useFloorTexture;
+  };
+  proto.setUseFloorTexture = function (on) {
+    this._useFloorTexture = Boolean(on);
+    try {
+      localStorage.setItem(this._useFloorTextureKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleUseFloorTexture = function () {
+    this.setUseFloorTexture(!this.useFloorTexture());
+  };
+  proto.isFloorRenderActive = function () {
+    return this.isVaRenderActive() && this.useFloorTexture();
+  };
+
   // Overlays + the layers panel align on ANY grid-frame backdrop: the live device
   // image OR the VA render. (Both are normalized to the same image_size grid.)
   proto.overlaysAligned = function () {

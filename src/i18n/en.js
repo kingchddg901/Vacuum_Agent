@@ -617,6 +617,7 @@ export const en = {
   "map.segment_fallback": "Segment {id}",
   "map.segment_hint_configurable": "Tap to queue · Double-tap to configure",
   "map.segment_hint_queue": "Tap to queue",
+  "map.toggle_floor_texture": "Toggle floor textures",  // Button toggling the floor-texture map view: paints each room with its floor-type material (wood/tile/carpet…) instead of flat colors
   "map.toggle_va_render": "Toggle VA-rendered map",  // Button toggling the VA-rendered (integration-drawn) map vs live image; VA=Vacuum Agent, expand or keep as-is
   "map.upload": "Upload",
   "map.upload_failed": "Upload failed",
