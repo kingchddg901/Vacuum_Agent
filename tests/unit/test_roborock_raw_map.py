@@ -16,6 +16,7 @@ Coverage targets
 [RRD-8]  render_data_from_candidates: BFS to a MapContent -> decode its raw_api_response.
 [RRD-9]  raster_room_bboxes: per-room normalized bbox from the resolved raster.
 [RRD-10] geometry_drift: overlay parser vs raster bboxes -> aligned / flip / set-mismatch.
+[RRD-12] raster_room_bboxes: flip_y honored -> raw top rows land at the rendered bottom (Ivy).
 """
 
 from __future__ import annotations
@@ -243,3 +244,20 @@ def test_geometry_drift_from_candidates_absent():
 
     assert roborock_geometry_drift_from_candidates([])["present"] is False
     assert roborock_geometry_drift_from_candidates([object()])["present"] is False
+
+
+def test_raster_bboxes_flip_y():
+    """[RRD-12] flip_y honored: a room in the raw TOP rows lands at the rendered BOTTOM, so the
+    raster bbox matches the parser's flipped frame. This is the exact Ivy finding — X pixel-exact,
+    Y = 1 - parser_y — which without the flip read as a false `aligned: false`."""
+    top_room = {
+        "width": 4, "height": 3, "flip_y": True,
+        "room_pixels": bytes([5, 5, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0]),   # room 5 in the raw TOP row
+    }
+    b = raster_room_bboxes(top_room)[5]
+    assert b[0] == 0.0 and b[2] == 1.0                    # X unchanged by the flip
+    assert abs(b[1] - 2 / 3) < 1e-9 and b[3] == 1.0       # raw top row -> rendered bottom
+
+    # a parser bbox at that flipped spot now aligns (was a false mismatch before the fix).
+    d = geometry_drift([{"number": 5, "bbox": [0.0, 2 / 3, 1.0, 1.0]}], top_room)
+    assert d["aligned"] is True and d["min_iou"] > 0.9

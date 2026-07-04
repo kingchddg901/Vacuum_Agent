@@ -181,9 +181,11 @@ def roborock_render_data(
 
 
 def raster_room_bboxes(decoded: dict[str, Any] | None) -> dict[int, list[float]]:
-    """Per-room NORMALIZED bbox ``{rid: [min_x, min_y, max_x, max_y]}`` (0..1 of the raster)
-    from a decoded raster — the min/max column/row of each room's pixels. The raster
-    counterpart to the parser's own per-room bboxes; comparing the two validates the decode.
+    """Per-room NORMALIZED bbox ``{rid: [min_x, min_y, max_x, max_y]}`` (0..1) from a decoded
+    raster — the min/max column/row of each room's pixels. Honors the decoded ``flip_y`` (raw
+    row 0 is the image BOTTOM) so the bboxes land in the SAME rendered frame the parser's
+    projected bboxes use — otherwise the two are a whole Y-flip apart and never overlap. The
+    raster counterpart to the parser's own per-room bboxes; comparing the two validates the decode.
     """
     if not decoded:
         return {}
@@ -193,6 +195,7 @@ def raster_room_bboxes(decoded: dict[str, Any] | None) -> dict[int, list[float]]
     if not rp or not width or not height:
         return {}
     w, h = int(width), int(height)
+    flip = bool(decoded.get("flip_y"))
     acc: dict[int, list[int]] = {}  # rid -> [min_x, min_y, max_x, max_y] in pixels
     for i, rid in enumerate(rp):
         if not (1 <= rid <= MAX_ROOM_RID):
@@ -210,10 +213,13 @@ def raster_room_bboxes(decoded: dict[str, Any] | None) -> dict[int, list[float]]
                 b[2] = x
             if y > b[3]:
                 b[3] = y
-    return {
-        rid: [b[0] / w, b[1] / h, (b[2] + 1) / w, (b[3] + 1) / h]
-        for rid, b in acc.items()
-    }
+    out: dict[int, list[float]] = {}
+    for rid, b in acc.items():
+        if flip:  # raw row 0 = image bottom -> rendered y = 1 - row
+            out[rid] = [b[0] / w, 1 - (b[3] + 1) / h, (b[2] + 1) / w, 1 - b[1] / h]
+        else:
+            out[rid] = [b[0] / w, b[1] / h, (b[2] + 1) / w, (b[3] + 1) / h]
+    return out
 
 
 def _bbox_iou(a: list[float], b: list[float]) -> float:
