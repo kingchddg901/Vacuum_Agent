@@ -1,0 +1,14 @@
+Vacuum Agent
+Copyright (c) 2026 kingchddg901
+
+This project is licensed under the MIT License (see LICENSE).
+
+Acknowledgement
+---------------
+Vacuum Agent is a top-level addition built upon eufy-clean
+(https://github.com/jeppesens/eufy-clean). Forks and derivative works are
+asked to keep an acknowledgement of that dependency.
+
+Note: eufy-clean is a separate project with its own licence. Vacuum Agent does
+not bundle or relicense it — any eufy-clean code you include in a derivative
+work remains governed by eufy-clean's own licence, which you must comply with.
