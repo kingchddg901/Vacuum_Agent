@@ -433,9 +433,14 @@ export function applyMapBindings(proto) {
       }
     }
 
-    // Composite each present material at the SUPERSAMPLED res (masks downscaled to CW×CH,
-    // NOT the raster — that's what preserves the detail). Async; re-renders when ready.
-    const { ready } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
+    // Tile the material at ~ROOM scale (one swatch ≈ one room, like the cards) instead of
+    // stretching one swatch over the whole map — the "scaling" flatness. The masks are
+    // room-scale swatches (~7 planks etc.) drawn to fill a ~300px card; cover-once put <1
+    // plank in a room. Composite the swatch at T×T (card-scale detail from the 2048 mask),
+    // then sample it with a modulo below so it TILES continuously across the map (adjacent
+    // same-type rooms stay seamless). T ≈ 1/3 of the map's long side ≈ a room.
+    const T = Math.max(192, Math.min(640, Math.round(Math.max(CW, CH) / 3.2)));
+    const { ready } = this._ensureFloorTextures(presentTypes, T, T, canvas);
 
     // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
     // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
@@ -457,9 +462,10 @@ export function applyMapBindings(proto) {
           const ft = floorTypeByRid[rid];
           const tex = ft ? ready.get(ft) : null;
           if (tex) {
-            // Map-space sample: texture is CW×CH in the SAME coords as `o` -> continuous.
-            data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
-            data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
+            // Tiled map-space sample (modulo T): continuous across rooms, ~one swatch per room.
+            const to = ((oy % T) * T + (ox % T)) * 4;
+            data[o] = tex.data[to]; data[o + 1] = tex.data[to + 1];
+            data[o + 2] = tex.data[to + 2]; data[o + 3] = 255;
           } else {
             const c = flatColor(rid);
             data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
