@@ -1,4 +1,4 @@
-# 24 — Animal SVG
+# Animal SVG
 
 The `<animal-svg>` web component renders the map view's animal companion
 (cat/dog/raccoon/parrot/snake by default; any registered animal). It is a

@@ -1,4 +1,4 @@
-# 20 — Theme System
+# Theme System
 
 The eufy_vacuum Lovelace card ships a fully independent per-card theming layer. Themes are not HA global themes — they are token dictionaries stored in the integration and applied directly to the card's shadow DOM.
 
@@ -227,7 +227,7 @@ separate by CIEDE2000 ≥ 15 across all ten group pairs under simulated
 protanopia, deuteranopia, and tritanopia; everything else cascades from those
 five via `var()` (`_build_release_theme_colors`). The simulation + ΔE gate, and
 the always-on per-state badge shape marks that back it up, live in the render
-harness — see [27-render-harness](render-harness.md) §5–6. The exact hexes are
+harness — see [render-harness](render-harness.md) §5–6. The exact hexes are
 mirrored (comment-linked) in `harness/bundles/cvd-safe.mjs`, which the harness
 CVD gate validates.
 

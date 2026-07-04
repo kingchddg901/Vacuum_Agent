@@ -1,7 +1,7 @@
-# 35 — Event Binding & the Modal Host
+# Event Binding & the Modal Host
 
 This is the deep dive on the card's **binding layer** and its **body-portal modal host** — the one
-runtime seam that [19 — Card Architecture](architecture-overview.md) gestures at but never details.
+runtime seam that [Card Architecture](architecture-overview.md) gestures at but never details.
 
 Read first, then come back:
 - **[19 §3.1–3.2](architecture-overview.md)** owns the render cycle (`_scheduleRender` microtask
@@ -9,7 +9,7 @@ Read first, then come back:
   `bindEvents()` re-attaches from scratch" invariant). This doc does **not** re-teach that.
 - **[19 §2.2](architecture-overview.md)** owns the four-layer prototype-mixin pattern
   (actions / state / renderers / bindings).
-- **[34 — Frontend Module Reference](module-reference.md)** owns the full `src/bindings/*.js`
+- **[Frontend Module Reference](module-reference.md)** owns the full `src/bindings/*.js`
   file map. Section 1 below is a wiring index, not a replacement for it.
 
 Everything here is the **delta**: the `_on`/`_onAll` binding helpers, the `document.body` modal

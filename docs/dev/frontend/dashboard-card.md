@@ -4,7 +4,7 @@
 > control card, the embedded map, and the polish pass are all live. This file keeps
 > the original design rationale below (issue #34); the banner tracks what actually
 > shipped. For the *architecture* of the cards + bundles + map host, see
-> [19 — Card Architecture](architecture-overview.md) §8.
+> [Card Architecture](architecture-overview.md) §8.
 >
 > **W1 — control card (list-based):**
 > - `src/cards/dashboard-dispatch.js` — pure, unit-tested run-launcher logic
@@ -27,7 +27,7 @@
 > It ships as its own lazily-loaded bundle (`frontend/eufy-vacuum-map.js`), imported on
 > demand by the dashboard card. Full VA-render backdrop, zone-draw, rotate, layers
 > panel, mascot controls — the same map as the panel. See
-> [19 — Card Architecture](architecture-overview.md) §8.3.
+> [Card Architecture](architecture-overview.md) §8.3.
 >
 > **W3 — polish.** Collapsible map + Rooms groups; the per-user **language globe** in
 > both cards; **strict-order** toggle (Roborock); Eufy scene **"None"** filter; pinned
@@ -203,7 +203,7 @@ thing that triggers the loader).
   changes per-room vs whole-run semantics.
 - **Two cards on one dashboard** — ✅ pan/zoom (and moved room-name labels) are keyed
   per *context* (panel vs card) + per device, so the panel and a dashboard card keep
-  independent map views (`_mapCtx` on the state; see [19 — Card Architecture](architecture-overview.md) §8.3).
+  independent map views (`_mapCtx` on the state; see [Card Architecture](architecture-overview.md) §8.3).
 - **No live entity** — degrade every section independently; a missing snapshot field
   hides its control, never throws (wrap reads).
 - **Mid-run** — show progress in the header; Start becomes "already cleaning" / the

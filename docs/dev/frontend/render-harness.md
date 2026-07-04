@@ -1,4 +1,4 @@
-# 27 — Render Harness
+# Render Harness
 
 The render harness is a headless tool that renders the **real card** outside
 Home Assistant — for visual-regression, colorblind validation, and theme
@@ -14,7 +14,7 @@ differs only in the token bundle supplied and what's done with the output.
 
 ## 1. The load-bearing property
 
-Two facts about the card (see [19-card-architecture](architecture-overview.md))
+Two facts about the card (see [card-architecture](architecture-overview.md))
 make a headless harness cheap:
 
 1. **Renderers are pure.** Every renderer is `render(ctx) → HTML string`,
@@ -194,7 +194,7 @@ none desaturates into grey.
 overriding the five anchors recolors the whole semantic palette. That palette
 ships as the selectable **"Colorblind Safe"** preloaded theme
 (`custom_components/eufy_vacuum/themes/preloaded.py`); see
-[20-theme-system](theme-system.md).
+[theme-system](theme-system.md).
 
 > The five hexes live in both `harness/bundles/cvd-safe.mjs` (JS, harness-
 > validated) and `themes/preloaded.py` (Python). Cross-language, comment-linked —
@@ -230,7 +230,7 @@ pair and is held to a higher bar.
 ## 7. Theme-export intake
 
 The harness accepts any theme **export** (the export/import schema, see
-[20-theme-system](theme-system.md)) and renders a preview of the real card
+[theme-system](theme-system.md)) and renders a preview of the real card
 recolored by it — the config is the seed, the render is the deliverable.
 
 - **Ingest gate** (`window.__evcc.ingestTheme`, `harness/tests/intake.spec.mjs`)

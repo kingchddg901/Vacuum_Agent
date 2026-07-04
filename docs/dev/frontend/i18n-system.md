@@ -1,4 +1,4 @@
-# 33 — i18n system
+# i18n system
 
 Home Assistant localizes an integration's config flow and entity names, but it
 gives a custom Lovelace card **nothing** for its own markup — every literal in
