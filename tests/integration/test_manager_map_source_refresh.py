@@ -40,10 +40,19 @@ Coverage targets
 [LPG-1]  _load_live_pose_geom: full read -> map_data extracted + cached by mtime.
 [LPG-2]  _load_live_pose_geom: unchanged mtime -> cached map_data reused, no re-read.
 [LPG-3]  _load_live_pose_geom: store JSON without a map_data dict -> None.
+[LKG-1]  _commit_result: present then transient-absent (same map) -> holds last-good, stamped stale.
+[LKG-2]  _commit_result: held then a new present result -> replaced, stale flags cleared.
+[LKG-3]  _commit_result: transient-absent with a DIFFERENT map_id -> not held (absent written).
+[LKG-4]  _commit_result: absent with a hard-clear reason (live_map_absent) -> not held.
+[LKG-5]  _commit_result: a held map aged past the TTL -> not held (absent written).
+[LKG-6]  _commit_result: stale_since is set ONCE across repeated holds.
+[LKG-7]  _commit_result: transient-absent with no prior present cache -> written as-is.
+[LKG-8]  refresh (Roborock memory): a present read then no_parsed_map -> the held map is served.
 """
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
@@ -497,3 +506,122 @@ async def test_load_live_pose_geom_no_map_data(manager, monkeypatch):
     monkeypatch.setattr(msr, "load_store_json", lambda p: {"data": {}})
     out = await manager.map_source._load_live_pose_geom(_VAC, {"backend": "storage"})
     assert out is None
+
+
+# ---------------------------------------------------------------------------
+# _commit_result — last-known-good map retention (hold a present map through a
+# TRANSIENT source dropout, e.g. a Roborock cloud map going unavailable on idle)
+# ---------------------------------------------------------------------------
+
+_PRESENT = {"present": True, "backend": "memory", "rooms": [{"number": 1}]}
+_ABSENT = {"present": False, "reason": "no_parsed_map"}
+
+
+def test_commit_result_holds_last_good(manager):
+    """[LKG-1] a transient-absent result does NOT drop a present map for the same map_id;
+    the last-good is kept and stamped stale."""
+    co = manager.map_source
+    co._commit_result(_VAC, "6", dict(_PRESENT))
+    out = co._commit_result(_VAC, "6", dict(_ABSENT))
+
+    assert out["present"] is True and out["rooms"] == [{"number": 1}]     # held, not dropped
+    assert out["stale"] is True and out["stale_reason"] == "no_parsed_map"
+    assert isinstance(out["stale_since"], float)
+    assert manager._map_state_source_cache[_VAC]["result"]["stale"] is True
+
+
+def test_commit_result_replaced_by_new_present(manager):
+    """[LKG-2] a genuinely NEW present result always replaces a held map (stale cleared)."""
+    co = manager.map_source
+    co._commit_result(_VAC, "6", dict(_PRESENT))
+    co._commit_result(_VAC, "6", dict(_ABSENT))                      # holds -> stale
+    fresh = {"present": True, "backend": "memory", "rooms": [{"number": 2}]}
+    out = co._commit_result(_VAC, "6", dict(fresh))
+
+    assert out["rooms"] == [{"number": 2}] and "stale" not in out
+    assert manager._map_state_source_cache[_VAC]["result"] == fresh
+
+
+def test_commit_result_different_map_not_held(manager):
+    """[LKG-3] the sticky rule is map-scoped: an absent read for a DIFFERENT map_id never
+    serves map 6's geometry -> the absent marker is written."""
+    co = manager.map_source
+    co._commit_result(_VAC, "6", dict(_PRESENT))
+    out = co._commit_result(_VAC, "7", dict(_ABSENT))               # different map
+
+    assert out == _ABSENT
+    cached = manager._map_state_source_cache[_VAC]
+    assert cached["map_id"] == "7" and cached["result"] == _ABSENT
+
+
+def test_commit_result_hard_clear_not_held(manager):
+    """[LKG-4] a STRUCTURAL absent reason (the live-map entity removed) clears the held map
+    rather than pinning it."""
+    co = manager.map_source
+    co._commit_result(_VAC, "6", dict(_PRESENT))
+    out = co._commit_result(_VAC, "6", {"present": False, "reason": "live_map_absent"})
+
+    assert out == {"present": False, "reason": "live_map_absent"}
+    assert manager._map_state_source_cache[_VAC]["result"]["present"] is False
+
+
+def test_commit_result_ttl_expiry(manager):
+    """[LKG-5] a map held past the TTL ages out -> the next absent read clears it."""
+    co = manager.map_source
+    old = time.time() - msc._STALE_MAP_TTL_SECONDS - 10
+    manager._map_state_source_cache[_VAC] = {
+        "mtime": None, "map_id": "6",
+        "result": {"present": True, "rooms": [{"number": 1}],
+                   "stale": True, "stale_since": old},
+    }
+    out = co._commit_result(_VAC, "6", dict(_ABSENT))
+
+    assert out == _ABSENT                                            # aged out — no longer held
+    assert manager._map_state_source_cache[_VAC]["result"] == _ABSENT
+
+
+def test_commit_result_stale_since_set_once(manager):
+    """[LKG-6] stale_since is stamped once, so 'held for N min' + the TTL stay accurate
+    across repeated holds."""
+    co = manager.map_source
+    co._commit_result(_VAC, "6", dict(_PRESENT))
+    first = co._commit_result(_VAC, "6", dict(_ABSENT))
+    since1 = first["stale_since"]
+    second = co._commit_result(_VAC, "6", {"present": False, "reason": "no_room_geometry"})
+
+    assert second["stale_since"] == since1                          # reused, not reset
+    assert second["stale_reason"] == "no_room_geometry"
+
+
+def test_commit_result_no_prior_present(manager):
+    """[LKG-7] with no prior present map there is nothing to hold -> the absent marker is
+    written as-is."""
+    co = manager.map_source
+    out = co._commit_result(_VAC, "6", dict(_ABSENT))
+    assert out == _ABSENT
+    assert manager._map_state_source_cache[_VAC]["result"] == _ABSENT
+
+
+async def test_refresh_holds_roborock_map_on_idle_drop(manager, monkeypatch):
+    """[LKG-8] end-to-end: a Roborock memory read that goes present -> no_parsed_map (the
+    'Ivy idles and the cloud map entity drops' case) serves the HELD map, not empty."""
+    _register(source={"backend": "memory"})
+    _present(manager, monkeypatch)
+    monkeypatch.setattr(msr, "roborock_candidates", lambda *a, **k: ["cand"])
+
+    monkeypatch.setattr(                                             # first read: map present
+        msr, "roborock_result_from_candidates",
+        lambda c, present: {"present": True, "src": "roborock", "rooms": [{"number": 3}]},
+    )
+    await manager.map_source.async_refresh_map_state_source(vacuum_entity_id=_VAC, map_id="m")
+
+    monkeypatch.setattr(                                             # Ivy idles: MapData gone
+        msr, "roborock_result_from_candidates",
+        lambda c, present: {"present": False, "reason": "no_parsed_map"},
+    )
+    out = await manager.map_source.async_refresh_map_state_source(
+        vacuum_entity_id=_VAC, map_id="m"
+    )
+
+    assert out["present"] is True and out["rooms"] == [{"number": 3}]   # held through the drop
+    assert out["stale"] is True and out["stale_reason"] == "no_parsed_map"

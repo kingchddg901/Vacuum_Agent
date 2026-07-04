@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import TYPE_CHECKING, Any
 
 from ..adapters.registry import get_adapter_config as _get_adapter_config
@@ -35,6 +36,23 @@ if TYPE_CHECKING:
     from ..core.manager import EufyVacuumManager
 
 _LOGGER = logging.getLogger(__name__)
+
+# Last-known-good map retention: hold a previously-present map through a TRANSIENT source
+# dropout (e.g. a Roborock cloud map entity going `unavailable` when the vacuum idles/docks —
+# its parsed MapData lives only in HA memory, so the introspector reports `no_parsed_map`)
+# instead of dropping it. Held for up to this long, then it ages out so a permanently-dead
+# source doesn't show an indefinitely-stale map as if live.
+_STALE_MAP_TTL_SECONDS = 6 * 3600
+
+# Absent reasons that are STRUCTURAL / terminal, not a transient dropout — these DO clear a
+# held map (never hold). Everything else absent (no_parsed_map / no_room_geometry /
+# refresh_error) is treated as transient and holds the last-known-good.
+_MAP_SOURCE_HARD_CLEAR_REASONS = frozenset({
+    "live_map_absent",        # the live-map entity is GONE from the registry (not merely idle)
+    "store_version_mismatch",  # fork schema shifted — the held geometry may be misaligned
+    "not_configured",          # the adapter has no map_state_source block
+    "no_device",               # the device / store path resolved to nothing
+})
 
 
 def _stat_mtime(path: str) -> float | None:
@@ -56,6 +74,67 @@ class MapSourceCoordinator:
         # static per-room scan + converted map_data, and the mtime-cached live-pose geometry.
         self._mem_rooms_cache: dict[str, dict[str, Any]] = {}
         self._live_pose_geom_cache: dict[str, dict[str, Any]] = {}
+
+    def _commit_result(
+        self,
+        vacuum_entity_id: str,
+        map_id: str,
+        result: dict[str, Any],
+        *,
+        mtime: float | None = None,
+        present_gate: bool | None = None,
+    ) -> dict[str, Any]:
+        """Write a pre-warm result to ``manager._map_state_source_cache``, holding the
+        last-known-good map through a TRANSIENT source dropout instead of dropping it.
+
+        Rule (Chris's "replace only on a genuinely new valid update"): an ABSENT new result
+        does NOT overwrite a PRESENT cached result for the SAME map_id — the last-good map is
+        kept and flagged ``stale`` (the card dims/badges it and freezes the pose). It is
+        replaced only when the new result is itself present, when the reason is a hard-clear
+        (entity removed / structural — see ``_MAP_SOURCE_HARD_CLEAR_REASONS``), when the active
+        map_id changed, or when the held map has aged past ``_STALE_MAP_TTL_SECONDS``. Holding
+        the whole prior result freezes the pose with it (no re-applied live pose = no drift).
+
+        Returns the EFFECTIVE result (the held one when holding, else the new one), so callers
+        that return it hand the card the map that's actually cached.
+        """
+        entry: dict[str, Any] = {"mtime": mtime, "map_id": str(map_id), "result": result}
+        if present_gate is not None:
+            entry["present_gate"] = present_gate
+
+        if not result.get("present"):
+            reason = result.get("reason") or ""
+            hard_clear = (
+                reason in _MAP_SOURCE_HARD_CLEAR_REASONS
+                or reason.startswith("unknown_backend")
+            )
+            cached = self._manager._map_state_source_cache.get(vacuum_entity_id) or {}
+            cached_res = cached.get("result")
+            if (
+                not hard_clear
+                and isinstance(cached_res, dict)
+                and cached_res.get("present")
+                and cached.get("map_id") == str(map_id)      # never serve another map's geometry
+            ):
+                since = cached_res.get("stale_since")
+                now = time.time()
+                if since is None:
+                    since = now
+                if now - since <= _STALE_MAP_TTL_SECONDS:
+                    # Keep the last-good result; stamp staleness (stale_since is set ONCE so
+                    # "held for N min" + the TTL stay accurate across repeated holds).
+                    held = dict(cached_res)
+                    held["stale"] = True
+                    held["stale_since"] = since
+                    held["stale_reason"] = reason
+                    held_entry = dict(cached)  # preserve the original mtime/present_gate/map_id
+                    held_entry["result"] = held
+                    self._manager._map_state_source_cache[vacuum_entity_id] = held_entry
+                    return held
+                # Aged past the TTL — fall through and let the absent marker clear the map.
+
+        self._manager._map_state_source_cache[vacuum_entity_id] = entry
+        return result
 
     async def async_refresh_map_state_source(
         self,
@@ -79,10 +158,7 @@ class MapSourceCoordinator:
         source_cfg = adapter_cfg.get("map_state_source")
         if not isinstance(source_cfg, dict):
             result = {"present": False, "reason": "not_configured"}
-            self._manager._map_state_source_cache[vacuum_entity_id] = {
-                "mtime": None, "map_id": str(map_id), "result": result,
-            }
-            return result
+            return self._commit_result(vacuum_entity_id, map_id, result)
 
         # Presence gate — most backends require the live-map artifact (the same
         # gate the card uses to show the live backdrop). An adapter can opt out
@@ -138,22 +214,16 @@ class MapSourceCoordinator:
                         vacuum_entity_id, result.get("present"),
                         result.get("reason"), result.get("diagnostics"),
                     )
-                self._manager._map_state_source_cache[vacuum_entity_id] = {
-                    "mtime": None, "map_id": str(map_id), "result": result,
-                }
+                result = self._commit_result(vacuum_entity_id, map_id, result)
             else:
                 result = {"present": False, "reason": f"unknown_backend:{backend}"}
-                self._manager._map_state_source_cache[vacuum_entity_id] = {
-                    "mtime": None, "map_id": str(map_id), "result": result,
-                }
+                result = self._commit_result(vacuum_entity_id, map_id, result)
         except Exception:  # noqa: BLE001 - never let the pre-warm break the snapshot service
             _LOGGER.exception(
                 "map_state_source[%s] refresh failed; serving absent marker", vacuum_entity_id
             )
             result = {"present": False, "reason": "refresh_error"}
-            self._manager._map_state_source_cache[vacuum_entity_id] = {
-                "mtime": None, "map_id": str(map_id), "result": result,
-            }
+            result = self._commit_result(vacuum_entity_id, map_id, result)
         return result
 
     async def _refresh_storage_map_source(
@@ -175,10 +245,7 @@ class MapSourceCoordinator:
         path = _msr.eufy_store_path(self._manager.hass, vacuum_entity_id, source_cfg)
         if not path:
             result = {"present": False, "backend": "storage", "reason": "no_device"}
-            self._manager._map_state_source_cache[vacuum_entity_id] = {
-                "mtime": None, "map_id": str(map_id), "result": result,
-            }
-            return result
+            return self._commit_result(vacuum_entity_id, map_id, result)
 
         try:
             mtime: float | None = await self._manager.hass.async_add_executor_job(
@@ -218,10 +285,9 @@ class MapSourceCoordinator:
         self._apply_inmem_pose_to_result(
             result, map_data, vacuum_entity_id, source_cfg.get("live_pose"),
         )
-        self._manager._map_state_source_cache[vacuum_entity_id] = {
-            "mtime": mtime, "present_gate": present, "map_id": str(map_id), "result": result,
-        }
-        return result
+        return self._commit_result(
+            vacuum_entity_id, map_id, result, mtime=mtime, present_gate=present,
+        )
 
     def _apply_inmem_pose_to_result(
         self,
@@ -380,10 +446,9 @@ class MapSourceCoordinator:
             vacuum_entity_id, result.get("present"),
             len(result.get("rooms") or []), version,
         )
-        self._manager._map_state_source_cache[vacuum_entity_id] = {
-            "mtime": None, "present_gate": present, "map_id": str(map_id), "result": result,
-        }
-        return result
+        return self._commit_result(
+            vacuum_entity_id, map_id, result, present_gate=present,
+        )
 
     def _read_inmem_pose(
         self, vacuum_entity_id: str, live_cfg: dict[str, Any]
