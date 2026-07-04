@@ -7,7 +7,9 @@
 above it (the **furnished-art** image in non-`live` mode, or a floor texture) hides a recolor — so
 room colors are a **live-map** feature. The full layer stack + `rid == room.id == room_names`
 identity is now documented in **[map-render-layers.md](map-render-layers.md)** — read that first.
-Phase 3 (label ink by luminance) remains open.
+Phase 3 (label ink by luminance) **DROPPED** 2026-07-03 — the label pills carry their own
+contrast; validated readable at the `#ffffff` + `#000000` room-color extremes, so per-luminance
+ink switching buys nothing.
 
 ## Problem
 
@@ -51,7 +53,8 @@ The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS var
 
 - **Phase 1 — resolver + theme palette (NET-ZERO visual):** add the `--evcc-room-fill-N` tokens (defaults = today's rainbow) + `mapping/map-room-color.js`; wire *both* render paths through it. Themeless render is unchanged; a theme can now recolor the whole map. Raster cache-busts on palette change.
 - **Phase 2 — per-room override:** `room.color` storage + service + a color picker in the **room editor** (it already holds per-room name/settings) + cascade so per-room wins. (`map-tap → color` is a later nicety, not this phase.)
-- **Phase 3 — label contrast by luminance:** `labelInk` on the segment name labels + the `room_area` m² chips, so custom colors stay legible.
+- ~~**Phase 3 — label contrast by luminance:**~~ **DROPPED** — the label pills already carry
+  contrast (own background + light ink); validated at `#ffffff`/`#000000`, so `labelInk` is moot.
 - **Phase 4 (optional):** per-room "reset to default", a few palette presets, an editor contrast hint.
 
 ## Reuse (this is a delta, not a rebuild)
