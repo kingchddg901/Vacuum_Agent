@@ -21,7 +21,7 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 // Scale the mask pattern DOWN by this factor so the features are smaller + tile denser (more
 // veins per room). 1.0 = native (too big); lower = finer/denser. Tunable — the single knob for
 // "details too big / too small". (Fine wood grain softens as this drops; marble veins stay.)
-const FLOOR_TEXTURE_MASK_SCALE = 0.35;
+const FLOOR_TEXTURE_MASK_SCALE = 0.15;
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
 // (roomFillRgb, reading --evcc-room-fill-N off the canvas); the hardcoded array moved to
