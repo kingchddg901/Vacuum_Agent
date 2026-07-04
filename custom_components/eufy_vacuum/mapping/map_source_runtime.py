@@ -379,6 +379,40 @@ def find_mapdata(root: Any, *, max_depth: int = 6):
     return _walk(root, _is_mapdata, max_depth=max_depth)
 
 
+def _is_map_content(o: Any) -> bool:
+    """True iff ``o`` looks like a python-roborock v1 ``MapContent`` — the object that holds
+    the RAW map blob next to the parsed map: a bytes ``raw_api_response`` + a ``map_data``."""
+    rar = getattr(o, "raw_api_response", None)
+    return isinstance(rar, (bytes, bytearray)) and getattr(o, "map_data", None) is not None
+
+
+def find_map_content(root: Any, *, max_depth: int = 6):
+    """BFS for a ``MapContent``-like object (``raw_api_response`` bytes + ``map_data``).
+    ``(map_content, path)|(None, None)``. This is the object our v1 segment decoder
+    re-parses — it sits right next to the ``map_data`` that ``find_mapdata`` targets."""
+    return _walk(root, _is_map_content, max_depth=max_depth)
+
+
+def roborock_render_data_from_candidates(candidates: Any, room_names: Any = None) -> dict[str, Any]:
+    """Roborock render-data (P2 bridge): locate the ``MapContent`` among the candidate roots,
+    decode its raw map blob to a per-pixel room-id raster, and shape it as the card's generic
+    render-data — the same roots ``roborock_result_from_candidates`` walks, but reading the
+    RAW bytes rather than the parsed bboxes. Returns the render-data dict or an absent marker;
+    never raises."""
+    from .roborock_raw_map import decode_roborock_v1_segments, roborock_render_data
+
+    for cand in candidates or []:
+        root = cand[2] if isinstance(cand, (list, tuple)) and len(cand) >= 3 else cand
+        mc, _path = find_map_content(root)
+        if mc is None:
+            continue
+        decoded = decode_roborock_v1_segments(getattr(mc, "raw_api_response", None))
+        rd = roborock_render_data(decoded, room_names)
+        if rd is not None:
+            return rd
+    return {"present": False, "reason": "no_raw_map"}
+
+
 def _mapdata_projector(map_data: Any):
     """Build the vacuum->normalized-pixel projector for a MapData. (proj, img_w, img_h)|None.
 

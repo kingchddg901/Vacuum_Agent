@@ -11,16 +11,21 @@ Coverage targets
 [RRD-3]  decode: a blob with no IMAGE block -> None.
 [RRD-4]  decode: empty / truncated / garbage bytes -> None (never raises).
 [RRD-5]  decode: IMAGE dims larger than the pixel data -> None.
+[RRD-6]  render_data: a decoded raster -> the generic eufy_room_pixels_v1 render-data shape.
+[RRD-7]  render_data: empty / None decoded input -> None.
+[RRD-8]  render_data_from_candidates: BFS to a MapContent -> decode its raw_api_response.
 """
 
 from __future__ import annotations
 
+import base64
 import struct
 
 from custom_components.eufy_vacuum.mapping.roborock_raw_map import (
     CATCH_ALL_RID,
     decode_roborock_v1_segments,
     resolve_rid,
+    roborock_render_data,
 )
 
 
@@ -128,3 +133,55 @@ def test_decode_short_pixel_data_is_none():
     # header says 4x3 = 12 pixels, but only 4 data bytes are present.
     out = decode_roborock_v1_segments(_blob(_image_block(4, 3, bytes([_room(1)] * 4))))
     assert out is None
+
+
+# ---------------------------------------------------------------------------
+# [RRD-6]/[RRD-7] render-data builder (the decode -> frontend-contract bridge)
+# ---------------------------------------------------------------------------
+
+def test_render_data_shape():
+    """[RRD-6] a decoded raster -> the generic eufy_room_pixels_v1 render-data shape."""
+    decoded = decode_roborock_v1_segments(_blob(_image_block(4, 3, bytes([_room(5)] * 12))))
+    rd = roborock_render_data(decoded, {5: "Kitchen"})
+
+    assert rd["present"] is True and rd["format"] == "eufy_room_pixels_v1"
+    assert rd["width"] == 4 and rd["height"] == 3
+    assert rd["ro_width"] == 4 and rd["ro_height"] == 3 and rd["ro_dx"] == 0 and rd["ro_dy"] == 0
+    assert rd["rid_shift"] == 0 and rd["catch_all_rid"] == CATCH_ALL_RID and rd["flip_y"] is True
+    assert rd["room_names"] == {"5": "Kitchen"} and rd["version"]
+    # the b64 room_pixels round-trips back to the resolved raster
+    assert base64.b64decode(rd["room_pixels"]) == decoded["room_pixels"]
+
+
+def test_render_data_none_input():
+    """[RRD-7] empty / None decoded input -> None."""
+    assert roborock_render_data(None) is None
+    assert roborock_render_data({}) is None
+    assert roborock_render_data({"width": 0, "height": 0, "room_pixels": b""}) is None
+
+
+# ---------------------------------------------------------------------------
+# [RRD-8] the introspection bridge (candidates -> MapContent -> decode)
+# ---------------------------------------------------------------------------
+
+def test_render_data_from_candidates_finds_raw_blob():
+    """[RRD-8] the bridge BFS-walks candidate roots to a MapContent and decodes its raw blob."""
+    from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+        roborock_render_data_from_candidates,
+    )
+
+    class _MapContent:
+        def __init__(self, raw):
+            self.raw_api_response = raw     # the raw map blob our decoder re-parses
+            self.map_data = object()        # the parsed sibling (any non-None)
+
+    class _Home:
+        def __init__(self, mc):
+            self._map_content = mc
+
+    blob = _blob(_image_block(4, 3, bytes([_room(5)] * 12)))
+    rd = roborock_render_data_from_candidates([_Home(_MapContent(blob))], {5: "Kitchen"})
+    assert rd["present"] is True and rd["room_names"] == {"5": "Kitchen"}
+
+    # nothing map-content-shaped in the candidates -> absent marker, no raise.
+    assert roborock_render_data_from_candidates([object()])["present"] is False

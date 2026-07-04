@@ -31,6 +31,8 @@ one-file fix:
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from typing import Any
 
 _BLOCK_TYPE_IMAGE = 2
@@ -127,3 +129,52 @@ def decode_roborock_v1_segments(raw: Any) -> dict[str, Any] | None:
         }
     except (IndexError, ValueError):
         return None
+
+
+def roborock_render_data(
+    decoded: dict[str, Any] | None,
+    room_names: Any = None,
+    *,
+    version: str | None = None,
+) -> dict[str, Any] | None:
+    """Build the card's render-data (the generic ``eufy_room_pixels_v1`` shape) from a
+    decoded Roborock raster, so Roborock rides the SAME frontend decode as Eufy.
+
+    The decoded raster already holds resolved room ids, so ``rid_shift`` is 0; the raster
+    IS the render canvas (Roborock has no separate room-outline frame), so ``ro_width/height``
+    match the canvas and ``ro_dx/dy`` are 0. ``room_names`` maps room id -> display name
+    (from the adapter's discovered rooms). Returns None on empty/malformed input.
+
+    NOTE: ``res`` (device-mm per pixel, from roborock's ``map/50`` image scale) is emitted
+    for completeness but only matters for the POSE overlay's coord mapping — the room-raster
+    render itself needs none of it. Pose registration (res/origin/flip against the live
+    robot position) is the device-calibration step; verify on a real vacuum.
+    """
+    if not decoded:
+        return None
+    rp = decoded.get("room_pixels")
+    width = decoded.get("width")
+    height = decoded.get("height")
+    if not rp or not width or not height:
+        return None
+    names = room_names if isinstance(room_names, dict) else {}
+    raw = bytes(rp)
+    if version is None:
+        version = hashlib.sha1(raw).hexdigest()[:12]
+    return {
+        "present": True,
+        "format": "eufy_room_pixels_v1",     # the card's brand-agnostic raster decode
+        "width": int(width),
+        "height": int(height),
+        "ro_width": int(width),              # the raster IS the canvas (no outline frame)
+        "ro_height": int(height),
+        "ro_dx": 0,
+        "ro_dy": 0,
+        "res": int(decoded.get("res", 50)),  # roborock map/50 -> 50 mm/px; pose-only, calibrate on device
+        "flip_y": bool(decoded.get("flip_y", True)),
+        "rid_shift": int(decoded.get("rid_shift", 0)),
+        "catch_all_rid": int(decoded.get("catch_all_rid", CATCH_ALL_RID)),
+        "room_pixels": base64.b64encode(raw).decode("ascii"),
+        "room_names": {str(k): str(v) for k, v in names.items()},
+        "version": version,
+    }
