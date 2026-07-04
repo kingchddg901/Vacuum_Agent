@@ -201,8 +201,8 @@ If your setup includes a room access graph (which rooms the vacuum must pass thr
 
 If your previous run ended before all queued rooms were cleaned (for example, because you cancelled it or the vacuum ran low on battery), a banner appears at the top of the Rooms panel listing the rooms that were missed. Two actions are available:
 
-- **Queue Missed Rooms** — automatically sets only the missed rooms as included so you can finish the job.
-- **Dismiss** — clears the banner without making any changes.
+- **Queue missed rooms** — automatically sets only the missed rooms as included so you can finish the job.
+- **✕** — dismisses the banner without making any changes.
 
 ## Run profiles panel
 
@@ -218,4 +218,4 @@ Below the Run Profiles panel (in the same side column) is the Saved Zones panel 
 - A shared set of **device clean settings** (Suction, Mode, Intensity, Water) sits at the top of the panel and applies to the zones you clean from here.
 - A **Clean N selected** action cleans your selected zones using those shared settings.
 - Per-zone controls let you **rename** a zone, **delete** it, or **re-file** it under a different room (or leave it Unassigned).
-- A **Draw zone to save** button lets you draw a box on the map to capture a new saved zone.
+- A **+ Draw a zone** button lets you draw a box on the map to capture a new saved zone; while drawing, a **Save zone** button commits it.
