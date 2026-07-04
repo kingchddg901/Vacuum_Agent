@@ -351,25 +351,24 @@ export function applyMapBindings(proto) {
   };
 
   /* =========================================================
-     FLOOR-TEXTURE RENDER (mechanism A — raster clip)
+     FLOOR-TEXTURE RENDER (mechanism A — raster clip, SUPERSAMPLED)
      =========================================================
-     Same per-pixel room_pixels decode as _drawVaRender, but each room's pixels are
-     painted from its floor-TYPE's composited material texture instead of a flat
-     palette color. Continuous by construction: the texture is composited at the
-     canvas W×H in FINAL image coords, so two adjacent same-type rooms sample the
-     same map-space texel — one continuous floor, no per-room offset/hash. Textures
-     decode async (PNG mask -> luminance -> composite); until a type is ready its
-     rooms paint the flat palette color as a placeholder and the decode re-renders
-     on completion. Untextured rooms (no floor_type / no asset) always use the flat
-     palette, so a partial-floor map still reads. Works on any brand with a raster
-     (Eufy CV + Roborock decode). */
+     Paint each room's pixels from its floor-TYPE's composited material instead of a
+     flat color. Continuous by construction: the material is composited in map-space
+     (final-image coords), so adjacent same-type rooms sample the same texel — one
+     continuous floor, no per-room offset/hash.
+
+     WHY SUPERSAMPLED: the room_pixels raster is only ~360px. Downscaling the fine
+     plank/grout masks to THAT averages the detail into a flat muddy tint (then the
+     360px canvas upscales to the display, blurring more) — which is exactly the mush
+     the first cut produced. So we render the canvas + composite the masks at S× the
+     raster (~1200px): the material keeps its detail. The per-room CLIP is nearest-
+     upscaled from the raster (room edges were already raster-limited — only the FILL
+     needs to be crisp). Untextured / "default" rooms fall back to the flat palette.
+     Async decode re-renders on completion. Both brands (Eufy CV + Roborock decode). */
   proto._drawVaFloorRender = function (canvas, rd) {
     const W = rd.width | 0, H = rd.height | 0;
     if (W <= 0 || H <= 0) return;
-    canvas.width = W;
-    canvas.height = H;
-    const cctx = canvas.getContext("2d");
-    if (!cctx) return;
 
     const state = this.card._state;
     const rooms = state?.getRoomsForActiveMap?.() ?? [];
@@ -396,47 +395,81 @@ export function applyMapBindings(proto) {
     const presentTypes = [...new Set(floorTypeByRid.filter(Boolean))]
       .filter((ft) => ft !== "default" && getPrimaryTextureUrl(ft));
 
+    // Supersample the ~360px raster to ~1200px so the mask detail survives.
+    const S = Math.max(1, Math.min(4, Math.round(1200 / Math.max(W, H)) || 1));
+    const CW = W * S, CH = H * S;
+    canvas.width = CW;
+    canvas.height = CH;
+    const cctx = canvas.getContext("2d");
+    if (!cctx) return;
+
     // Flat palette — fallback for untextured rooms AND placeholder before textures load.
     const palette = [];
     for (let i = 0; i < ROOM_FILL_N; i++) palette[i] = roomFillRgb(i, canvas);
+    const paletteSig = palette.map((c) => c.join(",")).join("|");
     const flatColor = (rid) => palette[(((rid - 1) % ROOM_FILL_N) + ROOM_FILL_N) % ROOM_FILL_N];
 
-    // Decoded+composited textures (map W×H) for the ready types; kicks async decode for
-    // the rest (which re-renders on completion).
-    const { ready } = this._ensureFloorTextures(presentTypes, W, H, canvas);
-
-    const img = cctx.createImageData(W, H);
-    const data = img.data;
-    const bin = atob(rd.room_pixels || "");
-    const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
-    const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
-    const shift = rd.rid_shift | 0;
-    const catchAll = rd.catch_all_rid | 0;
-    const flip = rd.flip_y !== false;
-    for (let ry = 0; ry < roH; ry++) {
-      const rowOff = ry * roW;
-      for (let rx = 0; rx < roW; rx++) {
-        const idx = rowOff + rx;
-        if (idx >= bin.length) break;
-        const rid = bin.charCodeAt(idx) >> shift;
-        if (!(rid > 0 && rid < catchAll)) continue;
-        const px = rx + dx, py = ry + dy;
-        if (px < 0 || px >= W || py < 0 || py >= H) continue;
-        const iy = flip ? (H - 1 - py) : py;
-        const o = (iy * W + px) * 4;
-        const ft = floorTypeByRid[rid];
-        const tex = ft ? ready.get(ft) : null;
-        if (tex) {
-          // Map-space sample: texture is W×H in the SAME final-image coords as `o`.
-          data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
-          data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
-        } else {
-          const c = flatColor(rid);
-          data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+    // Decode room_pixels -> the rid at each FINAL (px, iy) raster cell (the per-room clip).
+    const ridAtFinal = new Int16Array(W * H); // 0 = no room
+    {
+      const bin = atob(rd.room_pixels || "");
+      const roW = rd.ro_width | 0, roH = rd.ro_height | 0;
+      const dx = rd.ro_dx | 0, dy = rd.ro_dy | 0;
+      const shift = rd.rid_shift | 0;
+      const catchAll = rd.catch_all_rid | 0;
+      const flip = rd.flip_y !== false;
+      for (let ry = 0; ry < roH; ry++) {
+        const rowOff = ry * roW;
+        for (let rx = 0; rx < roW; rx++) {
+          const idx = rowOff + rx;
+          if (idx >= bin.length) break;
+          const rid = bin.charCodeAt(idx) >> shift;
+          if (!(rid > 0 && rid < catchAll)) continue;
+          const px = rx + dx, py = ry + dy;
+          if (px < 0 || px >= W || py < 0 || py >= H) continue;
+          const iy = flip ? (H - 1 - py) : py;
+          ridAtFinal[iy * W + px] = rid;
         }
       }
     }
-    cctx.putImageData(img, 0, 0);
+
+    // Composite each present material at the SUPERSAMPLED res (masks downscaled to CW×CH,
+    // NOT the raster — that's what preserves the detail). Async; re-renders when ready.
+    const { ready } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
+
+    // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
+    // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
+    // a texture becoming ready (its key joins once decoded).
+    const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${floorTypeByRid.join(",")}`
+      + `|${[...ready.keys()].sort().join(",")}`;
+    let cache = this._vaFloorImageCache;
+    if (!cache || cache.key !== floorKey) {
+      const img = cctx.createImageData(CW, CH);
+      const data = img.data;
+      for (let oy = 0; oy < CH; oy++) {
+        const fy = (oy / S) | 0;         // nearest raster row
+        const rowBase = fy * W;
+        const oRow = oy * CW;
+        for (let ox = 0; ox < CW; ox++) {
+          const rid = ridAtFinal[rowBase + ((ox / S) | 0)];
+          if (rid <= 0) continue;        // outside every room -> transparent
+          const o = (oRow + ox) * 4;
+          const ft = floorTypeByRid[rid];
+          const tex = ft ? ready.get(ft) : null;
+          if (tex) {
+            // Map-space sample: texture is CW×CH in the SAME coords as `o` -> continuous.
+            data[o] = tex.data[o]; data[o + 1] = tex.data[o + 1];
+            data[o + 2] = tex.data[o + 2]; data[o + 3] = 255;
+          } else {
+            const c = flatColor(rid);
+            data[o] = c[0]; data[o + 1] = c[1]; data[o + 2] = c[2]; data[o + 3] = 255;
+          }
+        }
+      }
+      cache = { key: floorKey, img };
+      this._vaFloorImageCache = cache;
+    }
+    cctx.putImageData(cache.img, 0, 0);
   };
 
   /* Ensure each present floorType's material is decoded + composited at W×H. Returns
