@@ -438,6 +438,19 @@ def register_roborock_adapter_for_vacuum(
             "present_requires_live_map_image": True,
         },
 
+        "map_render": {
+            # Re-decode the raw map blob's SEGMENT layer to a per-pixel room-id raster so the
+            # card renders per-room (colour / floor textures / hit-test) instead of the
+            # overlapping bboxes the parser exposes. vacuum-map-parser reads the pixel layer
+            # to colour rooms then DISCARDS it, but the raw bytes survive on the v1 MapContent
+            # (`raw_api_response`, cached in HA memory). The render reader walks the same
+            # `hass_data_domain` runtime_data roots as map_state_source, finds the MapContent,
+            # and decodes it (mapping/roborock_raw_map.py). v1 (S6 / Q-class) only. NOTE: the
+            # room raster is self-contained; the pose overlay's coord registration
+            # (res/origin/flip vs the live robot) still needs calibrating on a real device.
+            "format": "roborock_raw_map_v1",
+        },
+
         "job_segmenter": {
             # Roborock reports per-room progress NATIVELY (sensor.{id}_current_room +
             # segment_cleaning status), so there is no counter stream to plateau-detect.

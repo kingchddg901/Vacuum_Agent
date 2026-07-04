@@ -571,6 +571,26 @@ class MapSourceCoordinator:
             out["compare"] = compare_map_data(mem["map_data"], store_md)
         return out
 
+    def _roborock_render_room_names(self, vacuum_entity_id: str) -> dict[str, str]:
+        """``{str(room_id): name}`` for a vacuum's stored rooms — the labels the render raster
+        maps its resolved room ids to. Roborock's ``room_id`` is the segment id, which matches
+        the raster's ``byte >> 3`` id. Best-effort: ``{}`` on any missing piece; never raises."""
+        out: dict[str, str] = {}
+        try:
+            maps = (self._manager.data.get("maps", {}) or {}).get(vacuum_entity_id, {}) or {}
+            for bucket in maps.values():
+                if not isinstance(bucket, dict):
+                    continue
+                for room in (bucket.get("rooms") or {}).values():
+                    if isinstance(room, dict):
+                        rid = room.get("room_id")
+                        name = room.get("name")
+                        if rid is not None and name:
+                            out[str(rid)] = str(name)
+        except Exception:  # noqa: BLE001 - render labels are cosmetic; degrade to unnamed
+            return {}
+        return out
+
     async def async_get_map_render_data(
         self,
         *,
@@ -593,6 +613,22 @@ class MapSourceCoordinator:
             return {"present": False, "reason": "not_configured"}
         fmt = render_cfg.get("format")
         source_cfg = adapter_cfg.get("map_state_source")
+
+        # Roborock: re-decode the raw map blob (the v1 MapContent.raw_api_response, cached in
+        # HA memory) to a room-id raster and shape it as the card's GENERIC render-data — the
+        # parser only keeps bboxes. No map_id / image entity needed: roborock_candidates scans
+        # the roborock runtime_data roots. In-memory + pure -> loop-safe; degrades to an absent
+        # marker (roborock_render_data_from_candidates never raises).
+        if (
+            fmt == "roborock_raw_map_v1"
+            and isinstance(source_cfg, dict)
+            and source_cfg.get("backend") == "memory"
+        ):
+            candidates = _msr.roborock_candidates(self._manager.hass, source_cfg)
+            return _msr.roborock_render_data_from_candidates(
+                candidates, self._roborock_render_room_names(vacuum_entity_id)
+            )
+
         if not (
             fmt == "eufy_room_pixels_v1"
             and isinstance(source_cfg, dict)

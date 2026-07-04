@@ -36,6 +36,7 @@ Coverage targets
 [RND-3]  render_data: memory-primary present -> render data from the in-memory map.
 [RND-4]  render_data: memory absent -> .storage fallback.
 [RND-5]  render_data: storage, no device path -> no_device.
+[RND-6]  render_data: roborock map_render format -> the raw-map render bridge + room names.
 [RIP-1]  _read_inmem_pose: locates candidates + returns the parsed live pose.
 [LPG-1]  _load_live_pose_geom: full read -> map_data extracted + cached by mtime.
 [LPG-2]  _load_live_pose_geom: unchanged mtime -> cached map_data reused, no re-read.
@@ -625,3 +626,27 @@ async def test_refresh_holds_roborock_map_on_idle_drop(manager, monkeypatch):
 
     assert out["present"] is True and out["rooms"] == [{"number": 3}]   # held through the drop
     assert out["stale"] is True and out["stale_reason"] == "no_parsed_map"
+
+
+async def test_render_data_roborock_dispatches(manager, monkeypatch):
+    """[RND-6] map_render.format roborock_raw_map_v1 dispatches to the raw-map render bridge,
+    with room names sourced from the manager's stored rooms."""
+    _register(
+        source={"backend": "memory", "hass_data_domain": "roborock"},
+        render={"format": "roborock_raw_map_v1"},
+    )
+    manager.data.setdefault("maps", {})[_VAC] = {
+        "1": {"rooms": {"7": {"room_id": 7, "name": "Den"}}}
+    }
+    seen: dict = {}
+
+    def _fake_bridge(candidates, room_names):
+        seen["room_names"] = room_names
+        return {"present": True, "format": "eufy_room_pixels_v1", "room_pixels": "x"}
+
+    monkeypatch.setattr(msr, "roborock_candidates", lambda *a, **k: ["cand"])
+    monkeypatch.setattr(msr, "roborock_render_data_from_candidates", _fake_bridge)
+
+    out = await manager.map_source.async_get_map_render_data(vacuum_entity_id=_VAC)
+    assert out["present"] is True and out["format"] == "eufy_room_pixels_v1"
+    assert seen["room_names"] == {"7": "Den"}     # sourced from the manager's rooms
