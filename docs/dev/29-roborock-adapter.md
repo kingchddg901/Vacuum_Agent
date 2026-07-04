@@ -178,7 +178,7 @@ publishes a **live map `image` entity**, and the adapter declares the entity-id
 surfaces it in the dashboard snapshot as the card's Map-view backdrop. Room
 polygons are hand-drawn over the live image via the custom-layout composer
 (dispatch is by room id, so approximate polygons are fine). See
-[11-mapping-system](11-mapping-system.md) and [19-card-architecture](frontend/architecture-overview.md).
+[11-mapping-system](11-mapping-system.md) and [frontend/architecture-overview](frontend/architecture-overview.md).
 
 ### `job_segmenter` — `noop_job_fallback`
 The S6 reports native progress, so it registers `noop_job_fallback`, **not**
@@ -237,7 +237,7 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
   `maybe_pulse_live_room_refresh`); Eufy is inert here.
 - **Live-map card backdrop + rotation + dwell-follow mascot** — the live `image`
   entity as the Map view, backend-stored rotation, and a dwell-debounced mascot
-  that follows the reported room. See [19-card-architecture](frontend/architecture-overview.md).
+  that follows the reported room. See [frontend/architecture-overview](frontend/architecture-overview.md).
 - **Order-advisory note** — `honors_clean_order: False` surfaces a run-start note
   that order is advisory unless a Sequence is set in the app (or strict-order is on).
 

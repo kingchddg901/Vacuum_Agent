@@ -425,7 +425,7 @@ internal multi-room job — verified end-to-end in
 
 The Lovelace card surfaces all of this as an **"External Jobs" subtab** of the
 Learning Review view. Source under `src/` (see
-[19-card-architecture](frontend/architecture-overview.md) for the module pattern):
+[frontend/architecture-overview](frontend/architecture-overview.md) for the module pattern):
 
 - `state/external-jobs.js` — subtab selection, the pending list, and the wizard.
   In v2 the **server owns segmentation**, so the wizard state mirrors the served

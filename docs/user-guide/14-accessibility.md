@@ -2,7 +2,7 @@
 
 A short guide to the card's accessibility features. The deeper theme mechanics
 are in [Theme system](../advanced/05-theme-system.md); how the colorblind palette
-is validated is in [dev/27-render-harness](../dev/frontend/render-harness.md).
+is validated is in [frontend/render-harness](../dev/frontend/render-harness.md).
 
 ## Colorblind mode
 

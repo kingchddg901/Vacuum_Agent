@@ -74,4 +74,4 @@ The SVG path can ride the CSS cascade; the raster can't (canvas takes no CSS var
 
 ## Out of scope
 
-Map **overlay** colors (already tokens), room-**card** chips (already tokens), the animal/mascot colors, and the CV/segmentor internals. The mapping/theme systems this rides on: `docs/dev/11-mapping-system.md`, `docs/dev/20-theme-system.md`, `docs/dev/map-state-source.md`.
+Map **overlay** colors (already tokens), room-**card** chips (already tokens), the animal/mascot colors, and the CV/segmentor internals. The mapping/theme systems this rides on: `docs/dev/11-mapping-system.md`, `docs/dev/frontend/theme-system.md`, `docs/dev/map-state-source.md`.

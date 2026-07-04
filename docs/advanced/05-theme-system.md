@@ -242,7 +242,7 @@ without relying on hue. The marks are always on, in every theme.
 How the palette is validated (the CVD simulation matrices — Machado 2009
 protan/deutan plus Brettel 1997 tritan — the CIEDE2000 ≥ 15 separation gate over
 the ten group pairs, and the shape-mark grayscale check) is covered in
-[dev/27-render-harness](../dev/frontend/render-harness.md).
+[frontend/render-harness](../dev/frontend/render-harness.md).
 
 ---
 

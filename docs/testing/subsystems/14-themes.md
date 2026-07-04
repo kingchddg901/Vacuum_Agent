@@ -6,7 +6,7 @@ theme + working draft, import/export, and the update-callback fan-out that
 refreshes theme-bound entities. Covered by **79 tests across 5 files**.
 
 Source: `custom_components/eufy_vacuum/themes/`
-Architecture reference: [docs/dev/20-theme-system.md](../../dev/frontend/theme-system.md)
+Architecture reference: [docs/dev/frontend/theme-system.md](../../dev/frontend/theme-system.md)
 
 ---
 

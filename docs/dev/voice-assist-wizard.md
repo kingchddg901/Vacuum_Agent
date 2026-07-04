@@ -148,7 +148,7 @@ class WizardState:
 ```
 
 Slots are stored as **canonical codes**, never display strings — consistent with the
-no-fabricated-display-name contract (see [33-i18n-system](frontend/i18n-system.md) and the
+no-fabricated-display-name contract (see [frontend/i18n-system](frontend/i18n-system.md) and the
 standing "no string without i18n" rule). The read-back composes localized labels from
 those codes via the existing `tVocab`-equivalent on the server side.
 
