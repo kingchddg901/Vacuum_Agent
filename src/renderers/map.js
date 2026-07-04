@@ -512,7 +512,15 @@ export function applyMapRenderers(proto) {
       const isSel = order.has(Number(r.number));
       const lx = Math.min(Math.max(+tx((r.bbox[0] + r.bbox[2]) / 2), 5), 95);
       const ly = Math.min(Math.max(+ty((r.bbox[1] + r.bbox[3]) / 2), 6), 94);
-      return `<div class="evcc-map-label${isSel ? " evcc-map-label--selected" : ""}" style="left:${lx}%;top:${ly}%">`
+      // Draggable name — same as the polygon path: a saved per-device anchor (localStorage,
+      // % of the content box — the SAME space as lx/ly) overrides the bbox centroid.
+      // data-room is the anchor key (the device room NUMBER == managed room id); data-cx/cy
+      // are the auto-placement the drag resets toward. No data-segment (raster rooms have no
+      // polygon) — _bindRoomNameDrag routes a TAP to select-by-number instead.
+      const na = state.roomNameAnchor?.(String(r.number));
+      const px = na ? Math.min(Math.max(na.x, 0), 100) : lx;
+      const py = na ? Math.min(Math.max(na.y, 0), 100) : ly;
+      return `<div class="evcc-map-label evcc-map-label--draggable${isSel ? " evcc-map-label--selected" : ""}" data-action="room-name-drag" data-room="${this.escapeHtml(String(r.number))}" data-cx="${lx}" data-cy="${ly}" style="left:${px}%;top:${py}%">`
            + `<span class="evcc-map-label-name">${this.escapeHtml(String(name))}</span></div>`;
     }).join("");
   };

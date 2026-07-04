@@ -1603,9 +1603,16 @@ export function applyMapBindings(proto) {
             if (nearHome) this.card._state.clearRoomNameAnchor?.(roomKey);   // snap back to auto
             else          this.card._state.setRoomNameAnchorLocal?.(roomKey, livePctX, livePctY);
             this.card._scheduleRender();
-          } else {
-            // A tap, not a drag — preserve the prior behavior: select the room.
+          } else if (el.dataset.segment != null && el.dataset.segment !== "") {
+            // A tap, not a drag — preserve prior behavior: select the room. Polygon
+            // (Eufy) labels carry data-segment.
             this._selectSegmentFromLabelTap(el.dataset.segment);
+          } else {
+            // Device (raster) labels have no segment — select by the room NUMBER
+            // (== managed room id), mirroring the canvas hit-test tap. Needed because
+            // the draggable label now captures the pointer, so the tap no longer falls
+            // through to the canvas room-select.
+            this._selectDeviceRoomFromLabelTap(roomKey);
           }
         };
         const onCancel = () => {
@@ -1640,6 +1647,21 @@ export function applyMapBindings(proto) {
     } else {
       this.card._scheduleRender();
     }
+  };
+
+  // Device (raster) room-name label tap — no polygon segment to toggle; select by the
+  // device room NUMBER (== managed room id), mirroring the canvas hit-test tap
+  // (toggleRoomEnabled with the room's current enabled state). Keeps tap-to-select working
+  // now that the draggable label captures the pointer instead of letting it reach the canvas.
+  proto._selectDeviceRoomFromLabelTap = function (roomNumber) {
+    if (roomNumber == null || roomNumber === "") return;
+    const st = this.card._state;
+    const mapId = st.activeMapId?.();
+    const room = (st.getRoomsForActiveMap?.() ?? []).find(
+      (rm) => Number(rm.id) === Number(roomNumber),
+    );
+    this.card._actions?.toggleRoomEnabled?.(mapId, Number(roomNumber), room?.enabled ?? false);
+    this.card._scheduleRender?.();
   };
 
   /* =========================================================
