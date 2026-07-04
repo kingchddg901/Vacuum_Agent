@@ -1055,7 +1055,11 @@
     "transition_is": "Durchgangsbereich",
     "transition_mark": "Als Durchgang markieren",
     "transition_space_label": "Durchgangsbereich",
-    "water_level": "Wasserstand"
+    "water_level": "Wasserstand",
+    "color_label": "Raumfarbe",
+    "color_reset": "Zurücksetzen",
+    "color_default": "Standard (Palette)",
+    "color_pick_title": "Eigene Farbe für diesen Raum wählen"
   },
   "room_estimate": {
     "empty_notes": "Derzeit keine weiteren Schätzhinweise für diesen Raum.",
@@ -2380,5 +2384,39 @@
       "unavailable": "Nicht verfügbar",
       "unknown": "Unbekannt"
     }
+  },
+  "saved_zones": {
+    "title": "Gespeicherte Zonen",
+    "subtitle": "Benannte Stellen, die du jederzeit erneut reinigen kannst – abgelegt unter dem jeweiligen Raum.",
+    "draw": "+ Zone zeichnen",
+    "draw_hint": "Ziehe ein Rechteck auf der Karte auf und speichere dann.",
+    "save_drawn": "Zone speichern",
+    "cancel_draw": "Abbrechen",
+    "clear": "Leeren",
+    "clean_selected_empty": "Auswahl reinigen",
+    "rename": "Umbenennen",
+    "empty": "Noch keine gespeicherten Zonen.",
+    "unassigned": "Nicht zugeordnet",
+    "over_cap": "Max. {max} Zonen pro Reinigung",
+    "area_m2": "{area} m²",
+    "select_zone": "{name} auswählen",
+    "room_select_aria": "Einem Raum zuordnen"
+  },
+  "bind_saved_zones": {
+    "name_prompt": "Diese Zone benennen (z. B. \"das Sofa\"):",
+    "rename_prompt": "Neuer Name für diese Zone:",
+    "confirm_delete": "Gespeicherte Zone \"{name}\" löschen?",
+    "saved": "\"{name}\" gespeichert.",
+    "renamed": "Umbenannt in \"{name}\".",
+    "save_failed": "Zone konnte nicht gespeichert werden.",
+    "rename_failed": "Zone konnte nicht umbenannt werden.",
+    "refile_failed": "Zone konnte nicht verschoben werden.",
+    "unable_delete": "Gespeicherte Zone konnte nicht gelöscht werden.",
+    "clean_failed": "Die ausgewählten Zonen konnten nicht gereinigt werden – prüfe Anzahl und Größe.",
+    "no_zones": "Keine Zonen zum Reinigen.",
+    "nothing_drawn": "Zeichne zuerst ein Rechteck auf der Karte.",
+    "bad_geometry": "Diese Zone hat keine gültige Fläche zum Reinigen.",
+    "map_not_active": "Diese Zone gehört zu einer anderen Karte – wechsle zuerst zu ihrer Karte.",
+    "zone_not_found": "Diese gespeicherte Zone existiert nicht mehr."
   }
 }

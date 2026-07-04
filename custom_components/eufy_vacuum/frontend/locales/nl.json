@@ -1055,7 +1055,11 @@
     "transition_is": "Doorgangsruimte",
     "transition_mark": "Markeren als doorgang",
     "transition_space_label": "Doorgangsruimte",
-    "water_level": "Waterniveau"
+    "water_level": "Waterniveau",
+    "color_label": "Kamerkleur",
+    "color_reset": "Resetten",
+    "color_default": "Standaard (palet)",
+    "color_pick_title": "Kies een aangepaste kleur voor deze kamer"
   },
   "room_estimate": {
     "empty_notes": "Op dit moment geen extra schattingsopmerkingen voor deze kamer.",
@@ -2380,5 +2384,39 @@
       "unavailable": "Niet beschikbaar",
       "unknown": "Onbekend"
     }
+  },
+  "saved_zones": {
+    "title": "Opgeslagen zones",
+    "subtitle": "Benoemde plekken die je altijd opnieuw kunt schoonmaken — opgeslagen onder de kamer waarin ze liggen.",
+    "draw": "+ Zone tekenen",
+    "draw_hint": "Sleep een kader op de kaart en klik dan op Opslaan.",
+    "save_drawn": "Zone opslaan",
+    "cancel_draw": "Annuleren",
+    "clear": "Wissen",
+    "clean_selected_empty": "Selectie schoonmaken",
+    "rename": "Hernoemen",
+    "empty": "Nog geen opgeslagen zones.",
+    "unassigned": "Niet toegewezen",
+    "over_cap": "Max. {max} zones per schoonmaakbeurt",
+    "area_m2": "{area} m²",
+    "select_zone": "{name} selecteren",
+    "room_select_aria": "Onder kamer opslaan"
+  },
+  "bind_saved_zones": {
+    "name_prompt": "Geef deze zone een naam (bijv. \"de bank\"):",
+    "rename_prompt": "Nieuwe naam voor deze zone:",
+    "confirm_delete": "Opgeslagen zone \"{name}\" verwijderen?",
+    "saved": "\"{name}\" opgeslagen.",
+    "renamed": "Hernoemd naar \"{name}\".",
+    "save_failed": "Kan de zone niet opslaan.",
+    "rename_failed": "Kan de zone niet hernoemen.",
+    "refile_failed": "Kan de zone niet verplaatsen.",
+    "unable_delete": "Kan de opgeslagen zone niet verwijderen.",
+    "clean_failed": "Kan de geselecteerde zones niet schoonmaken — controleer het aantal en de grootte.",
+    "no_zones": "Geen zones om schoon te maken.",
+    "nothing_drawn": "Teken eerst een kader op de kaart.",
+    "bad_geometry": "Deze zone heeft geen geldig gebied om schoon te maken.",
+    "map_not_active": "Die zone hoort bij een andere kaart — schakel eerst naar die kaart.",
+    "zone_not_found": "Die opgeslagen zone bestaat niet meer."
   }
 }

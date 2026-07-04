@@ -1066,7 +1066,11 @@
     "transition_is": "Espace de transition",
     "transition_mark": "Marquer comme transition",
     "transition_space_label": "Espace de transition",
-    "water_level": "Niveau d'eau"
+    "water_level": "Niveau d'eau",
+    "color_label": "Couleur de la pièce",
+    "color_reset": "Réinitialiser",
+    "color_default": "Par défaut (palette)",
+    "color_pick_title": "Choisir une couleur personnalisée pour cette pièce"
   },
   "room_estimate": {
     "empty_notes": "Aucune remarque d'estimation supplémentaire pour cette pièce pour l'instant.",
@@ -2395,5 +2399,39 @@
       "unavailable": "Indisponible",
       "unknown": "Inconnu"
     }
+  },
+  "saved_zones": {
+    "title": "Zones enregistrées",
+    "subtitle": "Des emplacements nommés que vous pouvez renettoyer à tout moment — classés dans la pièce où ils se trouvent.",
+    "draw": "+ Dessiner une zone",
+    "draw_hint": "Tracez un rectangle sur la carte, puis enregistrez.",
+    "save_drawn": "Enregistrer la zone",
+    "cancel_draw": "Annuler",
+    "clear": "Effacer",
+    "clean_selected_empty": "Nettoyer la sélection",
+    "rename": "Renommer",
+    "empty": "Aucune zone enregistrée pour l'instant.",
+    "unassigned": "Non attribué",
+    "over_cap": "Max. {max} zones par nettoyage",
+    "area_m2": "{area} m²",
+    "select_zone": "Sélectionner {name}",
+    "room_select_aria": "Classer dans une pièce"
+  },
+  "bind_saved_zones": {
+    "name_prompt": "Nommez cette zone (par ex. \"le canapé\") :",
+    "rename_prompt": "Nouveau nom pour cette zone :",
+    "confirm_delete": "Supprimer la zone enregistrée \"{name}\" ?",
+    "saved": "\"{name}\" enregistrée.",
+    "renamed": "Renommée en \"{name}\".",
+    "save_failed": "Impossible d'enregistrer la zone.",
+    "rename_failed": "Impossible de renommer la zone.",
+    "refile_failed": "Impossible de déplacer la zone.",
+    "unable_delete": "Impossible de supprimer la zone enregistrée.",
+    "clean_failed": "Impossible de nettoyer les zones sélectionnées — vérifiez le nombre et la taille.",
+    "no_zones": "Aucune zone à nettoyer.",
+    "nothing_drawn": "Tracez d'abord un rectangle sur la carte.",
+    "bad_geometry": "Cette zone n'a pas de surface valide à nettoyer.",
+    "map_not_active": "Cette zone appartient à une autre carte — passez d'abord à sa carte.",
+    "zone_not_found": "Cette zone enregistrée n'existe plus."
   }
 }

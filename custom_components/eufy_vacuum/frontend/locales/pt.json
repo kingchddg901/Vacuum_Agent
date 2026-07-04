@@ -1066,7 +1066,11 @@
     "transition_is": "Espaço de transição",
     "transition_mark": "Marcar como transição",
     "transition_space_label": "Espaço de transição",
-    "water_level": "Nível de água"
+    "water_level": "Nível de água",
+    "color_label": "Cor da divisão",
+    "color_reset": "Repor",
+    "color_default": "Predefinido (paleta)",
+    "color_pick_title": "Escolhe uma cor personalizada para esta divisão"
   },
   "room_estimate": {
     "empty_notes": "Sem notas de estimativa adicionais para esta divisão neste momento.",
@@ -2393,5 +2397,39 @@
       "unavailable": "Indisponível",
       "unknown": "Desconhecido"
     }
+  },
+  "saved_zones": {
+    "title": "Zonas guardadas",
+    "subtitle": "Locais com nome que podes voltar a limpar a qualquer momento — arquivados na divisão onde se encontram.",
+    "draw": "+ Desenhar uma zona",
+    "draw_hint": "Arrasta um retângulo no mapa e depois guarda.",
+    "save_drawn": "Guardar zona",
+    "cancel_draw": "Cancelar",
+    "clear": "Limpar",
+    "clean_selected_empty": "Limpar seleção",
+    "rename": "Renomear",
+    "empty": "Ainda não há zonas guardadas.",
+    "unassigned": "Não atribuída",
+    "over_cap": "Máx. {max} zonas por limpeza",
+    "area_m2": "{area} m²",
+    "select_zone": "Selecionar {name}",
+    "room_select_aria": "Arquivar numa divisão"
+  },
+  "bind_saved_zones": {
+    "name_prompt": "Dá um nome a esta zona (p. ex. \"o sofá\"):",
+    "rename_prompt": "Novo nome para esta zona:",
+    "confirm_delete": "Eliminar a zona guardada \"{name}\"?",
+    "saved": "\"{name}\" guardada.",
+    "renamed": "Renomeada para \"{name}\".",
+    "save_failed": "Não foi possível guardar a zona.",
+    "rename_failed": "Não foi possível renomear a zona.",
+    "refile_failed": "Não foi possível mover a zona.",
+    "unable_delete": "Não foi possível eliminar a zona guardada.",
+    "clean_failed": "Não foi possível limpar as zonas selecionadas — verifica o número e o tamanho.",
+    "no_zones": "Não há zonas para limpar.",
+    "nothing_drawn": "Desenha primeiro um retângulo no mapa.",
+    "bad_geometry": "Esta zona não tem uma área válida para limpar.",
+    "map_not_active": "Essa zona pertence a outro mapa — muda primeiro para o mapa dela.",
+    "zone_not_found": "Essa zona guardada já não existe."
   }
 }

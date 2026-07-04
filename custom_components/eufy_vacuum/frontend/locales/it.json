@@ -1055,7 +1055,11 @@
     "transition_is": "Spazio di transizione",
     "transition_mark": "Segna come transizione",
     "transition_space_label": "Spazio di transizione",
-    "water_level": "Livello acqua"
+    "water_level": "Livello acqua",
+    "color_label": "Colore della stanza",
+    "color_reset": "Reimposta",
+    "color_default": "Predefinito (tavolozza)",
+    "color_pick_title": "Scegli un colore personalizzato per questa stanza"
   },
   "room_estimate": {
     "empty_notes": "Al momento nessuna nota aggiuntiva di stima per questa stanza.",
@@ -2380,5 +2384,39 @@
       "unavailable": "Non disponibile",
       "unknown": "Sconosciuto"
     }
+  },
+  "saved_zones": {
+    "title": "Zone salvate",
+    "subtitle": "Punti con nome che puoi ripulire in qualsiasi momento — archiviati nella stanza in cui si trovano.",
+    "draw": "+ Disegna una zona",
+    "draw_hint": "Trascina un rettangolo sulla mappa, poi salva.",
+    "save_drawn": "Salva zona",
+    "cancel_draw": "Annulla",
+    "clear": "Cancella",
+    "clean_selected_empty": "Pulisci selezione",
+    "rename": "Rinomina",
+    "empty": "Ancora nessuna zona salvata.",
+    "unassigned": "Non assegnata",
+    "over_cap": "Max {max} zone per pulizia",
+    "area_m2": "{area} m²",
+    "select_zone": "Seleziona {name}",
+    "room_select_aria": "Assegna a una stanza"
+  },
+  "bind_saved_zones": {
+    "name_prompt": "Assegna un nome a questa zona (ad es. \"il divano\"):",
+    "rename_prompt": "Nuovo nome per questa zona:",
+    "confirm_delete": "Eliminare la zona salvata \"{name}\"?",
+    "saved": "\"{name}\" salvata.",
+    "renamed": "Rinominata in \"{name}\".",
+    "save_failed": "Impossibile salvare la zona.",
+    "rename_failed": "Impossibile rinominare la zona.",
+    "refile_failed": "Impossibile spostare la zona.",
+    "unable_delete": "Impossibile eliminare la zona salvata.",
+    "clean_failed": "Impossibile pulire le zone selezionate — controlla il numero e la dimensione.",
+    "no_zones": "Nessuna zona da pulire.",
+    "nothing_drawn": "Disegna prima un rettangolo sulla mappa.",
+    "bad_geometry": "Questa zona non ha un'area valida da pulire.",
+    "map_not_active": "Quella zona appartiene a un'altra mappa — passa prima alla sua mappa.",
+    "zone_not_found": "Quella zona salvata non esiste più."
   }
 }
