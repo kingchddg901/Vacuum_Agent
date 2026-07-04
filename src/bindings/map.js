@@ -16,6 +16,13 @@ import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-
 import { resolveFloorType } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
+// Apparent size of the floor material on the map: the 2048² masks are drawn to fill a
+// ROOM-sized card, so at 1:1 (native) their veins/planks look "zoomed in" over the whole map.
+// Scale the mask pattern DOWN by this factor so the features are smaller + tile denser (more
+// veins per room). 1.0 = native (too big); lower = finer/denser. Tunable — the single knob for
+// "details too big / too small". (Fine wood grain softens as this drops; marble veins stay.)
+const FLOOR_TEXTURE_MASK_SCALE = 0.35;
+
 // The VA raster room-fill colors now resolve through the shared themeable palette
 // (roomFillRgb, reading --evcc-room-fill-N off the canvas); the hardcoded array moved to
 // cards/map-room-color.js as ROOM_FILL_PALETTE.
@@ -566,6 +573,14 @@ export function applyMapBindings(proto) {
     // pattern wraps for canvases larger than the mask.
     const pat = cx.createPattern(img, "repeat");
     if (!pat) return null;
+    // Scale the pattern DOWN so the material features are smaller + tile denser (many veins/
+    // planks per room) instead of one zoomed-in swatch. Anchored at (0,0) so every layer/room
+    // shares the same map-space grid -> continuous across rooms.
+    if (typeof pat.setTransform === "function" && typeof DOMMatrix === "function") {
+      try {
+        pat.setTransform(new DOMMatrix([FLOOR_TEXTURE_MASK_SCALE, 0, 0, FLOOR_TEXTURE_MASK_SCALE, 0, 0]));
+      } catch (_e) { /* older engine — fall back to native scale */ }
+    }
     cx.fillStyle = pat;
     cx.fillRect(0, 0, W, H);
     const d = cx.getImageData(0, 0, W, H).data;
