@@ -21,24 +21,29 @@ export function applyDialogRenderer(proto) {
 
     const kind = d.kind === "alert" || d.kind === "prompt" ? d.kind : "confirm";
 
+    // DIALOG SPEC CONTRACT (trust model B): title / message / confirmLabel /
+    // cancelLabel / placeholder are DISPLAY-READY strings — the caller localizes
+    // them with this.t(...) (which HTML-escapes) or escapes raw values itself, so
+    // they interpolate DIRECTLY here. Re-escaping would double-escape a t() string
+    // (a quote -> &quot; -> &amp;quot;, rendered literally — the "Name this zone
+    // (e.g. &quot;the couch&quot;)" glitch). Only `defaultValue` is RAW (a user's
+    // existing name filled into the text input), so it alone is escaped at this sink.
     const titleHtml = d.title
-      ? `<div class="evcc-modal-title evcc-dialog-title">${this.escapeHtml(String(d.title))}</div>`
+      ? `<div class="evcc-modal-title evcc-dialog-title">${String(d.title)}</div>`
       : "";
 
-    // The message is an authored card string already localized at the call
-    // site (this.t(...)); escape again here — the sink is innerHTML.
     const messageHtml = d.message
-      ? `<div class="evcc-dialog-message">${this.escapeHtml(String(d.message))}</div>`
+      ? `<div class="evcc-dialog-message">${String(d.message)}</div>`
       : "";
 
     const inputHtml = kind === "prompt"
       ? `<input class="evcc-dialog-input" type="text" data-evcc-dialog-input
                 value="${this.escapeHtml(String(d.defaultValue ?? ""))}"
-                placeholder="${this.escapeHtml(String(d.placeholder ?? ""))}" />`
+                placeholder="${String(d.placeholder ?? "")}" />`
       : "";
 
     const confirmLabel = d.confirmLabel
-      ? this.escapeHtml(String(d.confirmLabel))
+      ? String(d.confirmLabel)
       : kind === "alert"
         ? this.t("common.ok")
         : kind === "prompt"
@@ -46,7 +51,7 @@ export function applyDialogRenderer(proto) {
           : this.t("common.confirm");
 
     const cancelLabel = d.cancelLabel
-      ? this.escapeHtml(String(d.cancelLabel))
+      ? String(d.cancelLabel)
       : this.t("common.cancel");
 
     const confirmClass = d.danger ? "evcc-btn-warn" : "evcc-btn-primary";

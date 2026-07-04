@@ -127,7 +127,7 @@ export function applySavedZonesBindings(proto) {
       }
       card._state.setZoneDrawMode?.(false);          // exit draw + clear drafts
       await card.refreshSavedZones?.();
-      card.showToast(this.t("bind_saved_zones.saved", { name }), { kind: "success" });
+      card.showToast(this.t("bind_saved_zones.saved", { name: this.esc(name) }), { kind: "success" });
       card._scheduleRender?.();
     });
 
@@ -170,7 +170,7 @@ export function applySavedZonesBindings(proto) {
         return;
       }
       await card.refreshSavedZones?.();
-      card.showToast(this.t("bind_saved_zones.renamed", { name: next }), { kind: "success" });
+      card.showToast(this.t("bind_saved_zones.renamed", { name: this.esc(next) }), { kind: "success" });
       card._scheduleRender?.();
     });
 
@@ -183,7 +183,7 @@ export function applySavedZonesBindings(proto) {
         (z) => String(z.id) === String(zoneId)
       );
       if (!(await card._confirm(
-        this.t("bind_saved_zones.confirm_delete", { name: zone?.name ?? "" }),
+        this.t("bind_saved_zones.confirm_delete", { name: this.esc(zone?.name ?? "") }),
         { danger: true }
       ))) {
         return;

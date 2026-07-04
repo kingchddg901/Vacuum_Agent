@@ -101,6 +101,21 @@ export class VacuumCardBindings {
     return this.card?._renderers?.tRaw?.(key, vars) ?? key;
   }
 
+  /**
+   * HTML-escape a RAW value so it is display-ready for a sink that interpolates
+   * directly (toast / dialog message). Use ONLY for raw strings (e.g. a backend
+   * `result.message` / `result.reason`) — never on `t()` output, which is already
+   * escaped (that would double-escape, trust model B). Delegates to the renderers'
+   * `escapeHtml`; falls back to the raw string only before renderers exist (a path
+   * user-driven handlers never hit).
+   *
+   * @param {*} value - raw, unescaped value.
+   * @returns {string} HTML-safe string.
+   */
+  esc(value) {
+    return this.card?._renderers?.escapeHtml?.(value) ?? String(value ?? "");
+  }
+
   /** Re-attach all shadow-root event handlers after each render. */
   bindEvents() {
     this._bindNav();

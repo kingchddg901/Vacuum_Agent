@@ -161,8 +161,11 @@ export function applyMaintenanceBindings(proto) {
 
         if (result === null) {
           const label = item.label ?? item.component ?? "item";
+          // The panel reset-error sink (renderers/maintenance.js) escapeHtml()s the whole message,
+          // so it takes the RAW label; the toast sink trusts its message (trust model B), so the
+          // backend-free-text label is escaped here before it reaches innerHTML.
           this.card._state.setMaintenanceResetError?.(this.t("bind_maintenance.could_not_reset", { label }));
-          this.card.showToast?.(this.t("bind_maintenance.could_not_reset", { label }), { kind: "error" });
+          this.card.showToast?.(this.t("bind_maintenance.could_not_reset", { label: this.esc(label) }), { kind: "error" });
           this.card._scheduleRender();
           return;
         }

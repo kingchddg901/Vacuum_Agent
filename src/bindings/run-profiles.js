@@ -59,7 +59,7 @@ export function applyRunProfilesBindings(proto) {
       });
 
       if (result?.ok === false) {
-        this.card.showToast(result.reason || this.t("bind_run_profiles.unable_apply"), { kind: "error" });
+        this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_apply")), { kind: "error" });
         return;
       }
 
@@ -90,7 +90,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_save"), { kind: "error" });
+          this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_save")), { kind: "error" });
           return;
         }
 
@@ -137,7 +137,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_overwrite"), { kind: "error" });
+          this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_overwrite")), { kind: "error" });
           return;
         }
 
@@ -156,7 +156,7 @@ export function applyRunProfilesBindings(proto) {
         const profile = this.card._state.selectedRunProfile?.();
         if (!profileId || !profile) return;
 
-        if (!(await this.card._confirm(this.t("bind_run_profiles.confirm_delete", { name: profile.name }), { danger: true }))) return;
+        if (!(await this.card._confirm(this.t("bind_run_profiles.confirm_delete", { name: this.esc(profile.name) }), { danger: true }))) return;
 
         const result = await this.card._actions.deleteRunProfile({
           vacuum_entity_id: this.card._state.vacuumEntityId?.(),
@@ -165,7 +165,7 @@ export function applyRunProfilesBindings(proto) {
         });
 
         if (result?.ok === false) {
-          this.card.showToast(result.reason || this.t("bind_run_profiles.unable_delete"), { kind: "error" });
+          this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_delete")), { kind: "error" });
           return;
         }
 

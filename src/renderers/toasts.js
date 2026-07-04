@@ -26,6 +26,10 @@ export function applyToastsRenderer(proto) {
     const toasts = ctx?.state?.activeToasts?.() ?? [];
     if (!toasts.length) return "";
 
+    // Toast `message` is DISPLAY-READY: callers localize with this.t(...) (which
+    // HTML-escapes — trust model B) or escape raw backend text with this.esc(...),
+    // so it interpolates directly below. Re-escaping here would double-escape a
+    // t() string (a quote -> &quot; -> &amp;quot;, rendered literally).
     return `
       <div class="evcc-toast-stack">
         ${toasts.map((t) => `
@@ -34,7 +38,7 @@ export function applyToastsRenderer(proto) {
             data-toast-id="${this.escapeHtml(t.id)}"
             role="status"
           >
-            <span class="evcc-toast-message">${this.escapeHtml(t.message)}</span>
+            <span class="evcc-toast-message">${String(t.message ?? "")}</span>
             <button
               type="button"
               class="evcc-toast-dismiss"

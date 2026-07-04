@@ -122,9 +122,9 @@ export function applyThemeBindings(proto) {
     const { known, unknown } = detectFloorScope(envelope);
     if (!known.length) {
       this.card.showToast(
-        this.t("bind_theme.no_recognised_floor_types", { sourceLabel }) +
+        this.t("bind_theme.no_recognised_floor_types", { sourceLabel: this.esc(sourceLabel) }) +
         (unknown.length
-          ? this.t("bind_theme.unsupported_suffix", { unknown: unknown.join(", ") })
+          ? this.t("bind_theme.unsupported_suffix", { unknown: this.esc(unknown.join(", ")) })
           : "."),
         { kind: "error" }
       );
@@ -133,7 +133,7 @@ export function applyThemeBindings(proto) {
     const proceed = await this.card._confirm(
       this.t("bind_theme.replace_floor_types_intro", { known: known.join(", ") }) +
       (unknown.length
-        ? this.t("bind_theme.replace_floor_types_skipped", { unknown: unknown.join(", ") })
+        ? this.t("bind_theme.replace_floor_types_skipped", { unknown: this.esc(unknown.join(", ")) })
         : "") +
       this.t("bind_theme.replace_floor_types_confirm"),
       { danger: true }
@@ -147,9 +147,9 @@ export function applyThemeBindings(proto) {
     );
     await this._refreshThemeFromBackend();
     this.card.showToast(
-      this.t("bind_theme.replaced_floor_types", { known: known.join(", "), sourceLabel }) +
+      this.t("bind_theme.replaced_floor_types", { known: known.join(", "), sourceLabel: this.esc(sourceLabel) }) +
       (corrected ? this.t("bind_theme.values_clamped_suffix", { corrected }) : "") +
-      (unknown.length ? this.t("bind_theme.skipped_suffix", { unknown: unknown.join(", ") }) : ""),
+      (unknown.length ? this.t("bind_theme.skipped_suffix", { unknown: this.esc(unknown.join(", ")) }) : ""),
       { kind: "success" }
     );
     return true;
@@ -210,7 +210,7 @@ export function applyThemeBindings(proto) {
       );
 
       if (result?.ok === false) {
-        this.card.showToast(result.reason || this.t("bind_theme.unable_to_select_theme"), { kind: "error" });
+        this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_select_theme")), { kind: "error" });
         return;
       }
 
@@ -252,7 +252,7 @@ export function applyThemeBindings(proto) {
       // null = failure (callService never returns {ok:false}). Bail BEFORE we
       // clear the device pin, so a failed promote doesn't destroy the override.
       if (!result?.ok) {
-        this.card.showToast(result?.reason || this.t("bind_theme.unable_to_apply_everyone"), { kind: "error" });
+        this.card.showToast((result?.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_apply_everyone")), { kind: "error" });
         return;
       }
       const activeThemeId = result?.active_theme_id ?? result?.theme_id ?? themeId;
@@ -358,7 +358,7 @@ export function applyThemeBindings(proto) {
     if (!result?.ok) {
       this.card._state.applyThemeTagsLocal(id, prior); // revert the optimistic change
       this.card._scheduleRender();
-      this.card.showToast(result?.reason || this.t("bind_theme.unable_to_update_tags"), { kind: "error" });
+      this.card.showToast((result?.reason ? this.esc(result.reason) : this.t("bind_theme.unable_to_update_tags")), { kind: "error" });
     }
   };
 
@@ -1222,7 +1222,7 @@ export function applyThemeBindings(proto) {
 
       const themeId = e.currentTarget.dataset.presetId;
       if (!themeId) return;
-      if (!(await this.card._confirm(this.t("bind_theme.delete_theme_confirm", { themeId }), { danger: true }))) return;
+      if (!(await this.card._confirm(this.t("bind_theme.delete_theme_confirm", { themeId: this.esc(themeId) }), { danger: true }))) return;
 
       await this.card._actions.deleteTheme(themeId);
       await this._refreshThemeFromBackend();
@@ -1274,7 +1274,7 @@ export function applyThemeBindings(proto) {
       try {
         result = await this.card._actions.exportTheme(themeId);
       } catch (err) {
-        this.card.showToast(this.t("bind_theme.failed_export_theme", { error: err?.message ?? String(err) }), { kind: "error" });
+        this.card.showToast(this.t("bind_theme.failed_export_theme", { error: this.esc(err?.message ?? String(err)) }), { kind: "error" });
         return;
       }
 
@@ -1336,13 +1336,13 @@ export function applyThemeBindings(proto) {
             // Full import — adds a new library theme (legacy behavior).
             await this.card._actions.importTheme(payload);
             await this._refreshThemeFromBackend();
-            this.card.showToast(this.t("bind_theme.theme_imported_from", { fileName: file.name }), { kind: "success" });
+            this.card.showToast(this.t("bind_theme.theme_imported_from", { fileName: this.esc(file.name) }), { kind: "success" });
           }
         } catch (err) {
           this.card.showToast(
             this.t("bind_theme.failed_import_file", {
-              fileName: file.name,
-              error: err?.message ?? String(err),
+              fileName: this.esc(file.name),
+              error: this.esc(err?.message ?? String(err)),
             }),
             { kind: "error" }
           );
@@ -1379,13 +1379,13 @@ export function applyThemeBindings(proto) {
       try {
         result = await this.card._actions.exportTheme(themeId);
       } catch (err) {
-        this.card.showToast(this.t("bind_theme.failed_export_theme", { error: err?.message ?? String(err) }), { kind: "error" });
+        this.card.showToast(this.t("bind_theme.failed_export_theme", { error: this.esc(err?.message ?? String(err)) }), { kind: "error" });
         return;
       }
 
       const scoped = sliceThemeByTypes(result, [type]);
       if (!themeKeyCount(scoped)) {
-        this.card.showToast(this.t("bind_theme.no_customised_floor_settings", { type }), { kind: "error" });
+        this.card.showToast(this.t("bind_theme.no_customised_floor_settings", { type: this.esc(type) }), { kind: "error" });
         return;
       }
 

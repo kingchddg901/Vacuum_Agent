@@ -58,7 +58,7 @@ export function applyRoomEditorBindings(proto) {
    */
   proto._roomProfileTargetChoices = function () {
     return (this.card._state.customRoomProfiles?.() ?? [])
-      .map((profile) => `${profile.name} (${profile.label})`)
+      .map((profile) => `${this.esc(profile.name)} (${this.esc(profile.label)})`)
       .join("\n");
   };
 
@@ -105,8 +105,10 @@ export function applyRoomEditorBindings(proto) {
   proto._alertRoomProfileResult = function (result, fallbackMessage) {
     // Prefer a human-readable backend message; NEVER surface the raw reason CODE
     // (e.g. "profile_not_found") to the user — fall back to the friendly,
-    // localized fallback instead.
-    const message = String(result?.message ?? fallbackMessage ?? "").trim();
+    // localized fallback instead. The backend message is RAW, so escape it for the
+    // display-ready toast sink; the fallback is already t()-localized (escaped).
+    const raw = String(result?.message ?? "").trim();
+    const message = raw ? this.esc(raw) : String(fallbackMessage ?? "").trim();
     if (message) {
       this.card.showToast(message, { kind: "error" });
     }
@@ -192,7 +194,7 @@ export function applyRoomEditorBindings(proto) {
     const targetProfile = this.card._state.roomProfileDefinition?.(targetProfileName);
     const confirmed = await this.card._confirm(
       this.t("bind_room_editor.confirm_overwrite_profile", {
-        target: targetProfile?.label ?? targetProfileName,
+        target: this.esc(targetProfile?.label ?? targetProfileName),
       }),
       { danger: true }
     );
@@ -290,7 +292,7 @@ export function applyRoomEditorBindings(proto) {
     }
 
     const confirmed = await this.card._confirm(
-      this.t("bind_room_editor.confirm_delete_profile", { label: targetProfile.label }),
+      this.t("bind_room_editor.confirm_delete_profile", { label: this.esc(targetProfile.label) }),
       { danger: true }
     );
     if (!confirmed) return;
