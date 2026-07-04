@@ -13,6 +13,10 @@ Coverage targets
 [MS-9]  ensure_runtime creates a VacuumRuntimeState on first call.
 [MS-10] ensure_runtime returns the same object on subsequent calls.
 [MS-11] runtime state is independent per vacuum entity_id.
+[MS-12] remove_vacuum_record deletes the managed-vacuum record from data["vacuums"].
+[MS-13] remove_vacuum_record clears every per-vacuum bucket (incl. nested theme.vacuums and battery.vacuums) for the removed vacuum only, reports them in removed_buckets, and leaves the other vacuum untouched.
+[MS-14] remove_vacuum_record on a never-added vacuum is a safe no-op (removed_buckets empty).
+[MS-15] After remove_vacuum_record the vacuum drops out of get_known_vacuum_ids and get_managed_vacuums.
 """
 
 from __future__ import annotations

@@ -8,6 +8,21 @@ parsed-map path, and the presence gate.
 [MS-3] anchors_from_storage: dock/robot normalized; absent when missing.
 [MS-4] rooms_from_parsed_map: parser Room bbox -> normalized, flagged approximate.
 [MS-5] build_map_source_result: presence gate (absent vs populated).
+[MS-6] rooms_from_room_pixels: per-room area_m2 = pixel_count x (res_cm/100)^2 (400 px @ res=5 -> 1.0 m2).
+[MS-7] current_room_from_storage: robot pixel -> exact room id by raster lookup; off-map / no trail -> None.
+[MS-8] path_from_storage: robot_trail -> normalized polyline; empty when no trail.
+[MS-9] overlays_from_storage: bundles current_room + path + image_size; empty hazard layers omitted.
+[MS-10] resolve_overlay_visibility: stored deltas merge over defaults (copy); unknown keys dropped; None -> defaults.
+[MS-11] _decimate_step: ceil stride hard-caps the sample count (soft // bug fix); degenerate -> 1.
+[MS-12] render_data_from_storage: card-render raster + explicit decode params (dims/offset/flip/rid_shift/version); no seg -> None.
+[MS-13] current_room_for_pixel: room id at an arbitrary main-grid pixel; off-map / byte-0 / non-numeric -> None.
+[MS-14] live_pose_overlay: in-memory pixel pose -> normalized robot/dock anchors + current-room + heading.
+[MS-15] apply_live_pose_override: live pose authoritative for current_room + path; clears stale .storage values; empty overlay = no-op.
+[MS-16] mapdata_dict_from_obj: in-memory MapData object -> byte-identical .storage map_data dict; non-MapData -> None.
+[MS-17] compare_map_data: normalization_safe iff raster (len+sha1) + geometry match; hazards by count; room_names key-type diff.
+[MS-18] eufy_version_of: content version = 12-char sha1 of the raster; stable per map, changes on re-map; no raster -> "".
+[MS-19] vacuum_to_normalized: vacuum-frame point -> main grid ((v-origin)/res) then rendered normalization; non-numeric/bool/no-dims -> None.
+[MS-20] hazards_from_mapdata: device hazard layers -> normalized overlays (walls/no_go/no_mop); degenerate/scalar-drift degrade, never raise.
 """
 import base64
 from types import SimpleNamespace

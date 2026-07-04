@@ -33,6 +33,7 @@ _GRID = [(20000, 15000), (50000, 15000), (50000, 45000),
 
 
 def test_zdm1_roundtrip_box_to_mm():
+    """[ZDM-1] round-trip: a normalized box converts to the expected mm box."""
     out = zd.normalized_rects_to_mm(_corr(_GRID), [[0.25, 0.25, 0.75, 0.75]])
     assert out is not None
     x0, y0, x1, y1 = out[0]
@@ -45,23 +46,27 @@ def test_zdm1_roundtrip_box_to_mm():
 
 
 def test_zdm2_exact_affine_zero_residual():
+    """[ZDM-2] an exact affine fits with ~0 residual."""
     coeffs = zd.fit_normalized_to_mm(_corr(_GRID))
     assert coeffs is not None
     assert zd.max_residual_mm(coeffs, _corr(_GRID)) < 1.0
 
 
 def test_zdm3_too_few_points():
+    """[ZDM-3] fewer than 3 points -> None (under-determined)."""
     assert zd.fit_normalized_to_mm(_corr(_GRID[:2])) is None
     assert zd.normalized_rects_to_mm(_corr(_GRID[:2]), [[0.1, 0.1, 0.2, 0.2]]) is None
 
 
 def test_zdm4_collinear_degenerate():
+    """[ZDM-4] collinear points -> None (degenerate)."""
     line = [(20000, 15000), (30000, 15000), (40000, 15000), (50000, 15000)]
     assert zd.fit_normalized_to_mm(_corr(line)) is None
     assert zd.normalized_rects_to_mm(_corr(line), [[0.1, 0.1, 0.2, 0.2]]) is None
 
 
 def test_zdm5_non_affine_refuses():
+    """[ZDM-5] a corrupted (non-affine) correspondence -> refuse (None), not a bad dispatch."""
     corr = _corr(_GRID)
     nx, ny, mx, my = corr[0]
     corr[0] = (nx, ny, mx + 5000.0, my - 5000.0)  # 5 m off -> not a clean affine
@@ -69,6 +74,7 @@ def test_zdm5_non_affine_refuses():
 
 
 def test_zdm6_reversed_corners_ordered():
+    """[ZDM-6] reversed-corner rects are min/max-ordered in mm."""
     # x0>x1 and y0>y1 on input must still come out min/max-ordered.
     out = zd.normalized_rects_to_mm(_corr(_GRID), [[0.75, 0.75, 0.25, 0.25]])
     assert out is not None

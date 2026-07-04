@@ -31,6 +31,23 @@ Coverage targets
 [LAYOUT-10] set_segmentation_mode → custom with layouts present but no active pointer auto-selects the first id.
 [LAYOUT-11] create_custom_layout with backdrop_source="live" pins the layout (surfaced in
         the get_map_segments summary); a normal create leaves backdrop_source None.
+[ZONE-1]  saved-zone create/rename/delete lifecycle: distinct ids even same-second, bucket
+        persistence, W1 filing fields (room_number/area_m2) default None + kind "clean",
+        get_map_segments lists them, unknown id → zone_not_found on rename/delete.
+[ZONE-2]  _migrate_saved_zones seeds saved_zones={} once and never clobbers existing zones.
+[ZONE-3]  CREATE_SAVED_ZONE_SCHEMA geometry coord validation: non-finite/non-numeric (NaN,
+        inf, "nan", "abc", bool) rejected with vol.Invalid; finite out-of-range coords clamped to 0-1.
+[ZONE-4]  zone_membership: ≥90% floor dominance → that room, split/background-only → None; area is the
+        bbox world footprint (Δnx·Δny·width·height·res²), not a cell count; <3 points / empty map → both None.
+[ZONE-5]  create_saved_zone wires zone_membership output (room_number + area_m2) into the zone
+        when map_data is available and the zone's map is the active map.
+[ZONE-6]  set_saved_zone_room files then clears a zone's room_number; unknown id → zone_not_found.
+[ZONE-7]  create_saved_zone skips filing/area compute when the zone's map_id ≠ the active map,
+        so no wrong-map data is filed (room_number/area_m2 stay None).
+[ZONE-8]  clean_saved_zone resolves a zone → its bbox rect → dispatch_zone_clean (active-map guarded);
+        unknown id → zone_not_found and map-mismatch → map_not_active both refuse WITHOUT dispatching.
+[ZONE-9]  clean_saved_zones resolves each id → its bbox → ONE dispatch carrying all rects (active-map
+        guarded); a single missing id refuses the WHOLE batch atomically without dispatch.
 """
 
 from __future__ import annotations

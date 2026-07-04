@@ -21,6 +21,8 @@ Coverage targets
 [MSV-13] exclude_room_job_bounds on an unknown room → room_not_found.
 [MSV-14] delete_map_image when the PNG is already gone → record still dropped.
 [MSV-15] set_live_map_rotation stores the display rotation on the map bucket.
+[MSV-16] set_map_overlay_visibility persists only the user's deltas (not the resolved map), merges them over the defaults at read time, merges successive partial calls, rejects unknown layers, and resets cleanly back to defaults.
+[MSV-17] get_map_render_data is registered and degrades gracefully with present=False / reason=not_configured when the adapter declares no map_render block.
 """
 
 from __future__ import annotations

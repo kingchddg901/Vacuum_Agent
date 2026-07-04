@@ -18,6 +18,9 @@ Coverage targets
 [LRR-7] ServiceNotSupported (e.g. a non-V1 model) -> sticky-disabled for the session.
 [LRR-8] transient HomeAssistantError (e.g. position_not_found) -> swallowed, NOT disabled.
 [LRR-9] gate fail-safe: an entity with no linked device -> skipped.
+[LRR-10] ServiceNotFound (pulse service not registered on this install, e.g. wrong
+         domain vacuum.* vs roborock.*) -> sticky-disabled after the first call,
+         not retried every interval (deploy regression).
 """
 
 from __future__ import annotations

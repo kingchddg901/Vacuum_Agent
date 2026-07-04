@@ -17,8 +17,16 @@ Coverage targets
 [PNL-1] a replacement-keyed name maps to its curated label (replacements branch).
 [PNL-2] a non-keyed name falls through to _display_label(normalized) (line 144).
 [PNL-3] an empty value short-circuits to None (empty-text guard).
-[NPS-1..5] _normalize_profile_setting maps stored display strings to the canonical
-        codes the card vocab is keyed on (via the adapter alias maps).
+[NPS-1] _normalize_profile_setting resolves an aliased display string ("Vacuum
+        and mop") to its canonical code ("vacuum_mop") via the alias map.
+[NPS-2] alias lookup is case/punctuation/whitespace-insensitive: "vacuum & mop",
+        "VACUUM AND MOP", "  Vacuum   and  mop " all resolve to "vacuum_mop", and
+        "BoostIQ" resolves to "boost".
+[NPS-3] a value that already slugs to its canonical code passes through unchanged
+        (e.g. "vacuum"/"Vacuum" → "vacuum", "Standard" → "standard").
+[NPS-4] an un-aliased multi-word value slugs to underscores gracefully
+        ("Some New Mode" → "some_new_mode") with an empty alias map.
+[NPS-5] empty/None stays falsy — "" → "" and None → None are preserved.
 """
 
 from __future__ import annotations

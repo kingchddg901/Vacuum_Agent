@@ -331,8 +331,8 @@ def test_resolve_none_in_cv_mode():
 
 
 async def test_resolve_populated_with_art_url(hass, mapping_services, pil):
-    """[FURN-12b] once home art is uploaded + placed, the snapshot composer's projection
-    resolves the art_variant to the uploaded variant's browser_url."""
+    """[FURN-12] [FURN-12b] once home art is uploaded + placed, the snapshot composer's
+    projection resolves the art_variant to the uploaded variant's browser_url."""
     map_id = "furn_resolve"
     lid = await _create_layout(hass, map_id)
     up = await _svc(hass, SERVICE_UPLOAD_MAP_IMAGE, {

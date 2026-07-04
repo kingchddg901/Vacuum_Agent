@@ -32,6 +32,10 @@ Coverage targets
 [LS-10] get_dashboard_snapshot surfaces cv_available + cv_missing (runtime CV-library
         signal) so the card can hide Auto (CV) when numpy/Pillow/scipy are absent;
         libs present -> available + empty, monkeypatched-missing -> the names.
+[LS-11] get_dashboard_snapshot surfaces the adapter's settings_selects as resolved,
+        existence-checked entity-ids (setting_entities) for the zone-clean panel's
+        live controls: only entities that actually exist are included, a declared-
+        but-missing one is dropped, and no settings_selects declared -> empty.
 [EXT-1] maybe_handle_external_run: cleaning with no dispatched job opens an
         "external" capture slot.
 [EXT-2] maybe_handle_external_run: a mid-run dock resume cancels the pending

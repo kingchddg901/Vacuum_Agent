@@ -11,6 +11,8 @@ concatenates them.
 [SOPT-2] capture is idempotent (a retry/double-completion can't double-record).
 [SOPT-3] AREA fallback: a flat cleaning_area through a phase falls back to the learned area.
 [SOPT-4] atomic jobs (no phases) are a no-op.
+[SOPT-6] _learned_room_area_m2 area source prefers learned_area_m2, then area_m2, and returns None when neither key is present, the room is missing, or the id is bad.
+[SOPT-7] _phase_room_timing computes within-slice cleaning_seconds/area deltas, battery_delta as first−last, and wall seconds from parsed ISO timestamps, degrading to 0 wall on unparseable timestamps without crashing.
 """
 
 from __future__ import annotations

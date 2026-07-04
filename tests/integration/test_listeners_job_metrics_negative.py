@@ -188,7 +188,7 @@ async def test_new_state_none_is_noop(hass, manager, monkeypatch):
 
 @pytest.mark.parametrize("raw", ["unavailable", "unknown"])
 async def test_sentinel_raw_value_is_noop(hass, manager, monkeypatch, raw):
-    """[JMN-3/4] An unavailable / unknown state string value early-returns
+    """[JMN-3] [JMN-4] An unavailable / unknown state string value early-returns
     without recording — no sentinel value reaches the job (guard 3)."""
     handler = _capture_handler(hass, manager, monkeypatch)
     job = _seed_active_job(manager)

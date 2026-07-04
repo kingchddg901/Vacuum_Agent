@@ -25,6 +25,11 @@ Coverage targets
 [INIT-7] the rule-status + theme refresh callbacks push observable state writes;
          saving a new theme makes the theme sensor report the new theme name.
 [INIT-8] the hourly safety-net tick refreshes room-history sensors without crash.
+[INIT-9] remove_config_entry_device on the config-flow vacuum tears it down in place
+         (trackers/adapter/panel/storage) + defers clearing it from the entry so
+         async_setup_entry can't resurrect it; no inline reload.
+[INIT-10] remove_config_entry_device on a stale/unrelated device is a safe no-op
+          (no teardown, no entry clear) but still returns True so HA can drop the orphan.
 """
 
 from __future__ import annotations
