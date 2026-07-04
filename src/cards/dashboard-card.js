@@ -273,6 +273,18 @@ class EufyDashboardCard extends HTMLElement {
 
   _rooms() { return roomSwitchesFor(this._hass, this._vacuumId()); }
 
+  // Rooms belong to a specific map; a vacuum can have several. The room list must show
+  // ONLY the active map's rooms (matching the main card's getRoomsForActiveMap) — otherwise
+  // a multi-map device (e.g. Alfred: map 6 + map 7) lists every map's rooms at once. Keep
+  // _rooms() unfiltered (it feeds _activeMapId's fallback + the shouldUpdate diff); filter
+  // here. Unknown active map (no snapshot map_id, no rooms) -> show all rather than hide.
+  _roomsForActiveMap() {
+    const rooms = this._rooms();
+    const mapId = this._activeMapId();
+    if (mapId == null) return rooms;
+    return rooms.filter((r) => String(r.attrs?.map_id) === String(mapId));
+  }
+
   _activeMapId() {
     if (this._snapshot?.map_id != null) return String(this._snapshot.map_id);
     const mapId = this._rooms()[0]?.attrs?.map_id;
@@ -355,7 +367,9 @@ class EufyDashboardCard extends HTMLElement {
   }
 
   _roomByIdAttrs(roomId) {
-    return this._rooms().find((r) => String(r.attrs.room_id) === String(roomId))?.attrs ?? {};
+    // Active-map only: map 6 and map 7 can share room_id 1..7, so an unfiltered find
+    // could return the wrong map's room.
+    return this._roomsForActiveMap().find((r) => String(r.attrs.room_id) === String(roomId))?.attrs ?? {};
   }
 
   /* =========================================================
@@ -368,7 +382,7 @@ class EufyDashboardCard extends HTMLElement {
     const vid = this._vacuumId();
     const vacuumState = this._hass?.states?.[vid];
     const title = this._config.title ?? vacuumState?.attributes?.friendly_name ?? vid;
-    const rooms = this._rooms();
+    const rooms = this._roomsForActiveMap();
     // Room selection is the live switch state (shared with the map → they sync).
     const onCount = rooms.filter((r) => r.state === "on").length;
     const armedSomething = this._armed.source != null || onCount > 0;
@@ -623,7 +637,7 @@ class EufyDashboardCard extends HTMLElement {
     this.shadowRoot.querySelectorAll(".include").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const roomId = btn.dataset.room;
-        const room = this._rooms().find((r) => String(r.attrs.room_id) === roomId);
+        const room = this._roomsForActiveMap().find((r) => String(r.attrs.room_id) === roomId);
         if (!room || !this._hass) return;
         // A room is its own run source — clear any armed profile/scene.
         if (this._armed.source) this._armed = emptyArmed();
@@ -678,7 +692,7 @@ class EufyDashboardCard extends HTMLElement {
      ========================================================= */
 
   _startContext() {
-    const rooms = this._rooms().map((r) => {
+    const rooms = this._roomsForActiveMap().map((r) => {
       const id = String(r.attrs.room_id);
       const dirty = this._roomDirty(r);
       return {
@@ -700,8 +714,10 @@ class EufyDashboardCard extends HTMLElement {
 
   async _turnOffAllRooms() {
     if (!this._hass) return;
+    // Active-map only — arming a profile/scene clears THIS map's selection; it must not
+    // reach into another map's room switches.
     await Promise.all(
-      this._rooms().filter((r) => r.state === "on")
+      this._roomsForActiveMap().filter((r) => r.state === "on")
         .map((r) => this._hass.callService("switch", "turn_off", { entity_id: r.entityId })),
     );
   }
@@ -742,7 +758,7 @@ class EufyDashboardCard extends HTMLElement {
 
     // ROOMS: switch-based selection (synced with the map). Persist any unsaved per-row
     // edits for the rooms that are on, then start; strict_order forces ordered cleaning.
-    const onRooms = this._rooms().filter((r) => r.state === "on");
+    const onRooms = this._roomsForActiveMap().filter((r) => r.state === "on");
     if (!onRooms.length) return;
     const mapId = this._activeMapId();
     this._starting = true;
