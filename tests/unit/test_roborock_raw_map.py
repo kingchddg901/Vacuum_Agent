@@ -14,6 +14,8 @@ Coverage targets
 [RRD-6]  render_data: a decoded raster -> the generic eufy_room_pixels_v1 render-data shape.
 [RRD-7]  render_data: empty / None decoded input -> None.
 [RRD-8]  render_data_from_candidates: BFS to a MapContent -> decode its raw_api_response.
+[RRD-9]  raster_room_bboxes: per-room normalized bbox from the resolved raster.
+[RRD-10] geometry_drift: overlay parser vs raster bboxes -> aligned / flip / set-mismatch.
 """
 
 from __future__ import annotations
@@ -24,6 +26,8 @@ import struct
 from custom_components.eufy_vacuum.mapping.roborock_raw_map import (
     CATCH_ALL_RID,
     decode_roborock_v1_segments,
+    geometry_drift,
+    raster_room_bboxes,
     resolve_rid,
     roborock_render_data,
 )
@@ -185,3 +189,57 @@ def test_render_data_from_candidates_finds_raw_blob():
 
     # nothing map-content-shaped in the candidates -> absent marker, no raise.
     assert roborock_render_data_from_candidates([object()])["present"] is False
+
+
+# ---------------------------------------------------------------------------
+# [RRD-9]/[RRD-10] overlay the raster against the parser's bboxes (drift check)
+# ---------------------------------------------------------------------------
+
+# raster: room 5 top-left, room 6 top-right, 31 (catch-all) + 0 (background) elsewhere.
+_DECODED = {"width": 4, "height": 3, "room_pixels": bytes([5, 5, 6, 31, 0, 0, 0, 0, 5, 6, 6, 31])}
+
+
+def test_raster_room_bboxes():
+    """[RRD-9] per-room normalized bbox from the raster's min/max pixel extents."""
+    bboxes = raster_room_bboxes(_DECODED)
+    assert bboxes == {5: [0.0, 0.0, 0.5, 1.0], 6: [0.25, 0.0, 0.75, 1.0]}
+
+
+def test_geometry_drift_aligned():
+    """[RRD-10] parser bboxes matching the raster -> aligned, IoU 1.0, zero centre drift.
+
+    This is the on-device validator: both sides derive from the SAME segment layer, so a
+    correct decode makes the two bboxes coincide.
+    """
+    parser = [
+        {"number": 5, "bbox": [0.0, 0.0, 0.5, 1.0]},
+        {"number": 6, "bbox": [0.25, 0.0, 0.75, 1.0]},
+    ]
+    d = geometry_drift(parser, _DECODED)
+    assert d["common"] == [5, 6] and d["aligned"] is True
+    assert d["max_center_delta"] == 0.0 and d["min_iou"] == 1.0
+
+
+def test_geometry_drift_detects_flip_and_mismatch():
+    """[RRD-10] a Y-flipped parser bbox surfaces as centre drift; a parser-only room shows in
+    the set diff — the two failure modes the overlay is meant to catch."""
+    parser = [
+        {"number": 5, "bbox": [0.0, 0.5, 0.5, 1.0]},   # room 5 flipped to the bottom
+        {"number": 6, "bbox": [0.25, 0.0, 0.75, 1.0]},
+        {"number": 9, "bbox": [0.0, 0.0, 0.1, 0.1]},    # a room only the parser sees
+    ]
+    d = geometry_drift(parser, _DECODED)
+    assert d["aligned"] is False
+    assert d["only_parser"] == [9] and 9 not in d["common"]
+    assert d["per_room"][5]["center_delta"] > 0.1       # the flip reads as drift
+
+
+def test_geometry_drift_from_candidates_absent():
+    """[RRD-10] the on-device wrapper degrades to an absent marker when a candidate yields no
+    parsed MapData + raw blob pair — never raises."""
+    from custom_components.eufy_vacuum.mapping.map_source_runtime import (
+        roborock_geometry_drift_from_candidates,
+    )
+
+    assert roborock_geometry_drift_from_candidates([])["present"] is False
+    assert roborock_geometry_drift_from_candidates([object()])["present"] is False

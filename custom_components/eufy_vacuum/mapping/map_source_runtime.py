@@ -413,6 +413,28 @@ def roborock_render_data_from_candidates(candidates: Any, room_names: Any = None
     return {"present": False, "reason": "no_raw_map"}
 
 
+def roborock_geometry_drift_from_candidates(candidates: Any) -> dict[str, Any]:
+    """On-device decode validator: for the first candidate exposing BOTH a parsed MapData and
+    a raw map blob, overlay the parser's per-room bboxes with the raster-decoded bboxes and
+    report the drift. Since both derive from the SAME segment layer, aligned boxes confirm the
+    decode (rid/orientation/frame) and a systematic delta is the calibration signal. Returns
+    the drift report (``present: True`` + the geometry_drift fields) or an absent marker;
+    never raises."""
+    from .roborock_raw_map import decode_roborock_v1_segments, geometry_drift
+
+    for cand in candidates or []:
+        root = cand[2] if isinstance(cand, (list, tuple)) and len(cand) >= 3 else cand
+        md, _md_path = find_mapdata(root)
+        mc, _mc_path = find_map_content(root)
+        if md is None or mc is None:
+            continue
+        decoded = decode_roborock_v1_segments(getattr(mc, "raw_api_response", None))
+        if decoded is None:
+            continue
+        return {"present": True, **geometry_drift(rooms_from_mapdata(md), decoded)}
+    return {"present": False, "reason": "no_geometry"}
+
+
 def _mapdata_projector(map_data: Any):
     """Build the vacuum->normalized-pixel projector for a MapData. (proj, img_w, img_h)|None.
 

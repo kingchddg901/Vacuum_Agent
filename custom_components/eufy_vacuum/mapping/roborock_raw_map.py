@@ -178,3 +178,108 @@ def roborock_render_data(
         "room_names": {str(k): str(v) for k, v in names.items()},
         "version": version,
     }
+
+
+def raster_room_bboxes(decoded: dict[str, Any] | None) -> dict[int, list[float]]:
+    """Per-room NORMALIZED bbox ``{rid: [min_x, min_y, max_x, max_y]}`` (0..1 of the raster)
+    from a decoded raster — the min/max column/row of each room's pixels. The raster
+    counterpart to the parser's own per-room bboxes; comparing the two validates the decode.
+    """
+    if not decoded:
+        return {}
+    rp = decoded.get("room_pixels")
+    width = decoded.get("width")
+    height = decoded.get("height")
+    if not rp or not width or not height:
+        return {}
+    w, h = int(width), int(height)
+    acc: dict[int, list[int]] = {}  # rid -> [min_x, min_y, max_x, max_y] in pixels
+    for i, rid in enumerate(rp):
+        if not (1 <= rid <= MAX_ROOM_RID):
+            continue
+        x, y = i % w, i // w
+        b = acc.get(rid)
+        if b is None:
+            acc[rid] = [x, y, x, y]
+        else:
+            if x < b[0]:
+                b[0] = x
+            if y < b[1]:
+                b[1] = y
+            if x > b[2]:
+                b[2] = x
+            if y > b[3]:
+                b[3] = y
+    return {
+        rid: [b[0] / w, b[1] / h, (b[2] + 1) / w, (b[3] + 1) / h]
+        for rid, b in acc.items()
+    }
+
+
+def _bbox_iou(a: list[float], b: list[float]) -> float:
+    """Intersection-over-union of two [min_x, min_y, max_x, max_y] boxes. 0 on no overlap."""
+    ix0, iy0 = max(a[0], b[0]), max(a[1], b[1])
+    ix1, iy1 = min(a[2], b[2]), min(a[3], b[3])
+    iw, ih = max(0.0, ix1 - ix0), max(0.0, iy1 - iy0)
+    inter = iw * ih
+    if inter <= 0:
+        return 0.0
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def geometry_drift(parser_rooms: Any, decoded: dict[str, Any] | None) -> dict[str, Any]:
+    """Overlay the PARSER's per-room bboxes with the RASTER-derived bboxes to check the decode
+    for drift — both come from the SAME segment layer, so aligned boxes validate the decode
+    (rid extraction + orientation + frame) and a systematic delta IS the calibration signal
+    (a constant offset = the parser's trim; an inverted axis = a flip bug).
+
+    ``parser_rooms`` = the ``rooms_from_mapdata`` output (list of ``{number, bbox}``, bbox
+    normalized). Returns the room-id set comparison + per-room IoU / centre delta + a soft
+    ``aligned`` verdict (all common rooms overlap well and centres are close). Pure; a
+    systematic offset lowers IoU without meaning the decode is wrong — read the deltas.
+    """
+    parser: dict[int, list[float]] = {}
+    for r in parser_rooms or []:
+        num = r.get("number") if isinstance(r, dict) else None
+        bbox = r.get("bbox") if isinstance(r, dict) else None
+        if num is not None and isinstance(bbox, list) and len(bbox) == 4:
+            try:
+                parser[int(num)] = [float(v) for v in bbox]
+            except (TypeError, ValueError):
+                continue
+    raster = raster_room_bboxes(decoded)
+    common = sorted(set(parser) & set(raster))
+    per_room: dict[int, dict[str, Any]] = {}
+    max_center = 0.0
+    min_iou = 1.0
+    for rid in common:
+        pb, rb = parser[rid], raster[rid]
+        pcx, pcy = (pb[0] + pb[2]) / 2, (pb[1] + pb[3]) / 2
+        rcx, rcy = (rb[0] + rb[2]) / 2, (rb[1] + rb[3]) / 2
+        dc = ((pcx - rcx) ** 2 + (pcy - rcy) ** 2) ** 0.5
+        iou = _bbox_iou(pb, rb)
+        max_center = max(max_center, dc)
+        min_iou = min(min_iou, iou)
+        per_room[rid] = {
+            "parser": [round(v, 4) for v in pb],
+            "raster": [round(v, 4) for v in rb],
+            "center_delta": round(dc, 4),
+            "iou": round(iou, 3),
+        }
+    return {
+        "room_ids_parser": sorted(parser),
+        "room_ids_raster": sorted(raster),
+        "common": common,
+        "only_parser": sorted(set(parser) - set(raster)),
+        "only_raster": sorted(set(raster) - set(parser)),
+        "max_center_delta": round(max_center, 4),
+        "min_iou": round(min_iou, 3) if common else 0.0,
+        "aligned": bool(common)
+        and not (set(parser) ^ set(raster))
+        and max_center < 0.1
+        and min_iou > 0.5,
+        "per_room": per_room,
+    }
