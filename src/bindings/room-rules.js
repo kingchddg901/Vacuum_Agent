@@ -231,7 +231,7 @@ export function applyRoomRulesBindings(proto) {
               result?.reason_detail ??
               result?.message ??
               result?.reason ??
-              this.t("bind_room_rules.backend_rejected_rule");
+              this.tRaw("bind_room_rules.backend_rejected_rule");
             state.setRoomRulesSaveError?.(message);
             this.card._scheduleRender();
             return;
@@ -242,7 +242,7 @@ export function applyRoomRulesBindings(proto) {
           this.card._scheduleRender();
         } catch (err) {
           console.error("[eufy-vacuum-command-center] Failed to save rule:", err);
-          state.setRoomRulesSaveError?.(this.t("bind_room_rules.failed_to_save_rule"));
+          state.setRoomRulesSaveError?.(this.tRaw("bind_room_rules.failed_to_save_rule"));
           this.card._scheduleRender();
         }
       });

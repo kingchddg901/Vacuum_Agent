@@ -92,7 +92,7 @@ export function applyRoomAccessBindings(proto) {
               result?.reason_detail ??
               result?.message ??
               result?.reason ??
-              this.t("bind_room_access.backend_rejected_graph");
+              this.tRaw("bind_room_access.backend_rejected_graph");
 
             this.card._state.setRoomAccessSaveError?.(message);
             this.card._scheduleRender();
@@ -108,7 +108,7 @@ export function applyRoomAccessBindings(proto) {
             err
           );
           this.card._state.setRoomAccessSaveError?.(
-            this.t("bind_room_access.failed_to_save")
+            this.tRaw("bind_room_access.failed_to_save")
           );
           this.card._scheduleRender();
         }

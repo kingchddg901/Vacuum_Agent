@@ -50,7 +50,7 @@ export function applySetupBindings(proto) {
         card._state.setSetupStatus?.(statusResult);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_add_vacuum", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_add_vacuum", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -80,7 +80,7 @@ export function applySetupBindings(proto) {
         card._state.setSetupStatus?.(statusResult);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_add_vacuum", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_add_vacuum", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -116,7 +116,7 @@ export function applySetupBindings(proto) {
         card.showToast?.(this.t("bind_setup.panel_renamed"), { kind: "success" });
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_rename_panel", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_rename_panel", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -153,7 +153,7 @@ export function applySetupBindings(proto) {
         );
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_set_map_camera", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_set_map_camera", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -196,14 +196,14 @@ export function applySetupBindings(proto) {
             card._state.openSetupRoomEditor?.(mapId, roomsResult?.rooms ?? []);
           } catch (roomErr) {
             card._state.setSetupError?.(
-              this.t("bind_setup.failed_load_rooms", { error: roomErr?.message ?? String(roomErr) }),
+              this.tRaw("bind_setup.failed_load_rooms", { error: roomErr?.message ?? String(roomErr) }),
             );
             card._state.setSetupRoomEditorLoadingMapId?.(null);
           }
         }
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_import_map", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_import_map", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -243,7 +243,7 @@ export function applySetupBindings(proto) {
         card._state.openSetupRoomEditor?.(mapId, rooms);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_load_rooms", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_load_rooms", { error: err?.message ?? String(err) })
         );
         card._state.setSetupRoomEditorLoadingMapId?.(null);
       }
@@ -303,7 +303,7 @@ export function applySetupBindings(proto) {
         card._state.setSetupStatus?.(statusResult);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_save_rooms", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_save_rooms", { error: err?.message ?? String(err) })
         );
       } finally {
         card._state.setSetupRoomEditorSaving?.(false);
@@ -374,13 +374,13 @@ export function applySetupBindings(proto) {
           card.showToast?.(this.t("bind_setup.map_deleted"), { kind: "success" });
         } else {
           card._state.setSetupError?.(
-            result?.message ?? this.t("bind_setup.failed_delete_map_plain")
+            result?.message ?? this.tRaw("bind_setup.failed_delete_map_plain")
           );
           card._state.setSetupDeleteDeleting?.(false);
         }
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_delete_map", { error: err?.message ?? String(err) })
+          this.tRaw("bind_setup.failed_delete_map", { error: err?.message ?? String(err) })
         );
         card._state.setSetupDeleteDeleting?.(false);
         card.showToast?.(this.t("bind_setup.map_delete_failed"), { kind: "error" });
@@ -414,7 +414,7 @@ export function applySetupBindings(proto) {
         card._state.setSetupStatus?.(statusResult);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_reject_room", { error: err?.message ?? String(err) }),
+          this.tRaw("bind_setup.failed_reject_room", { error: err?.message ?? String(err) }),
         );
       } finally {
         card._state.setSetupLoading?.(false);
@@ -447,7 +447,7 @@ export function applySetupBindings(proto) {
         card._state.setSetupStatus?.(statusResult);
       } catch (err) {
         card._state.setSetupError?.(
-          this.t("bind_setup.failed_force_remove_room", { error: err?.message ?? String(err) }),
+          this.tRaw("bind_setup.failed_force_remove_room", { error: err?.message ?? String(err) }),
         );
       } finally {
         card._state.setSetupLoading?.(false);

@@ -607,13 +607,13 @@ export function applyMaintenanceRenderers(proto) {
 
                 ${resetSuccess ? `
                   <div class="evcc-maintenance-reset-hint evcc-maintenance-reset-hint--success">
-                    ${this.escapeHtml(resetSuccess)}
+                    ${resetSuccess}
                   </div>
                 ` : ""}
 
                 ${resetError ? `
                   <div class="evcc-maintenance-reset-hint evcc-maintenance-reset-hint--error">
-                    ${this.escapeHtml(resetError)}
+                    ${resetError}
                   </div>
                 ` : ""}
 
