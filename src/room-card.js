@@ -5,6 +5,7 @@ import {
   esc, roomSwitchesFor, adapterOptions, committedRoomFields, isMopMode, stripNull, defineCard,
   renderLangControl, wireLangControl, LANG_CSS, getStoredLang, setStoredLang,
 } from "./cards/_shared.js";
+import { roomSuggestion } from "./cards/card-suggestions.js";
 
 const ROOM_CARD_NAME   = "eufy-room-card";
 const ROOM_CARD_EDITOR = "eufy-room-card-editor";
@@ -700,4 +701,7 @@ window.customCards.push({
   type:        ROOM_CARD_NAME,
   name:        "Eufy Room Card",
   description: "Single-room settings and quick-start card for managed vacuums.",
+  // HA 2026.6+ "By entity" card picker: suggest this card (pre-filled with the
+  // vacuum's first room) when the user picks one of OUR managed vacuums.
+  getEntitySuggestion: (hass, entityId) => roomSuggestion(hass, entityId, ROOM_CARD_NAME),
 });

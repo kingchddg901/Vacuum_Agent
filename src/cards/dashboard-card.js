@@ -19,6 +19,7 @@ import {
 } from "./_shared.js";
 import { emptyArmed, nextArmed, planStart, armedIsValid } from "./dashboard-dispatch.js";
 import { draftsToNormalizedRects, normRotation, ZONE_MAX_FALLBACK } from "./zone-geometry.js";
+import { dashboardSuggestion } from "./card-suggestions.js";
 
 const CARD_NAME   = "vacuum-agent-dashboard";
 const CARD_EDITOR = "vacuum-agent-dashboard-editor";
@@ -1065,4 +1066,7 @@ registerCard({
   name: "Vacuum Agent — Dashboard Mode",
   description: "Compact multi-room control card: pick rooms + settings, run a saved profile or app scene, start / dock.",
   preview: true,
+  // HA 2026.6+ "By entity" card picker: suggest this card (under the Community
+  // section) when the user picks one of OUR managed vacuums. Ignored on older HA.
+  getEntitySuggestion: (hass, entityId) => dashboardSuggestion(hass, entityId, CARD_NAME),
 });
