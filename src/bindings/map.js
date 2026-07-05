@@ -515,8 +515,9 @@ export function applyMapBindings(proto) {
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
       if (!entry || !Array.isArray(entry.layers) || !entry.layers.length) continue;
 
-      // Per-material feature scale (token override / registry default / global).
+      // Per-material feature scale + the map-texture rotation (token overrides / global).
       const scale = this._resolveFloorScale(ft, host);
+      const rotate = this._resolveFloorRotation(ft, host);
 
       // Resolve each layer's color + opacity now (cheap getComputedStyle reads) -> colorSig.
       const resolved = entry.layers.map((layer) => ({
@@ -525,7 +526,7 @@ export function applyMapBindings(proto) {
         opacity: this._resolveFloorOpacity(layer.opacityToken, layer.opacityDefault, host),
       }));
       const colorSig = resolved.map((r) => `${r.color.join(",")}:${r.opacity}`).join("|");
-      const texKey = `${ft}|${W}x${H}|${scale}|${colorSig}`;
+      const texKey = `${ft}|${W}x${H}|${scale}|${rotate}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
       if (cachedTex) { ready.set(ft, cachedTex); readySigs.push(texKey); continue; }
@@ -534,7 +535,7 @@ export function applyMapBindings(proto) {
       const lumArrays = [];
       let allLoaded = true;
       for (const r of resolved) {
-        const maskKey = `${r.url}|${W}x${H}|${scale}`;
+        const maskKey = `${r.url}|${W}x${H}|${scale}|${rotate}`;
         const lum = this._floorMaskCache.get(maskKey);
         if (lum) { lumArrays.push(lum); continue; }
         allLoaded = false;
@@ -543,7 +544,7 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._enqueueMaskDecode(r.url, W, H, scale)
+          this._enqueueMaskDecode(r.url, W, H, scale, rotate)
             .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
             .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
             .finally(() => {
@@ -579,7 +580,7 @@ export function applyMapBindings(proto) {
   /* Load a grayscale mask PNG and downscale it to W×H, returning a per-texel luminance
      array (0..255; white reveals). Same-origin (served by HA), so the canvas read is not
      tainted. Async — the caller re-renders when it resolves. */
-  proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE) {
+  proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE, rotate = 0) {
     if (typeof document === "undefined") return null;
     // RETRY: HTMLImageElement.decode() rejects intermittently ("The source image cannot be
     // decoded") when a burst of large (2048²) masks decode at once — the failing set is random
@@ -615,11 +616,16 @@ export function applyMapBindings(proto) {
         // Native res keeps it crisp and the pattern wraps for canvases larger than the mask.
         const pat = cx.createPattern(src, "repeat");
         if (!pat) return null;
-        // Scale the pattern so features tile denser/finer instead of one zoomed-in swatch,
-        // anchored at (0,0) so every layer/room shares the same map-space grid (continuous).
+        // Scale (+ optional rotate) the pattern so features tile denser/finer instead of one
+        // zoomed-in swatch, anchored at (0,0) so every layer/room shares the same map-space grid
+        // (continuous). Rotation spins the whole tiled grid relative to the map (uniform scale
+        // commutes with rotation, so one matrix does both): [s·cos, s·sin, -s·sin, s·cos].
         if (typeof pat.setTransform === "function" && typeof DOMMatrix === "function") {
           try {
-            pat.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0]));
+            const rad = ((rotate || 0) * Math.PI) / 180;
+            const cos = Math.cos(rad) * scale;
+            const sin = Math.sin(rad) * scale;
+            pat.setTransform(new DOMMatrix([cos, sin, -sin, cos, 0, 0]));
           } catch (_e) { /* older engine — fall back to native scale */ }
         }
         cx.fillStyle = pat;
@@ -648,10 +654,10 @@ export function applyMapBindings(proto) {
      browser's decoder (and HA's static server under the burst) drop a random couple each load
      ("The source image cannot be decoded"). Serialize to a small pool so the burst can't
      overwhelm either; each job still retries internally. */
-  proto._enqueueMaskDecode = function (url, W, H, scale) {
+  proto._enqueueMaskDecode = function (url, W, H, scale, rotate = 0) {
     if (!this._maskDecodeQueue) { this._maskDecodeQueue = []; this._maskDecodeActive = 0; }
     return new Promise((resolve, reject) => {
-      this._maskDecodeQueue.push({ url, W, H, scale, resolve, reject });
+      this._maskDecodeQueue.push({ url, W, H, scale, rotate, resolve, reject });
       this._pumpMaskDecodeQueue();
     });
   };
@@ -661,7 +667,7 @@ export function applyMapBindings(proto) {
     while (this._maskDecodeActive < MAX && this._maskDecodeQueue.length) {
       const job = this._maskDecodeQueue.shift();
       this._maskDecodeActive++;
-      this._decodeMaskLum(job.url, job.W, job.H, job.scale)
+      this._decodeMaskLum(job.url, job.W, job.H, job.scale, job.rotate)
         .then(job.resolve, job.reject)
         .finally(() => { this._maskDecodeActive--; this._pumpMaskDecodeQueue(); });
     }
@@ -767,6 +773,28 @@ export function applyMapBindings(proto) {
       }
     } catch (_e) { /* keep default */ }
     return Math.max(0.02, Math.min(2, s));
+  };
+
+  /* Map-texture rotation in degrees: a per-type token `--evcc-floor-<type>-map-rotate`
+     overrides the global `--evcc-floor-texture-map-rotate` (0 = as-authored). Spins the whole
+     tiled grid relative to the map so directional materials (wood planks, tile grout) can be
+     made to run the way they do in the actual home. Same hyphenated-segment convention as scale. */
+  proto._resolveFloorRotation = function (floorType, host) {
+    let deg = 0;
+    try {
+      if (host && typeof getComputedStyle === "function") {
+        const cs = getComputedStyle(host);
+        const seg = String(floorType).replace(/_/g, "-");
+        const v = (cs.getPropertyValue(`--evcc-floor-${seg}-map-rotate`).trim()
+          || cs.getPropertyValue("--evcc-floor-texture-map-rotate").trim());
+        if (v) { const n = parseFloat(v); if (Number.isFinite(n)) deg = n; }
+      }
+    } catch (_e) { /* keep 0 */ }
+    // Quantize so tiny getComputedStyle noise doesn't churn the cache; wrap to [-180,180).
+    let d = Number.isFinite(deg) ? deg : 0;
+    d = Math.round(d * 10) / 10;
+    d = ((d % 360) + 540) % 360 - 180;
+    return d;
   };
 
   /* =========================================================

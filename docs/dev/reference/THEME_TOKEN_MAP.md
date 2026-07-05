@@ -6,7 +6,7 @@
 
 > Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **405 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **406 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -151,7 +151,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-room-fill-11` | Map Room Color 11 | color |  |
 | `--evcc-room-fill-12` | Map Room Color 12 | color |  |
 
-## Floor Textures  ·  4
+## Floor Textures  ·  5
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
@@ -159,6 +159,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-floor-textures-map-enabled` | Map Textures Enabled (0/1) | number | 0–1 step 1 |
 | `--evcc-floor-texture-opacity-card` | Card Texture Opacity (all) | number | 0–1 step 0.01 |
 | `--evcc-floor-texture-opacity-map` | Map Texture Opacity (all) | number | 0–1 step 0.01 |
+| `--evcc-floor-texture-map-rotate` | Map Texture Rotation (deg) | number | -180–180 step 1 |
 
 ## Floor Textures — Tile  ·  7
 

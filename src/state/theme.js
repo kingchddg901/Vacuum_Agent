@@ -420,6 +420,12 @@ export function applyThemeState(proto) {
         }
       }
     }
+    // Global map-texture rotation defaults to 0 (as-authored) so its editor slider starts
+    // centred rather than at the angle-range minimum. 0 = no rotation = net-zero on render.
+    if ("--evcc-floor-texture-map-rotate" in THEME_TOKEN_MAP) {
+      tokens["--evcc-floor-texture-map-rotate"] = "0";
+      sources["--evcc-floor-texture-map-rotate"] = "default";
+    }
 
     /* -------------------------------------------------------
        1. BASE: ACTIVE THEME

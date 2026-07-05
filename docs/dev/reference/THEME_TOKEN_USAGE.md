@@ -8,7 +8,7 @@
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **405** · consumer `var()` uses **2123** · with a consumer **271**, with none **134**
+- Catalog **406** · consumer `var()` uses **2123** · with a consumer **271**, with none **135**
 - `var()` → non-catalog tokens **11** · dynamic `var(--evcc-…${…})` sites **3**
 
 ---
@@ -1526,7 +1526,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-room-fill-12`** — Map Room Color 12 · default —
 - _no consumer — only seeded_
 
-## Floor Textures  ·  4/4 consumed
+## Floor Textures  ·  4/5 consumed
 
 **`--evcc-floor-textures-card-enabled`** — Card Textures Enabled (0/1) · default —
 - src/styles/floor-texture-styles.js:80
@@ -1535,10 +1535,13 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/floor-texture-styles.js:104
 
 **`--evcc-floor-texture-opacity-card`** — Card Texture Opacity (all) · default —
-- src/renderers/floor-texture-surface.js:99
+- src/renderers/floor-texture-surface.js:104
 
 **`--evcc-floor-texture-opacity-map`** — Map Texture Opacity (all) · default —
 - src/styles/floor-texture-styles.js:103
+
+**`--evcc-floor-texture-map-rotate`** — Map Texture Rotation (deg) · default —
+- _no consumer — only seeded_
 
 ## Floor Textures — Tile  ·  0/7 consumed
 
@@ -2958,7 +2961,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 ---
 
-## Tokens with no consumer  ·  134
+## Tokens with no consumer  ·  135
 
 Three kinds — only the last is a concern:
 
@@ -2974,11 +2977,12 @@ The `--evcc-animal-*` tokens are referenced via dynamic `var()` in the shipped a
 
 `--evcc-animal-eye-good`, `--evcc-animal-eye-mid`, `--evcc-animal-eye-warn`, `--evcc-animal-eye-low`, `--evcc-animal-eye-charging`, `--evcc-animal-fur`, `--evcc-animal-fur-shadow`, `--evcc-animal-fur-highlight`, `--evcc-animal-eye`, `--evcc-animal-pupil`, `--evcc-animal-nose`, `--evcc-animal-whisker`, `--evcc-animal-ear-inner`, `--evcc-animal-white-tip`, `--evcc-animal-cat-eye-good`, `--evcc-animal-cat-eye-mid`, `--evcc-animal-cat-eye-warn`, `--evcc-animal-cat-eye-low`, `--evcc-animal-cat-eye-charging`, `--evcc-animal-cat-fur`, `--evcc-animal-cat-fur-shadow`, `--evcc-animal-cat-fur-highlight`, `--evcc-animal-cat-eye`, `--evcc-animal-cat-pupil`, `--evcc-animal-cat-nose`, `--evcc-animal-cat-whisker`, `--evcc-animal-cat-ear-inner`, `--evcc-animal-cat-white-tip`, `--evcc-animal-dog-eye-good`, `--evcc-animal-dog-eye-mid`, `--evcc-animal-dog-eye-warn`, `--evcc-animal-dog-eye-low`, `--evcc-animal-dog-eye-charging`, `--evcc-animal-dog-fur`, `--evcc-animal-dog-fur-shadow`, `--evcc-animal-dog-fur-highlight`, `--evcc-animal-dog-eye`, `--evcc-animal-dog-pupil`, `--evcc-animal-dog-nose`, `--evcc-animal-dog-whisker`, `--evcc-animal-dog-ear-inner`, `--evcc-animal-dog-white-tip`, `--evcc-animal-raccoon-eye-good`, `--evcc-animal-raccoon-eye-mid`, `--evcc-animal-raccoon-eye-warn`, `--evcc-animal-raccoon-eye-low`, `--evcc-animal-raccoon-eye-charging`, `--evcc-animal-raccoon-fur`, `--evcc-animal-raccoon-fur-shadow`, `--evcc-animal-raccoon-fur-highlight`, `--evcc-animal-raccoon-eye`, `--evcc-animal-raccoon-pupil`, `--evcc-animal-raccoon-nose`, `--evcc-animal-raccoon-whisker`, `--evcc-animal-raccoon-ear-inner`, `--evcc-animal-raccoon-white-tip`, `--evcc-animal-parrot-eye-good`, `--evcc-animal-parrot-eye-mid`, `--evcc-animal-parrot-eye-warn`, `--evcc-animal-parrot-eye-low`, `--evcc-animal-parrot-eye-charging`, `--evcc-animal-parrot-fur`, `--evcc-animal-parrot-fur-shadow`, `--evcc-animal-parrot-fur-highlight`, `--evcc-animal-parrot-eye`, `--evcc-animal-parrot-pupil`, `--evcc-animal-parrot-nose`, `--evcc-animal-parrot-whisker`, `--evcc-animal-parrot-ear-inner`, `--evcc-animal-parrot-white-tip`, `--evcc-animal-snake-eye-good`, `--evcc-animal-snake-eye-mid`, `--evcc-animal-snake-eye-warn`, `--evcc-animal-snake-eye-low`, `--evcc-animal-snake-eye-charging`, `--evcc-animal-snake-fur`, `--evcc-animal-snake-fur-shadow`, `--evcc-animal-snake-fur-highlight`, `--evcc-animal-snake-eye`, `--evcc-animal-snake-pupil`, `--evcc-animal-snake-nose`, `--evcc-animal-snake-whisker`, `--evcc-animal-snake-ear-inner`, `--evcc-animal-snake-white-tip`
 
-### Truly dead — no `var()` anywhere  ·  12
+### Truly dead — no `var()` anywhere  ·  13
 
 Seeded + exposed in the editor but nothing reads them — no-op editor knobs (wire them up or drop them).
 
 - **Map** (12): `--evcc-room-fill-1`, `--evcc-room-fill-2`, `--evcc-room-fill-3`, `--evcc-room-fill-4`, `--evcc-room-fill-5`, `--evcc-room-fill-6`, `--evcc-room-fill-7`, `--evcc-room-fill-8`, `--evcc-room-fill-9`, `--evcc-room-fill-10`, `--evcc-room-fill-11`, `--evcc-room-fill-12`
+- **Floor Textures** (1): `--evcc-floor-texture-map-rotate`
 
 ---
 
@@ -3002,7 +3006,7 @@ Used in CSS but not in the editor registry (dynamic fragments or intentional int
 
 ## dynamic var(--evcc-…${…}) sites  ·  3
 
-- src/renderers/floor-texture-surface.js:99
+- src/renderers/floor-texture-surface.js:104
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:316
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:317
 

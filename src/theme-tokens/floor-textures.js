@@ -51,6 +51,9 @@ export const FLOOR_TEXTURE_TOKENS = [
   g.unit("--evcc-floor-textures-map-enabled",       "Map Textures Enabled (0/1)",  { step: 1 }),
   g.unit("--evcc-floor-texture-opacity-card",       "Card Texture Opacity (all)"),
   g.unit("--evcc-floor-texture-opacity-map",        "Map Texture Opacity (all)"),
+  // Rotates the whole map texture grid relative to the map (e.g. to make wood planks /
+  // tile grout run the way they actually do in the home). Map-only; 0 = as-authored.
+  g.angle("--evcc-floor-texture-map-rotate",        "Map Texture Rotation (deg)"),
 
   /* === TILE === */
   gt.color( "--evcc-floor-tile-base",                "Tile Base Color"),
