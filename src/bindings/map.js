@@ -35,7 +35,7 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   concrete:      0.16,  // two-layer (broad + micro)
   granite_light: 0.05,  // re-authored as base + bold aggregate mask -> has real structure now
   carpet_low:    0.09,  // re-authored as base + bold weave mask
-  carpet_high:   1.0,  // native tile — the boldest the fleck gets; if invisible here it's NOT scale
+  carpet_high:   0.09,  // dense fine fleck (matches carpet_low)
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
@@ -543,7 +543,7 @@ export function applyMapBindings(proto) {
           // ALWAYS cache a result (real luminance, or a zero-fill sentinel on failure) so a
           // missing/broken PNG degrades to "layer reveals nothing" (base shows through) instead
           // of never caching -> re-kicking every render -> an infinite render loop.
-          this._decodeMaskLum(r.url, W, H, scale)
+          this._enqueueMaskDecode(r.url, W, H, scale)
             .then((arr) => { this._floorMaskCache.set(maskKey, arr || new Uint8ClampedArray(W * H)); })
             .catch(() => { this._floorMaskCache.set(maskKey, new Uint8ClampedArray(W * H)); })
             .finally(() => {
@@ -580,39 +580,91 @@ export function applyMapBindings(proto) {
      array (0..255; white reveals). Same-origin (served by HA), so the canvas read is not
      tainted. Async — the caller re-renders when it resolves. */
   proto._decodeMaskLum = async function (url, W, H, scale = FLOOR_TEXTURE_MASK_SCALE) {
-    if (typeof Image !== "function" || typeof document === "undefined") return null;
-    const img = new Image();
-    img.decoding = "async";
-    img.src = url;
-    await img.decode();
-    const c = document.createElement("canvas");
-    c.width = W; c.height = H;
-    const cx = c.getContext("2d", { willReadFrequently: true });
-    if (!cx) return null;
-    // Fill at NATIVE resolution (repeat-pattern), NOT downscaled to W×H. Downscaling the fine
-    // grain/seam detail (1-3px in the 2048 mask) to map size averages it to nothing -> flat.
-    // Native res keeps it crisp — the same way the card shows the mask at native size — and the
-    // pattern wraps for canvases larger than the mask.
-    const pat = cx.createPattern(img, "repeat");
-    if (!pat) return null;
-    // Scale the pattern DOWN so the material features are smaller + tile denser (many veins/
-    // planks per room) instead of one zoomed-in swatch. Anchored at (0,0) so every layer/room
-    // shares the same map-space grid -> continuous across rooms.
-    if (typeof pat.setTransform === "function" && typeof DOMMatrix === "function") {
+    if (typeof document === "undefined") return null;
+    // RETRY: HTMLImageElement.decode() rejects intermittently ("The source image cannot be
+    // decoded") when a burst of large (2048²) masks decode at once — the failing set is random
+    // per load. Prefer createImageBitmap (purpose-built off-DOM decode, far less flaky) and
+    // retry a few times with backoff so a transient loss recovers instead of caching a zero
+    // sentinel (which paints the floor flat). Concurrency is capped by the caller's queue.
+    const ATTEMPTS = 4;
+    let lastErr;
+    for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+      let bmp = null;
       try {
-        pat.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0]));
-      } catch (_e) { /* older engine — fall back to native scale */ }
+        let src;
+        if (typeof createImageBitmap === "function" && typeof fetch === "function") {
+          const resp = await fetch(url, { cache: "force-cache" });
+          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          bmp = await createImageBitmap(await resp.blob());
+          src = bmp;
+        } else if (typeof Image === "function") {
+          const img = new Image();
+          img.decoding = "async";
+          img.src = url;
+          await img.decode();
+          src = img;
+        } else {
+          return null;
+        }
+        const c = document.createElement("canvas");
+        c.width = W; c.height = H;
+        const cx = c.getContext("2d", { willReadFrequently: true });
+        if (!cx) return null;
+        // Fill at NATIVE resolution (repeat-pattern), NOT downscaled to W×H. Downscaling the fine
+        // grain/seam detail (1-3px in the 2048 mask) to map size averages it to nothing -> flat.
+        // Native res keeps it crisp and the pattern wraps for canvases larger than the mask.
+        const pat = cx.createPattern(src, "repeat");
+        if (!pat) return null;
+        // Scale the pattern so features tile denser/finer instead of one zoomed-in swatch,
+        // anchored at (0,0) so every layer/room shares the same map-space grid (continuous).
+        if (typeof pat.setTransform === "function" && typeof DOMMatrix === "function") {
+          try {
+            pat.setTransform(new DOMMatrix([scale, 0, 0, scale, 0, 0]));
+          } catch (_e) { /* older engine — fall back to native scale */ }
+        }
+        cx.fillStyle = pat;
+        cx.fillRect(0, 0, W, H);
+        const d = cx.getImageData(0, 0, W, H).data;
+        const n = W * H;
+        const lum = new Uint8ClampedArray(n);
+        for (let i = 0; i < n; i++) {
+          const o = i * 4;
+          lum[i] = d[o] * 0.299 + d[o + 1] * 0.587 + d[o + 2] * 0.114;
+        }
+        return lum;
+      } catch (e) {
+        lastErr = e;
+        if (attempt < ATTEMPTS - 1) {
+          await new Promise((r) => setTimeout(r, 70 * (attempt + 1)));
+        }
+      } finally {
+        if (bmp && typeof bmp.close === "function") { try { bmp.close(); } catch (_e) {} }
+      }
     }
-    cx.fillStyle = pat;
-    cx.fillRect(0, 0, W, H);
-    const d = cx.getImageData(0, 0, W, H).data;
-    const n = W * H;
-    const lum = new Uint8ClampedArray(n);
-    for (let i = 0; i < n; i++) {
-      const o = i * 4;
-      lum[i] = d[o] * 0.299 + d[o + 1] * 0.587 + d[o + 2] * 0.114;
+    throw lastErr || new Error("decode failed");
+  };
+
+  /* Concurrency-capped mask-decode queue. Kicking ~15-20 large-image decodes at once made the
+     browser's decoder (and HA's static server under the burst) drop a random couple each load
+     ("The source image cannot be decoded"). Serialize to a small pool so the burst can't
+     overwhelm either; each job still retries internally. */
+  proto._enqueueMaskDecode = function (url, W, H, scale) {
+    if (!this._maskDecodeQueue) { this._maskDecodeQueue = []; this._maskDecodeActive = 0; }
+    return new Promise((resolve, reject) => {
+      this._maskDecodeQueue.push({ url, W, H, scale, resolve, reject });
+      this._pumpMaskDecodeQueue();
+    });
+  };
+
+  proto._pumpMaskDecodeQueue = function () {
+    const MAX = 3;
+    while (this._maskDecodeActive < MAX && this._maskDecodeQueue.length) {
+      const job = this._maskDecodeQueue.shift();
+      this._maskDecodeActive++;
+      this._decodeMaskLum(job.url, job.W, job.H, job.scale)
+        .then(job.resolve, job.reject)
+        .finally(() => { this._maskDecodeActive--; this._pumpMaskDecodeQueue(); });
     }
-    return lum;
   };
 
   /* Parse ANY CSS color string (hex 3/6/8, rgb()/hsl(), oklch(), named) to [r,g,b,a] via the
