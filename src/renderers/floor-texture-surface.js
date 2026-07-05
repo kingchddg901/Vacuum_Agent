@@ -85,7 +85,9 @@ export function applyFloorTextureSurface(proto) {
      ========================================================= */
 
   proto._renderFloorTextureLayer = function (normalizedRoom) {
-    if (!(this.card?._state?.roomFloorTextureEnabled?.() ?? true)) return ""; // room-card textures off
+    // Room-card textures toggled off hides them on REAL cards — but the theme-preview swatches
+    // set forceFloorTexture so the preview still shows each material (tune with cards off).
+    if (!(this.card?._state?.roomFloorTextureEnabled?.() ?? true) && !normalizedRoom?.forceFloorTexture) return "";
     const floorType = resolveFloorType({
       floor_type:  normalizedRoom?.floorType  ?? "",
       carpet_type: normalizedRoom?.carpetType ?? "",

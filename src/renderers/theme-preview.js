@@ -225,6 +225,9 @@ export function applyThemePreviewRenderers(proto) {
       floor_type: floorTypeKey,
       enabled:    true,
       order:      1,
+      // Always render the material here even when room-card textures are toggled off — a
+      // preview must preview (see _renderFloorTextureLayer's forceFloorTexture bypass).
+      force_floor_texture: true,
     }, null);
   };
 

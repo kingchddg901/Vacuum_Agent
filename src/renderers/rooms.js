@@ -1132,6 +1132,9 @@ proto.renderRoomCard = function (room, state) {
       name: room?.name ?? room?.room_name ?? "",
       slug: room?.slug ?? room?.room_slug ?? null,
       enabled: Boolean(room?.enabled),
+      // Theme-preview swatches set this so their floor texture renders even when room-card
+      // textures are toggled off (a preview should preview regardless of that display toggle).
+      forceFloorTexture: Boolean(room?.force_floor_texture ?? room?.forceFloorTexture),
       order: Number.isFinite(order) ? order : 999999,
       profileName,
       profileLabel:
