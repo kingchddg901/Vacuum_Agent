@@ -16,6 +16,7 @@ import assert from "node:assert/strict";
 
 import { applyThemeState } from "./theme.js";
 import { ROOM_FILL_PALETTE } from "../cards/map-room-color.js";
+import { FLOOR_TEXTURE_REGISTRY } from "../textures/floor-texture-registry.js";
 
 // A minimal card whose _themeState is fully controllable. We never call
 // _loadDeviceTheme's localStorage path in these tests because we seed
@@ -64,8 +65,34 @@ test("[RT-1] resolvedTheme seeds every room-fill token to the default palette wi
     assert.equal(tokens[key], hex, `${key} seed value`);
     assert.equal(sources[key], "default", `${key} seed source`);
   });
-  // No active theme + no draft -> nothing but the palette seed exists.
-  assert.equal(Object.keys(sources).length, ROOM_FILL_PALETTE.length);
+  // No active theme + no draft -> every resolved token is a SEED default
+  // (room-fill palette + floor-texture material defaults) — none 'theme'/'draft'.
+  assert.ok(Object.keys(sources).length >= ROOM_FILL_PALETTE.length);
+  for (const src of Object.values(sources)) assert.equal(src, "default");
+});
+
+test("[RT-1b] resolvedTheme seeds floor-texture editor tokens from the render registry; computed -eff layers are skipped", () => {
+  const c = cardWithState();
+  const { tokens, sources } = c.resolvedTheme();
+
+  // A representative NEW token: carpet_low weave color + its layer opacity, sourced
+  // from the render registry so the editor swatch opens at the material's real value.
+  const weave = FLOOR_TEXTURE_REGISTRY.carpet_low.layers.find(
+    (l) => l.colorToken === "--evcc-floor-carpet-low-weave"
+  );
+  assert.ok(weave, "registry has the carpet-low weave layer");
+  assert.equal(tokens["--evcc-floor-carpet-low-weave"], weave.colorDefault);
+  assert.equal(sources["--evcc-floor-carpet-low-weave"], "default");
+  assert.equal(tokens["--evcc-floor-carpet-low-weave-opacity"], String(weave.opacityDefault));
+  assert.equal(sources["--evcc-floor-carpet-low-weave-opacity"], "default");
+
+  // The other new material's detail color (granite aggregate) is seeded too.
+  assert.equal(sources["--evcc-floor-granite-light-aggregate"], "default");
+
+  // The computed marble vein "-eff" layers are NOT editor tokens (not in
+  // THEME_TOKEN_MAP), so their oklch()/calc() defaults must NOT leak into the seed.
+  assert.equal(sources["--evcc-floor-marble-vein-minor-color-eff"], undefined);
+  assert.equal(tokens["--evcc-floor-marble-vein-minor-color-eff"], undefined);
 });
 
 test("[RT-2] active theme overrides the palette seed and stamps source 'theme'", () => {

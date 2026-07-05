@@ -55,9 +55,10 @@
  * ============================================================
  */
 
-import { THEME_GROUPS } from "../theme-tokens/index.js";
+import { THEME_GROUPS, THEME_TOKEN_MAP } from "../theme-tokens/index.js";
 import { effectiveThemeTags } from "../theme-tags/index.mjs";
 import { ROOM_FILL_PALETTE } from "../cards/map-room-color.js";
+import { FLOOR_TEXTURE_REGISTRY } from "../textures/floor-texture-registry.js";
 
 /**
  * Bake an alpha multiplier (0–1) into a CSS hex color string.
@@ -386,6 +387,39 @@ export function applyThemeState(proto) {
       colorMap[key] = hex;
       sources[key] = "default";
     });
+
+    /* -------------------------------------------------------
+       0b. SEED: FLOOR-TEXTURE MATERIAL DEFAULTS
+       Floor color/opacity tokens carry their defaults in the RENDER
+       registry (baked as the var() fallback at paint time in
+       renderers/floor-texture-surface.js: `var(colorToken,colorDefault)`
+       / `var(opacityToken,opacityDefault)`), NOT in styles/. Like the
+       room-fill palette above, the editor reads its picker value from
+       this map, so without a seed every floor token renders an empty,
+       un-openable swatch — the exact failure the room-fill seed fixes,
+       which floor tokens never received. Seed each REAL editor floor
+       token (present in THEME_TOKEN_MAP) from its registry-layer default
+       so the colour swatch opens at the material's actual colour and each
+       layer-opacity slider starts at its intended value. The seed EQUALS
+       the render's own var() fallback, so a themeless card is net-zero; an
+       active theme / working draft still overrides below. The
+       THEME_TOKEN_MAP gate skips computed "-eff" vein layers (marble),
+       whose oklch()/calc() defaults are not editor tokens.
+       ------------------------------------------------------- */
+    for (const material of Object.values(FLOOR_TEXTURE_REGISTRY)) {
+      for (const layer of material?.layers || []) {
+        const ct = layer?.colorToken;
+        if (ct && ct in THEME_TOKEN_MAP && layer.colorDefault != null) {
+          colorMap[ct] = layer.colorDefault;
+          sources[ct] = "default";
+        }
+        const ot = layer?.opacityToken;
+        if (ot && ot in THEME_TOKEN_MAP && layer.opacityDefault != null) {
+          tokens[ot] = String(layer.opacityDefault);
+          sources[ot] = "default";
+        }
+      }
+    }
 
     /* -------------------------------------------------------
        1. BASE: ACTIVE THEME
