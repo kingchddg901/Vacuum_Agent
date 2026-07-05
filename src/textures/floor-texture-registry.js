@@ -84,7 +84,7 @@ export const FLOOR_TEXTURE_REGISTRY = {
         colorToken:     "--evcc-floor-wood-base",
         colorDefault:   "#7A4010cf",
         opacityToken:   "--evcc-floor-wood-depth-opacity",
-        opacityDefault: 0.43,
+        opacityDefault: 0.39,
       },
       {
         url:            `${_T}/wood/wood-grain-mask.png`,
@@ -92,7 +92,7 @@ export const FLOOR_TEXTURE_REGISTRY = {
         colorToken:     "--evcc-floor-wood-base",
         colorDefault:   "#7A4010cf",
         opacityToken:   "--evcc-floor-wood-grain-opacity",
-        opacityDefault: 0.84,
+        opacityDefault: 0.76,
       },
       {
         url:            `${_T}/wood/wood-seam-mask.png`,
@@ -100,7 +100,7 @@ export const FLOOR_TEXTURE_REGISTRY = {
         colorToken:     "--evcc-floor-wood-accent",
         colorDefault:   "#e89754",
         opacityToken:   "--evcc-floor-wood-seam-opacity",
-        opacityDefault: 0.78,
+        opacityDefault: 0.70,
       },
     ],
     masks: [
