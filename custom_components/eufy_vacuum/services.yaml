@@ -69,7 +69,7 @@ save_managed_rooms:
       name: Floor types
       description: >
         Dict mapping room_id to floor type.
-        Valid values: hardwood, laminate, tile, marble, carpet.
+        Valid values: hardwood, laminate, tile, marble, granite, concrete, carpet.
       required: false
       selector:
         object: {}

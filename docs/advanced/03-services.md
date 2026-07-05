@@ -1418,7 +1418,7 @@ Saves a set of room IDs as managed rooms for a vacuum and map, optionally settin
 | `vacuum_entity_id` | Yes | |
 | `map_id` | No | |
 | `enabled_room_ids` | No | List of integer room IDs to save. Omit to keep existing. |
-| `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `carpet`. |
+| `floor_types` | No | Dict mapping room ID to floor type. Valid values: `hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`, `carpet`. |
 
 **Returns:** `{"status": "success", "room_count": N}` on success.
 

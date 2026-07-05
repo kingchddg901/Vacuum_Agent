@@ -1,31 +1,70 @@
 # Vacuum Agent
 
-A custom Home Assistant integration that adds room-level control, queue management, a learning/ETA system, automation events, and a built-in Lovelace panel card to your robot vacuum. It uses an adapter pattern to support multiple brands — **Eufy** and **Roborock** today, extensible to others — and adds capabilities the stock vacuum integrations don't expose.
+A custom Home Assistant integration that adds a whole control-and-intelligence layer on top of your robot vacuum — **room-level cleaning, a live map you can actually drive from, a learning/ETA system, saved zones, battery-health tracking, a themeable dashboard, seven languages, and automation events** — for **Eufy** *and* **Roborock**. It uses an adapter pattern, so more brands can follow.
 
-![Vacuum Agent — per-room cards with learned ETA, profile, and floor texture](docs/screenshots/rooms-cards.png)
+![Vacuum Agent — a real home's map with every room painted in its own floor material, robot mid-clean](docs/screenshots/floor-texture-map.png)
 
-*Each room remembers its own profile, learned timing, and floor type. Save the whole layout as a Run Profile and reapply it later from the UI or an automation.*
+*Every room painted with its real floor material — wood, marble, granite, tile, carpet — rendered live over your robot's actual map.*
 
-## What it does
+It doesn't replace your vacuum integration, it builds on it: for **Eufy** that's [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean); for **Roborock**, Home Assistant's built-in Roborock integration. Vacuum Agent consumes whatever they already expose and adds everything the stock integrations don't.
 
-A stock vacuum integration exposes basic start/stop/pause and a few entity states — for Eufy that's [eufy-clean by jeppesens](https://github.com/jeppesens/eufy-clean); for Roborock, Home Assistant's built-in Roborock integration. Vacuum Agent goes further:
+---
+
+## The map is the centerpiece
+
+Put your robot's live map on the dashboard, then actually work from it:
+
+- **Tap a room** to queue it.
+- **Draw a box** to clean just that spot — no rooms to set up first — and **save those boxes as named zones** you reuse later (see [Saved zones](#saved-zones)).
+- **Rotate** the map to match how your home is actually oriented, and mask sensor noise with hide-areas.
+- **Floor textures** — paint every room with its real material (wood planks, tile + grout, carpet, marble, concrete, granite) as one continuous, themeable floor. It reads like a floor plan of *your* house, and every material's colours and a **Map Texture Rotation** are tunable in the theme editor.
+- **Custom room colours** — give any room its own fill colour, or recolour the whole room palette from the theme editor.
+- **Furnished render** — trace your real rooms, drop in a to-scale drawing of your home, and align it once so the robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
+
+## Per-room control that learns
+
+![Per-room cards with profile, learned ETA, and floor type](docs/screenshots/rooms-cards.png)
 
 - **Room-level control** — select individual rooms by name and send targeted clean jobs, rather than cleaning the whole floor.
 - **Queue management** — build, inspect, and reorder a cleaning queue before the job starts.
-- **Run profiles and room profiles** — save vacuum settings (suction, mop, passes) per-room or as named run profiles you can trigger from automations or the UI.
-- **Room rules** — attach per-room rules (e.g. mop-only, skip when occupied) that are applied automatically when a job is built.
-- **Learning system and ETA** — the integration records how long each room takes and uses that data to estimate job completion times. Estimates improve with each run.
+- **Run profiles and room profiles** — save vacuum settings (suction, mop, passes) per-room or as named run profiles you trigger from the UI or an automation.
+- **Room rules** — attach per-room rules (e.g. mop-only, skip when occupied) that apply automatically when a job is built, driven by any Home Assistant entity.
+- **Learning system and ETA** — records how long each room actually takes and uses that to estimate completion; estimates improve with every run. Cleans you start from the **vendor app** are captured and folded into learning too.
 - **Stall detection** — fires a Home Assistant event when the vacuum has been in a room significantly longer than its learned average.
-- **Battery health tracking** — cumulative cycle counter, zone-aware charge rate tracking (low / high / mid-job), CC/CV charge-speed indices, per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy. Designed to spot battery degradation trends 6–12 months before they impact cleaning.
-- **Automation events** — exposes `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` events for use in automations.
-- **Room drift detection** — automatically watches for new rooms the vacuum reports after initial setup, and for configured rooms that have stopped being reported. Surfaces both for one-click review in the Setup tab. Permanently suppresses phantom rooms (the firmware occasionally invents rooms that don't exist) so they never become managed entities.
-- **Zone cleaning — "draw a box"** — drag one or more boxes directly on the live map and send just those areas to clean — no rooms to set up first. Roborock works via its built-in zone clean; on Eufy it needs **eufy-clean v1.11.1 or later** (which adds zone-clean support). (A repeat-passes count is available via the `start_zone_clean` service for automations.)
-- **Live map & map tools** — show your robot's live map as the dashboard backdrop, tap rooms to queue them, rotate the map to match your home's orientation, and mask map noise with hide-areas.
-- **Furnished render** — on a live-map layout, overlay a to-scale drawing of your real home: trace over the saved map, upload your furnished art, then blend and align it once so the live robot, dock, and cleaning path drive across your actual furniture (Live / Blend / Art view modes).
-- **Theme system** — a built-in theme editor for the panel card, with both clipboard (Export/Import) and file (Download/Upload) transports. The file variants are designed for sharing themes between users and migrating between Home Assistant installs.
-- **Speaks your language** — a per-user language globe in the header, **seven built-in translations** (German, French, Spanish, Dutch, Italian, Portuguese, Russian — AI-drafted + [native-reviewable](https://github.com/kingchddg901/Vacuum_Agent/discussions/25)) plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English.
-- **Built-in Lovelace panel card** — the integration registers its own dashboard panel. No separate card repository or manual resource registration is needed.
-- **Drop-in dashboard cards** — beyond the sidebar panel, two compact cards you add to your *own* dashboards from the card picker (no resources to register): **Vacuum Agent — Dashboard Mode** (`vacuum-agent-dashboard`), a multi-room control card — pick rooms + settings, run a saved profile or app scene, the embedded map, Start / Dock; and the **Eufy Room Card** (`eufy-room-card`), one card per room. Both carry the language globe, and the embedded map pins its pan/zoom across reloads and lets you drag room-name labels where you want them. See [Dashboard & Room cards](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/20-dashboard-and-room-cards/).
+- **Room drift detection** — watches for new rooms the vacuum reports after setup, and for configured rooms that stop being reported, surfacing both for one-click review; permanently suppresses phantom rooms so they never become managed entities.
+
+## Saved zones
+
+Beyond one-off box-cleaning, **draw a zone, name it, and file it under a room** — then re-clean it any time. A collapsible **Saved Zones** panel lets you multi-select several, apply shared suction/mop settings, and clean the whole selection at once (e.g. a *stove area* filed under the Kitchen). Six services back it for automations: `create_saved_zone`, `rename_saved_zone`, `delete_saved_zone`, `set_saved_zone_room`, `clean_saved_zone`, and `clean_saved_zones`.
+
+## Battery health you can trend
+
+Cumulative cycle counter, zone-aware charge-rate tracking (low / high / mid-job), CC/CV charge-speed indices, per-job drain rates (%/min, %/hour, %/m²), and a baseline-relative health proxy — built to spot degradation trends **6–12 months** before they impact cleaning.
+
+![Metrics — Battery sub-tab](docs/screenshots/metrics-battery.png)
+
+## Make it yours — themes & languages
+
+A built-in **theme editor** for the panel card, with three layers: ready-made presets, a high-level palette editor, and full token-level control with live previews (including every floor material). Export/import via clipboard or file to share themes or migrate between installs. There's a validated **colorblind-safe** theme plus always-on shape-coded status badges.
+
+![Themes — presets](docs/screenshots/themes-presets.png)
+
+The card **speaks seven languages** out of the box — German, French, Spanish, Dutch, Italian, Portuguese, Russian — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
+
+## Also on Roborock
+
+The Roborock adapter (tested on the **S6**) brings the stock integration up to parity with Eufy: the same per-room **rendered map**, **floor textures**, tap-to-queue, **draggable room-name labels**, and **draw-a-zone** — plus native per-room live rollover and per-room fan speed. Where a brand doesn't expose a fan-speed select entity, suction is still settable right in the zone/clean panel.
+
+## Automation events
+
+Wire the vacuum into the rest of your home. Vacuum Agent fires `eufy_vacuum_job_finished`, `eufy_vacuum_room_started`, `eufy_vacuum_room_finished`, `eufy_vacuum_room_skipped`, `eufy_vacuum_path_blocked`, `eufy_vacuum_stall_detected`, and `eufy_vacuum_run_incomplete` for use in automations. Run/room profiles and zone cleans are triggerable straight from automations and scripts too.
+
+## Where it lives
+
+- **Built-in Lovelace panel card** — the integration registers its own sidebar dashboard panel. No separate card repository or manual resource registration needed.
+- **Drop-in dashboard cards** — two compact cards you add to your *own* dashboards from the card picker (no resources to register): **Vacuum Agent — Dashboard Mode** (`vacuum-agent-dashboard`), a multi-room control card (pick rooms + settings, run a saved profile or app scene, embedded map, Start / Dock); and the **Eufy Room Card** (`eufy-room-card`), one card per room. Both carry the language globe, and the embedded map pins its pan/zoom across reloads and lets you drag room-name labels. See [Dashboard & Room cards](https://kingchddg901.github.io/Vacuum_Agent/docs/user-guide/20-dashboard-and-room-cards/).
+
+---
 
 ## Tested hardware
 
@@ -62,7 +101,7 @@ Vacuum Agent is a supervisory control layer — it consumes whatever your provid
 
 **Optional** *(Vacuum Agent works without these — they unlock extra capabilities)*
 
-- A provider **map / camera / image entity** for the live-map backdrop and richer map views. On **Eufy** this comes from **eufy-clean v1.11.1 or later**, which renders the robot's map as a `camera.<device>_map` entity; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
+- A provider **map / camera / image entity** for the live-map backdrop and richer map views (including the rendered floor-texture map). On **Eufy** this comes from **eufy-clean v1.11.1 or later**, which renders the robot's map as a `camera.<device>_map` entity; on **Roborock** it's the built-in integration's map image. Without it, room control, queues, and profiles still work — you just don't get the live backdrop or the map-based tools.
 - The Python science stack (**numpy, Pillow, scipy**) for **Auto (CV) map segmentation** — bundled in Home Assistant OS, but not always present on Container / Core / Supervised installs. Without it, Auto (CV) is hidden and you set rooms up manually (draw bounds with primitive shapes, or compose over a live/custom map — a few minutes in the editor). Manual setup is fully supported and is the source of truth; it is never required to install or load the integration.
 - Brand-specific **companion entities** (dock, station, etc.) for richer controls and status.
 
@@ -104,7 +143,7 @@ Go to **Settings → Devices & Services**, find **Vacuum Agent**, and delete it.
 
 **Remove a single vacuum** (keeping the others): open **Settings → Devices & Services → Vacuum Agent**, click that vacuum's device, and choose **Delete**. Its sidebar panel, entities, and stored data are removed and the other managed vacuums are left untouched. Its learning history and saved map images stay on disk, so re-adding the same vacuum restores them.
 
-Note: this integration sits on top of [eufy-clean](https://github.com/jeppesens/eufy-clean), which provides the underlying `vacuum.*` entity. Removing Vacuum Agent does not remove eufy-clean; remove that separately if you no longer need it.
+Note: this integration sits on top of your provider integration (e.g. [eufy-clean](https://github.com/jeppesens/eufy-clean)), which provides the underlying `vacuum.*` entity. Removing Vacuum Agent does not remove it; remove that separately if you no longer need it.
 
 ## What's included
 
@@ -150,7 +189,7 @@ Inspect every recorded run, exclude outliers (test runs, false completions, bad 
 
 ### External Jobs review
 
-Runs you start from the **Eufy app** (not just HA-dispatched jobs) are captured and surface here for review — confirm the room count (split or merge the detected cuts), name each room, and correct its settings — so app-started cleans feed learning too.
+Runs you start from the **vendor app** (not just HA-dispatched jobs) are captured and surface here for review — confirm the room count (split or merge the detected cuts), name each room, and correct its settings — so app-started cleans feed learning too.
 
 ![External Jobs subtab — app-started runs awaiting review](docs/screenshots/external-jobs.png)
 ![Review wizard step 1 — confirm the room count](docs/screenshots/external-wizard-step1.png)
@@ -178,7 +217,7 @@ Per-room bounding-box review across runs, with outlier detection so a single bad
 
 ### Setup
 
-Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system). The Setup tab stays useful after the initial wizard: it watches for new rooms the vacuum reports later and for configured rooms that disappear, surfacing both for one-click review.
+Register the vacuum, import maps, and configure each room — exclude ghost rooms, set floor type per room (drives the cleaning profile system *and* the floor-texture map). The Setup tab stays useful after the initial wizard: it watches for new rooms the vacuum reports later and for configured rooms that disappear, surfacing both for one-click review.
 
 ![Setup tab](docs/screenshots/setup.png)
 
@@ -192,10 +231,13 @@ Tap a room on a live floor-plan view to queue it; double-tap to configure. **Thi
 
 ## Feature summary
 
+- **Floor-texture map** — each room painted in its real material (wood, tile, marble, concrete, granite, carpet), themeable, on Eufy and Roborock
 - Room selection and targeted clean jobs
 - Cleaning queue — build, reorder, inspect before starting
 - Zone cleaning — draw boxes on the live map and clean just those areas
+- **Saved zones** — named, reusable clean zones filed under a room, with per-zone services
 - Live map — live backdrop, tap-to-queue rooms, map rotation, hide-areas, and a to-scale furnished-render overlay
+- **Custom room colours** — per-room fill colour and a themeable room-fill palette
 - Room profiles — per-room suction, mop, and pass settings
 - Run profiles — named full-run configurations, triggerable from automations
 - Room rules — conditional per-room behavior
