@@ -32,9 +32,9 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   marble:        0.05,
   tile:          0.05,
   wood:          0.05,
-  concrete:      0.9,  // fine speckle -> go big to pull it out (asset really wants a bolder layer)
-  granite_light: 0.9,  // "                                                                     "
-  carpet_low:    0.65, // scale likely won't fix these — probably need a bolder/special mask
+  concrete:      0.7,   // two-layer (broad + micro) -> splotches read; 0.7 tightens them a bit
+  granite_light: 0.05,  // single fine speckle, no bold layer -> junk at any scale; PARKED, needs a mask
+  carpet_low:    0.65,  // ditto — needs a bolder/special mask, not a scale tweak
   carpet_high:   0.65,
 };
 
