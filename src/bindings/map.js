@@ -25,13 +25,13 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 // great tiny (0.11), but granite's fine speckle vanishes to a flat dark field when shrunk that
 // far. So each type gets its own default here; unlisted types fall back to the global. A theme
 // can override any with `--evcc-floor-<type>-map-scale` (the "slider"). Tune by eye.
-const FLOOR_TEXTURE_MASK_SCALE = 0.15; // global fallback
+const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05 for now)
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
-  marble:   0.11,  // broad veins — confirmed great
-  tile:     0.13,  // grid + speckle — ok
-  granite:  0.4,   // FINE speckle — needs a much bigger scale or it flattens to black
-  wood:     0.05,  // planks + grain
-  concrete: 0.28,  // broad mottle + micro
+  marble:   0.05,
+  tile:     0.05,
+  granite:  0.05,
+  wood:     0.05,
+  concrete: 0.05,
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
