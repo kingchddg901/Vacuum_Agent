@@ -142,7 +142,7 @@ CSS usage in the card's stylesheets references these as `var(--evcc-accent)`, `v
 
 The floor texture tokens are split into eight groups:
 
-- `"Floor Textures"` — the parent group, containing four global master controls (card enable, map enable, card opacity, map opacity).
+- `"Floor Textures"` — the parent group, containing five global master controls (card enable, map enable, card opacity, map opacity, and the map texture rotation in degrees).
 - `"Floor Textures — Tile"`, `"Floor Textures — Wood"`, etc. — one sub-group per material, each containing color tokens and per-layer opacity tokens for that material.
 
 The `" — "` (em-dash with spaces) separator is meaningful: the group filter logic in `filteredThemeTokens()` uses `group.startsWith(selectedGroupFilter + " — ")` to include sub-groups when the parent group filter is active. Selecting "Floor Textures" in the editor shows all eight sub-groups as a unit.

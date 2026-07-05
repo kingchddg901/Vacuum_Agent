@@ -204,6 +204,13 @@ thing that triggers the loader).
 - **Two cards on one dashboard** — ✅ pan/zoom (and moved room-name labels) are keyed
   per *context* (panel vs card) + per device, so the panel and a dashboard card keep
   independent map views (`_mapCtx` on the state; see [Card Topology & Bundles](card-topology-and-bundles.md)).
+- **Multi-map vacuum** — the room list is filtered to the **active map only**
+  (`_roomsForActiveMap()`, mirroring the panel's `getRoomsForActiveMap`), so a device with
+  several maps (e.g. Alfred: map 6 + map 7) doesn't list every map's rooms at once. Every
+  operate-on-rooms site (render, room toggle, `_startContext`, `_turnOffAllRooms`, room-by-id
+  lookup) uses the filtered set, which also prevents a Start from targeting an off-map room
+  when two maps share `room_id` values. Unfiltered `_rooms()` survives only where it must (the
+  `_activeMapId()` fallback and the `shouldUpdate` diff).
 - **No live entity** — degrade every section independently; a missing snapshot field
   hides its control, never throws (wrap reads).
 - **Mid-run** — show progress in the header; Start becomes "already cleaning" / the

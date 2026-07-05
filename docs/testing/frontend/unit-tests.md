@@ -6,7 +6,7 @@ with Node's built-in test runner, no browser and no build.
 
 - **Run them all:** `npm run test:units` (`node --test "src/**/*.test.mjs"`).
 - **Run one file:** `node --test src/state/rooms-logic.test.mjs`.
-- **505 cases across 36 files**, currently all green. Node ≥ 21 (native glob).
+- **524 cases across 38 files**, currently all green. Node ≥ 21 (native glob).
 
 This is one of three separate frontend test tracks — see [the three tracks](#the-three-tracks).
 
@@ -18,7 +18,9 @@ This is one of three separate frontend test tracks — see [the three tracks](#t
     the room access-graph, the reorder engine, start-block reasons, rule
     validation, `resolvedTheme`, the learning summary/progress, map compose
     geometry, floor-scope, and a few computations that had leaked inline into
-    renderers. Those were closed in three waves, taking the suite to 505 cases.
+    renderers. Those were closed in three waves; the later floor-texture map view
+    then added the compositor + material-resolver engines (`src/textures/`),
+    taking the suite to 524 cases.
 
 ---
 
@@ -39,14 +41,14 @@ derivations — no DOM, no hass.
 | `rooms-logic.test.mjs` | 28 | The **room access-graph validator** (`validateRoomAccessUpdate` + DFS cycle / self-reference / duplicate-edge / missing-ref / single-inbound rules → issue codes) and the **start-button readiness** reason-code precedence (`no_rooms_included` > `already_cleaning` > `returning_to_dock` > `vacuum_error`); `orphanedRooms`. |
 | `order-engine.test.mjs` | 24 | The **reorder engine** — `_sortOrderedItems` (numeric order + id tiebreak; the `Number(null)===0` sort-to-front footgun is pinned), move-to-position clamp+splice, swap-by-id, 1-based reindex, and the scope-preview wrappers. Drives room drag-and-drop → backend number entities. |
 | `room-rules-logic.test.mjs` | 28 | `ruleEntityDescriptor` (domain → category + allowed-operator set), `roomRulesDraftIsValid` (Save-enabled gate incl. the clean_passes 1\|2 rule), scored entity search tiers, operator-group filtering. |
-| `theme-resolve.test.mjs` | 26 | `resolvedTheme` — the deterministic **4-layer merge** (12 room-fill palette defaults → active theme → working draft), plus `filteredThemeTokens` / `filteredPresetIds` (facet AND/OR + search filtering). |
+| `theme-resolve.test.mjs` | 27 | `resolvedTheme` — the deterministic **4-layer merge** (room-fill palette defaults **+ floor-texture material defaults seeded from `FLOOR_TEXTURE_REGISTRY`, incl. the map-rotate token; computed `-eff` layers excluded** → active theme → working draft), plus `filteredThemeTokens` / `filteredPresetIds` (facet AND/OR + search filtering). |
 | `map-compose-and-viewport.test.mjs` | 25 | `composeToSegments` (custom-segment draft → save payload: subtract-ordering, group/room_id resolution, rotated-rect → polygon trig), `clampMapTransform` (off-screen-recovery clamp), `applyMapZoom` (focal-point), `loadComposeDraftFromSegments` (id-counter advance). |
 | `learning-derive.test.mjs` | 33 | `endLearningJob` (actual-vs-predicted summary with the `>0` guards), `_dashboardJobIsActive` (terminal-status gate for the whole live-job UI), room count / timeline / banner fallbacks, estimate keying. |
 | `room-editor-matching.test.mjs` | 19 | Preset **snap-back** matcher (`_editorFieldsMatchProfile`), option-list builder (omit → hide picker), clean-mode / intensity canonicalization, carpet gate. |
 | `saved-zones-group.test.mjs` | 17 | `savedZonesGrouped` (group under room, live map order, trailing "Unassigned" bucket) and `selectedSavedZoneIds`. |
 | `external-jobs-group.test.mjs` | 12 | `externalWizardGroups` (v1/v2 segment grouping) + wizard split-map / default-room seeding. |
 | `run-profiles-normalize.test.mjs` | 12 | `_normalizeRunProfilesPayload` (unwrap bare array / `profiles` / `saved_run_profiles` fallback; library guard). |
-| `zone-draft.test.mjs` | 11 | `_rectToNormalized` zone coord conversion + multi-zone draft list. |
+| `zone-draft.test.mjs` | 12 | `_rectToNormalized` zone coord conversion + multi-zone draft list, and `canDrawZone` — draw-gate lights up over the live backdrop **or** an active VA raster (Roborock cv-mode path), still gated by `supportsZoneClean`. |
 | `room-profiles-name.test.mjs` | 10 | `makeRoomProfileName` (slug + `custom_` prefix + `_2/_3` collision suffix) + sorted profile lists. |
 | `maintenance-logic.test.mjs` | 9 | `findUpkeepItem` (case-insensitive kind+component match) and `canInvokeMaintenanceReset`. |
 | `metrics-logic.test.mjs` | 9 | `findMetricsSaveCandidate` (match on profile_key AND room_slug across the selected source). |
@@ -76,6 +78,16 @@ derivations — no DOM, no hass.
 | `helpers.test.mjs` | 22 | `makeTokenLabel` (key → title-case label) + `makeGroupedToken` / `makeTypedGroupToken` (type-validated, finite-range-merge token factories). |
 | `floor-scope.test.mjs` | 14 | `detectFloorScope` / `sliceThemeByTypes` / `clampThemeScalars` — targeted theme export/import (longest-name-wins scoping, out-of-range scalar clamp). |
 | `animals.test.mjs` | 4 | Per-animal theme-token shape (editor lists only the tokens an animal themes). |
+
+### `src/textures/` — floor-material render math
+
+Pure math + config resolution behind the map's floor-texture view (mask ×
+colour × opacity compositing and the room→material mapping). No canvas, no DOM.
+
+| File | Cases | What it guards |
+|------|------:|----------------|
+| `floor-texture-compositor.test.mjs` | 7 | `compositeFloorTexture(w, h, baseColor, layers)` — the mask×colour×opacity blend the floor view samples: white mask reveals the layer colour over the opaque base, opacity scales the reveal, mid-grey blends halfway, layers stack bottom→top, and degenerate inputs (short luma / opacity ≤ 0 / missing) are skipped safely. Output stays fully opaque (a floor is a solid surface). |
+| `floor-texture-resolver.test.mjs` | 10 | `resolveFloorType(room)` (spec `{floor_type, carpet_type}` → `carpet_low`/`carpet_high`; legacy combined forms; `hardwood`/`laminate`→`wood`, `granite`→`granite_light` aliases; direct registry keys; case/whitespace-insensitive; unknown→`default`) and `normalizeFloorRotationDeg(deg)` (non-finite→0, quantise to 0.1° so getComputedStyle noise can't churn the cache, wrap to `[-180, 180)`). |
 
 ### `src/renderers/` — pure math extracted from render methods
 

@@ -186,8 +186,9 @@ nothing), then `npm run build:deploy` (bumps the asset hash → cache-bust). Gen
   **edge-wrap**: `plank_w` divides `SIZE`, there are exactly `SIZE/plank_l` planks per column
   (tones indexed mod that count), per-column vertical offsets wrap `mod plank_l`, and the grain
   is modulated with an integer number of sine cycles. Writes three layers — faces (mostly
-  white), fine grain streaks, grooves + staggered joint ends. Plank count = `plank_w` (a
-  generator param). The grain + seam layers use the **dark accent** colour so they define the
+  white), fine grain streaks, grooves + staggered joint ends. Plank width = `plank_w` (a
+  generator param; a bigger value = wider planks / fewer columns, since the column count is
+  `SIZE/plank_w`). The grain + seam layers use the **dark accent** colour so they define the
   planks on the opaque map floor (per the invisible-on-map rule above).
 
 ## Card vs map — two render models (why they differ)

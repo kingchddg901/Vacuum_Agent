@@ -140,7 +140,14 @@ bare dict). Roborock-specific keys with no Eufy equivalent:
 - **`per_room_live_settings`** + **`passes_is_global: True`** — fan speed is set
   **per room, live** (`set_fan_speed` before each room's dispatch, guarded by an
   `options_key` vocabulary so an out-of-vocab value is skipped), while passes are
-  a **global** scalar on the run (the S6 can't vary passes per room).
+  a **global** scalar on the run (the S6 can't vary passes per room). Because the S6
+  has no provider fan-speed `select` (its fan power is the standard vacuum entity's
+  `fan_speed` / `fan_speed_list`), the card's zone/clean **Settings** panel renders a
+  **fallback suction row** backed by `vacuum.set_fan_speed` (renderer
+  `_renderVacuumFanSpeedRow`, action `setVacuumFanSpeed`), shown only when no fan-speed
+  `select` exists — so Eufy is unchanged. A zone clean runs at the device's CURRENT fan
+  power (`app_zoned_clean` carries no fan field), the same "runs off current device
+  settings" model as the Eufy select rows.
 - **`phase_timing`** — the strict-order watchdog's settle/verify/confirm/poll
   seconds + retry cap, S6-tuned and **adapter-declared**. Core falls back to its own
   `_PHASE_*` defaults for any omitted key, and most S6 values match those defaults
@@ -219,6 +226,29 @@ never overlap). The room raster is self-contained, but the **pose overlay's** co
 registration (`res` / origin / flip vs the live robot position) still needs calibrating
 on a real device.
 
+**Surfaced in diagnostics.** This drift-check runs automatically: for any
+`map_state_source.backend == "memory"` (Roborock) vacuum, the config-entry diagnostics
+download (`diagnostics.py` → `map_source_runtime.roborock_geometry_drift_from_candidates(...)`)
+attaches a `roborock_geometry_drift` block — `{present: True, room_ids_parser/raster, common,
+only_parser/raster, max_center_delta, min_iou, aligned, per_room{rid: {parser, raster,
+center_delta, iou}}}` on a decodable device, or `{present: False, reason: "no_geometry"}`
+otherwise (best-effort, never raises). So **Settings → Devices & Services → Vacuum Agent → ⋮ →
+Download diagnostics** on a real run reports `aligned` (decode correct on this device) or the
+per-room deltas (the pose/coord calibration signal) with no manual call.
+
+**`self_check` reads native brands honestly.** The dump's interpreted summary (`_self_check`
+in `diagnostics.py`, surfaced as the `self_check` block) is brand-agnostic. It reads the
+adapter brand from `out["adapter"].brand`, then distinguishes three worlds instead of assuming
+the Eufy transport: **Eufy full** (an `active_map` sensor), **Eufy reduced/scalar** (the
+`segments` attribute), and **native integration** (rooms present with *neither* — e.g.
+Roborock, whose rooms come from its own HA integration via `managed_rooms_by_map` / `maps`
+room_count). Room availability keys off `supports_room_clean` (the true per-room capability),
+not `supports_rooms` (the Eufy-shaped flag); map availability recognises a decoded raster via
+`roborock_geometry_drift.present`. So a working Ivy reports `transport: native integration
+(roborock)`, room control available, and map decoded — instead of the old Eufy-shaped
+"unknown / unavailable / no". Diagnostics-only, data-driven, never raises. Pinned by
+`[DIAG-9]`/`[DIAG-10]` in `tests/integration/test_diagnostics.py`.
+
 ### `job_segmenter` — `noop_job_fallback`
 The S6 reports native progress, so it registers `noop_job_fallback`, **not**
 `eufy_counter_v1`: the Eufy counter-plateau heuristic would false-segment on the
@@ -279,6 +309,14 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
   that follows the reported room. See [frontend/architecture-overview](frontend/architecture-overview.md).
 - **Order-advisory note** — `honors_clean_order: False` surfaces a run-start note
   that order is advisory unless a Sequence is set in the app (or strict-order is on).
+- **Ad-hoc zone clean (draw-a-box) over the rendered map** — the S6 declares
+  `capabilities.supports_zone_clean: True` + `dispatch.zone_command: "app_zoned_clean"`
+  (world-mm quads via stock `send_command`), so the card's **Draw a zone** control
+  appears once the VA-render raster (`▦`) is the backdrop — the raster is the frame the
+  brand-agnostic normalized→device conversion inverts, backstopped by a round-trip
+  refuse-gate. Roborock caps: `zone_max: 5` zones, `zone_max_area_m2: 3.05` (~32.8 ft²)
+  each; Eufy allows 10. See [saved-zones](frontend/saved-zones.md) for the persisted-zone
+  layer on top of this, and [04 — running a clean](../user-guide/04-running-a-clean.md#zone-cleaning-draw-a-box).
 
 ---
 

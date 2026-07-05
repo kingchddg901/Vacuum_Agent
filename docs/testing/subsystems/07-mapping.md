@@ -14,7 +14,7 @@ A third path skips authoring entirely: the **`map_state_source` reader**
 provider's OWN segmentation + live pose into VA-owned room data (bbox/name, dock/robot
 anchors, area, current room, overlay layers), so rooms are auto-derived from the device's
 authoritative map rather than learned from drifting samples or hand-drawn.
-Covered by **516 tests across 21 files** — the trace/image primitives are
+Covered by **539 tests across 22 files** — the trace/image primitives are
 near-fully covered, the tracker + two orchestrators have both their pure helpers
 (unit) and hass-bound bodies (integration) covered, and the real
 detect_room_segments CV pipeline runs end to end against a synthetic image.
@@ -39,8 +39,9 @@ Architecture reference: [docs/dev/11-mapping-system.md](../../dev/11-mapping-sys
 | `manager.py` | 904 | 92% | `test_mapping_manager_helpers.py` + `test_mapping_manager.py` + `test_mapping_image_pipeline.py` | unit + integration |
 | `mapping_services.py` | 1400 | 91% | `test_mapping_services_helpers.py` + `test_mapping_services.py` + `test_mapping_services_handlers.py` + `test_mapping_image_pipeline.py` | unit + integration |
 | `map_source.py` | 422 | 94% | `tests/unit/test_map_source.py` | unit (pure) |
-| `map_source_runtime.py` | 479 | 90% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
-| `map_source_coordinator.py` | 236 | 89% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
+| `map_source_runtime.py` | 509 | 89% | `tests/unit/test_map_source_runtime.py` + `tests/unit/test_map_source_collectors.py` | unit (pure) |
+| `map_source_coordinator.py` | 279 | 90% | `test_manager_compare_sources.py` + `test_manager_live_pose.py` + `test_manager_map_source_refresh.py` | integration |
+| `roborock_raw_map.py` | 142 | 90% | `tests/unit/test_roborock_raw_map.py` | unit (pure) |
 
 ---
 
@@ -140,6 +141,19 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   `roborock_candidates`, `image_entity_object`) that gather roots from
   `hass.data[domain]` / per-entry `runtime_data` / the image entity, each degrading
   cleanly when a source is absent.
+- **`roborock_raw_map`** (`RRD-*`, unit, `test_roborock_raw_map.py`) — the pure Roborock
+  v1 raw-map segment decoder, no HA/device: `decode_roborock_v1_segments` (a well-formed
+  IMAGE block → resolved room-id raster + dims + ids; no-IMAGE / empty / truncated / garbage
+  / dims-exceed-data → `None`, never raises), `resolve_rid`'s per-pixel encoding (`byte >> 3`
+  only when the low 3 bits == 7; `0xFF` catch-all; scan/wall/outside → 0; the `0x08`
+  obstacle-bit collision a naive shift would mislabel as room 1), `roborock_render_data`
+  wrapping a decoded raster in the shared `eufy_room_pixels_v1` payload (b64 round-trip,
+  `flip_y`, `catch_all_rid`, room_names), the `..._from_candidates` introspection bridges
+  (BFS to a `MapContent`, absent-marker on no match), `raster_room_bboxes` (per-room
+  normalized bbox with `flip_y` honored so raw top rows land at the rendered bottom — the Ivy
+  finding), and `geometry_drift`, the on-device decode self-validator overlaying the parser's
+  bboxes against the raster (aligned / IoU / centre-drift, flip detection, `only_parser`
+  set-diff).
 - **`map_source_coordinator`** (`CMP-*` + `LP-*`, integration,
   `test_manager_compare_sources.py` + `test_manager_live_pose.py`) — the manager
   delegators into `MapSourceCoordinator`: `async_compare_map_sources` (the verify
@@ -157,7 +171,9 @@ manager-facing seams (delegators into `MapSourceCoordinator`) are integration-te
   memory-primary scan with its content-version cache and the three `.storage` fallbacks
   (memory miss / convert-None / present-False), `get_live_mapdata_obj` (the zone-dispatch
   object locator across both backends, `None` on absence/raise),
-  `async_get_map_render_data` (memory-primary vs `.storage` vs unknown-format), and the
+  `async_get_map_render_data` (memory-primary vs `.storage` vs unknown-format, plus the
+  Roborock `roborock_raw_map_v1` format dispatching to the raw-map render bridge with room
+  names from the manager's stored rooms), and the
   live-pose read layer (`_read_inmem_pose`, `_load_live_pose_geom` read + mtime cache +
   no-map-data). The `_msr` parsers stay unit-tested; these pin the coordinator's own
   dispatch / cache / fallback branching, each fallback asserted via an assert-not-called

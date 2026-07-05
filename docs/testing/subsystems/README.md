@@ -15,7 +15,7 @@ mapping) then peripheral subsystems and the HA-facing layers.
 | 05 | Planning (rule eval, fan-out, path-block) | [05-planning](05-planning.md) | 93% |
 | 06 | Learning (estimator, finalizer, history) | [06-learning](06-learning.md) | 94% |
 | 07 | Mapping (trace pipeline, image stack, tracker) | [07-mapping](07-mapping.md) | 92% |
-| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 95% |
+| 08 | Battery (wear/health, sensors, sessions) | [08-battery](08-battery.md) | 94% |
 | 09 | Maintenance (wear tracking, care guides) | [09-maintenance](09-maintenance.md) | 89% |
 | 10 | Dock (action gating + dispatch) | [10-dock](10-dock.md) | 98% |
 | 11 | Setup (workflow, drift, delete, entry wiring) | [11-setup](11-setup.md) | 93% |
@@ -39,7 +39,7 @@ re-export wiring) are deliberately not tabled, so they sit in the grand total
 but not the per-subsystem figures. The grand total below breaks out the
 statement-only figure too.
 
-**Total: 95.7% statement coverage** (94% combined with `--cov-branch`, adapters
+**Total: 95.6% statement coverage** (94% combined with `--cov-branch`, adapters
 included) over the source modules, all tests green. These numbers and the
 per-module tables are refreshed by `scripts/update_test_docs.py`.
 

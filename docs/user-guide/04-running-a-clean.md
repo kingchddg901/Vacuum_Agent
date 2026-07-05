@@ -54,7 +54,7 @@ Once a job starts, the action bar updates to reflect the live state:
 
 Instead of cleaning whole rooms, you can clean **just an area you draw on the map** — handy for a spill, a high-traffic patch, or the spot under the table.
 
-Zone cleaning works on the **live map** (the live image is the backdrop), on brands that support it — **Eufy** (on eufy-clean v1.11.1+) and **Roborock** (the S6, and likely other models, through the stock integration). You can draw at **any map rotation**. The per-clean limits are brand-specific: **Eufy** allows up to **10** zones; **Roborock** up to **5**, each between **1 ft² and 32.8 ft²** — the card stops the draw at the cap, and an out-of-size zone is refused with a message.
+Zone cleaning works on any device-accurate map backdrop — either the **live map** image or the **rendered room map** (the **▦** map-render view) — on brands that support it: **Eufy** (on eufy-clean v1.11.1+) and **Roborock** (the S6, and likely other models, through the stock integration). On Roborock the **Draw a zone** button appears once the rendered room map is on. You can draw at **any map rotation**. The per-clean limits are brand-specific: **Eufy** allows up to **10** zones; **Roborock** up to **5**, each between **1 ft² and 32.8 ft²** — the card stops the draw at the cap, and an out-of-size zone is refused with a message.
 
 1. Open the **Map** view and tap the **▢ "Draw a zone to clean"** button in the map toolbar to enter zone mode.
 2. **Drag a box** on the map over the area you want cleaned. Repeat to add more boxes — up to the brand cap noted above (each is numbered).
