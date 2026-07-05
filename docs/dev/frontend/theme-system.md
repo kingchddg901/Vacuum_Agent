@@ -43,7 +43,7 @@ The static groups below are the fixed editor order. Between **Modals & Overlays*
 | **Chips** | Background and text colors for the chip/badge controls |
 | **Room Cards** | Background, text, and accent colors specific to the room card components |
 | **Map** | Colors for the map overlays — the room-name label pill (background + text, incl. selected) and order badge, the segment tooltip (background / border / text / hint), and the custom-segment composer (selected outline, cutout fill, selected-vertex glow) |
-| **Floor Textures** | Global master enable (0/1) and global opacity for card and map texture rendering |
+| **Floor Textures** | Global master enable (0/1), global card/map texture opacity, and global map texture rotation (deg). See [floor-texture-map-view.md](floor-texture-map-view.md) for the render mechanism, mask authoring, and how these per-material defaults are seeded into the editor |
 | **Floor Textures — Tile** | Per-material color and per-layer opacity for the tile texture |
 | **Floor Textures — Wood** | Per-material color and per-layer opacity for the wood texture |
 | **Floor Textures — Marble** | Marble color/opacity plus a two-tier vein system: a master vein opacity/blur that rides both tiers, per-tier (major/minor) opacity + blur offsets that preserve the delta, and minor-vein color deltas (lighten / saturation / hue) for an atmospheric recede |
