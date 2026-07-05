@@ -33,9 +33,9 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   tile:          0.05,
   wood:          0.05,
   concrete:      0.7,   // two-layer (broad + micro) -> splotches read; 0.7 tightens them a bit
-  granite_light: 0.05,  // single fine speckle, no bold layer -> junk at any scale; PARKED, needs a mask
-  carpet_low:    0.65,  // ditto — needs a bolder/special mask, not a scale tweak
-  carpet_high:   0.65,
+  granite_light: 0.1,   // re-authored as base + bold aggregate mask -> has real structure now
+  carpet_low:    0.1,   // re-authored as base + bold weave mask
+  carpet_high:   0.1,
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette

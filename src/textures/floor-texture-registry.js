@@ -192,52 +192,89 @@ export const FLOOR_TEXTURE_REGISTRY = {
     baseTexture: null,
   },
 
+  // SPLIT (2026-07-04): re-authored from the single full-colour photo into a broad BASE
+  // mask + a bold DETAIL (weave) mask via scripts/gen_floor_masks.py, so the material reads
+  // on the map instead of collapsing to black. Base colour lifted off near-black to a real
+  // carpet tone; the detail layer paints the lighter pile/weave. See the floor-texture doc.
   carpet_low: {
-    opacityDefault: 0.8,
+    opacityDefault: 0.9,
     layers: [
       {
-        url:            `${_T}/carpet/texture-floor-carpet-low.png`,
+        url:            `${_T}/carpet/carpet-low-base-mask.png`,
         role:           "base",
         colorToken:     "--evcc-floor-carpet-low-base",
-        colorDefault:   "#0d0c0c",
-        opacityToken:   "--evcc-floor-carpet-low-texture-opacity",
+        colorDefault:   "#3f362e",
+        opacityToken:   "--evcc-floor-carpet-low-base-opacity",
         opacityDefault: 1,
       },
+      {
+        url:            `${_T}/carpet/carpet-low-detail-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-carpet-low-weave",
+        colorDefault:   "#7c6f60",
+        opacityToken:   "--evcc-floor-carpet-low-weave-opacity",
+        opacityDefault: 0.55,
+      },
     ],
-    masks:       [],
-    baseTexture: `${_T}/carpet/texture-floor-carpet-low.png`,
+    masks: [
+      { url: `${_T}/carpet/carpet-low-base-mask.png`   },
+      { url: `${_T}/carpet/carpet-low-detail-mask.png` },
+    ],
+    baseTexture: `${_T}/carpet/carpet-low-base-mask.png`,
   },
 
   carpet_high: {
-    opacityDefault: 1,
+    opacityDefault: 0.9,
     layers: [
       {
-        url:            `${_T}/carpet/texture-floor-carpet-high.png`,
+        url:            `${_T}/carpet/carpet-high-base-mask.png`,
         role:           "base",
         colorToken:     "--evcc-floor-carpet-high-base",
-        colorDefault:   "#0a0a0a",
-        opacityToken:   "--evcc-floor-carpet-high-texture-opacity",
+        colorDefault:   "#2f2a26",
+        opacityToken:   "--evcc-floor-carpet-high-base-opacity",
         opacityDefault: 1,
       },
+      {
+        url:            `${_T}/carpet/carpet-high-detail-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-carpet-high-weave",
+        colorDefault:   "#5c5248",
+        opacityToken:   "--evcc-floor-carpet-high-weave-opacity",
+        opacityDefault: 0.5,
+      },
     ],
-    masks:       [],
-    baseTexture: `${_T}/carpet/texture-floor-carpet-high.png`,
+    masks: [
+      { url: `${_T}/carpet/carpet-high-base-mask.png`   },
+      { url: `${_T}/carpet/carpet-high-detail-mask.png` },
+    ],
+    baseTexture: `${_T}/carpet/carpet-high-base-mask.png`,
   },
 
   granite_light: {
     opacityDefault: 1,
     layers: [
       {
-        url:            `${_T}/granite/texture-floor-granite-light.png`,
+        url:            `${_T}/granite/granite-base-mask.png`,
         role:           "base",
         colorToken:     "--evcc-floor-granite-light-base",
-        colorDefault:   "#0a0a0a",
-        opacityToken:   "--evcc-floor-granite-light-texture-opacity",
+        colorDefault:   "#9c9a96",   // LIGHT granite — base was near-black, hence the black room
+        opacityToken:   "--evcc-floor-granite-light-base-opacity",
         opacityDefault: 1,
       },
+      {
+        url:            `${_T}/granite/granite-detail-mask.png`,
+        role:           "accent",
+        colorToken:     "--evcc-floor-granite-light-aggregate",
+        colorDefault:   "#46443f",   // dark aggregate grains over the light stone
+        opacityToken:   "--evcc-floor-granite-light-aggregate-opacity",
+        opacityDefault: 0.6,
+      },
     ],
-    masks:       [],
-    baseTexture: `${_T}/granite/texture-floor-granite-light.png`,
+    masks: [
+      { url: `${_T}/granite/granite-base-mask.png`   },
+      { url: `${_T}/granite/granite-detail-mask.png` },
+    ],
+    baseTexture: `${_T}/granite/granite-base-mask.png`,
   },
 
   default: {

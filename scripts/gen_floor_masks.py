@@ -108,6 +108,50 @@ def gen_concrete_micro(check: bool) -> None:
     print(f"    wrote {dst.name}")
 
 
+def gen_split_from_photo(check: bool, src_name: str, out_dir_name: str, prefix: str,
+                         base_blur: float = 0.03, band_lo: float = 0.006, band_hi: float = 0.03,
+                         base_floor: float = 0.55, detail_gamma: float = 2.6) -> None:
+    """Frequency-split a full-colour PHOTO (carpet / granite) into two masks — the fix
+    for single-photo materials that collapse to black at map scale (see the floor-texture
+    doc). BASE = heavy blur, lifted to a mostly-WHITE broad field (its colour must FILL).
+    DETAIL = a BAND-PASS (blur(band_lo) - blur(band_hi)) so it catches MEDIUM-frequency
+    structure (weave clumps / aggregate) not fine noise, then a darkening gamma so it's a
+    mostly-BLACK field with sparse BOLD white peaks (a mid-grey detail mask just floods the
+    colour as a uniform veil — the concrete-micro lesson)."""
+    from PIL import ImageFilter
+
+    src = TEXTURES / src_name
+    print(f"[{prefix}] split  <-  {src.name}")
+    img = Image.open(src).convert("L").resize((SIZE, SIZE), Image.LANCZOS)
+    base_r = max(1, round(SIZE * base_blur))
+    lo_r = max(1, round(SIZE * band_lo))
+    hi_r = max(1, round(SIZE * band_hi))
+
+    base = np.asarray(img.filter(ImageFilter.GaussianBlur(base_r)), dtype=np.float64)
+    lo = np.asarray(img.filter(ImageFilter.GaussianBlur(lo_r)), dtype=np.float64)
+    hi = np.asarray(img.filter(ImageFilter.GaussianBlur(hi_r)), dtype=np.float64)
+
+    # BASE: normalize the broad tone then lift into [base_floor, 1] -> mostly white, gentle shading.
+    b = (base - base.min()) / (base.max() - base.min() + 1e-6)
+    b = base_floor + (1.0 - base_floor) * b
+    bmask = (b * 255.0).astype(np.uint8)
+
+    # DETAIL: medium-frequency band magnitude, normalized then gamma>1 -> sparse bold white on black.
+    band = np.abs(lo - hi)
+    d = np.clip(band / (np.percentile(band, 98.0) + 1e-6), 0.0, 1.0) ** detail_gamma
+    dmask = (d * 255.0).astype(np.uint8)
+
+    _stats(f"{prefix}-base", bmask.astype(np.float64))
+    _stats(f"{prefix}-detail", dmask.astype(np.float64))
+    if check:
+        return
+    od = TEXTURES / out_dir_name
+    od.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(bmask, "L").save(od / f"{prefix}-base-mask.png")
+    Image.fromarray(dmask, "L").save(od / f"{prefix}-detail-mask.png")
+    print(f"    wrote {prefix}-base-mask.png + {prefix}-detail-mask.png")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="report source stats, write nothing")
@@ -117,6 +161,10 @@ def main() -> None:
         raise SystemExit(f"textures dir not found: {TEXTURES}")
     gen_tile_base(args.check)
     gen_concrete_micro(args.check)
+    # Split the single-photo materials (carpet / granite) into base + bold detail masks.
+    gen_split_from_photo(args.check, "carpet/texture-floor-carpet-low.png",     "carpet",  "carpet-low")
+    gen_split_from_photo(args.check, "carpet/texture-floor-carpet-high.png",    "carpet",  "carpet-high")
+    gen_split_from_photo(args.check, "granite/texture-floor-granite-light.png", "granite", "granite")
     print("done." + (" (check only — nothing written)" if args.check else ""))
 
 
