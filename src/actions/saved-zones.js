@@ -97,6 +97,7 @@ export function applySavedZonesActions(proto) {
   } = {}) {
     const data = { vacuum_entity_id, map_id, zone_id };
     if (clean_times != null) data.clean_times = clean_times;
+    this.state.resetLiveTrail?.();   // fresh trace for this saved-zone clean
     const result = await this.callService(DOMAIN, SERVICE_CLEAN_SAVED_ZONE, data, true);
     return result?.response ?? result;
   };
@@ -115,6 +116,7 @@ export function applySavedZonesActions(proto) {
   } = {}) {
     const data = { vacuum_entity_id, map_id, zone_ids: zone_ids ?? [] };
     if (clean_times != null) data.clean_times = clean_times;
+    this.state.resetLiveTrail?.();   // fresh trace for this multi-zone clean
     const result = await this.callService(DOMAIN, SERVICE_CLEAN_SAVED_ZONES, data, true);
     return result?.response ?? result;
   };

@@ -559,7 +559,7 @@ export const mapStyles = `
     /* width + height set inline by renderer (respects user scale) */
     /* Counter-rotate by the map rotation so the sprite stays upright while its
        anchor still rides the rotated map (var inherited from the content rotator). */
-    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg)));
+    transform:      translate(-50%, -50%) rotate(calc(-1 * var(--evcc-map-rotation, 0deg))) scaleX(var(--evcc-mascot-flip, 1));
     cursor:         grab;
     z-index:        10;
     pointer-events: all;
@@ -580,8 +580,14 @@ export const mapStyles = `
      hop reads as intentional). Not draggable (it's tracking, not placeable). */
   .evcc-map-animal--following {
     cursor:     default;
-    transition: filter 400ms ease, opacity 400ms ease, left 900ms ease, top 900ms ease;
+    transition: filter 400ms ease, opacity 400ms ease, left 900ms ease, top 900ms ease, transform 350ms ease;
   }
+
+  /* Direction-aware mirror (mascot physics). scaleX composes AFTER the upright
+     counter-rotate, so it mirrors horizontally in screen space; easing the transform
+     on --following lets the turn-around glide through scaleX(0) instead of snapping.
+     Normal universe = faces travel; Moonwalk mode = faces backward. */
+  .evcc-map-animal--flip { --evcc-mascot-flip: -1; }
 
   /* Docked / charging — gentle luminance + alpha breath pulse */
   .evcc-map-animal--pulse {

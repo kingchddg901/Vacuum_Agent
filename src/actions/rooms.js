@@ -96,6 +96,9 @@ export function applyRoomsActions(proto) {
       startRequest.strict_order = true;
     }
 
+    // Fresh trace for this clean (state.resetLiveTrail) — a whole multi-room run is ONE trace;
+    // mid-clean docks (recharge / strict-order return) don't call this, so they never split it.
+    this.state.resetLiveTrail?.();
     const startResult = await this.callService(
       DOMAIN,
       SERVICE_START_SELECTED_ROOMS,

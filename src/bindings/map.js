@@ -1801,6 +1801,13 @@ export function applyMapBindings(proto) {
         this.card._scheduleRender();
       });
     });
+    // Mascot physics: Normal universe (faces travel) <-> Moonwalk mode (faces backward).
+    root.querySelectorAll("[data-action='map-animal-moonwalk-toggle']").forEach((btn) => {
+      this.card._on(btn, "click", () => {
+        this.card._state.toggleMapAnimalMoonwalk?.();
+        this.card._scheduleRender();
+      });
+    });
     // Floor textures on/off — map polygons and room cards toggle independently.
     root.querySelectorAll("[data-action='map-texture-toggle']").forEach((btn) => {
       this.card._on(btn, "click", () => {

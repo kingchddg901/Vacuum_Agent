@@ -1190,6 +1190,9 @@ export const en = {
   "rooms.mascot_follow_off": "Make the mascot ride the live robot position (replaces the dot)",
   "rooms.mascot_follow_on": "Mascot follows the live robot position — tap for room/dock mode",
   "rooms.mascot_follows_robot": "Mascot follows robot",
+  "rooms.mascot_physics": "Mascot physics",  // aria-label for the Normal-universe / Moonwalk-mode toggle button
+  "rooms.moonwalk_off": "Normal universe — the mascot faces the way it's heading. Tap for Moonwalk mode.",  // toggle title, direction-aware facing ON (default). "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
+  "rooms.moonwalk_on": "🕺 Moonwalk mode — the mascot glides backward. Tap for Normal universe.",  // toggle title, Moonwalk mode ON. "Moonwalk": a playful reference to Michael Jackson's moonwalk dance, not walking on the Moon. The mascot intentionally appears to move backward.
   "rooms.mode_label": "Mode: {value}",
   "rooms.mode_mop": "Mop",  // per-room clean-MODE chip value (mop action), not the dock mop-wash
   "rooms.mode_vacuum": "Vacuum",  // per-room clean-MODE chip value (vacuum action), not the device/vacuum noun

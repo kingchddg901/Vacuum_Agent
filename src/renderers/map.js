@@ -680,6 +680,17 @@ export function applyMapRenderers(proto) {
             <line x1="8" y1="0.5" x2="8" y2="3"/><line x1="8" y1="13" x2="8" y2="15.5"/>
             <line x1="0.5" y1="8" x2="3" y2="8"/><line x1="13" y1="8" x2="15.5" y2="8"/>
           </svg>
+        </button>
+        <button
+          class="evcc-rooms-view-toggle-btn${(state.mapAnimalMoonwalk?.() ?? false) ? " active" : ""}"
+          data-action="map-animal-moonwalk-toggle"
+          title="${(state.mapAnimalMoonwalk?.() ?? false) ? this.t("rooms.moonwalk_on") : this.t("rooms.moonwalk_off")}"
+          aria-label="${this.t("rooms.mascot_physics")}"
+          aria-pressed="${(state.mapAnimalMoonwalk?.() ?? false) ? "true" : "false"}"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 11 H11"/><path d="M6 8 L3 11 L6 14"/><circle cx="12.4" cy="4.2" r="1.5" fill="currentColor" stroke="none"/>
+          </svg>
         </button>`;
   };
 
@@ -891,7 +902,13 @@ export function applyMapRenderers(proto) {
       if (mss && Array.isArray(mss.robot_anchor) && mss.robot_anchor.length === 2) {
         const { tx, ty } = this._overlayTransform(state);
         const [rx, ry] = mss.robot_anchor;
-        return this._animalDivHtml(state, vacuumStatus, (+tx(rx)).toFixed(2), (+ty(ry)).toFixed(2), null);
+        // Direction-aware mirror (follow mode only): face travel (Normal universe) or its
+        // opposite (Moonwalk mode). facing = committed travel sign (+1 = moving screen-right).
+        // The animal sprites are authored facing LEFT, so mirror when the EFFECTIVE facing is
+        // screen-RIGHT (eff > 0) — confirmed against the live render 2026-07-05.
+        const facing = state.mascotFacing?.() ?? 1;
+        const eff = (state.mapAnimalMoonwalk?.() ?? false) ? -facing : facing;
+        return this._animalDivHtml(state, vacuumStatus, (+tx(rx)).toFixed(2), (+ty(ry)).toFixed(2), null, eff > 0);
       }
     }
 
@@ -1006,7 +1023,7 @@ export function applyMapRenderers(proto) {
      anchorKey == null → follow-robot mode: NO drag (it's tracking the live pixel).
      Battery state is an auxiliary visual signal orthogonal to pose (five-band
      charging/good/mid/warn/low → eye color via :host([battery-state]) + charge pulse). */
-  proto._animalDivHtml = function (state, vacuumStatus, pct_x, pct_y, anchorKey) {
+  proto._animalDivHtml = function (state, vacuumStatus, pct_x, pct_y, anchorKey, flip) {
     const pose         = _vacuumStateToPose(vacuumStatus ?? "");
     const isDocked     = pose === "curled";
     const animal       = state.mapAnimalSelection?.() ?? "cat";
@@ -1019,7 +1036,7 @@ export function applyMapRenderers(proto) {
         + ` title="${isDocked ? this.t("map.mascot_dock_home") : this.t("map.mascot_reposition")}"`
       : ` title="${this.t("map.mascot_following")}"`;
     return `<div class="evcc-map-animal${isDocked ? " evcc-map-animal--pulse" : ""}`
-         + `${anchorKey == null ? " evcc-map-animal--following" : ""}"`
+         + `${anchorKey == null ? " evcc-map-animal--following" : ""}${flip ? " evcc-map-animal--flip" : ""}"`
          + ` style="left:${pct_x}%;top:${pct_y}%;width:${W}px;height:${H}px"${drag}`
          + `><animal-svg animal="${this.escapeHtml(animal)}" pose="${this.escapeHtml(pose)}"`
          + ` width="${W}px" height="${H}px" battery-state="${this.escapeHtml(batteryState)}"></animal-svg></div>`;

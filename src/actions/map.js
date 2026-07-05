@@ -46,6 +46,7 @@ export function applyMapActions(proto) {
     const data = { vacuum_entity_id: vacuum, zones, clean_times: cleanTimes };
     const mapId = this.state.activeMapId?.();
     if (mapId) data.map_id = mapId;
+    this.state.resetLiveTrail?.();   // fresh trace for this zone clean
     return await this.callService(DOMAIN, SERVICE_START_ZONE_CLEAN, data, true);
   };
 

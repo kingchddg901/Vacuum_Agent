@@ -1,6 +1,9 @@
 // Card-local state for the map view: zoom/pan transform, segment selection, segment↔room associations,
 // dot anchor positions, robot-position room detection, and animal companion settings.
 
+import { mascotFacingSign, commitFacing } from "./mascot-facing.js";
+import { accumulateTrail } from "./live-trail.js";
+
 // Smallest slice of the scaled map content (in container px) that must stay
 // inside the viewport. The pinned translate is stored in absolute container px,
 // so a view saved for one container size and restored into a smaller one (window
@@ -8,6 +11,12 @@
 // content entirely outside the box → blank map. clampMapTransform keeps at least
 // this much on-screen so the map is always reachable (and pannable back).
 const MAP_VIEW_MARGIN_PX = 32;
+
+// Own cleaning-trail (mapOverlayData path): the fork's own trail attribute caps/sticks after
+// ~a room, so we build the trail from the robot ANCHOR (which keeps updating), freezing it
+// while docked and resetting only on a card-dispatched clean (see live-trail.js). The point
+// list is bounded so it can't grow without limit.
+const TRAIL_MAX_POINTS = 600;
 
 export function applyMapState(proto) {
   proto._mapViewActive = null; // null = not yet read from localStorage
@@ -927,10 +936,51 @@ export function applyMapState(proto) {
      STATIC segmentation (rooms/area/hazards/image_size) stays from the snapshot while
      the moving fields track live. null => no live override (poll off / unsupported). */
   proto._livePose = null;
+  // Mascot travel-facing tracker (direction-aware sprite mirror). committed = -1|+1,
+  // cand/count = the boustrophedon debounce streak; prevAnchor = last robot_anchor.
+  proto._mascotFacing = { committed: 1, cand: 0, count: 0 };
+  proto._mascotPrevAnchor = null;
+  proto._liveTrail = null;      // OUR position-built cleaning trail (per clean), or null
   proto.setLivePose = function (pose) {
-    this._livePose = (pose && pose.present) ? pose : null;
+    const next = (pose && pose.present) ? pose : null;
+    // Travel direction from the CHANGE in robot_anchor (Eufy exposes no heading),
+    // projected through the display rotation to screen-x, debounced, committed. Only
+    // while a live anchor is streaming; cleared on dock/loss so a parked mascot can't
+    // inherit a stale delta and flip on the next move.
+    const anchor = next && Array.isArray(next.robot_anchor) && next.robot_anchor.length === 2
+      ? next.robot_anchor
+      : null;
+    if (anchor && this._mascotPrevAnchor) {
+      const sign = mascotFacingSign(
+        anchor[0] - this._mascotPrevAnchor[0],
+        anchor[1] - this._mascotPrevAnchor[1],
+        this.effectiveMapRotation?.() ?? 0,
+      );
+      this._mascotFacing = commitFacing(this._mascotFacing, sign);
+    }
+    // OWN cleaning trail (see live-trail.js): the fork's trail caps/sticks after ~a room, so
+    // build it from the anchor — accumulate while cleaning, FREEZE while docked (a mid-clean
+    // recharge just pauses it). Reset is external: the card calls resetLiveTrail() on a clean
+    // dispatch, so a whole multi-room clean is ONE trace and a dock hit never splits it.
+    this._liveTrail = accumulateTrail(
+      this._liveTrail, anchor, Boolean(next && next.robot_docked), { max: TRAIL_MAX_POINTS },
+    );
+    this._mascotPrevAnchor = anchor;
+    this._livePose = next;
   };
   proto.livePose = function () { return this._livePose; };
+  // Committed travel-facing sign: +1 = moving screen-right, -1 = screen-left. The renderer
+  // decides the mirror from this + the animals' authored facing (LEFT) + the moonwalk mode.
+  proto.mascotFacing = function () { return this._mascotFacing?.committed ?? 1; };
+  // OUR position-built cleaning trail (>= 2 points) or null — overrides the fork's capped/
+  // sticking trail in mapOverlayData().
+  proto.liveTrail = function () {
+    return (Array.isArray(this._liveTrail) && this._liveTrail.length >= 2) ? this._liveTrail : null;
+  };
+  // Start a fresh trace — the card calls this on a clean DISPATCH (room / zone / saved zone),
+  // so a whole multi-room clean is one trace and only a new clean wipes it. A mid-clean dock
+  // (recharge / strict-order return) does NOT call this, so it never splits the trace.
+  proto.resetLiveTrail = function () { this._liveTrail = null; };
 
   // The overlay source the device-overlay renderers read: the snapshot map_state_source
   // with the live pose's moving fields layered on top (when present). Same normalized
@@ -952,6 +1002,10 @@ export function applyMapState(proto) {
     if (lp.robot_heading != null) merged.robot_heading = lp.robot_heading;
     if (Array.isArray(lp.path)) merged.path = lp.path;
     merged.robot_docked = Boolean(lp.robot_docked);
+    // Our position-built trail wins over the fork's (which caps/sticks after ~a room); fall
+    // back to the fork trail until we've accumulated enough points of our own.
+    const ownTrail = this.liveTrail();
+    if (ownTrail) merged.path = ownTrail;
     return merged;
   };
 
@@ -2042,6 +2096,33 @@ export function applyMapState(proto) {
   };
   proto.toggleMapAnimalFollowsRobot = function () {
     this.setMapAnimalFollowsRobot(!this.mapAnimalFollowsRobot());
+  };
+
+  /* ---- Mascot physics: Normal universe vs Moonwalk mode (per vacuum, localStorage) ----
+     OFF (default) = "Normal universe": the sprite faces its travel direction (mascotFacing).
+     ON = "Moonwalk mode": the sprite faces the OPPOSITE of travel, so it glides backward. */
+  proto._mapAnimalMoonwalk = null; // null = not yet read
+  proto._animalMoonwalkKey = function () {
+    return `evcc_animal_moonwalk_${(this.vacuumObjectId() || "")}`;
+  };
+  proto.mapAnimalMoonwalk = function () {
+    if (this._mapAnimalMoonwalk === null) {
+      try {
+        this._mapAnimalMoonwalk = localStorage.getItem(this._animalMoonwalkKey()) === "1";
+      } catch (_) {
+        this._mapAnimalMoonwalk = false;
+      }
+    }
+    return this._mapAnimalMoonwalk;
+  };
+  proto.setMapAnimalMoonwalk = function (on) {
+    this._mapAnimalMoonwalk = !!on;
+    try {
+      localStorage.setItem(this._animalMoonwalkKey(), on ? "1" : "0");
+    } catch (_) {}
+  };
+  proto.toggleMapAnimalMoonwalk = function () {
+    this.setMapAnimalMoonwalk(!this.mapAnimalMoonwalk());
   };
 
   /* =========================================================
