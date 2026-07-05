@@ -10,6 +10,23 @@ only.
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-07-05
+
+A handful of small fixes and tweaks on top of 1.6.0 — no new headline features.
+
+### Added
+- **Card suggestions.** Adding one of your vacuums to a dashboard now surfaces the
+  Vacuum Agent **Dashboard** and **Room** cards in Home Assistant's card picker, so you
+  don't have to hunt for them (requires HA 2026.6+). The full command center stays in the
+  sidebar where it belongs.
+
+### Fixed
+- **Mascots face the way they're travelling** instead of always sliding backward — plus a
+  **Moonwalk** toggle if you preferred the moonwalk. The live cleaning trail now follows the
+  robot reliably and stays on screen between cleans, so you can see what was just cleaned.
+- **Granite and concrete floors stay put.** Applying a room profile no longer quietly
+  reverts those floor types back to hardwood.
+
 ## [1.6.0] - 2026-07-05
 
 **Floor textures, saved zones, and Roborock room rendering.** The biggest visual and
