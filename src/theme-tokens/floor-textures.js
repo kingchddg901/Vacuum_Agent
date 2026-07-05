@@ -66,7 +66,7 @@ export const FLOOR_TEXTURE_TOKENS = [
 
   /* === WOOD === */
   gw.color( "--evcc-floor-wood-base",                "Wood Base Color"),
-  gw.color( "--evcc-floor-wood-accent",              "Wood Seam Color"),
+  gw.color( "--evcc-floor-wood-accent",              "Wood Grain & Seam Color"),
   gw.unit(  "--evcc-floor-wood-opacity-card",        "Wood Card Opacity"),
   gw.unit(  "--evcc-floor-wood-depth-opacity",       "Wood Depth Layer Opacity"),
   gw.unit(  "--evcc-floor-wood-grain-opacity",       "Wood Grain Layer Opacity"),

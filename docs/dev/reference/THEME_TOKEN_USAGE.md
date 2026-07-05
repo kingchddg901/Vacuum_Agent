@@ -1571,7 +1571,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-floor-wood-base`** — Wood Base Color · default —
 - _no consumer — only seeded_
 
-**`--evcc-floor-wood-accent`** — Wood Seam Color · default —
+**`--evcc-floor-wood-accent`** — Wood Grain & Seam Color · default —
 - _no consumer — only seeded_
 
 **`--evcc-floor-wood-opacity-card`** — Wood Card Opacity · default —

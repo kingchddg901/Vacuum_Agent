@@ -88,9 +88,9 @@ export const FLOOR_TEXTURE_REGISTRY = {
       },
       {
         url:            `${_T}/wood/wood-grain-mask.png`,
-        role:           "base",
-        colorToken:     "--evcc-floor-wood-base",
-        colorDefault:   "#7A4010cf",
+        role:           "grain",
+        colorToken:     "--evcc-floor-wood-accent",
+        colorDefault:   "#3a2409",
         opacityToken:   "--evcc-floor-wood-grain-opacity",
         opacityDefault: 0.76,
       },
@@ -98,7 +98,7 @@ export const FLOOR_TEXTURE_REGISTRY = {
         url:            `${_T}/wood/wood-seam-mask.png`,
         role:           "accent",
         colorToken:     "--evcc-floor-wood-accent",
-        colorDefault:   "#e89754",
+        colorDefault:   "#3a2409",   // dark groove/grain — was light #e89754 (invisible plank def on map)
         opacityToken:   "--evcc-floor-wood-seam-opacity",
         opacityDefault: 0.70,
       },

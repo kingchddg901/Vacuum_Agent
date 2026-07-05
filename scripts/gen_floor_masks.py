@@ -152,6 +152,73 @@ def gen_split_from_photo(check: bool, src_name: str, out_dir_name: str, prefix: 
     print(f"    wrote {prefix}-base-mask.png + {prefix}-detail-mask.png")
 
 
+def gen_wood_planks(check: bool, plank_w: int = 256, plank_l: int = 512,
+                    face_lo: float = 0.86, groove_wash: float = 0.16,
+                    grain_amp: float = 90.0) -> None:
+    """Procedural SEAMLESS hardwood — the replacement for the photographic wood swatch whose baked
+    plank-ends read as glitchy 'stops' when the map tiles it (and whose base/grain layers, sharing
+    the base colour, were invisible on the opaque map floor so only the seams showed). Writes the
+    three wood layer masks with a staggered running-bond plank grid that EDGE-WRAPS (no repetition
+    seam):
+        wood-directional-depth-mask.png -> plank FACES  (mostly white; the base colour fills)
+        wood-grain-mask.png             -> fine vertical GRAIN streaks (accent colour reveals dark)
+        wood-seam-mask.png              -> plank-edge GROOVES + staggered joint ends (accent)
+    Seamless because plank_w divides SIZE (whole columns) and there are exactly SIZE/plank_l planks
+    per column, tones indexed mod that count, with per-column vertical offsets that wrap mod plank_l.
+    On the map the grooves/grain (accent colour, distinct from the base) give the plank definition;
+    on the cards the plank FACES show over the card surface too."""
+    print("[wood] procedural seamless staggered planks")
+    rng = np.random.default_rng(1971)
+    N = SIZE
+    ncol = N // plank_w
+    npl = N // plank_l                       # planks per column — exact, so tones wrap seamlessly
+    y = np.arange(N)
+
+    face = np.full((N, N), 255.0)
+    grain = np.zeros((N, N))
+    groove = np.zeros((N, N))
+
+    for c in range(ncol):
+        x0, x1 = c * plank_w, (c + 1) * plank_w
+        off = int(rng.integers(0, plank_l))
+        pidx = (((y + off) // plank_l) % npl).astype(int)          # plank index, wraps -> seamless
+        along = ((y + off) % plank_l) / plank_l                    # 0..1 along the plank
+
+        # FACE: gentle per-plank tone + soft end-darkening (mostly for the card, where faces show).
+        tones = rng.uniform(face_lo, 1.0, size=npl)
+        fcol = tones[pidx] * (1.0 - 0.05 * (np.abs(along - 0.5) * 2.0) ** 4)
+        face[:, x0:x1] = np.clip(fcol, 0.0, 1.0)[:, None] * 255.0
+
+        # GROOVE: a thin joint line where each plank starts + a faint per-plank wash (some planks a
+        # touch darker on the map, since the FACE tone itself is base-on-base and invisible there).
+        gcol = np.where(((y + off) % plank_l) < 3, 255.0, 0.0)
+        wash = rng.uniform(0.0, groove_wash, size=npl)[pidx] * 255.0
+        groove[:, x0:x1] = np.maximum(gcol, wash)[:, None]
+
+        # GRAIN: sparse vertical streaks, brightness modulated along y with an INTEGER number of
+        # sine cycles over N so it wraps; per-column phase resets are hidden under the vert grooves.
+        streak = (rng.uniform(0, 1, size=plank_w) > 0.70) * rng.uniform(0.3, 1.0, size=plank_w)
+        phase = rng.uniform(0.0, 2.0 * np.pi, size=plank_w)
+        ymod = 0.55 + 0.45 * np.sin(y[:, None] * (2.0 * np.pi * 32.0 / N) + phase[None, :])
+        grain[:, x0:x1] = np.clip(streak[None, :] * ymod * grain_amp, 0.0, 255.0)
+
+    # VERTICAL grooves at every plank-column boundary (full height; x=0 is also the wrapped x=N).
+    for c in range(ncol):
+        x = c * plank_w
+        groove[:, max(0, x - 1):x + 2] = 255.0
+
+    _stats("wood-face", face)
+    _stats("wood-grain", grain)
+    _stats("wood-groove", groove)
+    if check:
+        return
+    od = TEXTURES / "wood"
+    Image.fromarray(face.astype(np.uint8), "L").save(od / "wood-directional-depth-mask.png")
+    Image.fromarray(grain.astype(np.uint8), "L").save(od / "wood-grain-mask.png")
+    Image.fromarray(groove.astype(np.uint8), "L").save(od / "wood-seam-mask.png")
+    print("    wrote wood-directional-depth + wood-grain + wood-seam masks")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--check", action="store_true", help="report source stats, write nothing")
@@ -161,6 +228,7 @@ def main() -> None:
         raise SystemExit(f"textures dir not found: {TEXTURES}")
     gen_tile_base(args.check)
     gen_concrete_micro(args.check)
+    gen_wood_planks(args.check)
     # Split the single-photo materials (carpet / granite) into base + bold detail masks.
     gen_split_from_photo(args.check, "carpet/texture-floor-carpet-low.png",     "carpet",  "carpet-low")
     gen_split_from_photo(args.check, "carpet/texture-floor-carpet-high.png",    "carpet",  "carpet-high")

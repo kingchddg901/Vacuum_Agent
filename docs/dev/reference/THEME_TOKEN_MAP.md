@@ -178,7 +178,7 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | Token | Controls | Type | Range |
 |---|---|---|---|
 | `--evcc-floor-wood-base` | Wood Base Color | color |  |
-| `--evcc-floor-wood-accent` | Wood Seam Color | color |  |
+| `--evcc-floor-wood-accent` | Wood Grain & Seam Color | color |  |
 | `--evcc-floor-wood-opacity-card` | Wood Card Opacity | number | 0–1 step 0.01 |
 | `--evcc-floor-wood-depth-opacity` | Wood Depth Layer Opacity | number | 0–1 step 0.01 |
 | `--evcc-floor-wood-grain-opacity` | Wood Grain Layer Opacity | number | 0–1 step 0.01 |
