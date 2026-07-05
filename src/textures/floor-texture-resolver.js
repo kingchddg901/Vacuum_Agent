@@ -51,3 +51,18 @@ export function resolveFloorType(room) {
 
   return "default";
 }
+
+/**
+ * Normalise a map-texture rotation (degrees) to a stable value: coerce non-finite to 0,
+ * quantise to 0.1° so tiny getComputedStyle noise can't churn the render cache, and wrap
+ * into [-180, 180). 0 = as-authored. Folded into the mask pattern matrix at decode time.
+ *
+ * @param {number} deg - Raw rotation in degrees (may be NaN / out of range).
+ * @returns {number} Quantised, wrapped degrees in [-180, 180).
+ */
+export function normalizeFloorRotationDeg(deg) {
+  let d = Number.isFinite(deg) ? deg : 0;
+  d = ((d % 360) + 540) % 360 - 180;   // wrap to [-180, 180)
+  d = Math.round(d * 10) / 10;         // quantise to 0.1° AFTER the wrap so no FP tail lingers
+  return d >= 180 ? d - 360 : d;       // rounding can nudge 179.96 -> 180; keep it in range
+}

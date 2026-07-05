@@ -13,7 +13,7 @@
 import { VIEWS } from "../render-cycle.js";
 import { roomFillRgb, roomOverrideRgb, ROOM_FILL_N } from "../cards/map-room-color.js";
 import { FLOOR_TEXTURE_REGISTRY, getPrimaryTextureUrl } from "../textures/floor-texture-registry.js";
-import { resolveFloorType } from "../textures/floor-texture-resolver.js";
+import { resolveFloorType, normalizeFloorRotationDeg } from "../textures/floor-texture-resolver.js";
 import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 
 // Apparent size of the floor material on the map: the 2048² masks are drawn to fill a
@@ -801,11 +801,7 @@ export function applyMapBindings(proto) {
         if (v) { const n = parseFloat(v); if (Number.isFinite(n)) deg = n; }
       }
     } catch (_e) { /* keep 0 */ }
-    // Quantize so tiny getComputedStyle noise doesn't churn the cache; wrap to [-180,180).
-    let d = Number.isFinite(deg) ? deg : 0;
-    d = Math.round(d * 10) / 10;
-    d = ((d % 360) + 540) % 360 - 180;
-    return d;
+    return normalizeFloorRotationDeg(deg);
   };
 
   /* =========================================================

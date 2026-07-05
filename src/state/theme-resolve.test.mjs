@@ -93,6 +93,10 @@ test("[RT-1b] resolvedTheme seeds floor-texture editor tokens from the render re
   // THEME_TOKEN_MAP), so their oklch()/calc() defaults must NOT leak into the seed.
   assert.equal(sources["--evcc-floor-marble-vein-minor-color-eff"], undefined);
   assert.equal(tokens["--evcc-floor-marble-vein-minor-color-eff"], undefined);
+
+  // The global map-texture rotation is seeded to "0" (neutral) so its editor slider centres.
+  assert.equal(tokens["--evcc-floor-texture-map-rotate"], "0");
+  assert.equal(sources["--evcc-floor-texture-map-rotate"], "default");
 });
 
 test("[RT-2] active theme overrides the palette seed and stamps source 'theme'", () => {

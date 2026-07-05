@@ -207,6 +207,18 @@ The map view's small toolbar also controls the cosmetic layers:
 
 You can recolour the map's labels and overlays in the **Theme editor → Map** group.
 
+### Tuning the floor materials
+
+With **Map textures** on (▨), each room is painted with its **floor type's material** — wood planks, tile with grout, marble veining, concrete, granite, or low-/high-pile carpet — read as one continuous floor across rooms of the same type. Which room is which material comes from the floor types you set in the **Eufy app's Map Editor**; Vacuum Agent just paints them.
+
+You can make each material match your real floors in **Theme editor → Floor Textures**:
+
+- **Colours** — every material has a **base** colour plus a **detail** layer (wood grain & seams, carpet weave, granite aggregate, tile grout, marble veins). Set both to match your floor — e.g. a warm greige base with a slightly darker weave for a grey carpet. Keeping the two close gives a soft, uniform look; a bigger gap makes the pattern pop.
+- **Layer opacities** — dial each layer's strength up or down (soften the wood grain, or turn the carpet weave into a gentle mottle instead of bold specks).
+- **Map Texture Rotation** — in the **Floor Textures** master group, this turns the whole texture grid so directional materials (wood planks, tile grout) run the way they actually do in your home. `0°` is as-authored; drag it until the planks line up.
+
+Everything previews live on the map. The room **cards** show the same materials as a small per-card swatch (a texture *hint*, tuned by the same colours) — so map and cards read consistently, even though the map is a to-scale floor and a card is one stretched swatch.
+
 ### Recolour a single room
 
 Open the room editor (tap a room, or its settings) and use the **Room Color** swatch to pick a custom map fill for just that room. A custom pick overrides both the shared room palette and any theme room-fill token (`--evcc-room-fill-<N>`); it applies to both the map polygon and the room card. Click **Reset** to clear it and return to **Default (palette)**.
