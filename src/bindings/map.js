@@ -35,7 +35,7 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   concrete:      0.05,  // two-layer (broad + micro)
   granite_light: 0.05,  // re-authored as base + bold aggregate mask -> has real structure now
   carpet_low:    0.09,  // re-authored as base + bold weave mask
-  carpet_high:   0.35,  // weave washed flat on large rooms at 0.2 — bigger tile reads bolder
+  carpet_high:   0.5,  // weave washed flat on large rooms — bigger tile reads bolder
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
