@@ -32,10 +32,10 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   marble:        0.05,
   tile:          0.05,
   wood:          0.05,
-  concrete:      0.05,  // two-layer (broad + micro)
+  concrete:      0.09,  // two-layer (broad + micro)
   granite_light: 0.05,  // re-authored as base + bold aggregate mask -> has real structure now
   carpet_low:    0.09,  // re-authored as base + bold weave mask
-  carpet_high:   0.5,  // weave washed flat on large rooms — bigger tile reads bolder
+  carpet_high:   0.09,  // dense fleck weave reads best at small/dense tile (matches carpet_low)
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
