@@ -33,6 +33,9 @@ playwright-report/
 /site/
 /site-docs/
 
+# Promo/marketing draft stash (forum posts, etc.) — local convenience, NOT part of the published docs site
+docs/promo/
+
 # HA user data (never commit)
 *.storage
 .storage/
