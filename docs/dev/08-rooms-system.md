@@ -319,7 +319,7 @@ A managed room dict (stored in `data["maps"][vacuum][map_id]["rooms"][room_id_st
 | `enabled` | bool | Whether this room is selected for the next job |
 | `is_configured` | bool | True after save_rooms step ran (used by drift tracker) |
 | `configured_at` | str | ISO-8601 timestamp stamped when the room was first configured (preserved across re-saves) |
-| `floor_type` | str | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. (The old `"carpet"` + `carpet_type` shape was migrated away.) |
+| `floor_type` | str | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"granite"`, `"concrete"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. (The old `"carpet"` + `carpet_type` shape was migrated away.) |
 | `profile_name` | str | Matched room profile name, or `"custom"` |
 | `clean_mode` | str | `"vacuum"`, `"mop"`, or `"vacuum_mop"` |
 | `fan_speed` | str | e.g. `"Standard"` |

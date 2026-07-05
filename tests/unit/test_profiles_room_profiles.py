@@ -25,6 +25,7 @@ from __future__ import annotations
 import pytest
 
 from custom_components.eufy_vacuum.profiles.room_profiles import (
+    _normalize_floor_type,
     apply_capability_gate,
     get_available_profile_names,
     get_available_profiles,
@@ -285,3 +286,20 @@ def test_legacy_alias_vacuum_mop_standard_resolves_to_vacuum_mop_quick():
         profile_name="vacuum_mop_standard", floor_type="tile"
     )
     assert result == "vacuum_mop_quick"
+
+
+# ---------------------------------------------------------------------------
+# [RP-17] _normalize_floor_type: granite/concrete are canonical (not coerced)
+# ---------------------------------------------------------------------------
+def test_normalize_floor_type_keeps_granite_and_concrete():
+    """[RP-17] granite + concrete are settable (Setup dropdown) and rendered on the
+    floor-texture map, so the profile normalizer must NOT coerce them to hardwood.
+    Regression for apply_room_profile_to_config's normalize-on-write silently
+    downgrading a granite/concrete room to hardwood on any profile apply."""
+    assert _normalize_floor_type("granite") == "granite"
+    assert _normalize_floor_type("concrete") == "concrete"
+    # the rest of the canonical set is unchanged
+    for ft in ("hardwood", "laminate", "tile", "marble", "carpet_low_pile", "carpet_high_pile"):
+        assert _normalize_floor_type(ft) == ft
+    assert _normalize_floor_type("carpet") == "carpet_low_pile"   # legacy migration kept
+    assert _normalize_floor_type("bogus") == "hardwood"           # unknown -> default

@@ -149,7 +149,7 @@ class RoomRecord(TypedDict, total=False):
     enabled: bool
     order: int
     profile_name: Optional[str]
-    floor_type: str             # "hardwood"|"laminate"|"tile"|"marble"|"carpet_low_pile"|"carpet_high_pile"
+    floor_type: str             # "hardwood"|"laminate"|"tile"|"marble"|"granite"|"concrete"|"carpet_low_pile"|"carpet_high_pile"
     clean_mode: str
     fan_speed: str
     water_level: str

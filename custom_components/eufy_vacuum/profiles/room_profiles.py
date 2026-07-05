@@ -232,14 +232,17 @@ def _normalize_profile_name(
 def _normalize_floor_type(floor_type: str | None) -> str:
     """Normalize floor type.
 
-    Canonical values: "hardwood", "laminate", "tile", "marble",
-    "carpet_low_pile", "carpet_high_pile".
+    Canonical values: "hardwood", "laminate", "tile", "marble", "granite",
+    "concrete", "carpet_low_pile", "carpet_high_pile".
     Legacy value "carpet" is migrated to "carpet_low_pile".
     """
     raw = str(floor_type or "hardwood").strip().lower()
     if raw == "carpet":
         return "carpet_low_pile"
-    allowed = {"hardwood", "laminate", "tile", "marble", "carpet_low_pile", "carpet_high_pile"}
+    allowed = {
+        "hardwood", "laminate", "tile", "marble", "granite", "concrete",
+        "carpet_low_pile", "carpet_high_pile",
+    }
     return raw if raw in allowed else "hardwood"
 
 

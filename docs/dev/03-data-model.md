@@ -388,7 +388,7 @@ TypedDict defined in `models/models.py`. Stored as a plain `dict` in
 | `is_configured` | `bool` | Gating flag: only rooms with `True` become HA entities. Backfilled `True` for pre-existing rooms; new rooms enter `False` and advance through the setup wizard. |
 | `configured_at` | `str \| None` | ISO timestamp the room was approved/backfilled — stamped (`setdefault`) when `is_configured` first flips `True`. Defined on `RoomConfig`; like `is_transition`, not in the `RoomRecord` TypedDict. |
 | `profile_name` | `str \| None` | Active preset name; default `"vacuum_quick"`. |
-| `floor_type` | `str` | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. |
+| `floor_type` | `str` | One of: `"hardwood"`, `"laminate"`, `"tile"`, `"marble"`, `"granite"`, `"concrete"`, `"carpet_low_pile"`, `"carpet_high_pile"`. Carpet pile is encoded in the value — use `floor_type.startswith("carpet")` rather than a separate flag. |
 | `clean_mode` | `str` | `"vacuum"`, `"mop"`, or `"vacuum_mop"`. |
 | `fan_speed` | `str` | e.g. `"Max"`, `"Boost"`, `"Standard"`, `"Quiet"`. |
 | `water_level` | `str` | `"Off"`, `"Low"`, `"Medium"`, `"High"`. |

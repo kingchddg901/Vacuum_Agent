@@ -1640,8 +1640,8 @@ from ...profiles.room_profiles import (
 defaults and declare nothing here. A `ProfileRecord` editor (the same one
 the room editor uses) seeds `builtins` / `custom_template`; the two
 floor-type maps are key-value editors keyed by the canonical floor types
-(`hardwood`, `laminate`, `tile`, `marble`, `carpet_low_pile`,
-`carpet_high_pile`).
+(`hardwood`, `laminate`, `tile`, `marble`, `granite`, `concrete`,
+`carpet_low_pile`, `carpet_high_pile`).
 
 ---
 
