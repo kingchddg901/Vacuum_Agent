@@ -30,7 +30,7 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   marble:   0.11,  // broad veins — confirmed great
   tile:     0.13,  // grid + speckle — ok
   granite:  0.4,   // FINE speckle — needs a much bigger scale or it flattens to black
-  wood:     0.11,  // planks + grain
+  wood:     0.05,  // planks + grain
   concrete: 0.28,  // broad mottle + micro
 };
 
