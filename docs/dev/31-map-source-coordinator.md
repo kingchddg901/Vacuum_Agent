@@ -126,7 +126,12 @@ Diagnostic **verify probe (P1)**: reads eufy-clean's in-memory `_map_data` AND t
 async_get_map_render_data(*, vacuum_entity_id: str) -> dict[str, Any]
 ```
 
-Returns the raster + decode params for the card's **own** map render (Wave 1). Adapter-driven: the adapter's `map_render.format` selects the decode (only `eufy_room_pixels_v1` today), and the **source pointer is reused from `map_state_source`** (no duplicate schema). Memory-primary again — when a `memory` block is declared it reads eufy-clean's in-memory raster first (`render_data_from_storage`) and falls back to the off-loop `.storage` read (`eufy_render_data_from_store`). The card calls this on demand (when the VA-rendered backdrop is selected) and caches by the returned `version`; the raster is static (changes only on a re-map), so it's fetch-once, not snapshot bloat. Degrades to `{present: False, reason}`.
+Returns the raster + decode params for the card's **own** map render (Wave 1). Adapter-driven: the adapter's `map_render.format` selects the decode, and the **source pointer is reused from `map_state_source`** (no duplicate schema). Two formats today:
+
+- **`eufy_room_pixels_v1`** — read eufy-clean's persisted `room_pixels` raster. Memory-primary (in-memory raster first via `render_data_from_storage`) with an off-loop `.storage` fallback (`eufy_render_data_from_store`).
+- **`roborock_raw_map_v1`** — Roborock keeps no persisted raster, so `mapping/roborock_raw_map.py` **re-decodes the raw map blob's segment layer** (surviving on the v1 `MapContent.raw_api_response` in HA memory) into a room-id raster, then `roborock_render_data()` wraps it in the **same** `eufy_room_pixels_v1` payload shape. So the card decode is identical for both brands; only the backend source differs. v1 (S6 / Q-class) only. See [29 §`map_render`](29-roborock-adapter.md#map_render--re-decode-the-raw-segment-layer-to-a-room-raster) for the byte format + the `geometry_drift` decode-validation.
+
+The card calls this on demand (when the VA-rendered backdrop is selected) and caches by the returned `version`; the raster is static (changes only on a re-map), so it's fetch-once, not snapshot bloat. Degrades to `{present: False, reason}`.
 
 ### 3.5 `get_live_mapdata_obj` + `async_get_map_data_dict`
 

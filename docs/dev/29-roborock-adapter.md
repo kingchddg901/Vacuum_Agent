@@ -180,6 +180,45 @@ polygons are hand-drawn over the live image via the custom-layout composer
 (dispatch is by room id, so approximate polygons are fine). See
 [11-mapping-system](11-mapping-system.md) and [frontend/architecture-overview](frontend/architecture-overview.md).
 
+### `map_render` — re-decode the raw segment layer to a room raster
+`mapping` above gives the card a *backdrop*; `map_render` gives it a **per-pixel
+room-id raster** so Roborock rides the **same** raster render pipeline as Eufy —
+per-room colour, floor textures, pixel-exact hit-test — instead of the overlapping
+bounding boxes the parser exposes. The adapter declares `map_render.format:
+"roborock_raw_map_v1"` (Eufy declares `eufy_room_pixels_v1`; those are the only two).
+
+**Why re-decode.** `vacuum-map-parser-roborock` reads the raw blob's pixel layer to
+colour the rooms, then **discards it** — the public `MapData` keeps only per-room
+bboxes + a rendered RGB image. But the raw bytes survive on the v1
+`MapContent.raw_api_response` (cached in HA memory, next to the `MapData` the
+`map_state_source` `memory` backend already reaches). `mapping/roborock_raw_map.py`
+re-decodes **just the segment layer** into a room-id raster equivalent to Eufy's
+`room_pixels`, and `roborock_render_data()` wraps it in the **generic
+`eufy_room_pixels_v1` render-data shape** — so the card decode is unchanged
+(brand-agnostic); only the source path differs. `rid_shift` is 0 (ids already
+resolved) and the raster IS the canvas (no separate outline frame → `ro_*` = the
+canvas, `ro_dx/dy` = 0). See
+[31 §3.4](31-map-source-coordinator.md#34-async_get_map_render_data) and
+[frontend/floor-texture-map-view](frontend/floor-texture-map-view.md).
+
+**v1 only** (S6 / Q-series-class). The byte walk is mirrored verbatim from the
+reference parser (little-endian; header/block walk; IMAGE block `type == 2`; pixel
+byte → `(type = byte & 0x07, room = byte >> 3)`, a room iff `type == 7` and the byte
+is not `0x07`/`0xFF`; `0xFF` = the catch-all scanned floor, id 31; raw row 0 is the
+image BOTTOM → `flip_y` True) so a firmware format change is a one-file fix. b01
+(newer Qrevo-class) uses a different parser and is out of scope.
+
+**Drift-check (`geometry_drift`).** The raw raster and the parser's own per-room
+bboxes come from the **same** segment layer, so overlaying them validates the decode:
+`raster_room_bboxes()` derives bboxes from the raster and `geometry_drift()` compares
+them to the parser's (per-room IoU + centre delta + a soft `aligned` verdict). Aligned
+boxes confirm rid-extraction + orientation + frame; a systematic delta IS a
+calibration signal — a constant offset is the parser's trim, an **inverted axis is a
+flip bug** (why `flip_y` matters: get it wrong and the two sit a whole Y-flip apart and
+never overlap). The room raster is self-contained, but the **pose overlay's** coord
+registration (`res` / origin / flip vs the live robot position) still needs calibrating
+on a real device.
+
 ### `job_segmenter` — `noop_job_fallback`
 The S6 reports native progress, so it registers `noop_job_fallback`, **not**
 `eufy_counter_v1`: the Eufy counter-plateau heuristic would false-segment on the
