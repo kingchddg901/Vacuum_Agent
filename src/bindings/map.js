@@ -34,7 +34,7 @@ const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   wood:          0.05,
   concrete:      0.05,  // two-layer (broad + micro)
   granite_light: 0.05,  // re-authored as base + bold aggregate mask -> has real structure now
-  carpet_low:    0.05,  // re-authored as base + bold weave mask
+  carpet_low:    0.09,  // re-authored as base + bold weave mask
   carpet_high:   0.05,
 };
 
