@@ -94,18 +94,24 @@ export const FLOOR_TEXTURE_TOKENS = [
   gc.unit(  "--evcc-floor-concrete-broad-opacity",   "Concrete Base Layer Opacity"),
   gc.unit(  "--evcc-floor-concrete-micro-opacity",   "Concrete Micro Layer Opacity"),
 
-  /* === CARPET LOW === */
-  gl.color( "--evcc-floor-carpet-low-base",          "Carpet Low Base Color"),
-  gl.unit(  "--evcc-floor-carpet-low-opacity-card",  "Carpet Low Card Opacity"),
-  gl.unit(  "--evcc-floor-carpet-low-texture-opacity","Carpet Low Texture Layer Opacity"),
+  /* === CARPET LOW === (split: base + bold weave) */
+  gl.color( "--evcc-floor-carpet-low-base",           "Carpet Low Base Color"),
+  gl.color( "--evcc-floor-carpet-low-weave",          "Carpet Low Weave Color"),
+  gl.unit(  "--evcc-floor-carpet-low-opacity-card",   "Carpet Low Card Opacity"),
+  gl.unit(  "--evcc-floor-carpet-low-base-opacity",   "Carpet Low Base Layer Opacity"),
+  gl.unit(  "--evcc-floor-carpet-low-weave-opacity",  "Carpet Low Weave Layer Opacity"),
 
-  /* === CARPET HIGH === */
-  gh.color( "--evcc-floor-carpet-high-base",         "Carpet High Base Color"),
-  gh.unit(  "--evcc-floor-carpet-high-opacity-card", "Carpet High Card Opacity"),
-  gh.unit(  "--evcc-floor-carpet-high-texture-opacity","Carpet High Texture Layer Opacity"),
+  /* === CARPET HIGH === (split: base + bold weave) */
+  gh.color( "--evcc-floor-carpet-high-base",          "Carpet High Base Color"),
+  gh.color( "--evcc-floor-carpet-high-weave",         "Carpet High Weave Color"),
+  gh.unit(  "--evcc-floor-carpet-high-opacity-card",  "Carpet High Card Opacity"),
+  gh.unit(  "--evcc-floor-carpet-high-base-opacity",  "Carpet High Base Layer Opacity"),
+  gh.unit(  "--evcc-floor-carpet-high-weave-opacity", "Carpet High Weave Layer Opacity"),
 
-  /* === GRANITE LIGHT === */
-  gg.color( "--evcc-floor-granite-light-base",       "Granite Base Color"),
-  gg.unit(  "--evcc-floor-granite-light-opacity-card","Granite Card Opacity"),
-  gg.unit(  "--evcc-floor-granite-light-texture-opacity","Granite Texture Layer Opacity"),
+  /* === GRANITE LIGHT === (split: base + bold aggregate) */
+  gg.color( "--evcc-floor-granite-light-base",             "Granite Base Color"),
+  gg.color( "--evcc-floor-granite-light-aggregate",        "Granite Aggregate Color"),
+  gg.unit(  "--evcc-floor-granite-light-opacity-card",     "Granite Card Opacity"),
+  gg.unit(  "--evcc-floor-granite-light-base-opacity",     "Granite Base Layer Opacity"),
+  gg.unit(  "--evcc-floor-granite-light-aggregate-opacity","Granite Aggregate Layer Opacity"),
 ];

@@ -4,11 +4,11 @@
 
 # Theme Token CSS-Usage Trace
 
-> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token Map](THEME_TOKEN_MAP.md).
+> Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token Map](THEME_TOKEN_MAP.md).
 
 For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** `var()` (CSS property + file:line), and JS `setProperty` apply sites. Multiline-aware (handles `var(` wrapped across lines); scans `src/`, the `animal-svg/` module, and the Python preloaded themes. The self-referential seed (`--evcc-x: var(--evcc-x, fallback)`) is the default, not a use.
 
-- Catalog **399** · consumer `var()` uses **2123** · with a consumer **271**, with none **128**
+- Catalog **405** · consumer `var()` uses **2123** · with a consumer **271**, with none **134**
 - `var()` → non-catalog tokens **11** · dynamic `var(--evcc-…${…})` sites **3**
 
 ---
@@ -16,7 +16,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## App Shell & Typography  ·  7/7 consumed
 
 **`--evcc-accent`** — Accent · default src/styles/foundation.js:158, src/styles/index.js:306
-- src/cards/dashboard-card.js:964 (--accent)
+- src/cards/dashboard-card.js:980 (--accent)
 - src/cards/_shared.js:201 (color)
 - src/room-card.js:370 (--accent)
 - src/styles/external-jobs.js:32
@@ -240,7 +240,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/map.js:1274 (fill)
 
 **`--evcc-text-muted`** — Text Muted · default src/styles/foundation.js:147, src/styles/index.js:302, src/styles/index.js:735
-- src/cards/dashboard-card.js:968 (--text-muted)
+- src/cards/dashboard-card.js:984 (--text-muted)
 - src/cards/vacuum-map-host.js:37 (color)
 - src/cards/_shared.js:194 (color)
 - src/cards/_shared.js:198 (color)
@@ -369,7 +369,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/map.js:1429 (color)
 
 **`--evcc-text-primary`** — Text Primary · default src/styles/foundation.js:145, src/styles/index.js:294, src/styles/index.js:727
-- src/cards/dashboard-card.js:967 (--text-primary)
+- src/cards/dashboard-card.js:983 (--text-primary)
 - src/cards/_shared.js:195 (color)
 - src/cards/_shared.js:199 (color)
 - src/room-card.js:373 (--text-primary)
@@ -711,7 +711,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - custom_components/eufy_vacuum/themes/preloaded.py:201
 
 **`--evcc-surface-card`** — Surface Card · default src/styles/foundation.js:132
-- src/cards/dashboard-card.js:965 (--surface)
+- src/cards/dashboard-card.js:981 (--surface)
 - src/cards/_shared.js:197 (background)
 - src/room-card.js:371 (--surface)
 - src/styles/foundation.js:187 (--evcc-card-bg)
@@ -956,7 +956,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 ## Borders & Shadows  ·  6/6 consumed
 
 **`--evcc-border-default`** — Border Default · default src/styles/foundation.js:153, src/styles/index.js:282, src/styles/index.js:715
-- src/cards/dashboard-card.js:966 (--border)
+- src/cards/dashboard-card.js:982 (--border)
 - src/cards/_shared.js:194
 - src/cards/_shared.js:197
 - src/room-card.js:372 (--border)
@@ -1535,7 +1535,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/floor-texture-styles.js:104
 
 **`--evcc-floor-texture-opacity-card`** — Card Texture Opacity (all) · default —
-- src/renderers/floor-texture-surface.js:97
+- src/renderers/floor-texture-surface.js:99
 
 **`--evcc-floor-texture-opacity-map`** — Map Texture Opacity (all) · default —
 - src/styles/floor-texture-styles.js:103
@@ -1649,37 +1649,55 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 **`--evcc-floor-concrete-micro-opacity`** — Concrete Micro Layer Opacity · default —
 - _no consumer — only seeded_
 
-## Floor Textures — Carpet Low  ·  0/3 consumed
+## Floor Textures — Carpet Low  ·  0/5 consumed
 
 **`--evcc-floor-carpet-low-base`** — Carpet Low Base Color · default —
+- _no consumer — only seeded_
+
+**`--evcc-floor-carpet-low-weave`** — Carpet Low Weave Color · default —
 - _no consumer — only seeded_
 
 **`--evcc-floor-carpet-low-opacity-card`** — Carpet Low Card Opacity · default —
 - _no consumer — only seeded_
 
-**`--evcc-floor-carpet-low-texture-opacity`** — Carpet Low Texture Layer Opacity · default —
+**`--evcc-floor-carpet-low-base-opacity`** — Carpet Low Base Layer Opacity · default —
 - _no consumer — only seeded_
 
-## Floor Textures — Carpet High  ·  0/3 consumed
+**`--evcc-floor-carpet-low-weave-opacity`** — Carpet Low Weave Layer Opacity · default —
+- _no consumer — only seeded_
+
+## Floor Textures — Carpet High  ·  0/5 consumed
 
 **`--evcc-floor-carpet-high-base`** — Carpet High Base Color · default —
+- _no consumer — only seeded_
+
+**`--evcc-floor-carpet-high-weave`** — Carpet High Weave Color · default —
 - _no consumer — only seeded_
 
 **`--evcc-floor-carpet-high-opacity-card`** — Carpet High Card Opacity · default —
 - _no consumer — only seeded_
 
-**`--evcc-floor-carpet-high-texture-opacity`** — Carpet High Texture Layer Opacity · default —
+**`--evcc-floor-carpet-high-base-opacity`** — Carpet High Base Layer Opacity · default —
 - _no consumer — only seeded_
 
-## Floor Textures — Granite  ·  0/3 consumed
+**`--evcc-floor-carpet-high-weave-opacity`** — Carpet High Weave Layer Opacity · default —
+- _no consumer — only seeded_
+
+## Floor Textures — Granite  ·  0/5 consumed
 
 **`--evcc-floor-granite-light-base`** — Granite Base Color · default —
+- _no consumer — only seeded_
+
+**`--evcc-floor-granite-light-aggregate`** — Granite Aggregate Color · default —
 - _no consumer — only seeded_
 
 **`--evcc-floor-granite-light-opacity-card`** — Granite Card Opacity · default —
 - _no consumer — only seeded_
 
-**`--evcc-floor-granite-light-texture-opacity`** — Granite Texture Layer Opacity · default —
+**`--evcc-floor-granite-light-base-opacity`** — Granite Base Layer Opacity · default —
+- _no consumer — only seeded_
+
+**`--evcc-floor-granite-light-aggregate-opacity`** — Granite Aggregate Layer Opacity · default —
 - _no consumer — only seeded_
 
 ## Queue & Ordering  ·  41/41 consumed
@@ -2781,7 +2799,7 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 - src/styles/rooms.js:650
 
 **`--evcc-radius-card`** — Radius Card · default src/styles/foundation.js:171
-- src/cards/dashboard-card.js:969 (--radius)
+- src/cards/dashboard-card.js:985 (--radius)
 - src/room-card.js:375 (--radius)
 - src/styles/external-jobs.js:69 (border-radius)
 - src/styles/external-jobs.js:142 (border-radius)
@@ -2940,15 +2958,15 @@ For each catalog token (`--evcc-*`): its **default** declaration, every real **c
 
 ---
 
-## Tokens with no consumer  ·  128
+## Tokens with no consumer  ·  134
 
 Three kinds — only the last is a concern:
 
-### Consumed dynamically — floor-texture presets  ·  32
+### Consumed dynamically — floor-texture presets  ·  38
 
 Built at runtime as `var(--evcc-floor-${floorType}-…)` in `src/renderers/floor-texture-surface.js`. Working as intended.
 
-`--evcc-floor-tile-base`, `--evcc-floor-tile-grout`, `--evcc-floor-tile-accent`, `--evcc-floor-tile-opacity-card`, `--evcc-floor-tile-face-opacity`, `--evcc-floor-tile-grout-opacity`, `--evcc-floor-tile-line-opacity`, `--evcc-floor-wood-base`, `--evcc-floor-wood-accent`, `--evcc-floor-wood-opacity-card`, `--evcc-floor-wood-depth-opacity`, `--evcc-floor-wood-grain-opacity`, `--evcc-floor-wood-seam-opacity`, `--evcc-floor-marble-base`, `--evcc-floor-marble-micro`, `--evcc-floor-marble-opacity-card`, `--evcc-floor-marble-base-opacity`, `--evcc-floor-marble-micro-opacity`, `--evcc-floor-concrete-base`, `--evcc-floor-concrete-accent`, `--evcc-floor-concrete-opacity-card`, `--evcc-floor-concrete-broad-opacity`, `--evcc-floor-concrete-micro-opacity`, `--evcc-floor-carpet-low-base`, `--evcc-floor-carpet-low-opacity-card`, `--evcc-floor-carpet-low-texture-opacity`, `--evcc-floor-carpet-high-base`, `--evcc-floor-carpet-high-opacity-card`, `--evcc-floor-carpet-high-texture-opacity`, `--evcc-floor-granite-light-base`, `--evcc-floor-granite-light-opacity-card`, `--evcc-floor-granite-light-texture-opacity`
+`--evcc-floor-tile-base`, `--evcc-floor-tile-grout`, `--evcc-floor-tile-accent`, `--evcc-floor-tile-opacity-card`, `--evcc-floor-tile-face-opacity`, `--evcc-floor-tile-grout-opacity`, `--evcc-floor-tile-line-opacity`, `--evcc-floor-wood-base`, `--evcc-floor-wood-accent`, `--evcc-floor-wood-opacity-card`, `--evcc-floor-wood-depth-opacity`, `--evcc-floor-wood-grain-opacity`, `--evcc-floor-wood-seam-opacity`, `--evcc-floor-marble-base`, `--evcc-floor-marble-micro`, `--evcc-floor-marble-opacity-card`, `--evcc-floor-marble-base-opacity`, `--evcc-floor-marble-micro-opacity`, `--evcc-floor-concrete-base`, `--evcc-floor-concrete-accent`, `--evcc-floor-concrete-opacity-card`, `--evcc-floor-concrete-broad-opacity`, `--evcc-floor-concrete-micro-opacity`, `--evcc-floor-carpet-low-base`, `--evcc-floor-carpet-low-weave`, `--evcc-floor-carpet-low-opacity-card`, `--evcc-floor-carpet-low-base-opacity`, `--evcc-floor-carpet-low-weave-opacity`, `--evcc-floor-carpet-high-base`, `--evcc-floor-carpet-high-weave`, `--evcc-floor-carpet-high-opacity-card`, `--evcc-floor-carpet-high-base-opacity`, `--evcc-floor-carpet-high-weave-opacity`, `--evcc-floor-granite-light-base`, `--evcc-floor-granite-light-aggregate`, `--evcc-floor-granite-light-opacity-card`, `--evcc-floor-granite-light-base-opacity`, `--evcc-floor-granite-light-aggregate-opacity`
 
 ### Per-animal palette (consumed dynamically in animal-svg/)  ·  84
 
@@ -2984,7 +3002,7 @@ Used in CSS but not in the editor registry (dynamic fragments or intentional int
 
 ## dynamic var(--evcc-…${…}) sites  ·  3
 
-- src/renderers/floor-texture-surface.js:97
+- src/renderers/floor-texture-surface.js:99
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:316
 - custom_components/eufy_vacuum/frontend/animal-svg/animal-svg.js:317
 

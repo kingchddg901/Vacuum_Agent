@@ -4,9 +4,9 @@
 
 # Theme Token Map
 
-> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
+> Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
-The themeable control-surface tokens exposed in the theme editor: **399 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
+The themeable control-surface tokens exposed in the theme editor: **405 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
 
 The 5 companion sub-groups share one identical 14-token shape — only **Cat** is listed in full; Dog, Raccoon, Parrot, Snake repeat it with their own `-<animal>-` key segment.
 
@@ -213,29 +213,35 @@ The 5 companion sub-groups share one identical 14-token shape — only **Cat** i
 | `--evcc-floor-concrete-broad-opacity` | Concrete Base Layer Opacity | number | 0–1 step 0.01 |
 | `--evcc-floor-concrete-micro-opacity` | Concrete Micro Layer Opacity | number | 0–1 step 0.01 |
 
-## Floor Textures — Carpet Low  ·  3
+## Floor Textures — Carpet Low  ·  5
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
 | `--evcc-floor-carpet-low-base` | Carpet Low Base Color | color |  |
+| `--evcc-floor-carpet-low-weave` | Carpet Low Weave Color | color |  |
 | `--evcc-floor-carpet-low-opacity-card` | Carpet Low Card Opacity | number | 0–1 step 0.01 |
-| `--evcc-floor-carpet-low-texture-opacity` | Carpet Low Texture Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-carpet-low-base-opacity` | Carpet Low Base Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-carpet-low-weave-opacity` | Carpet Low Weave Layer Opacity | number | 0–1 step 0.01 |
 
-## Floor Textures — Carpet High  ·  3
+## Floor Textures — Carpet High  ·  5
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
 | `--evcc-floor-carpet-high-base` | Carpet High Base Color | color |  |
+| `--evcc-floor-carpet-high-weave` | Carpet High Weave Color | color |  |
 | `--evcc-floor-carpet-high-opacity-card` | Carpet High Card Opacity | number | 0–1 step 0.01 |
-| `--evcc-floor-carpet-high-texture-opacity` | Carpet High Texture Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-carpet-high-base-opacity` | Carpet High Base Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-carpet-high-weave-opacity` | Carpet High Weave Layer Opacity | number | 0–1 step 0.01 |
 
-## Floor Textures — Granite  ·  3
+## Floor Textures — Granite  ·  5
 
 | Token | Controls | Type | Range |
 |---|---|---|---|
 | `--evcc-floor-granite-light-base` | Granite Base Color | color |  |
+| `--evcc-floor-granite-light-aggregate` | Granite Aggregate Color | color |  |
 | `--evcc-floor-granite-light-opacity-card` | Granite Card Opacity | number | 0–1 step 0.01 |
-| `--evcc-floor-granite-light-texture-opacity` | Granite Texture Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-granite-light-base-opacity` | Granite Base Layer Opacity | number | 0–1 step 0.01 |
+| `--evcc-floor-granite-light-aggregate-opacity` | Granite Aggregate Layer Opacity | number | 0–1 step 0.01 |
 
 ## Queue & Ordering  ·  41
 

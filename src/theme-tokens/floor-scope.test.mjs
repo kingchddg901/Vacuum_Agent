@@ -80,8 +80,8 @@ test("[FS-2] detectFloorScope: longest-name-wins / never dash-split -> carpet-lo
   const envelope = {
     theme: {
       tokens: {
-        "--evcc-floor-carpet-low-texture-opacity": 1,
-        "--evcc-floor-carpet-high-texture-opacity": 1,
+        "--evcc-floor-carpet-low-weave-opacity": 1,
+        "--evcc-floor-carpet-high-weave-opacity": 1,
       },
     },
   };
@@ -160,8 +160,8 @@ test("[FS-5] sliceThemeByTypes: string name accepted; carpet-low kept, carpet-hi
   const envelope = {
     theme: {
       tokens: {
-        "--evcc-floor-carpet-low-texture-opacity": 1,
-        "--evcc-floor-carpet-high-texture-opacity": 1,
+        "--evcc-floor-carpet-low-weave-opacity": 1,
+        "--evcc-floor-carpet-high-weave-opacity": 1,
       },
       colors: {
         "--evcc-floor-carpet-low-base": "#0d0c0c",
@@ -173,7 +173,7 @@ test("[FS-5] sliceThemeByTypes: string name accepted; carpet-low kept, carpet-hi
   const out = sliceThemeByTypes(envelope, "carpet-low");
   assert.deepEqual(out.scope, ["carpet-low"]);
   // Whole-name prefix match: carpet-high is NOT captured by a carpet-low request.
-  assert.deepEqual(out.theme.tokens, { "--evcc-floor-carpet-low-texture-opacity": 1 });
+  assert.deepEqual(out.theme.tokens, { "--evcc-floor-carpet-low-weave-opacity": 1 });
   assert.deepEqual(out.theme.colors, { "--evcc-floor-carpet-low-base": "#0d0c0c" });
   assert.equal(themeKeyCount(out), 2);
 });
