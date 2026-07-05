@@ -29,7 +29,7 @@ const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
   marble:   0.05,
   tile:     0.05,
-  granite:  0.05,
+  granite:  0.52,
   wood:     0.05,
   concrete: 0.05,
 };
