@@ -4,7 +4,7 @@
 
 # Theme Token Map
 
-> Generated reference — part of the [Theme System](../20-theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
+> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).
 
 The themeable control-surface tokens exposed in the theme editor: **406 tokens** across **25 groups**. Each is a `--evcc-*` CSS custom property; **Controls** is the editor label (what it styles); **Type** is the input kind; bounded scalars list their slider range.
 

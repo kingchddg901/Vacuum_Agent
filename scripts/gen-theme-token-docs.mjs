@@ -50,7 +50,7 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const L = [];
   L.push("# Theme Token Map");
   L.push("");
-  L.push("> Generated reference — part of the [Theme System](../20-theme-system.md) docs. "
+  L.push("> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. "
     + "Companion: [Theme Token CSS-Usage Trace](THEME_TOKEN_USAGE.md).");
   L.push("");
   L.push(`The themeable control-surface tokens exposed in the theme editor: `
@@ -139,7 +139,7 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const L = [];
   L.push("# Theme Token CSS-Usage Trace");
   L.push("");
-  L.push("> Generated reference — part of the [Theme System](../20-theme-system.md) docs. "
+  L.push("> Generated reference — part of the [Theme System](../frontend/theme-system.md) docs. "
     + "Companion: [Theme Token Map](THEME_TOKEN_MAP.md).");
   L.push("");
   L.push("For each catalog token (`--evcc-*`): its **default** declaration, every real **consumer** "
