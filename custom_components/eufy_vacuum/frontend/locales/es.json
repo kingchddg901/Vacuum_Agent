@@ -651,7 +651,8 @@
     "zoom_fit_aria": "Ajustar a la pantalla",
     "zoom_in": "Acercar",
     "zoom_level_aria": "Nivel de zoom actual",
-    "zoom_out": "Alejar"
+    "zoom_out": "Alejar",
+    "toggle_floor_texture": "Alternar texturas del suelo"
   },
   "mapping_review": {
     "badge_n_excluded": {
@@ -2426,7 +2427,15 @@
     "over_cap": "Máximo {max} zonas por limpieza",
     "area_m2": "{area} m²",
     "select_zone": "Seleccionar {name}",
-    "room_select_aria": "Archivar en una habitación"
+    "room_select_aria": "Archivar en una habitación",
+    "clean_selected": {
+      "one": "Limpiar {count} seleccionada",
+      "other": "Limpiar {count} seleccionadas"
+    },
+    "selected_badge": {
+      "one": "{count} seleccionada",
+      "other": "{count} seleccionadas"
+    }
   },
   "bind_saved_zones": {
     "name_prompt": "Nombra esta zona (p. ej. \"el sofá\"):",
@@ -2443,6 +2452,10 @@
     "nothing_drawn": "Primero dibuja un rectángulo en el mapa.",
     "bad_geometry": "Esta zona no tiene un área válida para limpiar.",
     "map_not_active": "Esa zona pertenece a otro mapa: cambia primero a su mapa.",
-    "zone_not_found": "Esa zona guardada ya no existe."
+    "zone_not_found": "Esa zona guardada ya no existe.",
+    "cleaning_selected": {
+      "one": "Limpiando {count} zona…",
+      "other": "Limpiando {count} zonas…"
+    }
   }
 }

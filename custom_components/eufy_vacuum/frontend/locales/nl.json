@@ -647,7 +647,8 @@
     "zoom_fit_aria": "Passend op scherm",
     "zoom_in": "Inzoomen",
     "zoom_level_aria": "Huidig zoomniveau",
-    "zoom_out": "Uitzoomen"
+    "zoom_out": "Uitzoomen",
+    "toggle_floor_texture": "Vloertexturen omschakelen"
   },
   "mapping_review": {
     "badge_n_excluded": {
@@ -2412,7 +2413,15 @@
     "over_cap": "Max. {max} zones per schoonmaakbeurt",
     "area_m2": "{area} m²",
     "select_zone": "{name} selecteren",
-    "room_select_aria": "Onder kamer opslaan"
+    "room_select_aria": "Onder kamer opslaan",
+    "clean_selected": {
+      "one": "{count} geselecteerde reinigen",
+      "other": "{count} geselecteerde reinigen"
+    },
+    "selected_badge": {
+      "one": "{count} geselecteerd",
+      "other": "{count} geselecteerd"
+    }
   },
   "bind_saved_zones": {
     "name_prompt": "Geef deze zone een naam (bijv. \"de bank\"):",
@@ -2429,6 +2438,10 @@
     "nothing_drawn": "Teken eerst een kader op de kaart.",
     "bad_geometry": "Deze zone heeft geen geldig gebied om schoon te maken.",
     "map_not_active": "Die zone hoort bij een andere kaart — schakel eerst naar die kaart.",
-    "zone_not_found": "Die opgeslagen zone bestaat niet meer."
+    "zone_not_found": "Die opgeslagen zone bestaat niet meer.",
+    "cleaning_selected": {
+      "one": "{count} zone reinigen…",
+      "other": "{count} zones reinigen…"
+    }
   }
 }

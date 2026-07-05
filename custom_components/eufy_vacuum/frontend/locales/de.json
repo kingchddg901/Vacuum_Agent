@@ -647,7 +647,8 @@
     "zoom_fit_aria": "An Bildschirm anpassen",
     "zoom_in": "Vergrößern",
     "zoom_level_aria": "Aktuelle Zoomstufe",
-    "zoom_out": "Verkleinern"
+    "zoom_out": "Verkleinern",
+    "toggle_floor_texture": "Bodentexturen umschalten"
   },
   "mapping_review": {
     "badge_n_excluded": {
@@ -2412,7 +2413,15 @@
     "over_cap": "Max. {max} Zonen pro Reinigung",
     "area_m2": "{area} m²",
     "select_zone": "{name} auswählen",
-    "room_select_aria": "Einem Raum zuordnen"
+    "room_select_aria": "Einem Raum zuordnen",
+    "clean_selected": {
+      "one": "{count} Ausgewählte reinigen",
+      "other": "{count} Ausgewählte reinigen"
+    },
+    "selected_badge": {
+      "one": "{count} ausgewählt",
+      "other": "{count} ausgewählt"
+    }
   },
   "bind_saved_zones": {
     "name_prompt": "Diese Zone benennen (z. B. \"das Sofa\"):",
@@ -2429,6 +2438,10 @@
     "nothing_drawn": "Zeichne zuerst ein Rechteck auf der Karte.",
     "bad_geometry": "Diese Zone hat keine gültige Fläche zum Reinigen.",
     "map_not_active": "Diese Zone gehört zu einer anderen Karte – wechsle zuerst zu ihrer Karte.",
-    "zone_not_found": "Diese gespeicherte Zone existiert nicht mehr."
+    "zone_not_found": "Diese gespeicherte Zone existiert nicht mehr.",
+    "cleaning_selected": {
+      "one": "{count} Zone wird gereinigt…",
+      "other": "{count} Zonen werden gereinigt…"
+    }
   }
 }
