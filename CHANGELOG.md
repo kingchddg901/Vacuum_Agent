@@ -10,6 +10,45 @@ only.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-05
+
+**Floor textures, saved zones, and Roborock room rendering.** The biggest visual and
+control update yet: your map floors look like your real floors, you can save and reuse
+zones, and Roborock gets the full per-room map treatment.
+
+### Added
+- **Floor textures on the map.** Each room paints with its floor type's material — wood
+  planks, tile + grout, marble veining, concrete, granite, and low-/high-pile carpet —
+  reading as one continuous floor across rooms of the same type. Toggle with the **▨**
+  button once the rendered map is on; floor types come from what you set in the Eufy app.
+  Works on both Eufy and Roborock.
+- **Tune every material to your real floors.** In **Theme editor → Floor Textures**, each
+  material has base + detail colours (wood grain/seams, carpet weave, granite aggregate)
+  and per-layer opacities, plus a new **Map Texture Rotation** control that turns the whole
+  grid so planks and grout run the way they do in your home.
+- **Saved zones — named areas you keep and reuse.** Beyond one-off draw-a-box cleaning,
+  draw a zone, name it, and file it under a room, then clean it again any time. A
+  collapsible **Saved Zones** panel lets you multi-select several, apply shared suction/mop
+  settings, and clean the whole selection at once (Eufy: up to 10 zones, each 0.5–10 m per
+  side). Six new services back it — `create_saved_zone`, `rename_saved_zone`,
+  `delete_saved_zone`, `set_saved_zone_room`, `clean_saved_zone`, and `clean_saved_zones`.
+- **Roborock room rendering — parity with Eufy.** A new v1 raw-map decoder gives Roborock
+  (the S6, and likely other v1 models) the same per-room map: per-room colours, floor
+  textures, pixel-exact tap targets, draggable room-name labels, and zone cleaning drawn
+  over the rendered map. Suction for a zone/clean run is now adjustable from the card even
+  on brands that don't expose a dedicated fan-speed select entity.
+- **Custom room colours.** Give any room its own fill colour on the live map, or recolour
+  the whole 12-colour room palette from the theme editor.
+- New floor-texture, saved-zone, and room-colour strings — and every new material control
+  label — are translated across all 7 languages (de / es / fr / it / nl / pt / ru).
+
+### Fixed
+- **Dashboard card on multi-map vacuums** — the room list and Start now target the **active
+  map only**, so a vacuum with several maps no longer lists every map's rooms (and a Start
+  can't hit an off-map room).
+- **The map no longer blanks on a brief signal drop** — it holds the last good map through a
+  transient source dropout instead of going empty.
+
 ## [1.5.1] - 2026-07-02
 
 A couple of fixes for the new dashboard card, both reported after 1.5.0.
