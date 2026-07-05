@@ -27,11 +27,15 @@ import { compositeFloorTexture } from "../textures/floor-texture-compositor.js";
 // can override any with `--evcc-floor-<type>-map-scale` (the "slider"). Tune by eye.
 const FLOOR_TEXTURE_MASK_SCALE = 0.05; // global fallback (all materials at 0.05 for now)
 const FLOOR_TEXTURE_MASK_SCALE_BY_TYPE = {
-  marble:   0.05,
-  tile:     0.05,
-  granite:  0.7,
-  wood:     0.05,
-  concrete: 0.05,
+  // Keys MUST match resolveFloorType()'s output — e.g. granite resolves to "granite_light",
+  // carpet to "carpet_low"/"carpet_high". A wrong key silently falls back to the global scale.
+  marble:        0.05,
+  tile:          0.05,
+  wood:          0.05,
+  concrete:      0.05,
+  granite_light: 0.65, // was mis-keyed "granite" -> the scale never applied
+  carpet_low:    0.65,
+  carpet_high:   0.65,
 };
 
 // The VA raster room-fill colors now resolve through the shared themeable palette
