@@ -96,7 +96,12 @@ export function applyFloorTextureSurface(proto) {
     const entry = FLOOR_TEXTURE_REGISTRY[floorType] ?? FLOOR_TEXTURE_REGISTRY.default;
 
     const opacityFallback = entry.opacityDefault ?? 0.85;
-    const opacityVar  = `var(--evcc-floor-${floorType}-opacity-card,var(--evcc-floor-texture-opacity-card,${opacityFallback}))`;
+    // Token segments are hyphenated (--evcc-floor-carpet-low-*), but the resolved
+    // floorType key uses underscores (carpet_low). Normalize so the multi-word types
+    // read the SAME per-material token the theme editor registers; single-word types
+    // (tile/wood/marble/concrete) are unchanged by the replace.
+    const typeSeg = String(floorType).replace(/_/g, "-");
+    const opacityVar  = `var(--evcc-floor-${typeSeg}-opacity-card,var(--evcc-floor-texture-opacity-card,${opacityFallback}))`;
     const positionVar = _texturePosition(normalizedRoom?.id ?? normalizedRoom?.name ?? floorType);
 
     const spans = entry.layers.map((layer) => {

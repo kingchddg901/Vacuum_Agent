@@ -697,13 +697,16 @@ export function applyMapBindings(proto) {
 
   /* Per-material mask feature scale (see FLOOR_TEXTURE_MASK_SCALE_BY_TYPE): a theme token
      `--evcc-floor-<type>-map-scale` overrides the per-type default, which overrides the global.
+     The token segment is hyphenated (carpet-low) to match the --evcc-floor-* convention, so
+     the underscored resolveFloorType() key (carpet_low) is normalized before lookup.
      Clamped to a sane range so a bad value can't explode the tiling. */
   proto._resolveFloorScale = function (floorType, host) {
     let s = FLOOR_TEXTURE_MASK_SCALE_BY_TYPE[floorType];
     if (!(typeof s === "number" && s > 0)) s = FLOOR_TEXTURE_MASK_SCALE;
     try {
       if (host && typeof getComputedStyle === "function") {
-        const v = getComputedStyle(host).getPropertyValue(`--evcc-floor-${floorType}-map-scale`).trim();
+        const seg = String(floorType).replace(/_/g, "-");
+        const v = getComputedStyle(host).getPropertyValue(`--evcc-floor-${seg}-map-scale`).trim();
         if (v) { const n = parseFloat(v); if (Number.isFinite(n) && n > 0) s = n; }
       }
     } catch (_e) { /* keep default */ }
