@@ -459,13 +459,15 @@ export function applyMapBindings(proto) {
     // resolution (see _decodeMaskLum) so the fine grain/plank-seam detail survives — the
     // detail is what makes it read as a floor. Map-space + native-tiled -> continuous across
     // same-type rooms. (Downscaling the masks to map size averaged the detail to flat.)
-    const { ready } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
+    const { ready, texSig } = this._ensureFloorTextures(presentTypes, CW, CH, canvas);
 
     // Cache the composited floor ImageData (like _drawVaRender's) so zoom/select re-renders
     // just re-stamp it. Busts on version, size/scale, palette (theme), the rid->type map, or
-    // a texture becoming ready (its key joins once decoded).
+    // a texture's resolved colours/opacity/scale changing. texSig carries each ready type's
+    // texKey (ft|size|scale|colorSig), so a LIVE editor tweak to a floor colour repaints the
+    // map — the ft-name list alone never changed on a recolour, leaving the floor image stale.
     const floorKey = `${rd.version}|${CW}x${CH}|${paletteSig}|${floorTypeByRid.join(",")}`
-      + `|${[...ready.keys()].sort().join(",")}`;
+      + `|${texSig}`;
     let cache = this._vaFloorImageCache;
     if (!cache || cache.key !== floorKey) {
       const img = cctx.createImageData(CW, CH);
@@ -507,6 +509,7 @@ export function applyMapBindings(proto) {
     this._floorTexCache = this._floorTexCache || new Map();      // texKey -> composited {data}
 
     const ready = new Map();
+    const readySigs = [];   // texKeys of the types ready THIS frame (encode color/opacity/scale)
 
     for (const ft of presentTypes) {
       const entry = FLOOR_TEXTURE_REGISTRY[ft];
@@ -525,7 +528,7 @@ export function applyMapBindings(proto) {
       const texKey = `${ft}|${W}x${H}|${scale}|${colorSig}`;
 
       const cachedTex = this._floorTexCache.get(texKey);
-      if (cachedTex) { ready.set(ft, cachedTex); continue; }
+      if (cachedTex) { ready.set(ft, cachedTex); readySigs.push(texKey); continue; }
 
       // Need every layer's mask decoded to a luminance array.
       const lumArrays = [];
@@ -567,9 +570,10 @@ export function applyMapBindings(proto) {
       );
       this._floorTexCache.set(texKey, tex);
       ready.set(ft, tex);
+      readySigs.push(texKey);
     }
 
-    return { ready };
+    return { ready, texSig: readySigs.sort().join("|") };
   };
 
   /* Load a grayscale mask PNG and downscale it to W×H, returning a per-texel luminance
