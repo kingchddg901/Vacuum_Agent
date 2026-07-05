@@ -224,12 +224,23 @@ export function applyMapBindings(proto) {
     // draw-key includes the mode so a flat<->floor toggle repaints (and the async
     // texture decode's re-render lands on a fresh canvas anyway).
     const floor = state.isFloorRenderActive?.() ?? false;
-    const drawKey = `${rd.version}|${floor ? "floor" : "flat"}`;
-    if (canvas._evccDrawnKey === drawKey) return; // already drawn this (version, mode)
     try {
-      if (floor) this._drawVaFloorRender(canvas, rd);
-      else this._drawVaRender(canvas, rd);
-      canvas._evccDrawnKey = drawKey;
+      if (floor) {
+        // Floor mode is DYNAMIC — the async texture decode and a live theme recolour both change
+        // what should be on the canvas WITHOUT changing (version, mode). A coarse version|mode
+        // guard here would skip the decode-ready / recolour re-render and leave the floor stuck on
+        // its flat-fallback until a manual toggle ("not holding, have to flip the control"). So
+        // always call: _drawVaFloorRender's own _vaFloorImageCache (keyed on texSig/colours/scale)
+        // rebuilds only when something actually changed and otherwise just re-stamps the cache.
+        this._drawVaFloorRender(canvas, rd);
+        canvas._evccDrawnKey = `${rd.version}|floor`;   // so a later flat switch redraws
+      } else {
+        // The flat raster is static per version — draw once, then skip redundant redraws.
+        const drawKey = `${rd.version}|flat`;
+        if (canvas._evccDrawnKey === drawKey) return;
+        this._drawVaRender(canvas, rd);
+        canvas._evccDrawnKey = drawKey;
+      }
     } catch (err) {
       console.error("[eufy-vacuum-command-center] map render draw failed:", err);
     }
