@@ -295,6 +295,21 @@ def test_build_room_stats_single_room(tmp_path):
     assert entry["minutes_stddev"] == 0.0  # single sample → 0 stddev
 
 
+def test_build_room_stats_preserves_three_passes_roborock(tmp_path):
+    """A 3-pass run (Roborock supports 1-3 passes) keeps clean_times=3 -- it is
+    NOT clamped to 1 by the old Eufy-centric `not in (1, 2)` guard, which would
+    have collapsed it into the 1-pass bucket AND desynced from utils._room_key
+    (the estimator's lookup key, lower-bound-only)."""
+    rebuilder = _make_rebuilder(tmp_path)
+    jobs = [_job(room_slugs=["kitchen"], clean_times=3)]
+    payload = rebuilder.build_room_stats_payload(
+        vacuum_entity_id="vacuum.alfred", jobs=jobs
+    )
+    assert payload["room_stats"][0]["clean_times"] == 3
+    # the per-room baseline breaks the run out under the "3" pass bucket, not "1"
+    assert "3" in payload["room_baselines"][0]["by_clean_times"]
+
+
 def test_build_room_stats_two_rooms(tmp_path):
     rebuilder = _make_rebuilder(tmp_path)
     jobs = [_job(duration_minutes=60.0, room_slugs=["kitchen", "bedroom"])]

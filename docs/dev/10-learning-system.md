@@ -64,7 +64,7 @@ lowercased.
 | `map_id` | int | `job_profile.map_id` | Which map this room belongs to |
 | `room_slug` | str | `resolved_rooms[].slug` | Lowercase slug identifier |
 | `effective_mode` | str | `resolved_rooms[].clean_mode` | `vacuum`, `mop`, or `vacuum_mop` |
-| `clean_times` | int | `resolved_rooms[].clean_passes` (clamped to 1 or 2) | Number of cleaning passes |
+| `clean_times` | int | `resolved_rooms[].clean_passes`, coerced via `_safe_int(v, 1)` (min 1; the real count is preserved, not clamped) | Number of cleaning passes — **brand-dependent**: Eufy 1–2, Roborock 1–3 |
 | `is_carpet` | bool | `resolved_rooms[].is_carpet` or `resolved_rooms[].carpet` | Floor type flag |
 | `clean_intensity` | str | `resolved_rooms[].clean_intensity` (default `"standard"`) | Fan/suction level |
 | `edge_mopping` | bool | `resolved_rooms[].edge_mopping` | Edge-mop flag — part of the key (materially affects time) |
@@ -135,7 +135,7 @@ Because area is settings-invariant (a room's floor area doesn't change with mode
 
 `room_stats.json` also carries a `room_baselines` array — one entry per `{map_id, room_slug}` that collapses *all* settings into a single per-room average (`avg_minutes`, `avg_battery_used`, `avg_area_m2`, plus the `effective_modes` / `clean_times` / carpet counts). Each baseline additionally breaks its averages out by the two settings that most affect duration:
 
-- `by_clean_times` — `{"1": {…}, "2": {…}}`, keyed by pass count
+- `by_clean_times` — `{"1": {…}, "2": {…}}` (Roborock also produces a `"3"` bucket), keyed by pass count
 - `by_edge_mopping` — `{"on": {…}, "off": {…}}`
 
 Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}` — the min/max/stddev band lets a consumer match *within variance* rather than against a brittle point mean. All stats are **learning-jobs-only** (cancelled / failed / sanity-blocked runs are excluded before aggregation, so a bad run never skews a bucket). The full per-room average is retained; the buckets are **additive**, so a consumer can match a job's settings (e.g. a 2-pass, edge-mop run) to the right sub-average. Area is intentionally **not** bucketed — a room's floor area does not change with passes or edge mopping.

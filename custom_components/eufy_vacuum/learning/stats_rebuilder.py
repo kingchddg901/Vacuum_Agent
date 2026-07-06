@@ -462,7 +462,12 @@ class LearningStatsRebuilder:
                     room.get("clean_passes", room.get("clean_times", 1)),
                     1,
                 )
-                if clean_times not in (1, 2):
+                # Preserve the reported pass count (Eufy caps at 1-2, Roborock
+                # allows 1-3) — only reject sub-1 garbage. The old `not in (1, 2)`
+                # clamp was Eufy-centric: it collapsed a Roborock 3-pass run into
+                # clean_times=1, mis-bucketing it AND desyncing from utils._room_key
+                # (the estimator's lookup key), which is lower-bound-only.
+                if clean_times < 1:
                     clean_times = 1
                 is_carpet = _safe_bool(
                     room.get("is_carpet", room.get("carpet", False)),
