@@ -31,7 +31,7 @@ UPKEEP_GUIDE_TRANSLATIONS = {   'de': {   'x10_pro_omni': {   'filter': {   'cle
                                                              'Staubbehälter ein.',
                                                              'Schieben Sie den Staubbehälter zurück in das '
                                                              'Hauptgerät.'],
-                                                'notes': []},
+                                                'notes': ['Verwenden Sie keine Bürste, kein heißes Wasser und keine Reinigungsmittel.', 'Ersetzen Sie den Filter alle 3-6 Monate.']},
                                   'rolling_brush': {   'clean_frequency': 'Einmal pro Monat',
                                                        'replace_frequency': 'Alle 6 Monate',
                                                        'steps': [   'Ziehen Sie wie abgebildet an den '
