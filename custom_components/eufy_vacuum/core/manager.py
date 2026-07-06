@@ -4237,7 +4237,12 @@ class EufyVacuumManager:
                         f"{vacuum_entity_id}: a zone is too large ({_area:.2f} m²) — the "
                         f"maximum is {float(_max_a):.2f} m² (~32.8 ft²); draw a smaller box"
                     )
-            repeat = max(1, min(int(clean_times), 3))
+            # Per-zone repeat cap comes from the adapter, not a hardcoded 3:
+            # dispatch.zone_passes_max (a zone-specific override) or the general
+            # dispatch.passes_max, default 3 (covers Eufy 1-2 and Roborock 1-3).
+            # A brand whose zone command supports more repeats just declares more.
+            _zone_repeat_max = int(cfg.get("zone_passes_max", cfg.get("passes_max", 3)) or 3)
+            repeat = max(1, min(int(clean_times), _zone_repeat_max))
             # app_zoned_clean params ARE the zone list: [[x0,y0,x1,y1,repeat], ...] (int mm).
             payload: dict[str, Any] | list[Any] = [
                 [int(round(x0)), int(round(y0)), int(round(x1)), int(round(y1)), repeat]

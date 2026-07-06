@@ -31,6 +31,7 @@ from ..profiles.room_profiles import (
     get_default_room_profiles,
     merge_profile_dicts,
     normalize_room_profile,
+    resolve_profile_catalog,
     resolve_room_profile_for_room,
 )
 from ..rooms.room_manager import build_room_selection_summary
@@ -615,6 +616,16 @@ class ProfileManager:
         rooms = map_bucket.get("rooms", {})
         normalized_ids = [int(r) for r in room_ids if str(r).isdigit() or (isinstance(r, int))]
 
+        # Resolve the adapter's room-profile catalog so a non-Eufy brand fills any
+        # omitted profile field from ITS normalize_defaults, not the in-code Eufy
+        # ones. Local import mirrors the other get_adapter_config call sites and
+        # avoids an import cycle. Absent coordinator/config → Eufy defaults.
+        from ..adapters.registry import get_adapter_config
+
+        catalog = resolve_profile_catalog(
+            (get_adapter_config(vacuum_entity_id) or {}).get("room_profiles")
+        )
+
         updated_room_ids: list[int] = []
         for room_id in normalized_ids:
             room_key = str(room_id)
@@ -627,6 +638,7 @@ class ProfileManager:
                     room_config=room,
                     profile_name=profile_name,
                     profile=profile,
+                    catalog=catalog,
                 )
             )
 

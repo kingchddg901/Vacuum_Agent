@@ -118,8 +118,12 @@ _START_ZONE_CLEAN_SCHEMA = vol.Schema(
         vol.Required("zones"): vol.All(
             cv.ensure_list, [_ZONE_RECT_SCHEMA], vol.Length(min=1)
         ),
+        # No fixed upper bound — the real per-brand ceiling is enforced against the
+        # adapter's zone-repeat capability at dispatch (core.manager zone path),
+        # since the schema can't see which vacuum/adapter the call targets. Matches
+        # the other clean_times schemas (mapping_services uses Range(min=1)).
         vol.Optional("clean_times", default=1): vol.All(
-            vol.Coerce(int), vol.Range(min=1, max=10)
+            vol.Coerce(int), vol.Range(min=1)
         ),
     }
 )

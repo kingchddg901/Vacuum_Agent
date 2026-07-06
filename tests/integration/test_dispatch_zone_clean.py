@@ -208,6 +208,35 @@ async def test_zone_clean_device_mm(hass, manager, monkeypatch):
     assert out["zone_count"] == 1
 
 
+async def test_zone_clean_device_mm_repeat_honors_adapter_max(hass, manager, monkeypatch):
+    """[ZC-10] The per-zone repeat cap is adapter-driven, not a hardcoded 3. A brand
+    declaring dispatch.zone_passes_max honors clean_times up to that max — regression
+    for the old `min(clean_times, 3)` that collapsed any >3-repeat brand."""
+    register_adapter_config(_VAC, {
+        "adapter_id": "roborock", "source": "code",
+        "dispatch": {**_RB_DISPATCH, "zone_passes_max": 5},
+        "capabilities": dict(_RB_CAPS),
+    })
+    calls = _capture_send(hass)
+    _stub_map_source(manager, monkeypatch, _FakeMapData())
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], clean_times=5
+    )
+    assert calls[0]["params"][0][-1] == 5  # repeat honored, NOT clamped to 3
+
+
+async def test_zone_clean_device_mm_repeat_defaults_to_3(hass, manager, monkeypatch):
+    """[ZC-11] With no adapter zone-repeat cap declared, repeat defaults to 3
+    (backward-compatible; covers Eufy 1-2 and Roborock 1-3)."""
+    _register_rb(hass)  # neither zone_passes_max nor passes_max
+    calls = _capture_send(hass)
+    _stub_map_source(manager, monkeypatch, _FakeMapData())
+    await manager.dispatch_zone_clean(
+        vacuum_entity_id=_VAC, zones=[[0.3, 0.3, 0.5, 0.5]], clean_times=9
+    )
+    assert calls[0]["params"][0][-1] == 3  # clamped to the default max
+
+
 async def test_zone_clean_device_mm_no_map_refuses(hass, manager, monkeypatch):
     """[ZC-8] device_mm with no live map -> refuse (ValueError), nothing dispatched."""
     _register_rb(hass)

@@ -27,6 +27,7 @@ import pytest
 from custom_components.eufy_vacuum.profiles.room_profiles import (
     _normalize_floor_type,
     apply_capability_gate,
+    apply_room_profile_to_config,
     get_available_profile_names,
     get_available_profiles,
     normalize_room_profile,
@@ -118,6 +119,27 @@ def test_normalize_room_profile_empty_dict():
     assert p["clean_intensity"] == "Standard"
     assert p["path_type"] == "wide"
     assert p["mop_required"] is False
+
+
+def test_apply_room_profile_threads_adapter_catalog_defaults():
+    """[RP-18] apply_room_profile_to_config fills fields the profile OMITS from the
+    adapter catalog's normalize_defaults, not the in-code Eufy defaults — so a
+    non-Eufy (e.g. Roborock) room-profile apply never gets Eufy's "Max"/"Off"
+    written in. Regression for the catalog-blind call in apply_room_profile_to_config."""
+    catalog = {"normalize_defaults": {"fan_speed": "Balanced", "water_level": "Low"}}
+    profile = {"clean_mode": "vacuum"}  # omits fan_speed / water_level
+    updated = apply_room_profile_to_config(
+        room_config={}, profile_name="custom", profile=profile, catalog=catalog,
+    )
+    assert updated["fan_speed"] == "Balanced"  # adapter default, NOT Eufy "Max"
+    assert updated["water_level"] == "Low"     # adapter default, NOT Eufy "Off"
+
+    # With no catalog it still falls back to the in-code Eufy defaults (unchanged).
+    eufy = apply_room_profile_to_config(
+        room_config={}, profile_name="custom", profile=profile,
+    )
+    assert eufy["fan_speed"] == "Max"
+    assert eufy["water_level"] == "Off"
 
 
 # ---------------------------------------------------------------------------

@@ -514,10 +514,18 @@ def apply_room_profile_to_config(
     room_config: dict[str, Any],
     profile_name: str,
     profile: dict[str, Any],
+    catalog: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return a copy of ``room_config`` with the given profile's settings applied."""
+    """Return a copy of ``room_config`` with the given profile's settings applied.
+
+    ``catalog`` (the adapter's resolved room-profile catalog) supplies the
+    ``normalize_defaults`` for any field the profile omits, so a non-Eufy brand's
+    rooms fill from ITS defaults rather than the in-code Eufy ones (fan ``"Max"`` /
+    water ``"Off"`` / intensity ``"Standard"``). Absent catalog → the in-code Eufy
+    defaults (byte-identical to the pre-catalog behaviour for Eufy).
+    """
     updated = dict(room_config)
-    normalized = normalize_room_profile(profile)
+    normalized = normalize_room_profile(profile, catalog=catalog)
 
     updated["profile_name"] = _normalize_profile_name(profile_name)
     updated["clean_mode"] = normalized["clean_mode"]
