@@ -1448,7 +1448,7 @@ cancel detection).
     "actual_battery_used":  float
   }
   "estimate_delta": {
-    "total_minutes_delta":       float | None
+    "total_minutes_delta":       float | None  # actual_job_minutes − estimated_total_minutes, rounded 2dp (NOT the drift metric)
     "total_minutes_delta_ratio": float | None
   }
   "access_graph": {
@@ -1629,7 +1629,7 @@ Returned by `LearningEstimator.estimate` in `learning/estimator.py`.
 
 ```
 {
-  "position":              int
+  "position":              int    # 1-indexed (1..N, where N = room_count)
   "room_id":               int
   "room_name":             str
   "slug":                  str

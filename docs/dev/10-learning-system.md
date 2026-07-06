@@ -22,7 +22,7 @@ The system is entirely optional. The core integration runs without it; the learn
 | `history_store.py` | File I/O. Reads and writes every JSON and CSV file. |
 | `stats_rebuilder.py` | Full rebuild of `job_stats.json`, `room_stats.json`, and `jobs_index.json` from raw job files. |
 | `job_finalizer.py` | Finalizes a completed job: builds the payload, writes it, triggers a stats rebuild, updates trouble rooms. |
-| `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. |
+| `manager.py` | Orchestrator. Coordinates all modules. Maintains an in-memory cache of `room_stats` and `accuracy_stats`. All classes (`LearningHistoryStore`, `LearningStatsRebuilder`, `LearningJobFinalizer`) take `hass: HomeAssistant` in `__init__` and are HA-bound; they instantiate their collaborators internally (not stateless utilities). |
 | `services.py` | HA service registration only. No math. Each handler validates inputs and delegates to `LearningManager`. |
 | `utils.py` | Shared helpers (`_safe_int`, `_safe_float`, `_safe_bool`, etc.) used across the learning package. |
 | `external_ingest.py` | Captures runs started from the Eufy app (not HA-dispatched), builds the pending record, and re-segments / confirms them into learned jobs via the review wizard. Also runs **pose-based room attribution** (via `room_attribution_engines.py`) to pre-fill the cleaned-room set, and builds a stand-alone attributed record when counter segmentation yields nothing. |
@@ -51,7 +51,11 @@ the token `"vacuum_mop"`, so internal (queue-dispatched) and external (app-start
 runs of the same physical mode land in **one** bucket instead of splitting on a
 vocabulary artifact. The normalization lives in `learning/utils.py::_canonical_clean_mode`
 and is applied by `_room_key`, `_room_profile_key`, the rebuilder's stored
-`effective_mode`, and the estimator's match lookup.
+`effective_mode`, and the estimator's match lookup. The full `_CLEAN_MODE_CANONICAL`
+alias set is `"vacuum and mop"`, `"vacuum & mop"`, `"vacuum+mop"`, `"vac & mop"`, and
+`"vacmop"` (5 explicit aliases), plus a substring fallback that folds any string
+containing both `"vacuum"` and `"mop"` to `"vacuum_mop"`; all other modes pass through
+lowercased.
 
 **Fields written per entry:**
 
@@ -77,6 +81,9 @@ and is applied by `_room_key`, `_room_profile_key`, the rebuilder's stored
 | `area_m2_min` | float | `min(area_samples)` | Smallest observed cleaned area |
 | `area_m2_max` | float | `max(area_samples)` | Largest observed cleaned area |
 | `area_m2_stddev` | float | Population stddev of area samples | Spread of observed areas |
+| `avg_robot_water_used_ml` | float | `total_robot_water_used_ml / sample_count` (per-room allocation) | Mean robot tank water per room |
+| `avg_water_overhead_ml` | float | `total_water_overhead_ml / sample_count` (dock wash + refill per-room) | Mean dock water overhead per room |
+| `avg_total_water_used_ml` | float | Sum of robot + overhead, per room | Mean total water used per room |
 
 **How `avg_minutes` is computed (cumulative average):**
 
@@ -116,7 +123,11 @@ Returns `0.0` when `n < 2`.
 
 Per-room area comes from **counter-plateau capture** — `room_timings[].area_m2` on `transit_capture_valid` jobs (the `cleaning_area` delta per segment is the room's exact area, for single **and** multi-room jobs) — falling back to a single-room job's `cleaning_area_m2` total when there's no capture. (Previously multi-room jobs were skipped because the only signal was the job total, which equal-splitting would corrupt; the segmenter removes that limitation.) `avg_area_m2` and `area_m2_min/max/stddev` are computed over those samples; `area_sample_count` is their count (can be lower than `sample_count` for un-captured jobs). A room with no area samples gets `avg_area_m2 = 0.0`.
 
-**Area-quality gate (schema 6):** a full clean covers the room's whole floor, so a clean whose area falls more than 1.5 m² off the room's **median** (once it has ≥ 4 area samples) is a partial/interrupted clean — its short **time** would poison the baseline, so its minutes sample is excluded from `avg_minutes` / the minutes band. `partial_excluded_count` reports how many were dropped, `timing_sample_count` the kept count; area / battery / water keep all samples. The band is per-room (area is settings-invariant), validated on the archive (~12% flagged; Kitchen time stddev 101 → 80 s — `scratch-external-estimator/gate.py`).
+**How `avg_drift_minutes` is computed:**
+
+Drift is computed **fresh from job timestamps**, not from stored estimates. For each job: `actual_seconds = (ended_at − started_at).total_seconds()`, `predicted_seconds = duration_minutes × 60`, `drift_seconds = actual_seconds − predicted_seconds`, rounded to 2 dp. This job-level drift is then equally allocated per room: `per_room_drift = job_drift / room_count`. The per-room drifts are accumulated and averaged into `avg_drift_minutes = sum(per_room_drift) / sample_count` (also 2 dp). `avg_abs_drift_minutes` is computed the same way over absolute values.
+
+**Area-quality gate (schema 6):** a full clean covers the room's whole floor, so a clean whose area falls more than 1.5 m² off the room's **median baseline area** (once the baseline has ≥ 4 area samples) is a partial/interrupted clean — its short **time** would poison the baseline, so its minutes sample is excluded from `avg_minutes` / the minutes band. `partial_excluded_count` reports how many were dropped, `timing_sample_count` the kept count; area / battery / water keep all samples. The baseline area median is computed per-room (area is settings-invariant, using baseline-level samples), and is identified by the baseline key `{map_id_int}::{slug.strip().lower()}` (from `_room_baseline_key(map_id, slug)` in utils.py). The gate was validated on the archive (~12% flagged; Kitchen time stddev 101 → 80 s — see `scratch-external-estimator/gate.py`).
 
 Because area is settings-invariant (a room's floor area doesn't change with mode or intensity), the per-room `room_baselines` entry carries the most robust `avg_area_m2`.
 
@@ -128,6 +139,10 @@ Because area is settings-invariant (a room's floor area doesn't change with mode
 - `by_edge_mopping` — `{"on": {…}, "off": {…}}`
 
 Each bucket holds `{sample_count, avg_minutes, minutes_min, minutes_max, minutes_stddev, avg_battery_used}` — the min/max/stddev band lets a consumer match *within variance* rather than against a brittle point mean. All stats are **learning-jobs-only** (cancelled / failed / sanity-blocked runs are excluded before aggregation, so a bad run never skews a bucket). The full per-room average is retained; the buckets are **additive**, so a consumer can match a job's settings (e.g. a 2-pass, edge-mop run) to the right sub-average. Area is intentionally **not** bucketed — a room's floor area does not change with passes or edge mopping.
+
+**Water metrics in `room_baselines`:** Paralleling `room_stats`, each baseline also carries `avg_robot_water_used_ml`, `avg_water_overhead_ml`, and `avg_total_water_used_ml` (all rounded to 2 dp).
+
+**Carpet counts in `room_baselines`:** The baseline holds `carpet_true_count` (runs on carpet) and `carpet_false_count` (runs on hard floor) — a tally of runs per surface type. Effective modes are tracked as a dict `{mode: count}` (keyed by mode, incremented once per run).
 
 ### 2.2 Transit / travel-time learning (`transit_stats` / `access_graph_edges`)
 
@@ -169,7 +184,7 @@ boundaries (long plateau > short step, then larger forward rise) are kept. Inter
 
 `segment_counters` is a **byte-identical back-compat wrapper** over a decomposed
 pipeline (`find_candidates` → `select_active` → `build_segments`): it pins
-`gap_transit_s=inf` and `kinds={wash_plateau, area_jump}`, so it sees only the
+`gap_transit_s=inf`, `kinds={wash_plateau, area_jump}`, and `default="all"`, so it sees only the
 plateau/area-jump boundaries it always did. The decomposition adds a third boundary
 **kind** the old single-pass filter dropped — **transit** (a 60–90 s inter-room hop
 with *flat* area, between `_GAP_TRANSIT_S` and `_GAP_PLATEAU_S`) — alongside
@@ -241,6 +256,31 @@ embedded so the run can be **re-attributed** server-side after an engine fix —
 sibling of re-segmentation. When there is no pose stream (non-map brand / no live map) every
 branch behaves exactly as pre-W5c.
 
+**Boundary classification formula.** The `_classify` function applies a strict 4-branch precedence:
+
+1. **wash_plateau**: gap > `gap_plateau_s` (>90 s) — unambiguous long pause
+2. **transit**: gap > `gap_transit_s` (60–90 s) AND area_after < `area_jump_m2` (flat area) — inter-room hop without new floor
+3. **area_jump**: area_after ≥ `area_jump_m2` (≥2 m²) — new floor covered, regardless of gap
+4. **weak**: short gap with flat area — most likely a pass-turn, not a boundary
+
+So a gap of 70 s with +2.5 m² area is classified **area_jump** (branch 3), not transit.
+
+**Boundary strength ranking.** Each candidate's strength score drives count-based selection (`expected_rooms` mode):
+
+```
+strength = _KIND_WEIGHT[kind] + max(area_after, 0.0) + min(gap, 600.0) / 600.0
+```
+
+where the kind weights dominate: `{wash_plateau: 4000, transit: 2000, area_jump: 1000, weak: 0}`. Area is added at full m² scale (dominates the gap term). The gap is clamped to 600 s and normalized to [0, 1] as a tie-breaker.
+
+**Worked example:** A gap of 70 s, area_after 0.5 m², classified as transit:
+
+```
+strength = 2000.0 + max(0.5, 0.0) + min(70.0, 600.0) / 600.0
+         = 2000.0 + 0.5 + 0.117
+         = 2000.617  →  ranked above all area_jump and weak
+```
+
 The same segmenter also drives **live** room-transition detection: in
 `jobs/active_job._maybe_roll_current_room_by_timing`, when the per-vacuum boundary
 count (`_live_boundary_count`, via the resolved engine's `find_candidates` + framework
@@ -255,7 +295,7 @@ never wrongly blocks it, while a brand with a stable lock re-enables it.
 At finalization there are **two paths** to the per-room timing blocks, chosen by
 `build_completed_job_payload` (`learning/history_store.py`):
 
-- **Strict-order (sequenced) jobs** — each phase cleaned one room and docked, so the
+- **Strict-order (sequenced) jobs** (`phases` present in `active_job_state`) — each phase cleaned one room and docked, so the
   whole-run counter stream can't be segmented across the per-room dock trips against a
   single last-phase queue. Instead each phase captured its **own** `room_timing` from its
   own counter slice at advance time (`jobs/PhaseRunner._capture_finishing_phase_timing` →
@@ -263,11 +303,12 @@ At finalization there are **two paths** to the per-room timing blocks, chosen by
   those per-phase timings in phase order, sets `transitions = []` (the inter-phase gaps are
   dock overhead, not room-to-room transit), and `transit_capture_valid` is `True` only when
   **every** phase captured a timing.
-- **Atomic / legacy jobs** (`phases` absent) — `_build_transit_blocks`
-  (`learning/history_store.py`) resolves the job-segmenter engine from the adapter (optional
-  `vacuum_entity_id` param; absent/unknown → the Eufy fallback) and calls
-  `engine.segment_legacy(...)` — byte-identical to the legacy `segment_counters` — then maps
-  the segments onto the dispatched queue order (internal: segment K → queue room K).
+- **Atomic / legacy jobs** (`phases` absent) — called at line 1117 of `build_completed_job_payload`,
+  the module-level function `_build_transit_blocks` (`learning/history_store.py` lines 47–117)
+  resolves the job-segmenter engine from the adapter (optional `vacuum_entity_id` param;
+  absent/unknown → the Eufy fallback) and calls `engine.segment_legacy(...)` — byte-identical
+  to the legacy `segment_counters` — then maps the segments onto the dispatched queue order
+  (internal: segment K → queue room K).
 
 Either path writes three additive blocks to the job record's `job` object:
 
@@ -276,11 +317,44 @@ Either path writes three additive blocks to the job record's `job` object:
 | `room_timings` | `[{room_id, slug, cleaning_start, cleaning_end, cleaning_seconds, cleaning_wall_seconds, area_m2, battery_delta, boundary}]` | Per-room window — incl. exact per-room **`area_m2`, now available for multi-room jobs** |
 | `transitions` | `[{from_room_id, from_slug, to_room_id, to_slug, transit_seconds}]` | Inter-room gap (the segment's `gap_before_s` = transit + wash) |
 | `transit_capture_valid` | bool | True only when the segment count equals the queued room count |
+**`build_completed_job_payload` signature (§2.2 and history_store.py):**
+
+Called from `LearningJobFinalizer.finalize_from_inputs` with ~14 explicit keyword parameters:
+
+```python
+def build_completed_job_payload(
+    self,
+    *,
+    vacuum_entity_id: str,              # e.g. "vacuum.alfred"
+    job_id: str,                        # e.g. "job_2025-01-15T14-30-42"
+    started_at: str,                    # ISO timestamp
+    ended_at: str,                      # ISO timestamp
+    battery_start: int,                 # % at start
+    battery_end: int,                   # % at end
+    queue_state: dict[str, Any],        # queue.queue_rooms, queue.queue_room_ids
+    payload_state: dict[str, Any],      # resolved_rooms from initial dispatch state
+    active_job_state: dict[str, Any],   # running job state: completed_room_ids, room_count, state_transitions, etc.
+    used_for_learning: bool = True,     # STORE computes this; finalizer passes it
+    outcome_status: str = "completed",  # e.g. "completed", "cancelled", "failed"
+    was_cancelled: bool = False,        # separate signal for cancel detection
+    was_failed: bool = False,           # separate signal for failure
+    was_interrupted: bool = False,      # separate signal for interruption
+    is_test_job: bool = False,          # test-run marker
+    extra_outcome: dict[str, Any] | None = None,  # additional outcome fields
+) -> dict[str, Any]
+```
+
+The `used_for_learning` flag is **computed by the store** (see `is_learning_job` gate in §3.1), not passed by the caller. The `LearningJobFinalizer` evaluates blocker conditions and calls the store with the computed flag. All ~14 params are explicit keywords; there is no `inputs` dict parameter — the finalizer assembles the payload from state objects.
 
 `transit_capture_valid` is the **poison guard**: a glitchy run (missed sample,
 extra split) sets it `False` so it never corrupts the aggregate, while the
 partial timings are still written for audit. A single-room job is valid with an
-empty `transitions` list.
+empty `transitions` list.**Window preparation (`_prepare_window`)** — internal helper used by `find_candidates` and `build_segments`. Normalizes and sorts counter samples by timestamp (UTC-aware parse via `timestamp_utils.parse_timestamp`), trims to the last `cleaning_time` reset (dropping stale pre-reset samples from a prior job), and constructs two monotonic lookup functions:
+
+- `area_at(t)` — returns the cumulative area reached by time t (handles lagged area packets via `bisect_right`)
+- `batt_at(t)` — returns the battery level at or before time t
+
+Returns `None` if the stream has no usable signal (empty, or no cleaning_time increments after reset). Both functions are used by `build_segments` to attribute area and battery deltas across a segment, which is why area attribution must be recomputed per active boundary set (the `wash_plateau` forward-reads lagged area, others stay same-instant).
 
 The rebuilder aggregates only `transit_capture_valid` jobs into two **room_stats**
 arrays (one source of truth for both the estimator and any access-graph consumer):
@@ -294,21 +368,25 @@ arrays (one source of truth for both the estimator and any access-graph consumer
 Each `room_baselines` entry also gains `avg_ingress_transit_seconds` (transit
 *into* the room) and `avg_egress_transit_seconds` (transit *out of* it), each with
 a `_min/_max/_stddev` band plus `ingress_sample_count` / `egress_sample_count`.
+**Reader-side caching (§6 and LearningManager):**
+
+Room stats and accuracy stats are cached in memory (`LearningManager._room_stats_cache` and `_accuracy_stats_cache`, both dicts keyed by `vacuum_entity_id`) to avoid repeated disk reads on every estimate poll. The caches are warm-loaded at startup via `async_preload_learning_stats` (runs on the executor) and are explicitly cleared when stats are rebuilt (`_invalidate_learning_stats_cache`). The cached data lives in the manager's instance, not in `hass.data` — each manager instance (and each vacuum) has its own copy. The estimator reads from the manager's cache and never hits disk during estimates.
 
 **Job-level overhead** (`overhead_observed`, retroactive-safe) is attached to each
-job by the finalizer via `compute_overhead_observed` (`learning/utils.py`):
-`{total_overhead_minutes, entry_minutes, inter_room_minutes, return_minutes,
-recharge_minutes, wash_minutes}`. `total_overhead_minutes = duration_minutes −
-cleaning_minutes`, and the `return` / `recharge` components come from fields
-present on **every** finalized job — so a plain rebuild populates job-level
-overhead for the entire historical corpus even though per-room transit is
-forward-only (`entry` / `inter_room` stay `null` until a valid capture supplies
-them). `job_stats.json` (schema 4) aggregates these into `avg_overhead_minutes`
-(+band) and per-component means (`avg_overhead_inter_room_minutes`, etc.).
+job by the finalizer via `compute_overhead_observed(job: dict[str, Any])` (`learning/utils.py` lines 123–160):
+returns `{total_overhead_minutes, entry_minutes, inter_room_minutes, return_minutes,
+recharge_minutes, wash_minutes}`. Signature reads:
+
+- `duration_minutes` — total job wall time
+- `cleaning_time_seconds` (preferred) or `actual_cleaning_minutes` (fallback) — device cleaning counter or single-room state-transition time
+- `return_to_dock_minutes` (when present) — docking trip
+- `recharge_seconds_accumulated` — mid-job recharge dwell
+
+Formula: `total_overhead_minutes = duration_minutes − cleaning_minutes` (≥ 0, rounded 2dp). The `return` / `recharge` components come from fields present on **every** finalized job — so a plain rebuild populates job-level overhead for the entire historical corpus even though per-room transit is forward-only (`entry` / `inter_room` stay `null` until a valid capture supplies them). `job_stats.json` (schema 4) aggregates these into `avg_overhead_minutes` (+band) and per-component means (`avg_overhead_inter_room_minutes`, etc.).
 
 ### 2.3 Accuracy store (`accuracy_stats.json` → `rooms` dict)
 
-A separate file tracking how accurate estimates have been against actuals. Keyed by the **same** `_room_key` as `room_stats` (one shared builder in `utils.py`, so the two can never drift) — which now includes `edge_mopping`, so drift is tracked per edge variant. Updated incrementally after every job (not rebuilt from scratch); because it is never rebuilt, any entries written under the older key format (before edge was added) are simply orphaned — harmless, and they fall out of use as new keys accumulate.
+A separate file tracking how accurate estimates have been against actuals. Keyed by the **same** `_room_key` as `room_stats` (one shared builder in `utils.py`, so the two can never drift) — which now includes `edge_mopping`, so drift is tracked per edge variant. Updated incrementally after every job (not rebuilt from scratch) via `record_estimate_accuracy` in the estimator; because it is never rebuilt, any entries written under the older key format (before edge was added) are simply orphaned — harmless, and they fall out of use as new keys accumulate.
 
 **Fields per entry:**
 
@@ -354,23 +432,50 @@ Any job that fails this check is visible in the jobs index and CSV exports but i
 
 ### 3.2 Blockers — what sets `used_for_learning = False`
 
-`build_completed_job_payload` computes a `learning_blockers` list. Any populated blocker forces `used_for_learning = False` on the outcome. The complete set of blocker strings that the system writes:
+`build_completed_job_payload` (in `learning/history_store.py`) computes a `learning_blockers` list. Any populated blocker forces `used_for_learning = False` on the outcome. The complete set of blocker strings that the system writes:
 
-| Blocker string | Condition |
+| Blocker string | Source / Condition |
 |---|---|
-| `invalid_room_count` | `room_count <= 0` |
-| `invalid_duration` | `duration_minutes <= 0` |
-| `missing_resolved_rooms` | `resolved_rooms` list is empty |
-| `job_cancelled` | `was_cancelled == True` or `status == "cancelled"` |
-| `job_failed` | `was_failed == True` or `status == "failed"` |
-| `job_interrupted` | `was_interrupted == True` or `status == "interrupted"` |
-| `test_job` | `is_test_job == True` or `status == "test"` |
-| `floor_time_too_short` | Cancel detection: actual floor time < 1.5 min (single-room only) |
-| `early_return_likely_cancelled` | Cancel detection: duration < 40% of expected, cancel-like transition found |
+| `invalid_room_count` | `build_completed_job_payload`: `room_count <= 0` |
+| `invalid_duration` | `build_completed_job_payload`: `duration_minutes <= 0` |
+| `missing_resolved_rooms` | `build_completed_job_payload`: `resolved_rooms` list is empty |
+| `job_cancelled` | `build_completed_job_payload`: `was_cancelled == True` or `status == "cancelled"` |
+| `job_failed` | `build_completed_job_payload`: `was_failed == True` or `status == "failed"` |
+| `job_interrupted` | `build_completed_job_payload`: `was_interrupted == True` or `status == "interrupted"` |
+| `test_job` | `build_completed_job_payload`: `is_test_job == True` or `status == "test"` |
+| `floor_time_too_short` | `build_completed_job_payload` reads `cancel_detection.reason` from `extra_outcome` when `cancel_likely == True` (reason is set by `_detect_cancel_likely_run` in `job_finalizer.py`) |
+| `early_return_likely_cancelled` | `build_completed_job_payload` reads `cancel_detection.reason` from `extra_outcome` when `cancel_likely == True` (reason is set by `_detect_cancel_likely_run` in `job_finalizer.py`) |
 
-The cancel detection blockers (`floor_time_too_short`, `early_return_likely_cancelled`) are written from the `cancel_detection.reason` field when `cancel_likely == True` in `_detect_cancel_likely_run`.
+**Blocker computation provenance:** All blockers are computed in `build_completed_job_payload` (lines 1018–1072 of `history_store.py`). The cancel-detection blockers are populated by appending `cancel_detection.get("reason")` from the `extra_outcome` dict parameter when it signals `cancel_likely == True` (line 1067).
 
 Manual exclusion via the `exclude_learning_job` service adds two additional blockers: `manually_excluded` and whatever reason string was passed (default `manual_exclusion`).
+
+### 3.2a Cancel Detection Algorithm
+
+Cancel detection runs only on single-room completed jobs and has two triggers, both computed in `_detect_cancel_likely_run` (`job_finalizer.py`):
+
+**Trigger 1: Floor time too short** — absolute floor threshold
+
+```
+actual_cleaning_minutes = (returning_transition_dt - started_dt - paused_seconds) / 60.0
+floor_threshold = 1.5 minutes
+floor_time_too_short when actual_cleaning_minutes < 1.5
+```
+
+The returning transition is found by scanning `state_transitions` in reverse for the last entry where `to_state == "returning"` (after normalizing the task_status entity ID from adapter config). The computation subtracts paused-time seconds to exclude manual pauses. If no returning transition is found, this trigger cannot fire.
+
+**Trigger 2: Early return likely cancelled** — relative short-duration gate
+
+```
+expected_room_minutes = timeline[0].minutes from manager.estimate_from_manager(...)
+short_threshold = max(min(expected_room_minutes * 0.4, expected_room_minutes), 0.75)
+                = 1.0 (default) when expected_room_minutes <= 0
+
+early_return_likely_cancelled when job_duration_minutes < short_threshold
+                                   AND a cancel-like transition is observed
+```
+
+The cancel-like transition is either a **direct return** (task_status goes from an `active` state straight to `returning`) or a **paused-then-return** (a `paused` state followed by `returning`) — the active / paused / returning states are all adapter-configurable. A service-state exclusion layer (`cancel_service_exclusion_states` vocab) prevents false positives from normal service cycles (low-battery return, mop wash, dust empty). Non-single-room jobs, jobs missing timestamps, or jobs with no state transitions never trigger cancel detection.
 
 > **See also:** [06-job-lifecycle](06-job-lifecycle.md) §7 for the finalization pipeline that evaluates these blockers and writes `used_for_learning` onto the completed job record.
 
@@ -379,17 +484,24 @@ Manual exclusion via the `exclude_learning_job` service adds two additional bloc
 Separate from `used_for_learning`, each job carries an `outcome.sanity_passed` /
 `outcome.sanity_flags` pair used only by the **history snapshot** the card renders
 (`manager.py::get_learning_history_snapshot`), not by the aggregation gate above. The snapshot
-maps known sanity flags (e.g. `failed_sanity` → "This run failed the backend sanity
-checks.") to display text and contributes to the per-job `outlier_score` / the
+maps known sanity flags (e.g. `invalid_room_count` → an invalid room count was detected) to display text and contributes to the per-job `outlier_score` / the
 "suggest exclude" hint.
 
-Two rules matter here:
+**Sanity flag computation** (in `build_completed_job_payload`, lines 1019–1048 of `history_store.py`):
+
+Two sanity flags are computed and appended to `sanity_flags` when conditions fail:
+- `invalid_room_count` — appended when `room_count <= 0`
+- `invalid_duration` — appended when `duration_minutes <= 0`
+
+`sanity_passed` is then computed as `len(sanity_flags) == 0` — it is `True` only when the `sanity_flags` list is empty, and `False` when any flag is present. This is **distinct** from `learning_blockers`, which gate the learning gate (§3.2) — a job with sanity flags may still have `used_for_learning == True` if no learning blockers are present, but it will be flagged in the history snapshot.
+
+**Two rules for history display:**
 
 - **Only an explicit `False` is a failure.** Both the `outlier_score` bump and the
   exclude-suggestion check test `item.get("sanity_passed") is False`, *not* a
   `.get("sanity_passed", True)` default. The jobs index stores the key as `None` for
   records that never set it, so the old default never fired and tagged **every** such
-  run "failed the backend sanity checks." A missing/`None` value now counts as
+  run as failed. A missing/`None` value now counts as
   *not failed*.
 - **Graduated external runs set it `True` explicitly.** `build_graduated_job`
   (`learning/external_ingest.py`) writes `sanity_passed: True` + `sanity_flags: []`
@@ -420,8 +532,8 @@ _ACCURACY_PENALTY_THRESHOLD   = 0.20  # drift ratio at which full penalty applie
 
 ```
 score = base + sample_bonus - variance_penalty - intensity_penalty - accuracy_penalty
-score = clamp(score, 0.0, 1.0)
-score = round(score, 4)
+score = clamp(score, 0.0, 1.0)  # clamped inside _score_room_confidence
+scored = round(score, 4)         # rounded in _confidence_result wrapper (line 172)
 ```
 
 **Base score:**
@@ -444,6 +556,7 @@ variance_penalty = min(cv / 0.5, 1.0) * 0.25
 ```
 
 The coefficient of variation (CV) measures relative spread. A CV of 0.5 or above triggers the full penalty of `-0.25`. A CV of 0.25 triggers `-0.125`.
+**Rounding convention:** Per-room timing, battery, area, and offset metrics round to **2 decimal places** (e.g., `minutes: round(minutes, 2)`). Confidence scores and accuracy drift ratio round to **4 decimal places** (e.g., `confidence_score: round(score, 4)`, `accuracy_drift_ratio: round(drift_ratio, 4)`). The accuracy penalty calculation uses the unrounded drift value; the round happens only in the output dict.
 
 **Intensity mismatch penalty:**
 ```
@@ -543,11 +656,11 @@ When no match is found at any pass, the room gets `source = "default"` with hard
 
 ### 5.2 Room timeline computation
 
-The estimator walks `ordered_rooms` in sequence, accumulating a `cumulative_minutes` cursor:
+The estimator walks `ordered_rooms` in sequence, accumulating a `cumulative_minutes` cursor. All aggregated stats (per-room `avg_minutes`, `avg_battery_used`, per-room time/battery offsets, area) and room-level stats are rounded to **2 decimal places**. The only exception is `minutes_stddev` (and all `*_stddev` fields), which round to **4 decimal places**:
 
 ```
-for each room (position 0..n-1):
-    transit_before = 0.0 if position == 0 else learned inter-room leg (§5.3)
+for each room (position 1..N in output, 0..n-1 internally):
+    transit_before = 0.0 if position == 1 else learned inter-room leg (§5.3)
     cumulative_minutes += transit_before   # travel time, folded into the timeline
     start_offset = cumulative_minutes
     cumulative_minutes += minutes          # learned avg_minutes or default 6.0
@@ -555,7 +668,7 @@ for each room (position 0..n-1):
     eta_at = job_start_dt + end_offset (minutes)
 ```
 
-Each room entry carries `start_offset_minutes`, `end_offset_minutes`, `eta_at` (ISO timestamp), and — for rooms after the first — `estimated_transit_minutes_before` + `transit_source` (the learned inter-room leg, folded into the offsets so travel time is positioned *between* rooms rather than lumped at the end). Their sum equals `overhead.transition_minutes` (§5.3). The position-0 entry leg (dock → first room) stays in `startup`. Each entry also carries `estimated_area_m2` (the learned per-room area) and feeds confidence/velocity from the area-gated `timing_sample_count` (not the raw `sample_count`), since `avg_minutes` is computed from the gated samples (§2.1). The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
+Each room entry carries `start_offset_minutes`, `end_offset_minutes`, `eta_at` (ISO timestamp), `estimated_transit_minutes_before`, and `transit_source`. The first room has `estimated_transit_minutes_before = 0.0` and `transit_source = "none"`; rooms 2–N carry learned inter-room legs folded into the offsets so travel time is positioned *between* rooms rather than lumped at the end. Their sum equals `overhead.transition_minutes` (§5.3). The dock → first room leg stays in `startup` overhead. **Position is 1-indexed: `position` ranges from 1 to N.** Each entry also carries `estimated_area_m2` (the learned per-room area) and feeds confidence/velocity from the area-gated `timing_sample_count` (not the raw `sample_count`), since `avg_minutes` is computed from the gated samples (§2.1). The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time. Each entry also carries `estimated_area_m2` (the learned per-room area) and feeds confidence/velocity from the area-gated `timing_sample_count` (not the raw `sample_count`), since `avg_minutes` is computed from the gated samples (§2.1). The ETA anchor is `started_at` when provided; otherwise `utc_now()` at estimate time.
 
 ### 5.3 Overhead computation
 
@@ -608,8 +721,13 @@ per-room legs are summed into `overhead.transition_minutes`
 |---|---|---|
 | 1 | Exact `from→to` edge in `access_graph_edges` (`sample_count ≥ 1`) | `learned_pairs` |
 | 2 | Per-room ingress average (`room_baselines.avg_ingress_transit_seconds`) | `learned_room` |
-| 3 | Job-level global per-boundary average (`job_stats.avg_overhead_inter_room_minutes ÷ avg boundaries`) | `learned_global` |
-| 4 | The `_TRANSITION_PER_ROOM = 0.75` constant | `default` |
+| 3 | Job-level global per-boundary average: `avg_overhead_inter_room_minutes ÷ (avg_room_count − 1)` | `learned_global` |
+| 4 | The `_TRANSITION_PER_ROOM = 0.75` constant (fallback, used at cold start / adapters without `cleaning_time`) | `default` |
+
+**Overhead constants:**
+- `_RECHARGE_PER_BATTERY_PCT = 0.05` — recharge time per 1% battery used
+- `_DEFAULT_MOP_WASH_CYCLE_MINUTES = 1.5` — minutes per mop wash cycle
+- `_DEFAULT_WASH_INTERVAL_MINUTES = 20.0` — fallback interval when wash mode has no readable state
 
 A never-observed leg always degrades cleanly to the next tier, so an estimate is
 always producible. With no learned data at all, every leg returns the constant and
@@ -628,7 +746,9 @@ measurements, then recomputes remaining ETAs from the new elapsed total.
 **Inputs:**
 - `original_estimate` — the full estimate dict produced at job start
 - `completed_rooms` — list of `{room_id, actual_duration_minutes}` or `{slug, actual_duration_minutes}` entries
-- `reanchor_at` — ISO timestamp to anchor remaining ETAs from (defaults to `utc_now()`)
+- `reanchor_at` — ISO timestamp for offset recalculation base (defaults to `utc_now()`)
+
+**ETA anchor:** Remaining room ETAs are anchored from the **original job start** (`original_estimate["started_at"]`), not from `reanchor_at`. The `reanchor_at` parameter is used only as a fallback if `started_at` is missing. This ensures that all per-room offsets remain consistent with the original job timeline.
 
 **Algorithm:**
 
@@ -766,11 +886,90 @@ The `rebuilt_at` timestamp written into both `job_stats.json` and `room_stats.js
 
 ### 8.2 What gets recalculated
 
-| Output file | Recalculated fields |
-|---|---|
-| `job_stats.json` | `total_jobs`, `avg_duration_minutes`, `avg_battery_used`, `avg_room_count`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `min/max_duration_minutes`, `min/max_battery_used`, `latest_job_ended_at` |
-| `room_stats.json` | `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count`, plus `avg_area_m2`, `area_m2_min`, `area_m2_max`, `area_m2_stddev`, `area_sample_count` (per room, single + multi-room) for every room key; `room_baselines` additionally carries `by_clean_times` / `by_edge_mopping` setting breakouts |
-| `jobs_index.json` | Per-job summary list, per-room aggregate list, per-profile aggregate list |
+**`job_stats.json` (schema 4, nested structure):**
+
+Top-level wrapper:
+```json
+{
+  "schema_version": 4,
+  "vacuum_entity_id": "vacuum.alfred",
+  "rebuilt_at": "<ISO>",
+  "job_stats": { ... all aggregates below ... }
+}
+```
+
+Recalculated fields in `job_stats` object:
+
+| Field | Type | Description |
+|---|---|---|
+| `total_jobs` | int | Count of learning jobs |
+| `avg_duration_minutes` | float | Mean job duration |
+| `avg_battery_used` | float | Mean battery consumed per job |
+| `avg_robot_water_used_ml` | float | Mean robot cleaning water (not dock) |
+| `avg_water_overhead_ml` | float | Mean dock wash + refill water |
+| `avg_total_water_used_ml` | float | Total water (robot + overhead) |
+| `min_total_water_used_ml` | float | Min total water |
+| `max_total_water_used_ml` | float | Max total water |
+| `avg_room_count` | float | Mean rooms per job |
+| `avg_drift_minutes` | float | Signed mean prediction error |
+| `avg_abs_drift_minutes` | float | Absolute magnitude prediction error |
+| `min_duration_minutes` | float | Shortest job |
+| `max_duration_minutes` | float | Longest job |
+| `min_battery_used` | float | Min battery consumed |
+| `max_battery_used` | float | Max battery consumed |
+| `avg_overhead_minutes` | float | Total overhead (startup + transitions + return + recharge + mop wash + dust empty) |
+| `min_overhead_minutes` | float | Min total overhead |
+| `max_overhead_minutes` | float | Max total overhead |
+| `overhead_minutes_stddev` | float | Overhead variance |
+| `avg_overhead_entry_minutes` | float | Pre-clean entry time (only when captured) |
+| `avg_overhead_inter_room_minutes` | float | Inter-room transit time (only when captured) |
+| `avg_overhead_return_minutes` | float | Return-to-dock time (only when captured) |
+| `avg_overhead_recharge_minutes` | float | Recharge time (retroactive, all jobs) |
+| `overhead_sample_count` | int | Jobs contributing to total overhead |
+| `overhead_entry_sample_count` | int | Jobs with captured entry time |
+| `overhead_inter_room_sample_count` | int | Jobs with captured inter-room time |
+| `latest_job_ended_at` | ISO str or null | Most recent job end timestamp |
+
+**`room_stats.json` (schema 6):**
+
+Recalculated fields per room-settings combination and per-room baseline:
+
+`room_stats` array: `avg_minutes`, `minutes_stddev`, `minutes_min`, `minutes_max`, `avg_battery_used`, `avg_drift_minutes`, `avg_abs_drift_minutes`, `sample_count`, plus `avg_area_m2`, `area_m2_min`, `area_m2_max`, `area_m2_stddev`, `area_sample_count`, `partial_excluded_count`, `timing_sample_count` (per room-settings key)
+
+`room_baselines` array: one entry per `{map_id, room_slug}` with full per-room aggregates collapsed across all settings, plus `by_clean_times` and `by_edge_mopping` setting breakouts (each carrying `sample_count`, `avg_minutes`, `minutes_min/max/stddev`, `avg_battery_used`), and `avg_ingress_transit_seconds` / `avg_egress_transit_seconds` (+ bands, sample counts) for transit into and out of the room
+
+**`jobs_index.json` (schema 1):**
+
+Top-level structure:
+```json
+{
+  "schema_version": 1,
+  "vacuum_entity_id": "vacuum.alfred",
+  "rebuilt_at": "<ISO>",
+  "job_count": 42,
+  "jobs": [ ... ],
+  "rooms": [ ... ],
+  "room_profiles": [ ... ]
+}
+```
+
+`jobs` array (one entry per completed job, all outcomes):
+- `job_id`, `started_at`, `ended_at`, `duration_minutes`, `room_count`, `room_slugs` (list)
+- `status`, `used_for_learning`, `sanity_passed`
+- `battery_used`, `robot_water_used_ml`, `water_overhead_ml`, `total_water_used_ml`
+- `cancel_detection` (object), `mid_job_recharge_observed` (bool)
+
+`rooms` array (one entry per unique room slug, aggregated across all jobs):
+- `room_slug`, `run_count`, `learning_run_count`, `avg_duration_minutes`, `avg_battery_used`
+- `avg_robot_water_used_ml`, `avg_water_overhead_ml`, `avg_total_water_used_ml`
+- `last_job_id`, `last_ended_at`, `status_counts` (dict), `profile_keys` (dict)
+
+`room_profiles` array (one entry per unique `_room_profile_key(room)` — settings signature keyed by slug + profile_name + mode + intensity + fan_speed + water_level + clean_passes + carpet + edge_mopping):
+- `profile_key`, `room_slug`, `selected_profile_name`, `resolved_profile_name`
+- `clean_mode`, `clean_intensity`, `fan_speed`, `water_level`, `clean_passes`, `carpet`, `edge_mopping`
+- `run_count`, `learning_run_count`, `avg_duration_minutes`, `avg_battery_used`
+- `avg_robot_water_used_ml`, `avg_water_overhead_ml`, `avg_total_water_used_ml`
+- `last_job_id`, `last_ended_at`, `status_counts` (dict)
 
 The accuracy stats file (`learned/accuracy_stats.json`) is **not** rebuilt — it is only updated incrementally by `record_estimate_accuracy` after each job.
 
@@ -790,7 +989,7 @@ Under normal operation, a rebuild fires automatically at the end of every `final
 
 ---
 
-## 9. File Layout
+## 9. File Layout and Constructors
 
 All learning files live under:
 ```
@@ -824,13 +1023,42 @@ eufy_vacuum/learning/{vacuum_slug}/
 eufy_vacuum/learning/mapping/{vacuum_slug}/access_graph_{map_id}.json
 ```
 
-**Naming conventions:**
+**Naming conventions and I/O safety:**
 
 - Job files: `{job_id}.json` where `job_id` defaults to `job_{YYYY-MM-DDTHH-MM-SS}` when not supplied.
 - All JSON files use 2-space indentation, UTF-8 encoding, trailing newline.
 - CSV files write header on first row if the file is empty or does not exist.
+- **JSON writes are atomic:** `LearningHistoryStore.write_json` writes to a `tempfile.mkstemp()` in the target directory, then `os.replace()`s it into place. A reader or a process crash mid-write never sees a half-written file — the swap is atomic at the OS level.
 
-**`LearningPaths` dataclass fields:**
+### 9.1 Constructors and initialization
+
+All learning system classes are bound to Home Assistant at instantiation:
+
+| Class | Constructor | Role |
+|---|---|---|
+| `LearningHistoryStore` | `__init__(self, hass: HomeAssistant)` | File I/O for all JSON and CSV. Base dir from `hass.config.config_dir`. |
+| `LearningStatsRebuilder` | `__init__(self, hass: HomeAssistant)` | Rebuilds stats. Owns `LearningHistoryStore` instance. |
+| `LearningJobFinalizer` | `__init__(self, hass: HomeAssistant)` | Finalizes completed jobs. Owns `LearningHistoryStore` and `LearningStatsRebuilder` instances. |
+| `LearningManager` | `__init__(self, hass: HomeAssistant)` | Orchestrates all modules. Owns `LearningHistoryStore`, `LearningJobFinalizer`, `LearningStatsRebuilder`, and `LearningEstimator` instances. |
+| `LearningEstimator` | `__init__(self, hass: HomeAssistant)` | Estimation and confidence math. Pure computation but needs `hass` for entity lookups. |
+
+Each instance constructs its own collaborators; there is no shared singleton registry. The typical entrypoint is `LearningManager`, which creates the others.
+
+### 9.2 `LearningPaths` dataclass
+
+```python
+@dataclass(slots=True)
+class LearningPaths:
+    root: Path
+    jobs_dir: Path
+    learned_dir: Path
+    exports_dir: Path
+    live_dir: Path
+```
+
+Paths are `pathlib.Path` objects. Instances are created by `LearningHistoryStore.get_paths(vacuum_entity_id)` (returns path structure without creating dirs) or `ensure_dirs(vacuum_entity_id)` (creates all dirs and returns paths). Path getters like `jobs_csv_path(vacuum_entity_id)` call `ensure_dirs()` internally.
+
+**Mapped fields:**
 
 | Field | Path |
 |---|---|
@@ -876,6 +1104,32 @@ If you want to track estimation accuracy for the new metric, add a parallel fiel
 ### Step 6 — Update CSV exports (if needed)
 
 Add a column to `_job_export_row` or `_room_export_rows` in `stats_rebuilder.py` and update the corresponding header lists in `history_store.py` (`rebuild_jobs_csv` / `rebuild_rooms_csv`).
+
+**Jobs CSV columns (19 total):**
+
+Header order (in `history_store.rebuild_jobs_csv`):
+```
+job_id, started_at, ended_at, map_id, room_count, duration_minutes,
+battery_start, battery_end, battery_used, status, used_for_learning, sanity_passed,
+sanity_flags, learning_blockers, job_drift_minutes, job_abs_drift_minutes,
+water_estimated_ml, water_end_station_pct, water_actual_used_ml
+```
+
+Rows are lists (in `stats_rebuilder._job_export_row`), not dicts. `sanity_flags` and `learning_blockers` are pipe-delimited strings (empty if empty list).
+
+**Rooms CSV columns (27 total):**
+
+Header order (in `history_store.rebuild_rooms_csv`):
+```
+job_id, started_at, ended_at, map_id, room_slug, room_id, room_order,
+requested_mode, effective_mode, clean_times, fan_speed, water_level, clean_intensity,
+edge_mopping, is_carpet, job_room_count, job_duration_minutes, job_battery_used,
+status, used_for_learning, sanity_passed,
+sanity_flags, learning_blockers, allocated_room_minutes, allocated_room_battery_used,
+allocated_room_drift_minutes, allocated_room_abs_drift_minutes
+```
+
+Rows are lists (in `stats_rebuilder._room_export_rows`), not dicts. Each room in a job gets one row; multi-room jobs produce multiple rows with allocated duration/battery/drift. `sanity_flags` and `learning_blockers` are pipe-delimited strings (empty if empty list).
 
 ### Checklist summary
 

@@ -53,6 +53,11 @@ these files together (see [running-tests §per-file vs combined](../02-running-t
 (`""`, `"unknown"`, `"unavailable"`), `None` defaults, float-string parsing,
 non-numeric fallback. Grouped by function (no ID prefix).
 
+**Coverage details:**
+- **`_safe_int`**: rejects sentinels and None, converts via `int(float(value))` (raises ValueError on NaN/inf), returns default on any exception
+- **`_safe_float`**: rejects sentinels and None, returns `float(value)` as-is (does NOT reject NaN/inf; `float('nan')` succeeds), returns default on ValueError only
+- **`_safe_bool`**: rejects sentinels and None, truthy strings `{"true", "on", "yes", "1"}` (case-insensitive, stripped), falsy otherwise; returns `bool(value)` for non-strings with exception fallback
+
 ### `estimator.py` — compute helpers + `LearningEstimator` (prefix `LE`)
 - **Confidence model** (LE-1..LE-7): score→breakpoint mapping, clamping, the
   learned-base + sample-bonus + variance/intensity/accuracy-drift penalties, the
