@@ -10,6 +10,23 @@ only.
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-07-05
+
+Bug fixes for **Roborock** — a few spots where brand-agnostic code still assumed
+Eufy's limits and quietly mis-handled Roborock. All are no-ops on Eufy.
+
+### Fixed
+- **Roborock multi-pass learning is no longer mis-bucketed.** The learning system
+  clamped cleaning passes to Eufy's 1–2, collapsing a Roborock 3-pass run into the
+  1-pass bucket (and never matching its learned stats back). It now keeps the real
+  pass count. Run **Rebuild learning stats** once to re-file existing history.
+- **Roborock room profiles keep their own defaults.** Applying a room profile filled
+  any omitted suction / water / intensity from Eufy's defaults (Max / Off / Standard);
+  it now uses your vacuum's actual defaults.
+- **Zone-clean repeats and limits are per-brand.** The zone repeat count is read from
+  your vacuum's adapter instead of a hardcoded Eufy cap, and the pass-count input no
+  longer imposes a made-up ceiling.
+
 ## [1.6.2] - 2026-07-05
 
 A localization patch — three spots that were still showing English inside otherwise-translated screens.
