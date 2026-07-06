@@ -1182,17 +1182,29 @@ proto.renderRoomCard = function (room, state) {
     return mode === "mop" || mode === "vacuum_mop" || mode.includes("mop") || mode.includes("wash");
   };
 
-  proto._roomProfileLabel = function (profile) {
+  /**
+   * Map a BUILT-IN profile name to its i18n key, or null for user-created
+   * profiles (no key — the user's own label is shown verbatim). Single source of
+   * truth for the name→key mapping, shared by _roomProfileLabel and the
+   * room-editor preset chips so the two can't drift.
+   */
+  proto._builtInProfileI18nKey = function (profile) {
     const value = String(profile ?? "").trim();
-    if (!value) return this.t("rooms.profile_standard");
-    if (value.toLowerCase() === "custom") return this.t("rooms.profile_custom");
-    if (value === "vacuum_quick") return this.t("rooms.profile_vacuum_only_quick");
-    if (value === "vacuum_deep") return this.t("rooms.profile_vacuum_only_deep");
-    if (value === "vacuum_mop_quick") return this.t("rooms.profile_quick");
-    if (value === "vacuum_mop_deep") return this.t("rooms.profile_deep");
-    if (value === "user_1") return this.t("rooms.profile_user_1");
+    if (!value) return "rooms.profile_standard";
+    if (value.toLowerCase() === "custom") return "rooms.profile_custom";
+    if (value === "vacuum_quick") return "rooms.profile_vacuum_only_quick";
+    if (value === "vacuum_deep") return "rooms.profile_vacuum_only_deep";
+    if (value === "vacuum_mop_quick") return "rooms.profile_quick";
+    if (value === "vacuum_mop_deep") return "rooms.profile_deep";
+    if (value === "user_1") return "rooms.profile_user_1";
+    return null;
+  };
 
-    return value
+  proto._roomProfileLabel = function (profile) {
+    const key = this._builtInProfileI18nKey(profile);
+    if (key) return this.t(key);
+
+    return String(profile ?? "").trim()
       .replace(/[_-]+/g, " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
   };

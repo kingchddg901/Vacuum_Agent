@@ -147,15 +147,21 @@ export function applyRoomEditorRenderer(proto) {
             ${isCustom ? "disabled" : ""}
           >${this.t("room_editor.custom")}</button>
 
-          ${options.map((opt) => `
+          ${options.map((opt) => {
+            // Built-in presets localize via their i18n key (t() output is already
+            // HTML-escaped); user-created profiles show their own label (escaped).
+            const key = this._builtInProfileI18nKey(opt.name);
+            const label = key ? this.t(key) : this.escapeHtml(opt.label);
+            return `
             <button
               type="button"
               class="evcc-chip ${!isCustom && fields.profile_name === opt.name ? "active" : ""}"
               data-field="profile_name"
               data-value="${this.escapeHtml(opt.name)}"
               data-action="apply-profile"
-            >${this.escapeHtml(opt.label)}</button>
-          `).join("")}
+            >${label}</button>
+          `;
+          }).join("")}
 
         </div>
 
