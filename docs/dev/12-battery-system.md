@@ -167,6 +167,9 @@ Lives in the main `eufy_vacuum.storage` under the top-level `battery` key:
                     "is_single_clean_mode": True,
                     "is_single_fan_speed": True,
                     "is_single_water_level": True,
+                    "mid_job_recharge": False,   # True if the run recharged mid-clean; added by
+                                                 # job_finalizer (not compute), and gated OUT of the
+                                                 # per-config drain buckets — see followups Item 1
                     "single_clean_mode": "vacuum_mop",
                     "single_fan_speed": "max",
                     "single_water_level": "off",
@@ -536,6 +539,37 @@ single_clean_mode  = next(iter(by_clean_mode))  if is_single_clean_mode  else No
 ```
 
 These flags gate per-bucket aggregation downstream. The intentional design: per-bucket *drain* attribution requires single-bucket runs because the vacuum doesn't report per-room battery telemetry. Mixed runs feed only the all-jobs aggregate.
+
+### 10.5 Output fields, edge-clamps, and rounding
+
+Beyond the drain rates and `by_clean_mode` / `by_fan_speed` / `by_water_level`
+buckets above, the returned `battery_metrics` dict also carries:
+
+- **`passes_share`** — `{clean_passes → share}` (share only, no area), from the
+  same `_bucketed_share` pass keyed on `clean_passes`; captures how the job's
+  time split across 1×/2× passes. It lives on the job's `battery_metrics` block
+  and is **not** snapshotted into `record.last_job` (§4).
+- **`edge_mopping`** — `{"on_share", "off_share"}`, weight-summed booleans (sum 1.0).
+- **`weighted_by`** — `"estimated_minutes" | "room_count" | "none"` (§10.2).
+
+**Edge-clamps** (`_safe_drain` / `_positive_float`):
+
+- `battery_used_pct` is `start − end` **only when ≥ 0**. A negative result —
+  the battery *gained* charge across the job window (e.g. a mid-job recharge that
+  finished higher than it started) — clamps to `None` so it can't poison the means.
+- `battery_start` / `battery_end` are coerced via `int(...)`; `duration_minutes`
+  and `cleaning_area_m2` via `float(...)` and must be `> 0`. Any non-numeric or
+  non-positive input yields `None` for the dependent metric rather than raising.
+
+**Rounding:** drain rates `round(…, 4)`, bucket `share` `round(…, 6)`, prorated
+`area_m2` `round(…, 4)`. The unit tests assert with `pytest.approx`, so the exact
+decimal places are a code-level detail, not a pinned contract.
+
+> **`mid_job_recharge` is not produced here.** `learning/job_finalizer.py` adds it
+> to the metrics dict *after* this compute (from the active job's recharge
+> counters); `record_job_metrics` then snapshots it into `last_job` and gates a
+> flagged run out of the per-config drain buckets. See
+> [battery-subsystem-followups.md](battery-subsystem-followups.md) Item 1.
 
 ---
 

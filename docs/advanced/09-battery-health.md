@@ -208,6 +208,8 @@ Every completed cleaning job gets a `battery_metrics` block attached to its job 
     "is_single_clean_mode": True,            # eligible for per-mode aggregate
     "is_single_fan_speed": True,
     "is_single_water_level": True,
+    "mid_job_recharge": False,               # added by job_finalizer (not compute); a flagged
+                                             # run is kept OUT of the per-config drain buckets
     "single_clean_mode": "vacuum_mop",       # set when is_single_*
     "single_fan_speed": "max",
     "single_water_level": "off",
@@ -284,6 +286,7 @@ The three `_last_job_*` sensors carry the same rich attribute payload, including
 
 - `job_id`, `recorded_at`, `duration_min`, `area_m2`, `battery_used_pct`
 - `single_clean_mode`, `single_fan_speed`, `single_water_level` — null when mixed
+- `mid_job_recharge` — True if the run recharged mid-clean (excluded from the per-config drain means)
 - `weighted_by` — how per-room weights were computed
 - `post_job_charge` — the linked recharge session (null if not yet observed)
 - `all_jobs_mean`, `all_jobs_count` — running mean across all jobs
