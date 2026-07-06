@@ -460,11 +460,16 @@ export function applyReviewRenderers(proto) {
     // Fold the settings into the profile value (and drop the duplicate subtitle)
     // for profiles with a known namesake — same stable disambiguation as the
     // Metrics cards and the filter chips.
-    const profileBase = job?.profile_label || job?.selected_profile_label || job?.resolved_profile_label || job?.profile_key || this.t("review.unknown");
-    const profileSettings = String(job?.profile_subtitle ?? "").trim();
+    // Localize the job's profile in the user's card (globe) language by recomposing
+    // from the flat setting codes the backend attaches to single-room jobs — same as
+    // the filter chips and metrics cards. _localizedProfile falls back to the
+    // backend's composed label/subtitle when a job carries no settings (multi-room).
+    const lp = this._localizedProfile(job);
+    const profileBase = lp.label || job?.profile_key || this.t("review.unknown");
+    const profileSettings = String(lp.subtitle ?? "").trim();
     const profileAmbiguous = !!(this.card?._state?._isAmbiguousProfileLabel?.(profileBase) && profileSettings);
     const profileDisplay = profileAmbiguous ? `${profileBase} · ${profileSettings}` : profileBase;
-    const profileSubtitle = profileAmbiguous ? null : (job?.profile_subtitle || null);
+    const profileSubtitle = profileAmbiguous ? null : (profileSettings || null);
     const roomDisplay = Array.isArray(job?.room_slugs) && job.room_slugs.length
         ? job.room_slugs.join(", ")
       : this.t("review.unknown");

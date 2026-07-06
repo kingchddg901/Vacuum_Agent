@@ -1214,12 +1214,14 @@ class LearningManager:
             primary_room_slug = str(room_slugs[0]).strip().lower() if room_slugs else ""
             room_avg = room_average_map.get(primary_room_slug, {})
             profile_key = None
+            profile_settings: dict[str, Any] | None = None
             if len(room_slugs) == 1:
                 archived_profile = archived.get("job_profile", {}) if isinstance(archived.get("job_profile"), dict) else {}
                 archived_rooms = archived_profile.get("rooms", []) if isinstance(archived_profile.get("rooms"), list) else []
                 if archived_rooms and isinstance(archived_rooms[0], dict):
                     room = archived_rooms[0]
                     profile_key = _room_profile_key(room)
+                    profile_settings = room
                     profile_display = _settings_profile_label(
                         room_slug=primary_room_slug,
                         selected_profile_name=room.get("selected_profile_name"),
@@ -1352,6 +1354,21 @@ class LearningManager:
                     "is_custom_profile": profile_display.get("is_custom_profile"),
                 }
             )
+            # Flat setting CODES so the card localizes the job's profile in the
+            # user's (per-user globe) language via _localizedProfile — the same
+            # treatment the profile-aggregate / found_profile path gets above. Only
+            # single-room jobs have one profile; multi-room jobs keep the composed
+            # English fallback (_localizedProfile degrades to profile_label).
+            if profile_settings is not None:
+                enriched["room_label"] = _room_label(primary_room_slug)
+                enriched["selected_profile_name"] = profile_settings.get("selected_profile_name")
+                enriched["resolved_profile_name"] = profile_settings.get("resolved_profile_name")
+                enriched["clean_mode"] = _normalize_profile_setting(profile_settings.get("clean_mode"), _clean_mode_aliases)
+                enriched["clean_intensity"] = _normalize_profile_setting(profile_settings.get("clean_intensity"), _clean_intensity_aliases)
+                enriched["fan_speed"] = _normalize_profile_setting(profile_settings.get("fan_speed"), _fan_speed_aliases)
+                enriched["water_level"] = _normalize_profile_setting(profile_settings.get("water_level"), _water_level_aliases)
+                enriched["clean_passes"] = _safe_int(profile_settings.get("clean_passes", profile_settings.get("clean_times", 1)), 1)
+                enriched["edge_mopping"] = bool(profile_settings.get("edge_mopping", False))
             enriched_jobs.append(enriched)
 
         selected_room = filtered_rooms[0] if room_slug_filter and filtered_rooms else None

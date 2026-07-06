@@ -1008,6 +1008,15 @@ async def test_get_learning_history_snapshot_with_seeded_jobs(hass, learning_ser
     assert "j-hist-001" in seeded_ids
     assert "j-hist-002" in seeded_ids
 
+    # Single-room jobs carry the FLAT setting codes so the card localizes the
+    # profile in the user's (globe) language via _localizedProfile — not the
+    # backend's English profile_label snapshot. (learning/manager enrichment loop.)
+    kitchen_job = next(j for j in jobs if j.get("job_id") == "j-hist-001")
+    for code in ("clean_mode", "clean_intensity", "fan_speed", "water_level"):
+        assert code in kitchen_job, f"single-room job missing flat setting code {code!r}"
+    assert kitchen_job.get("clean_mode")   # seeded 'vacuum', normalized → non-empty
+    assert kitchen_job.get("room_label")   # room prefix for the composed localized label
+
 
 async def test_history_snapshot_multipass_appends_pass_to_suggested_label(hass, learning_services):
     """[LS-23c] A room profile observed with clean_passes>1 appends '<N> Pass' to
