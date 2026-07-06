@@ -10,6 +10,22 @@ only.
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-07-05
+
+A localization patch — three spots that were still showing English inside otherwise-translated screens.
+
+### Fixed
+- **Filter maintenance notes now translate** (German). The two notes in the Filter
+  maintenance guide ("don't use a brush / hot water / detergent" and the replacement
+  interval) were showing in English inside an otherwise-German modal.
+- **Room-profile preset chips translate in every language.** The Deep / Quick / Vacuum
+  Only Deep / Vacuum Only Quick chips in the room settings modal rendered in English
+  instead of your card's language (the translations already existed — the chips just
+  weren't using them).
+- **Cleaning-history profile labels translate.** The profile shown on each job card in
+  the Cleanings / history view now follows your card language, matching the filter chips,
+  instead of showing the English snapshot.
+
 ## [1.6.1] - 2026-07-05
 
 A handful of small fixes and tweaks on top of 1.6.0 — no new headline features.
