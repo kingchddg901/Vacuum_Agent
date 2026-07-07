@@ -10,6 +10,16 @@ only.
 
 ## [Unreleased]
 
+## [1.6.5] - 2026-07-06
+
+### Fixed
+- **Theme editor's per-group token search no longer loses focus or gets stuck.**
+  Typing in a group's search box and narrowing it to zero matches used to drop
+  focus (letting stray keys trigger Home Assistant's global shortcuts, e.g. opening
+  Assist) and left the group empty with no way to clear the search short of a reload.
+  The search box now stays put while you type, so you can always backspace to bring
+  the tokens back — and a "no match" hint now shows too.
+
 ## [1.6.4] - 2026-07-06
 
 ### Fixed
