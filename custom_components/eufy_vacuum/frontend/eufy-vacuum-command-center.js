@@ -3006,7 +3006,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
 
           ${w?`
             <div class="evcc-token-group-body">
-              ${d.length?`
+              ${d.length>0||m?`
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
@@ -3015,14 +3015,14 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
                     data-theme-group-search="${this.escapeHtml(c)}"
                   />
                 </div>
+              `:""}
 
+              ${d.length?`
                 ${d.map(b=>this._renderThemeTokenRow(b,e[b.key],t[b.key])).join("")}
-
-                ${!d.length&&m?`
-                  <div class="evcc-empty evcc-empty--theme-group-search">
-                    ${this.t("theme.group_no_match",{title:this.tVocab("theme_group",c,S),query:this.escapeHtml(u)})}
-                  </div>
-                `:""}
+              `:m?`
+                <div class="evcc-empty evcc-empty--theme-group-search">
+                  ${this.t("theme.group_no_match",{title:this.tVocab("theme_group",c,S),query:this.escapeHtml(u)})}
+                </div>
               `:""}
 
               ${f}

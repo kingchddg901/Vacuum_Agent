@@ -670,7 +670,7 @@ export function applyThemeRenderers(proto) {
 
           ${isOpen ? `
             <div class="evcc-token-group-body">
-              ${groupTokens.length ? `
+              ${(groupTokens.length > 0 || hasActiveSearch) ? `
                 <div class="evcc-token-group-search">
                   <input
                     type="text"
@@ -679,7 +679,9 @@ export function applyThemeRenderers(proto) {
                     data-theme-group-search="${this.escapeHtml(group)}"
                   />
                 </div>
+              ` : ""}
 
+              ${groupTokens.length ? `
                 ${groupTokens.map((token) =>
                   this._renderThemeTokenRow(
                     token,
@@ -687,13 +689,11 @@ export function applyThemeRenderers(proto) {
                     sources[token.key]
                   )
                 ).join("")}
-
-                ${!groupTokens.length && hasActiveSearch ? `
-                  <div class="evcc-empty evcc-empty--theme-group-search">
-                    ${this.t("theme.group_no_match", { title: this.tVocab("theme_group", group, displayTitle), query: this.escapeHtml(groupSearchQuery) })}
-                  </div>
-                ` : ""}
-              ` : ""}
+              ` : (hasActiveSearch ? `
+                <div class="evcc-empty evcc-empty--theme-group-search">
+                  ${this.t("theme.group_no_match", { title: this.tVocab("theme_group", group, displayTitle), query: this.escapeHtml(groupSearchQuery) })}
+                </div>
+              ` : "")}
 
               ${childHtml}
             </div>
