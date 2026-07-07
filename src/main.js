@@ -1925,6 +1925,32 @@ class EufyVacuumCommandCenter extends HTMLElement {
       return `#${CSS.escape(element.id)}`;
     }
 
+    // Generic fallback so ANY text input/textarea/select survives a re-render — not
+    // only the hardcoded data-attrs above. The old allow-list SILENTLY dropped focus
+    // for every input it didn't know about (run-profile name, metrics/review
+    // chip-search, the dialog input, setup rename/delete, the custom-layout name),
+    // so typing lost focus each keystroke (issue #37). These are single-instance
+    // editors, so a valued data-* attr or a class selector is unique in the active
+    // view. This closes the whole family, not just the one reported field.
+    const tag = String(element.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select") {
+      const typeValue = element.getAttribute("type");
+      const typeSelector = typeValue ? `[type="${CSS.escape(typeValue)}"]` : "";
+      const valuedData = Array.from(element.attributes || []).find(
+        (a) => a.name.startsWith("data-") && a.value !== ""
+      );
+      if (valuedData) {
+        return `${tag}[${valuedData.name}="${CSS.escape(valuedData.value)}"]${typeSelector}`;
+      }
+      const classSelector = Array.from(element.classList || [])
+        .filter(Boolean)
+        .map((className) => `.${CSS.escape(className)}`)
+        .join("");
+      if (classSelector) {
+        return `${tag}${classSelector}${typeSelector}`;
+      }
+    }
+
     return null;
   }
 
