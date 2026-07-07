@@ -10,6 +10,16 @@ only.
 
 ## [Unreleased]
 
+## [1.6.4] - 2026-07-06
+
+### Fixed
+- **Editing a saved run profile's name no longer loses focus after each keystroke**
+  (#37). The panel's focus-restore only recognized a fixed set of fields, so text
+  inputs it didn't know about — like the run-profile **Name** field — dropped focus
+  and cursor on every re-render, which also let stray keys reach Home Assistant's
+  global shortcuts (opening Assist, etc.). Thanks **@fhteagle** for the clear report
+  and diagnostics.
+
 ## [1.6.3] - 2026-07-05
 
 Bug fixes for **Roborock** — a few spots where brand-agnostic code still assumed
