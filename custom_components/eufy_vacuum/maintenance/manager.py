@@ -119,17 +119,28 @@ def maintenance_status(*, remaining_hours: float, interval_hours: float) -> str:
     return "good"
 
 
-def replacement_status(*, state_value: Any) -> str:
-    """Return replacement status bucket from upstream remaining value."""
+def replacement_status(*, remaining_percent: float | None) -> str:
+    """Return replacement status bucket from remaining % of total service life.
+
+    Percentage-based, NOT absolute hours: a component is judged on the same
+    scale whether its full life is 30 h or 360 h, so a freshly-reset part at
+    100% always reads "good". The old absolute thresholds (≤30 h = warning)
+    pinned any part whose entire service life sat under the warning line — the
+    30 h cleaning tray could never leave "warning" even at 100% (issue #38).
+
+    ``remaining_percent`` is None (no total_life to divide by) -> "unknown".
+    """
+    if remaining_percent is None:
+        return "unknown"
     try:
-        numeric = float(state_value)
+        pct = float(remaining_percent)
     except (TypeError, ValueError):
         return "unknown"
-    if numeric <= 5:
+    if pct <= 5:
         return "replace_now"
-    if numeric <= 15:
+    if pct <= 10:
         return "replace_soon"
-    if numeric <= 30:
+    if pct <= 15:
         return "warning"
     return "good"
 
@@ -313,6 +324,10 @@ class MaintenanceManager:
         _maintenance_components = (_get_adapter_config(vacuum_entity_id) or {}).get("maintenance_components", {})
         for component, meta in _maintenance_components.items():
             label = meta.get("label", component.replace("_", " ").title())
+            # A "maintenance_only" component (e.g. the cleaning tray — a cleanable,
+            # not a service-life wear part) is not surfaced as a Replacement row;
+            # only its integration-tracked Maintenance row shows (issue #38).
+            maintenance_only = bool(meta.get("maintenance_only"))
             source_entity = sources.get(component)
             replacement_state = self._manager.hass.states.get(source_entity) if source_entity else None
             replacement_reset_entity = self._get_replacement_reset_entity(
@@ -330,7 +345,6 @@ class MaintenanceManager:
             if replacement_state is not None:
                 replacement_value = replacement_state.state
                 replacement_unit = replacement_state.attributes.get("unit_of_measurement")
-                replacement_status_val = replacement_status(state_value=replacement_state.state)
                 try:
                     usage_hours = float(replacement_state.attributes.get("usage_hours"))
                 except (TypeError, ValueError):
@@ -349,6 +363,10 @@ class MaintenanceManager:
                         max(min((remaining_hours / total_life_hours) * 100.0, 100.0), 0.0),
                         2,
                     )
+                # Status is bucketed on % of total service life (see
+                # replacement_status): computed AFTER remaining_percent so a
+                # short-life part isn't stuck at "warning" (issue #38).
+                replacement_status_val = replacement_status(remaining_percent=remaining_percent)
 
             replacement_item = {
                 "component": component,
@@ -394,7 +412,8 @@ class MaintenanceManager:
                     item_kind="replacement",
                 ),
             }
-            replacement_items.append(replacement_item)
+            if not maintenance_only:
+                replacement_items.append(replacement_item)
 
             # Honor a user-saved interval override stored at
             # data["maintenance"][vacuum][component]["interval_hours"]
@@ -483,7 +502,12 @@ class MaintenanceManager:
             }
             maintenance_items.append(maintenance_item)
 
-            for status_value in (replacement_status_val, maintenance_status_val):
+            # A maintenance_only component contributes no Replacement status to
+            # the attention roll-up (its replacement row was suppressed above).
+            _statuses = [maintenance_status_val]
+            if not maintenance_only:
+                _statuses.append(replacement_status_val)
+            for status_value in _statuses:
                 if status_value in {"warning", "replace_soon", "replace_now"}:
                     attention_count += 1
                 if priority_rank.get(status_value, 0) > priority_rank.get(highest_priority_status, 0):

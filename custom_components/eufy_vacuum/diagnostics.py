@@ -297,6 +297,20 @@ def _vacuum_diagnostics(
     except Exception:  # pragma: no cover - defensive
         pass
 
+    # Dock-control entities — resolved INDEPENDENT of the capability gate so the
+    # dump shows whether the device physically exposes wash/dry/empty controls
+    # even when the model is detected as 'generic' (mop hints off). Answers "can
+    # we safely enable the dock actions for this model?" without asking the user
+    # to hand-list button entities.
+    try:
+        _dock_actions = manager.get_dock_action_entities(vacuum_entity_id=vacuum_entity_id)
+        out["dock_controls"] = {
+            action: {"entity_id": eid, "exists": eid is not None}
+            for action, eid in _dock_actions.items()
+        }
+    except Exception:  # pragma: no cover - defensive
+        pass
+
     # Raw provider vacuum entity — state + the attributes discovery reads.
     v_state = hass.states.get(vacuum_entity_id)
     if v_state is None:

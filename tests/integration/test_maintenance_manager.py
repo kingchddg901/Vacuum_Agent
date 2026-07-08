@@ -99,11 +99,12 @@ def test_maintenance_status(remaining, interval, expected):
 
 
 @pytest.mark.parametrize("value,expected", [
-    (3, "replace_now"), (10, "replace_soon"), (25, "warning"), (50, "good"), ("x", "unknown"),
+    (3, "replace_now"), (8, "replace_soon"), (12, "warning"), (50, "good"),
+    (None, "unknown"), ("x", "unknown"),
 ])
 def test_replacement_status(value, expected):
-    """[MNT-5]"""
-    assert replacement_status(state_value=value) == expected
+    """[MNT-5] Percentage-based buckets (issue #38) — a full-life part reads good."""
+    assert replacement_status(remaining_percent=value) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -185,8 +186,8 @@ def test_upkeep_snapshot_with_component(mnt, manager, hass, monkeypatch):
         "maintenance_components": {"main_brush": {"label": "Main Brush"}},
     })
     _caps(manager, monkeypatch, {"main_brush": _SRC})
-    # remaining-life state of 20 → replacement_status "warning"
-    hass.states.async_set(_SRC, "20", {"usage_hours": 280, "total_life_hours": 300})
+    # remaining-life 40 / 300 h total = 13% → replacement_status "warning" (%-based, issue #38)
+    hass.states.async_set(_SRC, "40", {"usage_hours": 260, "total_life_hours": 300})
 
     snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
     items = {i["component"]: i for i in snap["replacement_items"]}

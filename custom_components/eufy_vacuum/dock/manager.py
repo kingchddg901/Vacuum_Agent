@@ -103,6 +103,25 @@ class DockManager:
 
         return None
 
+    def get_dock_action_entities(
+        self,
+        *,
+        vacuum_entity_id: str,
+    ) -> dict[str, str | None]:
+        """Return the resolved upstream button entity for each dock action.
+
+        Resolves each action INDEPENDENT of the capability gate, so diagnostics
+        can report whether a device physically exposes wash/dry/empty controls
+        even when its model is detected as 'generic' (mop hints off). A value of
+        None means no button entity was found for that action.
+        """
+        return {
+            action: self._get_dock_action_entity(
+                vacuum_entity_id=vacuum_entity_id, action=action
+            )
+            for action in ("wash_mop", "dry_mop", "stop_dry_mop", "empty_dust")
+        }
+
     # ------------------------------------------------------------------
     # Dock action status
     # ------------------------------------------------------------------

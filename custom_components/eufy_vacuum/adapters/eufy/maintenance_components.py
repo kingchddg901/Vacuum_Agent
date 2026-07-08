@@ -22,6 +22,11 @@ Each component entry contains:
                           (no carpet, no animals, low dust environment).
                           The card uses this as the upper bound when
                           the user adjusts their usage profile.
+    maintenance_only    — when True, surface the component ONLY as a Maintenance
+                          item (integration-tracked interval), never as a
+                          Replacement row. For cleanables with no service-life
+                          replacement curve (e.g. the cleaning tray). Optional;
+                          absent = False.
 
 Replacement-counter reset buttons are resolved separately from
 ``buttons.py`` (RESET_CANDIDATES / RESET_TOKENS), which is the single
@@ -78,6 +83,8 @@ MAINTENANCE_COMPONENTS: dict[str, dict] = {
         "max_interval_hours": 90,
         "label": "Cleaning Tray",
         "icon": "mdi:wiper",
+        # A cleanable, not a service-life wear part — Maintenance row only.
+        "maintenance_only": True,
     },
     "swivel_wheel": {
         "sensor_suffix": "swivel_wheel_remaining",

@@ -17,6 +17,7 @@ model numbers and display names for that brand.
 
 UPKEEP_MODEL_NAMES: dict[str, str] = {
     "T2351": "Robovac X10 Pro Omni",
+    "T2352": "Robovac Omni E28",
     "T2080": "Robovac S1 Pro",
     "T2071": "Robovac S1",
     "T2280": "Robovac Omni C20",

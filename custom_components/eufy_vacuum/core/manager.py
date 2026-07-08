@@ -929,6 +929,10 @@ class EufyVacuumManager:
         """Return gated dock-action state — delegates to DockManager."""
         return self.dock.get_dock_action_status(**kwargs)
 
+    def get_dock_action_entities(self, **kwargs) -> dict[str, Any]:
+        """Return resolved dock-action button entities — delegates to DockManager."""
+        return self.dock.get_dock_action_entities(**kwargs)
+
     async def async_wash_mop(self, **kwargs) -> dict[str, Any]:
         """Run gated wash-mop action — delegates to DockManager."""
         return await self.dock.async_wash_mop(**kwargs)
