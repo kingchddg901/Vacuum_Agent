@@ -10,6 +10,16 @@ only.
 
 ## [Unreleased]
 
+## [1.6.7] - 2026-07-07
+
+### Fixed
+- **The cleaning tray now appears only under Maintenance, not Replacements.** The
+  1.6.6 reclassification didn't take effect because the Eufy adapter rebuilds each
+  maintenance component from a fixed set of keys and silently dropped the new
+  `maintenance_only` flag before the card saw it. The flag now survives the adapter
+  config build, with a regression test that exercises the real path. (The 1.6.6 fix
+  for the phantom "Warning" was unaffected.)
+
 ## [1.6.6] - 2026-07-07
 
 ### Fixed
