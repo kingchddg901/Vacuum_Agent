@@ -1318,6 +1318,16 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "required": True,
                 "description": "MDI icon string.",
             },
+            "maintenance_only": {
+                "type": "bool",
+                "required": False,
+                "description": (
+                    "When True, surface the component only as a Maintenance item "
+                    "(integration-tracked interval), never as a Replacement row. "
+                    "For cleanables with no service-life replacement curve (e.g. "
+                    "the cleaning tray). Absent = False."
+                ),
+            },
         },
     },
 

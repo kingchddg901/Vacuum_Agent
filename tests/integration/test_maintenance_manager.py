@@ -196,6 +196,28 @@ def test_upkeep_snapshot_with_component(mnt, manager, hass, monkeypatch):
     assert snap["highest_priority_status"] in {"warning", "replace_soon", "replace_now"}
 
 
+def test_maintenance_only_component_excluded_from_replacements(mnt, manager, hass, monkeypatch):
+    """[MNT-12b] a maintenance_only component is surfaced ONLY as a Maintenance item,
+    never a Replacement row, and contributes no Replacement status (issue #38 tray)."""
+    from custom_components.eufy_vacuum.adapters.registry import register_adapter_config
+    register_adapter_config(_VAC, {
+        "adapter_id": "test", "source": "test",
+        "maintenance_components": {
+            "cleaning_tray": {"label": "Cleaning Tray", "maintenance_only": True},
+        },
+    })
+    _caps(manager, monkeypatch, {"cleaning_tray": _SRC})
+    # Freshly reset (100%): the old absolute-hours bug would have flagged this warning.
+    hass.states.async_set(_SRC, "30", {"usage_hours": 0, "total_life_hours": 30})
+
+    snap = mnt.get_upkeep_snapshot(vacuum_entity_id=_VAC)
+    replacement = {i["component"] for i in snap["replacement_items"]}
+    maintenance = {i["component"] for i in snap["maintenance_items"]}
+    assert "cleaning_tray" not in replacement
+    assert "cleaning_tray" in maintenance
+    assert snap["attention_count"] == 0
+
+
 def _caps_with_entities(manager, monkeypatch, entities):
     """Capabilities mock that also carries the adapter 'entities' map."""
     monkeypatch.setattr(

@@ -824,6 +824,9 @@ def register_eufy_adapter_for_vacuum(
                 "max_interval_hours": component["max_interval_hours"],
                 "label": component["label"],
                 "icon": component["icon"],
+                # Cleanables (e.g. the cleaning tray) are surfaced as a Maintenance
+                # item only, never a Replacement row. Optional; default False.
+                "maintenance_only": component.get("maintenance_only", False),
             }
             for component_id, component in MAINTENANCE_COMPONENTS.items()
         },
