@@ -10,6 +10,28 @@ only.
 
 ## [Unreleased]
 
+## [1.6.6] - 2026-07-07
+
+### Fixed
+- **A freshly-reset "Cleaning Tray" no longer shows a permanent "Warning"** (#38).
+  Replacement-item status was bucketed from absolute remaining hours, so any part
+  whose entire service life sat under the warning threshold — like the 30-hour
+  cleaning tray — could never read "good," even at 100%. Status is now judged on
+  percentage of total service life, so a full part reads good regardless of how
+  long its life is. Thanks **@fhteagle** for the report and diagnostics.
+
+### Changed
+- **The cleaning tray is now a Maintenance item, not a Replacement item** — it's a
+  cleanable, not a service-life wear part, so it no longer appears in the
+  Replacement group.
+
+### Added
+- **Eufy Omni E28 (T2352)** is now recognized by name in the UI instead of showing
+  its raw model code.
+- **Diagnostics now report dock-control entities** (mop wash / dry / dust empty),
+  resolved independently of capability detection, making it clear which dock
+  actions a device physically exposes.
+
 ## [1.6.5] - 2026-07-06
 
 ### Fixed
