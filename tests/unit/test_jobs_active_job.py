@@ -26,6 +26,8 @@ Coverage targets
 [AJ-21] _live_transition_config: no adapter block → distinct copy of defaults.
 [AJ-22] _live_transition_config: adapter block overrides every key; rollover_kinds → stripped tuple.
 [AJ-23] _live_transition_config: all-empty rollover_kinds → default tuple; unset keys stay default.
+[AJ-24] detect_run_anomalies: running_long suppressed for an unlearned room (issue #40).
+[AJ-25] detect_run_anomalies: running_long still fires for a learned room (AJ-24 control).
 """
 
 from __future__ import annotations
@@ -279,6 +281,58 @@ def test_detect_run_anomalies_disabled_for_path_optimized_order():
     assert result["running_long"] is False
     assert result["skipped_room_ids"] == []
     manager.hass.bus.async_fire.assert_not_called()
+
+
+def _order_honoring_tracker() -> ActiveJobTracker:
+    """A tracker whose adapter honors clean order (so the running_long tier runs)."""
+    clear_registry()
+    register_adapter_config("vacuum.alfred", {
+        "adapter_id": "eufy", "source": "test",
+        "capabilities": {"honors_clean_order": True},
+    })
+    manager = MagicMock()
+    manager.data = {"active_jobs": {}}
+    return ActiveJobTracker(manager)
+
+
+def test_running_long_suppressed_for_unlearned_room():
+    """[AJ-24] An unlearned room (source='default', sample_count=0) uses the ~6-min
+    default estimate, so running_long must NOT fire on it — otherwise every normal
+    new-setup room reads 'may be stuck' (issue #40). elapsed 13 min would land in the
+    ~1.5x band of the ~8-min unlearned threshold; the gate suppresses it."""
+    tracker = _order_honoring_tracker()
+    active_job = {"status": "started", "queue_room_ids": [1],
+                  "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}], "counter_samples": []}
+    result = tracker.detect_run_anomalies(
+        vacuum_entity_id="vacuum.alfred", map_id="6", active_job=active_job,
+        raw_timeline=[{"room_id": 1, "minutes": 6.0, "confidence_score": 0.2,
+                       "sample_count": 0, "source": "default"}],
+        current_room_id=1,
+        current_room_elapsed_minutes=13.0,
+        completed_room_ids=[],
+        awaiting_bounds_exit=False,  # isolate running_long from the bounds-gated stall
+    )
+    assert result["running_long"] is False
+    assert result["stall_detected"] is False
+
+
+def test_running_long_fires_for_learned_room():
+    """[AJ-25] Control for AJ-24: a LEARNED room with the same overrun still fires
+    running_long — the #40 gate only silences the unlearned case. Threshold 10.75;
+    elapsed 17 sits in the 1.5x..2x band."""
+    tracker = _order_honoring_tracker()
+    active_job = {"status": "started", "queue_room_ids": [1],
+                  "resolved_rooms": [{"room_id": 1, "name": "Kitchen"}], "counter_samples": []}
+    result = tracker.detect_run_anomalies(
+        vacuum_entity_id="vacuum.alfred", map_id="6", active_job=active_job,
+        raw_timeline=[{"room_id": 1, "minutes": 10.0, "confidence_score": 0.9,
+                       "sample_count": 5, "source": "learned"}],
+        current_room_id=1,
+        current_room_elapsed_minutes=17.0,
+        completed_room_ids=[],
+        awaiting_bounds_exit=False,
+    )
+    assert result["running_long"] is True
 
 
 # ---------------------------------------------------------------------------

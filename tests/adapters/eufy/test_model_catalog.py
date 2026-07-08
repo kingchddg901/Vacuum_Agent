@@ -12,6 +12,11 @@ def test_known_code_x10():
     assert detect_model_family("T2351") == "x10"
 
 
+def test_known_code_e28():
+    """Omni E28 (T2352) is x10-class — dock-action entities confirmed on hardware (C2)."""
+    assert detect_model_family("T2352") == "x10"
+
+
 def test_known_code_x8():
     assert detect_model_family("T2261") == "x8"
 

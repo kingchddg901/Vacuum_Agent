@@ -53,6 +53,7 @@ MODEL_FAMILY_HINTS: dict[str, str] = {
 MODEL_CODE_FAMILIES: dict[str, str] = {
     "T2351": "x10",
     "T2320": "x10",
+    "T2352": "x10",  # Omni E28 — x10-class (dock-action entities confirmed on fhteagle's diag)
     "T2261": "x8",
     "T2262": "x8",
     "T2266": "x8",

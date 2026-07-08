@@ -16,7 +16,7 @@ Coverage targets
 [PR-7]  finalize_learning_for_active_job: full job → completed_job result.
 [PR-8]  jobs-index → room-history merge with newer-wins + bad-row skips.
 [PR-9]  single-room stall fires EVENT_STALL_DETECTED exactly once (no re-fire).
-[PR-10] single-room at ~1.7x threshold → running_long but NOT stall.
+[PR-10] running_long suppressed for an unlearned room at ~1.7x threshold (issue #40).
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -153,10 +153,11 @@ def test_progress_stall_fires_once(manager, hass):
     assert events[0].data["room_id"] == 1
 
 
-def test_progress_running_long(manager, hass):
-    """[PR-10] a single-room job at ~1.7x its rollover threshold (below the 2x stall
-    band) flags running_long but NOT stall. The threshold is read from the live
-    estimate so the test is robust to the estimator's per-room minutes."""
+def test_progress_running_long_suppressed_when_unlearned(manager, hass):
+    """[PR-10] running_long is SUPPRESSED for an unlearned room even at ~1.7x its
+    threshold: the ~6-min default estimate would otherwise flag every fresh-setup
+    room as 'may be stuck' (issue #40). A LEARNED room still fires — unit test AJ-25.
+    The threshold is read from the live estimate so this is robust to per-room minutes."""
     _wire(manager, hass)
     rooms = [{"room_id": 1, "name": "Kitchen", "minutes": 5, "clean_mode": "vacuum"}]
     _seed_job(manager, minutes_ago=0, queue_room_ids=[1], resolved_rooms=rooms)
@@ -165,15 +166,16 @@ def test_progress_running_long(manager, hass):
         r for r in manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)["timeline"]
         if r.get("room_id") == 1
     )
+    assert room0.get("source") == "default"  # genuinely unlearned (no seeded stats)
     threshold = manager.active_job._timing_completion_threshold_minutes(room0)
-    # re-seed so the current room has run ~1.7x the threshold (within [1.5x, 2.0x)).
+    # ~1.7x the threshold — would trip running_long if the room were learned.
     _seed_job(manager, minutes_ago=threshold * 1.7, queue_room_ids=[1], resolved_rooms=rooms)
     snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
-    assert snap["running_long"] is True
+    assert snap["running_long"] is False
     assert snap["stall_detected"] is False
-    assert snap["running_long_room_id"] == 1
+    # the per-room timeline flag is suppressed too (not just the top-level signal)
     room1 = next((r for r in snap["timeline"] if r.get("room_id") == 1), None)
-    assert room1 is not None and room1["running_long"] is True
+    assert room1 is not None and room1["running_long"] is False
 
 
 def test_progress_skipped_conservative(manager, hass):

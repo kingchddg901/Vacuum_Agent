@@ -731,13 +731,23 @@ class ActiveJobTracker:
                 None,
             )
             if _rl_entry is not None:
+                # No trustworthy estimate yet: an UNLEARNED room falls back to the
+                # ~6-min _DEFAULT_ROOM_MINUTES, so any normal new-setup room would
+                # trip the 1.5x running_long band and show a false "may be stuck"
+                # (issue #40). Don't cry stuck without a real baseline to judge by.
+                # (stall needs no such gate — it's already bounds-gated.)
+                _rl_unlearned = (
+                    str(_rl_entry.get("source", "")).strip().lower() == "default"
+                    and _safe_int(_rl_entry.get("sample_count"), 0) <= 0
+                )
                 _rl_threshold = self._timing_completion_threshold_minutes(_rl_entry)
                 _pending_transition = (
                     self._live_boundary_count(vacuum_entity_id, active_job, raw_timeline)
                     > len(completed_room_ids)
                 )
                 if (
-                    _rl_threshold > 0
+                    not _rl_unlearned
+                    and _rl_threshold > 0
                     and not _pending_transition
                     and current_room_elapsed_minutes >= _rl_threshold * _RUNNING_LONG_RATIO
                     and current_room_elapsed_minutes < _rl_threshold * _STALL_RATIO
