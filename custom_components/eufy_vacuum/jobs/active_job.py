@@ -310,6 +310,20 @@ class ActiveJobTracker:
         if active_job.get("status") not in {"started", "paused"}:
             return active_job
 
+        # A COMMANDED charge (a charge_wait phase) owns its own dock: the UNPLANNED
+        # mid-job recharge observer must not claim it, or the planned charge is
+        # double-counted as a battery-driven recharge and the sampler gets paused.
+        # The charge_wait phase tracks its own timing.
+        _rc_phases = active_job.get("phases")
+        if isinstance(_rc_phases, list):
+            _rc_idx = _safe_int(active_job.get("current_phase_index"), -1)
+            if (
+                0 <= _rc_idx < len(_rc_phases)
+                and isinstance(_rc_phases[_rc_idx], dict)
+                and str(_rc_phases[_rc_idx].get("phase_type") or "") == "charge_wait"
+            ):
+                return active_job
+
         vacuum_state = self._manager.hass.states.get(vacuum_entity_id)
         _recharge_entities = (_get_adapter_config(vacuum_entity_id) or {}).get("entities", {})
         _task_status_id = _recharge_entities.get("task_status")

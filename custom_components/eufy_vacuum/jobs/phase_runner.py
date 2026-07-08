@@ -94,18 +94,33 @@ class PhaseRunner:
         self._manager.data["active_jobs"].setdefault(vacuum_entity_id, {})
         self._manager.data["active_jobs"][vacuum_entity_id][str(map_id)] = advanced
 
-        # Re-dispatch the next room from a background task: the device just docked
-        # after the previous room and ignores a clean sent at that instant, so we
-        # settle, dispatch, verify it actually started, and retry if not (the retry
-        # loop is also the per-phase watchdog). Spawned (not awaited) so the
-        # completion listener returns promptly. See _run_advanced_phase.
-        self._manager.hass.async_create_task(
-            self._run_advanced_phase(
-                vacuum_entity_id=vacuum_entity_id,
-                map_id=str(map_id),
-                phase_index=int(advanced.get("current_phase_index", 0)),
-            )
+        # Re-dispatch the next phase from a background task (spawned, not awaited, so
+        # the completion listener returns promptly). A room_group phase goes to the
+        # settle/dispatch/verify watchdog; a charge_wait phase goes to the charge
+        # poller, which docks + waits for the battery target before advancing.
+        _next_idx = int(advanced.get("current_phase_index", 0))
+        _next_phases = advanced.get("phases") or []
+        _next_phase = (
+            _next_phases[_next_idx]
+            if 0 <= _next_idx < len(_next_phases) and isinstance(_next_phases[_next_idx], dict)
+            else {}
         )
+        if str(_next_phase.get("phase_type") or "") == "charge_wait":
+            self._manager.hass.async_create_task(
+                self._run_charge_wait_phase(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    phase_index=_next_idx,
+                )
+            )
+        else:
+            self._manager.hass.async_create_task(
+                self._run_advanced_phase(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    phase_index=_next_idx,
+                )
+            )
         return True
 
     def _learned_room_area_m2(
@@ -157,6 +172,14 @@ class PhaseRunner:
             return
         if phases[idx].get("_timing_end_t"):
             return  # already attempted (idempotent — an empty capture must not re-run either)
+
+        if str(phases[idx].get("phase_type") or "") == "charge_wait":
+            # A charge_wait phase never cleaned (its counter slice is flat while the
+            # robot charges). Record an EMPTY timing so finalize reads it as a
+            # dock/charge interval, not a phantom zero-metric room.
+            phases[idx]["room_timing"] = []
+            phases[idx]["_timing_end_t"] = _iso_now()
+            return
 
         now_t = _iso_now()
         # Slice from the previous phase's recorded end (None for phase 0 → from the run start).
@@ -375,6 +398,107 @@ class PhaseRunner:
             "stalled — Cancel Run to recover",
             phase_index, vacuum_entity_id, pt["max_attempts"],
         )
+
+    async def _run_charge_wait_phase(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phase_index: int,
+    ) -> None:
+        """Drive a ``charge_wait`` phase: dock, wait until battery >= target, advance.
+
+        A charge_wait phase has no rooms — its "work" is parking on the dock and
+        charging, so no room-finish event can advance it; THIS coroutine owns its
+        lifecycle. It keeps ``_phase_dispatch_pending`` set (which the completion gate
+        already honours — the same guard that stops a Roborock's between-phase dock
+        from finalizing), so the intentional charge-dock is never read as a
+        cancel/completion, then advances via ``maybe_advance_phase`` once the target
+        is reached.
+
+        - Already at/above target on entry -> advance immediately (no charge).
+        - Timeout (``charge_wait_timeout_minutes``, default 180) -> finalize like a
+          cancel, so the un-cleaned remaining rooms are reported missed.
+        - A genuine user Cancel (``_cancel_in_flight``), pause, or advance -> bail;
+          the phase is no longer ours.
+        """
+        from ..core.charging import get_battery_level
+
+        poll_s = 30.0  # battery updates are slow; adapter-tunable later via dispatch.charge
+
+        def _still_ours(job: dict[str, Any] | None) -> bool:
+            return bool(
+                job
+                and job.get("status") == "started"
+                and _safe_int(job.get("current_phase_index"), -1) == phase_index
+                and not job.get("_cancel_in_flight")
+            )
+
+        job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if not _still_ours(job):
+            return
+        phases = job.get("phases") or []
+        phase = (
+            phases[phase_index]
+            if 0 <= phase_index < len(phases) and isinstance(phases[phase_index], dict)
+            else {}
+        )
+        target = _safe_int(phase.get("target_battery_percent"), 100)
+        timeout_min = _safe_int(phase.get("charge_wait_timeout_minutes"), 180)
+
+        # Already charged enough -> skip the charge entirely, keep going.
+        if get_battery_level(self._manager.hass, vacuum_entity_id) >= target:
+            _LOGGER.info(
+                "Charge-wait phase %s on %s: battery already >= %s%% — advancing without charging.",
+                phase_index, vacuum_entity_id, target,
+            )
+            await self.maybe_advance_phase(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+            return
+
+        # Send it home to charge (a no-op if it is already docked + charging).
+        await self._manager.hass.services.async_call(
+            "vacuum", "return_to_base", {"entity_id": vacuum_entity_id}, blocking=True,
+        )
+        _LOGGER.info(
+            "Charge-wait phase %s on %s: charging to %s%% (timeout %sm, poll %ss).",
+            phase_index, vacuum_entity_id, target, timeout_min, poll_s,
+        )
+
+        deadline = self._manager.hass.loop.time() + timeout_min * 60.0
+        while True:
+            await asyncio.sleep(poll_s)
+            job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            if not _still_ours(job):
+                _LOGGER.info(
+                    "Charge-wait phase %s on %s abandoned — no longer on this phase "
+                    "(cancel/pause/advance).",
+                    phase_index, vacuum_entity_id,
+                )
+                return
+            if get_battery_level(self._manager.hass, vacuum_entity_id) >= target:
+                break
+            if self._manager.hass.loop.time() >= deadline:
+                _LOGGER.warning(
+                    "Charge-wait phase %s on %s timed out after %sm below %s%% — finalizing "
+                    "as cancelled; remaining rooms reported missed.",
+                    phase_index, vacuum_entity_id, timeout_min, target,
+                )
+                await self._manager.active_job.async_cancel_active_job(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    cancel_reason="charge_timeout",
+                    forced_lifecycle_state="charge_timeout",
+                    forced_lifecycle_message=(
+                        f"Charging to {target}% timed out after {timeout_min} min; "
+                        "remaining rooms were not cleaned."
+                    ),
+                )
+                return
+        _LOGGER.info(
+            "Charge-wait phase %s on %s reached %s%% — advancing to the next phase.",
+            phase_index, vacuum_entity_id, target,
+        )
+        await self.maybe_advance_phase(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
 
     def _clear_phase_dispatch_pending(
         self, *, vacuum_entity_id: str, map_id: str, phase_index: int
