@@ -135,7 +135,10 @@
     "unable_apply": "Não foi possível aplicar o perfil de execução.",
     "unable_delete": "Não foi possível eliminar o perfil de execução.",
     "unable_overwrite": "Não foi possível substituir o perfil de execução.",
-    "unable_save": "Não foi possível guardar o perfil de execução."
+    "unable_save": "Não foi possível guardar o perfil de execução.",
+    "capture_no_rooms": "Ative primeiro algumas divisões e depois adicione-as como grupo.",
+    "steps_need_group": "Uma execução precisa de pelo menos um grupo de divisões para limpar.",
+    "unable_run": "Não foi possível executar o perfil de execução."
   },
   "bind_setup": {
     "failed_add_vacuum": "Falha ao adicionar o aspirador: {error}",
@@ -350,7 +353,12 @@
     "tank_now": "Depósito agora",
     "unknown": "Desconhecido",
     "waiting_next_room": "A aguardar a atualização da próxima divisão",
-    "water_estimate": "Estimativa de água"
+    "water_estimate": "Estimativa de água",
+    "charging_delta": "Faltam {delta}%",
+    "charging_from": "de {from}%",
+    "charging_to": "A carregar até {target}%",
+    "charging_to_eta": "A carregar até {target}% · ~{eta} restantes",
+    "waiting": "A aguardar · ~{remaining} restantes"
   },
   "maintenance": {
     "attention_empty": "Tudo parece estar saudável de momento.",
@@ -1273,7 +1281,13 @@
       "returning_to_dock": "A regressar à base.",
       "vacuum_error": "O aspirador tem um erro.",
       "start_blocked": "O início está bloqueado."
-    }
+    },
+    "charge_time_varies": "O tempo de carga varia com o nível de bateria ao chegar à base.",
+    "chip_charge_label": "Carregar até",
+    "chip_charge_to": "Carregar até {target}%",
+    "chip_wait": "Aguardar {minutes} min",
+    "chip_wait_label": "Aguardar",
+    "run_plan_title": "Esta execução"
   },
   "run_profiles": {
     "create_profile": "Criar perfil",
@@ -1291,7 +1305,24 @@
     "save_over": "Guardar por cima do perfil",
     "save_this_setup": "Guardar esta configuração",
     "subtitle": "Guarde esta configuração de divisões e reaplique-a mais tarde sem reconstruir a fila à mão.",
-    "title": "Perfis de execução"
+    "title": "Perfis de execução",
+    "add_charge_step": "Adicionar um passo de carga",
+    "add_wait_step": "Adicionar uma espera",
+    "capture_group": "Adicionar as divisões atuais como grupo",
+    "minutes_unit": "min",
+    "room_fallback": "Divisão {id}",
+    "run": "Executar",
+    "runs_as": "Executa como",
+    "step_charge_to": "Carregar até",
+    "step_clean": "Limpar",
+    "step_group_empty": "(sem divisões)",
+    "step_move_down": "Mover para baixo",
+    "step_move_up": "Mover para cima",
+    "step_remove": "Remover passo",
+    "step_wait": "Aguardar",
+    "steps_capture_hint": "Prepare as divisões que quer a seguir na vista de Divisões e depois adicione-as como grupo.",
+    "steps_hint": "Aspirar, voltar à base para recarregar e continuar a limpar — tudo numa só execução.",
+    "steps_label": "Passos da execução"
   },
   "setup": {
     "add": "Adicionar",

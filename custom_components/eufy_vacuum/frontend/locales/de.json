@@ -134,7 +134,10 @@
     "unable_apply": "Laufprofil konnte nicht angewendet werden.",
     "unable_delete": "Laufprofil konnte nicht gelöscht werden.",
     "unable_overwrite": "Laufprofil konnte nicht überschrieben werden.",
-    "unable_save": "Laufprofil konnte nicht gespeichert werden."
+    "unable_save": "Laufprofil konnte nicht gespeichert werden.",
+    "capture_no_rooms": "Beziehe zuerst einige Räume ein und füge sie dann als Gruppe hinzu.",
+    "steps_need_group": "Ein Lauf benötigt mindestens eine Gruppe von zu reinigenden Räumen.",
+    "unable_run": "Laufprofil konnte nicht ausgeführt werden."
   },
   "bind_setup": {
     "failed_add_vacuum": "Saugroboter konnte nicht hinzugefügt werden: {error}",
@@ -348,7 +351,12 @@
     "tank_now": "Tank jetzt",
     "unknown": "Unbekannt",
     "waiting_next_room": "Warte auf nächste Raumaktualisierung",
-    "water_estimate": "Wasserschätzung"
+    "water_estimate": "Wasserschätzung",
+    "charging_delta": "noch {delta}%",
+    "charging_from": "von {from}%",
+    "charging_to": "Lädt auf {target}%",
+    "charging_to_eta": "Lädt auf {target}% · ~{eta} übrig",
+    "waiting": "Warte · ~{remaining} übrig"
   },
   "maintenance": {
     "attention_empty": "Aktuell sieht alles gesund aus.",
@@ -1260,7 +1268,13 @@
       "returning_to_dock": "Rückkehr zur Basis.",
       "vacuum_error": "Der Saugroboter hat einen Fehler.",
       "start_blocked": "Start ist blockiert."
-    }
+    },
+    "charge_time_varies": "Die Ladezeit hängt vom Akkustand beim Andocken ab.",
+    "chip_charge_label": "Laden auf",
+    "chip_charge_to": "Laden auf {target}%",
+    "chip_wait": "{minutes} Min warten",
+    "chip_wait_label": "Warten",
+    "run_plan_title": "Dieser Lauf"
   },
   "run_profiles": {
     "create_profile": "Profil erstellen",
@@ -1278,7 +1292,24 @@
     "save_over": "Profil überschreiben",
     "save_this_setup": "Diese Konfiguration speichern",
     "subtitle": "Speichere diese Raumkonfiguration und wende sie später erneut an, ohne die Warteschlange von Hand neu aufzubauen.",
-    "title": "Laufprofile"
+    "title": "Laufprofile",
+    "add_charge_step": "Ladeschritt hinzufügen",
+    "add_wait_step": "Wartezeit hinzufügen",
+    "capture_group": "Aktuelle Räume als Gruppe hinzufügen",
+    "minutes_unit": "Min",
+    "room_fallback": "Raum {id}",
+    "run": "Ausführen",
+    "runs_as": "Läuft als",
+    "step_charge_to": "Laden auf",
+    "step_clean": "Reinigen",
+    "step_group_empty": "(keine Räume)",
+    "step_move_down": "Nach unten verschieben",
+    "step_move_up": "Nach oben verschieben",
+    "step_remove": "Schritt entfernen",
+    "step_wait": "Warten",
+    "steps_capture_hint": "Richte die als Nächstes gewünschten Räume in der Räume-Ansicht ein und füge sie dann als Gruppe hinzu.",
+    "steps_hint": "Saugen, zum Aufladen andocken und dann weiterreinigen — alles in einem Lauf.",
+    "steps_label": "Laufschritte"
   },
   "setup": {
     "add": "Hinzufügen",

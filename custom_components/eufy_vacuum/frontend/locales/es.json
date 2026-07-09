@@ -135,7 +135,10 @@
     "unable_apply": "No se pudo aplicar el perfil de limpieza.",
     "unable_delete": "No se pudo eliminar el perfil de limpieza.",
     "unable_overwrite": "No se pudo sobrescribir el perfil de limpieza.",
-    "unable_save": "No se pudo guardar el perfil de limpieza."
+    "unable_save": "No se pudo guardar el perfil de limpieza.",
+    "capture_no_rooms": "Activa primero algunas habitaciones y luego añádelas como grupo.",
+    "steps_need_group": "Una limpieza necesita al menos un grupo de habitaciones que limpiar.",
+    "unable_run": "No se pudo ejecutar el perfil de limpieza."
   },
   "bind_setup": {
     "failed_add_vacuum": "No se pudo añadir el aspirador: {error}",
@@ -350,7 +353,12 @@
     "tank_now": "Depósito ahora",
     "unknown": "Desconocido",
     "waiting_next_room": "Esperando la actualización de la siguiente habitación",
-    "water_estimate": "Estimación de agua"
+    "water_estimate": "Estimación de agua",
+    "charging_delta": "faltan {delta} %",
+    "charging_from": "desde {from} %",
+    "charging_to": "Cargando al {target} %",
+    "charging_to_eta": "Cargando al {target} % · ~{eta} restantes",
+    "waiting": "Esperando · ~{remaining} restantes"
   },
   "maintenance": {
     "attention_empty": "Por ahora todo parece en buen estado.",
@@ -1274,7 +1282,13 @@
       "returning_to_dock": "Regresando a la base.",
       "vacuum_error": "El aspirador tiene un error.",
       "start_blocked": "El inicio está bloqueado."
-    }
+    },
+    "charge_time_varies": "El tiempo de carga varía según el nivel de batería al llegar a la base.",
+    "chip_charge_label": "Cargar al",
+    "chip_charge_to": "Cargar al {target} %",
+    "chip_wait": "Esperar {minutes} min",
+    "chip_wait_label": "Esperar",
+    "run_plan_title": "Esta limpieza"
   },
   "run_profiles": {
     "create_profile": "Crear perfil",
@@ -1292,7 +1306,24 @@
     "save_over": "Sobrescribir perfil",
     "save_this_setup": "Guardar esta configuración",
     "subtitle": "Guarda esta configuración de habitaciones y vuelve a aplicarla más tarde sin reconstruir la cola a mano.",
-    "title": "Perfiles de limpieza"
+    "title": "Perfiles de limpieza",
+    "add_charge_step": "Añadir un paso de carga",
+    "add_wait_step": "Añadir una espera",
+    "capture_group": "Añadir las habitaciones actuales como grupo",
+    "minutes_unit": "min",
+    "room_fallback": "Habitación {id}",
+    "run": "Ejecutar",
+    "runs_as": "Se ejecuta como",
+    "step_charge_to": "Cargar al",
+    "step_clean": "Limpiar",
+    "step_group_empty": "(sin habitaciones)",
+    "step_move_down": "Mover abajo",
+    "step_move_up": "Mover arriba",
+    "step_remove": "Quitar paso",
+    "step_wait": "Esperar",
+    "steps_capture_hint": "Configura las habitaciones que quieras a continuación en la vista Habitaciones y luego añádelas como grupo.",
+    "steps_hint": "Aspira, vuelve a la base para recargar y sigue limpiando, todo en una sola limpieza.",
+    "steps_label": "Pasos de la limpieza"
   },
   "setup": {
     "add": "Añadir",

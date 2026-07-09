@@ -134,7 +134,10 @@
     "unable_apply": "Kan runprofiel niet toepassen.",
     "unable_delete": "Kan runprofiel niet verwijderen.",
     "unable_overwrite": "Kan runprofiel niet overschrijven.",
-    "unable_save": "Kan runprofiel niet opslaan."
+    "unable_save": "Kan runprofiel niet opslaan.",
+    "capture_no_rooms": "Schakel eerst enkele kamers in en voeg ze dan als groep toe.",
+    "steps_need_group": "Een run heeft minstens één groep kamers nodig om schoon te maken.",
+    "unable_run": "Kan runprofiel niet uitvoeren."
   },
   "bind_setup": {
     "failed_add_vacuum": "Stofzuiger toevoegen mislukt: {error}",
@@ -348,7 +351,12 @@
     "tank_now": "Tank nu",
     "unknown": "Onbekend",
     "waiting_next_room": "Wachten op volgende kamerupdate",
-    "water_estimate": "Waterschatting"
+    "water_estimate": "Waterschatting",
+    "charging_delta": "nog {delta}%",
+    "charging_from": "vanaf {from}%",
+    "charging_to": "Opladen tot {target}%",
+    "charging_to_eta": "Opladen tot {target}% · ~{eta} resterend",
+    "waiting": "Wachten · ~{remaining} resterend"
   },
   "maintenance": {
     "attention_empty": "Alles ziet er momenteel gezond uit.",
@@ -1260,7 +1268,13 @@
       "returning_to_dock": "Keert terug naar het dock.",
       "vacuum_error": "De stofzuiger heeft een fout.",
       "start_blocked": "Starten is geblokkeerd."
-    }
+    },
+    "charge_time_varies": "De laadtijd hangt af van het accuniveau bij het dockken.",
+    "chip_charge_label": "Opladen tot",
+    "chip_charge_to": "Opladen tot {target}%",
+    "chip_wait": "{minutes} min wachten",
+    "chip_wait_label": "Wachten",
+    "run_plan_title": "Deze run"
   },
   "run_profiles": {
     "create_profile": "Profiel aanmaken",
@@ -1278,7 +1292,24 @@
     "save_over": "Profiel overschrijven",
     "save_this_setup": "Deze opstelling opslaan",
     "subtitle": "Sla deze kameropstelling op en pas hem later opnieuw toe zonder de wachtrij handmatig opnieuw op te bouwen.",
-    "title": "Runprofielen"
+    "title": "Runprofielen",
+    "add_charge_step": "Laadstap toevoegen",
+    "add_wait_step": "Wachtstap toevoegen",
+    "capture_group": "Huidige kamers als groep toevoegen",
+    "minutes_unit": "min",
+    "room_fallback": "Kamer {id}",
+    "run": "Uitvoeren",
+    "runs_as": "Loopt als",
+    "step_charge_to": "Opladen tot",
+    "step_clean": "Schoonmaken",
+    "step_group_empty": "(geen kamers)",
+    "step_move_down": "Omlaag verplaatsen",
+    "step_move_up": "Omhoog verplaatsen",
+    "step_remove": "Stap verwijderen",
+    "step_wait": "Wachten",
+    "steps_capture_hint": "Stel in de Kamers-weergave de kamers in die je hierna wilt, en voeg ze dan als groep toe.",
+    "steps_hint": "Stofzuigen, dockken om op te laden en dan verder schoonmaken — alles in één run.",
+    "steps_label": "Runstappen"
   },
   "setup": {
     "add": "Toevoegen",

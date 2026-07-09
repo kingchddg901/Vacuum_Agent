@@ -134,7 +134,10 @@
     "unable_apply": "Impossibile applicare il profilo di esecuzione.",
     "unable_delete": "Impossibile eliminare il profilo di esecuzione.",
     "unable_overwrite": "Impossibile sovrascrivere il profilo di esecuzione.",
-    "unable_save": "Impossibile salvare il profilo di esecuzione."
+    "unable_save": "Impossibile salvare il profilo di esecuzione.",
+    "capture_no_rooms": "Attiva prima alcune stanze, poi aggiungile come gruppo.",
+    "steps_need_group": "Un'esecuzione richiede almeno un gruppo di stanze da pulire.",
+    "unable_run": "Impossibile eseguire il profilo di esecuzione."
   },
   "bind_setup": {
     "failed_add_vacuum": "Aggiunta dell'aspirapolvere non riuscita: {error}",
@@ -348,7 +351,12 @@
     "tank_now": "Serbatoio ora",
     "unknown": "Sconosciuto",
     "waiting_next_room": "In attesa dell'aggiornamento della prossima stanza",
-    "water_estimate": "Stima acqua"
+    "water_estimate": "Stima acqua",
+    "charging_delta": "{delta}% mancante",
+    "charging_from": "da {from}%",
+    "charging_to": "In carica fino al {target}%",
+    "charging_to_eta": "In carica fino al {target}% · ~{eta} rimanenti",
+    "waiting": "In attesa · ~{remaining} rimanenti"
   },
   "maintenance": {
     "attention_empty": "Al momento tutto sembra in salute.",
@@ -1260,7 +1268,13 @@
       "returning_to_dock": "In rientro alla base.",
       "vacuum_error": "L'aspirapolvere ha un errore.",
       "start_blocked": "L'avvio è bloccato."
-    }
+    },
+    "charge_time_varies": "Il tempo di carica varia in base al livello della batteria quando torna alla base.",
+    "chip_charge_label": "Carica fino al",
+    "chip_charge_to": "Carica fino al {target}%",
+    "chip_wait": "Attendi {minutes} min",
+    "chip_wait_label": "Attendi",
+    "run_plan_title": "Questa esecuzione"
   },
   "run_profiles": {
     "create_profile": "Crea profilo",
@@ -1278,7 +1292,24 @@
     "save_over": "Sovrascrivi profilo",
     "save_this_setup": "Salva questa configurazione",
     "subtitle": "Salva questa configurazione di stanze e riapplicala in seguito senza ricostruire la coda a mano.",
-    "title": "Profili di esecuzione"
+    "title": "Profili di esecuzione",
+    "add_charge_step": "Aggiungi un passaggio di carica",
+    "add_wait_step": "Aggiungi un'attesa",
+    "capture_group": "Aggiungi le stanze attuali come gruppo",
+    "minutes_unit": "min",
+    "room_fallback": "Stanza {id}",
+    "run": "Esegui",
+    "runs_as": "Eseguito come",
+    "step_charge_to": "Carica fino al",
+    "step_clean": "Pulisci",
+    "step_group_empty": "(nessuna stanza)",
+    "step_move_down": "Sposta giù",
+    "step_move_up": "Sposta su",
+    "step_remove": "Rimuovi passaggio",
+    "step_wait": "Attendi",
+    "steps_capture_hint": "Imposta le stanze che vuoi pulire dopo nella vista Stanze, poi aggiungile come gruppo.",
+    "steps_hint": "Aspira, torna alla base per ricaricare, poi continua a pulire — tutto in un'unica esecuzione.",
+    "steps_label": "Passaggi dell'esecuzione"
   },
   "setup": {
     "add": "Aggiungi",

@@ -135,7 +135,10 @@
     "unable_apply": "Impossible d'appliquer le profil de tâche.",
     "unable_delete": "Impossible de supprimer le profil de tâche.",
     "unable_overwrite": "Impossible de remplacer le profil de tâche.",
-    "unable_save": "Impossible d'enregistrer le profil de tâche."
+    "unable_save": "Impossible d'enregistrer le profil de tâche.",
+    "capture_no_rooms": "Activez d'abord des pièces, puis ajoutez-les comme groupe.",
+    "steps_need_group": "Une tâche nécessite au moins un groupe de pièces à nettoyer.",
+    "unable_run": "Impossible de lancer le profil de tâche."
   },
   "bind_setup": {
     "failed_add_vacuum": "Échec de l'ajout de l'aspirateur : {error}",
@@ -350,7 +353,12 @@
     "tank_now": "Réservoir actuel",
     "unknown": "Inconnu",
     "waiting_next_room": "En attente de la mise à jour de la pièce suivante",
-    "water_estimate": "Estimation d'eau"
+    "water_estimate": "Estimation d'eau",
+    "charging_delta": "{delta} % restants",
+    "charging_from": "depuis {from} %",
+    "charging_to": "Charge jusqu'à {target} %",
+    "charging_to_eta": "Charge jusqu'à {target} % · ~{eta} restantes",
+    "waiting": "En attente · ~{remaining} restantes"
   },
   "maintenance": {
     "attention_empty": "Tout semble en bon état pour le moment.",
@@ -1274,7 +1282,13 @@
       "returning_to_dock": "Retour à la base.",
       "vacuum_error": "L'aspirateur a une erreur.",
       "start_blocked": "Le démarrage est bloqué."
-    }
+    },
+    "charge_time_varies": "Le temps de charge varie selon le niveau de batterie au retour à la station.",
+    "chip_charge_label": "Charger jusqu'à",
+    "chip_charge_to": "Charger jusqu'à {target} %",
+    "chip_wait": "Attendre {minutes} min",
+    "chip_wait_label": "Attendre",
+    "run_plan_title": "Cette tâche"
   },
   "run_profiles": {
     "create_profile": "Créer un profil",
@@ -1292,7 +1306,24 @@
     "save_over": "Remplacer le profil",
     "save_this_setup": "Enregistrer cette configuration",
     "subtitle": "Enregistrez cette configuration de pièces et réappliquez-la plus tard sans reconstruire la file à la main.",
-    "title": "Profils de tâche"
+    "title": "Profils de tâche",
+    "add_charge_step": "Ajouter une étape de charge",
+    "add_wait_step": "Ajouter une attente",
+    "capture_group": "Ajouter les pièces actuelles comme groupe",
+    "minutes_unit": "min",
+    "room_fallback": "Pièce {id}",
+    "run": "Lancer",
+    "runs_as": "S'exécute comme",
+    "step_charge_to": "Charger jusqu'à",
+    "step_clean": "Nettoyer",
+    "step_group_empty": "(aucune pièce)",
+    "step_move_down": "Descendre",
+    "step_move_up": "Monter",
+    "step_remove": "Retirer l'étape",
+    "step_wait": "Attendre",
+    "steps_capture_hint": "Préparez les pièces souhaitées dans la vue Pièces, puis ajoutez-les comme groupe.",
+    "steps_hint": "Aspirez, retournez à la station pour recharger, puis continuez le nettoyage — le tout en une seule tâche.",
+    "steps_label": "Étapes de la tâche"
   },
   "setup": {
     "add": "Ajouter",
