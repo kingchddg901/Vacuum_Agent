@@ -843,6 +843,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
 
         ${typeof this.renderLearningLiveBanner=="function"?this.renderLearningLiveBanner(t):""}
 
+        ${typeof this.renderLearningChargeStatus=="function"?this.renderLearningChargeStatus(t):""}
+
         ${d?this.renderActiveJobSection(d):""}
 
         ${typeof this.renderLearningProgressList=="function"?this.renderLearningProgressList(t):""}
@@ -5321,17 +5323,15 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
             \u23F3 ${this.t("learning.robot_stuck")}${u}
           </div>
         `})()}
-    `},n.renderLearningProgressList=function(e){if(!e.shouldShowLiveQueue())return"";let t=e.learningRoomTimeline();if(!t.length)return"";let a=e.liveChargeStatus?.()??null;return`
+    `},n.renderLearningProgressList=function(e){if(!e.shouldShowLiveQueue())return"";let t=e.learningRoomTimeline();return t.length?`
       <div class="evcc-learning-progress">
         <div class="evcc-learning-progress-title">${this.t("learning.live_progress")}</div>
 
-        ${a?this._renderLearningChargeBanner(a):""}
-
         <div class="evcc-learning-progress-list">
-          ${t.map(r=>r.completed?this._renderLearningCompletedRow(r):r.current?this._renderLearningCurrentRow(r):!r.current&&!r.remaining&&!r.completed?this._renderLearningCurrentRow(r):this._renderLearningRemainingRow(r)).join("")}
+          ${t.map(a=>a.completed?this._renderLearningCompletedRow(a):a.current?this._renderLearningCurrentRow(a):!a.current&&!a.remaining&&!a.completed?this._renderLearningCurrentRow(a):this._renderLearningRemainingRow(a)).join("")}
         </div>
       </div>
-    `},n._renderLearningChargeBanner=function(e){let t=e.targetPercent??100,a=e.etaMinutes!=null?this.t("learning.charging_to_eta",{target:this.escapeHtml(String(t)),eta:this.escapeHtml(this._formatLearningMinutes(e.etaMinutes))}):this.t("learning.charging_to",{target:this.escapeHtml(String(t))}),r=e.fromBattery!=null?` <span class="evcc-learning-charge-from">${this.t("learning.charging_from",{from:this.escapeHtml(String(e.fromBattery))})}</span>`:"";return`
+    `:""},n.renderLearningChargeStatus=function(e){let t=e.liveChargeStatus?.()??null;return t?this._renderLearningChargeBanner(t):""},n._renderLearningChargeBanner=function(e){let t=e.targetPercent??100,a=e.etaMinutes!=null?this.t("learning.charging_to_eta",{target:this.escapeHtml(String(t)),eta:this.escapeHtml(this._formatLearningMinutes(e.etaMinutes))}):this.t("learning.charging_to",{target:this.escapeHtml(String(t))}),r=e.fromBattery!=null?` <span class="evcc-learning-charge-from">${this.t("learning.charging_from",{from:this.escapeHtml(String(e.fromBattery))})}</span>`:"";return`
       <div class="evcc-learning-charge-banner">
         <span class="evcc-learning-charge-icon" aria-hidden="true">\u26A1</span>
         <span class="evcc-learning-charge-text">${a}${r}</span>
@@ -10252,6 +10252,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 12px;
     padding: 8px 12px;
     border-radius: 10px;
     background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 15%, transparent);

@@ -274,6 +274,7 @@ export const learningStyles = `
     display: flex;
     align-items: center;
     gap: 8px;
+    margin-bottom: 12px;
     padding: 8px 12px;
     border-radius: 10px;
     background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 15%, transparent);

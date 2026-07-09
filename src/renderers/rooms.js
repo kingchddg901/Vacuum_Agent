@@ -70,6 +70,8 @@ export function applyRoomsRenderers(proto) {
 
         ${typeof this.renderLearningLiveBanner === "function" ? this.renderLearningLiveBanner(state) : ""}
 
+        ${typeof this.renderLearningChargeStatus === "function" ? this.renderLearningChargeStatus(state) : ""}
+
         ${activeJob ? this.renderActiveJobSection(activeJob) : ""}
 
         ${typeof this.renderLearningProgressList === "function" ? this.renderLearningProgressList(state) : ""}

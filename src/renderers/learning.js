@@ -321,13 +321,9 @@ export function applyLearningRenderers(proto) {
     const timeline = state.learningRoomTimeline();
     if (!timeline.length) return "";
 
-    const charge = state.liveChargeStatus?.() ?? null;
-
     return `
       <div class="evcc-learning-progress">
         <div class="evcc-learning-progress-title">${this.t("learning.live_progress")}</div>
-
-        ${charge ? this._renderLearningChargeBanner(charge) : ""}
 
         <div class="evcc-learning-progress-list">
           ${timeline.map((entry) => {
@@ -351,8 +347,23 @@ export function applyLearningRenderers(proto) {
   };
 
   /**
-   * Render the live "Charging to X% — ~N min left (from Y%)" banner shown at the top of
-   * the progress list during a charge_wait phase (which has no current room row).
+   * Render the live charge status as a JOB-LEVEL panel element, shown whenever a charge_wait
+   * phase is active. Deliberately NOT gated on the room queue/timeline: during a charge phase
+   * resolved_rooms is [], so the room-based live queue is empty and shouldShowLiveQueue() is
+   * false — the charge must still surface. Hosted directly by the rooms panel.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string ("" when not charging).
+   */
+  proto.renderLearningChargeStatus = function (state) {
+    const charge = state.liveChargeStatus?.() ?? null;
+    if (!charge) return "";
+    return this._renderLearningChargeBanner(charge);
+  };
+
+  /**
+   * Render the "Charging to X% — ~N min left (from Y%)" banner body used by
+   * renderLearningChargeStatus.
    *
    * @param {{targetPercent:number|null, etaMinutes:number|null, fromBattery:number|null}} charge
    * @returns {string} HTML string.
