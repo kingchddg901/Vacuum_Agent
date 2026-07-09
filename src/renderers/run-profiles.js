@@ -128,6 +128,8 @@ export function applyRunProfilesRenderers(proto) {
               </div>
             ` : ""}
 
+            ${selected.has_charge_steps ? this._renderRunProfileStepsSummary(state, selected) : ""}
+
             <div class="evcc-run-profiles-selected-actions">
               <button
                 type="button"
@@ -241,6 +243,53 @@ export function applyRunProfilesRenderers(proto) {
           >${this.t("run_profiles.capture_group")}</button>
         </div>
         <div class="evcc-run-profiles-steps-hint">${this.t("run_profiles.steps_capture_hint")}</div>
+      </div>
+    `;
+  };
+
+  /**
+   * Render a READ-ONLY sequence summary of a stepped profile ("Runs as: Clean Kitchen →
+   * Charge to 95% → Clean Kitchen"). Admits the charge step + the true run order so the flat
+   * queue's rooms-union view isn't mistaken for the whole run — WITHOUT putting a
+   * (battery-dependent, deliberately unmodelled) duration on the charge.
+   *
+   * @param {object} state - Card state accessor.
+   * @param {object} profile - The selected run profile (carries .steps).
+   * @returns {string} HTML string.
+   */
+  proto._renderRunProfileStepsSummary = function (state, profile) {
+    const steps = Array.isArray(profile.steps) ? profile.steps : [];
+    if (!steps.length) return "";
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    const nameById = {};
+    rooms.forEach((room) => { nameById[String(room.id)] = room.name; });
+
+    const items = steps.map((step) => {
+      if (step.type === "charge_wait") {
+        const target = Number(step.target_battery_percent ?? 95);
+        return `
+          <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--charge">
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⚡</span>${this.t("run_profiles.step_charge_to")} ${this.escapeHtml(String(target))}%
+          </li>`;
+      }
+      const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];
+      const names = groupRooms
+        .map((r) => this.escapeHtml(
+          nameById[String(r.room_id)] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(r.room_id)) })
+        ))
+        .join(", ");
+      const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
+      const modeHint = modes.size === 1 ? [...modes][0] : null;
+      return `
+        <li class="evcc-run-profiles-seq-step">
+          <span class="evcc-run-profiles-seq-kind">${this.t("run_profiles.step_clean")}</span> ${names || this.t("run_profiles.step_group_empty")}${modeHint ? ` <span class="evcc-run-profiles-seq-mode">${this.escapeHtml(modeHint)}</span>` : ""}
+        </li>`;
+    }).join("");
+
+    return `
+      <div class="evcc-run-profiles-sequence">
+        <span class="evcc-run-profiles-label">${this.t("run_profiles.runs_as")}</span>
+        <ol class="evcc-run-profiles-seq-list">${items}</ol>
       </div>
     `;
   };

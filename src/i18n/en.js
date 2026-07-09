@@ -1268,6 +1268,7 @@ export const en = {
   "run_profiles.name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
   "run_profiles.room_count": { one: "{count} room", other: "{count} rooms" },  // plural
   "run_profiles.room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
+  "run_profiles.runs_as": "Runs as",  // label above the read-only step sequence in the selected-profile card
   "run_profiles.save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
   "run_profiles.step_charge_to": "Charge to",  // charge-step row label, precedes a percent input

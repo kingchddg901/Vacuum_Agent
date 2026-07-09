@@ -240,6 +240,68 @@ export const runProfileStyles = `
     gap: 8px;
   }
 
+  /* ---- Read-only run sequence (admits the charge step in the selected-profile card) ---- */
+
+  .evcc-run-profiles-sequence {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .evcc-run-profiles-seq-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    counter-reset: evcc-seq;
+  }
+
+  .evcc-run-profiles-seq-step {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--evcc-text-secondary);
+  }
+
+  .evcc-run-profiles-seq-step::before {
+    counter-increment: evcc-seq;
+    content: counter(evcc-seq);
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--evcc-text-muted);
+    background: color-mix(in srgb, var(--evcc-surface-input) 90%, transparent);
+  }
+
+  .evcc-run-profiles-seq-step--charge {
+    color: var(--evcc-text-primary);
+    font-weight: 600;
+  }
+
+  .evcc-run-profiles-seq-kind {
+    font-weight: 700;
+    color: var(--evcc-text-primary);
+  }
+
+  .evcc-run-profiles-seq-mode {
+    font-size: 0.64rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 5px;
+    border-radius: 999px;
+    color: var(--evcc-text-muted);
+    background: color-mix(in srgb, var(--evcc-surface-input) 92%, transparent);
+  }
+
   /* Responsive collapse is handled by flex-wrap above (container-relative) —
      NOT a viewport @media query. The card can be narrower than the screen
      (HA panel, dashboard column, render harness), so a viewport breakpoint
