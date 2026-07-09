@@ -105,9 +105,18 @@ class PhaseRunner:
             if 0 <= _next_idx < len(_next_phases) and isinstance(_next_phases[_next_idx], dict)
             else {}
         )
-        if str(_next_phase.get("phase_type") or "") == "charge_wait":
+        _next_type = str(_next_phase.get("phase_type") or "")
+        if _next_type == "charge_wait":
             self._manager.hass.async_create_task(
                 self._run_charge_wait_phase(
+                    vacuum_entity_id=vacuum_entity_id,
+                    map_id=str(map_id),
+                    phase_index=_next_idx,
+                )
+            )
+        elif _next_type == "wait":
+            self._manager.hass.async_create_task(
+                self._run_wait_phase(
                     vacuum_entity_id=vacuum_entity_id,
                     map_id=str(map_id),
                     phase_index=_next_idx,
@@ -173,10 +182,10 @@ class PhaseRunner:
         if phases[idx].get("_timing_end_t"):
             return  # already attempted (idempotent — an empty capture must not re-run either)
 
-        if str(phases[idx].get("phase_type") or "") == "charge_wait":
-            # A charge_wait phase never cleaned (its counter slice is flat while the
-            # robot charges). Record an EMPTY timing so finalize reads it as a
-            # dock/charge interval, not a phantom zero-metric room.
+        if str(phases[idx].get("phase_type") or "") in ("charge_wait", "wait"):
+            # A charge_wait / wait phase never cleaned (its counter slice is flat while the
+            # robot charges or idles on the dock). Record an EMPTY timing so finalize reads
+            # it as a dock/hold interval, not a phantom zero-metric room.
             phases[idx]["room_timing"] = []
             phases[idx]["_timing_end_t"] = _iso_now()
             return
@@ -520,6 +529,85 @@ class PhaseRunner:
         _LOGGER.info(
             "Charge-wait phase %s on %s reached %s%% — advancing to the next phase.",
             phase_index, vacuum_entity_id, target,
+        )
+        await self.maybe_advance_phase(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
+
+    async def _run_wait_phase(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        phase_index: int,
+    ) -> None:
+        """Drive a ``wait`` phase: dock and hold for ``wait_minutes``, then advance.
+
+        The time-based twin of ``_run_charge_wait_phase`` (e.g. a mop-dry pause between a
+        vacuum pass and a mop pass). Like charge it has no rooms and owns its own lifecycle;
+        it KEEPS ``_phase_dispatch_pending`` set (inherited from the advance, never cleared)
+        so the intentional idle dock is not read as a cancel/completion, then advances via
+        ``maybe_advance_phase`` once the time has elapsed. A genuine user Cancel / pause /
+        advance (status flip or ``_cancel_in_flight``) bails — the phase is no longer ours.
+        """
+        poll_s = 15.0  # time-bound; poll tight enough that the live countdown feels current
+
+        def _still_ours(job: dict[str, Any] | None) -> bool:
+            return bool(
+                job
+                and job.get("status") == "started"
+                and _safe_int(job.get("current_phase_index"), -1) == phase_index
+                and not job.get("_cancel_in_flight")
+            )
+
+        job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        if not _still_ours(job):
+            return
+        phases = job.get("phases") or []
+        phase = (
+            phases[phase_index]
+            if 0 <= phase_index < len(phases) and isinstance(phases[phase_index], dict)
+            else {}
+        )
+        wait_minutes = max(1, _safe_int(phase.get("wait_minutes"), 5))
+
+        # Record the wait start so the live snapshot can count down "~N min left".
+        _rec = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        _recp = (_rec or {}).get("phases") or []
+        if 0 <= phase_index < len(_recp) and isinstance(_recp[phase_index], dict):
+            _recp[phase_index]["wait_started_at"] = _iso_now()
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {})[str(map_id)] = _rec
+
+        # Park on the dock while waiting (a no-op if it is already docked).
+        await self._manager.hass.services.async_call(
+            "vacuum", "return_to_base", {"entity_id": vacuum_entity_id}, blocking=True,
+        )
+        _LOGGER.info(
+            "Wait phase %s on %s: holding for %s min (poll %ss).",
+            phase_index, vacuum_entity_id, wait_minutes, poll_s,
+        )
+
+        deadline = self._manager.hass.loop.time() + wait_minutes * 60.0
+        while True:
+            await asyncio.sleep(poll_s)
+            job = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+            if not _still_ours(job):
+                _LOGGER.info(
+                    "Wait phase %s on %s abandoned — no longer on this phase "
+                    "(cancel/pause/advance).",
+                    phase_index, vacuum_entity_id,
+                )
+                return
+            if self._manager.hass.loop.time() >= deadline:
+                break
+        _rec2 = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        _recp2 = (_rec2 or {}).get("phases") or []
+        if 0 <= phase_index < len(_recp2) and isinstance(_recp2[phase_index], dict):
+            _recp2[phase_index]["wait_ended_at"] = _iso_now()
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {})[str(map_id)] = _rec2
+        _LOGGER.info(
+            "Wait phase %s on %s: %s min elapsed — advancing to the next phase.",
+            phase_index, vacuum_entity_id, wait_minutes,
         )
         await self.maybe_advance_phase(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
 

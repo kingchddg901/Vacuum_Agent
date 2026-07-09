@@ -844,18 +844,29 @@ class RunPlanManager:
                     "resolved_rooms": [], "queue_room_ids": [], "queue_rooms": [],
                     "payload": {}, "room_count": 0,
                 })
-        while phases and phases[0].get("phase_type") == "charge_wait":
+            elif step.get("type") == "wait":
+                phases.append({
+                    "phase_type": "wait",
+                    "wait_minutes": int(step.get("wait_minutes", 5)),
+                    "resolved_rooms": [], "queue_room_ids": [], "queue_rooms": [],
+                    "payload": {}, "room_count": 0,
+                })
+        # charge_wait + wait are "break" phases (dock + hold). A break with no clean to
+        # bracket is pointless -> drop leading/trailing breaks; collapse consecutive SAME-type
+        # breaks (two charges -> last target; two waits -> last duration); mixed breaks kept.
+        _BREAKS = ("charge_wait", "wait")
+        while phases and phases[0].get("phase_type") in _BREAKS:
             phases.pop(0)
-        while phases and phases[-1].get("phase_type") == "charge_wait":
+        while phases and phases[-1].get("phase_type") in _BREAKS:
             phases.pop()
         collapsed: list[dict[str, Any]] = []
         for p in phases:
-            if (p.get("phase_type") == "charge_wait"
-                    and collapsed and collapsed[-1].get("phase_type") == "charge_wait"):
-                collapsed[-1] = p  # consecutive charges -> keep the last target
+            pt = p.get("phase_type")
+            if pt in _BREAKS and collapsed and collapsed[-1].get("phase_type") == pt:
+                collapsed[-1] = p  # consecutive same-type breaks -> keep the last
             else:
                 collapsed.append(p)
-        if not any(p.get("phase_type") == "charge_wait" for p in collapsed):
+        if not any(p.get("phase_type") in _BREAKS for p in collapsed):
             all_ids = [rid for p in collapsed for rid in p.get("queue_room_ids", [])]
             return self._build_dispatch_phases(
                 vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
@@ -1294,7 +1305,7 @@ class RunPlanManager:
             else _pending_map.get(str(map_id))
         )
         if _run_steps and any(
-            isinstance(s, dict) and s.get("type") == "charge_wait" for s in _run_steps
+            isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _run_steps
         ):
             phases = self._build_steps_phases(
                 vacuum_entity_id=vacuum_entity_id,

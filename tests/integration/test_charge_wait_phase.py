@@ -18,6 +18,7 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-10] _build_steps_phases: consecutive charge steps collapse to the last target.
 [CW-11] a completed charge records from/to battery + timestamps on the phase (Wave 4 observability).
 [CW-12] the SAME room in two groups is dispatched with each group's OWN settings (vac then mop).
+[CW-13] TWO non-consecutive charges -> two separate charge phases (multiple charges per run).
 """
 
 from __future__ import annotations
@@ -200,6 +201,10 @@ def _cw(target=95):
     return {"type": "charge_wait", "target_battery_percent": target}
 
 
+def _w(mins=5):
+    return {"type": "wait", "wait_minutes": mins}
+
+
 def _steps_phases(manager, monkeypatch, run_steps, included):
     # Fake each group's dispatch phase as a marker so we test the interleave logic
     # (not the brand engine).
@@ -262,3 +267,70 @@ async def test_steps_phases_per_group_settings(hass, manager, monkeypatch):
     )
     assert seen == ["vacuum", "mop"]                       # each phase got its group's own mode
     assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "room"]
+
+
+async def test_steps_phases_multiple_charges(hass, manager, monkeypatch):
+    """[CW-13] two NON-consecutive charges become two separate charge phases — a run can
+    charge more than once (clean -> charge -> clean -> charge -> clean)."""
+    phases = _steps_phases(
+        manager, monkeypatch,
+        [_rg(1), _cw(100), _rg(2), _cw(80), _rg(3)], included={1, 2, 3},
+    )
+    assert [p.get("phase_type", "room") for p in phases] == \
+        ["room", "charge_wait", "room", "charge_wait", "room"]
+    assert phases[1]["target_battery_percent"] == 100
+    assert phases[3]["target_battery_percent"] == 80
+
+
+async def test_steps_phases_wait_interleaves(hass, manager, monkeypatch):
+    """[WA-1] a wait step becomes a wait phase between cleans (dock + hold X min)."""
+    phases = _steps_phases(manager, monkeypatch, [_rg(1), _w(30), _rg(2)], included={1, 2})
+    assert [p.get("phase_type", "room") for p in phases] == ["room", "wait", "room"]
+    assert phases[1]["wait_minutes"] == 30
+
+
+async def test_steps_phases_mixed_breaks_kept(hass, manager, monkeypatch):
+    """[WA-2] leading/trailing waits dropped; consecutive DIFFERENT breaks (charge + wait)
+    are both kept — only same-type breaks collapse."""
+    phases = _steps_phases(
+        manager, monkeypatch, [_w(5), _rg(1), _cw(95), _w(30), _rg(2), _w(5)], included={1, 2})
+    assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "wait", "room"]
+
+
+async def _drive_wait(manager, monkeypatch, *, wait_minutes=5):
+    """Run _run_wait_phase with a fast-forwarded clock + no real sleeps."""
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(manager.hass.loop, "time", lambda: clock["t"])
+
+    async def _no_sleep(_s):
+        clock["t"] += 100000.0  # jump well past any deadline
+
+    monkeypatch.setattr(phase_runner_mod.asyncio, "sleep", _no_sleep)
+    if not manager.hass.services.has_service("vacuum", "return_to_base"):
+        manager.hass.services.async_register("vacuum", "return_to_base", lambda call: None)
+
+    counts = {"advance": 0}
+
+    async def _adv(**k):
+        counts["advance"] += 1
+
+    monkeypatch.setattr(manager.phase_runner, "maybe_advance_phase", _adv)
+    job = {
+        "vacuum_entity_id": _VAC, "map_id": _MAP, "status": "started",
+        "phases": [
+            _room_phase(5, "kitchen"),
+            {"phase_type": "wait", "wait_minutes": wait_minutes,
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+            _room_phase(8, "dining"),
+        ],
+        "current_phase_index": 1,
+        "resolved_rooms": [], "queue_room_ids": [], "counter_samples": [],
+    }
+    _seed(manager, job)
+    await manager.phase_runner._run_wait_phase(vacuum_entity_id=_VAC, map_id=_MAP, phase_index=1)
+    return counts
+
+
+async def test_wait_phase_advances_after_time(hass, manager, monkeypatch):
+    """[WA-3] the wait phase advances to the next phase once its minutes elapse."""
+    assert await _drive_wait(manager, monkeypatch, wait_minutes=5) == {"advance": 1}

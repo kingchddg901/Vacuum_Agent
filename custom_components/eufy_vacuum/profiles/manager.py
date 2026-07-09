@@ -715,8 +715,9 @@ class ProfileManager:
     @staticmethod
     def normalize_run_profile_steps(steps: Any) -> list[dict[str, Any]]:
         """Validate/coerce an ordered run-profile steps list. A step is a room_group
-        ({type:'room_group', rooms:[...]}) or a charge_wait ({type:'charge_wait',
-        target_battery_percent:int clamped 1..100}). Invalid/empty entries are dropped."""
+        ({type:'room_group', rooms:[...]}), a charge_wait ({type:'charge_wait',
+        target_battery_percent:int clamped 1..100}), or a wait ({type:'wait',
+        wait_minutes:int clamped 1..1440}). Invalid/empty entries are dropped."""
         out: list[dict[str, Any]] = []
         for step in steps if isinstance(steps, list) else []:
             if not isinstance(step, dict):
@@ -732,6 +733,12 @@ class ProfileManager:
                 except (TypeError, ValueError):
                     continue
                 out.append({"type": "charge_wait", "target_battery_percent": max(1, min(tgt, 100))})
+            elif stype == "wait":
+                try:
+                    mins = int(step.get("wait_minutes"))
+                except (TypeError, ValueError):
+                    continue
+                out.append({"type": "wait", "wait_minutes": max(1, min(mins, 1440))})
         return out
 
     @staticmethod

@@ -3423,6 +3423,20 @@ class EufyVacuumManager:
                     charge_eta_minutes = _eta.get("minutes")
                     charge_eta_source = _eta.get("source")
 
+        wait_phase_active = False
+        wait_minutes = None
+        wait_started_at = None
+        if isinstance(_cw_phases, list):
+            _w_idx = _safe_int(active_job.get("current_phase_index"), -1)
+            if (
+                0 <= _w_idx < len(_cw_phases)
+                and isinstance(_cw_phases[_w_idx], dict)
+                and str(_cw_phases[_w_idx].get("phase_type") or "") == "wait"
+            ):
+                wait_phase_active = True
+                wait_minutes = _safe_int(_cw_phases[_w_idx].get("wait_minutes"), 5)
+                wait_started_at = _cw_phases[_w_idx].get("wait_started_at")
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -3455,6 +3469,9 @@ class EufyVacuumManager:
             "charge_eta_source": charge_eta_source,
             "charge_from_battery": charge_from_battery,
             "charge_started_at": charge_started_at,
+            "wait_phase_active": wait_phase_active,
+            "wait_minutes": wait_minutes,
+            "wait_started_at": wait_started_at,
             "timeline_source": timeline_source,
             "timeline": timeline,
             "room_timeline": timeline,
@@ -4812,7 +4829,7 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
         ).get(profile_id, {})
         _prof_steps = self.profiles.run_profile_steps(_prof)
-        if any(isinstance(s, dict) and s.get("type") == "charge_wait" for s in _prof_steps):
+        if any(isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _prof_steps):
             self.data.setdefault("_pending_run_steps", {}).setdefault(
                 vacuum_entity_id, {}
             )[str(map_id)] = _prof_steps
