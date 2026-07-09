@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { sanitizeStepsForSave, stepsHaveRoomGroup } from "../state/steps-order.js";
+
 /**
  * Mix run profiles binding methods onto the given prototype.
  *
@@ -141,6 +143,21 @@ export function applyRunProfilesBindings(proto) {
           return;
         }
 
+        // Persist the ordered steps too, when the user has engaged the steps editor.
+        if (this.card._state.isDraftStepsExpanded?.()) {
+          const clean = sanitizeStepsForSave(this.card._state.runProfileDraftSteps?.() ?? []);
+          if (!stepsHaveRoomGroup(clean)) {
+            this.card.showToast(this.t("bind_run_profiles.steps_need_group"), { kind: "error" });
+            return;
+          }
+          await this.card._actions.setRunProfileSteps({
+            vacuum_entity_id: this.card._state.vacuumEntityId?.(),
+            map_id: this.card._state.activeMapId?.(),
+            profile_id: profile.id,
+            steps: clean,
+          });
+        }
+
         await this.card.refreshRunProfiles?.();
         this.card._state.selectRunProfile?.(profile.id);
         this.card._state.closeRunProfileEditor?.();
@@ -175,5 +192,42 @@ export function applyRunProfilesBindings(proto) {
         this.card._scheduleRender();
       }
     );
+
+    /* ---- steps editor (charge steps + room groups) ---- */
+
+    this.card._onAll("[data-action='add-run-profile-charge']", "click", () => {
+      this.card._state.addDraftChargeStep?.();
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-action='capture-run-profile-group']", "click", () => {
+      const ok = this.card._state.captureCurrentRoomsAsDraftGroup?.();
+      if (ok === false) {
+        this.card.showToast(this.t("bind_run_profiles.capture_no_rooms"), { kind: "error" });
+        return;
+      }
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-action='remove-run-profile-step']", "click", (e) => {
+      this.card._state.removeDraftStep?.(Number(e.currentTarget.dataset.stepIndex));
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-action='move-run-profile-step']", "click", (e) => {
+      this.card._state.moveDraftStep?.(
+        Number(e.currentTarget.dataset.stepIndex),
+        Number(e.currentTarget.dataset.stepDir),
+      );
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-run-profile-charge-index]", "change", (e) => {
+      this.card._state.setDraftChargeTarget?.(
+        Number(e.currentTarget.dataset.runProfileChargeIndex),
+        e.currentTarget.value,
+      );
+      this.card._scheduleRender();
+    });
   };
 }

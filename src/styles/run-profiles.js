@@ -110,6 +110,136 @@ export const runProfileStyles = `
     color: var(--evcc-text-secondary);
   }
 
+  /* ---- Ordered-steps editor (room groups + charge steps) ---- */
+
+  .evcc-run-profiles-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .evcc-run-profiles-steps-hint {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-run-profiles-steps-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .evcc-run-profiles-step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 9px;
+    border-radius: var(--evcc-radius-inner, 12px);
+    border: 1px solid var(--evcc-border-default);
+    background: color-mix(in srgb, var(--evcc-surface-input) 60%, transparent);
+  }
+
+  .evcc-run-profiles-step--charge {
+    border-color: color-mix(in srgb, var(--evcc-accent, #4c9aff) 55%, var(--evcc-border-default));
+    background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 12%, transparent);
+  }
+
+  .evcc-run-profiles-step-num {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--evcc-text-secondary);
+    background: color-mix(in srgb, var(--evcc-surface-input) 90%, transparent);
+  }
+
+  .evcc-run-profiles-step-body {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--evcc-text-secondary);
+  }
+
+  .evcc-run-profiles-step-kind {
+    font-weight: 700;
+    color: var(--evcc-text-primary);
+  }
+
+  .evcc-run-profiles-step-rooms {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .evcc-run-profiles-step-mode {
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 1px 6px;
+    border-radius: 999px;
+    color: var(--evcc-text-muted);
+    background: color-mix(in srgb, var(--evcc-surface-input) 92%, transparent);
+  }
+
+  .evcc-run-profiles-charge-input {
+    width: 58px;
+    min-height: 30px;
+    padding: 0 8px;
+    border-radius: var(--evcc-radius-inner, 10px);
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
+    color: var(--evcc-text-primary);
+    font: inherit;
+    text-align: right;
+  }
+
+  .evcc-run-profiles-step-controls {
+    flex: 0 0 auto;
+    display: flex;
+    gap: 4px;
+  }
+
+  .evcc-run-profiles-step-btn {
+    width: 26px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.05));
+    color: var(--evcc-text-secondary);
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .evcc-run-profiles-step-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .evcc-run-profiles-step-btn--remove {
+    color: var(--evcc-danger, #ff6b6b);
+  }
+
+  .evcc-run-profiles-steps-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
   /* Responsive collapse is handled by flex-wrap above (container-relative) —
      NOT a viewport @media query. The card can be narrower than the screen
      (HA panel, dashboard column, render harness), so a viewport breakpoint

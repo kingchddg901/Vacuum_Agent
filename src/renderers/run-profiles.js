@@ -71,6 +71,8 @@ export function applyRunProfilesRenderers(proto) {
               <span>${this.t("run_profiles.expose_as_button")}</span>
             </label>
 
+            ${editorMode === "edit" ? this._renderRunProfileStepsEditor(state) : ""}
+
             <div class="evcc-run-profiles-editor-actions">
               <button
                 type="button"
@@ -144,6 +146,102 @@ export function applyRunProfilesRenderers(proto) {
           </div>
         ` : ""}
       </aside>
+    `;
+  };
+
+  /**
+   * Render the ordered-steps editor inside the profile editor (edit mode only).
+   * Progressive disclosure: a simple profile shows just an "add a charge step"
+   * affordance; once engaged it shows the room-group + charge-step list.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string.
+   */
+  proto._renderRunProfileStepsEditor = function (state) {
+    const steps = state.runProfileDraftSteps?.() ?? [];
+    const expanded = Boolean(state.isDraftStepsExpanded?.());
+    const rooms = state.getRoomsForActiveMap?.() ?? [];
+    const nameById = {};
+    rooms.forEach((room) => { nameById[String(room.id)] = room.name; });
+
+    if (!expanded) {
+      return `
+        <div class="evcc-run-profiles-steps">
+          <span class="evcc-run-profiles-label">${this.t("run_profiles.steps_label")}</span>
+          <button
+            type="button"
+            class="evcc-chip evcc-run-profiles-steps-add"
+            data-action="add-run-profile-charge"
+          >${this.t("run_profiles.add_charge_step")}</button>
+          <div class="evcc-run-profiles-steps-hint">${this.t("run_profiles.steps_hint")}</div>
+        </div>
+      `;
+    }
+
+    const lastIndex = steps.length - 1;
+    const controls = (i) => `
+      <span class="evcc-run-profiles-step-controls">
+        <button type="button" class="evcc-run-profiles-step-btn" data-action="move-run-profile-step"
+          data-step-index="${i}" data-step-dir="-1" ${i === 0 ? "disabled" : ""}
+          title="${this.t("run_profiles.step_move_up")}">↑</button>
+        <button type="button" class="evcc-run-profiles-step-btn" data-action="move-run-profile-step"
+          data-step-index="${i}" data-step-dir="1" ${i === lastIndex ? "disabled" : ""}
+          title="${this.t("run_profiles.step_move_down")}">↓</button>
+        <button type="button" class="evcc-run-profiles-step-btn evcc-run-profiles-step-btn--remove"
+          data-action="remove-run-profile-step" data-step-index="${i}"
+          title="${this.t("run_profiles.step_remove")}">✕</button>
+      </span>`;
+
+    const rowsHtml = steps.map((step, i) => {
+      if (step.type === "charge_wait") {
+        const target = Number(step.target_battery_percent ?? 95);
+        return `
+          <li class="evcc-run-profiles-step evcc-run-profiles-step--charge">
+            <span class="evcc-run-profiles-step-num">${i + 1}</span>
+            <span class="evcc-run-profiles-step-body">
+              <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_charge_to")}</span>
+              <input type="number" min="1" max="100" step="1"
+                value="${this.escapeHtml(String(target))}"
+                class="evcc-run-profiles-charge-input"
+                data-run-profile-charge-index="${i}" />
+              <span class="evcc-run-profiles-step-pct">%</span>
+            </span>
+            ${controls(i)}
+          </li>`;
+      }
+
+      const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];
+      const names = groupRooms
+        .map((r) => this.escapeHtml(
+          nameById[String(r.room_id)] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(r.room_id)) })
+        ))
+        .join(", ");
+      const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
+      const modeHint = modes.size === 1 ? [...modes][0] : null;
+      return `
+        <li class="evcc-run-profiles-step evcc-run-profiles-step--group">
+          <span class="evcc-run-profiles-step-num">${i + 1}</span>
+          <span class="evcc-run-profiles-step-body">
+            <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_clean")}</span>
+            <span class="evcc-run-profiles-step-rooms">${names || this.t("run_profiles.step_group_empty")}</span>
+            ${modeHint ? `<span class="evcc-run-profiles-step-mode">${this.escapeHtml(modeHint)}</span>` : ""}
+          </span>
+          ${controls(i)}
+        </li>`;
+    }).join("");
+
+    return `
+      <div class="evcc-run-profiles-steps">
+        <span class="evcc-run-profiles-label">${this.t("run_profiles.steps_label")}</span>
+        <ol class="evcc-run-profiles-steps-list">${rowsHtml}</ol>
+        <div class="evcc-run-profiles-steps-actions">
+          <button type="button" class="evcc-chip" data-action="add-run-profile-charge"
+          >${this.t("run_profiles.add_charge_step")}</button>
+          <button type="button" class="evcc-chip" data-action="capture-run-profile-group"
+          >${this.t("run_profiles.capture_group")}</button>
+        </div>
+        <div class="evcc-run-profiles-steps-hint">${this.t("run_profiles.steps_capture_hint")}</div>
+      </div>
     `;
   };
 }

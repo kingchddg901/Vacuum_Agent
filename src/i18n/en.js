@@ -171,8 +171,10 @@ export const en = {
   "bind_rooms.locate_sent": "Locate sent — listen for the chirp",
   "bind_rooms.queue_cleared": "Queue cleared",
   "bind_rooms.requeued_missed": { one: "Re-queued {count} missed room", other: "Re-queued {count} missed rooms" },  // plural
+  "bind_run_profiles.capture_no_rooms": "Enable some rooms first, then add them as a group.",
   "bind_run_profiles.confirm_delete": "Delete run profile \"{name}\"?",
   "bind_run_profiles.enter_name": "Enter a name for the run profile.",
+  "bind_run_profiles.steps_need_group": "A run needs at least one group of rooms to clean.",
   "bind_run_profiles.unable_apply": "Unable to apply run profile.",
   "bind_run_profiles.unable_delete": "Unable to delete run profile.",
   "bind_run_profiles.unable_overwrite": "Unable to overwrite run profile.",
@@ -1252,6 +1254,8 @@ export const en = {
 
   // --- run_profiles ---
   "run_profiles.create_profile": "Create Profile",
+  "run_profiles.add_charge_step": "Add a charge step",  // reveals/adds a dock-and-recharge step between room groups
+  "run_profiles.capture_group": "Add current rooms as a group",  // snapshot the current Rooms-view setup as the next step
   "run_profiles.editor_title_edit": "Edit Saved Profile",
   "run_profiles.editor_title_new": "Create Run Profile",
   "run_profiles.empty": "No saved profiles yet.",
@@ -1260,8 +1264,18 @@ export const en = {
   "run_profiles.name_label": "Name",
   "run_profiles.name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
   "run_profiles.room_count": { one: "{count} room", other: "{count} rooms" },  // plural
+  "run_profiles.room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
   "run_profiles.save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
+  "run_profiles.step_charge_to": "Charge to",  // charge-step row label, precedes a percent input
+  "run_profiles.step_clean": "Clean",  // room-group step row label, precedes the room names
+  "run_profiles.step_group_empty": "(no rooms)",  // shown when a group step has no rooms
+  "run_profiles.step_move_down": "Move down",  // step reorder control (title/aria)
+  "run_profiles.step_move_up": "Move up",  // step reorder control (title/aria)
+  "run_profiles.step_remove": "Remove step",  // step delete control (title/aria)
+  "run_profiles.steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
+  "run_profiles.steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",
+  "run_profiles.steps_label": "Run steps",  // section label for the ordered room-group + charge-step editor
   "run_profiles.subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
   "run_profiles.title": "Run Profiles",  // Feature name = saved room-queue setups; 'Run'=a cleaning run, 'Profiles'=named setups
 

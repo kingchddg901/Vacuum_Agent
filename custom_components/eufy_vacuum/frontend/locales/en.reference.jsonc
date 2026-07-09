@@ -847,8 +847,10 @@
     "requeued_missed": {"one":"Re-queued {count} missed room","other":"Re-queued {count} missed rooms"}  // plural
   },
   "bind_run_profiles": {
+    "capture_no_rooms": "Enable some rooms first, then add them as a group.",
     "confirm_delete": "Delete run profile \"{name}\"?",
     "enter_name": "Enter a name for the run profile.",
+    "steps_need_group": "A run needs at least one group of rooms to clean.",
     "unable_apply": "Unable to apply run profile.",
     "unable_delete": "Unable to delete run profile.",
     "unable_overwrite": "Unable to overwrite run profile.",
@@ -1947,6 +1949,8 @@
   },
   "run_profiles": {
     "create_profile": "Create Profile",
+    "add_charge_step": "Add a charge step",  // reveals/adds a dock-and-recharge step between room groups
+    "capture_group": "Add current rooms as a group",  // snapshot the current Rooms-view setup as the next step
     "editor_title_edit": "Edit Saved Profile",
     "editor_title_new": "Create Run Profile",
     "empty": "No saved profiles yet.",
@@ -1955,8 +1959,18 @@
     "name_label": "Name",
     "name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
     "room_count": {"one":"{count} room","other":"{count} rooms"},  // plural
+    "room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
     "save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
     "save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard
+    "step_charge_to": "Charge to",  // charge-step row label, precedes a percent input
+    "step_clean": "Clean",  // room-group step row label, precedes the room names
+    "step_group_empty": "(no rooms)",  // shown when a group step has no rooms
+    "step_move_down": "Move down",  // step reorder control (title/aria)
+    "step_move_up": "Move up",  // step reorder control (title/aria)
+    "step_remove": "Remove step",  // step delete control (title/aria)
+    "steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
+    "steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",
+    "steps_label": "Run steps",  // section label for the ordered room-group + charge-step editor
     "subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
     "title": "Run Profiles"  // Feature name = saved room-queue setups; 'Run'=a cleaning run, 'Profiles'=named setups
   },
