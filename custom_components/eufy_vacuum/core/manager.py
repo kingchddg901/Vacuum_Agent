@@ -3394,6 +3394,8 @@ class EufyVacuumManager:
         charge_target_percent = None
         charge_eta_minutes = None
         charge_eta_source = None
+        charge_from_battery = None
+        charge_started_at = None
         _cw_phases = active_job.get("phases")
         if isinstance(_cw_phases, list):
             _cw_idx = _safe_int(active_job.get("current_phase_index"), -1)
@@ -3406,6 +3408,8 @@ class EufyVacuumManager:
                 charge_target_percent = _safe_int(
                     _cw_phases[_cw_idx].get("target_battery_percent"), 100
                 )
+                charge_from_battery = _cw_phases[_cw_idx].get("charge_from_battery")
+                charge_started_at = _cw_phases[_cw_idx].get("charge_started_at")
                 _bm = self.hass.data.get(DOMAIN, {}).get("battery")  # DATA_BATTERY
                 if _bm is not None:
                     _eta = _bm.compute_time_to_target_pct(
@@ -3446,6 +3450,8 @@ class EufyVacuumManager:
             "charge_target_percent": charge_target_percent,
             "charge_eta_minutes": charge_eta_minutes,
             "charge_eta_source": charge_eta_source,
+            "charge_from_battery": charge_from_battery,
+            "charge_started_at": charge_started_at,
             "timeline_source": timeline_source,
             "timeline": timeline,
             "room_timeline": timeline,

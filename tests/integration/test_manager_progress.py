@@ -198,6 +198,7 @@ def test_progress_charge_phase_surfaces_eta(manager, hass):
             {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
              "payload": {}, "room_count": 1},
             {"phase_type": "charge_wait", "target_battery_percent": 95,
+             "charge_from_battery": 80, "charge_started_at": "2026-01-01T00:00:00Z",
              "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
         ],
     )
@@ -206,6 +207,8 @@ def test_progress_charge_phase_surfaces_eta(manager, hass):
     assert snap["charge_target_percent"] == 95
     assert snap["charge_eta_minutes"] == 45.0
     assert snap["charge_eta_source"] == "baseline"
+    assert snap["charge_from_battery"] == 80
+    assert snap["charge_started_at"] == "2026-01-01T00:00:00Z"
 
 
 def test_progress_skipped_conservative(manager, hass):

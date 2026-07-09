@@ -455,6 +455,20 @@ class PhaseRunner:
             await self.maybe_advance_phase(vacuum_entity_id=vacuum_entity_id, map_id=str(map_id))
             return
 
+        # Record the charge start on the phase (Wave 4 observability): the from-battery
+        # + when, so the live snapshot shows the full "X% -> target%" picture and the
+        # finalized run reflects the charge. The RATE learning itself is passive — the
+        # battery-health manager already tracks this charge as a session.
+        _rec = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        _recp = (_rec or {}).get("phases") or []
+        if 0 <= phase_index < len(_recp) and isinstance(_recp[phase_index], dict):
+            _recp[phase_index]["charge_from_battery"] = get_battery_level(
+                self._manager.hass, vacuum_entity_id
+            )
+            _recp[phase_index]["charge_started_at"] = _iso_now()
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {})[str(map_id)] = _rec
+
         # Send it home to charge (a no-op if it is already docked + charging).
         await self._manager.hass.services.async_call(
             "vacuum", "return_to_base", {"entity_id": vacuum_entity_id}, blocking=True,
@@ -494,6 +508,15 @@ class PhaseRunner:
                     ),
                 )
                 return
+        _rec2 = self._manager.get_active_job(vacuum_entity_id=vacuum_entity_id, map_id=map_id)
+        _recp2 = (_rec2 or {}).get("phases") or []
+        if 0 <= phase_index < len(_recp2) and isinstance(_recp2[phase_index], dict):
+            _recp2[phase_index]["charge_to_battery"] = get_battery_level(
+                self._manager.hass, vacuum_entity_id
+            )
+            _recp2[phase_index]["charge_ended_at"] = _iso_now()
+            self._manager.data.setdefault("active_jobs", {}).setdefault(
+                vacuum_entity_id, {})[str(map_id)] = _rec2
         _LOGGER.info(
             "Charge-wait phase %s on %s reached %s%% — advancing to the next phase.",
             phase_index, vacuum_entity_id, target,

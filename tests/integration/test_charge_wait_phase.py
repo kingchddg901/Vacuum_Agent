@@ -16,6 +16,7 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-8] _build_steps_phases: a charge with no clean to bracket is dropped (-> atomic when none survives).
 [CW-9] _build_steps_phases: a room_group whose rooms are all blocked is skipped.
 [CW-10] _build_steps_phases: consecutive charge steps collapse to the last target.
+[CW-11] a completed charge records from/to battery + timestamps on the phase (Wave 4 observability).
 """
 
 from __future__ import annotations
@@ -172,6 +173,18 @@ async def test_recharge_observer_ignores_charge_phase_dock(hass, manager, monkey
     )
     assert not out.get("observed_mid_job_recharge")
     assert not out.get("pending_mid_job_recharge_return")
+
+
+async def test_charge_records_actuals_on_phase(hass, manager, monkeypatch):
+    """[CW-11] a completed charge stamps from/to battery + start/end on the phase, so the
+    live snapshot shows the full X%->target% picture and the finalized run reflects it."""
+    monkeypatch.setattr(phase_runner_mod, "_iso_now", lambda: "2026-01-01T00:05:00Z")
+    await _drive_charge(manager, monkeypatch, batteries=[50, 60, 95], target=95)
+    phase = manager.data["active_jobs"][_VAC][_MAP]["phases"][1]
+    assert phase["charge_from_battery"] == 60
+    assert phase["charge_to_battery"] == 95
+    assert phase["charge_started_at"] == "2026-01-01T00:05:00Z"
+    assert phase["charge_ended_at"] == "2026-01-01T00:05:00Z"
 
 
 # ---------------------------------------------------------------------------
