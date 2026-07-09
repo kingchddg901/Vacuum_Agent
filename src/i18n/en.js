@@ -1166,6 +1166,7 @@ export const en = {
   "rooms.cancel_run": "Cancel Run",
   "rooms.cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
   "rooms.charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
+  "rooms.chip_charge_to": "Charge to {target}%",  // the charge point rendered as a queue chip in a stepped run
   "rooms.clear_queue": "Clear Queue",
   "rooms.companion_animal": "Companion animal",
   "rooms.configure": "Configure",

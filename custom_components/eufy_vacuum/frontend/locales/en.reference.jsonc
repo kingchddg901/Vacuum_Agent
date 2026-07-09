@@ -1859,6 +1859,7 @@
     "cancel_run": "Cancel Run",
     "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
     "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
+    "chip_charge_to": "Charge to {target}%",  // the charge point rendered as a queue chip in a stepped run
     "clear_queue": "Clear Queue",
     "companion_animal": "Companion animal",
     "configure": "Configure",

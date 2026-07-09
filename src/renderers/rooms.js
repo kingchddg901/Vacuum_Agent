@@ -434,6 +434,19 @@ proto.renderRoomsActionBar = function (
   const orderAdvisory = cardState?.startOrderAdvisory?.() ?? null;
   const strictOrder = cardState?.strictOrder?.() ?? false;
 
+  // Stepped-run preview: when a charge profile is applied (pre-run), render the queue chips
+  // from its ordered steps, treating each charge point as a "fake room" chip in the row.
+  const steppedProfileId = !hasActiveRun ? cardState?.pendingStepRunProfileId?.() : null;
+  const steppedProfile = steppedProfileId
+    ? (cardState?.savedRunProfiles?.() ?? []).find((p) => p.id === steppedProfileId)
+    : null;
+  const chipNameById = {};
+  const chipMinutesById = {};
+  if (steppedProfile) {
+    (Array.isArray(rooms) ? rooms : []).forEach((r) => { chipNameById[String(r.id)] = r.name; });
+    timeline.forEach((t) => { if (t && t.room_id != null) chipMinutesById[String(t.room_id)] = t.minutes; });
+  }
+
   return `
     <div class="evcc-rooms-action-bar">
 
@@ -590,7 +603,11 @@ proto.renderRoomsActionBar = function (
         </div>
       ` : ""}
 
-      ${queueRooms.length > 0 ? `
+      ${steppedProfile ? `
+        <div class="evcc-queue-chips evcc-queue-chips--preview">
+          ${this._renderSteppedRunChips(steppedProfile, chipNameById, chipMinutesById)}
+        </div>
+      ` : queueRooms.length > 0 ? `
         <div class="evcc-queue-chips">
 
           ${queueRooms.map((room, index) => {
@@ -688,6 +705,49 @@ proto.renderRoomsActionBar = function (
     </div>
   `;
 };
+
+  /**
+   * Render the pre-run queue chips from a stepped profile's ordered steps: each room_group's
+   * rooms as room chips, each charge point as a "fake room" charge chip — so the flat chip row
+   * shows the true Kitchen · ⚡ Charge · Kitchen sequence. Display-only (no room interaction).
+   *
+   * @param {object} profile - The applied run profile (carries .steps).
+   * @param {object} nameById - room_id -> room name.
+   * @param {object} minutesById - room_id -> estimated minutes.
+   * @returns {string} HTML string.
+   */
+  proto._renderSteppedRunChips = function (profile, nameById, minutesById) {
+    const steps = Array.isArray(profile?.steps) ? profile.steps : [];
+    const chips = [];
+    let pos = 0;
+    for (const step of steps) {
+      if (step && step.type === "charge_wait") {
+        pos += 1;
+        const target = Number(step.target_battery_percent ?? 100);
+        chips.push(`
+          <div class="evcc-queue-chip evcc-queue-chip--charge">
+            <span class="evcc-queue-chip-order">${pos}</span>
+            <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
+            <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}</span>
+          </div>`);
+        continue;
+      }
+      const groupRooms = (step && Array.isArray(step.rooms)) ? step.rooms : [];
+      for (const r of groupRooms) {
+        pos += 1;
+        const rid = String(r.room_id);
+        const name = nameById[rid] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(rid) });
+        const mins = minutesById[rid];
+        chips.push(`
+          <div class="evcc-queue-chip evcc-queue-chip--queued">
+            <span class="evcc-queue-chip-order">${pos}</span>
+            <span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>
+            ${mins != null ? `<span class="evcc-queue-chip-time">${this.escapeHtml(this._formatLearningMinutes(mins))}</span>` : ""}
+          </div>`);
+      }
+    }
+    return chips.join("");
+  };
 
   /* =========================================================
      RENDER ROOM CARD

@@ -861,6 +861,16 @@ export const roomStyles = `
     opacity: 0.95;
   }
 
+  .evcc-queue-chip--charge {
+    border-color: color-mix(in srgb, var(--evcc-accent, #4c9aff) 55%, transparent);
+    background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 14%, transparent);
+  }
+
+  .evcc-queue-chip-charge-icon {
+    font-size: 0.85rem;
+    line-height: 1;
+  }
+
   .evcc-queue-chip--remaining {
     opacity: 0.92;
   }
