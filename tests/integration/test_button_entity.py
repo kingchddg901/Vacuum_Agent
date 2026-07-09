@@ -10,7 +10,7 @@ Coverage targets
 [BE-6]  EufyVacuumSavedRunProfileButton.available True when expose_as_button=True.
 [BE-7]  EufyVacuumSavedRunProfileButton.available False when expose_as_button=False or missing.
 [BE-8]  EufyVacuumSavedRunProfileButton.extra_state_attributes includes vacuum_entity_id and map_id.
-[BE-9]  EufyVacuumSavedRunProfileButton.async_press calls manager.start_run_profile + async_save.
+[BE-9]  EufyVacuumSavedRunProfileButton.async_press AWAITS manager.start_run_profile (#42) + async_save.
 [BE-11] async_setup_entry wires the update callback; exposing a profile adds its run button.
 [BE-12] A profile exposed before setup is built into the initial entities.
 [BE-13] Un-exposing a profile reconciles away its stale button (async_remove + registry un-register).
@@ -173,15 +173,20 @@ def test_run_button_extra_attrs_include_vacuum_and_map():
 # [BE-9] EufyVacuumSavedRunProfileButton.async_press
 # ---------------------------------------------------------------------------
 
-async def test_run_button_async_press_calls_start_run_profile(hass):
-    """[BE-9] async_press calls start_run_profile and async_save."""
+async def test_run_button_async_press_awaits_start_run_profile(hass):
+    """[BE-9] async_press AWAITS start_run_profile (a coroutine) then saves.
+
+    Regression for #42: the press called start_run_profile WITHOUT awaiting, so its
+    body never ran and the button silently did nothing (while the UI service path,
+    which awaits the same call, worked). assert_awaited_* (not assert_called_*) is what
+    catches this — a sync MagicMock would pass on an un-awaited call."""
     manager = make_manager_mock(run_profiles={"p1": {"expose_as_button": True}})
     btn = _make_run_button(manager, profile_id="p1")
     btn.hass = hass
 
     await btn.async_press()
 
-    manager.start_run_profile.assert_called_once_with(
+    manager.start_run_profile.assert_awaited_once_with(
         vacuum_entity_id=_VAC,
         map_id=_MAP,
         profile_id="p1",

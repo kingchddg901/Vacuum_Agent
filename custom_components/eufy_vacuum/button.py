@@ -285,7 +285,12 @@ class EufyVacuumSavedRunProfileButton(ButtonEntity):
 
     async def async_press(self) -> None:
         """Start the saved run profile using the standard protected start path."""
-        self._manager.start_run_profile(
+        # start_run_profile is a COROUTINE — it MUST be awaited or its body never runs:
+        # the press silently no-ops with only a "coroutine was never awaited" warning,
+        # which is exactly why the UI "Start Cleaning" (which awaits the same call via the
+        # service handler) worked but the button did nothing (#42). The trailing save
+        # persists the started job.
+        await self._manager.start_run_profile(
             vacuum_entity_id=self._vacuum_entity_id,
             map_id=self._map_id,
             profile_id=self._profile_id,

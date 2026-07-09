@@ -85,10 +85,12 @@ def make_manager_mock(*, run_profiles: dict | None = None, **attrs: Any) -> Magi
         manager = MagicMock()
         manager.async_save = AsyncMock()
         manager.reset_maintenance = MagicMock()
-        manager.start_run_profile = MagicMock()
+        manager.start_run_profile = AsyncMock()
         manager.get_saved_run_profiles.return_value = {"library": run_profile_data or {}}
 
-    ``async_save`` is an ``AsyncMock`` so ``await`` + ``assert_awaited_once`` work;
+    ``async_save`` and ``start_run_profile`` are ``AsyncMock`` so ``await`` +
+    ``assert_awaited_once`` work — the latter is a coroutine on the real manager, so a
+    caller that forgets to ``await`` it (issue #42) must fail the test, not silently pass;
     ``run_profiles`` preloads the saved-run-profile library. Extra keyword args are
     set as attributes on the mock, so the wired defaults stay constant while a test
     makes its own additions explicit at the call site.
@@ -96,7 +98,7 @@ def make_manager_mock(*, run_profiles: dict | None = None, **attrs: Any) -> Magi
     manager = MagicMock()
     manager.async_save = AsyncMock()
     manager.reset_maintenance = MagicMock()
-    manager.start_run_profile = MagicMock()
+    manager.start_run_profile = AsyncMock()
     manager.get_saved_run_profiles.return_value = {"library": run_profiles or {}}
     for name, value in attrs.items():
         setattr(manager, name, value)
