@@ -3382,6 +3382,36 @@ class EufyVacuumManager:
             "paused",
         }
 
+        # Charge-wait phase: surface the target + ETA so the card shows an intentional
+        # "Charging to X% — ~N min" state, not a hung job. ETA comes from the learned
+        # charge rate; None on a cold-start install -> the card shows a live wall-clock
+        # instead of a fabricated number (the rate baseline fills in from every dock).
+        charge_phase_active = False
+        charge_target_percent = None
+        charge_eta_minutes = None
+        charge_eta_source = None
+        _cw_phases = active_job.get("phases")
+        if isinstance(_cw_phases, list):
+            _cw_idx = _safe_int(active_job.get("current_phase_index"), -1)
+            if (
+                0 <= _cw_idx < len(_cw_phases)
+                and isinstance(_cw_phases[_cw_idx], dict)
+                and str(_cw_phases[_cw_idx].get("phase_type") or "") == "charge_wait"
+            ):
+                charge_phase_active = True
+                charge_target_percent = _safe_int(
+                    _cw_phases[_cw_idx].get("target_battery_percent"), 100
+                )
+                _bm = self.hass.data.get(DOMAIN, {}).get("battery")  # DATA_BATTERY
+                if _bm is not None:
+                    _eta = _bm.compute_time_to_target_pct(
+                        vacuum_entity_id=vacuum_entity_id,
+                        current_pct=_safe_int(current_battery, 0),
+                        target_pct=charge_target_percent,
+                    )
+                    charge_eta_minutes = _eta.get("minutes")
+                    charge_eta_source = _eta.get("source")
+
         return {
             "vacuum_entity_id": vacuum_entity_id,
             "map_id": str(map_id),
@@ -3408,6 +3438,10 @@ class EufyVacuumManager:
             "elapsed_minutes": round(current_room_elapsed_minutes, 2),
             "remaining_minutes": round(current_remaining_minutes, 2),
             "current_battery": current_battery,
+            "charge_phase_active": charge_phase_active,
+            "charge_target_percent": charge_target_percent,
+            "charge_eta_minutes": charge_eta_minutes,
+            "charge_eta_source": charge_eta_source,
             "timeline_source": timeline_source,
             "timeline": timeline,
             "room_timeline": timeline,

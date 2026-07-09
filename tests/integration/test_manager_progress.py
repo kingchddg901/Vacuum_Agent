@@ -17,6 +17,7 @@ Coverage targets
 [PR-8]  jobs-index → room-history merge with newer-wins + bad-row skips.
 [PR-9]  single-room stall fires EVENT_STALL_DETECTED exactly once (no re-fire).
 [PR-10] running_long suppressed for an unlearned room at ~1.7x threshold (issue #40).
+[PR-13] a current charge_wait phase surfaces charge_phase_active + target + ETA.
 [PR-11] non-sequential advance → room flagged skipped + EVENT_ROOM_SKIPPED once.
 [PR-12] normal sequential run (completed prefix) → no skips.
 [PS-1]  get_payload_state enriches dict rooms + continues past non-dict entries.
@@ -176,6 +177,35 @@ def test_progress_running_long_suppressed_when_unlearned(manager, hass):
     # the per-room timeline flag is suppressed too (not just the top-level signal)
     room1 = next((r for r in snap["timeline"] if r.get("room_id") == 1), None)
     assert room1 is not None and room1["running_long"] is False
+
+
+def test_progress_charge_phase_surfaces_eta(manager, hass):
+    """[PR-13] a current charge_wait phase surfaces charge_phase_active + target + a
+    learned ETA (here pure CV taper: 80->95 = 15pp * 3.0 min/pp = 45 min)."""
+    from custom_components.eufy_vacuum.battery.manager import BatteryHealthManager
+    from custom_components.eufy_vacuum.const import DATA_BATTERY
+    _wire(manager, hass)
+    bm = BatteryHealthManager(hass, runtime_manager=manager)
+    rec = bm.ensure_record(_VAC)
+    rec["baseline"]["cc_min_per_pct"] = 1.0
+    rec["baseline"]["cv_min_per_pct"] = 3.0
+    hass.data[DOMAIN][DATA_BATTERY] = bm
+    hass.states.async_set(_VAC, "docked", {"battery_level": 80})
+    _seed_job(
+        manager, minutes_ago=0,
+        queue_room_ids=[1], resolved_rooms=[], current_phase_index=1,
+        phases=[
+            {"resolved_rooms": [{"room_id": 1, "name": "K"}], "queue_room_ids": [1],
+             "payload": {}, "room_count": 1},
+            {"phase_type": "charge_wait", "target_battery_percent": 95,
+             "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0},
+        ],
+    )
+    snap = manager.get_job_progress_snapshot(vacuum_entity_id=_VAC, map_id=_MAP)
+    assert snap["charge_phase_active"] is True
+    assert snap["charge_target_percent"] == 95
+    assert snap["charge_eta_minutes"] == 45.0
+    assert snap["charge_eta_source"] == "baseline"
 
 
 def test_progress_skipped_conservative(manager, hass):

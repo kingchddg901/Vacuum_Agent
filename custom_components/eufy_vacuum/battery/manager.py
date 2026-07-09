@@ -306,6 +306,51 @@ class BatteryHealthManager:
         """Return the live record (creating if absent)."""
         return self.ensure_record(vacuum_entity_id)
 
+    def compute_time_to_target_pct(
+        self, *, vacuum_entity_id: str, current_pct: int, target_pct: int
+    ) -> dict[str, Any]:
+        """Estimate minutes to charge from ``current_pct`` to ``target_pct``.
+
+        Splits the span at the CC/CV boundary (``HIGH_ZONE_MIN`` = 80): the sub-80
+        constant-current phase uses the learned ``cc_min_per_pct`` baseline, the
+        >=80 CV taper (which dominates a 95% target) uses ``cv_min_per_pct``. Falls
+        back to the instantaneous zone RATES (``rate_*_zone_per_min``), then to
+        ``minutes=None`` when there is no data yet — a cold-start install, where the
+        caller shows a live wall-clock "charging..." instead of a fabricated ETA
+        (the charge-rate baseline fills passively from every dock, so this self-heals).
+
+        Returns ``{minutes: float|None, source: 'baseline'|'zone_rate'|'already_charged'|None}``.
+        """
+        cur = max(0, min(int(current_pct), 100))
+        tgt = max(0, min(int(target_pct), 100))
+        if cur >= tgt:
+            return {"minutes": 0.0, "source": "already_charged"}
+
+        record = self.get_record(vacuum_entity_id)
+        baseline = record.get("baseline", {}) if isinstance(record, dict) else {}
+        stats = record.get("stats", {}) if isinstance(record, dict) else {}
+
+        cc_span = max(0, min(tgt, HIGH_ZONE_MIN) - cur)   # % points below 80 (CC)
+        cv_span = max(0, tgt - max(cur, HIGH_ZONE_MIN))    # % points at/above 80 (CV taper)
+
+        cc_mpp = baseline.get("cc_min_per_pct")
+        cv_mpp = baseline.get("cv_min_per_pct")
+        if (cc_span == 0 or cc_mpp) and (cv_span == 0 or cv_mpp):
+            minutes = (cc_span * float(cc_mpp) if cc_span else 0.0) + (
+                cv_span * float(cv_mpp) if cv_span else 0.0
+            )
+            return {"minutes": round(minutes, 1), "source": "baseline"}
+
+        # No anchored baseline for a needed regime -> fall back to zone rates (%/min).
+        low_rate = stats.get("rate_low_zone_per_min") or stats.get("rate_overall_per_min")
+        high_rate = stats.get("rate_high_zone_per_min") or stats.get("rate_overall_per_min")
+        if (cc_span and not low_rate) or (cv_span and not high_rate):
+            return {"minutes": None, "source": None}  # cold-start -> wall-clock display
+        minutes = (cc_span / float(low_rate) if cc_span else 0.0) + (
+            cv_span / float(high_rate) if cv_span else 0.0
+        )
+        return {"minutes": round(minutes, 1), "source": "zone_rate"}
+
     # -- HA wiring -------------------------------------------------------------
 
     def start(self, vacuum_entity_ids: list[str]) -> None:

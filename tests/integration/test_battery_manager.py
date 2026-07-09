@@ -26,6 +26,11 @@ Coverage targets
 [BM-18] start: wires listeners + samples; a state change routes a sample; stop unsubs.
 [BM-19] _classify_session_kind: pending recharge within the link window → post_job.
 [BM-20] _classify_session_kind: no/stale pending recharge → idle.
+[BM-21] compute_time_to_target_pct: learned baselines (CC sub-80 + CV taper >=80).
+[BM-22] compute_time_to_target_pct: at/above target → 0 minutes.
+[BM-23] compute_time_to_target_pct: cold-start (no baseline/rates) → None (wall-clock).
+[BM-24] compute_time_to_target_pct: zone-rate fallback (%/min) when no baseline.
+[BM-25] compute_time_to_target_pct: CV-only span needs only the CV baseline.
 """
 
 from __future__ import annotations
@@ -56,6 +61,56 @@ def _feed(bm, samples: list[tuple[int, bool, float]]) -> None:
     for level, charging, dt in samples:
         t = t + timedelta(seconds=dt)
         bm._process_sample(vacuum_entity_id=_VAC, battery_level=level, charging=charging, ts=t)
+
+
+# ---------------------------------------------------------------------------
+# compute_time_to_target_pct (charge-step Wave 2 ETA)
+# ---------------------------------------------------------------------------
+
+def _seed_charge(bm, *, cc=None, cv=None, low=None, high=None, overall=None):
+    rec = bm.ensure_record(_VAC)
+    rec["baseline"]["cc_min_per_pct"] = cc
+    rec["baseline"]["cv_min_per_pct"] = cv
+    rec["stats"]["rate_low_zone_per_min"] = low
+    rec["stats"]["rate_high_zone_per_min"] = high
+    rec["stats"]["rate_overall_per_min"] = overall
+
+
+def test_charge_eta_from_baseline(bm):
+    """[BM-21] sub-80 span uses cc_min_per_pct, >=80 span uses the CV taper."""
+    _seed_charge(bm, cc=1.0, cv=3.0)
+    # 60->80 = 20pp * 1.0 + 80->95 = 15pp * 3.0 = 20 + 45
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=60, target_pct=95) \
+        == {"minutes": 65.0, "source": "baseline"}
+
+
+def test_charge_eta_already_charged(bm):
+    """[BM-22]"""
+    _seed_charge(bm, cc=1.0, cv=3.0)
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=96, target_pct=95) \
+        == {"minutes": 0.0, "source": "already_charged"}
+
+
+def test_charge_eta_cold_start_is_none(bm):
+    """[BM-23] no baseline and no rates -> None (caller shows wall-clock, not a fake ETA)."""
+    _seed_charge(bm)  # all None
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=50, target_pct=95) \
+        == {"minutes": None, "source": None}
+
+
+def test_charge_eta_zone_rate_fallback(bm):
+    """[BM-24] no baseline but zone rates present -> minutes from %/min rates."""
+    _seed_charge(bm, low=2.0, high=0.5)
+    # 20pp / 2.0 + 15pp / 0.5 = 10 + 30
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=60, target_pct=95) \
+        == {"minutes": 40.0, "source": "zone_rate"}
+
+
+def test_charge_eta_cv_only_span_needs_only_cv_baseline(bm):
+    """[BM-25] already in the CV zone: cc baseline is irrelevant (cc_span=0)."""
+    _seed_charge(bm, cc=None, cv=3.0)
+    assert bm.compute_time_to_target_pct(vacuum_entity_id=_VAC, current_pct=85, target_pct=95) \
+        == {"minutes": 30.0, "source": "baseline"}
 
 
 # ---------------------------------------------------------------------------
