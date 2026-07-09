@@ -177,6 +177,20 @@ export function applyLearningState(proto) {
     return this.dashboardSnapshot()?.job_progress ?? null;
   };
 
+  // Live charge-phase status for the progress banner, or null when not charging.
+  // Reads the JOB-level charge_* fields (the charge phase has no current room).
+  proto.liveChargeStatus = function () {
+    const jp = this.dashboardJobProgress();
+    if (!jp?.charge_phase_active) return null;
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+    return {
+      targetPercent: num(jp.charge_target_percent),
+      etaMinutes: num(jp.charge_eta_minutes),
+      fromBattery: num(jp.charge_from_battery),
+      etaSource: jp.charge_eta_source || null,
+    };
+  };
+
   proto.dashboardJobControl = function () {
     return this.dashboardSnapshot()?.job_control ?? null;
   };

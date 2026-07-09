@@ -15,6 +15,7 @@
 //   [ALL-*]  learningAllCompleted  — terminal -> all_completed -> empty-nextRoom
 //   [BAN-*]  learningLiveBannerRoom — current_room_id -> timeline.current -> nextRoom
 //   [TL-*]   learningRoomTimeline  — dashboard -> planned -> reanchored/estimate
+//   [CHG-*]  liveChargeStatus      — charge_* extraction, null when not charging, numeric null-safe
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyLearningState } from "./learning.js";
@@ -24,6 +25,36 @@ function makeState() {
   applyLearningState(proto);
   return Object.create(proto);
 }
+
+/* ============================================================
+   liveChargeStatus — [CHG-*]
+   ============================================================ */
+
+test("[CHG-1] liveChargeStatus is null without an active charge phase", () => {
+  const s = makeState();
+  assert.equal(s.liveChargeStatus(), null); // no snapshot at all
+  s.setDashboardSnapshot({ job_progress: { charge_phase_active: false } });
+  assert.equal(s.liveChargeStatus(), null);
+});
+
+test("[CHG-2] liveChargeStatus extracts the charge fields when active", () => {
+  const s = makeState();
+  s.setDashboardSnapshot({ job_progress: {
+    charge_phase_active: true, charge_target_percent: 95,
+    charge_eta_minutes: 18, charge_from_battery: 62, charge_eta_source: "baseline",
+  } });
+  assert.deepEqual(s.liveChargeStatus(), {
+    targetPercent: 95, etaMinutes: 18, fromBattery: 62, etaSource: "baseline",
+  });
+});
+
+test("[CHG-3] liveChargeStatus null-safes missing numeric fields", () => {
+  const s = makeState();
+  s.setDashboardSnapshot({ job_progress: { charge_phase_active: true } });
+  assert.deepEqual(s.liveChargeStatus(), {
+    targetPercent: null, etaMinutes: null, fromBattery: null, etaSource: null,
+  });
+});
 
 /* ============================================================
    endLearningJob — [EXJ-*]

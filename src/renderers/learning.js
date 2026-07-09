@@ -321,9 +321,13 @@ export function applyLearningRenderers(proto) {
     const timeline = state.learningRoomTimeline();
     if (!timeline.length) return "";
 
+    const charge = state.liveChargeStatus?.() ?? null;
+
     return `
       <div class="evcc-learning-progress">
         <div class="evcc-learning-progress-title">${this.t("learning.live_progress")}</div>
+
+        ${charge ? this._renderLearningChargeBanner(charge) : ""}
 
         <div class="evcc-learning-progress-list">
           ${timeline.map((entry) => {
@@ -342,6 +346,32 @@ export function applyLearningRenderers(proto) {
             return this._renderLearningRemainingRow(entry);
           }).join("")}
         </div>
+      </div>
+    `;
+  };
+
+  /**
+   * Render the live "Charging to X% — ~N min left (from Y%)" banner shown at the top of
+   * the progress list during a charge_wait phase (which has no current room row).
+   *
+   * @param {{targetPercent:number|null, etaMinutes:number|null, fromBattery:number|null}} charge
+   * @returns {string} HTML string.
+   */
+  proto._renderLearningChargeBanner = function (charge) {
+    const target = charge.targetPercent ?? 100;
+    const text = charge.etaMinutes != null
+      ? this.t("learning.charging_to_eta", {
+          target: this.escapeHtml(String(target)),
+          eta: this.escapeHtml(this._formatLearningMinutes(charge.etaMinutes)),
+        })
+      : this.t("learning.charging_to", { target: this.escapeHtml(String(target)) });
+    const from = charge.fromBattery != null
+      ? ` <span class="evcc-learning-charge-from">${this.t("learning.charging_from", { from: this.escapeHtml(String(charge.fromBattery)) })}</span>`
+      : "";
+    return `
+      <div class="evcc-learning-charge-banner">
+        <span class="evcc-learning-charge-icon" aria-hidden="true">⚡</span>
+        <span class="evcc-learning-charge-text">${text}${from}</span>
       </div>
     `;
   };

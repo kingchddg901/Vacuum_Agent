@@ -270,6 +270,29 @@ export const learningStyles = `
     color: var(--evcc-learning-text-primary);
   }
 
+  .evcc-learning-charge-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 15%, transparent);
+    border: 1px solid color-mix(in srgb, var(--evcc-accent, #4c9aff) 45%, transparent);
+    color: var(--evcc-learning-text-primary);
+    font-size: 0.84rem;
+    font-weight: 600;
+  }
+
+  .evcc-learning-charge-icon {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
+  .evcc-learning-charge-from {
+    color: var(--evcc-learning-text-secondary);
+    font-weight: 500;
+  }
+
   .evcc-learning-panel-subtitle,
   .evcc-learning-live-subtitle,
   .evcc-learning-progress-meta,
