@@ -4,6 +4,7 @@ import {
   DOMAIN,
   SERVICE_GET_SAVED_RUN_PROFILES,
   SERVICE_SAVE_RUN_PROFILE,
+  SERVICE_SET_RUN_PROFILE_STEPS,
   SERVICE_OVERWRITE_RUN_PROFILE,
   SERVICE_APPLY_RUN_PROFILE,
   SERVICE_RENAME_RUN_PROFILE,
@@ -123,6 +124,37 @@ export function applyRunProfilesActions(proto) {
         vacuum_entity_id,
         map_id,
         profile_id,
+      },
+      true
+    );
+
+    return result?.response ?? result;
+  };
+
+  /**
+   * Replace a saved run profile's ordered steps (room_group | charge_wait).
+   * @param {object} opts
+   * @param {string} opts.vacuum_entity_id
+   * @param {string} opts.map_id
+   * @param {string} opts.profile_id
+   * @param {Array<object>} opts.steps  Ordered steps; each {type:"room_group", rooms:[...]}
+   *   or {type:"charge_wait", target_battery_percent:1..100}.
+   * @returns {Promise<object|null>}
+   */
+  proto.setRunProfileSteps = async function ({
+    vacuum_entity_id,
+    map_id,
+    profile_id,
+    steps,
+  } = {}) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_SET_RUN_PROFILE_STEPS,
+      {
+        vacuum_entity_id,
+        map_id,
+        profile_id,
+        steps,
       },
       true
     );

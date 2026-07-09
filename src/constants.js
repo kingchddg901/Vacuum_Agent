@@ -88,6 +88,7 @@ export const SERVICE_APPLY_ROOM_PROFILE      = "apply_room_profile";
 export const SERVICE_UPDATE_ROOM_FIELDS      = "update_room_fields";
 export const SERVICE_GET_SAVED_RUN_PROFILES  = "get_saved_run_profiles";
 export const SERVICE_SAVE_RUN_PROFILE        = "save_run_profile";
+export const SERVICE_SET_RUN_PROFILE_STEPS   = "set_run_profile_steps";
 export const SERVICE_OVERWRITE_RUN_PROFILE   = "overwrite_run_profile";
 export const SERVICE_APPLY_RUN_PROFILE       = "apply_run_profile";
 export const SERVICE_RENAME_RUN_PROFILE      = "rename_run_profile";

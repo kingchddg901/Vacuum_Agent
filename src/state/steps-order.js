@@ -1,0 +1,108 @@
+// Pure step-mutation helpers for the run-profile STEPS editor.
+//
+// A step is {type:"room_group", rooms:[...]} or {type:"charge_wait", target_battery_percent:1..100}.
+// These own no card state: the editor holds a draft steps array and calls these to derive the NEXT
+// array immutably (never mutate in place), then persists it via setRunProfileSteps. They are
+// deliberately mode-agnostic — they reorder/insert/delete/retarget at the STEP level and never touch
+// a room_group's internals, so they are unaffected by how per-room settings are modelled.
+//
+// sanitizeStepsForSave mirrors the backend normalize (profiles/manager.normalize_run_profile_steps)
+// so the service receives already-clean data.
+
+export const CHARGE_TARGET_MIN = 1;
+export const CHARGE_TARGET_MAX = 100;
+export const DEFAULT_CHARGE_TARGET = 95;
+
+export function clampChargeTarget(value, fallback = DEFAULT_CHARGE_TARGET) {
+  // null / undefined / "" mean "no input" -> fallback (Number() would coerce them to 0/NaN).
+  if (value === null || value === undefined || value === "") return fallback;
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(CHARGE_TARGET_MIN, Math.min(n, CHARGE_TARGET_MAX));
+}
+
+export function isRoomGroupStep(step) {
+  return !!step && step.type === "room_group";
+}
+
+export function isChargeStep(step) {
+  return !!step && step.type === "charge_wait";
+}
+
+// Clamp an index into [0, max]; non-finite -> 0.
+function clampIndex(index, max) {
+  const n = Math.trunc(Number(index));
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(n, Math.max(0, max)));
+}
+
+// Move the step at fromIndex to toIndex (both clamped). Returns a fresh array.
+export function moveStep(steps, fromIndex, toIndex) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  if (!arr.length) return arr;
+  const from = clampIndex(fromIndex, arr.length - 1);
+  const to = clampIndex(toIndex, arr.length - 1);
+  const [moved] = arr.splice(from, 1);
+  arr.splice(to, 0, moved);
+  return arr;
+}
+
+// Insert a charge_wait step at atIndex (0..length). Returns a fresh array.
+export function insertChargeStep(steps, atIndex, target = DEFAULT_CHARGE_TARGET) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  const at = clampIndex(atIndex, arr.length);
+  arr.splice(at, 0, {
+    type: "charge_wait",
+    target_battery_percent: clampChargeTarget(target),
+  });
+  return arr;
+}
+
+// Remove the step at index (no-op if out of range). Returns a fresh array.
+export function removeStep(steps, index) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  if (!arr.length) return arr;
+  const at = clampIndex(index, arr.length - 1);
+  arr.splice(at, 1);
+  return arr;
+}
+
+// Update the target of the charge step at index; no-op if it is not a charge_wait. Fresh array.
+export function setChargeTarget(steps, index, target) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  if (!arr.length) return arr;
+  const at = clampIndex(index, arr.length - 1);
+  const step = arr[at];
+  if (!isChargeStep(step)) return arr;
+  arr[at] = {
+    ...step,
+    target_battery_percent: clampChargeTarget(target, step.target_battery_percent),
+  };
+  return arr;
+}
+
+export function stepsHaveRoomGroup(steps) {
+  return Array.isArray(steps) && steps.some(isRoomGroupStep);
+}
+
+export function stepsHaveChargeStep(steps) {
+  return Array.isArray(steps) && steps.some(isChargeStep);
+}
+
+// Drop invalid/empty steps + strip client-only fields, mirroring the backend normalize, so the
+// service receives already-clean data. A room_group needs a non-empty rooms list; a charge_wait
+// needs a clamped integer target. Returns a fresh array.
+export function sanitizeStepsForSave(steps) {
+  const out = [];
+  for (const step of Array.isArray(steps) ? steps : []) {
+    if (isRoomGroupStep(step) && Array.isArray(step.rooms) && step.rooms.length) {
+      out.push({ type: "room_group", rooms: [...step.rooms] });
+    } else if (isChargeStep(step)) {
+      out.push({
+        type: "charge_wait",
+        target_battery_percent: clampChargeTarget(step.target_battery_percent),
+      });
+    }
+  }
+  return out;
+}
