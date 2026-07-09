@@ -65,6 +65,8 @@ export function applyRunProfilesBindings(proto) {
         return;
       }
 
+      // Remember the applied profile so a plain Start dispatches its steps (A).
+      this.card._state.setAppliedRunProfile?.(profileId);
       this.card._state.clearStartConfirmation?.();
       this.card._state.clearCancelRunConfirmation?.();
       this.card._state.closeRunProfileEditor?.();
@@ -99,6 +101,34 @@ export function applyRunProfilesBindings(proto) {
         await this.card.refreshRunProfiles?.();
         this.card._state.selectRunProfile?.(result?.profile_id ?? null);
         this.card._state.closeRunProfileEditor?.();
+        this.card._scheduleRender();
+      }
+    );
+
+    this.card._on(
+      this.card.$("[data-action='run-run-profile']"),
+      "click",
+      async (e) => {
+        const profileId = e.currentTarget.dataset.profileId;
+        if (!profileId) return;
+
+        this.card._state.selectRunProfile?.(profileId);
+        this.card._state.setAppliedRunProfile?.(profileId);
+
+        const result = await this.card._actions.startRunProfile({
+          vacuum_entity_id: this.card._state.vacuumEntityId?.(),
+          map_id: this.card._state.activeMapId?.(),
+          profile_id: profileId,
+        });
+
+        if (result?.ok === false) {
+          this.card.showToast((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_run")), { kind: "error" });
+          return;
+        }
+
+        this.card._state.clearStartConfirmation?.();
+        this.card._state.closeRunProfileEditor?.();
+        await this.card.refreshDashboardSnapshot?.();
         this.card._scheduleRender();
       }
     );

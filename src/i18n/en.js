@@ -178,6 +178,7 @@ export const en = {
   "bind_run_profiles.unable_apply": "Unable to apply run profile.",
   "bind_run_profiles.unable_delete": "Unable to delete run profile.",
   "bind_run_profiles.unable_overwrite": "Unable to overwrite run profile.",
+  "bind_run_profiles.unable_run": "Unable to run run profile.",
   "bind_run_profiles.unable_save": "Unable to save run profile.",
   "bind_saved_zones.bad_geometry": "This zone has no valid area to clean.",
   "bind_saved_zones.clean_failed": "Couldn't clean the selected zones — check the count and size.",
@@ -1268,6 +1269,7 @@ export const en = {
   "run_profiles.name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
   "run_profiles.room_count": { one: "{count} room", other: "{count} rooms" },  // plural
   "run_profiles.room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
+  "run_profiles.run": "Run",  // selected-profile button = apply + start the profile now (dispatches its steps)
   "run_profiles.runs_as": "Runs as",  // label above the read-only step sequence in the selected-profile card
   "run_profiles.save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
   "run_profiles.save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard

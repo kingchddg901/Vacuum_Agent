@@ -133,6 +133,13 @@ export function applyRunProfilesRenderers(proto) {
             <div class="evcc-run-profiles-selected-actions">
               <button
                 type="button"
+                class="evcc-chip evcc-chip--save"
+                data-action="run-run-profile"
+                data-profile-id="${this.escapeHtml(selected.id)}"
+              >${this.t("run_profiles.run")}</button>
+
+              <button
+                type="button"
                 class="evcc-chip"
                 data-action="edit-run-profile"
                 data-profile-id="${this.escapeHtml(selected.id)}"

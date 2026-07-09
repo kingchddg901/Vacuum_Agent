@@ -134,6 +134,24 @@ export function applyRoomsBindings(proto) {
         return;
       }
 
+      // A: an applied STEPPED profile runs its charge steps via start_run_profile — the flat
+      // start_selected_rooms path would drop the charge + the extra passes.
+      const stepProfileId = this.card._state.pendingStepRunProfileId?.();
+      if (stepProfileId) {
+        const result = await this.card._actions.startRunProfile({
+          vacuum_entity_id: this.card._state.vacuumEntityId?.(),
+          map_id: this.card._state.activeMapId?.(),
+          profile_id: stepProfileId,
+        });
+        if (result?.ok === false) {
+          this.card.showToast?.((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_run")), { kind: "error" });
+        } else {
+          await this.card.refreshDashboardSnapshot?.();
+        }
+        this.card._scheduleRender();
+        return;
+      }
+
       if (this.card._state.startRequiresConfirmation?.()) {
         await this.card._actions.startCleaning({
           confirmReducedRun: true,

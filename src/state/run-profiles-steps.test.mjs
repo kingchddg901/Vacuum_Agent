@@ -12,6 +12,7 @@
 //   [RPS-5] remove / move / setChargeTarget mutate the draft
 //   [RPS-6] _normalizeRunProfile surfaces steps + has_charge_steps
 //   [RPS-7] editing an existing profile loads a CLONED steps draft (no profile mutation)
+//   [RPS-8..11] pendingStepRunProfileId — the "Start should run steps" gate (applied + has_charge_steps)
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { applyRunProfilesState } from "./run-profiles.js";
@@ -89,4 +90,30 @@ test("[RPS-7] editing a profile loads a CLONED steps draft (no profile mutation)
   s.setDraftChargeTarget(1, 50);
   assert.equal(s.selectedRunProfile().steps[1].target_battery_percent, 95); // original untouched
   assert.equal(s.runProfileDraftSteps()[1].target_battery_percent, 50);
+});
+
+test("[RPS-8] pendingStepRunProfileId is null when nothing is applied", () => {
+  assert.equal(makeState().pendingStepRunProfileId(), null);
+});
+
+test("[RPS-9] pendingStepRunProfileId returns the id when the applied profile has charge steps", () => {
+  const s = makeState();
+  s.setRunProfilesLibrary({ profiles: [{ id: "p1", name: "P", steps: [rg(1), cw(95)], has_charge_steps: true }] });
+  s.setAppliedRunProfile("p1");
+  assert.equal(s.pendingStepRunProfileId(), "p1");
+});
+
+test("[RPS-10] pendingStepRunProfileId is null when the applied profile is NOT stepped", () => {
+  const s = makeState();
+  s.setRunProfilesLibrary({ profiles: [{ id: "p1", name: "P", has_charge_steps: false }] });
+  s.setAppliedRunProfile("p1");
+  assert.equal(s.pendingStepRunProfileId(), null);
+});
+
+test("[RPS-11] clearAppliedRunProfile resets the gate to flat", () => {
+  const s = makeState();
+  s.setRunProfilesLibrary({ profiles: [{ id: "p1", name: "P", steps: [rg(1), cw(95)], has_charge_steps: true }] });
+  s.setAppliedRunProfile("p1");
+  s.clearAppliedRunProfile();
+  assert.equal(s.pendingStepRunProfileId(), null);
 });

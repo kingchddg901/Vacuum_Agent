@@ -93,6 +93,7 @@ export const SERVICE_OVERWRITE_RUN_PROFILE   = "overwrite_run_profile";
 export const SERVICE_APPLY_RUN_PROFILE       = "apply_run_profile";
 export const SERVICE_RENAME_RUN_PROFILE      = "rename_run_profile";
 export const SERVICE_DELETE_RUN_PROFILE      = "delete_run_profile";
+export const SERVICE_START_RUN_PROFILE       = "start_run_profile";
 
 // --- Capabilities ---
 export const SERVICE_GET_VACUUM_CAPABILITIES = "get_vacuum_capabilities";

@@ -95,6 +95,7 @@ export function applyRunProfilesState(proto) {
       this._runProfilesState = {
         profiles: [],
         selectedProfileId: null,
+        appliedProfileId: null,
         editorOpen: false,
         editorMode: "new",
         editorProfileId: null,
@@ -164,6 +165,32 @@ export function applyRunProfilesState(proto) {
   proto.selectRunProfile = function (profileId) {
     const state = this._ensureRunProfilesState();
     state.selectedProfileId = profileId ? String(profileId) : null;
+  };
+
+  /* ---- applied-profile tracking (A: Start dispatches an applied stepped profile) ---- */
+
+  proto.appliedRunProfileId = function () {
+    return this._ensureRunProfilesState().appliedProfileId ?? null;
+  };
+
+  proto.setAppliedRunProfile = function (profileId) {
+    this._ensureRunProfilesState().appliedProfileId = profileId ? String(profileId) : null;
+  };
+
+  proto.clearAppliedRunProfile = function () {
+    this._ensureRunProfilesState().appliedProfileId = null;
+  };
+
+  // The applied profile's id IF it is a stepped (charge) profile still in the library — the
+  // signal that Start should dispatch its steps (start_run_profile) instead of a flat
+  // start_selected_rooms. Cleared when the user diverges (hand-edits rooms) so a flat run
+  // stays flat. Returns null otherwise.
+  proto.pendingStepRunProfileId = function () {
+    const state = this._ensureRunProfilesState();
+    const id = state.appliedProfileId;
+    if (!id) return null;
+    const profile = state.profiles.find((p) => p.id === id);
+    return profile?.has_charge_steps ? id : null;
   };
 
   proto.openNewRunProfileEditor = function () {

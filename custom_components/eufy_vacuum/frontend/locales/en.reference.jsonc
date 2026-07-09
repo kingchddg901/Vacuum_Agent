@@ -854,6 +854,7 @@
     "unable_apply": "Unable to apply run profile.",
     "unable_delete": "Unable to delete run profile.",
     "unable_overwrite": "Unable to overwrite run profile.",
+    "unable_run": "Unable to run run profile.",
     "unable_save": "Unable to save run profile."
   },
   "bind_saved_zones": {
@@ -1963,6 +1964,7 @@
     "name_placeholder": "Morning Clean",  // Input placeholder = example profile name, not a label; localize to a natural sample
     "room_count": {"one":"{count} room","other":"{count} rooms"},  // plural
     "room_fallback": "Room {id}",  // fallback label when a step's room id has no known name
+    "run": "Run",  // selected-profile button = apply + start the profile now (dispatches its steps)
     "runs_as": "Runs as",  // label above the read-only step sequence in the selected-profile card
     "save_over": "Save Over Profile",  // Editor button = overwrite the existing profile with current settings ('Save Over')
     "save_this_setup": "Save This Setup",  // Header button; 'Setup'=the current room-queue configuration, not install/wizard

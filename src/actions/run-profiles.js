@@ -9,6 +9,7 @@ import {
   SERVICE_APPLY_RUN_PROFILE,
   SERVICE_RENAME_RUN_PROFILE,
   SERVICE_DELETE_RUN_PROFILE,
+  SERVICE_START_RUN_PROFILE,
 } from "../constants.js";
 
 export function applyRunProfilesActions(proto) {
@@ -120,6 +121,34 @@ export function applyRunProfilesActions(proto) {
     const result = await this.callService(
       DOMAIN,
       SERVICE_APPLY_RUN_PROFILE,
+      {
+        vacuum_entity_id,
+        map_id,
+        profile_id,
+      },
+      true
+    );
+
+    return result?.response ?? result;
+  };
+
+  /**
+   * Apply + start a saved run profile in one shot (dispatches its ordered steps, incl. any
+   * charge steps). This is the ONLY path that runs a stepped profile's charge phases.
+   * @param {object} opts
+   * @param {string} opts.vacuum_entity_id
+   * @param {string} opts.map_id
+   * @param {string} opts.profile_id
+   * @returns {Promise<object|null>}
+   */
+  proto.startRunProfile = async function ({
+    vacuum_entity_id,
+    map_id,
+    profile_id,
+  } = {}) {
+    const result = await this.callService(
+      DOMAIN,
+      SERVICE_START_RUN_PROFILE,
       {
         vacuum_entity_id,
         map_id,

@@ -17,6 +17,9 @@ export function applyRoomsActions(proto) {
    * @param {boolean} currentEnabled - current state; toggled to its opposite
    */
   proto.toggleRoomEnabled = async function (mapId, roomId, currentEnabled) {
+    // Hand-editing the room selection diverges from any applied stepped profile, so a
+    // subsequent Start runs the FLAT selection, not the profile's steps.
+    this.state.clearAppliedRunProfile?.();
     const switchEntityId = this.state.findRoomSwitchEntityId(mapId, roomId);
 
     if (!switchEntityId) {
