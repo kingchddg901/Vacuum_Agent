@@ -9,9 +9,9 @@ There are two independent profile systems in eufy_vacuum: **room profiles** and 
 
 ## Room Profiles
 
-!!! note "Roborock (S6): Cleaning Profile section hidden"
+!!! note "Roborock: Cleaning Profile section hidden"
 
-    Everything in this Room Profiles section assumes your vacuum supports room profiles. Some brands report that they do not — the Roborock S6, for example, exposes only a per-room fan speed, so a room profile would be degenerate. On those vacuums the **Cleaning Profile** row is hidden from the room editor entirely, and none of the apply / Save as New / Save Over / Rename / Delete controls described below appear. The **Run Profiles** section further down is brand-agnostic and remains available on those vacuums.
+    Everything in this Room Profiles section assumes your vacuum supports reusable room profiles. Roborock does not — the **Cleaning Profile** row, and its apply / Save as New / Save Over / Rename / Delete controls, is hidden from the room editor on all Roborock models. You can still set a room's fan speed directly, and on a **settable-mop** model (Roborock S7/S8 and newer) its cleaning mode and water level as well — only the reusable profile *bundles* are not offered. The **Run Profiles** section further down is brand-agnostic and remains available on every vacuum.
 
 ### What a room profile saves
 
@@ -94,6 +94,7 @@ A run profile is a full snapshot of the room queue as it was when you saved it. 
 - Which rooms were included
 - The room order
 - The per-room settings in effect at save time (all fields saved into each room)
+- **Optionally, an ordered list of _steps_** — room groups broken up by **charge** stops ("dock and charge to X% before continuing") and **wait** stops ("dock and hold for X minutes"). A profile without steps is just a plain queue; a profile with steps runs as a sequence. See [Steps: charging and waiting mid-run](#steps-charging-and-waiting-mid-run) below.
 - The profile's display name
 - Whether the profile is exposed as a Home Assistant button entity (see below)
 
@@ -132,7 +133,69 @@ The profile appears immediately in the list.
 
 Click any profile chip in the Run Profiles panel. The card restores the saved room selection, order, and per-room settings for that map. The chip becomes highlighted to show the profile is active, and the detail section below the list shows the profile's room count.
 
-Applying a profile replaces your current queue. It does not start a cleaning run — it only configures the card. You still need to press **Start** to begin cleaning.
+Applying a profile replaces your current queue. It does not start a cleaning run — it only configures the card. You still need to press **Start** to begin cleaning — or use **Run** (below) to apply and start in one tap.
+
+### Running a profile now — the Run button
+
+When you select a saved profile, its detail section shows a **Run** button alongside **Edit** and **Delete**. **Run** applies the profile *and* starts it immediately — the one-tap "do this now" action, so you do not have to apply and then press **Start** separately.
+
+If the profile has steps (below), **Run** dispatches the whole sequence, not just the first group.
+
+---
+
+## Steps: charging and waiting mid-run
+
+A plain run profile cleans its rooms in one pass. A **stepped** profile breaks the run into groups separated by stops, so the vacuum can dock, do something, and keep going — all as one job:
+
+- A **charge step** ("Charge to X%") docks the vacuum and waits until the battery reaches your target before starting the next group. This is what turns *"vacuum the whole floor, top up to 80%, then mop it"* into a single button press instead of two profiles wired together with an automation.
+- A **wait step** ("Wait X min") docks and holds for a set number of minutes — for example a **mop-dry pause** between a vacuum pass and a mop pass.
+
+Two things worth knowing:
+
+- **The same room can appear in more than one group, with different settings each time.** Vacuum the kitchen in the first group, then mop the same kitchen in a later group — each group's own settings apply for that phase. This is the intended way to build a vacuum-then-mop run.
+- **A run can charge more than once.** Clean → charge → clean → charge → clean is allowed; each charge is its own stop.
+
+!!! note "No fake charge estimate"
+
+    The card does **not** show a predicted duration for a charge step before the run. How long a charge takes depends entirely on how low the battery is when the vacuum docks, which varies every run — so rather than show a number it hasn't earned, the card just notes that "Charge time varies with the battery level when it docks," and shows a live countdown once the charge is actually under way.
+
+### Building a stepped profile
+
+Steps live in the run-profile **editor**, so open a profile for editing first (select it, then **Edit**). The **Run steps** section has three controls:
+
+| Button | What it does |
+|---|---|
+| **Add a charge step** | Inserts a "Charge to X%" stop. Set the target percent in the field on the step row. |
+| **Add a wait** | Inserts a "Wait X min" stop. Set the minutes in the field on the step row. |
+| **Add current rooms as a group** | Snapshots the rooms currently set up in the **Rooms** view as the next room group in the sequence. |
+
+The typical flow is: set up the first batch of rooms in the Rooms view → **Add current rooms as a group** → **Add a charge step** (or a wait) → change the Rooms view to the next batch → **Add current rooms as a group** again, and so on. Each step row has up/down arrows to reorder it and a control to remove it.
+
+A charge or wait stop at the very start or end of the sequence is dropped automatically (there is nothing to bracket), and two of the same kind in a row collapse to the later one.
+
+### The "This run" preview
+
+When a stepped profile is applied, the Rooms view shows a **"This run"** block — a collapsible preview that lays out the exact sequence the vacuum will follow: each room group, each ⚡ charge stop with its target, and each ⏱ wait stop with its duration. It is the read-only mirror of the steps you built, so you can confirm the order before pressing **Run**. The saved-profile detail card shows the same sequence under a **"Runs as"** heading.
+
+### Editing a charge or wait inline
+
+Once a stepped profile is applied, the queue chips include the charge and wait stops as chips of their own. You can adjust a stop **directly in its chip** — type a new percent into a charge chip, or new minutes into a wait chip — without reopening the editor. The change is saved back to the profile.
+
+### Watching a stepped run
+
+While a stepped run is going, the live panel surfaces the current stop:
+
+- During a charge: **"Charging to X%"** with a live **"N% to go"** figure that shrinks as the battery climbs (plus a "~M left" estimate once the charge-rate baseline has learned enough to earn one).
+- During a wait: **"Waiting · ~M left"** — a countdown of the remaining hold time.
+
+Between groups the vacuum returns to its dock. That is normal: the run has not ended, it is just parked for the stop. The card knows the dock is intentional and will not report the run as finished or cancelled until the whole sequence is done.
+
+### How stepped runs behave on Roborock
+
+Stepped profiles work the same on Roborock as on Eufy, with two brand details:
+
+- **Order is enforced.** A stepped profile is a deliberate sequence, so it always runs in **strict order** — each group's rooms are cleaned in exactly the order shown. (Roborock normally path-optimises and may reorder rooms within a single dispatch; inside a stepped run it does not.) The trade-off is that a multi-room group docks between its rooms.
+- **Vacuum-then-mop needs a settable mop.** Cleaning one group as a vacuum pass and a later group as a mop pass requires a model whose mop is programmatically settable (Roborock S7/S8 and newer). On the S6, whose mop is tank-only, the mop controls are hidden and a group's mop setting has no effect. Charge and wait stops themselves work on every model.
 
 ### How to overwrite (update) a run profile
 
@@ -161,8 +224,8 @@ Deletion cannot be undone.
 
 ### Exposing a run profile as a Home Assistant button
 
-When you create or edit a run profile, you can tick **Expose as Home Assistant Button**. When this is enabled, the backend creates a `button` entity for that profile. Pressing the button from anywhere in Home Assistant — a dashboard, a script, or an automation — applies the saved room configuration and starts the vacuum.
+When you create or edit a run profile, you can tick **Expose as Home Assistant Button**. When this is enabled, the backend creates a `button` entity for that profile. Pressing the button from anywhere in Home Assistant — a dashboard, a script, or an automation — applies the saved room configuration and starts the vacuum. If the profile has steps, the button runs the whole sequence (charge and wait stops included), exactly like the card's **Run** button.
 
-This is the main way to use run profiles in automations. You do not need to interact with the card at all: your automation calls `button.press` on the profile's entity, and the vacuum starts the saved run.
+This is the main way to use run profiles in automations. You do not need to interact with the card at all: your automation calls `button.press` on the profile's entity, and the vacuum starts the saved run. A profile button is also a tidy dashboard tile — it triggers from a tap without opening the card.
 
 The detail section of a selected profile shows a "Exposed as button" label when this option is on.

@@ -24,7 +24,7 @@ A stock vacuum integration in Home Assistant lets you start and stop your vacuum
 - **Room-level control.** You choose exactly which rooms to clean before each run, and in what order.
 - **Per-room cleaning settings.** Each room can have its own cleaning mode (vacuum, mop, or both), suction level, water level, cleaning path, number of passes, and edge mopping toggle.
 - **Cleaning profiles.** You can save a named set of room settings as a reusable profile and apply it to any room in one tap. Built-in profiles are read-only; you can create as many custom profiles as you like.
-- **Run profiles.** You can save an entire room selection — which rooms are included, in what order, with what settings — as a named run profile and start it again with a single button.
+- **Run profiles.** You can save an entire room selection — which rooms are included, in what order, with what settings, and optionally an ordered sequence with mid-run **charge** or **wait** stops (vacuum, dock and top up, then mop — all one job) — as a named run profile and start it again with a single button.
 - **Queue management.** The card shows you which rooms are queued, their estimated cleaning times, and your planned run order. You can reorder rooms by dragging or by using a move button.
 - **Learning system.** After each run the integration records how long the vacuum spent in each room. Over time it builds per-room timing estimates that get more accurate the more you use it. The card displays a confidence indicator (Reliable / Learning / Uncertain) for each room's estimate.
 - **Incomplete run recovery.** If a run ends before all rooms are finished, the card shows a banner letting you queue only the missed rooms for a follow-up run.
