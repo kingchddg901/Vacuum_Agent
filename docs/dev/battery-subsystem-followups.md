@@ -23,8 +23,24 @@ gaps live.
 > anti-bias spirit as the `is_single_*` gates. It still records `last_job` (with the flag) and
 > `all_jobs`. Option (b) — true discharge from the session engine's `cumulative_drain_pct` —
 > remains the richer future fix if recharge runs become common.
+>
+> **⚠ Blind spot re-opened by native charge steps (unreleased, post-v1.6.7).** The
+> `mid_job_recharge` gate keys ONLY on the UNPLANNED-recharge counters
+> (`recharge_seconds_accumulated` / `observed_mid_job_recharge_count`), which are set from
+> `_is_low_battery_return_state` — a deep-low return the robot took on its own. A native
+> **`charge_wait` step** (`jobs/phase_runner.py:_run_charge_wait_phase`, dock → poll to
+> `target_battery_percent` → advance) is a DELIBERATE mid-job recharge, and
+> `active_job.py:update_active_job_recharge_observation` deliberately early-returns for a
+> `charge_wait` phase so the commanded dock is NOT double-counted as a battery-driven recharge
+> — so neither counter increments and `mid_job_recharge` stays False. A single-setting stepped
+> run with a charge step therefore nets its intentional recharge out of `start − end` and
+> re-injects the understated drain Item 1 exists to block. Fix later by ALSO flagging a run
+> whose `active_job['phases']` contains a `charge_wait` phase (or by adopting option (b),
+> whose `cumulative_drain_pct` delta is recharge-agnostic and covers both pathways). The
+> `charge_wait` phase does track its own `charge_from_battery` / `charge_to_battery` edges, so
+> the true discharge across the step is still reconstructable.
 
-**Where:** `learning/job_finalizer.py:770` calls
+**Where:** `learning/job_finalizer.py:791` calls
 `compute_job_battery_metrics(battery_start=…, battery_end=…)` with the raw job-edge battery
 levels. `battery/job_metrics.py:_safe_drain` computes `drain = start − end`.
 

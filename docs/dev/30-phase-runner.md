@@ -37,16 +37,31 @@ dispatched in queue order, each waited on before the next is sent.
    advance resets the queue, so finalization can reconstruct per-phase timings
    instead of mis-attributing the whole run to the last phase's room.
 
+> **Two phase kinds.** A phase is either a **`room_group` clean phase** (the
+> single-room clean described above, `phase_type` absent or `"room_group"`) or a
+> **stop phase** that docks and holds between clean groups: `phase_type ==
+> "charge_wait"` (dock + poll battery to a target %, driven by
+> `_run_charge_wait_phase`) or `"wait"` (dock + hold for N minutes, driven by
+> `_run_wait_phase`). Stop phases carry no rooms; they exist so a native run
+> profile can express *vacuum → charge → mop* as one learned job. They are
+> introduced only by a run profile's ordered `steps` (§3.1); a plain room
+> dispatch never produces one. Everything in §4–§7 branches on the phase kind.
+
 **Module:** `custom_components/eufy_vacuum/jobs/phase_runner.py`
 **Class:** `PhaseRunner` (constructed once with the core manager, the
 bundled-subsystem pattern). The manager builds it as `self.phase_runner` and
 reads/writes the same `manager.data["active_jobs"]` store.
 
-> **Strict order is opt-in and brand-gated.** A run only becomes sequenced when
-> `strict_order=True` is requested **and** the brand does not natively honor order
-> (`honors_clean_order` is False). Eufy, which honors order, builds a single
-> atomic phase and never enters this machine — the whole subsystem is inert for
-> it. See [06-job-lifecycle](06-job-lifecycle.md) §2 and
+> **Strict order is opt-in and brand-gated.** A clean run becomes *sequenced*
+> (one room per phase) when `strict_order=True` is requested **and** the brand
+> does not natively honor order (`honors_clean_order` is False). Eufy, which
+> honors order, folds a clean group back to a single atomic phase and never runs
+> the intra-group watchdog. A run profile with **charge/wait stops** forces
+> `strict_order=True` (`_build_effective_start_plan`, §3.1) so a path-optimizing
+> brand runs each group in the shown order; the stop phases themselves still
+> split the job into multiple phases on **either** brand (a stepped Eufy run is
+> multi-phase but each clean group stays one atomic phase). See
+> [06-job-lifecycle](06-job-lifecycle.md) §2 and
 > [29-roborock-adapter](29-roborock-adapter.md).
 
 ---
@@ -57,12 +72,15 @@ reads/writes the same `manager.data["active_jobs"]` store.
 |---|---|---|
 | Public advance entry point | **PhaseRunner** (manager delegates) | `maybe_advance_phase` |
 | Per-phase watchdog state machine | **PhaseRunner** | `_run_advanced_phase` |
-| Dispatch a phase's segment + per-room fan | **PhaseRunner** | `_dispatch_active_phase` |
+| Drive a `charge_wait` stop phase (dock + poll battery) | **PhaseRunner** | `_run_charge_wait_phase` |
+| Drive a `wait` stop phase (dock + hold minutes) | **PhaseRunner** | `_run_wait_phase` |
+| Dispatch a phase's segment + per-room fan + per-phase global pre-calls | **PhaseRunner** | `_dispatch_active_phase` |
 | Verify the device started THIS room | **PhaseRunner** | `_await_phase_started` |
 | Release the dispatch-pending guard | **PhaseRunner** | `_clear_phase_dispatch_pending` |
 | Coarse "is it cleaning at all" fallback | **PhaseRunner** | `_vacuum_started_cleaning` |
 | Per-phase timing/area snapshot | **PhaseRunner** | `_capture_finishing_phase_timing` → `_phase_room_timing` / `_wall_seconds` / `_learned_room_area_m2` |
 | Build the per-room phase list | queue engine | `GenericRoomIdsEngine.build_phases` |
+| Materialize a run profile's `steps` into a phase list (clean groups + stops) | run plan | `RunPlanManager._build_steps_phases` |
 | Advance the stored job to the next phase | queue engine | `advance_active_job_phase` |
 | Concatenate per-phase timings at finalize | learning | `history_store` finalization |
 | **Watchdog TIMING (defaults + brand overrides)** | **`core/manager.py`** | `_phase_timing` + `_PHASE_*` constants |
@@ -89,8 +107,9 @@ engine. The relevant upstream contract:
   `GenericRoomIdsEngine` and inherits this behavior.
 - `build_active_job_state(..., phases=...)` (in `queue/queue_engine.py`) stores
   the ordered phase list plus `current_phase_index` / `phase_count`. When
-  `phases is None` (atomic — every adapter today by default) those keys are
-  **omitted**, so the stored job is byte-identical to pre-sequencing.
+  `phases is None` (atomic — a plain room dispatch, and any run without
+  strict-order or stops) those keys are **omitted**, so the stored job is
+  byte-identical to pre-sequencing.
 - `advance_active_job_phase(active_job)` returns a **new** job dict swapped to the
   next phase (next `resolved_rooms` / `payload` / `room_count` / `queue_*`,
   per-phase progress reset, `current_phase_index` incremented). It returns
@@ -105,7 +124,40 @@ watchdog handoff:
   signal can't immediately re-finalize the new phase.
 - **`_phase_dispatch_pending`** — set True until the watchdog confirms the device
   actually started THIS room. While pending, the completion listener must not
-  finalize/advance on the previous room's lingering dock signals (see §7).
+  finalize/advance on the previous room's lingering dock signals (see §7). The
+  stop-phase drivers (`_run_charge_wait_phase` / `_run_wait_phase`) rely on this
+  same flag: they **inherit** it from the advance and never clear it, so the
+  intentional charge/idle dock is not read as a completion (§6.6).
+
+### 3.1 Stepped runs — the run-profile step builder
+
+A run profile can carry an ordered `steps` list (set via the
+`set_run_profile_steps` service) so a single learned job runs *clean group →
+stop → clean group*. When such a profile starts, its steps are stashed under
+`data["_pending_run_steps"][vacuum_entity_id][map_id]` and materialized 1:1 into
+`active_job["phases"]` by `RunPlanManager._build_steps_phases`
+(`planning/run_plan.py`) — a **separate phase builder** from
+`build_phases`, feeding the same stored-phase-list contract above:
+
+- a `room_group` step → its brand dispatch phase(s), scoped to the group's
+  **included** (enabled + not-blocked) room ids, with **per-group settings**:
+  each group room's own fields (`clean_mode` / `fan_speed` / `water_level` / …)
+  overlay the global effective-room view, so the same room can vacuum in one
+  group and mop in the next;
+- a `charge_wait` step → a phase `{phase_type: "charge_wait",
+  target_battery_percent}`; a `wait` step → `{phase_type: "wait", wait_minutes}`;
+  both carry no rooms.
+- **Leading/trailing stops are dropped** and **consecutive same-type stops
+  collapse** (two charges → the last target) so phase 0 is always a real clean
+  the initial dispatch can send; if no stop survives, it falls back to one atomic
+  clean.
+
+`_build_effective_start_plan` forces `strict_order=True` whenever the run's steps
+contain any `charge_wait`/`wait` stop, so a path-optimizing brand runs each
+group's rooms in the shown order (a multi-room group then splits into per-room
+phases); it is a no-op for an order-honoring brand (Eufy folds it back to
+False). The stashed steps are **popped** only on the real dispatch; preflight
+callers peek so they can't consume the stash early.
 
 ---
 
@@ -132,10 +184,17 @@ finalize a completed phase. Behavior of `PhaseRunner.maybe_advance_phase`:
    - Returns `None` → an atomic job or the final phase → return **`False`** (the
      caller finalizes as today).
    - Returns the advanced dict → stamp `current_room_started_at`, persist it to
-     `data["active_jobs"][vacuum_entity_id][map_id]`, then **spawn**
-     `_run_advanced_phase(...)` for the new phase index as a background task (not
-     awaited, so the completion listener returns promptly). Return **`True`** (the
-     caller skips finalization).
+     `data["active_jobs"][vacuum_entity_id][map_id]`, then **spawn** the driver
+     for the new phase's kind as a background task (not awaited, so the completion
+     listener returns promptly), **routing on `phases[next_idx]["phase_type"]`:**
+     `"charge_wait"` → `_run_charge_wait_phase(...)`, `"wait"` →
+     `_run_wait_phase(...)`, anything else (a `room_group` clean phase) →
+     `_run_advanced_phase(...)`. Return **`True`** (the caller skips
+     finalization).
+
+`maybe_advance_phase` is also re-entrant *from* the stop-phase drivers: once a
+`charge_wait`/`wait` phase's condition is met, its driver calls
+`maybe_advance_phase` itself to move on to the next phase (§6.7 / §6.8).
 
 **Return contract:** `True` = job advanced to a next phase, caller must skip
 finalization; `False` = atomic job or final phase, caller finalizes normally.
@@ -160,6 +219,11 @@ runner._capture_finishing_phase_timing(vacuum_entity_id, map_id, active_job) -> 
 - **Atomic jobs (no `phases` list) → no-op.** Out-of-range / already-captured
   phases → no-op (idempotent; the `_timing_end_t` marker is set even for an empty
   capture so it can't re-run).
+- **Stop phases (`phase_type` in `charge_wait` / `wait`) record an EMPTY timing.**
+  Their counter slice is flat (the robot charges or idles on the dock), so finalize
+  reads them as a dock/hold interval, not a phantom zero-metric room. The
+  `_timing_end_t` marker is still set so the next clean phase's slice starts after
+  the stop.
 - **Slice selection:** the phase's slice is the `counter_samples` whose timestamp
   is strictly after the **previous phase's recorded `_timing_end_t`** (or from the
   run start for phase 0). All timestamps come from `_iso_now()` so a lexical
@@ -220,7 +284,10 @@ than running the whole counter stream through `_build_transit_blocks`:
   transit.
 - `transit_capture_valid` is True only when **every** phase contributed a
   non-empty timing (`_every_phase_captured`); a single empty phase marks the run
-  as not-fully-captured (excluded from learning).
+  as not-fully-captured (excluded from learning). A stop phase's timing is
+  intentionally empty (§5.1), so a stepped run that includes a `charge_wait`/`wait`
+  stop is currently reported not-fully-captured for transit-learning purposes —
+  the per-room `room_timing` entries of its clean phases are still concatenated.
 - Atomic jobs leave `phases` absent → the legacy `_build_transit_blocks` path.
 
 See [10-learning-system](10-learning-system.md) for how finalized
@@ -282,14 +349,21 @@ stalled** — recoverable by the user via *Cancel Run*, rather than silently hun
 await runner._dispatch_active_phase(*, vacuum_entity_id, map_id, job, attempt=1) -> None
 ```
 
-1. Apply this phase's **per-room live settings (fan)** *before* the dispatch
+1. Run this phase's **global pre-calls** *per phase*
+   (`manager._run_global_pre_calls(...)`) from THIS phase's own resolved rooms. A
+   brand that exposes fan/water only as global device settings (Roborock mop
+   intensity via a `select`) sets them here, so a **vacuum group then a mop
+   group** each apply their own water setting — phase 0's pre-call fires in
+   `start_selected_rooms`, phases 1+ fire here. No-op when the adapter declares no
+   `dispatch.global_pre_calls` (Eufy, S6).
+2. Apply this phase's **per-room live settings (fan)** *before* the dispatch
    (`manager.active_job.apply_per_room_live_settings_awaited(...)`) so the room
    starts at its own fan value with no `current_room` poll lag.
-2. Live-resolve the segment ids by slug per phase
+3. Live-resolve the segment ids by slug per phase
    (`manager._resolve_live_dispatch_payload(...)`) so a re-segment between rooms
    can't clean the wrong room (no-op without `dispatch.resolve_live_ids_by_slug`).
-3. Dispatch via `manager._dispatch_clean_payload(...)`.
-4. Log at **INFO** (so a strict-order run is diagnosable without debug): the exact
+4. Dispatch via `manager._dispatch_clean_payload(...)`.
+5. Log at **INFO** (so a strict-order run is diagnosable without debug): the exact
    re-dispatched payload + attempt number. An empty segment list = the next room
    was skipped (e.g. a slug that didn't resolve to a live id).
 
@@ -344,6 +418,55 @@ normally. It only clears when the job is **still on this exact phase** (a later
 advance owns its own pending flag), then best-effort persists via
 `manager._async_save_logged()`.
 
+### 6.7 `_run_charge_wait_phase` (the charge stop driver)
+
+```python
+await runner._run_charge_wait_phase(*, vacuum_entity_id, map_id, phase_index) -> None
+```
+
+A `charge_wait` phase has **no rooms** — its "work" is parking on the dock and
+charging, so no room-finish event can advance it; this coroutine owns its whole
+lifecycle. It is spawned by `maybe_advance_phase` when the advanced phase's
+`phase_type == "charge_wait"`.
+
+- Reads `target_battery_percent` (default `100`) and
+  `charge_wait_timeout_minutes` (default `180`) off the phase dict.
+- **Already at/above target on entry** → advance immediately via
+  `maybe_advance_phase`, no charge.
+- Otherwise it stamps `charge_from_battery` / `charge_started_at` on the phase
+  (Wave-4 observability for the live snapshot), sends the robot home
+  (`vacuum.return_to_base`, blocking — a no-op if already docked+charging), then
+  **polls battery every ~30 s** (`get_battery_level` from `core/charging.py`).
+- On reaching the target it stamps `charge_to_battery` / `charge_ended_at` and
+  calls `maybe_advance_phase` to continue.
+- **Timeout** → `async_cancel_active_job(cancel_reason="charge_timeout",
+  forced_lifecycle_state="charge_timeout")` so the un-cleaned remaining rooms are
+  finalized as missed rather than left hung.
+- A genuine user Cancel (`_cancel_in_flight`), pause, or advance (the
+  `_still_ours` guard: job present, `status == "started"`,
+  `current_phase_index == phase_index`) → bail; the phase is no longer ours.
+- It **keeps `_phase_dispatch_pending` set** (inherited from the advance), so the
+  completion gate (§7) never reads the intentional charge-dock as a completion.
+
+The ETA the live snapshot shows (`charge_eta_minutes` / `charge_eta_source`)
+comes from `battery/manager.py::compute_time_to_target_pct` (a CC/CV split at
+80 %, falling back to wall-clock rather than a fabricated estimate) — computed at
+snapshot time, not inside this driver.
+
+### 6.8 `_run_wait_phase` (the timed stop driver)
+
+```python
+await runner._run_wait_phase(*, vacuum_entity_id, map_id, phase_index) -> None
+```
+
+The time-based twin of §6.7 (e.g. a mop-dry pause between a vacuum pass and a mop
+pass), spawned when the advanced phase's `phase_type == "wait"`. It reads
+`wait_minutes` (default `5`, floored at `1`), stamps `wait_started_at`, parks on
+the dock (`vacuum.return_to_base`, blocking), then **polls every ~15 s** until
+the deadline; on elapse it stamps `wait_ended_at` and calls `maybe_advance_phase`.
+Like the charge driver it has no rooms, keeps `_phase_dispatch_pending` set, and
+bails on the same `_still_ours` (cancel/pause/advance) check.
+
 ---
 
 ## 7. The completion-gate handoff
@@ -363,12 +486,15 @@ phase completes
 - **(A)** A Roborock sits docked + charging *between* phases — precisely its
   completion signal. While the next phase's dispatch is still pending (the
   watchdog hasn't confirmed it started), the prior room's lingering dock signal
-  must not finalize the next room before it ever starts. No-op for non-sequenced
-  jobs (the flag is only set on a phase advance).
+  must not finalize the next room before it ever starts. This same guard also
+  protects a **stop phase's intentional dock**: `_run_charge_wait_phase` /
+  `_run_wait_phase` inherit `_phase_dispatch_pending` and never clear it, so the
+  charge/idle dock is not read as a completion. No-op for non-sequenced jobs (the
+  flag is only set on a phase advance).
 - **(B)** A completed non-final phase advances + re-dispatches instead of
   finalizing (this is `maybe_advance_phase` returning True).
-- **(C)** Atomic jobs — every adapter today by default — and the final phase fall
-  through to normal finalization.
+- **(C)** Atomic jobs — a plain room dispatch — and the final phase fall through
+  to normal finalization.
 
 See [06-job-lifecycle](06-job-lifecycle.md) §6–§7 for the full end-of-job flow.
 
@@ -416,8 +542,9 @@ See
 |---|---|---|
 | `listeners/lifecycle.py` (completion hook) | `manager.maybe_advance_phase()` → `PhaseRunner.maybe_advance_phase()` | A phase's room set finished; decide advance vs finalize |
 | `core/manager.py::start_selected_rooms` | `phase_runner._run_advanced_phase(..., initial=True)` | A sequenced job starts (verify phase 0) |
-| `PhaseRunner.maybe_advance_phase` | `phase_runner._run_advanced_phase(...)` | An advanced phase is dispatched |
+| `PhaseRunner.maybe_advance_phase` | `phase_runner._run_advanced_phase(...)` / `_run_charge_wait_phase(...)` / `_run_wait_phase(...)` | The next phase is dispatched, routed on its `phase_type` |
 | `queue/dispatch_engines.py` | `build_phases(strict_order=True)` | Build the one-room-per-phase list (upstream) |
+| `planning/run_plan.py` | `_build_steps_phases(...)` | Materialize a run profile's `steps` into clean-group + stop phases (upstream) |
 | `queue/queue_engine.py` | `advance_active_job_phase()` | Swap the stored job to the next phase |
 | `learning/history_store.py` | concat `phases[*]["room_timing"]` | Finalize per-phase timings into the run record |
 | `core/manager.py::_phase_timing` | (read by the watchdog) | Resolve brand timing overrides |
@@ -428,7 +555,15 @@ See
 
 - **Atomic jobs are fully inert.** No `phases` key → `maybe_advance_phase` returns
   False, `_capture_finishing_phase_timing` no-ops, the watchdog is never spawned.
-  Eufy (honors order) never enters this machine.
+  A plain (non-stepped, non-strict) run never enters this machine.
+- **Stop phases carry no rooms.** A `charge_wait` / `wait` phase is advanced only
+  by its own driver (`_run_charge_wait_phase` / `_run_wait_phase`) reaching its
+  condition, never by a room-finish event; it records an empty per-phase timing
+  and keeps `_phase_dispatch_pending` set so its dock is not read as a completion.
+- **Stops force strict order.** Any run profile whose `steps` include a stop is
+  planned with `strict_order=True`; on an order-honoring brand (Eufy) that folds
+  back to no intra-group reordering but the multi-phase (stop-bracketed) structure
+  still applies.
 - **Cancellation is race-safe.** `async_cancel` sets `_cancel_in_flight` *before*
   the status flips; both `_run_advanced_phase` and `_await_phase_started` check it
   each iteration and bail, so the watchdog can't re-dispatch during return-to-base.

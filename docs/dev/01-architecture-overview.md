@@ -142,8 +142,8 @@ module (flat file) or a subsystem package. Here is the full map:
 | `manager.profiles` | `profiles/` | Room profiles and run profiles CRUD |
 | `manager.access_graph` | `rooms/access_graph.py` | Room-to-room access graph (grants_access_to) |
 | `manager.active_job` | `jobs/active_job.py` | Active job slot CRUD and finalization handoff |
-| `manager.phase_runner` | `jobs/phase_runner.py` | Strict-order (sequenced) phase execution — per-phase watchdog (settle/dispatch/verify/retry) + per-phase timing |
-| `manager.run_plan` | `planning/run_plan.py` | Preflight rule evaluation, effective start plan |
+| `manager.phase_runner` | `jobs/phase_runner.py` | Sequenced phase execution — per-phase watchdog (settle/dispatch/verify/retry) + per-phase timing + per-phase global-pre-call dispatch; also runs the `charge_wait` (`_run_charge_wait_phase` — dock, poll battery to `target_battery_percent`) and `wait` (`_run_wait_phase` — dock, hold `wait_minutes`) break phases via `maybe_advance_phase`, guarding the intentional dock with `_phase_dispatch_pending` |
+| `manager.run_plan` | `planning/run_plan.py` | Preflight rule evaluation, effective start plan; materializes a run profile's ordered `steps` (room groups + charge/wait stops) into `active_job["phases"]` via `_build_steps_phases`, forcing `strict_order` when the run carries stops |
 | `manager.room_map` | `rooms/room_crud.py` | Room and map CRUD operations |
 | `manager.live_room_refresh` | `live_refresh/manager.py` | Lever B contiguous-run live current-room refresh (rate-limit + sticky-disable + local-connection pulse) |
 | `manager.map_source` | `mapping/map_source_coordinator.py` | `map_state_source` backend dispatch (provider segmentation + live-pose reads) |
@@ -483,7 +483,7 @@ Service modules in `services/` are split by domain:
 | `queue.py` | build queue, get queue/payload/active-job state |
 | `rooms.py` | discover, save, update room fields |
 | `room_profiles.py` | room profile CRUD + apply |
-| `run_profiles.py` | run profile CRUD + start |
+| `run_profiles.py` | run profile CRUD + start + `set_run_profile_steps` (ordered room-group / charge-wait / wait steps) |
 | `setup.py` | setup workflow (add vacuum, import map, save rooms, drift) |
 | `maintenance.py` | reset, set interval, get upkeep snapshot |
 | `dock.py` | wash mop, dry mop, empty dust, dock action status |

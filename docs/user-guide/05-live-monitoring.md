@@ -24,6 +24,15 @@ The banner always displays one of three states:
 
 Each room entry in the banner also carries a **confidence chip** — a small label (High, Medium, or Low) that reflects how reliable the time estimate for that room is, based on how many past runs the integration has learned from.
 
+### Charge and wait stops
+
+If the run profile includes a **charge stop** or a **wait stop** between room groups (see [Profiles](10-profiles.md)), the vacuum docks partway through the run and the banner shows a dedicated status while it holds there:
+
+- **Charging to `<target>`%** — during a charge stop, shown with a lightning symbol (⚡). When the integration can estimate how long the charge will take, the subtitle reads "Charging to `<target>`% · ~N min left". A live "N% to go" counter shrinks toward the target as the battery fills.
+- **Waiting · ~N left** — during a wait stop (a timed dock-and-hold, for example a mop-dry pause), shown with a timer symbol (⏱). The countdown updates on its own.
+
+These docks are part of the plan, so the card does **not** treat them as the run finishing or being cancelled. When the target is reached (or the wait time elapses), the vacuum leaves the dock and the banner returns to showing the next room group automatically.
+
 ---
 
 ## Live progress list
@@ -69,6 +78,8 @@ This warning is based on the live or reanchored estimate. If the vacuum does rec
 Before a room crosses the full stall threshold, the card flags it as **running long**. When the room currently being cleaned has been going noticeably longer than its learned estimate — and the integration sees no sign that the vacuum has moved on to the next room — the current queue chip gains a warning ring.
 
 This is the gentle, earlier tier below the stall notice below. It simply means "this room is overrunning its estimate." No action is required: many rooms occasionally run long (extra dirt, a re-clean pass, furniture in the way), and the integration keeps refining its estimates as it learns. If the room keeps going, the warning escalates into the stall notice described next.
+
+A brand-new room the integration has not yet learned a time for does **not** trigger this warning — with no real baseline to judge against, it would otherwise flag every room on a fresh setup. The warning only appears once the room has a learned estimate to overrun.
 
 ---
 

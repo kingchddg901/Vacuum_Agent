@@ -47,7 +47,12 @@ A compact stack you can keep on a wall tablet or your phone dashboard. Top to bo
 - **Rooms** — a collapsing list. Tap a room's row to expand it and set **that room's** own
   cleaning mode, suction, water, cleaning path, and passes. The checkbox (or the room name)
   includes the room in the next run.
-- **Your profiles** — a dropdown of your saved run profiles, if you have any.
+- **Your profiles** — a dropdown of your saved run profiles, if you have any. A profile
+  can be a plain room queue **or** a stepped run that docks to recharge (or waits) partway
+  through and then keeps cleaning — either way you just pick it and press **Start**, and the
+  card runs the whole sequence. If the vacuum returns to the dock mid-run, that's the charge
+  or wait stop doing its job; it will carry on once it's ready. (You build stepped profiles
+  in the sidebar panel — see [Profiles](10-profiles.md).)
 - **App scenes** — *Eufy only* — a dropdown of the scenes from the Eufy app. (Roborock has
   no equivalent, so this section simply doesn't appear.)
 - **Footer** — **Start** and **Dock**.

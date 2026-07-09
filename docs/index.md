@@ -37,7 +37,7 @@ Room-level control for **robot vacuums** (Eufy and Roborock today) in Home Assis
 ## Highlights
 
 - **Room-level control** — pick rooms and order per run, with per-room mode, suction, water, path, passes, and edge-mop.
-- **Profiles & run profiles** — save room settings or a whole room selection and reapply in one tap.
+- **Profiles & run profiles** — save room settings or a whole room selection and reapply in one tap, optionally as an ordered sequence with mid-run **charge** or **wait** stops (vacuum, dock and top up, then mop — all one job).
 - **Learning system** — per-room timing estimates that improve with use, with confidence indicators.
 - **Custom maps** — auto-detect rooms from a screenshot, hand-draw named layouts on any backdrop, or (on live-map brands like Roborock) draw rooms straight over the live map with no upload. See [Making your own maps](user-guide/16-making-your-own-maps.md).
 - **Theming** — fully customizable from the card, including a colorblind-safe theme. See [Theme system](user-guide/17-theme-system.md) to use it, or [Authoring a theme](contributing/theme-authoring.md) to build one.

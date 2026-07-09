@@ -97,10 +97,13 @@ data["run_profiles"][vacuum_entity_id][map_id_str][profile_id] = {
     "room_names_label":  str,        # ", "-joined room names
     "expose_as_button":  bool,
     "rooms":             [ { ...room snapshot... } ],
+    "steps":             [ { ...step... } ],  # OPTIONAL — ordered run steps (§7.7); absent on legacy rooms-only profiles
     "created_at":        str,        # ISO timestamp
     "updated_at":        str,        # ISO timestamp
 }
 ```
+
+`steps` is written only by `set_run_profile_steps()` (§7.7). A profile saved without it is a legacy rooms-only profile; `run_profile_steps()` back-fills such a profile as a single `room_group` step at read time, so everything downstream is byte-identical.
 
 ---
 
@@ -293,6 +296,8 @@ manager.get_saved_run_profiles(
 #   }
 ```
 
+Each `library` entry is passed through `_enrich_saved_run_profile()`, which adds two derived fields on top of the stored profile: `steps` (the normalized ordered steps via `run_profile_steps()`, back-filling a legacy rooms-only profile as one `room_group`) and `has_charge_steps` (`True` if any step is a `charge_wait`). The card reads `has_charge_steps` to decide whether to show the stepped-run UI.
+
 ### 7.2 `save_run_profile`
 
 ```python
@@ -394,10 +399,42 @@ manager.apply_run_profile(
 Restores a saved room selection to the live room data:
 
 1. Disables **all** rooms for the (vacuum, map) pair.
-2. For each room in the profile's `rooms` list (enumerated 1-indexed for `order`):
+2. For each room across the profile's `room_group` **steps**, in step order (via `run_profile_steps()`, so a legacy rooms-only profile back-fills to a single group; `charge_wait`/`wait` steps carry no rooms and are skipped here), enumerated 1-indexed for `order`:
    - Looks up the room by `room_id` in `data["maps"][vacuum][map_id]["rooms"]`. If absent, the id is added to `missing_room_ids` and skipped.
    - Enables the room and restores saved settings: `profile_name`, `clean_mode`, `fan_speed`, `water_level`, `clean_intensity`, `clean_passes`, `edge_mopping`, plus the enumeration `order`.
    - Runs `_finalize_room_update()` on the restored room.
+
+`apply_run_profile` only restores the room **selection/settings** onto the map; it does not itself execute the ordered stops. The `charge_wait`/`wait` boundaries and their per-group settings are materialized into job phases at start time — see §7.7.
+
+### 7.7 Ordered Steps — `set_run_profile_steps` (native charge/wait stops)
+
+A run profile can carry an ordered **`steps`** list that breaks its rooms into groups separated by **stops**. This is what powers a "vacuum, then dock and charge to 60%, then mop" sequence as one saved run. Three step types:
+
+| `type` | Fields | Meaning |
+|---|---|---|
+| `room_group` | `rooms: [ {room_id, clean_mode, fan_speed, water_level, ...}, ... ]` | A group of rooms cleaned back-to-back. The **same** room may appear in two groups with different settings (vacuum in one, mop in the next); the group's fields overlay the room view at dispatch. |
+| `charge_wait` | `target_battery_percent: int` (clamped 1–100) | Dock and poll the battery until the target %, then continue. |
+| `wait` | `wait_minutes: int` (clamped 1–1440) | Dock and hold for N minutes, then continue (e.g. a mop-dry pause). |
+
+```python
+manager.set_run_profile_steps(
+    *,
+    vacuum_entity_id: str,
+    map_id: str,
+    profile_id: str,
+    steps: list,
+) -> dict
+# → {"saved": True, "profile_id": str, "profile": {enriched}}
+#   or {"saved": False, "reason": "profile_not_found" | "no_room_group"}
+```
+
+Replaces the profile's stored `steps`. Requires at least one `room_group` (a run must clean something) — otherwise `reason="no_room_group"`. The list is passed through `normalize_run_profile_steps()`, a static method that coerces/validates each entry and **drops** invalid or empty ones (a `room_group` with no rooms, a `charge_wait`/`wait` whose numeric field won't parse). The service wrapper is `set_run_profile_steps` in `services/run_profiles.py` (schema requires `steps: list`); it raises `ServiceValidationError` when `saved` is `False`.
+
+**Read helper — `run_profile_steps(profile)`** (static): returns a profile's ordered steps, back-filling a legacy rooms-only profile as a single `room_group` of its `rooms`. This is the single read path — `apply_run_profile` (§7.6), `_enrich_saved_run_profile` (`steps` / `has_charge_steps`, §7.1), and phase materialization all go through it, so legacy profiles stay byte-identical.
+
+> **Where the stops actually run.** This manager only *stores* and *normalizes* the steps and *restores* the room selection. Materializing `steps` 1:1 into `active_job["phases"]` (leading/trailing stops dropped, consecutive same-type stops collapsed), executing the dock-and-poll `charge_wait` / dock-and-hold `wait` phases, and running per-phase pre-calls so a stepped run can vacuum one group then mop the next all live in the job/phase machinery — see [30-phase-runner](30-phase-runner.md) and [07-queue-engine](07-queue-engine.md) §4.
+
+> **Apply + start in one shot.** Kicking off a saved profile's full stepped sequence is `start_run_profile` (in `core/manager.py`, exposed as the `start_run_profile` service and as each profile's HA button). It applies the profile (§7.6) then starts the run. It is out of scope for `profiles/manager.py`; see [06-job-lifecycle](06-job-lifecycle.md).
 
 ---
 
@@ -406,7 +443,8 @@ Restores a saved room selection to the live room data:
 | Caller | Method | When |
 |---|---|---|
 | Panel room editor | `get_room_profiles()`, `save_user_room_profile()`, `overwrite_room_profile()`, `rename_room_profile()`, `delete_room_profile()` | Room settings save/edit |
-| Panel run profile tab | `get_saved_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()` | Run profile CRUD |
+| Panel run profile tab | `get_saved_run_profiles()`, `save_run_profile()`, `apply_run_profile()`, `rename_run_profile()`, `delete_run_profile()`, `set_run_profile_steps()` | Run profile CRUD + step editing (§7.7) |
 | `core/manager.py` (`update_room_fields`) | `_finalize_room_update()` | Every per-room settings write (service `services/rooms.py`) |
+| Exposed profile button (`button.py`) / `start_run_profile` service | `apply_run_profile()` via `core/manager.py:start_run_profile` | Apply + start a saved profile's full stepped sequence in one tap |
 
 > **See also:** [08-rooms-system](08-rooms-system.md) §6 for the room data model that profiles are merged into; [07-queue-engine](07-queue-engine.md) §4 for how run profiles are resolved at queue build time before the payload is sent to the vacuum.

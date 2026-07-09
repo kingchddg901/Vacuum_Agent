@@ -129,6 +129,12 @@ automation:
 selection and per-room settings, rebuilds the queue, and starts the job through
 the same protected start flow used by the dashboard card.
 
+If the profile carries an ordered `steps` list — room **groups** separated by
+`charge_wait` or `wait` stops — `start_run_profile` runs the whole sequence as
+one job: it cleans a group, docks and charges to the target (or holds for the
+wait), then continues with the next group. Nothing about the automation changes;
+the same service call runs a plain profile or a stepped one.
+
 ```yaml
 automation:
   alias: "Vacuum — weekday morning full clean"
@@ -173,6 +179,20 @@ saved run profile; use the `id` field from the profile you want.
 - Add `pause_timeout_minutes_override: 30` to cap how long the job may remain
   paused before it auto-cancels. Set it to `0` to disable auto-cancel for this
   run.
+- To define a stepped profile programmatically, call
+  `eufy_vacuum.set_run_profile_steps` with the `profile_id` and an ordered
+  `steps` list. Each step is a room group
+  (`{type: room_group, rooms: [...]}`), a charge stop
+  (`{type: charge_wait, target_battery_percent: 95}`, clamped 1–100), or a
+  dry/hold stop (`{type: wait, wait_minutes: 20}`, clamped 1–1440). Leading and
+  trailing stops are dropped and consecutive same-type stops collapse; the list
+  must contain at least one room group.
+- To watch the charge/wait phase from an automation, read
+  `eufy_vacuum.get_job_progress_snapshot`. It exposes `charge_phase_active`,
+  `charge_target_percent`, `charge_eta_minutes` (and `charge_eta_source`), plus
+  `wait_phase_active` and `wait_minutes`. The `eufy_vacuum_job_progress_tick`
+  event fires every 5 s during an active job as a "refresh now" trigger for
+  re-reading the snapshot.
 
 **Caveats:**
 

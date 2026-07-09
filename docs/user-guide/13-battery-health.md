@@ -146,6 +146,10 @@ Total time is one job + one recharge — typically 3-5 hours end to end. Best do
 
 If you've already let the integration run for a while without seeding (existing install, only short jobs / partial charges), forcing one deep cycle still works — the baseline is set the first time it sees a qualifying session in the recent history, regardless of how old the integration is.
 
+!!! tip "Do the recharge part hands-free with a charge step"
+
+    A run profile can now carry a **charge step** ("Charge to X%") that docks the vacuum mid-run and waits until the battery reaches a target before continuing — see [Steps: charging and waiting mid-run](10-profiles.md#steps-charging-and-waiting-mid-run). Adding one that charges to at least 90 % after the heavy-load group above gives you the uninterrupted recharge the baseline needs without having to babysit the dock. The recharge is measured the same way whether you trigger it by hand or as a step — a step just automates the "let it dock and charge up" part.
+
 ### After replacing the battery
 
 When you swap in a new battery the existing baseline is wrong (it describes the old battery), so health % becomes meaningless. The integration has a service for this — call **`eufy_vacuum.battery_rebaseline`** in Developer Tools → Services with your vacuum's entity ID. The baseline is cleared immediately for **both regimes** (CC and CV), and the next qualifying recharge re-anchors all of them on the new battery.

@@ -5,7 +5,10 @@
 The queue is the ordered list of rooms the vacuum will clean when you press **Start Cleaning**. A room is in the queue when it is enabled (toggled on). The queue only contains enabled rooms — disabled rooms are excluded automatically and do not affect ordering.
 
 !!! note "Roborock (S6): clean order is advisory"
-    Path-optimizing vacuums like the Roborock S6 pick their own cleaning path and treat your queue order as a *suggestion* — they may not visit rooms in the order you set. To force the exact order, turn on **Strict order** (the "Force this exact order" toggle in the action bar) before you start. The integration then cleans one room at a time, in your order, returning to the dock between rooms — slower, but exact. (You can also set a **Sequence** in the Roborock app.) On order-honoring brands like Eufy the toggle doesn't appear and the queue order is always followed.
+    Path-optimizing vacuums like the Roborock S6 pick their own cleaning path and treat your queue order as a *suggestion* — they may not visit rooms in the order you set. To force the exact order, turn on **Strict order** (the "Force this exact order" toggle in the action bar) before you start. The integration then cleans one room at a time, in your order, returning to the dock between rooms — slower, but exact. (You can also set a **Sequence** in the Roborock app.) On order-honoring brands like Eufy the toggle doesn't appear and the queue order is always followed. Note that a **stepped run profile** (below) always runs in strict order on Roborock even if the toggle is off, because its sequence is deliberate.
+
+!!! note "Stepped run profiles add stops to the queue"
+    When you apply a run profile that has mid-run **charge** or **wait** stops (see [Profiles → Steps](10-profiles.md#steps-charging-and-waiting-mid-run)), the queue is no longer rooms-only: the charge and wait stops appear in the chip row too, in sequence between the room groups. Those extra chips are described under [What Queue Chips Show](#what-queue-chips-show).
 
 The queue is shown in two places at once:
 
@@ -36,6 +39,15 @@ When a job is running, chips are colour-coded to show progress:
 Chips for rooms that have a learned time estimate also carry a confidence colour (green / amber / red) that reflects how reliable the estimate is.
 
 You can click a queue chip to open that room's settings. Double-clicking opens the estimate detail. Holding the chip removes the room from the queue (disables it).
+
+### Charge and wait chips
+
+When you have applied a **stepped run profile** (one with mid-run charge or wait stops — see [Profiles → Steps](10-profiles.md#steps-charging-and-waiting-mid-run)), the chip row also shows the stops in place, in sequence between the room groups:
+
+- A **charge chip** — a ⚡ icon with a **"Charge to"** label and a percentage field (for example, "Charge to `80` %"). It marks the point where the vacuum docks and tops up before the next group.
+- A **wait chip** — a ⏱ icon with a **"Wait"** label and a minutes field (for example, "Wait `10` min"). It marks a timed dock-and-hold pause, such as a mop-dry gap.
+
+Unlike room chips, these stop chips are not clickable to open a room — instead you can **edit them inline**: type a new percentage into a charge chip or new minutes into a wait chip, and the change is saved back to the profile. (To add, remove, or reorder stops, use the run-profile editor described in [Profiles → Steps](10-profiles.md#steps-charging-and-waiting-mid-run).)
 
 ---
 

@@ -430,6 +430,35 @@ Both indices are "higher = healthier" ratios of baseline-to-current. There is no
 
 **Display cap.** `BatteryHealthSensor.native_value` returns `min(float(stats.health_pct), 100.0)` — the headline is capped at 100% for display (never "healthier than new"). The uncapped raw CV value (which can exceed 100 when today's charge is faster than the baseline) is surfaced via the sensor's `uncapped_pct` attribute and the `_cv_charge_speed` diagnostic sensor. The full `extra_state_attributes` set is: `uncapped_pct`, `baseline_cv_min_per_pct`, `baseline_cc_min_per_pct`, `baseline_session_count`, `baseline_anchored_at`, `completed_sessions` (`sensors.py`).
 
+### 7.4 Charge-ETA estimate (`compute_time_to_target_pct`)
+
+The same per-regime baselines feed a public estimator used by the native charge/wait stepped-run feature. `compute_time_to_target_pct(*, vacuum_entity_id, current_pct, target_pct)` returns `{"minutes": float | None, "source": "baseline" | "zone_rate" | "already_charged" | None}`:
+
+```python
+cur, tgt = clamp(current_pct), clamp(target_pct)   # each 0..100
+if cur >= tgt:
+    return {"minutes": 0.0, "source": "already_charged"}
+
+cc_span = max(0, min(tgt, HIGH_ZONE_MIN) - cur)    # % points below 80 (CC)
+cv_span = max(0, tgt - max(cur, HIGH_ZONE_MIN))    # % points at/above 80 (CV taper)
+
+# 1) Preferred: learned per-regime baselines (min/pct).
+if (cc_span == 0 or cc_min_per_pct) and (cv_span == 0 or cv_min_per_pct):
+    minutes = cc_span * cc_min_per_pct + cv_span * cv_min_per_pct
+    return {"minutes": round(minutes, 1), "source": "baseline"}
+
+# 2) Fallback: instantaneous zone rates (%/min), low zone for CC, high for CV,
+#    each falling back to rate_overall_per_min.
+if (cc_span and not low_rate) or (cv_span and not high_rate):
+    return {"minutes": None, "source": None}   # cold-start — caller shows wall-clock
+minutes = cc_span / low_rate + cv_span / high_rate
+return {"minutes": round(minutes, 1), "source": "zone_rate"}
+```
+
+The span is split at the CC/CV boundary (`HIGH_ZONE_MIN` = 80) so a high target (e.g. 95%) charges most of its remaining points through the slower CV taper. On a cold-start install with no anchored baseline and no zone rate for a needed regime, it returns `minutes=None` — the caller then shows a live wall-clock "charging…" rather than a fabricated estimate (the charge-rate baseline fills passively from every dock, so this self-heals).
+
+**Consumer.** `core/manager.py` `get_job_progress_snapshot` calls this when the active job's current phase is a `charge_wait` phase (native charge-to-X% step), surfacing `charge_phase_active`, `charge_target_percent`, `charge_eta_minutes`, and `charge_eta_source` (the returned `source`) on the snapshot. The parallel `wait` phase (a timed mop-dry pause) surfaces `wait_phase_active` / `wait_minutes` with no ETA. This is a read-only estimator — it feeds no sensor and mutates no record. See [06-job-lifecycle](06-job-lifecycle.md) for the phase machinery.
+
 ---
 
 ## 8. Mid-job rate stat (`_update_mid_job_rate_stat`)

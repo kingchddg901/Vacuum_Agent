@@ -171,7 +171,11 @@ per-room entities. It:
   detection.
 - **Saved run profile buttons** — dynamic; created when a run profile is saved
   with `expose_as_button = True`. A manager callback
-  (`_on_run_profiles_updated`) syncs these dynamically.
+  (`_on_run_profiles_updated`) syncs these dynamically. `async_press` **awaits**
+  `manager.start_run_profile(...)` (a coroutine) then `async_save()` — awaiting it
+  is load-bearing: an un-awaited call silently no-ops (#42, fixed). Pressing the
+  button runs the full profile, including any charge/wait steps, exactly like the
+  card's "Start Cleaning".
 
 ### switch platform
 
@@ -334,7 +338,7 @@ the save.
 | Dock actions | `wash_mop`, `dry_mop`, `stop_dry_mop`, `empty_dust`, `get_dock_action_status` |
 | Snapshots | `get_lifecycle_state`, `get_dashboard_snapshot`, `get_upkeep_snapshot` |
 | Room profiles | `get_room_profiles`, `save_user_room_profile`, `apply_room_profile`, `delete_room_profile` |
-| Run profiles | `get_saved_run_profiles`, `save_run_profile`, `apply_run_profile`, `delete_run_profile` |
+| Run profiles | `get_saved_run_profiles`, `save_run_profile`, `set_run_profile_steps`, `apply_run_profile`, `delete_run_profile` |
 | Access graph | `get_room_access_editor`, `get_access_graph_health` |
 | Capabilities | `get_vacuum_capabilities` |
 | Errors | `acknowledge_error`, `get_recent_errors` |
@@ -502,8 +506,12 @@ Two suppression guards then run before finalizing:
 
 1. `manager.maybe_advance_phase(...)` — for **sequenced (strict-order)** jobs a
    completed phase advances (re-dispatch) and the handler returns instead of
-   finalizing; only the last phase finalizes. Atomic jobs — every adapter today —
-   return `False` here and fall through.
+   finalizing; only the last phase finalizes. Sequenced jobs arise from a run
+   profile carrying ordered `steps` (room groups split by `charge_wait`/`wait`
+   stops, materialized 1:1 into `active_job["phases"]`, any brand) or a Roborock
+   strict-order run; a `charge_wait` phase routes to the charge poller and a `wait`
+   phase to the hold timer rather than the clean-dispatch watchdog. Atomic jobs
+   (a plain, unstepped run) return `False` here and fall through.
 2. `manager.finalize_learning_for_active_job(...)`.
 3. `mapping_tracker.end_job(...)` (run on the executor — it does disk I/O for
    bounds/raw-sample writes).

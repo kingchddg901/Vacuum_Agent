@@ -48,6 +48,9 @@ Once a job starts, the action bar updates to reflect the live state:
 - The room card for the current room shows a progress bar fill and a progress chip with percentage complete and estimated time remaining (for example, "42% complete" and "~3 min left").
 - An **Active Job** strip appears above the room grid. It shows a "Running" label with a pulse indicator, followed by chips for each room in the job. Each chip in the active job strip shows the job-order position number and the room name.
 
+!!! note "Stepped runs dock mid-job on purpose"
+    If you started a [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — a run profile with **charge** or **wait** stops — the vacuum returns to its dock between room groups to charge or hold. That is expected: the run has not ended, and the card knows the dock is intentional, so it will not report the job as finished or cancelled until the whole sequence is done. During a stop the live panel shows the charge or wait progress instead of a room percentage. See [Steps: charging and waiting mid-run](10-profiles.md#steps-charging-and-waiting-mid-run) for the full walkthrough.
+
 ---
 
 ## Zone cleaning (draw a box)
@@ -70,6 +73,8 @@ Zones are one-off — they aren't saved between cleans. To clean by room instead
 By default the robot decides its own cleaning path and may visit the rooms in whatever order is most efficient for it, regardless of the order shown in your queue. When you turn on **Strict order** for a run, the integration instead cleans the rooms one at a time, in the order you set, returning to the dock between rooms before dispatching the next one. This is slower, but it guarantees the exact order. Each room dispatch is verified and retried if the vacuum doesn't pick it up, and the live progress banner advances as each room is dispatched and then completed.
 
 Strict order is a per-run opt-in, and the toggle only appears on brands that don't already honour your queue order — the path-optimizing Roborock S6, for example. On Eufy the queue order is always followed, so the toggle has no effect and isn't shown. See [The Queue and Room Order](03-queue-and-order.md) for where to find the toggle.
+
+A [stepped run](10-profiles.md#steps-charging-and-waiting-mid-run) — one with charge or wait stops — always runs in strict order automatically, whether or not the toggle is on, because the stops make it a deliberate sequence. On Eufy this changes nothing (the order is already honoured); on a path-optimizing Roborock it means each group's rooms are cleaned in exactly the order shown, with a dock between them.
 
 ---
 

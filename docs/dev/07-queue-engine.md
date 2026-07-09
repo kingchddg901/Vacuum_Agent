@@ -357,6 +357,12 @@ final/atomic case. The completion hook calls `manager.maybe_advance_phase` to
 advance + re-dispatch instead of finalizing; each phase finalizes as its own
 job record. See [06-job-lifecycle](06-job-lifecycle.md) for the completion path.
 
+A phase list is no longer always all-room-groups: a **stepped run** (§9)
+interleaves room-group phases with `charge_wait` / `wait` **break phases** that
+have no rooms. `advance_active_job_phase` still swaps to the next phase the same
+way, but `maybe_advance_phase` reads the next phase's `phase_type` and routes a
+break phase to its own poller (charge / wait) instead of re-dispatching a clean.
+
 **Strict order (per-run opt-in sequencing).** Sequencing does not require a
 declared `sequenced` engine. `GenericRoomIdsEngine.build_phases(strict_order=True)`
 emits **one single-segment phase per resolved room**, in queue order, each phase
@@ -378,6 +384,13 @@ for atomic / order-honoring engines: `_SinglePhaseMixin.build_phases` ignores th
 flag and returns the single batch phase. The class-level `job_model` stays
 `atomic_batch` throughout — sequencing here is an opt-in property of the *run*,
 not a declared engine model.
+
+A **stepped run with stops** (§9) forces `strict_order=True` unconditionally:
+`_build_effective_start_plan` passes `strict_order=True` into `_build_steps_phases`
+whenever the run's steps contain a `charge_wait` / `wait` stop, so a
+path-optimizing brand runs each group's rooms in the exact order shown rather than
+silently re-ordering them inside one batch. The `honors_clean_order` gate still
+folds it to a no-op for Eufy.
 
 ---
 
@@ -428,3 +441,111 @@ result = await core_manager.start_selected_rooms(
 
 `confirm_reduced_run=True` is always passed because a retry is by definition a
 reduced run — the user already acknowledged the missed rooms.
+
+---
+
+## 9. Stepped Runs (charge / wait break phases)
+
+A run profile can carry an ordered `steps` list — room **groups** broken up by
+**stops** — so one learned job can vacuum some rooms, dock and charge to a target
+battery, then continue (or dock and hold a fixed pause, e.g. a mop-dry wait). This
+is built on the §7 sequencing machinery; the phase list gains non-room break
+phases.
+
+### Steps model
+
+The profile's `steps` is a list of three step types:
+
+```json
+[
+  {"type": "room_group", "rooms": [
+     {"room_id": 3, "clean_mode": "vacuum", "fan_speed": "Max"},
+     {"room_id": 4, "clean_mode": "vacuum"}
+  ]},
+  {"type": "charge_wait", "target_battery_percent": 80},
+  {"type": "room_group", "rooms": [{"room_id": 3, "clean_mode": "mop"}]},
+  {"type": "wait", "wait_minutes": 15}
+]
+```
+
+- **`room_group`** — a group of rooms with per-room settings.
+- **`charge_wait`** — dock and poll battery until `target_battery_percent`, then continue.
+- **`wait`** — dock and hold for `wait_minutes`, then continue.
+
+### Materialization → phases
+
+`RunPlanManager._build_steps_phases` (`planning/run_plan.py`) turns `steps` into
+the active-job `phases` list 1:1:
+
+- Each `room_group` → its brand dispatch phase(s) (via `_build_dispatch_phases`),
+  scoped to that group's **included** (enabled + not-blocked) room IDs.
+- Each `charge_wait` / `wait` step → a break phase carrying only its
+  `phase_type` + `target_battery_percent` / `wait_minutes` and empty room fields.
+- **Break-phase cleanup**: leading and trailing breaks are dropped (a stop with
+  no clean to bracket is pointless), and consecutive same-type breaks collapse to
+  the last (two charges → last target). If no break survives, it falls back to one
+  atomic clean over all included rooms.
+
+**Per-group settings.** The SAME room can appear in two groups with different
+settings (vacuum in one phase, mop the next). `_build_steps_phases` overlays each
+group room's own fields over the global effective-room view before building that
+group's dispatch phase — the group's fields win.
+
+`_build_effective_start_plan` invokes `_build_steps_phases` only when the pending
+run steps (stashed by `start_run_profile`, popped on the real dispatch) contain a
+`charge_wait` / `wait` stop; otherwise it takes the normal single-phase
+`_build_dispatch_phases` path. A stepped run with stops forces `strict_order=True`
+(see §7).
+
+### Running the break phases
+
+Break phases have no rooms, so no room-finish event can advance them — the phase
+runner owns their lifecycle. When `maybe_advance_phase` (`jobs/phase_runner.py`)
+swaps to a break phase, it reads the next phase's `phase_type` and spawns:
+
+- **`_run_charge_wait_phase`** — sends `vacuum.return_to_base`, polls battery
+  every ~30 s, and advances via `maybe_advance_phase` once
+  `target_battery_percent` is reached. Already at/above target on entry → advance
+  immediately without charging. Timeout (`charge_wait_timeout_minutes`, default
+  180) → finalize like a cancel, so the un-cleaned remaining rooms are reported
+  missed. A genuine user Cancel / pause / advance bails.
+- **`_run_wait_phase`** — the time-based twin: dock, hold `wait_minutes`, then
+  advance.
+
+Both keep `_phase_dispatch_pending` set for the duration, which the completion
+gate honours — the same guard that stops a Roborock's between-phase dock from
+finalizing — so the **intentional** charge/idle dock is never read as a
+cancel/completion.
+
+### Snapshot fields
+
+`get_job_progress_snapshot` (`core/manager.py`) surfaces the current break phase:
+
+| Field | Meaning |
+|---|---|
+| `charge_phase_active` | Current phase is a `charge_wait` |
+| `charge_target_percent` | The phase's `target_battery_percent` |
+| `charge_eta_minutes` | ETA from `battery/manager.py` `compute_time_to_target_pct` |
+| `charge_eta_source` | ETA basis (`baseline` / `zone_rate` / `already_charged`; `None` on a cold start) |
+| `wait_phase_active` | Current phase is a `wait` |
+| `wait_minutes` | The phase's hold duration |
+| `charge_from_battery` | Battery % recorded when the charge began (observability; `None` until the charge starts) |
+| `charge_started_at` | ISO timestamp the charge phase began (`None` until started) |
+| `wait_started_at` | ISO timestamp the wait phase began (`None` until started) |
+
+`compute_time_to_target_pct` splits the CC/CV charge curve at 80 %; a cold start
+(no learned rate) returns `minutes: None` (the card falls back to a wall-clock
+display) rather than a fabricated estimate.
+
+### Services & flag
+
+- **`set_run_profile_steps`** (`services/run_profiles.py`, delegating to
+  `profiles/manager.py`) writes a profile's `steps` list.
+- **`start_run_profile`** applies + starts a saved profile, running its full
+  stepped sequence.
+- The profile snapshot carries **`has_charge_steps`** (`profiles/manager.py`),
+  which drives the card's stepped-run UI.
+
+Charge/wait steps are brand-agnostic — they ride free on Roborock as well as
+Eufy. See [29-roborock-adapter](29-roborock-adapter.md) for the Roborock
+per-phase dispatch (a stepped run can vacuum one group then mop the next).

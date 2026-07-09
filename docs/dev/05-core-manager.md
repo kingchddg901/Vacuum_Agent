@@ -261,6 +261,34 @@ Job start orchestrates: build effective start plan (run_plan), write active
 job state (active_job), call upstream vacuum service, clear room selections
 post-start, persist. Returns a structured start summary.
 
+`start_run_profile` also stashes the profile's ordered `steps` sequence into
+`data["_pending_run_steps"]` before starting, but only when the steps carry a
+`charge_wait` or `wait` stop. The plan builder
+(`run_plan._build_effective_start_plan`) consumes that stash and materializes a
+multi-phase `[clean, charge_wait, clean, …]` job via `_build_steps_phases`;
+absent the stash it builds the single atomic phase as before. A stepped run with
+stops is a deliberate sequence, so the plan builder forces `strict_order=True`
+(a no-op for order-honoring brands like Eufy, which fold it back to `False`; on a
+path-optimizing brand like Roborock it pins each group's rooms to the shown
+order). Profiles with no stops (a plain room list) still start atomically.
+
+### `_run_global_pre_calls`
+
+Pushes a brand's device-**global** run settings — settings the adapter exposes
+only as whole-device state, not per-room payload fields — before an atomic
+dispatch. For each adapter-declared `dispatch.global_pre_calls` entry it picks
+the run value from the selected rooms' canonical field by the entry's `rank`
+(max-wins), maps it to the wire value, and calls the entry's service.
+Best-effort: a failed pre-call is logged, never aborts the run. Stays on the
+manager because it reads the adapter registry and calls HA services across a
+whole dispatch. It runs **per phase**: `start_selected_rooms` fires it for the
+first phase, and `PhaseRunner._dispatch_active_phase` re-runs it for every
+subsequent phase from that phase's own rooms — so a stepped run can vacuum one
+group then mop the next, each applying its own global setting (e.g. Roborock mop
+intensity via a `select`). No-op for adapters that declare none (Eufy, the
+Roborock S6). Detail: [22-adapter-config-reference](22-adapter-config-reference.md),
+[29-roborock-adapter](29-roborock-adapter.md).
+
 ### `get_job_progress_snapshot`
 
 Reads active job state, computes elapsed/expected times per room (active_job),
@@ -274,6 +302,15 @@ room per job) are delegated to `ActiveJobTracker.detect_run_anomalies`
 composer hands it the already-resolved locals and reads the anomaly fields back
 into the snapshot. It then returns a complete card-ready progress payload.
 Still too many concerns to belong to a single subsystem.
+
+When the active phase is a `charge_wait` or `wait` stop (a stepped run docked
+between room groups), the composer surfaces the stop so the card shows an
+intentional "Charging to X% — ~N min" / "Waiting" state rather than a hung job:
+`charge_phase_active` + `charge_target_percent` + `charge_eta_minutes` +
+`charge_eta_source` (the ETA from `battery/manager.py`
+`compute_time_to_target_pct`, which returns `None` — meaning the card falls back
+to a live wall-clock — on a cold-start install rather than fabricating a number),
+and `wait_phase_active` + `wait_minutes`.
 
 ### `get_dashboard_snapshot`
 

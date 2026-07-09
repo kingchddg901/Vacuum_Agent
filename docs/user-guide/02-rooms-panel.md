@@ -37,6 +37,8 @@ Below the count and action buttons, the action bar shows a row of chips — one 
 
 During a live run the chips update in real time: the current room shows a percentage progress, completed rooms are marked as done, and remaining rooms stay in their waiting state.
 
+When a stepped run profile is applied, the strip also shows its stops in sequence: a **"Charge to N%"** chip (⚡) for each charge step and a **"Wait N min"** chip (⏱) for each wait step. These stop chips carry an editable field — type a new percent or a new number of minutes right in the chip to adjust the stop without reopening the profile editor. See the Run Profiles section of this guide for how stepped profiles work.
+
 **Queue chip interactions:**
 - **Single click** — opens the room settings editor for that room.
 - **Double-click** — opens the time estimate detail for that room.
@@ -96,6 +98,8 @@ The editor shows:
 
 !!! note "Roborock (S6): what the room editor exposes"
     What's settable per room depends on your vacuum. On the Roborock S6: **cleaning mode / water is observe-only** — instead of a Vacuum / Mop / Vacuum + Mop selector the editor shows whether the water tank is attached ("Mopping — water tank attached" or "Vacuum only — no water tank"), because the S6's mop can't be switched from Home Assistant; **passes are global** — set once in the Roborock app, and the strongest per-room value wins for the run; **fan speed is per-room and applied live**; and the **Cleaning Profile** section is hidden, because with a single editable field a profile would be redundant. Controls your vacuum doesn't support simply don't appear.
+
+    Roborock models whose mop **is** settable from Home Assistant (S7, S8, and newer) instead show the full Vacuum / Mop / Vacuum + Mop selector and Water Level, just like Eufy — so the observe-only caveat above is specific to the S6.
 
 ### Cleaning Profile
 

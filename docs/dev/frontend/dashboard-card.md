@@ -96,6 +96,18 @@ one greys/disables the manual room+mode pickers (and vice-versa). Exactly one so
 is ever live. Enforced client-side (no backend gate needed). **Dock** is its own
 button, independent of the armed source.
 
+**Stepped profiles dispatch opaquely.** A saved profile may now carry an ordered
+`steps` list — room *groups* broken up by native **charge/wait stops** (dock + poll
+battery to a target %, or dock + hold N minutes, then continue). The card arms and
+fires it exactly as before: `start_run_profile` runs the whole stepped sequence
+(charge/wait phases included), so the dashboard card stays agnostic to steps and needs
+no change. Editing a profile's steps (the steps editor, the "This run" preview, the
+live charging/waiting banners) lives in the **panel**, not this card — its
+`run-profiles.js` / `rooms.js` / `learning.js` renderers, see
+[Module reference](module-reference.md); the phase machinery is in
+[Phase runner](../30-phase-runner.md). The snapshot's `has_charge_steps` flag is
+likewise a panel-render concern; the card never reads it.
+
 ## 4. What it reuses (this is why it's cheap)
 
 | Card piece | Reuses (verify-vs-code) |

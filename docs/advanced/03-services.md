@@ -192,7 +192,7 @@ Applies a saved run profile, rebuilds the queue from it, and starts cleaning —
 | `path_block_action` | No | `event_only`, `pause_and_event`, or `cancel_and_event`. |
 | `pause_timeout_minutes_override` | No | Per-job pause timeout override in minutes. `0` disables auto-cancel. |
 
-Returns the same shape as `start_selected_rooms`, including `confirmation_required` when blocker rules reduce the run and neither `confirm_reduced_run` nor a valid `confirm_token` is provided.
+Returns the same shape as `start_selected_rooms`, including `confirmation_required` when blocker rules reduce the run and neither `confirm_reduced_run` nor a valid `confirm_token` is provided. When the profile carries charge or wait stops (see [`set_run_profile_steps`](#set_run_profile_steps)), this launches the whole stepped sequence — the run is forced into strict order so each group's rooms clean in the exact order shown.
 
 ### `update_room_fields`
 
@@ -677,7 +677,7 @@ Returns the current active job state including start time and battery level at s
 
 ### `get_job_progress_snapshot`
 
-Returns the canonical room-job progress state including current room, completed rooms, remaining rooms, and live completion percentage.
+Returns the canonical room-job progress state including current room, completed rooms, remaining rooms, and live completion percentage. During a stepped run it also surfaces mid-run stop state: `charge_phase_active` / `charge_target_percent` / `charge_eta_minutes` / `charge_eta_source` while docked charging, and `wait_phase_active` / `wait_minutes` during a wait stop.
 
 | Parameter | Required |
 |---|---|
@@ -826,7 +826,7 @@ Delete a pending external record (a junk or false-start run). Needs
 
 ### Run Profiles
 
-Run profiles capture the full room selection, order, and per-room settings for a map so you can replay a cleaning configuration on demand.
+Run profiles capture the full room selection, order, and per-room settings for a map so you can replay a cleaning configuration on demand. A profile can also carry an ordered **steps** list — room groups broken up by mid-run **charge** and **wait** stops (see [`set_run_profile_steps`](#set_run_profile_steps)). A profile without steps runs as a plain queue; a profile with steps runs as a sequence.
 
 #### `save_run_profile`
 
@@ -882,9 +882,32 @@ Restores a saved run profile back onto room selection, order, and per-room setti
 | `map_id` | No |
 | `profile_id` | Yes |
 
+#### `set_run_profile_steps`
+
+Replaces a saved run profile's ordered **steps** list — the sequence of room groups and the mid-run stops between them. This is what turns a plain-queue profile into a stepped run: "vacuum this group, dock and charge to a target, then mop the next group" as one job. The profile must already exist and the resulting list must contain at least one `room_group` (a run has to clean something) — otherwise nothing is saved. Consecutive same-type stops are collapsed and leading/trailing stops are dropped during normalization.
+
+| Parameter | Required | Notes |
+|---|---|---|
+| `vacuum_entity_id` | Yes | |
+| `map_id` | No | |
+| `profile_id` | Yes | ID of the saved run profile whose steps to replace. |
+| `steps` | Yes | Ordered list of step objects. See below. |
+
+Each step is one of three types:
+
+- `{"type": "room_group", "rooms": [...]}` — a batch of rooms cleaned together. `rooms` is a list of per-room setting objects (`room_id`, `clean_mode`, `fan_speed`, `water_level`, …); the group's fields overlay the global room view at dispatch, so the **same** room can appear in two groups with different settings (vacuum in one, mop in the next).
+- `{"type": "charge_wait", "target_battery_percent": <1–100>}` — dock and poll the battery until it reaches the target, then continue. The percent is clamped to `1–100`.
+- `{"type": "wait", "wait_minutes": <1–1440>}` — dock and hold for a fixed number of minutes (for example a mop-dry pause), then continue. The minutes are clamped to `1–1440`.
+
+Invalid or empty entries are dropped during normalization; a legacy profile with only a `rooms` snapshot and no `steps` is treated as a single implicit `room_group`.
+
+Supports response. Returns `{"saved": true, "profile_id", "profile": {...}}` — the enriched profile now carries its normalized `steps` and a `has_charge_steps` flag (the backend signal the card uses to drive the stepped-run UI). Returns `{"saved": false, "reason": "profile_not_found"}` for an unknown profile ID, or `{"saved": false, "reason": "no_room_group"}` when the supplied steps contain no room group.
+
+When a profile with charge or wait stops is started (via `start_run_profile`, the card's **Run** button, or an exposed profile button), the run is forced into strict order so each group's rooms clean in the exact sequence shown — a no-op for order-honoring brands (Eufy), enforced per-room for path-optimizing brands (Roborock). Charge and wait steps ride free on any brand whose adapter supports the phase machinery. Live charge/wait progress surfaces through [`get_job_progress_snapshot`](#get_job_progress_snapshot) (`charge_phase_active`, `charge_target_percent`, `charge_eta_minutes`, `charge_eta_source`, `wait_phase_active`, `wait_minutes`).
+
 #### `start_run_profile`
 
-See [Queue Building](#queue-building) — this is the one-shot apply-and-start shortcut.
+See [Queue Building](#queue-building) — this is the one-shot apply-and-start shortcut. When the applied profile carries charge or wait stops, this runs the whole stepped sequence, not just the first room group.
 
 #### `get_saved_run_profiles`
 

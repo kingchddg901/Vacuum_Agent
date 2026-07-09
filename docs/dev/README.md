@@ -28,7 +28,7 @@ The manager and the job pipeline.
 | 05 | [core-manager](05-core-manager.md) | The central manager class: runtime state, method surface, subsystem wiring |
 | 06 | [job-lifecycle](06-job-lifecycle.md) | Full job flow from queue to finalization, including pause/resume and cancellation |
 | 07 | [queue-engine](07-queue-engine.md) | The queue data structure, room ordering, dispatch payload construction |
-| 30 | [phase-runner](30-phase-runner.md) | Strict-order (sequenced) per-room phase execution: the settle/dispatch/verify/retry watchdog + per-phase timing capture (`PhaseRunner`, `jobs/`) |
+| 30 | [phase-runner](30-phase-runner.md) | Strict-order (sequenced) per-room phase execution: the settle/dispatch/verify/retry watchdog + per-phase timing capture, plus the `charge_wait`/`wait` stop phases (`_run_charge_wait_phase` / `_run_wait_phase`) that a stepped run docks on between room groups (`PhaseRunner`, `jobs/`) |
 
 ---
 

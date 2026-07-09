@@ -893,15 +893,42 @@ confident-only default, rewrites the file in place, and returns the freshly
 ### Sequenced job model (optional keys)
 
 Present only when the run has more than one phase (a `sequenced` dispatch
-engine). Set by `build_active_job_state` when `phases` is passed, and
-mutated by `advance_active_job_phase` at each completion hook. Absent for
-atomic (single-phase) jobs.
+engine, or a run profile with charge/wait STOPS — see §6b). Set by
+`build_active_job_state` when `phases` is passed, and mutated by
+`advance_active_job_phase` at each completion hook. Absent for atomic
+(single-phase) jobs.
 
 ```
-  "phases":              list   # ordered per-phase payload envelopes
+  "phases":              list   # ordered per-phase envelopes (clean OR break)
   "current_phase_index": int    # 0-based; incremented on phase advance
   "phase_count":         int    # len(phases)
 ```
+
+Each phase is either a **clean** phase (a brand dispatch payload envelope with
+`resolved_rooms` / `queue_room_ids` / `payload`, byte-identical to the atomic
+`payload_state`) or a **break** phase — a dock-and-hold with no rooms, added when
+a run profile's `steps` (§6b) carry a stop. Break phases are built by
+`run_plan._build_steps_phases`; leading/trailing breaks are dropped and
+consecutive same-type breaks collapse, so phase 0 is always a real clean:
+
+```
+# charge_wait break: dock, poll battery until target, then advance
+{ "phase_type": "charge_wait", "target_battery_percent": int,
+  "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0 }
+
+# wait break: dock, hold for wait_minutes, then advance
+{ "phase_type": "wait", "wait_minutes": int,
+  "resolved_rooms": [], "queue_room_ids": [], "payload": {}, "room_count": 0 }
+```
+
+Break phases are driven by `jobs/phase_runner.py` (`_run_charge_wait_phase` /
+`_run_wait_phase`) instead of the dispatch/verify watchdog; both advance via
+`maybe_advance_phase` once the target battery / wait time is reached. A
+`charge_wait` phase may accumulate transient runtime keys (`charge_from_battery`,
+`charge_started_at`; `wait_started_at` for `wait`) — internal, not part of the
+persisted contract. A profile run WITH stops also forces `strict_order=True`
+(`_build_effective_start_plan`) so path-optimizing brands run each group in the
+exact order shown; no-op for order-honoring brands (Eufy).
 
 Two further keys are written to the active job to drive the strict-order
 watchdog. They are **internal/transient** runtime control flags — not part of the
@@ -1020,10 +1047,27 @@ stall / lifecycle fields omitted for brevity):
   "stall_detected":        bool          # hard anomaly (>= stall_ratio x threshold)
   "stall_ratio":           float | None
   "progress_percent":      int
+  "charge_phase_active":   bool          # current phase is a charge_wait break (§5, §6b)
+  "charge_target_percent": int | None    # the charge_wait target
+  "charge_eta_minutes":    float | None  # learned ETA to target; None on cold-start
+  "charge_eta_source":     str | None    # "already_charged" | "baseline" | "zone_rate" | None
+  "wait_phase_active":     bool          # current phase is a wait break
+  "wait_minutes":          int | None    # the wait break's hold duration
   "timeline":              list[TimelineRoom]   # alias: "room_timeline"
   ...
 }
 ```
+
+**Charge / wait break fields** are set only while the active job's current phase
+is a break (§5) — `charge_phase_active` / `charge_target_percent` /
+`charge_eta_minutes` / `charge_eta_source` for a `charge_wait`, and
+`wait_phase_active` / `wait_minutes` for a `wait`. The ETA comes from
+`battery/manager.py` `compute_time_to_target_pct` (learned charge rate — source
+`"baseline"` or `"zone_rate"`, or `"already_charged"` (`minutes=0`) when the battery
+is already at/above the target on entry; a cold-start install returns `minutes=None` /
+`source=None` and the card falls back to a live wall-clock, never a fabricated
+number). They let the card render an intentional "Charging to X%" / "Waiting"
+state instead of a hung job.
 
 **`running_long`** is the soft anomaly band: the current room has run
 `running_long_ratio` (Eufy default 1.5) up to `stall_ratio` (2.0) × its timing
@@ -1183,6 +1227,7 @@ Saved multi-room job configurations. Stored at
   "id":              str    # same as the dict key
   "name":            str    # user-facing label
   "rooms":           list[RunProfileRoomSnapshot]
+  "steps":           list[RunProfileStep]   # optional ordered sequence; see below
   "expose_as_button": bool  # True → creates a HA button entity
   "created_at":      str    # ISO timestamp
   "updated_at":      str    # ISO timestamp
@@ -1205,6 +1250,50 @@ Saved multi-room job configurations. Stored at
   "order":          int
 }
 ```
+
+### `RunProfileStep` (inside `steps`)
+
+`steps` is an **optional** ordered sequence written by the `set_run_profile_steps`
+service (`services/run_profiles.py` → `ProfileManager.set_run_profile_steps`). It
+turns a flat run into room GROUPS broken up by dock-and-hold STOPS. A profile
+saved before this feature carries only `rooms`; `run_profile_steps` back-fills a
+single `{"type": "room_group", "rooms": profile["rooms"]}` step at read time, so
+legacy profiles are byte-identical. There are three step types
+(`normalize_run_profile_steps` validates/coerces each; invalid or empty entries
+are dropped, and at least one `room_group` is required):
+
+```
+# room_group — one contiguous batch of rooms to clean, in order
+{ "type": "room_group", "rooms": list[RunProfileRoomSnapshot] }
+
+# charge_wait — dock and poll battery until the target, then continue
+{ "type": "charge_wait", "target_battery_percent": int }   # clamped 1..100
+
+# wait — dock and hold for a fixed time, then continue (e.g. a mop-dry pause)
+{ "type": "wait", "wait_minutes": int }                    # clamped 1..1440
+```
+
+The SAME room may appear in two `room_group` steps with different per-group
+settings (e.g. vacuum one group, mop the next); the group's fields overlay the
+global room view at dispatch. Materialization into the active job's `phases` (§5)
+happens at start via `run_plan._build_steps_phases`.
+
+### Derived: enriched run-profile view
+
+The served/enriched profile (`_enrich_saved_run_profile`, returned by the
+`get_saved_run_profiles` service and each `set_*`/`save_*` response) adds
+**derived** members to the stored shape — never persisted:
+
+```
+  "steps":            list[RunProfileStep]   # normalized (back-filled for legacy)
+  "has_charge_steps": bool                   # True when any step is a charge_wait
+  "room_count":       int
+  "room_ids":         list[int]
+  "room_names":       list[str]
+  "room_names_label": str
+```
+
+`has_charge_steps` is the backend flag the card reads to drive the stepped-run UI.
 
 ---
 
