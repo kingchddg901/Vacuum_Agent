@@ -314,12 +314,35 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 8%, transparent);
   }
 
+  .evcc-stepped-run-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+  }
+
   .evcc-stepped-run-preview-title {
     font-size: 0.78rem;
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.06em;
     color: var(--evcc-text-muted);
+  }
+
+  .evcc-stepped-run-preview-caret {
+    font-size: 0.7rem;
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-stepped-run-preview--collapsed {
+    gap: 0;
   }
 
   .evcc-stepped-run-preview-note {

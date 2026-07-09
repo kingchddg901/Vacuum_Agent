@@ -188,6 +188,16 @@ export function applyRoomsBindings(proto) {
     }
   );
 
+  // Collapse/expand the pre-run "This run" stepped preview.
+  this.card._on(
+    this.card.$("[data-action='toggle-stepped-preview']"),
+    "click",
+    () => {
+      this.card._state.toggleSteppedPreviewCollapsed?.();
+      this.card._scheduleRender();
+    }
+  );
+
   this.card._on(
     this.card.$("[data-action='pause-run']"),
     "click",

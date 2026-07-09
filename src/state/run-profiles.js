@@ -96,6 +96,7 @@ export function applyRunProfilesState(proto) {
         profiles: [],
         selectedProfileId: null,
         appliedProfileId: null,
+        steppedPreviewCollapsed: false,
         editorOpen: false,
         editorMode: "new",
         editorProfileId: null,
@@ -191,6 +192,15 @@ export function applyRunProfilesState(proto) {
     if (!id) return null;
     const profile = state.profiles.find((p) => p.id === id);
     return profile?.has_charge_steps ? id : null;
+  };
+
+  proto.isSteppedPreviewCollapsed = function () {
+    return Boolean(this._ensureRunProfilesState().steppedPreviewCollapsed);
+  };
+
+  proto.toggleSteppedPreviewCollapsed = function () {
+    const state = this._ensureRunProfilesState();
+    state.steppedPreviewCollapsed = !state.steppedPreviewCollapsed;
   };
 
   proto.openNewRunProfileEditor = function () {

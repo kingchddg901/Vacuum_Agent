@@ -44,11 +44,22 @@ export function applyRoomsRenderers(proto) {
     if (!profileId) return "";
     const profile = (state.savedRunProfiles?.() ?? []).find((p) => p.id === profileId);
     if (!profile || typeof this._renderRunProfileStepsSummary !== "function") return "";
+    const collapsed = Boolean(state.isSteppedPreviewCollapsed?.());
     return `
-      <div class="evcc-stepped-run-preview">
-        <div class="evcc-stepped-run-preview-title">${this.t("rooms.run_plan_title")}</div>
-        ${this._renderRunProfileStepsSummary(state, profile)}
-        <div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>
+      <div class="evcc-stepped-run-preview ${collapsed ? "evcc-stepped-run-preview--collapsed" : ""}">
+        <button
+          type="button"
+          class="evcc-stepped-run-preview-header"
+          data-action="toggle-stepped-preview"
+          aria-expanded="${collapsed ? "false" : "true"}"
+        >
+          <span class="evcc-stepped-run-preview-title">${this.t("rooms.run_plan_title")}</span>
+          <span class="evcc-stepped-run-preview-caret" aria-hidden="true">${collapsed ? "▸" : "▾"}</span>
+        </button>
+        ${collapsed ? "" : `
+          ${this._renderRunProfileStepsSummary(state, profile)}
+          <div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>
+        `}
       </div>
     `;
   };
