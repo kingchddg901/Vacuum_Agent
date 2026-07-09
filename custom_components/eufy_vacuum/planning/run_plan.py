@@ -871,6 +871,7 @@ class RunPlanManager:
         vacuum_entity_id: str,
         map_id: str,
         strict_order: bool = False,
+        consume_pending_steps: bool = False,
     ) -> dict[str, Any]:
         """Return the effective queue, payload, and preflight plan for a job start.
 
@@ -1279,12 +1280,18 @@ class RunPlanManager:
             managed_rooms=effective_rooms,
         )
         # A run profile with a charge step stashes its ordered steps (start_run_profile);
-        # consume it here and materialize a multi-phase [clean, charge_wait, clean] job.
-        # Absent (normal room dispatch) -> the single atomic phase as before.
-        _run_steps = (
+        # materialize a multi-phase [clean, charge_wait, clean] job. Absent (normal room
+        # dispatch) -> the single atomic phase as before. We only POP (consume) the stash
+        # on the REAL dispatch; preflight callers (get_start_status, path-block report) PEEK,
+        # so a preflight can't eat the stash before the dispatch builds its plan.
+        _pending_map = (
             self._manager.data.get("_pending_run_steps", {})
             .get(vacuum_entity_id, {})
-            .pop(str(map_id), None)
+        )
+        _run_steps = (
+            _pending_map.pop(str(map_id), None)
+            if consume_pending_steps
+            else _pending_map.get(str(map_id))
         )
         if _run_steps and any(
             isinstance(s, dict) and s.get("type") == "charge_wait" for s in _run_steps

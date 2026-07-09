@@ -2118,10 +2118,13 @@ class EufyVacuumManager:
             "last_job_mode": entry.get("last_job_mode"),
         }
 
-    def _build_effective_start_plan(self, *, vacuum_entity_id, map_id, strict_order=False):
+    def _build_effective_start_plan(
+        self, *, vacuum_entity_id, map_id, strict_order=False, consume_pending_steps=False
+    ):
         """Delegate to RunPlanManager."""
         return self.run_plan._build_effective_start_plan(
-            vacuum_entity_id=vacuum_entity_id, map_id=map_id, strict_order=strict_order
+            vacuum_entity_id=vacuum_entity_id, map_id=map_id, strict_order=strict_order,
+            consume_pending_steps=consume_pending_steps,
         )
 
     # ------------------------------------------------------------------
@@ -4596,6 +4599,7 @@ class EufyVacuumManager:
             vacuum_entity_id=vacuum_entity_id,
             map_id=map_id,
             strict_order=strict_order,
+            consume_pending_steps=True,   # only the REAL dispatch pops the stashed steps
         )
         queue_state = start_plan.get("queue_state", {})
         payload_state = start_plan.get("payload_state", {})

@@ -27,6 +27,9 @@ Coverage targets (high-priority: adapter-degraded gates, state-machine branches)
         2+ rooms → advisory; None when order is honored or one room runs.
 [SP-14] strict_order: builds one phase per room for a path-optimizing flat-id
         brand; gated off (one batch phase) when the brand honors order.
+[SP-15] stashed run steps survive a PREFLIGHT (peek) and are consumed only by the real
+        dispatch (consume_pending_steps=True) — the shipped bug where get_start_status'
+        preflight popped the stash, so a stepped profile ran an atomic (flat) job.
 """
 
 from __future__ import annotations
@@ -458,3 +461,30 @@ def test_strict_order_phases(rp):
         assert phases[0]["payload"]["segments"] == [1, 2]
     finally:
         unregister_adapter_config(_VAC)
+
+
+def test_pending_steps_survive_preflight(rp):
+    """[SP-15] a preflight (peek) must NOT eat the stashed run steps — only the real dispatch
+    (consume_pending_steps=True) pops them. The shipped bug: start_selected_rooms calls
+    get_start_status first, whose _build_effective_start_plan popped the stash, so the real
+    dispatch fell back to an ATOMIC job — a stepped profile ran one flat pass, no charge."""
+    rp_, mgr = rp
+    _seed(mgr, "6", [{"enabled": True}])
+    mgr.build_queue(vacuum_entity_id=_VAC, map_id="6")
+    steps = [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 95},
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+    ]
+    mgr.data.setdefault("_pending_run_steps", {}).setdefault(_VAC, {})["6"] = steps
+
+    # Preflight PEEK (default consume_pending_steps=False): stash intact, plan still stepped.
+    plan1 = rp_._build_effective_start_plan(vacuum_entity_id=_VAC, map_id="6")
+    assert mgr.data["_pending_run_steps"][_VAC].get("6") == steps            # NOT eaten
+    assert any(p.get("phase_type") == "charge_wait" for p in plan1["phases"])
+
+    # Real dispatch CONSUME: stash gone, plan still stepped.
+    plan2 = rp_._build_effective_start_plan(
+        vacuum_entity_id=_VAC, map_id="6", consume_pending_steps=True)
+    assert mgr.data["_pending_run_steps"][_VAC].get("6") is None            # consumed
+    assert any(p.get("phase_type") == "charge_wait" for p in plan2["phases"])
