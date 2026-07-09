@@ -89,6 +89,27 @@ export function stepsHaveChargeStep(steps) {
   return Array.isArray(steps) && steps.some(isChargeStep);
 }
 
+// Snapshot the current room setup (card rooms from getRoomsForActiveMap, camelCase) into a
+// room_group step with backend-shaped (snake_case) per-room settings. Only ENABLED rooms are
+// included. Null/unset fields are OMITTED so they fall through to the global room settings at
+// dispatch (the per-group overlay only overrides what is actually set) — never clobber a real
+// global value with null.
+export function roomsToGroupStep(rooms) {
+  const groupRooms = (Array.isArray(rooms) ? rooms : [])
+    .filter((r) => r && r.enabled && r.id != null)
+    .map((r) => {
+      const room = { room_id: Number(r.id) };
+      if (r.cleanMode != null) room.clean_mode = r.cleanMode;
+      if (r.fanSpeed != null) room.fan_speed = r.fanSpeed;
+      if (r.waterLevel != null) room.water_level = r.waterLevel;
+      if (r.cleanIntensity != null) room.clean_intensity = r.cleanIntensity;
+      if (r.cleanPasses != null) room.clean_passes = Number(r.cleanPasses);
+      if (r.edgeMopping != null) room.edge_mopping = Boolean(r.edgeMopping);
+      return room;
+    });
+  return { type: "room_group", rooms: groupRooms };
+}
+
 // Drop invalid/empty steps + strip client-only fields, mirroring the backend normalize, so the
 // service receives already-clean data. A room_group needs a non-empty rooms list; a charge_wait
 // needs a clamped integer target. Returns a fresh array.

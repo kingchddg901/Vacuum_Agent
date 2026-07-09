@@ -22,6 +22,7 @@ import {
   stepsHaveRoomGroup,
   stepsHaveChargeStep,
   sanitizeStepsForSave,
+  roomsToGroupStep,
 } from "./steps-order.js";
 
 const rg = (...ids) => ({ type: "room_group", rooms: ids.map((room_id) => ({ room_id })) });
@@ -127,4 +128,28 @@ test("[STP-san-2] clamps charge targets and strips client-only fields", () => {
   const clean = sanitizeStepsForSave(dirty);
   assert.deepEqual(clean[0], { type: "room_group", rooms: [{ room_id: 1 }] });
   assert.deepEqual(clean[1], { type: "charge_wait", target_battery_percent: 100 });
+});
+
+/* ============================ roomsToGroupStep ============================ */
+
+test("[STP-grp-1] snapshots enabled rooms into a snake_case room_group", () => {
+  const rooms = [
+    { id: 1, enabled: true, cleanMode: "vacuum", fanSpeed: "max", cleanPasses: 2, edgeMopping: false },
+    { id: 2, enabled: false, cleanMode: "mop" }, // disabled -> excluded
+    { id: 3, enabled: true, cleanMode: "mop", waterLevel: "high" },
+  ];
+  const step = roomsToGroupStep(rooms);
+  assert.equal(step.type, "room_group");
+  assert.deepEqual(step.rooms.map((r) => r.room_id), [1, 3]);
+  assert.deepEqual(step.rooms[0], {
+    room_id: 1, clean_mode: "vacuum", fan_speed: "max", clean_passes: 2, edge_mopping: false,
+  });
+  assert.deepEqual(step.rooms[1], { room_id: 3, clean_mode: "mop", water_level: "high" });
+});
+
+test("[STP-grp-2] omits null/unset fields (they fall through to global at dispatch)", () => {
+  const step = roomsToGroupStep([{ id: 5, enabled: true, cleanMode: "vacuum", fanSpeed: null }]);
+  assert.deepEqual(step.rooms[0], { room_id: 5, clean_mode: "vacuum" }); // no fan_speed key
+  assert.deepEqual(roomsToGroupStep([]).rooms, []);
+  assert.deepEqual(roomsToGroupStep(null), { type: "room_group", rooms: [] });
 });

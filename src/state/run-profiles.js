@@ -18,12 +18,28 @@
  * ============================================================
  */
 
+import {
+  insertChargeStep,
+  removeStep,
+  setChargeTarget,
+  moveStep,
+  roomsToGroupStep,
+  DEFAULT_CHARGE_TARGET,
+} from "./steps-order.js";
+
 export function applyRunProfilesState(proto) {
   proto._emptyRunProfileDraft = function () {
     return {
       name: "",
       expose_as_button: false,
+      steps: [],
+      stepsExpanded: false,
     };
+  };
+
+  // Deep-ish clone of a steps list so editor mutations never touch the stored profile.
+  proto._cloneRunProfileSteps = function (steps) {
+    return JSON.parse(JSON.stringify(Array.isArray(steps) ? steps : []));
   };
 
   proto._normalizeRunProfilesPayload = function (payload) {
@@ -69,6 +85,8 @@ export function applyRunProfilesState(proto) {
       created_at: String(profile?.created_at ?? ""),
       updated_at: String(profile?.updated_at ?? ""),
       rooms: Array.isArray(profile?.rooms) ? profile.rooms : [],
+      steps: Array.isArray(profile?.steps) ? profile.steps : [],
+      has_charge_steps: Boolean(profile?.has_charge_steps),
     };
   };
 
@@ -167,6 +185,8 @@ export function applyRunProfilesState(proto) {
     state.draft = {
       name: profile.name,
       expose_as_button: Boolean(profile.expose_as_button),
+      steps: this._cloneRunProfileSteps(profile.steps),
+      stepsExpanded: Boolean(profile.has_charge_steps),
     };
   };
 
@@ -205,5 +225,56 @@ export function applyRunProfilesState(proto) {
       ...state.draft,
       [field]: value,
     };
+  };
+
+  /* ---- steps editor draft (charge steps + room groups) ---- */
+
+  proto.runProfileDraftSteps = function () {
+    const draft = this._ensureRunProfilesState().draft;
+    return Array.isArray(draft.steps) ? draft.steps : [];
+  };
+
+  proto.isDraftStepsExpanded = function () {
+    return Boolean(this._ensureRunProfilesState().draft.stepsExpanded);
+  };
+
+  proto._setDraftSteps = function (steps) {
+    const state = this._ensureRunProfilesState();
+    state.draft = { ...state.draft, steps: Array.isArray(steps) ? steps : [] };
+  };
+
+  proto.expandDraftSteps = function () {
+    const state = this._ensureRunProfilesState();
+    state.draft = { ...state.draft, stepsExpanded: true };
+  };
+
+  proto.addDraftChargeStep = function (target = DEFAULT_CHARGE_TARGET) {
+    const steps = this.runProfileDraftSteps();
+    this._setDraftSteps(insertChargeStep(steps, steps.length, target));
+    this.expandDraftSteps();
+  };
+
+  proto.removeDraftStep = function (index) {
+    this._setDraftSteps(removeStep(this.runProfileDraftSteps(), index));
+  };
+
+  proto.setDraftChargeTarget = function (index, value) {
+    this._setDraftSteps(setChargeTarget(this.runProfileDraftSteps(), index, value));
+  };
+
+  proto.moveDraftStep = function (index, direction) {
+    const from = Number(index);
+    this._setDraftSteps(moveStep(this.runProfileDraftSteps(), from, from + Number(direction)));
+  };
+
+  // Snapshot the current Rooms-view enabled rooms + settings as a new room_group at the end.
+  // Returns false (no-op) when nothing is enabled.
+  proto.captureCurrentRoomsAsDraftGroup = function () {
+    const rooms = this.getRoomsForActiveMap?.() ?? [];
+    const group = roomsToGroupStep(rooms);
+    if (!group.rooms.length) return false;
+    this._setDraftSteps([...this.runProfileDraftSteps(), group]);
+    this.expandDraftSteps();
+    return true;
   };
 }
