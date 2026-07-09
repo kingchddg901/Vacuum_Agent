@@ -258,3 +258,64 @@ def test_cancel_detection_states(s6_config):
     # active is a list covering both whole-clean and per-room (segment) modes.
     assert "cleaning" in cds["active"]
     assert "segment_cleaning" in cds["active"]
+
+
+# ===========================================================================
+# Settable-mop models (S7/S8): "not all Roborocks are the S6". has_mop (tank
+# present) and mop_settable (mop mode/water is programmable) are DISTINCT — the S6
+# has the former, not the latter, and baking that into the brand would deny per-group
+# mop to capable models. These are UNVERIFIED on-device (no S7/S8 on hand); the
+# dispatch degrades safely (a rejected select_option is caught + logged).
+# ===========================================================================
+
+
+def test_profile_mop_settable_distinct_from_has_mop():
+    s6 = model_catalog.profile_for_model("roborock.vacuum.s6")
+    s7 = model_catalog.profile_for_model("roborock.vacuum.a15")
+    # S6: mops via a tank but the mop is UNSETTABLE.
+    assert s6["has_mop"] is True and s6["mop_settable"] is False
+    # S7: mop is settable.
+    assert s7["family"] == "s7" and s7["has_mop"] is True and s7["mop_settable"] is True
+    # Unknown Roborock -> best-effort settable (assume capable, degrade gracefully).
+    assert model_catalog.DEFAULT_PROFILE["mop_settable"] is True
+
+
+@pytest.fixture
+def s7_config(monkeypatch, hass):
+    clear_registry()
+    _patch_device(monkeypatch, manufacturer="Roborock", model="roborock.vacuum.a15")
+    hass.states.async_set(
+        _RVAC, "cleaning", {"supported_features": 30524, "fan_speed": "max"}
+    )
+    rb.register_roborock_adapter_for_vacuum(hass, _RVAC)
+    return get_adapter_config(_RVAC)
+
+
+def test_s7_exposes_water_control(s7_config):
+    assert s7_config["display_name"] == "Roborock S7"
+    # Settable mop -> water control on + the water picker appears (canonical values).
+    assert s7_config["capabilities"]["supports_water_control"] is True
+    vocab = s7_config["vocabulary"]
+    assert [o["value"] for o in vocab["water_level_options"]] == ["off", "low", "medium", "high"]
+    # clean_mode is the logical mop switch (vacuum/mop/vacuum_mop) — it gates water +
+    # drives the mop pre-call; it never reaches the app_segment_clean wire.
+    assert [o["value"] for o in vocab["clean_mode_options"]] == ["vacuum", "mop", "vacuum_mop"]
+    # No clean_intensity axis on Roborock.
+    assert "clean_intensity_options" not in vocab
+
+
+def test_s7_mop_global_pre_call(s7_config):
+    # Mop intensity is a device-GLOBAL select, set pre-dispatch (per phase). It ranks
+    # each group's water_level max-wins and pushes it to the mop_intensity select via
+    # select.select_option — canonical off/low/medium/high map 1:1 (no value_map).
+    pre = s7_config["dispatch"]["global_pre_calls"]
+    assert len(pre) == 1
+    entry = pre[0]
+    assert entry["field"] == "water_level"
+    assert entry["rank"] == ["off", "low", "medium", "high"]
+    assert entry["service"]["domain"] == "select"
+    assert entry["service"]["service"] == "select_option"
+    assert entry["service"]["value_key"] == "option"
+    assert entry["service"]["target_entity_id"] == "select.ivy_mop_intensity"
+    # No value_map: canonical values already match the select's wire options.
+    assert "value_map" not in entry

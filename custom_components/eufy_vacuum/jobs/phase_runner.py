@@ -733,7 +733,17 @@ class PhaseRunner:
         re-segment between rooms can't clean the wrong room (no-op without
         dispatch.resolve_live_ids_by_slug). Per-room passes already ride the phase
         payload.
+
+        GLOBAL pre-calls (e.g. Roborock mop intensity, a device-global select) are
+        re-run PER PHASE from THIS phase's own rooms, so a vacuum group then a mop
+        group each apply their own water setting — the phase-0 pre-call fires in
+        start_selected_rooms, phases 1+ fire here. No-op when the adapter declares no
+        dispatch.global_pre_calls (Eufy, S6).
         """
+        await self._manager._run_global_pre_calls(
+            vacuum_entity_id=vacuum_entity_id,
+            resolved_rooms=list(job.get("resolved_rooms", [])),
+        )
         await self._manager.active_job.apply_per_room_live_settings_awaited(
             vacuum_entity_id,
             list(job.get("resolved_rooms", [])),

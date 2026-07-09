@@ -37,6 +37,7 @@ from .entities import (
     SUFFIX_CHARGING,
     SUFFIX_JOB_ACTIVE,
     SUFFIX_WATER_BOX,
+    SUFFIX_MOP_INTENSITY,
     DOMAIN_BINARY_SENSOR,
     DOMAIN_SELECT,
 )
@@ -47,6 +48,8 @@ from .vocabulary import (
     NOT_ERROR_SENTINELS,
     CANCEL_DETECTION_STATES,
     FAN_SPEED_OPTIONS,
+    WATER_LEVEL_OPTIONS,
+    CLEAN_MODE_OPTIONS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -98,6 +101,37 @@ def register_roborock_adapter_for_vacuum(
     device = _device_for_vacuum(hass, vid)
     detected_model = device.model if device is not None else None
     profile = profile_for_model(detected_model)
+
+    # A device can carry a mop tank yet reject every mop command (the S6). mop_settable
+    # gates the water picker (vocabulary) + supports_water_control + the mop
+    # global_pre_calls dispatch — all no-ops when False, so the S6 stays byte-identical.
+    mop_settable = bool(profile.get("mop_settable", False))
+
+    # Mop dispatch (settable models only): water is a device-GLOBAL select, not a
+    # per-room app_segment_clean field, so it rides dispatch.global_pre_calls — set the
+    # mop intensity select BEFORE each group's segment clean. The engine re-runs pre-calls
+    # PER PHASE (phase_runner._dispatch_active_phase) from that phase's own rooms, so a
+    # vacuum group (water off) then a mop group (water high) each apply their own level.
+    # rank ascending -> max-wins across the group; canonical off/low/medium/high map 1:1
+    # onto select.<obj>_mop_intensity's options (no value_map). UNVERIFIED on-device: a
+    # rejected select_option is caught + logged and never aborts the run
+    # (_run_global_pre_calls), so this degrades safely on a model that turns out unsettable.
+    # mop_mode (scrub depth) is a second GLOBAL select with no canonical per-group slot yet
+    # -> left out until there's a card control to drive it per group.
+    mop_pre_calls: list[dict] = []
+    if mop_settable:
+        mop_pre_calls = [
+            {
+                "field": "water_level",
+                "rank": ["off", "low", "medium", "high"],
+                "service": {
+                    "domain": DOMAIN_SELECT,
+                    "service": "select_option",
+                    "value_key": "option",
+                    "target_entity_id": build_entity_id(vid, SUFFIX_MOP_INTENSITY, DOMAIN_SELECT),
+                },
+            },
+        ]
 
     # --- capability gating ----------------------------------------------------
     # Hints come from the model profile; detect_capabilities OR-s them with live
@@ -171,18 +205,24 @@ def register_roborock_adapter_for_vacuum(
             # mode-specific. Without this, _detect_cancel_likely_run never fires
             # for Roborock and a cancelled run pollutes learning estimates.
             "cancel_detection_states": CANCEL_DETECTION_STATES,
-            # Card-facing dropdowns — ONLY fan_speed for the S6. water_level_options,
-            # clean_mode_options, clean_intensity_options are OMITTED so the card
-            # hides those pickers:
-            #  - water_level (mop intensity): EMPIRICALLY UNSETTABLE on the S6 —
-            #    SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE return
-            #    RoborockUnsupportedFeature ("method not recognized by the device"),
-            #    and a mid-run set does nothing. Mop is OBSERVE-ONLY (tank attached
-            #    => mopping, via entities.mop_active); intensity/mode are
-            #    app-controlled. So we surface mop STATE, not a control we can't honor.
-            #  - clean_mode: the S6 has no per-room mode (vacuum vs mop = tank presence).
-            #  - clean_intensity: no intensity axis on Roborock.
+            # Card-facing dropdowns. fan_speed is always exposed; clean_mode +
+            # water_level ride ONLY on mop_settable models (below). clean_intensity
+            # stays OMITTED for ALL Roborock (no intensity axis).
+            # On the S6 (mop_settable False) the mop is EMPIRICALLY UNSETTABLE
+            # (SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE -> RoborockUnsupportedFeature),
+            # so its mop stays OBSERVE-ONLY (entities.mop_active) and both pickers hide.
+            # A settable-mop model (S7/S8) exposes clean_mode (vacuum vs mop — the logical
+            # switch that gates water + drives the mop pre-call; it never hits the wire)
+            # and water_level (mop intensity), honored via the mop global_pre_calls below.
             "fan_speed_options": FAN_SPEED_OPTIONS,
+            **(
+                {
+                    "clean_mode_options": CLEAN_MODE_OPTIONS,      # vacuum / mop / vacuum_mop
+                    "water_level_options": WATER_LEVEL_OPTIONS,    # off/low/medium/high, canonical 1:1
+                }
+                if mop_settable
+                else {}
+            ),
         },
 
         "completion": {
@@ -289,6 +329,10 @@ def register_roborock_adapter_for_vacuum(
             # lag). passes stays GLOBAL (the app_segment_clean repeat — NOT
             # mid-run-settable). NO mop: SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE are
             # RoborockUnsupportedFeature on the S6 (observe-only, app-controlled).
+            # Mop intensity (settable models) — a device-GLOBAL select, re-applied per
+            # phase from each group's water_level (see mop_pre_calls above). Omitted
+            # entirely on the S6 (mop_pre_calls empty) so its dispatch is byte-identical.
+            **({"global_pre_calls": mop_pre_calls} if mop_pre_calls else {}),
             "per_room_live_settings": [
                 {
                     "field": "fan_speed",
@@ -462,12 +506,13 @@ def register_roborock_adapter_for_vacuum(
         },
 
         "capabilities": {
-            # Mops (tank-based) but the mop is NOT programmatically controllable:
-            # SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE are RoborockUnsupportedFeature
-            # on the S6, so water control is False (no settable intensity/mode — the
-            # editor hides the water-level picker; mop state is observed via the tank).
+            # Mops (tank-based). Whether the mop is PROGRAMMATICALLY controllable is
+            # per-model: the S6 rejects SET_WATER_BOX_CUSTOM_MODE / SET_MOP_MODE
+            # (RoborockUnsupportedFeature) so mop_settable is False -> water control
+            # off, picker hidden, mop observed via the tank. A settable-mop model
+            # (S7/S8) sets water control True -> the picker + the mop pre-call engage.
             "supports_mop_features": caps.get("supports_mop_features", profile["has_mop"]),
-            "supports_water_control": False,
+            "supports_water_control": mop_settable,
             # Per-room fan/water do not ride the app_segment_clean wire (global only).
             "supports_path_control": False,
             "supports_edge_mopping": False,
@@ -524,9 +569,9 @@ def register_roborock_adapter_for_vacuum(
         # reconciliation. Wave 2b: dispatch.resolve_live_ids_by_slug (live name->id
         # at send) + completion.require_job_active_clear (finalize on the cleaning
         # binary, not current_room). Per-room LIVE fan rides
-        # dispatch.per_room_live_settings (set_fan_speed) — there is NO
-        # dispatch.global_pre_calls here (passes are global; mop is unsettable on the
-        # S6). Wave 3: live_transition.native_transition_source (native current_room
+        # dispatch.per_room_live_settings (set_fan_speed); dispatch.global_pre_calls
+        # carries per-group mop intensity on settable-mop models (empty on the S6 —
+        # passes are global, mop unsettable). Wave 3: live_transition.native_transition_source (native current_room
         # live rollover, filtered to job targets).
         # OMITTED (no dock / framework defaults suffice):
         #   dock_events, post_job_wash_amendment, water_model_configs, upkeep_catalog,

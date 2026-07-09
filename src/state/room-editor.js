@@ -417,14 +417,25 @@ export function applyRoomEditorState(proto) {
   proto.showWaterLevel = function () {
     if (this.isEditorRoomCarpet()) return false;
     if (this.waterLevelOptions().length === 0) return false;
-    // Tank-driven brands (Roborock: no per-room clean_mode) report mop_active
-    // from the water-box sensor — show water/mop intensity only when the tank is
-    // attached. Brands with a per-room clean_mode (Eufy) show it when mopping.
+    // OBSERVE-ONLY tank brands (Roborock S6: a mop tank but no settable mode) report
+    // mop_active from the water-box sensor and have no clean_mode — gate water on the
+    // physical tank. A SETTABLE-mop brand (Roborock S7+, supports_water_control) has a
+    // real per-room clean_mode, so it behaves like Eufy: show water when mopping.
     const mopActive = this.mopActive();
-    if (mopActive !== null) return mopActive;
+    if (mopActive !== null && !this.supportsSettableMop()) return mopActive;
     const fields = this.editorFields();
     if (!fields) return false;
     return this.isMopMode(fields.clean_mode);
+  };
+
+  /**
+   * Whether the brand's mop is programmatically SETTABLE (supports_water_control):
+   * a real per-room clean_mode + water intensity (Roborock S7+, Eufy), as opposed to
+   * an observe-only tank (Roborock S6). Drives whether the editor shows the clean_mode
+   * picker or a read-only tank indicator. Default false keeps observe-only brands as-is.
+   */
+  proto.supportsSettableMop = function () {
+    return Boolean(this.dashboardSnapshot?.()?.supports_water_control);
   };
 
   /**

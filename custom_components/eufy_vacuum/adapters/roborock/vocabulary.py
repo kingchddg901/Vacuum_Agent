@@ -66,6 +66,18 @@ WATER_LEVEL_OPTIONS: list[dict] = [
     {"value": "high", "label": "High"},
 ]
 
+# clean_mode is a FRAMEWORK-logical control on Roborock, not a device select: it
+# never reaches the app_segment_clean wire (room_fields omits it). It gates whether
+# water applies (the shared resolver forces water Off for "vacuum") and drives the
+# per-group mop pre-call — so "vacuum" a group (mop intensity -> off, a dry pass) vs
+# "mop"/"vacuum_mop" it (mop intensity -> the group's water_level). Only meaningful,
+# and only exposed, on a mop_settable model.
+CLEAN_MODE_OPTIONS: list[dict] = [
+    {"value": "vacuum", "label": "Vacuum"},
+    {"value": "mop", "label": "Mop"},
+    {"value": "vacuum_mop", "label": "Vacuum & Mop"},
+]
+
 # ``select.ivy_mop_mode`` (standard/deep) is a Roborock-only GLOBAL axis with no
 # canonical framework slot (locked decision: global-only, set pre-dispatch). Kept
 # here for the card / future dispatch pre-call wiring, not exposed as a canonical

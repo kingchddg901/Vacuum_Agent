@@ -326,3 +326,43 @@ test("[ORD-4] label defaults to value when the adapter option omits a label", ()
     { value: "Narrow", label: "Narrow" },   // null label -> String(value)
   ]);
 });
+
+/* =========================================================
+   SMOP — settable-mop gating: observe-only tank (Roborock S6) vs
+   settable mop (Roborock S7+, supports_water_control) vs Eufy.
+   ========================================================= */
+
+function mopCard(snapshot, over = {}) {
+  return makeCard({
+    dashboardSnapshot: () => snapshot,
+    isEditorRoomCarpet: () => false,
+    waterLevelOptions: () => [{ value: "off" }, { value: "high" }],
+    editorFields: () => ({ clean_mode: "vacuum" }),
+    ...over,
+  });
+}
+
+test("[SMOP-1] supportsSettableMop mirrors supports_water_control (default false)", () => {
+  assert.equal(mopCard({ supports_water_control: true }).supportsSettableMop(), true);
+  assert.equal(mopCard({ supports_water_control: false }).supportsSettableMop(), false);
+  assert.equal(mopCard({}).supportsSettableMop(), false);
+  assert.equal(makeCard({ dashboardSnapshot: () => null }).supportsSettableMop(), false);
+});
+
+test("[SMOP-2] observe-only mop (S6): water gated on the physical tank, not clean_mode", () => {
+  // Tank attached, not settable, clean_mode vacuum -> water shows (the tank drives it).
+  assert.equal(mopCard({ mop_active: true, supports_water_control: false }).showWaterLevel(), true);
+  // Tank detached -> water hidden even though options exist.
+  assert.equal(mopCard({ mop_active: false, supports_water_control: false }).showWaterLevel(), false);
+});
+
+test("[SMOP-3] settable mop (S7): water follows clean_mode, NOT the tank sensor", () => {
+  // Tank attached but clean_mode vacuum -> water hidden (a dry pass), unlike observe-only.
+  const vac = mopCard({ mop_active: true, supports_water_control: true },
+    { editorFields: () => ({ clean_mode: "vacuum" }) });
+  assert.equal(vac.showWaterLevel(), false);
+  // clean_mode vacuum_mop -> water shown regardless of the tank flag.
+  const mop = mopCard({ mop_active: true, supports_water_control: true },
+    { editorFields: () => ({ clean_mode: "vacuum_mop" }) });
+  assert.equal(mop.showWaterLevel(), true);
+});

@@ -1034,15 +1034,18 @@ ADAPTER_CONFIG_SCHEMA: dict[str, dict] = {
                 "type": "list[dict]",
                 "required": False,
                 "description": (
-                    "Global device settings pushed once before an atomic dispatch, "
-                    "for brands that expose a setting only globally. Each entry picks "
-                    "the run value from the selected rooms' canonical field by max-wins "
-                    "over 'rank' (strongest request applies — mirrors the batch-passes "
-                    "max rule), maps it via optional 'value_map', and calls 'service'. "
-                    "Rooms whose value isn't in 'rank' are ignored; if none rank, the "
-                    "setting is left untouched. Best-effort (a failed pre-call never "
-                    "aborts the run). Absent = no pre-call. Use per_room_live_settings "
-                    "instead when the device honors mid-run per-room changes."
+                    "Global device settings pushed before a dispatch, for brands that "
+                    "expose a setting only globally. Each entry picks the value from the "
+                    "dispatched rooms' canonical field by max-wins over 'rank' (strongest "
+                    "request applies — mirrors the batch-passes max rule), maps it via "
+                    "optional 'value_map', and calls 'service'. Rooms whose value isn't in "
+                    "'rank' are ignored; if none rank, the setting is left untouched. For a "
+                    "SEQUENCED job it re-runs PER PHASE from that phase's own rooms "
+                    "(phase_runner._dispatch_active_phase), so a vacuum group then a mop "
+                    "group each apply their own value; for an atomic job it fires once at "
+                    "start. Best-effort (a failed pre-call never aborts the run). Absent = "
+                    "no pre-call. Use per_room_live_settings instead when the device honors "
+                    "mid-run per-room changes."
                 ),
                 "entry_fields": {
                     "field": {

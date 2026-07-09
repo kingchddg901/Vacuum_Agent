@@ -31,7 +31,7 @@ of the HA **`roborock` core integration** (not robovac_mqtt), so:
 | Clean order | honored | **ignored** (path-optimized) → opt-in strict-order sequencing |
 | Current room | none (counters only) | **native** `_current_room` sensor → live rollover |
 | Map image | CV segmenter over a static image | **live `image` entity** from core → card backdrop |
-| Mop / passes | per-room settable | **mop unsettable; passes global** (firmware) |
+| Mop / passes | per-room settable | passes global; **mop settable PER-MODEL** (`mop_settable`: S6 no, S7/S8 yes → global mop-intensity select, §6b) |
 
 The brand is **auto-detected** per vacuum in `__init__.py` (manufacturer
 `Roborock` / model prefix `roborock.`); an explicit UI brand selector is a
@@ -324,9 +324,9 @@ brand forced into existence, gated by Roborock's flags so Eufy is untouched:
 
 The adapter declares these so the UI never offers a control the firmware ignores:
 
-- **Mop is unsettable** — observe-only via a water-box sensor;
+- **The S6 mop is unsettable** — observe-only via a water-box sensor;
   `SET_WATER_BOX_CUSTOM_MODE` / `SET_MOP_MODE` raise `RoborockUnsupportedFeature`
-  on the S6. The room editor hides mop controls for the S6.
+  on the S6. This is a PER-MODEL fact, not a brand one — see §6b.
 - **Passes are global** (`passes_is_global`) — one passes value for the run, not
   per room.
 - **No room profiles** (`supports_room_profiles: False`), **no Base Station / Map
@@ -334,8 +334,60 @@ The adapter declares these so the UI never offers a control the firmware ignores
 - **Carpet + tank caution** — starting with the tank attached over carpet warrants
   a warning (`mop_carpet_warning`).
 
-A future Roborock with a settable mop / per-room passes drops these flags and the
-controls reappear — no core change.
+## 6b. Settable mop is per-model (`mop_settable`)
+
+"The S6 can't set its mop" is not "no Roborock can." `model_catalog` carries two
+DISTINCT flags: `has_mop` (a mop tank is present — true for the S6) and
+`mop_settable` (mop mode/water is programmable). The S6 is `has_mop: True,
+mop_settable: False`; the S7/S8 (and the unknown-model default — "assume a modern
+Roborock can, degrade gracefully") are `mop_settable: True`. `mop_settable` gates,
+all no-ops when False so the **S6 stays byte-identical**:
+
+- `capabilities.supports_water_control` + the `clean_mode` / `water_level` card
+  pickers (the S6 hides them; a settable model shows them).
+- `dispatch.global_pre_calls`: mop intensity is a device-GLOBAL select
+  (`select.<obj>_mop_intensity`, options `off/low/medium/high`), not a per-room
+  `app_segment_clean` field, so it rides a pre-call — `select.select_option` pushed
+  before each group's segment clean, ranked max-wins from that group's `water_level`.
+
+`clean_mode` is framework-logical here (it never reaches the wire): "vacuum" forces
+water off (a dry pass → mop intensity `off`), "mop"/"vacuum_mop" keeps the group's
+water. Because the pre-call re-runs **per phase**
+(`phase_runner._dispatch_active_phase`, not just once at start), a stepped run can
+**vacuum one group then mop the next** — the intended pairing with the charge/wait
+steps (§6a): vacuum → dry-hold `wait` → mop.
+
+> **Unverified on-device.** No S7/S8 was on hand — the model codes, the select
+> options, and mid-run-set timing are best-effort from python-roborock. The dispatch
+> degrades safely: a rejected `select_option` is caught + logged and never aborts the
+> run (`_run_global_pre_calls`). First live deploy on a settable model confirms/tunes it.
+
+---
+
+## 6a. Native charge steps ride for free
+
+The in-queue **charge-to-X%** step (and its `wait` twin) is core, adapter-agnostic
+phase machinery — a `charge_wait` phase docks via plain `vacuum.return_to_base`,
+polls `entities.battery` until the target, then advances to the next group. It was
+written with Roborock in mind: `_run_charge_wait_phase` references *"the same guard
+that stops a Roborock's between-phase dock from finalizing,"* and `_run_wait_phase`
+names *"a mop-dry pause between a vacuum pass and a mop pass."*
+
+So on Roborock it is **near-free**: an S6 re-docks + charges after each single-group
+phase anyway, so "charge to X% before the next group" is just extending a dock dwell
+the device already takes. Nothing is brand-gated:
+
+- The steps editor (`renderRunProfilesPanel`) renders for any brand; the backend
+  `has_charge_steps` flag drives it, not a capability.
+- Each room group is its own dispatch, so a stepped run fires `app_segment_clean`
+  **once per group** with the charge break between — the vac→charge→vac resume goes
+  through `_dispatch_active_phase` → `_dispatch_clean_payload` like any other phase.
+
+Locked end-to-end through the real adapter in `tests/integration/test_roborock_e2e.py`
+(`test_roborock_stepped_*`): a Kitchen→charge_wait→Office profile builds a
+`[room, charge_wait, room]` job, dispatches Kitchen alone, then re-dispatches Office
+after the charge. Per-group **fan** already rides (`per_room_live_settings`); per-group
+**mop** rides on a `mop_settable` model (§6b).
 
 ---
 

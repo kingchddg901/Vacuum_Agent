@@ -344,13 +344,15 @@ export function applyRoomEditorRenderer(proto) {
   };
 
   /**
-   * Read-only mop-state indicator for tank-driven brands (Roborock: no per-room
-   * clean_mode — mopping is whether the water tank is attached). Renders nothing
-   * for brands that expose a per-room clean_mode (Eufy: snapshot.mop_active null).
+   * Read-only mop-state indicator for OBSERVE-ONLY tank brands (Roborock S6: no
+   * per-room clean_mode — mopping is whether the water tank is attached). Renders
+   * nothing for brands with a per-room clean_mode: Eufy (snapshot.mop_active null)
+   * AND settable-mop Roborock (S7+, supports_water_control), which show the editable
+   * clean_mode picker instead — so we don't stack a read-only indicator on top of it.
    */
   proto._renderMopStateIndicator = function (state) {
     const mopActive = state.mopActive();
-    if (mopActive === null) return "";
+    if (mopActive === null || state.supportsSettableMop()) return "";
     return `
       <div class="evcc-editor-field-group">
         <div class="evcc-field-label">${this.t("room_editor.cleaning_mode")}</div>
