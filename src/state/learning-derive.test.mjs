@@ -57,6 +57,15 @@ test("[CHG-3] liveChargeStatus null-safes missing numeric fields (incl. absent b
   });
 });
 
+test("[CHG-4] currentBattery prefers the snapshot's current_battery over a lagging entity read", () => {
+  const s = makeState();
+  s.batteryLevel = () => 0; // the entity read can come back 0 during the dock/charge transition
+  s.setDashboardSnapshot({ job_progress: {
+    charge_phase_active: true, charge_target_percent: 100, current_battery: 99,
+  } });
+  assert.equal(s.liveChargeStatus().currentBattery, 99); // snapshot wins -> delta = "1% to go"
+});
+
 /* ============================================================
    endLearningJob — [EXJ-*]
    ============================================================ */
