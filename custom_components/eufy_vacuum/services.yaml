@@ -1246,6 +1246,40 @@ save_run_profile:
       selector:
         boolean: {}
 
+set_run_profile_steps:
+  name: Set run-profile steps
+  description: >-
+    Replace a saved run profile's ordered steps. A step is a room group
+    ({type: room_group, rooms: [...]}) or a charge wait
+    ({type: charge_wait, target_battery_percent: 95}) — letting one run vacuum a
+    group, dock and charge to a target, then continue with the next group.
+  fields:
+    vacuum_entity_id:
+      name: Vacuum entity
+      required: true
+      selector:
+        entity:
+          domain: vacuum
+    map_id:
+      name: Map ID
+      description: Leave blank to use the current active map.
+      required: false
+      selector:
+        text: {}
+    profile_id:
+      name: Profile ID
+      required: true
+      selector:
+        text: {}
+    steps:
+      name: Steps
+      description: >-
+        Ordered list. Each is {type: room_group, rooms: [...]} or
+        {type: charge_wait, target_battery_percent: <1-100>}.
+      required: true
+      selector:
+        object: {}
+
 apply_run_profile:
   name: Apply run profile
   description: Apply a saved run profile back onto room selection, order, and per-room settings.

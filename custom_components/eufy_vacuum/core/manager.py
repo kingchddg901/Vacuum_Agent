@@ -1544,6 +1544,10 @@ class EufyVacuumManager:
         """Save current room selection as run profile — delegates to ProfileManager."""
         return self.profiles.save_run_profile(**kwargs)
 
+    def set_run_profile_steps(self, **kwargs) -> dict[str, Any]:
+        """Replace a saved profile's ordered steps — delegates to ProfileManager."""
+        return self.profiles.set_run_profile_steps(**kwargs)
+
     def overwrite_run_profile(self, **kwargs) -> dict[str, Any]:
         """Overwrite one saved run profile — delegates to ProfileManager."""
         return self.profiles.overwrite_run_profile(**kwargs)

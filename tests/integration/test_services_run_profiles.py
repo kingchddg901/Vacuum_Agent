@@ -38,6 +38,7 @@ _MAP = "1"
     ("rename_run_profile", "rename_run_profile", {"profile_id": "p", "name": "x"}),
     ("overwrite_run_profile", "overwrite_run_profile", {"profile_id": "p"}),
     ("delete_run_profile", "delete_run_profile", {"profile_id": "p"}),
+    ("set_run_profile_steps", "set_run_profile_steps", {"profile_id": "p", "steps": []}),
 ])
 async def test_run_profile_handler_wraps_manager_error(
     hass, manager_with_services, monkeypatch, service, method, data
@@ -85,6 +86,22 @@ async def _save_profile(hass, manager_with_services, name: str = "My Profile") -
     )
     assert result.get("saved") is True
     return result["profile_id"]
+
+
+async def test_set_run_profile_steps_service(hass, manager_with_services):
+    """[SRN-12] set_run_profile_steps stores a room->charge->room sequence via the service."""
+    profile_id = await _save_profile(hass, manager_with_services, "Charge Run")
+    result = await hass.services.async_call(
+        DOMAIN, "set_run_profile_steps",
+        {"vacuum_entity_id": _VAC, "map_id": _MAP, "profile_id": profile_id, "steps": [
+            {"type": "room_group", "rooms": [{"room_id": 1}]},
+            {"type": "charge_wait", "target_battery_percent": 95},
+            {"type": "room_group", "rooms": [{"room_id": 2}]},
+        ]},
+        blocking=True, return_response=True,
+    )
+    assert result["saved"] is True
+    assert result["profile"]["has_charge_steps"] is True
 
 
 # ---------------------------------------------------------------------------

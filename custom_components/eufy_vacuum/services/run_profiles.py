@@ -23,6 +23,7 @@ from ..const import (
     SERVICE_OVERWRITE_RUN_PROFILE,
     SERVICE_RENAME_RUN_PROFILE,
     SERVICE_SAVE_RUN_PROFILE,
+    SERVICE_SET_RUN_PROFILE_STEPS,
 )
 from ._common import VACUUM_MAP_SCHEMA, get_manager, resolved_call_data
 
@@ -32,6 +33,7 @@ _LOGGER = logging.getLogger(__name__)
 SERVICES = (
     SERVICE_GET_SAVED_RUN_PROFILES,
     SERVICE_SAVE_RUN_PROFILE,
+    SERVICE_SET_RUN_PROFILE_STEPS,
     SERVICE_APPLY_RUN_PROFILE,
     SERVICE_RENAME_RUN_PROFILE,
     SERVICE_OVERWRITE_RUN_PROFILE,
@@ -72,6 +74,15 @@ _RUN_PROFILE_RENAME_SCHEMA = vol.Schema(
         vol.Optional("map_id"): cv.string,
         vol.Required("profile_id"): cv.string,
         vol.Required("name"): cv.string,
+    }
+)
+
+_RUN_PROFILE_STEPS_SCHEMA = vol.Schema(
+    {
+        vol.Required("vacuum_entity_id"): cv.entity_id,
+        vol.Optional("map_id"): cv.string,
+        vol.Required("profile_id"): cv.string,
+        vol.Required("steps"): list,
     }
 )
 
@@ -170,6 +181,21 @@ async def _handle_delete_run_profile(hass: HomeAssistant, call: ServiceCall) -> 
     return payload
 
 
+async def _handle_set_run_profile_steps(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Replace a saved profile's ordered steps (room_group | charge_wait)."""
+    try:
+        payload = get_manager(hass).set_run_profile_steps(**resolved_call_data(hass, call))
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to set run-profile steps: {err}") from err
+    if not payload.get("saved"):
+        raise ServiceValidationError(
+            f"Could not set run-profile steps: {payload.get('reason', 'unknown')}"
+        )
+    _LOGGER.debug("set_run_profile_steps complete: %s", payload)
+    await get_manager(hass).async_save()
+    return payload
+
+
 def register(hass: HomeAssistant) -> None:
     """Register run-profile services."""
 
@@ -190,6 +216,9 @@ def register(hass: HomeAssistant) -> None:
 
     async def delete_run_profile(call: ServiceCall) -> dict:
         return await _handle_delete_run_profile(hass, call)
+
+    async def set_run_profile_steps(call: ServiceCall) -> dict:
+        return await _handle_set_run_profile_steps(hass, call)
 
     hass.services.async_register(
         DOMAIN, SERVICE_GET_SAVED_RUN_PROFILES, get_saved_run_profiles,
@@ -214,4 +243,8 @@ def register(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_DELETE_RUN_PROFILE, delete_run_profile,
         schema=_RUN_PROFILE_ID_SCHEMA, supports_response=True,
+    )
+    hass.services.async_register(
+        DOMAIN, SERVICE_SET_RUN_PROFILE_STEPS, set_run_profile_steps,
+        schema=_RUN_PROFILE_STEPS_SCHEMA, supports_response=True,
     )
