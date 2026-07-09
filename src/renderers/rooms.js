@@ -442,10 +442,10 @@ proto.renderRoomsActionBar = function (
   const steppedProfile = steppedProfileId
     ? (cardState?.savedRunProfiles?.() ?? []).find((p) => p.id === steppedProfileId)
     : null;
-  const chipNameById = {};
+  const chipRoomById = {};
   const chipMinutesById = {};
   if (steppedProfile) {
-    (Array.isArray(rooms) ? rooms : []).forEach((r) => { chipNameById[String(r.id)] = r.name; });
+    (Array.isArray(rooms) ? rooms : []).forEach((r) => { chipRoomById[String(r.id)] = r; });
     timeline.forEach((t) => { if (t && t.room_id != null) chipMinutesById[String(t.room_id)] = t.minutes; });
   }
 
@@ -607,7 +607,7 @@ proto.renderRoomsActionBar = function (
 
       ${steppedProfile ? `
         <div class="evcc-queue-chips evcc-queue-chips--preview">
-          ${this._renderSteppedRunChips(steppedProfile, chipNameById, chipMinutesById)}
+          ${this._renderSteppedRunChips(steppedProfile, chipRoomById, chipMinutesById)}
         </div>
       ` : queueRooms.length > 0 ? `
         <div class="evcc-queue-chips">
@@ -714,11 +714,11 @@ proto.renderRoomsActionBar = function (
    * shows the true Kitchen · ⚡ Charge · Kitchen sequence. Display-only (no room interaction).
    *
    * @param {object} profile - The applied run profile (carries .steps).
-   * @param {object} nameById - room_id -> room name.
+   * @param {object} roomById - room_id -> the full room object (name, mapId, ...).
    * @param {object} minutesById - room_id -> estimated minutes.
    * @returns {string} HTML string.
    */
-  proto._renderSteppedRunChips = function (profile, nameById, minutesById) {
+  proto._renderSteppedRunChips = function (profile, roomById, minutesById) {
     const steps = Array.isArray(profile?.steps) ? profile.steps : [];
     const chips = [];
     let pos = 0;
@@ -749,14 +749,23 @@ proto.renderRoomsActionBar = function (
       for (const r of groupRooms) {
         pos += 1;
         const rid = String(r.room_id);
-        const name = nameById[rid] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(rid) });
+        const room = roomById[rid];
+        const name = room?.name ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(rid) });
         const mins = minutesById[rid];
+        // A real room chip stays interactive (click to edit, long-press to toggle) via the
+        // shared queue-chip binding — only the charge/wait "fake room" chips are display-only.
         chips.push(`
-          <div class="evcc-queue-chip evcc-queue-chip--queued">
+          <button type="button"
+            class="evcc-queue-chip evcc-queue-chip--queued"
+            data-queue-chip="true"
+            data-room-id="${this.escapeHtml(rid)}"
+            data-map-id="${this.escapeHtml(String(room?.mapId ?? ""))}"
+            data-enabled="true"
+          >
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-label">${this.escapeHtml(name)}</span>
             ${mins != null ? `<span class="evcc-queue-chip-time">${this.escapeHtml(this._formatLearningMinutes(mins))}</span>` : ""}
-          </div>`);
+          </button>`);
       }
     }
     return chips.join("");
