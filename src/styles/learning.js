@@ -294,6 +294,11 @@ export const learningStyles = `
     font-weight: 500;
   }
 
+  .evcc-learning-charge-delta {
+    font-weight: 700;
+    color: var(--evcc-accent, #4c9aff);
+  }
+
   .evcc-learning-panel-subtitle,
   .evcc-learning-live-subtitle,
   .evcc-learning-progress-meta,

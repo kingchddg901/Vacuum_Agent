@@ -376,13 +376,19 @@ export function applyLearningRenderers(proto) {
           eta: this.escapeHtml(this._formatLearningMinutes(charge.etaMinutes)),
         })
       : this.t("learning.charging_to", { target: this.escapeHtml(String(target)) });
-    const from = charge.fromBattery != null
-      ? ` <span class="evcc-learning-charge-from">${this.t("learning.charging_from", { from: this.escapeHtml(String(charge.fromBattery)) })}</span>`
-      : "";
+    // Live delta the user can watch shrink toward the target (a fact, not an estimate).
+    // Falls back to the charge-start battery when the live level isn't available.
+    let tail = "";
+    if (charge.currentBattery != null && charge.targetPercent != null) {
+      const delta = Math.max(0, Math.round(charge.targetPercent - charge.currentBattery));
+      tail = ` <span class="evcc-learning-charge-delta">${this.t("learning.charging_delta", { delta: this.escapeHtml(String(delta)) })}</span>`;
+    } else if (charge.fromBattery != null) {
+      tail = ` <span class="evcc-learning-charge-from">${this.t("learning.charging_from", { from: this.escapeHtml(String(charge.fromBattery)) })}</span>`;
+    }
     return `
       <div class="evcc-learning-charge-banner">
         <span class="evcc-learning-charge-icon" aria-hidden="true">⚡</span>
-        <span class="evcc-learning-charge-text">${text}${from}</span>
+        <span class="evcc-learning-charge-text">${text}${tail}</span>
       </div>
     `;
   };

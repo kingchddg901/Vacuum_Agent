@@ -37,22 +37,23 @@ test("[CHG-1] liveChargeStatus is null without an active charge phase", () => {
   assert.equal(s.liveChargeStatus(), null);
 });
 
-test("[CHG-2] liveChargeStatus extracts the charge fields when active", () => {
+test("[CHG-2] liveChargeStatus extracts the charge fields + live battery when active", () => {
   const s = makeState();
+  s.batteryLevel = () => 70;
   s.setDashboardSnapshot({ job_progress: {
     charge_phase_active: true, charge_target_percent: 95,
     charge_eta_minutes: 18, charge_from_battery: 62, charge_eta_source: "baseline",
   } });
   assert.deepEqual(s.liveChargeStatus(), {
-    targetPercent: 95, etaMinutes: 18, fromBattery: 62, etaSource: "baseline",
+    targetPercent: 95, etaMinutes: 18, fromBattery: 62, etaSource: "baseline", currentBattery: 70,
   });
 });
 
-test("[CHG-3] liveChargeStatus null-safes missing numeric fields", () => {
+test("[CHG-3] liveChargeStatus null-safes missing numeric fields (incl. absent battery)", () => {
   const s = makeState();
   s.setDashboardSnapshot({ job_progress: { charge_phase_active: true } });
   assert.deepEqual(s.liveChargeStatus(), {
-    targetPercent: null, etaMinutes: null, fromBattery: null, etaSource: null,
+    targetPercent: null, etaMinutes: null, fromBattery: null, etaSource: null, currentBattery: null,
   });
 });
 

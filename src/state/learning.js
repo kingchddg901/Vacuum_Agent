@@ -188,6 +188,8 @@ export function applyLearningState(proto) {
       etaMinutes: num(jp.charge_eta_minutes),
       fromBattery: num(jp.charge_from_battery),
       etaSource: jp.charge_eta_source || null,
+      // Live battery so the banner can show the delta-to-target shrink as it charges.
+      currentBattery: num(this.batteryLevel?.()),
     };
   };
 

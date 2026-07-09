@@ -25,21 +25,23 @@ test("[CHGR-1] empty when not charging", () => {
   assert.equal(r.renderLearningChargeStatus(state), "");
 });
 
-test("[CHGR-2] renders the banner gated only on charge (no queue/timeline dependency)", () => {
-  const { r, state } = makeRenderer({ targetPercent: 95, etaMinutes: 18, fromBattery: 62 });
+test("[CHGR-2] gated only on charge (no queue/timeline dependency), shows the LIVE delta", () => {
+  const { r, state } = makeRenderer({ targetPercent: 95, etaMinutes: 18, currentBattery: 70 });
   const html = r.renderLearningChargeStatus(state);
   assert.match(html, /evcc-learning-charge-banner/);
   assert.match(html, /learning\.charging_to_eta:/); // eta variant chosen
   assert.match(html, /95/);                          // target
   assert.match(html, /18m/);                         // formatted eta
-  assert.match(html, /learning\.charging_from:/);    // from-battery fragment
-  assert.match(html, /62/);
+  assert.match(html, /learning\.charging_delta:/);   // the live delta fragment
+  assert.match(html, /"delta":"25"/);                // 95 - 70, the shrinking number
+  assert.doesNotMatch(html, /charging_from/);        // live delta supersedes the static from
 });
 
-test("[CHGR-3] uses the no-eta key and drops the from fragment when null", () => {
-  const { r, state } = makeRenderer({ targetPercent: 100, etaMinutes: null, fromBattery: null });
+test("[CHGR-3] no live battery -> falls back to charge-start 'from'; no eta -> base key", () => {
+  const { r, state } = makeRenderer({ targetPercent: 100, etaMinutes: null, fromBattery: 62 });
   const html = r.renderLearningChargeStatus(state);
   assert.match(html, /learning\.charging_to:/);      // base key, not _eta
   assert.doesNotMatch(html, /charging_to_eta/);
-  assert.doesNotMatch(html, /charging_from/);
+  assert.match(html, /learning\.charging_from:/);    // from fallback when no live battery
+  assert.doesNotMatch(html, /charging_delta/);       // no delta without a live level
 });

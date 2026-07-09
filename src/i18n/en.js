@@ -299,6 +299,7 @@ export const en = {
   "learning.battery_finish_rooms": "May need to recharge to finish remaining rooms",  // live warning: may recharge before finishing remaining rooms
   "learning.battery_mid_job": "May need to recharge mid-job",  // pre-job warning: battery may need a recharge partway through
   "learning.battery_recharged": "Recharge occurred during job",  // post-job note: a recharge actually happened during the run
+  "learning.charging_delta": "{delta}% to go",  // live charge banner: percentage points still to charge (shrinks toward target)
   "learning.charging_from": "from {from}%",  // appended to the live charge banner: battery level when charging began
   "learning.charging_to": "Charging to {target}%",  // live charge-phase banner when no ETA is available yet
   "learning.charging_to_eta": "Charging to {target}% · ~{eta} left",  // live charge-phase banner with a learned ETA
