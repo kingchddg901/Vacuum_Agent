@@ -23,6 +23,12 @@ Coverage targets
 [PM-15] rename_room_profile more rejections: target protected / exists / empty label.
 [PM-16] apply_room_profile: unknown profile name → profile_not_found, no rooms updated.
 [PM-17] _protected_room_config downgrades a carpet mop room to vacuum, water + edge off.
+[PM-18] run_profile_steps: a legacy rooms-only profile back-fills to one room_group step.
+[PM-19] run_profile_steps: an explicit steps list is normalized + returned.
+[PM-20] normalize_run_profile_steps: drops junk/empty/bad-target; clamps target 1..100.
+[PM-21] set_run_profile_steps: a room→charge→room sequence stores + flags has_charge_steps.
+[PM-22] set_run_profile_steps: steps with no room_group are rejected.
+[PM-23] set_run_profile_steps: unknown profile → profile_not_found.
 """
 
 from __future__ import annotations
@@ -52,6 +58,78 @@ def _save(pm, name="user_brushes"):
     return pm.save_user_room_profile(
         label="Brushes", clean_mode="vacuum", fan_speed="Max", water_level="Off",
         clean_intensity="Standard", clean_passes=1, edge_mopping=False, profile_name=name)
+
+
+# ---------------------------------------------------------------------------
+# run-profile steps (charge-step Wave 3a)
+# ---------------------------------------------------------------------------
+
+def test_run_profile_steps_backfills_legacy_rooms(pm):
+    """[PM-18]"""
+    steps = ProfileManager.run_profile_steps({"rooms": [{"room_id": 1}, {"room_id": 2}]})
+    assert steps == [{"type": "room_group", "rooms": [{"room_id": 1}, {"room_id": 2}]}]
+
+
+def test_run_profile_steps_uses_explicit_steps(pm):
+    """[PM-19]"""
+    prof = {"rooms": [{"room_id": 9}], "steps": [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 95},
+        {"type": "room_group", "rooms": [{"room_id": 2}]},
+    ]}
+    steps = ProfileManager.run_profile_steps(prof)
+    assert [s["type"] for s in steps] == ["room_group", "charge_wait", "room_group"]
+    assert steps[1]["target_battery_percent"] == 95
+
+
+def test_normalize_steps_drops_invalid_and_clamps(pm):
+    """[PM-20]"""
+    out = ProfileManager.normalize_run_profile_steps([
+        "junk",
+        {"type": "room_group", "rooms": []},                     # empty -> dropped
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 250},   # clamp -> 100
+        {"type": "charge_wait", "target_battery_percent": "x"},    # bad -> dropped
+        {"type": "mystery"},                                       # unknown -> dropped
+    ])
+    assert out == [
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 100},
+    ]
+
+
+def _seed_run_profile(pm, profile_id="p1"):
+    lib = pm._get_saved_run_profile_store(vacuum_entity_id=_VAC, map_id=_MAP)
+    lib[profile_id] = {"id": profile_id, "name": "Test", "vacuum_entity_id": _VAC,
+                       "map_id": _MAP, "rooms": [{"room_id": 1}]}
+    return lib
+
+
+def test_set_run_profile_steps_success(pm):
+    """[PM-21]"""
+    _seed_run_profile(pm)
+    out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="p1", steps=[
+        {"type": "room_group", "rooms": [{"room_id": 1}]},
+        {"type": "charge_wait", "target_battery_percent": 95},
+        {"type": "room_group", "rooms": [{"room_id": 2}]},
+    ])
+    assert out["saved"] is True
+    assert out["profile"]["has_charge_steps"] is True
+    assert [s["type"] for s in out["profile"]["steps"]] == ["room_group", "charge_wait", "room_group"]
+
+
+def test_set_run_profile_steps_requires_a_room_group(pm):
+    """[PM-22]"""
+    _seed_run_profile(pm)
+    out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="p1",
+                                   steps=[{"type": "charge_wait", "target_battery_percent": 95}])
+    assert out["saved"] is False and out["reason"] == "no_room_group"
+
+
+def test_set_run_profile_steps_unknown_profile(pm):
+    """[PM-23]"""
+    out = pm.set_run_profile_steps(vacuum_entity_id=_VAC, map_id=_MAP, profile_id="nope", steps=[])
+    assert out["saved"] is False and out["reason"] == "profile_not_found"
 
 
 def test_get_room_profiles(pm):

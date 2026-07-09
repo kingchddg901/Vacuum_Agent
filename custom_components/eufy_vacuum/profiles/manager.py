@@ -712,12 +712,46 @@ class ProfileManager:
             "room_names_label": ", ".join(room_names) if room_names else "",
         }
 
+    @staticmethod
+    def normalize_run_profile_steps(steps: Any) -> list[dict[str, Any]]:
+        """Validate/coerce an ordered run-profile steps list. A step is a room_group
+        ({type:'room_group', rooms:[...]}) or a charge_wait ({type:'charge_wait',
+        target_battery_percent:int clamped 1..100}). Invalid/empty entries are dropped."""
+        out: list[dict[str, Any]] = []
+        for step in steps if isinstance(steps, list) else []:
+            if not isinstance(step, dict):
+                continue
+            stype = str(step.get("type") or "").strip().lower()
+            if stype == "room_group":
+                rooms = step.get("rooms")
+                if isinstance(rooms, list) and rooms:
+                    out.append({"type": "room_group", "rooms": list(rooms)})
+            elif stype == "charge_wait":
+                try:
+                    tgt = int(step.get("target_battery_percent"))
+                except (TypeError, ValueError):
+                    continue
+                out.append({"type": "charge_wait", "target_battery_percent": max(1, min(tgt, 100))})
+        return out
+
+    @staticmethod
+    def run_profile_steps(profile: dict[str, Any]) -> list[dict[str, Any]]:
+        """Return a profile's ordered steps, back-filling a legacy rooms-only profile
+        as a single room_group step. Sequencing intent (room grouping + charge
+        boundaries) lives in the steps list; old profiles carried only ``rooms``."""
+        steps = profile.get("steps") if isinstance(profile, dict) else None
+        if isinstance(steps, list) and steps:
+            return ProfileManager.normalize_run_profile_steps(steps)
+        rooms = (profile or {}).get("rooms", [])
+        return [{"type": "room_group", "rooms": list(rooms)}] if rooms else []
+
     def _enrich_saved_run_profile(
         self, profile_id: str, profile: dict[str, Any]
     ) -> dict[str, Any]:
         """Return one normalized saved run profile with derived metadata."""
         rooms = profile.get("rooms", [])
         summary = self._run_profile_summary(rooms)
+        steps = self.run_profile_steps(profile)
         return {
             **profile,
             "id": profile_id,
@@ -726,6 +760,8 @@ class ProfileManager:
             "room_names": summary["room_names"],
             "room_names_label": summary["room_names_label"],
             "expose_as_button": bool(profile.get("expose_as_button", False)),
+            "steps": steps,
+            "has_charge_steps": any(s.get("type") == "charge_wait" for s in steps),
         }
 
     def _current_enabled_rooms_for_run_profile(
@@ -857,6 +893,34 @@ class ProfileManager:
             "profile_id": profile_id,
             "profile": self._enrich_saved_run_profile(profile_id, library[profile_id]),
         }
+
+    def set_run_profile_steps(
+        self, *, vacuum_entity_id: str, map_id: str, profile_id: str, steps: Any
+    ) -> dict[str, Any]:
+        """Replace one saved profile's ordered steps (room_group | charge_wait).
+
+        The steps list holds the sequence — room groups and the charge boundaries
+        between them. Requires at least one room_group (a run must clean something).
+        """
+        library = self._get_saved_run_profile_store(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+        )
+        existing = library.get(profile_id)
+        if not isinstance(existing, dict):
+            return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
+                    "saved": False, "reason": "profile_not_found", "profile_id": profile_id}
+        normalized = self.normalize_run_profile_steps(steps)
+        if not any(s.get("type") == "room_group" for s in normalized):
+            return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
+                    "saved": False, "reason": "no_room_group", "profile_id": profile_id}
+        existing["steps"] = normalized
+        existing["updated_at"] = utc_now_iso()
+        self._manager._notify_run_profiles_updated(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+        )
+        return {"vacuum_entity_id": vacuum_entity_id, "map_id": str(map_id),
+                "saved": True, "profile_id": profile_id,
+                "profile": self._enrich_saved_run_profile(profile_id, existing)}
 
     def overwrite_run_profile(
         self,
