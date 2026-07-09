@@ -1858,6 +1858,7 @@
     "blocked_rooms": "Blocked Rooms",
     "cancel_run": "Cancel Run",
     "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
+    "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
     "clear_queue": "Clear Queue",
     "companion_animal": "Companion animal",
     "configure": "Configure",
@@ -1928,6 +1929,7 @@
     "resume": "Resume",
     "room_fallback": "Room",
     "room_settings": "Room settings",
+    "run_plan_title": "This run",  // header of the pre-run stepped (room -> charge -> room) preview
     "running": "Running",  // active-job header label: a clean is in progress
     "select_all": "Select All",
     "settings_adjusted": "Settings adjusted",

@@ -302,6 +302,32 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-surface-input) 92%, transparent);
   }
 
+  /* ---- Pre-run "This run" stepped preview (Rooms view, above the flat queue) ---- */
+
+  .evcc-stepped-run-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: var(--evcc-radius-panel, 16px);
+    border: 1px solid color-mix(in srgb, var(--evcc-accent, #4c9aff) 40%, var(--evcc-border-default));
+    background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 8%, transparent);
+  }
+
+  .evcc-stepped-run-preview-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--evcc-text-muted);
+  }
+
+  .evcc-stepped-run-preview-note {
+    font-size: 0.72rem;
+    line-height: 1.4;
+    color: var(--evcc-text-muted);
+  }
+
   /* Responsive collapse is handled by flex-wrap above (container-relative) —
      NOT a viewport @media query. The card can be narrower than the screen
      (HA panel, dashboard column, render harness), so a viewport breakpoint

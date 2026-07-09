@@ -29,6 +29,30 @@ export function applyRoomsRenderers(proto) {
      RENDER ROOMS VIEW
      ========================================================= */
 
+  /**
+   * Pre-run "This run" preview: when a stepped (charge) profile is applied but not yet
+   * running, show its true Clean → ⚡ Charge → Clean sequence up top, so the flat "N room"
+   * queue below doesn't misrepresent a multi-phase run. Reuses the profile-card sequence
+   * render; charge time is ADMITTED, not modelled (it varies with the dock battery).
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML ("" with no applied stepped profile, or mid-run).
+   */
+  proto.renderSteppedRunPreview = function (state) {
+    if (state.hasActiveRun?.()) return "";
+    const profileId = state.pendingStepRunProfileId?.();
+    if (!profileId) return "";
+    const profile = (state.savedRunProfiles?.() ?? []).find((p) => p.id === profileId);
+    if (!profile || typeof this._renderRunProfileStepsSummary !== "function") return "";
+    return `
+      <div class="evcc-stepped-run-preview">
+        <div class="evcc-stepped-run-preview-title">${this.t("rooms.run_plan_title")}</div>
+        ${this._renderRunProfileStepsSummary(state, profile)}
+        <div class="evcc-stepped-run-preview-note">${this.t("rooms.charge_time_varies")}</div>
+      </div>
+    `;
+  };
+
   proto.renderRoomsView = function (ctx) {
     const { state } = ctx;
 
@@ -61,6 +85,8 @@ export function applyRoomsRenderers(proto) {
           rooms,
           hasWarning
         )}
+
+        ${typeof this.renderSteppedRunPreview === "function" ? this.renderSteppedRunPreview(state) : ""}
 
         ${typeof this.renderLearningSummary === "function" ? this.renderLearningSummary(state) : ""}
 

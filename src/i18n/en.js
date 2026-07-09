@@ -1165,6 +1165,7 @@ export const en = {
   "rooms.blocked_rooms": "Blocked Rooms",
   "rooms.cancel_run": "Cancel Run",
   "rooms.cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
+  "rooms.charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
   "rooms.clear_queue": "Clear Queue",
   "rooms.companion_animal": "Companion animal",
   "rooms.configure": "Configure",
@@ -1237,6 +1238,7 @@ export const en = {
   "rooms.resume": "Resume",
   "rooms.room_fallback": "Room",
   "rooms.room_settings": "Room settings",
+  "rooms.run_plan_title": "This run",  // header of the pre-run stepped (room -> charge -> room) preview
   "rooms.running": "Running",  // active-job header label: a clean is in progress
   "rooms.select_all": "Select All",
   "rooms.settings_adjusted": "Settings adjusted",
