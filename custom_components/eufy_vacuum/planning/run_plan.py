@@ -812,16 +812,29 @@ class RunPlanManager:
             if not isinstance(step, dict):
                 continue
             if step.get("type") == "room_group":
-                group_ids = [
-                    int(r["room_id"]) for r in step.get("rooms", [])
+                group_rooms = [
+                    r for r in step.get("rooms", [])
                     if isinstance(r, dict) and r.get("room_id") is not None
                     and int(r["room_id"]) in included_room_ids
                 ]
+                group_ids = [int(r["room_id"]) for r in group_rooms]
                 if not group_ids:
                     continue  # whole group blocked / not enabled -> skip
+                # Per-group settings: overlay each group room's OWN settings over the
+                # global effective-room view, so the SAME room can run a different
+                # mode/fan in different phases (e.g. vacuum this group, mop the next).
+                # The group's fields win; queue_room_ids stays authoritative for order.
+                group_managed = dict(effective_rooms)
+                for r in group_rooms:
+                    key = str(int(r["room_id"]))
+                    merged = dict(effective_rooms.get(key, {}))
+                    for field, value in r.items():
+                        if field != "room_id":
+                            merged[field] = value
+                    group_managed[key] = merged
                 phases.extend(self._build_dispatch_phases(
                     vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
-                    managed_rooms=effective_rooms, queue_room_ids=group_ids,
+                    managed_rooms=group_managed, queue_room_ids=group_ids,
                     strict_order=strict_order,
                 ))
             elif step.get("type") == "charge_wait":

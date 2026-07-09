@@ -17,6 +17,7 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-9] _build_steps_phases: a room_group whose rooms are all blocked is skipped.
 [CW-10] _build_steps_phases: consecutive charge steps collapse to the last target.
 [CW-11] a completed charge records from/to battery + timestamps on the phase (Wave 4 observability).
+[CW-12] the SAME room in two groups is dispatched with each group's OWN settings (vac then mop).
 """
 
 from __future__ import annotations
@@ -237,3 +238,27 @@ async def test_steps_phases_collapses_consecutive_charges(hass, manager, monkeyp
     phases = _steps_phases(manager, monkeypatch, [_rg(1), _cw(90), _cw(95), _rg(2)], included={1, 2})
     assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "room"]
     assert phases[1]["target_battery_percent"] == 95
+
+
+async def test_steps_phases_per_group_settings(hass, manager, monkeypatch):
+    """[CW-12] the SAME room in two groups is dispatched with each group's OWN settings
+    (vacuum this phase, mop the next) — per-group settings overlay the global room view."""
+    seen = []
+
+    def _capture(**kw):
+        seen.append(kw["managed_rooms"].get("1", {}).get("clean_mode"))
+        return [{"ids": list(kw["queue_room_ids"]), "queue_room_ids": list(kw["queue_room_ids"])}]
+
+    monkeypatch.setattr(manager.run_plan, "_build_dispatch_phases", _capture)
+    steps = [
+        {"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "vacuum"}]},
+        _cw(95),
+        {"type": "room_group", "rooms": [{"room_id": 1, "clean_mode": "mop"}]},
+    ]
+    phases = manager.run_plan._build_steps_phases(
+        vacuum_entity_id=_VAC, map_id=_MAP,
+        effective_rooms={"1": {"clean_mode": "vacuum", "enabled": True}},
+        included_room_ids={1}, run_steps=steps, strict_order=False,
+    )
+    assert seen == ["vacuum", "mop"]                       # each phase got its group's own mode
+    assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "room"]
