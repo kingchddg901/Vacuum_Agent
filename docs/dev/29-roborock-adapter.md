@@ -379,9 +379,17 @@ the device already takes. Nothing is brand-gated:
 
 - The steps editor (`renderRunProfilesPanel`) renders for any brand; the backend
   `has_charge_steps` flag drives it, not a capability.
-- Each room group is its own dispatch, so a stepped run fires `app_segment_clean`
-  **once per group** with the charge break between — the vac→charge→vac resume goes
-  through `_dispatch_active_phase` → `_dispatch_clean_payload` like any other phase.
+- Each room group is its own dispatch with the break between, and the vac→charge→vac
+  resume goes through `_dispatch_active_phase` → `_dispatch_clean_payload` like any
+  other phase.
+- **Stepped runs force strict order** (`_build_effective_start_plan` passes
+  `strict_order=True` whenever the run has `charge_wait`/`wait` stops). A stepped
+  profile is a deliberate sequence, so Roborock (which ignores order inside one
+  `app_segment_clean`) must run each group's rooms in the exact order shown: a
+  multi-room group splits into per-room phases rather than being path-optimized. The
+  group boundaries (the stops) are enforced by the phase structure regardless; this
+  pins INTRA-group order too. No-op for Eufy (it honors order natively, so
+  `effective_strict` folds to False). Locked by `test_roborock_stepped_forces_strict_order`.
 
 Locked end-to-end through the real adapter in `tests/integration/test_roborock_e2e.py`
 (`test_roborock_stepped_*`): a Kitchen→charge_wait→Office profile builds a

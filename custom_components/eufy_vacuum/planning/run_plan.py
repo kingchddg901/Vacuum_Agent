@@ -1307,13 +1307,20 @@ class RunPlanManager:
         if _run_steps and any(
             isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _run_steps
         ):
+            # A stepped run WITH STOPS is a deliberate sequence, so force strict order:
+            # a path-optimizing brand (Roborock, honors_clean_order False) must then run
+            # each group's rooms in the exact order shown instead of silently re-ordering
+            # them inside one app_segment_clean. No-op for an order-honoring brand (Eufy):
+            # _build_dispatch_phases folds effective_strict to False when honors_clean_order
+            # is True, so Eufy stays byte-identical. Group boundaries (the stops) are already
+            # enforced by the phase structure regardless; this only pins INTRA-group order.
             phases = self._build_steps_phases(
                 vacuum_entity_id=vacuum_entity_id,
                 map_id=str(map_id),
                 effective_rooms=effective_rooms,
                 included_room_ids=set(queue_state.get("queue_room_ids", []) or []),
                 run_steps=_run_steps,
-                strict_order=strict_order,
+                strict_order=True,
             )
         else:
             phases = self._build_dispatch_phases(

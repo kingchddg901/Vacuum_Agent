@@ -329,3 +329,26 @@ async def test_roborock_settable_mop_per_group_water(hass, manager, monkeypatch)
     # Phase 2 (mop): intensity re-derived from THIS group -> HIGH (per-phase, not the
     # whole-run max that would have mopped the vacuum pass too).
     assert calls["mop"][-1]["option"] == "high"
+
+
+async def test_roborock_stepped_forces_strict_order(hass, manager, monkeypatch):
+    """[RB-STEP-4] A stepped run WITH STOPS forces strict order. Roborock ignores clean
+    order inside one app_segment_clean (honors_clean_order False), so a 2-room group would
+    otherwise be path-optimized; with stops present it must run in the EXACT order shown.
+    The 2-room first group therefore splits into two per-room phases and phase 0 dispatches
+    Kitchen ALONE — not app_segment_clean [Kitchen, Office]."""
+    steps = [
+        {"type": "room_group", "rooms": [{"room_id": _KITCHEN}, {"room_id": _OFFICE}]},
+        {"type": "wait", "wait_minutes": 1},
+        {"type": "room_group", "rooms": [{"room_id": _KITCHEN}]},
+    ]
+    calls, result = await _start_stepped(hass, manager, monkeypatch, steps=steps)
+    assert result["started"] is True, (result.get("reason"), result.get("message"))
+
+    job = _job(manager)
+    # The 2-room first group SPLIT into two per-room phases (strict) before the wait —
+    # non-strict would have been a single [room, wait, room] with both rooms in phase 0.
+    assert [p.get("phase_type", "room") for p in job["phases"]] == ["room", "room", "wait", "room"]
+    # Phase 0 dispatched Kitchen ALONE (queue order 1), not [Kitchen, Office].
+    assert len(calls["send"]) == 1
+    assert calls["send"][0]["params"] == [{"segments": [_KITCHEN], "repeat": 1}]
