@@ -1096,7 +1096,14 @@ class ProfileManager:
 
         applied_room_ids: list[int] = []
         missing_room_ids: list[int] = []
-        for index, room_snapshot in enumerate(profile.get("rooms", []), start=1):
+        # Enable the rooms named by the profile's STEPS (room_group steps, in order).
+        # Legacy rooms-only profiles are byte-identical — run_profile_steps back-fills
+        # a single room_group of profile["rooms"]. Charge_wait steps carry no rooms.
+        _profile_rooms = [
+            r for step in self.run_profile_steps(profile) if step.get("type") == "room_group"
+            for r in step.get("rooms", [])
+        ]
+        for index, room_snapshot in enumerate(_profile_rooms, start=1):
             if not isinstance(room_snapshot, dict):
                 continue
             room_id = _safe_int(room_snapshot.get("room_id"), -1)

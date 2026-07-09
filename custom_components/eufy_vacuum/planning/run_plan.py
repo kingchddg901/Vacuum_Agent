@@ -789,6 +789,69 @@ class RunPlanManager:
             dispatch=dispatch_cfg,
         )
 
+    def _build_steps_phases(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        effective_rooms: dict[str, Any],
+        included_room_ids: set,
+        run_steps: list[dict[str, Any]],
+        strict_order: bool = False,
+    ) -> list[dict[str, Any]]:
+        """Materialize a run profile's ordered steps into a phase list.
+
+        Each room_group step -> its brand dispatch phase(s), scoped to the group's
+        INCLUDED (enabled + not-blocked) room ids; each charge_wait step -> a
+        charge_wait phase. Leading/trailing/duplicate charge phases (nothing to
+        bracket) are dropped so phase 0 is always a real clean the initial dispatch
+        can send. If no charge phase survives, falls back to one atomic clean.
+        """
+        phases: list[dict[str, Any]] = []
+        for step in run_steps:
+            if not isinstance(step, dict):
+                continue
+            if step.get("type") == "room_group":
+                group_ids = [
+                    int(r["room_id"]) for r in step.get("rooms", [])
+                    if isinstance(r, dict) and r.get("room_id") is not None
+                    and int(r["room_id"]) in included_room_ids
+                ]
+                if not group_ids:
+                    continue  # whole group blocked / not enabled -> skip
+                phases.extend(self._build_dispatch_phases(
+                    vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                    managed_rooms=effective_rooms, queue_room_ids=group_ids,
+                    strict_order=strict_order,
+                ))
+            elif step.get("type") == "charge_wait":
+                phases.append({
+                    "phase_type": "charge_wait",
+                    "target_battery_percent": int(step.get("target_battery_percent", 100)),
+                    "resolved_rooms": [], "queue_room_ids": [], "queue_rooms": [],
+                    "payload": {}, "room_count": 0,
+                })
+        while phases and phases[0].get("phase_type") == "charge_wait":
+            phases.pop(0)
+        while phases and phases[-1].get("phase_type") == "charge_wait":
+            phases.pop()
+        collapsed: list[dict[str, Any]] = []
+        for p in phases:
+            if (p.get("phase_type") == "charge_wait"
+                    and collapsed and collapsed[-1].get("phase_type") == "charge_wait"):
+                collapsed[-1] = p  # consecutive charges -> keep the last target
+            else:
+                collapsed.append(p)
+        if not any(p.get("phase_type") == "charge_wait" for p in collapsed):
+            all_ids = [rid for p in collapsed for rid in p.get("queue_room_ids", [])]
+            return self._build_dispatch_phases(
+                vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+                managed_rooms=effective_rooms,
+                queue_room_ids=all_ids or sorted(included_room_ids),
+                strict_order=strict_order,
+            )
+        return collapsed
+
     def _build_effective_start_plan(
         self,
         *,
@@ -1202,13 +1265,33 @@ class RunPlanManager:
             map_id=str(map_id),
             managed_rooms=effective_rooms,
         )
-        phases = self._build_dispatch_phases(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            managed_rooms=effective_rooms,
-            queue_room_ids=queue_state.get("queue_room_ids", []),
-            strict_order=strict_order,
+        # A run profile with a charge step stashes its ordered steps (start_run_profile);
+        # consume it here and materialize a multi-phase [clean, charge_wait, clean] job.
+        # Absent (normal room dispatch) -> the single atomic phase as before.
+        _run_steps = (
+            self._manager.data.get("_pending_run_steps", {})
+            .get(vacuum_entity_id, {})
+            .pop(str(map_id), None)
         )
+        if _run_steps and any(
+            isinstance(s, dict) and s.get("type") == "charge_wait" for s in _run_steps
+        ):
+            phases = self._build_steps_phases(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                effective_rooms=effective_rooms,
+                included_room_ids=set(queue_state.get("queue_room_ids", []) or []),
+                run_steps=_run_steps,
+                strict_order=strict_order,
+            )
+        else:
+            phases = self._build_dispatch_phases(
+                vacuum_entity_id=vacuum_entity_id,
+                map_id=str(map_id),
+                managed_rooms=effective_rooms,
+                queue_room_ids=queue_state.get("queue_room_ids", []),
+                strict_order=strict_order,
+            )
         payload_state = phases[0]
 
         room_minutes_map = self._room_estimate_minutes_map(

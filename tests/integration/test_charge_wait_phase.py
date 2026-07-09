@@ -12,6 +12,10 @@ dock from finalizing) so the intentional charge-dock is never read as a cancel.
 [CW-4] below target then reaches it while polling -> advance to the next phase.
 [CW-5] never reaches target within the timeout -> finalize like a CANCEL (missed-rooms), not advance.
 [CW-6] the unplanned-recharge observer must NOT claim a commanded charge_wait dock.
+[CW-7] _build_steps_phases: room_group -> clean phase, charge_wait -> charge phase, in order.
+[CW-8] _build_steps_phases: a charge with no clean to bracket is dropped (-> atomic when none survives).
+[CW-9] _build_steps_phases: a room_group whose rooms are all blocked is skipped.
+[CW-10] _build_steps_phases: consecutive charge steps collapse to the last target.
 """
 
 from __future__ import annotations
@@ -168,3 +172,55 @@ async def test_recharge_observer_ignores_charge_phase_dock(hass, manager, monkey
     )
     assert not out.get("observed_mid_job_recharge")
     assert not out.get("pending_mid_job_recharge_return")
+
+
+# ---------------------------------------------------------------------------
+# _build_steps_phases (steps -> phases materialization)
+# ---------------------------------------------------------------------------
+
+def _rg(*ids):
+    return {"type": "room_group", "rooms": [{"room_id": i} for i in ids]}
+
+
+def _cw(target=95):
+    return {"type": "charge_wait", "target_battery_percent": target}
+
+
+def _steps_phases(manager, monkeypatch, run_steps, included):
+    # Fake each group's dispatch phase as a marker so we test the interleave logic
+    # (not the brand engine).
+    monkeypatch.setattr(
+        manager.run_plan, "_build_dispatch_phases",
+        lambda **kw: [{"ids": list(kw["queue_room_ids"]), "queue_room_ids": list(kw["queue_room_ids"])}],
+    )
+    return manager.run_plan._build_steps_phases(
+        vacuum_entity_id=_VAC, map_id=_MAP, effective_rooms={}, included_room_ids=set(included),
+        run_steps=run_steps, strict_order=False,
+    )
+
+
+async def test_steps_phases_interleaves_charge(hass, manager, monkeypatch):
+    """[CW-7]"""
+    phases = _steps_phases(manager, monkeypatch, [_rg(1, 2), _cw(95), _rg(3)], included={1, 2, 3})
+    assert phases[0]["ids"] == [1, 2]
+    assert phases[1]["phase_type"] == "charge_wait" and phases[1]["target_battery_percent"] == 95
+    assert phases[2]["ids"] == [3]
+
+
+async def test_steps_phases_drops_leading_trailing_charge(hass, manager, monkeypatch):
+    """[CW-8]"""
+    phases = _steps_phases(manager, monkeypatch, [_cw(95), _rg(1), _cw(95)], included={1})
+    assert len(phases) == 1 and phases[0]["ids"] == [1]   # both charges dropped -> atomic
+
+
+async def test_steps_phases_skips_blocked_group(hass, manager, monkeypatch):
+    """[CW-9]"""
+    phases = _steps_phases(manager, monkeypatch, [_rg(1), _cw(95), _rg(2)], included={1})
+    assert len(phases) == 1 and phases[0]["ids"] == [1]   # group{2} blocked -> trailing charge dropped
+
+
+async def test_steps_phases_collapses_consecutive_charges(hass, manager, monkeypatch):
+    """[CW-10]"""
+    phases = _steps_phases(manager, monkeypatch, [_rg(1), _cw(90), _cw(95), _rg(2)], included={1, 2})
+    assert [p.get("phase_type", "room") for p in phases] == ["room", "charge_wait", "room"]
+    assert phases[1]["target_battery_percent"] == 95

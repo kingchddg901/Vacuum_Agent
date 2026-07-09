@@ -4791,6 +4791,18 @@ class EufyVacuumManager:
                 "missing_room_ids": applied.get("missing_room_ids", []),
             }
 
+        # Stash the profile's charge-step sequence so the plan builder materializes a
+        # multi-phase [clean, charge_wait, clean] job. Consumed (popped) in
+        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch.
+        _prof = self.profiles._get_saved_run_profile_store(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+        ).get(profile_id, {})
+        _prof_steps = self.profiles.run_profile_steps(_prof)
+        if any(isinstance(s, dict) and s.get("type") == "charge_wait" for s in _prof_steps):
+            self.data.setdefault("_pending_run_steps", {}).setdefault(
+                vacuum_entity_id, {}
+            )[str(map_id)] = _prof_steps
+
         self.build_queue(
             vacuum_entity_id=vacuum_entity_id,
             map_id=str(map_id),
