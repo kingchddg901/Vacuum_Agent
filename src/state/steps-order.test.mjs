@@ -23,6 +23,9 @@ import {
   stepsHaveChargeStep,
   sanitizeStepsForSave,
   roomsToGroupStep,
+  clampWaitMinutes,
+  insertWaitStep,
+  setWaitMinutes,
 } from "./steps-order.js";
 
 const rg = (...ids) => ({ type: "room_group", rooms: ids.map((room_id) => ({ room_id })) });
@@ -152,4 +155,26 @@ test("[STP-grp-2] omits null/unset fields (they fall through to global at dispat
   assert.deepEqual(step.rooms[0], { room_id: 5, clean_mode: "vacuum" }); // no fan_speed key
   assert.deepEqual(roomsToGroupStep([]).rooms, []);
   assert.deepEqual(roomsToGroupStep(null), { type: "room_group", rooms: [] });
+});
+
+/* ============================ wait steps ============================ */
+
+test("[STP-wait-1] clampWaitMinutes rounds/clamps into [1,1440], fallback on empty", () => {
+  assert.equal(clampWaitMinutes(30), 30);
+  assert.equal(clampWaitMinutes(0), 1);
+  assert.equal(clampWaitMinutes(5000), 1440);
+  assert.equal(clampWaitMinutes("", 15), 15);
+});
+
+test("[STP-wait-2] insertWaitStep / setWaitMinutes", () => {
+  const a = insertWaitStep([rg(1), rg(2)], 1, 45);
+  assert.deepEqual(types(a), ["room_group", "wait", "room_group"]);
+  assert.equal(a[1].wait_minutes, 45);
+  assert.equal(setWaitMinutes(a, 1, 90)[1].wait_minutes, 90);
+  assert.deepEqual(setWaitMinutes(a, 0, 90)[0], rg(1)); // no-op on a non-wait step
+});
+
+test("[STP-wait-3] sanitizeStepsForSave keeps wait steps (clamped, stripped)", () => {
+  const clean = sanitizeStepsForSave([rg(1), { type: "wait", wait_minutes: 5000, _uid: "x" }]);
+  assert.deepEqual(clean[1], { type: "wait", wait_minutes: 1440 });
 });

@@ -219,6 +219,23 @@ export function applyRunProfilesRenderers(proto) {
           </li>`;
       }
 
+      if (step.type === "wait") {
+        const mins = Number(step.wait_minutes ?? 30);
+        return `
+          <li class="evcc-run-profiles-step evcc-run-profiles-step--wait">
+            <span class="evcc-run-profiles-step-num">${i + 1}</span>
+            <span class="evcc-run-profiles-step-body">
+              <span class="evcc-run-profiles-step-kind">${this.t("run_profiles.step_wait")}</span>
+              <input type="number" min="1" max="1440" step="1"
+                value="${this.escapeHtml(String(mins))}"
+                class="evcc-run-profiles-charge-input"
+                data-run-profile-wait-index="${i}" />
+              <span class="evcc-run-profiles-step-pct">${this.t("run_profiles.minutes_unit")}</span>
+            </span>
+            ${controls(i)}
+          </li>`;
+      }
+
       const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];
       const names = groupRooms
         .map((r) => this.escapeHtml(
@@ -246,6 +263,8 @@ export function applyRunProfilesRenderers(proto) {
         <div class="evcc-run-profiles-steps-actions">
           <button type="button" class="evcc-chip" data-action="add-run-profile-charge"
           >${this.t("run_profiles.add_charge_step")}</button>
+          <button type="button" class="evcc-chip" data-action="add-run-profile-wait"
+          >${this.t("run_profiles.add_wait_step")}</button>
           <button type="button" class="evcc-chip" data-action="capture-run-profile-group"
           >${this.t("run_profiles.capture_group")}</button>
         </div>
@@ -277,6 +296,13 @@ export function applyRunProfilesRenderers(proto) {
         return `
           <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--charge">
             <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⚡</span>${this.t("run_profiles.step_charge_to")} ${this.escapeHtml(String(target))}%
+          </li>`;
+      }
+      if (step.type === "wait") {
+        const mins = Number(step.wait_minutes ?? 30);
+        return `
+          <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--wait">
+            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⏱</span>${this.t("run_profiles.step_wait")} ${this.escapeHtml(String(mins))} ${this.t("run_profiles.minutes_unit")}
           </li>`;
       }
       const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];

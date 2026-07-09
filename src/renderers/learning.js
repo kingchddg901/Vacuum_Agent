@@ -362,6 +362,36 @@ export function applyLearningRenderers(proto) {
   };
 
   /**
+   * Live wait-phase countdown banner — panel-level, gated on liveWaitStatus() (a wait phase
+   * has no room, exactly like charge). Counts down from wait_started_at on each re-render.
+   *
+   * @param {object} state - Card state accessor.
+   * @returns {string} HTML string ("" when not in a wait phase).
+   */
+  proto.renderLearningWaitStatus = function (state) {
+    const wait = state.liveWaitStatus?.() ?? null;
+    if (!wait) return "";
+    return this._renderLearningWaitBanner(wait);
+  };
+
+  proto._renderLearningWaitBanner = function (wait) {
+    const total = Number(wait.minutes ?? 0);
+    let remaining = total;
+    if (wait.startedAt) {
+      const started = Date.parse(wait.startedAt);
+      if (Number.isFinite(started)) {
+        remaining = Math.max(0, total - (Date.now() - started) / 60000);
+      }
+    }
+    return `
+      <div class="evcc-learning-charge-banner evcc-learning-wait-banner">
+        <span class="evcc-learning-charge-icon" aria-hidden="true">⏱</span>
+        <span class="evcc-learning-charge-text">${this.t("learning.waiting", { remaining: this.escapeHtml(this._formatLearningMinutes(remaining)) })}</span>
+      </div>
+    `;
+  };
+
+  /**
    * Render the "Charging to X% — ~N min left (from Y%)" banner body used by
    * renderLearningChargeStatus.
    *

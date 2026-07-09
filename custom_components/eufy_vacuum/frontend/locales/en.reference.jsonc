@@ -985,6 +985,7 @@
     "charging_from": "from {from}%",  // appended to the live charge banner: battery level when charging began
     "charging_to": "Charging to {target}%",  // live charge-phase banner when no ETA is available yet
     "charging_to_eta": "Charging to {target}% · ~{eta} left",  // live charge-phase banner with a learned ETA
+    "waiting": "Waiting · ~{remaining} left",  // live wait-phase countdown banner (time-based hold)
     "chip_mop_only": {"one":"{count} mop-only room","other":"{count} mop-only rooms"},  // plural
     "chip_vacuum_mop": {"one":"{count} vacuum + mop room","other":"{count} vacuum + mop rooms"},  // plural
     "chip_vacuum_only": {"one":"{count} vacuum-only room","other":"{count} vacuum-only rooms"},  // plural
@@ -1860,6 +1861,7 @@
     "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
     "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
     "chip_charge_to": "Charge to {target}%",  // the charge point rendered as a queue chip in a stepped run
+    "chip_wait": "Wait {minutes} min",  // a wait point rendered as a queue chip in a stepped run
     "clear_queue": "Clear Queue",
     "companion_animal": "Companion animal",
     "configure": "Configure",
@@ -1958,6 +1960,7 @@
   "run_profiles": {
     "create_profile": "Create Profile",
     "add_charge_step": "Add a charge step",  // reveals/adds a dock-and-recharge step between room groups
+    "add_wait_step": "Add a wait",  // adds a timed dock-and-hold (wait X min) step between room groups
     "capture_group": "Add current rooms as a group",  // snapshot the current Rooms-view setup as the next step
     "editor_title_edit": "Edit Saved Profile",
     "editor_title_new": "Create Run Profile",
@@ -1978,6 +1981,8 @@
     "step_move_down": "Move down",  // step reorder control (title/aria)
     "step_move_up": "Move up",  // step reorder control (title/aria)
     "step_remove": "Remove step",  // step delete control (title/aria)
+    "step_wait": "Wait",  // wait-step row label, precedes a minutes input
+    "minutes_unit": "min",  // short unit after a minutes number (wait step)
     "steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
     "steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",
     "steps_label": "Run steps",  // section label for the ordered room-group + charge-step editor

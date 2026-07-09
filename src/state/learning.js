@@ -195,6 +195,17 @@ export function applyLearningState(proto) {
     };
   };
 
+  // Live wait-phase status for the countdown banner, or null when not in a wait phase.
+  proto.liveWaitStatus = function () {
+    const jp = this.dashboardJobProgress();
+    if (!jp?.wait_phase_active) return null;
+    const n = Number(jp.wait_minutes);
+    return {
+      minutes: Number.isFinite(n) ? n : null,
+      startedAt: jp.wait_started_at || null,
+    };
+  };
+
   proto.dashboardJobControl = function () {
     return this.dashboardSnapshot()?.job_control ?? null;
   };

@@ -25,6 +25,9 @@ import {
   moveStep,
   roomsToGroupStep,
   DEFAULT_CHARGE_TARGET,
+  insertWaitStep,
+  setWaitMinutes,
+  DEFAULT_WAIT_MINUTES,
 } from "./steps-order.js";
 
 export function applyRunProfilesState(proto) {
@@ -289,6 +292,16 @@ export function applyRunProfilesState(proto) {
     const steps = this.runProfileDraftSteps();
     this._setDraftSteps(insertChargeStep(steps, steps.length, target));
     this.expandDraftSteps();
+  };
+
+  proto.addDraftWaitStep = function (minutes = DEFAULT_WAIT_MINUTES) {
+    const steps = this.runProfileDraftSteps();
+    this._setDraftSteps(insertWaitStep(steps, steps.length, minutes));
+    this.expandDraftSteps();
+  };
+
+  proto.setDraftWaitMinutes = function (index, value) {
+    this._setDraftSteps(setWaitMinutes(this.runProfileDraftSteps(), index, value));
   };
 
   proto.removeDraftStep = function (index) {

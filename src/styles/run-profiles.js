@@ -148,6 +148,11 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-accent, #4c9aff) 12%, transparent);
   }
 
+  .evcc-run-profiles-step--wait {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 45%, var(--evcc-border-default));
+    background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 10%, transparent);
+  }
+
   .evcc-run-profiles-step-num {
     flex: 0 0 auto;
     width: 20px;
@@ -282,7 +287,8 @@ export const runProfileStyles = `
     background: color-mix(in srgb, var(--evcc-surface-input) 90%, transparent);
   }
 
-  .evcc-run-profiles-seq-step--charge {
+  .evcc-run-profiles-seq-step--charge,
+  .evcc-run-profiles-seq-step--wait {
     color: var(--evcc-text-primary);
     font-weight: 600;
   }

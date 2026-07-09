@@ -29,6 +29,21 @@ export function isChargeStep(step) {
   return !!step && step.type === "charge_wait";
 }
 
+export function isWaitStep(step) {
+  return !!step && step.type === "wait";
+}
+
+export const WAIT_MIN_MINUTES = 1;
+export const WAIT_MAX_MINUTES = 1440;
+export const DEFAULT_WAIT_MINUTES = 30;
+
+export function clampWaitMinutes(value, fallback = DEFAULT_WAIT_MINUTES) {
+  if (value === null || value === undefined || value === "") return fallback;
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(WAIT_MIN_MINUTES, Math.min(n, WAIT_MAX_MINUTES));
+}
+
 // Clamp an index into [0, max]; non-finite -> 0.
 function clampIndex(index, max) {
   const n = Math.trunc(Number(index));
@@ -81,6 +96,25 @@ export function setChargeTarget(steps, index, target) {
   return arr;
 }
 
+// Insert a wait step at atIndex (0..length). Returns a fresh array.
+export function insertWaitStep(steps, atIndex, minutes = DEFAULT_WAIT_MINUTES) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  const at = clampIndex(atIndex, arr.length);
+  arr.splice(at, 0, { type: "wait", wait_minutes: clampWaitMinutes(minutes) });
+  return arr;
+}
+
+// Update the minutes of the wait step at index; no-op if it is not a wait. Fresh array.
+export function setWaitMinutes(steps, index, minutes) {
+  const arr = Array.isArray(steps) ? [...steps] : [];
+  if (!arr.length) return arr;
+  const at = clampIndex(index, arr.length - 1);
+  const step = arr[at];
+  if (!isWaitStep(step)) return arr;
+  arr[at] = { ...step, wait_minutes: clampWaitMinutes(minutes, step.wait_minutes) };
+  return arr;
+}
+
 export function stepsHaveRoomGroup(steps) {
   return Array.isArray(steps) && steps.some(isRoomGroupStep);
 }
@@ -123,6 +157,8 @@ export function sanitizeStepsForSave(steps) {
         type: "charge_wait",
         target_battery_percent: clampChargeTarget(step.target_battery_percent),
       });
+    } else if (isWaitStep(step)) {
+      out.push({ type: "wait", wait_minutes: clampWaitMinutes(step.wait_minutes) });
     }
   }
   return out;

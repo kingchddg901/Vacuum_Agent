@@ -289,6 +289,11 @@ export const learningStyles = `
     line-height: 1;
   }
 
+  .evcc-learning-wait-banner {
+    border-color: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 45%, transparent);
+    background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 13%, transparent);
+  }
+
   .evcc-learning-charge-from {
     color: var(--evcc-learning-text-secondary);
     font-weight: 500;

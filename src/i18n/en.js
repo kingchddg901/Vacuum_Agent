@@ -303,6 +303,7 @@ export const en = {
   "learning.charging_from": "from {from}%",  // appended to the live charge banner: battery level when charging began
   "learning.charging_to": "Charging to {target}%",  // live charge-phase banner when no ETA is available yet
   "learning.charging_to_eta": "Charging to {target}% · ~{eta} left",  // live charge-phase banner with a learned ETA
+  "learning.waiting": "Waiting · ~{remaining} left",  // live wait-phase countdown banner (time-based hold)
   "learning.chip_mop_only": { one: "{count} mop-only room", other: "{count} mop-only rooms" },  // plural
   "learning.chip_vacuum_mop": { one: "{count} vacuum + mop room", other: "{count} vacuum + mop rooms" },  // plural
   "learning.chip_vacuum_only": { one: "{count} vacuum-only room", other: "{count} vacuum-only rooms" },  // plural
@@ -1167,6 +1168,7 @@ export const en = {
   "rooms.cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
   "rooms.charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
   "rooms.chip_charge_to": "Charge to {target}%",  // the charge point rendered as a queue chip in a stepped run
+  "rooms.chip_wait": "Wait {minutes} min",  // a wait point rendered as a queue chip in a stepped run
   "rooms.clear_queue": "Clear Queue",
   "rooms.companion_animal": "Companion animal",
   "rooms.configure": "Configure",
@@ -1263,6 +1265,7 @@ export const en = {
   // --- run_profiles ---
   "run_profiles.create_profile": "Create Profile",
   "run_profiles.add_charge_step": "Add a charge step",  // reveals/adds a dock-and-recharge step between room groups
+  "run_profiles.add_wait_step": "Add a wait",  // adds a timed dock-and-hold (wait X min) step between room groups
   "run_profiles.capture_group": "Add current rooms as a group",  // snapshot the current Rooms-view setup as the next step
   "run_profiles.editor_title_edit": "Edit Saved Profile",
   "run_profiles.editor_title_new": "Create Run Profile",
@@ -1283,6 +1286,8 @@ export const en = {
   "run_profiles.step_move_down": "Move down",  // step reorder control (title/aria)
   "run_profiles.step_move_up": "Move up",  // step reorder control (title/aria)
   "run_profiles.step_remove": "Remove step",  // step delete control (title/aria)
+  "run_profiles.step_wait": "Wait",  // wait-step row label, precedes a minutes input
+  "run_profiles.minutes_unit": "min",  // short unit after a minutes number (wait step)
   "run_profiles.steps_capture_hint": "Set up the rooms you want next in the Rooms view, then add them as a group.",
   "run_profiles.steps_hint": "Vacuum, dock to recharge, then keep cleaning — all in one run.",
   "run_profiles.steps_label": "Run steps",  // section label for the ordered room-group + charge-step editor

@@ -230,6 +230,11 @@ export function applyRunProfilesBindings(proto) {
       this.card._scheduleRender();
     });
 
+    this.card._onAll("[data-action='add-run-profile-wait']", "click", () => {
+      this.card._state.addDraftWaitStep?.();
+      this.card._scheduleRender();
+    });
+
     this.card._onAll("[data-action='capture-run-profile-group']", "click", () => {
       const ok = this.card._state.captureCurrentRoomsAsDraftGroup?.();
       if (ok === false) {
@@ -255,6 +260,14 @@ export function applyRunProfilesBindings(proto) {
     this.card._onAll("[data-run-profile-charge-index]", "change", (e) => {
       this.card._state.setDraftChargeTarget?.(
         Number(e.currentTarget.dataset.runProfileChargeIndex),
+        e.currentTarget.value,
+      );
+      this.card._scheduleRender();
+    });
+
+    this.card._onAll("[data-run-profile-wait-index]", "change", (e) => {
+      this.card._state.setDraftWaitMinutes?.(
+        Number(e.currentTarget.dataset.runProfileWaitIndex),
         e.currentTarget.value,
       );
       this.card._scheduleRender();

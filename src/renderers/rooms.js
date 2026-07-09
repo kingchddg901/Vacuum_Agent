@@ -109,6 +109,8 @@ export function applyRoomsRenderers(proto) {
 
         ${typeof this.renderLearningChargeStatus === "function" ? this.renderLearningChargeStatus(state) : ""}
 
+        ${typeof this.renderLearningWaitStatus === "function" ? this.renderLearningWaitStatus(state) : ""}
+
         ${activeJob ? this.renderActiveJobSection(activeJob) : ""}
 
         ${typeof this.renderLearningProgressList === "function" ? this.renderLearningProgressList(state) : ""}
@@ -729,6 +731,17 @@ proto.renderRoomsActionBar = function (
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
             <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}</span>
+          </div>`);
+        continue;
+      }
+      if (step && step.type === "wait") {
+        pos += 1;
+        const mins = Number(step.wait_minutes ?? 30);
+        chips.push(`
+          <div class="evcc-queue-chip evcc-queue-chip--wait">
+            <span class="evcc-queue-chip-order">${pos}</span>
+            <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⏱</span>
+            <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait", { minutes: this.escapeHtml(String(mins)) })}</span>
           </div>`);
         continue;
       }
