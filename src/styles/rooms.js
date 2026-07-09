@@ -871,6 +871,24 @@ export const roomStyles = `
     background: color-mix(in srgb, var(--evcc-sem-warning, #d99a2b) 12%, transparent);
   }
 
+  .evcc-queue-chip-input {
+    width: 44px;
+    min-height: 22px;
+    padding: 0 4px;
+    border-radius: 6px;
+    border: 1px solid var(--evcc-border-default);
+    background: var(--evcc-surface-input, rgba(255, 255, 255, 0.06));
+    color: var(--evcc-text-primary);
+    font: inherit;
+    font-size: 0.78rem;
+    text-align: right;
+  }
+
+  .evcc-queue-chip-unit {
+    font-size: 0.78rem;
+    opacity: 0.85;
+  }
+
   .evcc-queue-chip-charge-icon {
     font-size: 0.85rem;
     line-height: 1;

@@ -1860,8 +1860,10 @@
     "cancel_run": "Cancel Run",
     "cancel_warning": "Tap \"Confirm Cancel\" again to send the vacuum back to the dock, or press <strong>Cancel</strong> to keep the job running.",
     "charge_time_varies": "Charge time varies with the battery level when it docks.",  // note under the stepped-run preview
-    "chip_charge_to": "Charge to {target}%",  // the charge point rendered as a queue chip in a stepped run
-    "chip_wait": "Wait {minutes} min",  // a wait point rendered as a queue chip in a stepped run
+    "chip_charge_label": "Charge to",  // prefix label on an editable charge chip (precedes a % input)
+    "chip_charge_to": "Charge to {target}%",  // aria label for the editable charge chip
+    "chip_wait": "Wait {minutes} min",  // aria label for the editable wait chip
+    "chip_wait_label": "Wait",  // prefix label on an editable wait chip (precedes a minutes input)
     "clear_queue": "Clear Queue",
     "companion_animal": "Companion animal",
     "configure": "Configure",

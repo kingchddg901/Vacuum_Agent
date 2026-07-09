@@ -9,7 +9,12 @@
  * ============================================================
  */
 
-import { sanitizeStepsForSave, stepsHaveRoomGroup } from "../state/steps-order.js";
+import {
+  sanitizeStepsForSave,
+  stepsHaveRoomGroup,
+  setChargeTarget,
+  setWaitMinutes,
+} from "../state/steps-order.js";
 
 /**
  * Mix run profiles binding methods onto the given prototype.
@@ -271,6 +276,38 @@ export function applyRunProfilesBindings(proto) {
         e.currentTarget.value,
       );
       this.card._scheduleRender();
+    });
+
+    // Inline-edit a charge/wait value from its QUEUE CHIP -> persist to the APPLIED profile.
+    const _editAppliedStep = async (stepIndex, apply) => {
+      if (!Number.isFinite(stepIndex)) return;
+      const profileId = this.card._state.pendingStepRunProfileId?.();
+      const profile = (this.card._state.savedRunProfiles?.() ?? []).find((p) => p.id === profileId);
+      if (!profile) return;
+      const result = await this.card._actions.setRunProfileSteps({
+        vacuum_entity_id: this.card._state.vacuumEntityId?.(),
+        map_id: this.card._state.activeMapId?.(),
+        profile_id: profileId,
+        steps: sanitizeStepsForSave(apply(profile.steps)),
+      });
+      if (result?.ok === false) {
+        this.card.showToast?.((result.reason ? this.esc(result.reason) : this.t("bind_run_profiles.unable_save")), { kind: "error" });
+        return;
+      }
+      await this.card.refreshRunProfiles?.();
+      this.card._scheduleRender();
+    };
+
+    this.card._onAll("[data-chip-charge-index]", "change", (e) => {
+      const si = Number(e.currentTarget.dataset.chipChargeIndex);
+      const val = e.currentTarget.value;
+      _editAppliedStep(si, (steps) => setChargeTarget(steps, si, val));
+    });
+
+    this.card._onAll("[data-chip-wait-index]", "change", (e) => {
+      const si = Number(e.currentTarget.dataset.chipWaitIndex);
+      const val = e.currentTarget.value;
+      _editAppliedStep(si, (steps) => setWaitMinutes(steps, si, val));
     });
   };
 }

@@ -722,7 +722,7 @@ proto.renderRoomsActionBar = function (
     const steps = Array.isArray(profile?.steps) ? profile.steps : [];
     const chips = [];
     let pos = 0;
-    for (const step of steps) {
+    steps.forEach((step, si) => {
       if (step && step.type === "charge_wait") {
         pos += 1;
         const target = Number(step.target_battery_percent ?? 100);
@@ -730,9 +730,14 @@ proto.renderRoomsActionBar = function (
           <div class="evcc-queue-chip evcc-queue-chip--charge">
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⚡</span>
-            <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}</span>
+            <span class="evcc-queue-chip-label">${this.t("rooms.chip_charge_label")}</span>
+            <input type="number" min="1" max="100" step="1"
+              value="${this.escapeHtml(String(target))}"
+              class="evcc-queue-chip-input" data-chip-charge-index="${si}"
+              aria-label="${this.t("rooms.chip_charge_to", { target: this.escapeHtml(String(target)) })}" />
+            <span class="evcc-queue-chip-unit">%</span>
           </div>`);
-        continue;
+        return;
       }
       if (step && step.type === "wait") {
         pos += 1;
@@ -741,9 +746,14 @@ proto.renderRoomsActionBar = function (
           <div class="evcc-queue-chip evcc-queue-chip--wait">
             <span class="evcc-queue-chip-order">${pos}</span>
             <span class="evcc-queue-chip-charge-icon" aria-hidden="true">⏱</span>
-            <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait", { minutes: this.escapeHtml(String(mins)) })}</span>
+            <span class="evcc-queue-chip-label">${this.t("rooms.chip_wait_label")}</span>
+            <input type="number" min="1" max="1440" step="1"
+              value="${this.escapeHtml(String(mins))}"
+              class="evcc-queue-chip-input" data-chip-wait-index="${si}"
+              aria-label="${this.t("rooms.chip_wait", { minutes: this.escapeHtml(String(mins)) })}" />
+            <span class="evcc-queue-chip-unit">${this.t("run_profiles.minutes_unit")}</span>
           </div>`);
-        continue;
+        return;
       }
       const groupRooms = (step && Array.isArray(step.rooms)) ? step.rooms : [];
       for (const r of groupRooms) {
@@ -767,7 +777,7 @@ proto.renderRoomsActionBar = function (
             ${mins != null ? `<span class="evcc-queue-chip-time">${this.escapeHtml(this._formatLearningMinutes(mins))}</span>` : ""}
           </button>`);
       }
-    }
+    });
     return chips.join("");
   };
 
