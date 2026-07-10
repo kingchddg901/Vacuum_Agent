@@ -108,7 +108,7 @@ The experience would be miserable — no ETA, no live map, no upkeep, no learned
 
 ## 9. Subsystem pull-checklist
 
-The map above walked the room-clean path. This section walks **every** manager-constructed subsystem the same way. As of the 2026-07-11 audit it is **complete** — every ring is classified, and the result is tidy: of 14 subsystems, most are already clean rings (**LEAVE**) or atom members (**KEEP**); the entire "core stands alone" refactor reduces to **two relocations + one default** (see §10).
+The map above walked the room-clean path. This section walks **every** manager-constructed subsystem the same way. As of the 2026-07-11 audit it is **complete** — every ring is classified, and the result is tidy: of 14 subsystems, most are already clean rings (**LEAVE**) or atom members (**KEEP**); the entire "core stands alone" refactor reduces to **making three optional features cleanly optional** — two mechanism relocations + one automatic import path (see §10).
 
 ### How to walk one
 
@@ -136,7 +136,7 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 | `dock` | lazy | mgr | 9 | **LEAVE** — clean ring; reaches back into core read-only to *gate* actions (capabilities/lifecycle/active-job). Confirmed **home for maintenance-level actions**: self-clean/empty/descale slot into its generic `action_buttons` map + a `supports_*` gate, no structural change. ✅ walked |
 | `maintenance` | lazy | mgr | 7 | **LEAVE** — dead import clipped (3dc2a06); now lazy-only, detachable. 7 live reach-ins are legit upkeep delegators. ✅ walked |
 | `room_map` | lazy | mgr | 7 | **LEAVE** — atom-adjacency **disproven**: active-map resolution for the atom is already core-owned (`_resolve_active_map_id` :2712 → pure `rooms.room_discovery.get_active_map_id`). A discovery/save/reconcile CRUD ring; its heavy back-reach is core *plumbing*, no trapped logic. ✅ walked |
-| `onboarding` | lazy | data+hass | 6 | **DEFAULT** — self-satisfiable VA gate (floor type is VA-owned); not a structural weld. ✅ walked |
+| `onboarding` | lazy | data+hass | 6 | **DEFAULT → opt-in curation** — a self-satisfiable gate (floor type is VA-owned), and really an *optional curation feature* (floor types + room review). Began as Eufy's phantom-0 m² filter; the core path can auto-import + default floor types, curation opt-in. Not core. ✅ walked |
 | `map_source` | lazy | mgr | 5 | **LEAVE** — live-map backdrop reader (provider segmentation + live-pose), off the room-clean path. Reaches back via **two deliberate shared seams** (`_map_state_source_cache`, `_resolve_live_map_image_entity`) — formalize as host contract, don't dissolve the ring. ✅ walked |
 | `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free. ✅ walked |
 | `phase_runner` | lazy | mgr | 3 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
@@ -154,9 +154,9 @@ Audit complete. **Five of five unwalked rings came back LEAVE** — already-deta
 
 ## 10. B — the "core stands alone" work plan
 
-Plan now, work later. The complete walk reduces B to **two relocations + one default**; everything else is already LEAVE / KEEP or a separate extraction track. None of this is required for correctness — it buys portability (a core that boots for a rooms-only brand). Sequence behind an actual need to reuse the core.
+Plan now, work later. The complete walk reduces B to **making three optional features cleanly optional**: two mechanism relocations (B1/B2 — the room-shaping the core wrongly hid inside `access_graph` / `profiles`) plus one automatic import path (B3 — the map→rooms path `onboarding` gates). **B1/B2 fix a genuine category error** (core mechanism trapped inside a feature) and are worth doing on their own merits; **B3 and the learning extraction are the portability plays** — a core that boots for a rooms-only brand. Everything else is already LEAVE / KEEP or a separate track. Sequence behind an actual need to reuse the core.
 
-> **The principle behind B1+B2:** `access_graph` and `profiles` are *optional user features, not core.* Access rules are **all-or-nothing** — the user configures the whole graph or there's none, and the core default is "no rules, rooms clean freely." Profiles are an **opt-in preset layer** — the core default is a plain effective room, no preset. Neither is core; the bug is only that the core's own base room-shaping *mechanism* got parked inside them. So B1+B2 don't pull logic *out of* the core — they pull the core's mechanism *back home* from two features it was hiding inside, leaving each feature cleanly optional (present in full, or absent entirely).
+> **The principle behind B1–B3:** `access_graph`, `profiles`, and `onboarding` are all *optional user features, not core.* Access rules are **all-or-nothing** (configure the whole graph or none; core default "no rules, rooms clean freely"). Profiles are an **opt-in preset layer** (core default: a plain effective room). Onboarding is **opt-in curation** (floor-type confirmation + room review; core default: import straight from the map). Each is a human-configuration layer over an *automatic core path*; none is core. The bug is only that a piece of core mechanism — room-shaping (B1/B2) or the import-to-ready path (B3) — got parked inside, or gated behind, them. B doesn't pull logic *out of* the core; it pulls the core's automatic path *back home* and leaves all three features cleanly optional (present in full, or absent entirely).
 
 **B1 · Relocate the room-normalizer** (`access_graph` → core).
 Move `_normalized_managed_rooms_with_automation`'s body into core (or `run_plan`); core produces a plain normalized-rooms payload with no access rules, and `access_graph` becomes a self-contained optional overlay — configured in full or not at all. It is already loosely built (`data`+`hass`, no back-ref), so this is a clean lift. *Test:* room-payload build + a no-graph path. *Risk:* low–moderate.
@@ -166,8 +166,8 @@ Move the 4 shaper primitives (`_protected_room_config`, `_match_profile_from_fie
 
 > B1 and B2 are the same job — reclaiming the room-definition mechanism — and should land together. After them the atom builds a plain rooms payload with `access_graph`/`profiles` absent entirely.
 
-**B3 · Default the onboarding gate** (independent, smallest/safest first cut).
-Auto-confirm a sensible floor-type default on room discovery; gate the *requirement* on **mop capability**. A non-mopping vac passes trivially (floor type is cosmetic for it); a mopping vac still confirms (don't mop a carpet). *Test:* the mop-safety regression path. *Risk:* behavior-flip on mopping vacs → capability-gated, wants a design pass.
+**B3 · Make onboarding optional curation, not a gate** (independent).
+Onboarding began as data hygiene — it kept Eufy's phantom **0 m² "non-room"** from being created (the human review excluded it; there is no automatic area filter — `room_crud.py:238` keys only on `map_id`). But that one real need is a cheap import-time rule (auto-drop degenerate / 0 m² segments); everything else it does — floor-type confirmation, room naming / enable review — is opt-in polish. So the core path becomes fully automatic: **import map → import rooms (skip phantoms) → default floor types → clean**, with the start-gate (`:2490`) removed from the core path entirely. Curation is then a feature a user opts into; floor-type confirmation still matters for mopping, so surface it as a *recommendation*, not a block. *Test:* auto-import path + a phantom-segment fixture. *Risk:* runs previously blocked now proceed → design pass (the floor-type default is mop-cosmetic for non-moppers).
 
 **Not B (separate tracks):**
 - **EXTRACT learning** behind its §9.3 host contract → `battery`/`water`/`bounds` fall out as cheap siblings on the shared engine.
