@@ -205,6 +205,13 @@ entities share the base class in `room_entities.py`.
    (`phase_runner.rearm_dock_phase_if_needed`, called for every `status=='started'`
    active job).
 
+   > **All subsystems are constructed unconditionally here — but only a few are
+   > load-bearing to actually fire a room clean.** For which of these are the
+   > irreducible *atom* (adapter + dispatch + rooms + spine + run tracking) versus
+   > optional *rings*, where the room-definition primitives are mis-homed, and what
+   > a "core stands alone" refactor would entail, see
+   > [32-core-minimality-and-deconstruction](32-core-minimality-and-deconstruction.md).
+
 3. **Orphaned entity cleanup** — removes legacy `eufy_vacuum_icon_*` entities
    from the entity registry if found (silent no-op on clean installs).
 
