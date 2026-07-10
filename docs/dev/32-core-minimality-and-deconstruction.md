@@ -106,4 +106,52 @@ The experience would be miserable — no ETA, no live map, no upkeep, no learned
 
 ---
 
+## 9. Subsystem pull-checklist
+
+The map above walked the room-clean path. This is the standing worklist for walking **every** manager-constructed subsystem the same way — a living checklist, not a finished audit.
+
+### How to walk one
+
+For each subsystem, ask in order — the first "yes" sets the verdict:
+
+1. **Dead coupling?** Vestigial import/alias core never uses → **CLIP** (see the maintenance clip, 3dc2a06).
+2. **Mis-homed atom-logic?** Does core reach in for a *primitive* it should own (a payload/identity builder, not a feature)? → **RELOCATE** the primitive to core; the ring *augments* when present.
+3. **Self-satisfiable gate?** Does it block on VA-owned state the adapter never provides? → **DEFAULT** it (see onboarding).
+4. **Portable engine?** Is it read-a-lot / write-a-little logic reused elsewhere (learning, battery, water)? → **EXTRACT** behind a host contract (see §9.3 of [`10-learning-system.md`](10-learning-system.md)).
+5. **Already clean?** Lazy import, low reach-in count, no core-owned logic inside → **LEAVE** (it's a proper ring today).
+6. **Mechanism, not fit?** The core needs it to fire/track a clean → **KEEP** (atom member).
+
+Signals to score it on: **import** (hard = spine candidate / lazy = ring candidate) · **ctor** (`manager=self` back-ref = can reach into core, tighter / `data`+`hass` = already loose) · **core reach-ins** (count of `self.X.` in `core/`, the weave; all currently originate in `manager.py`).
+
+### The checklist (reach-ins as of 2026-07-11 audit)
+
+| Subsystem | Imp | Ctor | Reach-ins | Verdict / status |
+|---|---|---|---|---|
+| `active_job` | lazy | mgr | 36 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
+| `profiles` | lazy | mgr | 20 | **SPLIT** — relocate the effective-room shaper (`_protected_room_config`/`_match_profile_from_fields`) to core; leave profile CRUD as a ring. ◑ partial |
+| `themes` | lazy | data | 13 | *unwalked* — presentation-only, owns `data["theme"]`, loose ctor. Hypothesis: clean detach. ⬜ **WALK** |
+| `access_graph` | lazy | data+hass | 12 | **RELOCATE** — `_normalized_managed_rooms_with_automation` (room-normalizer) belongs in core; graph augments with rules/grants. ✅ walked |
+| `run_plan` | lazy | mgr | 12 | **KEEP/absorb** — *is* the input pipeline for dispatch. Atom-adjacent. ✅ walked |
+| `external_run` (learning) | lazy | mgr | 12 | **EXTRACT** — mapped in §9.3; already `if … is None`-guarded; the portable one. ✅ walked |
+| `dock` | lazy | mgr | 9 | *unwalked* — device-action dispatch/gating; latent home for maintenance-level actions (self-clean/empty/descale). ⬜ **WALK** |
+| `maintenance` | lazy | mgr | 7 | **LEAVE** — dead import clipped (3dc2a06); now lazy-only, detachable. 7 live reach-ins are legit upkeep delegators. ✅ walked |
+| `room_map` | lazy | mgr | 7 | *unwalked* — room↔map association; may be atom-adjacent (map_id resolution) rather than a pure ring. ⬜ **WALK** |
+| `onboarding` | lazy | data+hass | 6 | **DEFAULT** — self-satisfiable VA gate (floor type is VA-owned); not a structural weld. ✅ walked |
+| `map_source` | lazy | mgr | 5 | *unwalked* — provider segmentation + live-pose (live-map backdrop); off the room-clean path. Hypothesis: clean detach. ⬜ **WALK** |
+| `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free. ✅ walked |
+| `phase_runner` | lazy | mgr | 3 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
+| `live_room_refresh` | lazy | mgr | 1 | *unwalked* — Lever B live current-room refresh; one reach-in, nearly detached already. ⬜ **WALK (quick)** |
+
+### Out of the ring set
+
+- **Singletons** (constructed in `__init__.async_setup_entry`, not the manager): `LearningManager`, `BatteryHealthManager`, `ErrorTracker`, `MappingManager`/`Tracker`. Battery/water are the **cheap siblings** — same estimation engine as learning; walk them *after* the learning extraction lands the shared host contract.
+- **Atom / spine** (hard-imported, the thing that stands): `adapters`, `queue` (engine + dispatch_engines), `maps`, `models`, `rooms` (identity), `jobs`, and `core` (`storage`/`capabilities`/`charging`). Not pulled — this *is* the core.
+- **HA glue** (platform wiring, not detachment candidates): `listeners`, `services`, `sensor`, `setup`, `frontend`, `translations`, `textures`.
+
+### Walk queue
+
+Unwalked rings, cheapest first: **`live_room_refresh`** (1) → **`map_source`** (5) → **`room_map`** (7) → **`dock`** (9) → **`themes`** (13). Then the **`profiles` split**, then the **battery/water singletons** once learning's contract is extracted.
+
+---
+
 **See also:** [`01-architecture-overview.md`](01-architecture-overview.md) · [`05-core-manager.md`](05-core-manager.md) · [`10-learning-system.md`](10-learning-system.md) (§9.3, the same host-contract exercise scoped to learning) · [`21-adapter-system.md`](21-adapter-system.md).
