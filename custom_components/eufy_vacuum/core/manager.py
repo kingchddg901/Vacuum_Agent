@@ -4179,74 +4179,8 @@ class EufyVacuumManager:
             "learning_snapshot": learning_snapshot,
         }
 
-    async def start_run_profile(
-        self,
-        *,
-        vacuum_entity_id: str,
-        map_id: str,
-        profile_id: str,
-        confirm_reduced_run: bool = False,
-        confirm_token: str | None = None,
-        path_block_action: str | None = None,
-        pause_timeout_minutes_override: int | None = None,
-    ) -> dict[str, Any]:
-        """Apply one saved run profile and start it through the normal protected path."""
-        applied = self.apply_run_profile(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            profile_id=profile_id,
-        )
-        if not applied.get("applied"):
-            return {
-                "vacuum_entity_id": vacuum_entity_id,
-                "map_id": str(map_id),
-                "profile_id": profile_id,
-                "started": False,
-                "reason": applied.get("reason", "profile_not_found"),
-                "message": "Saved run profile could not be applied.",
-                "profile": applied.get("profile"),
-                "applied_room_ids": applied.get("applied_room_ids", []),
-                "missing_room_ids": applied.get("missing_room_ids", []),
-            }
-
-        # Stash the profile's charge-step sequence so the plan builder materializes a
-        # multi-phase [clean, charge_wait, clean] job. Consumed (popped) in
-        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch.
-        _prof = self.profiles._get_saved_run_profile_store(
-            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
-        ).get(profile_id, {})
-        _prof_steps = self.profiles.run_profile_steps(_prof)
-        if any(isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _prof_steps):
-            self.data.setdefault("_pending_run_steps", {}).setdefault(
-                vacuum_entity_id, {}
-            )[str(map_id)] = _prof_steps
-
-        self.build_queue(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-        self.build_room_payload(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-        )
-        started = await self.start_selected_rooms(
-            vacuum_entity_id=vacuum_entity_id,
-            map_id=str(map_id),
-            confirm_reduced_run=confirm_reduced_run,
-            confirm_token=confirm_token,
-            path_block_action=path_block_action,
-            pause_timeout_minutes_override=pause_timeout_minutes_override,
-        )
-        # start_selected_rooms POPS the stashed steps only deep in _build_effective_start_plan,
-        # which it never reaches when it returns early (blocked / confirmation-required without a
-        # token / vacuum missing). That would leak the stash so the NEXT plain Start on this map
-        # pops it and silently becomes a charge/wait run. If this call did NOT start, delete the
-        # leftover entry (guard for absence — the legit started path already consumed it deep in
-        # the plan builder, so there is nothing to delete there).
-        if not started.get("started"):
-            _pending_for_vac = self.data.get("_pending_run_steps", {}).get(vacuum_entity_id)
-            if isinstance(_pending_for_vac, dict):
-                _pending_for_vac.pop(str(map_id), None)
-        started["profile_id"] = profile_id
-        started["profile"] = applied.get("profile")
-        return started
+    async def start_run_profile(self, **kwargs) -> dict[str, Any]:
+        """Delegator — run-profile start orchestration lives in profiles/ProfileManager.
+        The service handler (services/job_control.py) + the exposed profile button
+        (button.py) call ``manager.start_run_profile``, so the delegator stays here."""
+        return await self.profiles.start_run_profile(**kwargs)

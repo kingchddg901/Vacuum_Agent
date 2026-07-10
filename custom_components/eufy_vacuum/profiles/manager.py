@@ -1197,3 +1197,81 @@ class ProfileManager:
             "applied_room_ids": applied_room_ids,
             "missing_room_ids": missing_room_ids,
         }
+
+    async def start_run_profile(
+        self,
+        *,
+        vacuum_entity_id: str,
+        map_id: str,
+        profile_id: str,
+        confirm_reduced_run: bool = False,
+        confirm_token: str | None = None,
+        path_block_action: str | None = None,
+        pause_timeout_minutes_override: int | None = None,
+    ) -> dict[str, Any]:
+        """Apply one saved run profile and start it through the normal protected path.
+
+        Run-profile orchestration lives with the profiles subsystem; the core manager keeps a
+        thin ``start_run_profile`` delegator for its service + button-entity callers. Dispatch
+        (``start_selected_rooms``) and queue/payload building stay on the core manager and are
+        reached via ``self._manager``.
+        """
+        applied = self.apply_run_profile(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            profile_id=profile_id,
+        )
+        if not applied.get("applied"):
+            return {
+                "vacuum_entity_id": vacuum_entity_id,
+                "map_id": str(map_id),
+                "profile_id": profile_id,
+                "started": False,
+                "reason": applied.get("reason", "profile_not_found"),
+                "message": "Saved run profile could not be applied.",
+                "profile": applied.get("profile"),
+                "applied_room_ids": applied.get("applied_room_ids", []),
+                "missing_room_ids": applied.get("missing_room_ids", []),
+            }
+
+        # Stash the profile's charge-step sequence so the plan builder materializes a
+        # multi-phase [clean, charge_wait, clean] job. Consumed (popped) in
+        # run_plan._build_effective_start_plan; absent -> normal atomic dispatch.
+        _prof = self._get_saved_run_profile_store(
+            vacuum_entity_id=vacuum_entity_id, map_id=str(map_id),
+        ).get(profile_id, {})
+        _prof_steps = self.run_profile_steps(_prof)
+        if any(isinstance(s, dict) and s.get("type") in ("charge_wait", "wait") for s in _prof_steps):
+            self._manager.data.setdefault("_pending_run_steps", {}).setdefault(
+                vacuum_entity_id, {}
+            )[str(map_id)] = _prof_steps
+
+        self._manager.build_queue(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        self._manager.build_room_payload(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+        )
+        started = await self._manager.start_selected_rooms(
+            vacuum_entity_id=vacuum_entity_id,
+            map_id=str(map_id),
+            confirm_reduced_run=confirm_reduced_run,
+            confirm_token=confirm_token,
+            path_block_action=path_block_action,
+            pause_timeout_minutes_override=pause_timeout_minutes_override,
+        )
+        # start_selected_rooms POPS the stashed steps only deep in _build_effective_start_plan,
+        # which it never reaches when it returns early (blocked / confirmation-required without a
+        # token / vacuum missing). That would leak the stash so the NEXT plain Start on this map
+        # pops it and silently becomes a charge/wait run. If this call did NOT start, delete the
+        # leftover entry (guard for absence — the legit started path already consumed it deep in
+        # the plan builder, so there is nothing to delete there).
+        if not started.get("started"):
+            _pending_for_vac = self._manager.data.get("_pending_run_steps", {}).get(vacuum_entity_id)
+            if isinstance(_pending_for_vac, dict):
+                _pending_for_vac.pop(str(map_id), None)
+        started["profile_id"] = profile_id
+        started["profile"] = applied.get("profile")
+        return started

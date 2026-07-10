@@ -34,7 +34,7 @@ def _stub_profile(manager, monkeypatch, *, steps):
     lifecycle. apply_run_profile succeeds; the saved store returns a profile with `steps`;
     build_queue / build_room_payload are no-ops."""
     monkeypatch.setattr(
-        manager, "apply_run_profile",
+        manager.profiles, "apply_run_profile",
         lambda **kw: {"applied": True, "profile": {"id": kw.get("profile_id")}},
     )
     monkeypatch.setattr(
