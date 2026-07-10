@@ -1068,6 +1068,107 @@ Paths are `pathlib.Path` objects. Instances are created by `LearningHistoryStore
 | `exports_dir` | `root/exports` |
 | `live_dir` | `root/live` |
 
+### 9.3 Host contract — attaching learning to a host
+
+Learning is written to **attach** to a host, not to import one. Every class takes only `hass` in its constructor (§9.1); the core manager arrives as a **method argument** (`estimate_from_manager(manager, …)`, `save_live_snapshot_from_manager`, the finalizer's `_collect_finalization_inputs`), and `ExternalRunManager` alone holds it as an injected back-reference (`ExternalRunManager(manager=self)`). The estimation engine — `estimator`, `stats_rebuilder`, `job_segmenter_engines`, `room_attribution_engines`, `counter_segmentation`, `utils` — has **no core-manager coupling at all**; it is pure over its inputs. So learning depends on its host through exactly two small contracts, and this section is their spec.
+
+**Reconstruction / re-hosting note.** To rebuild — or mount elsewhere — the learning engine, you implement `LearningHost` and supply a `BrandFacts`. Nothing else about the host's internals is needed. In particular the host's persistent `data` dict is **never touched directly** (all access is method-mediated, below), and learning keeps its **own** file store (`config_dir/eufy_vacuum/learning/<vacuum>/`, `hass`-only), disjoint from the host's `.storage`.
+
+**How the host is reached** — three channels, one object:
+
+- *Injected per call* — `LearningManager` / `LearningJobFinalizer(hass=…)`; the manager is passed to the methods that need it.
+- *Held back-ref* — `ExternalRunManager(manager=…)` keeps `self._manager` (the only class that does).
+- *Runtime lookup* — `hass.data[DOMAIN]["runtime"]` returns the same manager (the service layer).
+
+#### `LearningHost` — the method surface the host must provide
+
+```python
+from typing import Any, Protocol, runtime_checkable
+from homeassistant.core import HomeAssistant
+
+@runtime_checkable
+class LearningHost(Protocol):
+    """What the learning engine needs from whatever core manager hosts it.
+    Signatures inferred from call sites; vacuum_entity_id / map_id are keyword args."""
+
+    hass: HomeAssistant   # also uses .states, .bus, .async_*, .data, .config, .loop
+
+    # READS — pure observation (idempotent)
+    def get_known_map_ids(self, vacuum_entity_id: str) -> list[str]: ...
+    def get_active_job(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    def get_managed_rooms(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    def get_queue_state(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    def get_payload_state(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    def get_vacuum_capabilities(self, *, vacuum_entity_id: str, refresh: bool = True) -> dict[str, Any]: ...
+    def get_planned_job_estimate(self, *, vacuum_entity_id: str, map_id: str,
+                                 resolved_rooms: list[dict[str, Any]] | None = None) -> dict[str, Any]: ...
+    def get_dock_events(self, *, vacuum_entity_id: str) -> dict[str, Any]: ...   # optional (None-guarded)
+
+    # WRITES — the irreducible core (external-run lifecycle)
+    def start_external_capture(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    def clear_active_job(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    async def async_save(self) -> None: ...
+
+    # WRITES — needed ONLY by the resume-incomplete-run service (host may omit)
+    def set_rooms_enabled_subset(self, *, vacuum_entity_id: str, map_id: str,
+                                 room_ids: list[int] | list[str]) -> dict[str, Any]: ...
+    def build_queue(self, *, vacuum_entity_id: str, map_id: str) -> dict[str, Any]: ...
+    async def start_selected_rooms(self, *, vacuum_entity_id: str, map_id: str,
+                                   confirm_reduced_run: bool = False,
+                                   path_block_action: str | None = None) -> dict[str, Any]: ...
+
+    # Currently PRIVATE on the core manager — promote to public for a clean contract
+    def resolve_active_map_id(self, vacuum_entity_id: str) -> str | None: ...              # was _resolve_active_map_id
+    def get_station_clean_water_percent(self, *, vacuum_entity_id: str) -> float | None: ...  # was _get_station_clean_water_percent
+    def protected_room_config(self, room: dict[str, Any]) -> dict[str, Any]: ...           # was _protected_room_config
+```
+
+The **reads** are pure observation. The three writes `start_external_capture` / `clear_active_job` / `async_save` are the **irreducible core** — the external-run lifecycle, the only writes the held `self._manager` back-ref performs. `build_queue` / `start_selected_rooms` / `set_rooms_enabled_subset` are used **only** by the resume-incomplete-run service and can be optional on a host that doesn't offer it. A fourth private call, `_get_learning_manager`, is **not** in the contract: it is re-entrant (learning fetching itself) — hand the finalizer its estimator seam directly instead.
+
+`hass` must expose `states.get`, `bus.async_fire`, `async_create_task`, `async_add_executor_job`, `loop.call_soon_threadsafe`, `config.config_dir`, and a `data` dict carrying the manager at `data[DOMAIN]["runtime"]` (and, optionally, sibling subsystems at `DATA_ERROR_TRACKER` / `DATA_BATTERY` for the best-effort error-harvest read and battery-metrics push).
+
+#### `BrandFacts` — everything learning needs to know about a brand
+
+Learning reaches the brand adapter for only a handful of scalar facts. It **never branches on capability** — no pass-count caps, no mop/water-settable flags; `clean_times` / `clean_passes` ride through as *observed data*, used only as estimate lookup keys.
+
+```python
+from typing import Any, Protocol
+
+EngineSpec = tuple[str | None, dict[str, Any] | None]   # (engine_name, tuning_overrides)
+
+class BrandFacts(Protocol):
+    """Everything learning needs to know about a brand — replaces direct adapter reads."""
+
+    brand: str | None                                     # cosmetic label only
+
+    def entity_id(self, key: str) -> str | None: ...      # "task_status", "cleaning_time", "cleaning_area",
+                                                          # "wash_frequency_mode", "wash_frequency_value_time"
+    def alias_map(self, key: str) -> dict[str, str]: ...  # "clean_mode", "clean_intensity", "fan_speed",
+                                                          # "water_level", "wash_frequency_mode"
+
+    mid_run_statuses: frozenset[str]                      # docked-but-will-resume
+    cancel_service_exclusion_states: frozenset[str]       # early-return explained by a service call
+    cancel_detection_states: dict[str, str | list[str]]   # {"active": …, "returning": …, "paused": …}
+
+    job_segmenter: EngineSpec                             # (engine name, tuning) — resolved via learning's own registry
+    room_attribution: EngineSpec
+```
+
+The engine *registry* (`job_segmenter_engines.py`, `room_attribution_engines.py`) lives **inside** learning and is brand-agnostic; `BrandFacts` supplies only the *selection*, not the implementation. A host that provides a `BrandFacts` with a noop segmenter and empty vocab still gets a fully functional timing/estimation learner, with no brand specifics at all.
+
+#### Cruft to close when formalizing
+
+The seam already works; a formal extraction sweeps these age-artifacts:
+
+- **Promote** the 3 private host methods above to public; **drop** the re-entrant `_get_learning_manager`.
+- **Own** two constants — `EXTERNAL_FINALIZE_GRACE_S`, `EXTERNAL_GRACE_MAX_RECHECKS` are imported from `core.manager` today (the `learning/__init__.py` import-deferral exists only to dodge the resulting cycle); the portable module must define them.
+- **Swap** the direct adapter reads for `BrandFacts`; move the mislocated generic `select_active` out of the Eufy-named `counter_segmentation` module; ship the Eufy counter engine as a *brand plugin* (learning keeps the registry + a noop default).
+- **Optional-ise** the two sibling pushes — the battery-metrics push and the error-harvest read (`hass.data[DOMAIN][…]`) — into injected sinks or events.
+
+#### Why this contract is bigger than learning
+
+The engine under this contract is **value-agnostic** — it learns a weighted estimate of *some* number from runs, indifferent to whether that number is minutes, battery-percent, water, or a boundary. **Battery, water, and bounds already reuse it.** So `LearningHost` + `BrandFacts` are not learning's contract alone — they are the **shared estimation engine's** contract. Each sibling attaches by supplying different *reads* and *weights* while the *use* stays identical: configurations, not copies. Formalized once here, they define how time / battery / water / bounds *all* mount on a host.
+
 ---
 
 ## 10. Adding a New Learning Metric
