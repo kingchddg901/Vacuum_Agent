@@ -2,8 +2,8 @@
 discovery, maintenance reset snapshots, remaining-hours calculations,
 and the upkeep snapshot compositor for each managed vacuum.
 
-Also exports two pure-function status helpers (maintenance_status,
-replacement_status) used by sensors and the services layer.
+Also defines two pure-function status helpers (maintenance_status,
+replacement_status) used to label components in the upkeep snapshot.
 
 Design
 ------

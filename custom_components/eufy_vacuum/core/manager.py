@@ -42,7 +42,6 @@ from ..queue.dispatch_engines import get_dispatch_engine
 from ..rooms.room_discovery import discover_rooms_payload
 from ..rooms.room_manager import build_managed_rooms, build_room_selection_summary
 from ..timestamp_utils import parse_timestamp, utc_now_iso
-from ..maintenance import maintenance_status as _maintenance_status, replacement_status as _replacement_status
 from .capabilities import detect_capabilities
 from .storage import EufyVacuumStorage
 
