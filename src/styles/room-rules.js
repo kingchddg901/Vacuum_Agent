@@ -421,24 +421,24 @@ export const roomRulesStyles = `
 
 @media (prefers-color-scheme: light) {
   .evcc-room-rules-subtab.active {
-    background: rgba(15,23,42,0.05);
-    color:      #0f172a;
+    background: rgba(15,23,42,0.05);  /* theme-lint-ignore: prefers-color-scheme:light override (design decision, outside the token system) */
+    color:      #0f172a;  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-card {
-    background: rgba(15,23,42,0.03);
-    border-color: rgba(15,23,42,0.10);
+    background: rgba(15,23,42,0.03);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-editor {
-    background: rgba(15,23,42,0.02);
-    border-color: rgba(15,23,42,0.10);
+    background: rgba(15,23,42,0.02);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-editor-input {
-    background:   rgba(15,23,42,0.05);
-    border-color: rgba(15,23,42,0.10);
-    color:        #0f172a;
+    background:   rgba(15,23,42,0.05);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
+    color:        #0f172a;  /* theme-lint-ignore: light-mode override */
   }
 }
 `;

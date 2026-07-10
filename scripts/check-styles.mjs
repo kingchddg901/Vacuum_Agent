@@ -57,14 +57,16 @@ for (const f of readdirSync(DIR).filter((n) => n.endsWith(".js") && !n.endsWith(
  *    over ANY room color, a fixed dark pill, a prefers-color-scheme override).
  * ------------------------------------------------------------------------- */
 const REPO = join(HERE, "..");
-// SCOPE: the standalone cards' local CSS. These remap the --evcc-* tokens to
-// local aliases and must stay fully themed (this is the surface that broke — the
-// profile card shipped off-theme). The canonical panel CSS (src/styles/*) has a
-// documented backlog of deliberate legibility literals (map labels that must read
-// over ANY room color, scrims, a prefers-color-scheme block); widening this guard
-// to cover it is a tracked follow-up — do NOT just add src/styles/* here without
-// triaging those first (they need /* theme-lint-ignore */, not tokenization).
+// SCOPE: the canonical panel CSS (src/styles/*, minus the token DEFINITION file
+// whose literals ARE the defaults) PLUS the standalone cards' local CSS. Every
+// color must resolve through a theme token; deliberately theme-independent colors
+// (map labels/pills/casing that must read over ANY room color, scrims, a
+// prefers-color-scheme block) carry an explicit /* theme-lint-ignore */.
+const TOKEN_DEF_FILES = new Set(["foundation.js"]);  // literals here = token defaults
 const LINT_TARGETS = [
+  ...readdirSync(DIR)
+    .filter((n) => n.endsWith(".js") && !n.endsWith(".test.js") && !TOKEN_DEF_FILES.has(n))
+    .map((n) => join("src", "styles", n)),
   join("src", "room-card.js"),
   join("src", "cards", "dashboard-card.js"),
   join("src", "cards", "profile-card.js"),

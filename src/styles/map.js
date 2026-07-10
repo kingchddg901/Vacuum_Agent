@@ -256,7 +256,7 @@ export const mapStyles = `
   .evcc-map-zoom-btn--on {
     background:   var(--evcc-accent, #3b82f6);
     border-color: var(--evcc-accent, #3b82f6);
-    color:        #fff;
+    color:        var(--evcc-text-on-accent, #fff);
   }
 
   /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
@@ -306,8 +306,8 @@ export const mapStyles = `
     font-size:     10px;
     font-weight:   700;
     line-height:   1;
-    color:         #fff;
-    background:     rgba(15, 18, 22, 0.85);   /* neutral dark pill — always legible on any room */
+    color:         #fff;  /* theme-lint-ignore: white on the neutral dark pill below — legible over any room color */
+    background:     rgba(15, 18, 22, 0.85);   /* neutral dark pill — always legible on any room */  /* theme-lint-ignore: neutral dark pill — legible over any room color */
     border-radius: 3px;
     padding:       1px 4px;
   }
@@ -340,7 +340,7 @@ export const mapStyles = `
     border:          none;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     cursor:          pointer;
     pointer-events:  auto;       /* the × stays clickable even though the mask isn't */
     display:         flex;
@@ -352,7 +352,7 @@ export const mapStyles = `
     position:       absolute;
     box-sizing:     border-box;
     border:         2px dashed var(--evcc-accent, #3b82f6);
-    background:     rgba(120, 120, 130, 0.35);
+    background:     rgba(120, 120, 130, 0.35);  /* theme-lint-ignore: neutral drawing-state fill — reads over any room color */
     border-radius:  2px;
     pointer-events: none;
     z-index:        6;
@@ -375,7 +375,7 @@ export const mapStyles = `
   }
   .evcc-map-hide-btn--on {
     background:   var(--evcc-accent, #3b82f6);
-    color:        #fff;
+    color:        var(--evcc-text-on-accent, #fff);
     border-color: var(--evcc-accent, #3b82f6);
   }
   .evcc-map-hide-btn--clear { flex: 0 0 auto; }
@@ -418,7 +418,7 @@ export const mapStyles = `
   .evcc-zone-bar-btn--primary {
     background:    var(--evcc-accent, #3b82f6);
     border-color:  var(--evcc-accent, #3b82f6);
-    color:         #fff;
+    color:         var(--evcc-text-on-accent, #fff);
   }
   .evcc-zone-bar-btn[disabled] {
     opacity: 0.45;
@@ -521,7 +521,7 @@ export const mapStyles = `
     height:          18px;
     font-size:       10px;
     font-weight:     700;
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     background:      var(--evcc-accent, #3b82f6);
     border-radius:   4px;
   }
@@ -536,7 +536,7 @@ export const mapStyles = `
     border-radius: 4px;
   }
   .evcc-zone-list-del:hover {
-    color:      #fff;
+    color:      var(--evcc-text-primary, #fff);
     background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
   }
   .evcc-zone-panel-actions {
@@ -865,7 +865,7 @@ export const mapStyles = `
     font-weight:    700;
     line-height:    16px;
     text-align:     center;
-    color:          #fff;
+    color:          var(--evcc-text-on-accent, #fff);
     background:      var(--evcc-accent, #3b82f6);
     border-radius:  8px;
     pointer-events: none;
@@ -1289,7 +1289,7 @@ export const mapStyles = `
      (black reads on light) while the bright core still reads on a dark CV map. */
   .evcc-compose-shape-halo {
     fill:           none;
-    stroke:         #000;
+    stroke:         #000;  /* theme-lint-ignore: compose selection halo — structural outline over any content */
     stroke-width:   5;
     vector-effect:  non-scaling-stroke;
     pointer-events: none;

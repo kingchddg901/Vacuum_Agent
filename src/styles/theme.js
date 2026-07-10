@@ -335,7 +335,7 @@ export const themeStyles = `
     background: var(--evcc-surface-base, #10161f);
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.2);  /* theme-lint-ignore: subtle dark frame on the preview swatch — theme-independent edge */
   }
 
   .preview-swatch {
@@ -832,7 +832,7 @@ export const themeStyles = `
     bottom: 6px;
     width: 2px;
     transform: translateX(-50%);
-    background: #ffffff;
+    background: #ffffff;  /* theme-lint-ignore: mix-blend-mode:difference marker MUST be #fff to invert against any background */
     mix-blend-mode: difference;
     opacity: 0.95;
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.35);

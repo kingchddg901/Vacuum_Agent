@@ -215,7 +215,7 @@ export const MOBILE_STYLES = `
   .evcc-mobile-more-backdrop {
     position:     absolute;
     inset:        0;
-    background:   rgba(0, 0, 0, 0.45);
+    background:   var(--evcc-surface-overlay, rgba(0, 0, 0, 0.45));
     pointer-events: auto;
     animation:    evcc-mobile-fade-in 150ms ease-out both;
   }

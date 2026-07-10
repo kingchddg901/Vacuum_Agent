@@ -8794,24 +8794,24 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
 
 @media (prefers-color-scheme: light) {
   .evcc-room-rules-subtab.active {
-    background: rgba(15,23,42,0.05);
-    color:      #0f172a;
+    background: rgba(15,23,42,0.05);  /* theme-lint-ignore: prefers-color-scheme:light override (design decision, outside the token system) */
+    color:      #0f172a;  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-card {
-    background: rgba(15,23,42,0.03);
-    border-color: rgba(15,23,42,0.10);
+    background: rgba(15,23,42,0.03);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-editor {
-    background: rgba(15,23,42,0.02);
-    border-color: rgba(15,23,42,0.10);
+    background: rgba(15,23,42,0.02);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
   }
 
   .evcc-rule-editor-input {
-    background:   rgba(15,23,42,0.05);
-    border-color: rgba(15,23,42,0.10);
-    color:        #0f172a;
+    background:   rgba(15,23,42,0.05);  /* theme-lint-ignore: light-mode override */
+    border-color: rgba(15,23,42,0.10);  /* theme-lint-ignore: light-mode override */
+    color:        #0f172a;  /* theme-lint-ignore: light-mode override */
   }
 }
 `;var bs=`
@@ -11211,7 +11211,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     background: var(--evcc-surface-base, #10161f);
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(0, 0, 0, 0.2);  /* theme-lint-ignore: subtle dark frame on the preview swatch \u2014 theme-independent edge */
   }
 
   .preview-swatch {
@@ -11708,7 +11708,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     bottom: 6px;
     width: 2px;
     transform: translateX(-50%);
-    background: #ffffff;
+    background: #ffffff;  /* theme-lint-ignore: mix-blend-mode:difference marker MUST be #fff to invert against any background */
     mix-blend-mode: difference;
     opacity: 0.95;
     box-shadow: 0 0 4px rgba(255, 255, 255, 0.35);
@@ -12911,7 +12911,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .evcc-map-zoom-btn--on {
     background:   var(--evcc-accent, #3b82f6);
     border-color: var(--evcc-accent, #3b82f6);
-    color:        #fff;
+    color:        var(--evcc-text-on-accent, #fff);
   }
 
   /* In draw mode: crosshair cursor; segment polygons + labels stop intercepting
@@ -12961,8 +12961,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     font-size:     10px;
     font-weight:   700;
     line-height:   1;
-    color:         #fff;
-    background:     rgba(15, 18, 22, 0.85);   /* neutral dark pill \u2014 always legible on any room */
+    color:         #fff;  /* theme-lint-ignore: white on the neutral dark pill below \u2014 legible over any room color */
+    background:     rgba(15, 18, 22, 0.85);   /* neutral dark pill \u2014 always legible on any room */  /* theme-lint-ignore: neutral dark pill \u2014 legible over any room color */
     border-radius: 3px;
     padding:       1px 4px;
   }
@@ -12995,7 +12995,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     border:          none;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     cursor:          pointer;
     pointer-events:  auto;       /* the \xD7 stays clickable even though the mask isn't */
     display:         flex;
@@ -13007,7 +13007,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     position:       absolute;
     box-sizing:     border-box;
     border:         2px dashed var(--evcc-accent, #3b82f6);
-    background:     rgba(120, 120, 130, 0.35);
+    background:     rgba(120, 120, 130, 0.35);  /* theme-lint-ignore: neutral drawing-state fill \u2014 reads over any room color */
     border-radius:  2px;
     pointer-events: none;
     z-index:        6;
@@ -13030,7 +13030,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   }
   .evcc-map-hide-btn--on {
     background:   var(--evcc-accent, #3b82f6);
-    color:        #fff;
+    color:        var(--evcc-text-on-accent, #fff);
     border-color: var(--evcc-accent, #3b82f6);
   }
   .evcc-map-hide-btn--clear { flex: 0 0 auto; }
@@ -13073,7 +13073,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .evcc-zone-bar-btn--primary {
     background:    var(--evcc-accent, #3b82f6);
     border-color:  var(--evcc-accent, #3b82f6);
-    color:         #fff;
+    color:         var(--evcc-text-on-accent, #fff);
   }
   .evcc-zone-bar-btn[disabled] {
     opacity: 0.45;
@@ -13176,7 +13176,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     height:          18px;
     font-size:       10px;
     font-weight:     700;
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     background:      var(--evcc-accent, #3b82f6);
     border-radius:   4px;
   }
@@ -13191,7 +13191,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     border-radius: 4px;
   }
   .evcc-zone-list-del:hover {
-    color:      #fff;
+    color:      var(--evcc-text-primary, #fff);
     background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.18));
   }
   .evcc-zone-panel-actions {
@@ -13520,7 +13520,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     font-weight:    700;
     line-height:    16px;
     text-align:     center;
-    color:          #fff;
+    color:          var(--evcc-text-on-accent, #fff);
     background:      var(--evcc-accent, #3b82f6);
     border-radius:  8px;
     pointer-events: none;
@@ -13944,7 +13944,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
      (black reads on light) while the bright core still reads on a dark CV map. */
   .evcc-compose-shape-halo {
     fill:           none;
-    stroke:         #000;
+    stroke:         #000;  /* theme-lint-ignore: compose selection halo \u2014 structural outline over any content */
     stroke-width:   5;
     vector-effect:  non-scaling-stroke;
     pointer-events: none;
@@ -14483,7 +14483,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     height:          24px;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     display:         flex;
     align-items:     center;
     justify-content: center;
@@ -14530,7 +14530,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     padding:       8px 18px;
     border-radius: 8px;
     background:    var(--evcc-accent, #3b82f6);
-    color:         #fff;
+    color:         var(--evcc-text-on-accent, #fff);
     font-size:     0.86rem;
     font-weight:   600;
     border:        none;
@@ -14793,7 +14793,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
 
   .evcc-setup-room-toggle.on {
     background: var(--evcc-sem-success, #22c55e);
-    color:      #fff;
+    color:      var(--evcc-text-on-accent, #fff);
   }
 
   .evcc-setup-room-toggle.off {
@@ -14844,7 +14844,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   }
 
   .evcc-setup-floor-chip:hover:not(:disabled):not(.active) {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.12));
   }
 
   .evcc-setup-floor-chip:disabled {
@@ -14858,7 +14858,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
 
   .evcc-setup-btn.destructive {
     background: var(--evcc-sem-error, #ef4444);
-    color:      #fff;
+    color:      var(--evcc-text-on-accent, #fff);
     border:     none;
   }
 
@@ -15608,7 +15608,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .evcc-mobile-more-backdrop {
     position:     absolute;
     inset:        0;
-    background:   rgba(0, 0, 0, 0.45);
+    background:   var(--evcc-surface-overlay, rgba(0, 0, 0, 0.45));
     pointer-events: auto;
     animation:    evcc-mobile-fade-in 150ms ease-out both;
   }

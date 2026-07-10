@@ -54,7 +54,7 @@ export const setupStyles = `
     height:          24px;
     border-radius:   50%;
     background:      var(--evcc-accent, #3b82f6);
-    color:           #fff;
+    color:           var(--evcc-text-on-accent, #fff);
     display:         flex;
     align-items:     center;
     justify-content: center;
@@ -101,7 +101,7 @@ export const setupStyles = `
     padding:       8px 18px;
     border-radius: 8px;
     background:    var(--evcc-accent, #3b82f6);
-    color:         #fff;
+    color:         var(--evcc-text-on-accent, #fff);
     font-size:     0.86rem;
     font-weight:   600;
     border:        none;
@@ -364,7 +364,7 @@ export const setupStyles = `
 
   .evcc-setup-room-toggle.on {
     background: var(--evcc-sem-success, #22c55e);
-    color:      #fff;
+    color:      var(--evcc-text-on-accent, #fff);
   }
 
   .evcc-setup-room-toggle.off {
@@ -415,7 +415,7 @@ export const setupStyles = `
   }
 
   .evcc-setup-floor-chip:hover:not(:disabled):not(.active) {
-    background: rgba(255, 255, 255, 0.12);
+    background: var(--evcc-surface-action-hover, rgba(255, 255, 255, 0.12));
   }
 
   .evcc-setup-floor-chip:disabled {
@@ -429,7 +429,7 @@ export const setupStyles = `
 
   .evcc-setup-btn.destructive {
     background: var(--evcc-sem-error, #ef4444);
-    color:      #fff;
+    color:      var(--evcc-text-on-accent, #fff);
     border:     none;
   }
 
