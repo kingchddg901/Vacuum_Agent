@@ -136,6 +136,34 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   const bAnimal = unused.filter((k) => !isFloorPreset(k) && isAnimal(k));
   const bDead = unused.filter((k) => !isFloorPreset(k) && !isAnimal(k));
 
+  // --- Token CSS coverage: what % of color-property declarations resolve through a
+  // theme token vs a raw literal. Same scope as the check-styles theme-lint guard:
+  // src/styles/* (minus the token-definition file) + the standalone cards. `strip`
+  // blanks comments so literals-in-comments don't count; the ignore-hatch check reads
+  // the RAW line (theme-lint-ignore lives in a comment strip() would have erased). ---
+  const COLOR_PROP = /(?<![-\w])(color|background(?:-color)?|border(?:-color)?|fill|stroke|outline(?:-color)?|accent-color|caret-color)\s*:\s*([^;{}]+)/g;
+  const COLORLIT = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/;
+  const CARD_FILES = new Set(["src/room-card.js", "src/cards/dashboard-card.js", "src/cards/profile-card.js", "src/cards/_shared.js"]);
+  const covScope = (r) => (r.startsWith("src/styles/") && r !== "src/styles/foundation.js") || CARD_FILES.has(r);
+  let covTok = 0, covHatched = 0, covStray = 0;
+  for (const f of files) {
+    const r = rel(f);
+    if (!covScope(r)) continue;
+    const rawLines = readFileSync(f, "utf8").split(/\r?\n/);
+    const cText = strip(rawLines.join("\n"));
+    let cm; COLOR_PROP.lastIndex = 0;
+    while ((cm = COLOR_PROP.exec(cText))) {
+      const v = cm[2];
+      if (v.includes("var(")) { covTok++; continue; }
+      if (!COLORLIT.test(v)) continue;   // a keyword (transparent/none/inherit), not a literal
+      const ln = lineAt(cText, cm.index) - 1;
+      if ((rawLines[ln] || "").includes("theme-lint-ignore")) covHatched++; else covStray++;
+    }
+  }
+  const covN = covTok + covHatched + covStray;
+  const covPct = covN ? (covTok / covN * 100) : 100;
+  const covReal = (covTok + covStray) ? (covTok / (covTok + covStray) * 100) : 100;
+
   const L = [];
   L.push("# Theme Token CSS-Usage Trace");
   L.push("");
@@ -149,6 +177,7 @@ const range = (t) => (t.min === undefined && t.max === undefined)
   L.push("");
   L.push(`- Catalog **${catalog.size}** · consumer \`var()\` uses **${totalUses}** · with a consumer **${catalog.size - unused.length}**, with none **${unused.length}**`);
   L.push(`- \`var()\` → non-catalog tokens **${orphan.size}** · dynamic \`var(--evcc-…\${…})\` sites **${dynamic.length}**`);
+  L.push(`- **Token CSS coverage ${covPct.toFixed(1)}%** — ${covTok}/${covN} color declarations resolve through a token (${covHatched} deliberate \`theme-lint-ignore\`, **${covStray} stray**); **${covReal.toFixed(1)}%** of colors that should be themed. Scope: \`src/styles/*\` (minus token defs) + the standalone cards; guarded by \`scripts/check-styles.mjs\`.`);
   L.push("");
   L.push("---");
   L.push("");
@@ -202,5 +231,5 @@ const range = (t) => (t.min === undefined && t.max === undefined)
     L.push("");
   }
   writeFileSync(join(OUT, "THEME_TOKEN_USAGE.md"), BANNER + L.join("\n") + "\n");
-  console.log(`wrote docs/dev/reference/THEME_TOKEN_MAP.md (${THEME_TOKEN_REGISTRY.length} tokens) + THEME_TOKEN_USAGE.md (${totalUses} uses, ${bDead.length} dead, ${orphan.size} orphan)`);
+  console.log(`wrote docs/dev/reference/THEME_TOKEN_MAP.md (${THEME_TOKEN_REGISTRY.length} tokens) + THEME_TOKEN_USAGE.md (${totalUses} uses, ${bDead.length} dead, ${orphan.size} orphan, ${covPct.toFixed(1)}% CSS coverage, ${covStray} stray)`);
 }
