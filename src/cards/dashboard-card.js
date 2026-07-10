@@ -1016,12 +1016,12 @@ const CARD_CSS = `
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
   .room-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; border-top: 1px solid var(--border); }
-  .carpet { font-size: 0.78rem; color: var(--text-muted); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .carpet { font-size: 0.78rem; color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   .field-group { display: flex; flex-direction: column; gap: 6px; }
   .field-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
-  .chip:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
+  .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
   .chip.active { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: color-mix(in srgb, var(--accent) 90%, white); }
 
   .launcher { display: flex; flex-direction: column; gap: 10px; }
@@ -1030,13 +1030,13 @@ const CARD_CSS = `
   .hint { font-size: 0.72rem; color: var(--text-muted); padding: 0 2px; }
 
   .zone { display: flex; flex-direction: column; gap: 8px; }
-  .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.18); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+  .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--evcc-surface-sunken, rgba(0,0,0,0.18)); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
   .zone-rotator { position: absolute; inset: 0; }
   .zone-img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
   .zone-overlay { position: absolute; inset: 0; pointer-events: none; }
   .zone-rect { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; cursor: pointer; pointer-events: auto; }
   .zone-rect:hover { background: color-mix(in srgb, var(--accent) 36%, transparent); }
-  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
+  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
   .zone-draft-live { position: absolute; display: none; box-sizing: border-box; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }
@@ -1051,7 +1051,7 @@ const CARD_CSS = `
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
   .btn:hover { color: var(--text-primary); }
-  .btn-start { color: #fff; border-color: transparent; background: var(--accent); }
+  .btn-start { color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
   .btn-start:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
   .btn-start:disabled { opacity: 0.4; cursor: default; background: var(--accent); }
   .btn-start:active:not(:disabled) { transform: scale(0.96); }

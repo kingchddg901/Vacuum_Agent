@@ -197,7 +197,7 @@ export const LANG_CSS = `
   .va-lang-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 21; min-width: 168px; max-height: 264px; overflow: auto; background: var(--evcc-surface-card, #1c2127); border: 1px solid var(--evcc-border-default, rgba(255,255,255,0.14)); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 4px; }
   .va-lang-head { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evcc-text-muted, rgba(240,242,245,0.5)); padding: 6px 8px 4px; }
   .va-lang-opt { display: block; width: 100%; text-align: left; padding: 6px 8px; border: none; background: transparent; color: var(--evcc-text-primary, #f0f2f5); font-size: 0.82rem; cursor: pointer; border-radius: 5px; }
-  .va-lang-opt:hover { background: rgba(255,255,255,0.08); }
+  .va-lang-opt:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); }
   .va-lang-opt.active { color: var(--evcc-accent, #3b82f6); font-weight: 600; }
 `;
 

@@ -13017,7 +13017,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     position:       absolute;
     box-sizing:     border-box;
     border:         2px dashed var(--evcc-accent, #3b82f6);
-    background:     rgba(59, 130, 246, 0.18);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 18%, transparent);
     border-radius:  2px;
     pointer-events: none;
     z-index:        4;
@@ -13027,7 +13027,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     position:       absolute;
     box-sizing:     border-box;
     border:         2px solid var(--evcc-accent, #3b82f6);
-    background:     rgba(59, 130, 246, 0.10);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 10%, transparent);
     border-radius:  2px;
     /* Light+dark CASING so the box reads over ANY room colour (incl. an accent-hued room
        where the accent border alone would vanish) \u2014 the map-route-casing trick: a white ring
@@ -13061,7 +13061,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   }
   /* While editing: a translucent tinted box (so you see what's under + that it's editable). */
   .evcc-hidden-region--edit {
-    background:     rgba(59, 130, 246, 0.20);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 20%, transparent);
     border:         2px dashed var(--evcc-accent, #3b82f6);
     border-radius:  2px;
   }
@@ -17491,7 +17491,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .va-lang-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 21; min-width: 168px; max-height: 264px; overflow: auto; background: var(--evcc-surface-card, #1c2127); border: 1px solid var(--evcc-border-default, rgba(255,255,255,0.14)); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.4); padding: 4px; }
   .va-lang-head { font-size: 0.64rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--evcc-text-muted, rgba(240,242,245,0.5)); padding: 6px 8px 4px; }
   .va-lang-opt { display: block; width: 100%; text-align: left; padding: 6px 8px; border: none; background: transparent; color: var(--evcc-text-primary, #f0f2f5); font-size: 0.82rem; cursor: pointer; border-radius: 5px; }
-  .va-lang-opt:hover { background: rgba(255,255,255,0.08); }
+  .va-lang-opt:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); }
   .va-lang-opt.active { color: var(--evcc-accent, #3b82f6); font-weight: 600; }
 `;function ud(n){window.customCards=window.customCards||[],window.customCards.some(e=>e.type===n.type)||window.customCards.push(n)}function mt(n,e){customElements.get(n)||customElements.define(n,e)}function md(n,e){let t=n?.states;if(!t||typeof e!="string"||!e.startsWith("vacuum."))return!1;for(let a of Object.values(t))if(a?.attributes?.vacuum_entity_id===e)return!0;return!1}function Dp(n,e){let t=n?.states??{};for(let[a,r]of Object.entries(t))if(a.startsWith("switch.")&&r?.attributes?.vacuum_entity_id===e&&r?.attributes?.room_id!=null)return r.attributes.room_id;return null}function pd(n,e,t){return md(n,e)?{config:{type:`custom:${t}`,vacuum_entity_id:e}}:null}function hd(n,e,t){return md(n,e)?{config:{type:`custom:${t}`,vacuum_entity_id:e,room_id:Dp(n,e)}}:null}var rn="eufy-room-card",sn="eufy-room-card-editor",nn=class extends HTMLElement{constructor(){super(),this.attachShadow({mode:"open"}),this._hass=null,this._config={}}setConfig(e){this._config=e??{},this._render()}set hass(e){this._hass=e,We(()=>this._render()),this._render()}t(e,t){return Se(ge(this._hass,this._config),e,t)}tRaw(e,t){return Se(ge(this._hass,this._config),e,t,{raw:!0})}tVocab(e,t,a){if(t==null||t==="")return z(a??"");let r=String(t).toLowerCase().replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,""),i=this.t(`vocab.${e}.${r}`);return i===`vocab.${e}.${r}`?z(a??String(t)):i}_vacuumEntities(){return this._hass?Object.keys(this._hass.states).filter(e=>e.startsWith("vacuum.")).sort():[]}_roomSwitchesFor(e){return!this._hass||!e?[]:Object.entries(this._hass.states).filter(([t,a])=>t.startsWith("switch.")&&a.attributes?.vacuum_entity_id===e&&a.attributes?.room_id!=null).map(([,t])=>({room_id:t.attributes.room_id,room_name:t.attributes.room_name??t.attributes.friendly_name??this.t("room_card.room_fallback",{room_id:t.attributes.room_id})})).sort((t,a)=>String(t.room_name).localeCompare(String(a.room_name)))}_fire(e){e?.vacuum_entity_id&&this.dispatchEvent(new CustomEvent("config-changed",{detail:{config:e},bubbles:!0,composed:!0}))}_render(){let e=this._vacuumEntities(),t=this._config.vacuum_entity_id??"",a=this._roomSwitchesFor(t),r=this._config.room_id!=null?String(this._config.room_id):"",i=this._config.name??"";this.shadowRoot.innerHTML=`
       <style>
@@ -17578,6 +17578,8 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           --text-primary: var(--evcc-text-primary, #f0f2f5);
           --text-muted:   var(--evcc-text-muted, rgba(240,242,245,0.48));
           --radius:       var(--evcc-radius-card, 12px);
+          --surface-subtle: var(--evcc-surface-subtle, rgba(255,255,255,0.04));
+          --text-on-accent: var(--evcc-text-on-accent, #fff);
         }
 
         .card {
@@ -17638,7 +17640,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           margin: 0 16px 8px;
           font-size: 0.78rem;
           color: var(--text-muted);
-          background: rgba(255,255,255,0.04);
+          background: var(--surface-subtle);
           border: 1px solid var(--border);
           border-radius: 6px;
           padding: 6px 10px;
@@ -17664,7 +17666,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           padding: 5px 12px;
           border-radius: 999px;
           border: 1px solid var(--border);
-          background: rgba(255,255,255,0.04);
+          background: var(--surface-subtle);
           color: var(--text-muted);
           font-size: 0.80rem; font-weight: 500;
           cursor: pointer;
@@ -17672,7 +17674,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
           -webkit-tap-highlight-color: transparent;
         }
 
-        .chip:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+        .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
 
         .chip.active {
           background:   color-mix(in srgb, var(--accent) 18%, transparent);
@@ -17713,7 +17715,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
         }
 
         .btn-start {
-          color: #fff;
+          color: var(--text-on-accent);
           border-color: transparent;
           background: var(--accent);
         }
@@ -17955,12 +17957,12 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .room-row.is-open .chevron { transform: rotate(180deg); }
 
   .room-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 12px; border-top: 1px solid var(--border); }
-  .carpet { font-size: 0.78rem; color: var(--text-muted); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .carpet { font-size: 0.78rem; color: var(--text-muted); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   .field-group { display: flex; flex-direction: column; gap: 6px; }
   .field-label { font-size: 0.70rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
-  .chip:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+  .chip { padding: 5px 12px; border-radius: 999px; border: 1px solid var(--border); background: var(--evcc-surface-subtle, rgba(255,255,255,0.04)); color: var(--text-muted); font-size: 0.80rem; font-weight: 500; cursor: pointer; transition: all 120ms ease; }
+  .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
   .chip.active { background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: color-mix(in srgb, var(--accent) 50%, transparent); color: color-mix(in srgb, var(--accent) 90%, white); }
 
   .launcher { display: flex; flex-direction: column; gap: 10px; }
@@ -17969,13 +17971,13 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .hint { font-size: 0.72rem; color: var(--text-muted); padding: 0 2px; }
 
   .zone { display: flex; flex-direction: column; gap: 8px; }
-  .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: rgba(0,0,0,0.18); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
+  .zone-surface { position: relative; width: 100%; aspect-ratio: 1 / 1; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--evcc-surface-sunken, rgba(0,0,0,0.18)); touch-action: none; cursor: crosshair; -webkit-user-select: none; user-select: none; }
   .zone-rotator { position: absolute; inset: 0; }
   .zone-img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
   .zone-overlay { position: absolute; inset: 0; pointer-events: none; }
   .zone-rect { position: absolute; box-sizing: border-box; border: 2px solid var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-radius: 3px; cursor: pointer; pointer-events: auto; }
   .zone-rect:hover { background: color-mix(in srgb, var(--accent) 36%, transparent); }
-  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: #fff; background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
+  .zone-num { position: absolute; top: -1px; left: -1px; font-size: 0.6rem; font-weight: 700; color: var(--evcc-text-on-accent, #fff); background: var(--accent); border-radius: 0 0 6px 0; padding: 0 5px; line-height: 1.45; }
   .zone-draft-live { position: absolute; display: none; box-sizing: border-box; border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
   .zone-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .zone-bar .spacer { flex: 1; }
@@ -17990,7 +17992,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--border); }
   .btn { display: inline-flex; align-items: center; gap: 6px; padding: 7px 16px; border-radius: 999px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 120ms ease; }
   .btn:hover { color: var(--text-primary); }
-  .btn-start { color: #fff; border-color: transparent; background: var(--accent); }
+  .btn-start { color: var(--evcc-text-on-accent, #fff); border-color: transparent; background: var(--accent); }
   .btn-start:hover { background: color-mix(in srgb, var(--accent) 85%, white); }
   .btn-start:disabled { opacity: 0.4; cursor: default; background: var(--accent); }
   .btn-start:active:not(:disabled) { transform: scale(0.96); }
@@ -18007,6 +18009,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
     --text-primary:  var(--evcc-text-primary, #f0f2f5);
     --text-muted:    var(--evcc-text-muted, rgba(240,242,245,0.48));
     --radius:        var(--evcc-radius-card, 12px);
+    --text-on-accent: var(--evcc-text-on-accent, #fff);
   }
   .evcc-pcard {
     background: var(--surface);
@@ -18024,7 +18027,7 @@ config/eufy_vacuum/battery/${this.escapeHtml(w)}/samples.jsonl</pre>
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;
     display: inline-flex; align-items: center; gap: 4px;
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: var(--text-on-accent);
     font: inherit; font-weight: 600; padding: 8px 20px; border-radius: 999px;
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
   }

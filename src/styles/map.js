@@ -280,7 +280,7 @@ export const mapStyles = `
     position:       absolute;
     box-sizing:     border-box;
     border:         2px dashed var(--evcc-accent, #3b82f6);
-    background:     rgba(59, 130, 246, 0.18);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 18%, transparent);
     border-radius:  2px;
     pointer-events: none;
     z-index:        4;
@@ -290,7 +290,7 @@ export const mapStyles = `
     position:       absolute;
     box-sizing:     border-box;
     border:         2px solid var(--evcc-accent, #3b82f6);
-    background:     rgba(59, 130, 246, 0.10);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 10%, transparent);
     border-radius:  2px;
     /* Light+dark CASING so the box reads over ANY room colour (incl. an accent-hued room
        where the accent border alone would vanish) — the map-route-casing trick: a white ring
@@ -324,7 +324,7 @@ export const mapStyles = `
   }
   /* While editing: a translucent tinted box (so you see what's under + that it's editable). */
   .evcc-hidden-region--edit {
-    background:     rgba(59, 130, 246, 0.20);
+    background:     color-mix(in srgb, var(--evcc-accent, #3b82f6) 20%, transparent);
     border:         2px dashed var(--evcc-accent, #3b82f6);
     border-radius:  2px;
   }

@@ -374,6 +374,8 @@ class EufyRoomCard extends HTMLElement {
           --text-primary: var(--evcc-text-primary, #f0f2f5);
           --text-muted:   var(--evcc-text-muted, rgba(240,242,245,0.48));
           --radius:       var(--evcc-radius-card, 12px);
+          --surface-subtle: var(--evcc-surface-subtle, rgba(255,255,255,0.04));
+          --text-on-accent: var(--evcc-text-on-accent, #fff);
         }
 
         .card {
@@ -434,7 +436,7 @@ class EufyRoomCard extends HTMLElement {
           margin: 0 16px 8px;
           font-size: 0.78rem;
           color: var(--text-muted);
-          background: rgba(255,255,255,0.04);
+          background: var(--surface-subtle);
           border: 1px solid var(--border);
           border-radius: 6px;
           padding: 6px 10px;
@@ -460,7 +462,7 @@ class EufyRoomCard extends HTMLElement {
           padding: 5px 12px;
           border-radius: 999px;
           border: 1px solid var(--border);
-          background: rgba(255,255,255,0.04);
+          background: var(--surface-subtle);
           color: var(--text-muted);
           font-size: 0.80rem; font-weight: 500;
           cursor: pointer;
@@ -468,7 +470,7 @@ class EufyRoomCard extends HTMLElement {
           -webkit-tap-highlight-color: transparent;
         }
 
-        .chip:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+        .chip:hover { background: var(--evcc-surface-action-hover, rgba(255,255,255,0.08)); color: var(--text-primary); }
 
         .chip.active {
           background:   color-mix(in srgb, var(--accent) 18%, transparent);
@@ -509,7 +511,7 @@ class EufyRoomCard extends HTMLElement {
         }
 
         .btn-start {
-          color: #fff;
+          color: var(--text-on-accent);
           border-color: transparent;
           background: var(--accent);
         }

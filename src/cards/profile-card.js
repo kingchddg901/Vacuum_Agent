@@ -38,6 +38,7 @@ const CARD_CSS = `
     --text-primary:  var(--evcc-text-primary, #f0f2f5);
     --text-muted:    var(--evcc-text-muted, rgba(240,242,245,0.48));
     --radius:        var(--evcc-radius-card, 12px);
+    --text-on-accent: var(--evcc-text-on-accent, #fff);
   }
   .evcc-pcard {
     background: var(--surface);
@@ -55,7 +56,7 @@ const CARD_CSS = `
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;
     display: inline-flex; align-items: center; gap: 4px;
-    background: var(--accent); color: #fff;
+    background: var(--accent); color: var(--text-on-accent);
     font: inherit; font-weight: 600; padding: 8px 20px; border-radius: 999px;
     box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
   }
