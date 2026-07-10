@@ -53,9 +53,9 @@ The card **speaks seven languages** out of the box — German, French, Spanish, 
 
 The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered in every shipped language:
 
-![The Room card's cleaning controls — mode, suction, path, passes, Start — shown in all seven languages](docs/promo/translations-hero-room-card.png)
+![The Room card's cleaning controls — mode, suction, path, passes, Start — shown in all seven languages](docs/screenshots/translations-hero-room-card.png)
 
-![The Profile card's "Runs as" step manifest and Run button, shown in all seven languages](docs/promo/translations-hero-profile-card.png)
+![The Profile card's "Runs as" step manifest and Run button, shown in all seven languages](docs/screenshots/translations-hero-profile-card.png)
 
 ## Also on Roborock
 
