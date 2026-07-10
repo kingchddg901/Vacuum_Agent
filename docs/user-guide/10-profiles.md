@@ -177,7 +177,7 @@ A charge or wait stop at the very start or end of the sequence is dropped automa
 
 ### The "This run" preview
 
-When a stepped profile is applied, the Rooms view shows a **"This run"** block — a collapsible preview that lays out the exact sequence the vacuum will follow: each room group, each ⚡ charge stop with its target, and each ⏱ wait stop with its duration. It is the read-only mirror of the steps you built, so you can confirm the order before pressing **Run**. The saved-profile detail card shows the same sequence under a **"Runs as"** heading.
+When a stepped profile is applied, the Rooms view shows a **"This run"** block — a collapsible preview that lays out the exact sequence the vacuum will follow: each room group, each ⚡ charge stop with its target, and each ⏱ wait stop with its duration. It is the read-only mirror of the steps you built, so you can confirm the order before pressing **Run**. The saved-profile detail card shows the same sequence under a **"Runs as"** heading — as does the standalone **Profile card** you can drop on any dashboard (see [Dashboard & Room cards](20-dashboard-and-room-cards.md#the-profile-card)), which surfaces one saved profile's **Runs As** list plus a **Run** button without opening the panel.
 
 ### Editing a charge or wait inline
 

@@ -2,7 +2,7 @@
 
 Most of this guide describes the **sidebar panel** — the full eufy-vacuum-command-center
 that the integration adds to your Home Assistant sidebar. But you don't have to leave your
-dashboard to control the vacuum. The integration also ships **two compact cards you drop
+dashboard to control the vacuum. The integration also ships **three compact cards you drop
 straight onto your own Lovelace dashboards**, next to your lights and thermostats:
 
 - **Vacuum Agent — Dashboard Mode** (`vacuum-agent-dashboard`) — a compact, multi-room
@@ -10,6 +10,8 @@ straight onto your own Lovelace dashboards**, next to your lights and thermostat
   map, and Start / Dock.
 - **Eufy Room Card** (`eufy-room-card`) — one card per room: that room's settings and a
   quick Start button.
+- **Vacuum Agent — Profile Card** (`vacuum-agent-profile-card`) — one card per saved run
+  profile: shows exactly what that routine will do (its step sequence) and a **Run** button.
 
 Both are served by the integration itself — there's **nothing to register**. No HACS
 frontend repository, no Lovelace *Resources* entry. Once the integration is installed the
@@ -18,8 +20,8 @@ cards are available everywhere, even on a dashboard that never opens the sidebar
 ## Adding a card
 
 In any dashboard, click **Edit dashboard → + Add card**, then search for **"Vacuum Agent"**
-(the dashboard card) or **"Eufy Room"** (the room card). Each card has a visual editor —
-no YAML required.
+(the dashboard card), **"Eufy Room"** (the room card), or **"Vacuum Agent Profile"** (the
+profile card). Each card has a visual editor — no YAML required.
 
 Prefer YAML? The minimal configs are:
 
@@ -34,6 +36,14 @@ vacuum_entity_id: vacuum.alfred   # required — which vacuum this card controls
 type: custom:eufy-room-card
 vacuum_entity_id: vacuum.alfred   # required
 room_id: 5                        # required — which room (pick it in the editor)
+```
+
+```yaml
+# Single-profile "inspect & run" card
+type: custom:vacuum-agent-profile-card
+vacuum_entity_id: vacuum.alfred   # required
+map_id: "6"                       # required — which map the profile belongs to
+profile_id: rp_20260709T065541    # required — pick it in the editor
 ```
 
 ## The Dashboard Mode card
@@ -91,6 +101,24 @@ name at the top is a button:
 
 So a Room card always starts a **single-room** clean of its own room. Edit a setting and the
 **Save** button appears; **Start** also saves any pending edits before it runs.
+
+## The Profile card
+
+A run profile can grow into a whole routine — room groups, per-room settings, a charge-to-%
+stop partway through, wait steps, strict ordering. Once it does, the profile's *name* alone
+may not tell you what pressing it will do. The **Profile card** puts one saved profile on your
+dashboard: its name, how many rooms, whether it's exposed as a button, and a read-only **Runs
+As** list of every step in order — ⏱ waits, cleans (with each group's mode), ⚡ charge stops —
+then a single **Run** button.
+
+Pick the vacuum, map, and profile in the editor (three dropdowns, no YAML). It's
+**inspect-and-run only** — there's no save, edit, or delete here; you build and manage profiles
+in the sidebar panel (see [Profiles](10-profiles.md)). Pressing **Run** applies the profile and
+starts the whole sequence, charge stops and all, exactly like starting it from the panel.
+
+Unlike the Dashboard and Room cards, this one isn't offered automatically when you add a vacuum
+entity — it needs you to choose *which* profile — so add it yourself from **+ Add card** and
+search **"Vacuum Agent Profile"**.
 
 ## The map
 
