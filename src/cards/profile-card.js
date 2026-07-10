@@ -14,51 +14,61 @@
 // helper (slice b) so this card and the full panel can't drift.
 
 import { translate, resolveLang, ensureLocalesLoaded } from "../i18n/index.js";
-import { esc, callResponse, defineCard, getStoredLang } from "./_shared.js";
+import {
+  esc, callResponse, defineCard, getStoredLang, setStoredLang,
+  renderLangControl, wireLangControl, LANG_CSS,
+} from "./_shared.js";
 import { renderStepsManifest } from "../state/steps-manifest.js";
 
 const CARD_NAME = "vacuum-agent-profile-card";
 const CARD_EDITOR = "vacuum-agent-profile-card-editor";
 const DOMAIN = "eufy_vacuum";
 
+// Theme via the SAME --evcc-* token system the room + dashboard cards use (remapped
+// to local aliases with HA-var → hardcoded fallbacks), so the card picks up the
+// user's theme and matches its sibling cards' shape + accent instead of raw HA tokens.
 const CARD_CSS = `
-  :host { display: block; }
-  .evcc-pcard {
-    background: var(--ha-card-background, var(--card-background-color, #fff));
-    border-radius: var(--ha-card-border-radius, 12px);
-    box-shadow: var(--ha-card-box-shadow, none);
-    border: var(--ha-card-border-width, 1px) solid var(--divider-color, #e0e0e0);
-    padding: 16px;
-    color: var(--primary-text-color);
-    font-family: var(--paper-font-body1_-_font-family, inherit);
+  :host {
+    display: block;
+    font-family: var(--paper-font-body1_-_font-family, sans-serif);
+    --accent:        var(--evcc-accent, #3b82f6);
+    --surface:       var(--evcc-surface-card, #1c2127);
+    --surface-input: var(--evcc-surface-input, rgba(255,255,255,0.06));
+    --border:        var(--evcc-border-default, rgba(255,255,255,0.10));
+    --text-primary:  var(--evcc-text-primary, #f0f2f5);
+    --text-muted:    var(--evcc-text-muted, rgba(240,242,245,0.48));
+    --radius:        var(--evcc-radius-card, 12px);
   }
-  .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; }
-  .evcc-pcard-meta { color: var(--secondary-text-color); font-size: 0.85rem; margin-top: 4px; }
-  .evcc-pcard-meta-rooms { color: var(--secondary-text-color); font-size: 0.85rem; margin-top: 2px; }
+  .evcc-pcard {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    color: var(--text-primary);
+  }
+  .evcc-pcard-name { font-size: 1.15rem; font-weight: 600; line-height: 1.2; color: var(--text-primary); }
+  .evcc-pcard-meta { color: var(--text-muted); font-size: 0.85rem; margin-top: 4px; }
+  .evcc-pcard-meta-rooms { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
   .evcc-pcard-manifest { margin-top: 12px; }
-  .evcc-pcard-footer { margin-top: 16px; display: flex; justify-content: flex-end; }
+  .evcc-pcard-footer { margin-top: 16px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .evcc-pcard-footer .pcard-lang { margin-right: auto; }
   .evcc-pcard-run {
     appearance: none; border: none; cursor: pointer;
-    background: var(--primary-color, #03a9f4); color: var(--text-primary-color, #fff);
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent); color: #fff;
     font: inherit; font-weight: 600; padding: 8px 20px; border-radius: 999px;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent);
   }
-  .evcc-pcard-run[disabled] { opacity: 0.5; cursor: default; }
-  .evcc-pcard-empty { color: var(--secondary-text-color); font-size: 0.9rem; padding: 8px 0; }
+  .evcc-pcard-run:active:not([disabled]) { transform: scale(0.97); }
+  .evcc-pcard-run[disabled] { opacity: 0.5; cursor: default; box-shadow: none; }
+  .evcc-pcard-empty { color: var(--text-muted); font-size: 0.9rem; padding: 8px 0; }
 
   /* "Runs As" step manifest — class names match the shared renderStepsManifest
-     output. Tokens fall back panel-theme → HA var → hardcoded so the manifest
-     styles even on a cold dashboard with no panel loaded (aliased to distinct
-     names to avoid a self-referential custom-property cycle). */
-  .evcc-pcard-manifest {
-    --_seq-primary:   var(--evcc-text-primary,   var(--primary-text-color, #212121));
-    --_seq-secondary: var(--evcc-text-secondary, var(--secondary-text-color, #727272));
-    --_seq-muted:     var(--evcc-text-muted,     var(--disabled-text-color, #9e9e9e));
-    --_seq-surface:   var(--evcc-surface-input,  var(--secondary-background-color, #e8e8e8));
-  }
+     output; styled off the same theme aliases as the card chrome. */
   .evcc-run-profiles-sequence { display: flex; flex-direction: column; gap: 6px; }
   .evcc-run-profiles-label {
     font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--_seq-muted);
+    letter-spacing: 0.06em; color: var(--text-muted);
   }
   .evcc-run-profiles-seq-list {
     list-style: none; margin: 0; padding: 0; display: flex;
@@ -66,23 +76,24 @@ const CARD_CSS = `
   }
   .evcc-run-profiles-seq-step {
     display: flex; align-items: center; gap: 6px;
-    font-size: 0.78rem; color: var(--_seq-secondary);
+    font-size: 0.78rem; color: var(--text-muted);
   }
   .evcc-run-profiles-seq-step::before {
     counter-increment: evcc-seq; content: counter(evcc-seq);
     flex: 0 0 auto; width: 16px; height: 16px; display: inline-flex;
     align-items: center; justify-content: center; border-radius: 50%;
     font-size: 0.62rem; font-weight: 700;
-    color: var(--_seq-muted); background: var(--_seq-surface);
+    color: var(--text-muted); background: var(--surface-input);
   }
   .evcc-run-profiles-seq-step--charge,
-  .evcc-run-profiles-seq-step--wait { color: var(--_seq-primary); font-weight: 600; }
-  .evcc-run-profiles-seq-kind { font-weight: 700; color: var(--_seq-primary); }
+  .evcc-run-profiles-seq-step--wait { color: var(--text-primary); font-weight: 600; }
+  .evcc-run-profiles-seq-kind { font-weight: 700; color: var(--text-primary); }
   .evcc-run-profiles-seq-mode {
     font-size: 0.64rem; text-transform: uppercase; letter-spacing: 0.05em;
     padding: 1px 5px; border-radius: 999px;
-    color: var(--_seq-muted); background: var(--_seq-surface);
+    color: var(--text-muted); background: var(--surface-input);
   }
+  ${LANG_CSS}
 `;
 
 class VacuumAgentProfileCard extends HTMLElement {
@@ -97,6 +108,8 @@ class VacuumAgentProfileCard extends HTMLElement {
     this._running = false;
     this._langOverride = "auto";
     this._langLoaded = false;
+    this._langPicked = false;    // user made an explicit globe choice this session
+    this._langMenuOpen = false;
   }
 
   setConfig(config) {
@@ -118,7 +131,7 @@ class VacuumAgentProfileCard extends HTMLElement {
     if (this._langLoaded || !this._hass) return;
     this._langLoaded = true;
     getStoredLang(this._hass).then((code) => {
-      if (code == null || code === this._langOverride) return;
+      if (this._langPicked || code == null || code === this._langOverride) return;
       this._langOverride = code;
       this._render();
     });
@@ -216,11 +229,33 @@ class VacuumAgentProfileCard extends HTMLElement {
         ${roomNames.length ? `<div class="evcc-pcard-meta-rooms">${esc(roomNames.join(", "))}</div>` : ""}
         <div class="evcc-pcard-manifest">${this._renderManifest(profile)}</div>
         <div class="evcc-pcard-footer">
-          <button class="evcc-pcard-run" id="run-btn" ${this._running ? "disabled" : ""}>${this.t("run_profiles.run")}</button>
+          <div class="pcard-lang">${renderLangControl({
+            t: (k, v) => this.t(k, v),
+            override: this._langOverride,
+            currentLang: resolveLang(this._hass, this._config, this._langOverride),
+            open: this._langMenuOpen,
+          })}</div>
+          <button class="evcc-pcard-run" id="run-btn" ${this._running ? "disabled" : ""}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><polygon points="5,3 19,12 5,21"/></svg>
+            ${this.t("run_profiles.run")}
+          </button>
         </div>
       </div>
     `;
     this.shadowRoot.getElementById("run-btn")?.addEventListener("click", () => this._handleRun());
+
+    // Language globe — same per-user store the panel + sibling cards use.
+    wireLangControl(this.shadowRoot, {
+      toggle: () => { this._langMenuOpen = !this._langMenuOpen; this._render(); },
+      close:  () => { this._langMenuOpen = false; this._render(); },
+      set: (code) => {
+        this._langPicked = true;
+        this._langOverride = code;
+        this._langMenuOpen = false;
+        setStoredLang(this._hass, code);
+        this._render();
+      },
+    });
   }
 
   // Run = apply + start the profile through the protected path. No side effects
