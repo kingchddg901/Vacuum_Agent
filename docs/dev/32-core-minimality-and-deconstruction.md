@@ -61,39 +61,39 @@ Confirmed by the trace, on the room-clean path:
 
 ## 5. The welds — atom-logic living in the wrong house
 
-Five rings *are* load-bearing on the current path. Decoded, they are not five dependencies — they are **one legit atom member, three mis-homed room primitives, and one over-welded policy gate**:
+Five rings *are* load-bearing on the current path. Decoded, they are not five dependencies — they are **one legit atom member, three mis-homed room-definition primitives, and one self-satisfiable VA gate that isn't really a weld at all**:
 
 | Ring | Reach-in (as of audit) | What it really is |
 |---|---|---|
 | **run_plan** | `_build_effective_start_plan` → `run_plan._build_effective_start_plan` | **IS "the input for dispatch."** The dispatch engine is invoked *through* it. Atom-adjacent. |
 | **access_graph** | `core/manager.py:1626` `_normalized_managed_rooms_with_automation` → `self.access_graph.*` | the **room-config normalizer** that feeds the payload. A dumb vac has no access rules — but the normalizing *primitive* was housed in the graph ring. |
 | **profiles** | `core/manager.py:1250-1254` `_protected_room_config` / `_match_profile_from_fields` → `self.profiles.*` | the **effective-room shaper**. A dumb vac has no profiles — but the shaping *primitive* was housed in the profiles ring. |
-| **onboarding** | `core/manager.py:2490` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **policy gate**, not mechanism. Hard-blocks "just clean these rooms" until every enabled room's floor type is confirmed. The one weld that surprises a bare-brand integrator. |
+| **onboarding** | `core/manager.py:2490` `if not onboarding["floor_types_complete"]:` → blocks start `onboarding_required` | a **self-satisfiable VA gate**, *not a weld*. Floor type is pure VA state — `floor_types_confirmed` is a VA-owned dict in `data["onboarding"]` (`onboarding/manager.py:99`), `confirm_floor_type` just flips a boolean; **the adapter is never consulted.** VA owns the room list *and* the flags, so it can always complete this itself. It blocks today only because it waits for a human confirm — a step that earns its keep for **mopping** (don't mop an unclassified carpet), and is cosmetic for a non-mopping vac. |
 | **active_job** | `jobs/` paused-gate + post-wire live settings | run tracking. **Legit atom member — keep.** |
 
-**The verb stayed tiny; the noun got rich.** The *calling* is unchanged (one `async_call`). What inflated is *"which rooms, shaped how"* — ALFRED's helper-string became `run_plan → access_graph → profiles`. Every mis-homed weld is room-**definition**; the one policy weld is about **when a room may be called**. None of them is about the call.
+**The verb stayed tiny; the noun got rich.** The *calling* is unchanged (one `async_call`). What inflated is *"which rooms, shaped how"* — ALFRED's helper-string became `run_plan → access_graph → profiles`. Every mis-homed weld is room-**definition**; the onboarding gate is about **when** a room may be called — and since floor type is VA-owned, VA can answer that itself. None of them is about the call.
 
 **The seam is already there.** The core holds thin *delegators* — `_normalized_managed_rooms_with_automation` (`:1626`), `_protected_room_config` (`:1250`) — whose signatures live in core but whose **bodies just forward into the ring**. Giving those bodies a ring-free default is most of B.
 
 ## 6. "How much can you pull off?" — a two-layer answer
 
-- **Functionally, today: it still cleans.** `async_initialize` constructs all subsystems unconditionally, so nothing is ever `None`; a rooms-only brand's send *fires* — **once it clears the onboarding floor-type gate** (`:2490`). That gate is the surprise, and it is brand-independent.
+- **Functionally, today: it still cleans.** `async_initialize` constructs all subsystems unconditionally, so nothing is ever `None`; a rooms-only brand's send *fires* — **once it clears the onboarding floor-type gate** (`:2490`). That gate is brand-independent and self-satisfiable (VA owns the flags); it surprises only because it currently waits for a human confirm.
 - **Structurally: not yet.** Remove the rings and the path raises `AttributeError` *before* the wire send, at: `run_plan` (`_build_effective_start_plan`), `access_graph` (`:1626`), `profiles` (`:1250`/`:1254`), `active_job` (paused-gate), `onboarding` (`:2490`/`:3740`).
 
 The distance between those two layers **is** the deconstruction work. Answered plainly: *pull off everything and you are back at ALFRED — and it still calls a room.*
 
 ## 7. B — the core-stands refactor (blueprint, not done)
 
-Not "cut five welds." Really **three relocations + one guard**:
+Not "cut five welds." Really **two relocations + one default** (plus one keep):
 
 1. **Room-normalizer → core.** Move `_normalized_managed_rooms_with_automation`'s implementation out of `access_graph` into core/`run_plan` as a ring-free default; `access_graph` *augments* (rules, grants) only when present.
 2. **Effective-room shaper → core.** Same for `_protected_room_config` / `_match_profile_from_fields`: a plain default in core; `profiles` *tags* only when present.
-3. **Guard the onboarding gate.** Make floor-type confirmation an *enhancement*, not a precondition — capability/`None`-guarded, copying learning's `if … is None` pattern. A brand that declares no floor types skips it.
+3. **Default the onboarding gate away (pure VA logic — not a relocation).** Floor type is VA-owned, so auto-confirm a sensible default on room discovery and gate the *requirement* on **mop capability**: a non-mopping vac passes trivially (floor type is cosmetic for it), a mopping vac still confirms (don't mop a carpet). No brand or ring involvement.
 4. **`active_job` stays** — mechanism, not fit.
 
 Result: the atom boots alone — **adapter + dispatch + queue + rooms + spine + active_job**, a plain payload path needing no feature ring. That is a dumb-vac core, and it is *the genesis re-exposed* rather than anything new.
 
-> **B is speculative-value.** It buys portability — "true adapters/modules that attach elsewhere" — not correctness. Sequence it behind an actual need to reuse the core. The smallest safe first cut mirrors the maintenance clip ([`13-maintenance-manager.md`](13-maintenance-manager.md)): **guard the onboarding gate** — one testable change, but one that flips a previously-blocked run into a proceeding one, so it wants a capability check, not a blind removal.
+> **B is speculative-value.** It buys portability — "true adapters/modules that attach elsewhere" — not correctness. Sequence it behind an actual need to reuse the core. The smallest safe first cut is the **onboarding default** (item 3): pure VA logic, no ring and no adapter touched. Gating the *requirement* on mop capability makes it a true no-op for the vacs where floor type is cosmetic; the behavior-flip only exists for mopping vacs — which is exactly why the mop-capability condition, not a blind default, is the right shape.
 
 ## 8. Acceptance test
 
