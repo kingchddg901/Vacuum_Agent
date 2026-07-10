@@ -16,7 +16,7 @@ Architecture reference: [docs/dev/12-battery-system.md](../../dev/12-battery-sys
 | `job_metrics.py` | 77 | 98% | `tests/unit/test_battery_metrics.py` | unit (pure) |
 | `store.py` | 40 | 100% | `tests/unit/test_battery_store.py` | unit (`tmp_path`) |
 | `sensors.py` | 167 | 97% | `tests/unit/test_battery_sensors.py` | unit (mock manager) |
-| `manager.py` | 421 | 92% | `tests/integration/test_battery_manager.py` | integration |
+| `manager.py` | 442 | 93% | `tests/integration/test_battery_manager.py` | integration |
 | `__init__.py` (service) | — | 100% | `tests/integration/test_init_battery_rebaseline_service.py` | integration (service) |
 
 ---

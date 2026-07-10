@@ -14,7 +14,7 @@ Architecture reference: [docs/dev/14-dock-manager.md](../../dev/14-dock-manager.
 
 | Source module | Stmts | Cov | Test file | Layer |
 |---------------|------:|----:|-----------|-------|
-| `manager.py` | 165 | 98% | `tests/integration/test_dock_manager.py` | integration |
+| `manager.py` | 167 | 97% | `tests/integration/test_dock_manager.py` | integration |
 
 (`__init__.py` is trivial; the dock *services* layer is covered separately by
 `tests/integration/test_services_dock.py`.)
