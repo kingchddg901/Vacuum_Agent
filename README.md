@@ -51,6 +51,12 @@ A built-in **theme editor** for the panel card, with three layers: ready-made pr
 
 The card **speaks seven languages** out of the box — German, French, Spanish, Dutch, Italian, Portuguese, Russian — via a per-user language globe in the header, plus drop-in support for your own locale. A pack follows your Home Assistant language automatically **once it's promoted to `stable`** (after native review); until then, pick it from the globe. Anything untranslated falls back to English. (Native reviewers very welcome — see the [translations discussion](https://github.com/kingchddg901/Vacuum_Agent/discussions/25).)
 
+The proof is the everyday surfaces themselves — a room's own controls and a saved routine's step-by-step plan — rendered in every shipped language:
+
+![The Room card's cleaning controls — mode, suction, path, passes, Start — shown in all seven languages](docs/promo/translations-hero-room-card.png)
+
+![The Profile card's "Runs as" step manifest and Run button, shown in all seven languages](docs/promo/translations-hero-profile-card.png)
+
 ## Also on Roborock
 
 The Roborock adapter (tested on the **S6**) brings the stock integration up to parity with Eufy: the same per-room **rendered map**, **floor textures**, tap-to-queue, **draggable room-name labels**, and **draw-a-zone** — plus native per-room live rollover and per-room fan speed. Where a brand doesn't expose a fan-speed select entity, suction is still settable right in the zone/clean panel.
