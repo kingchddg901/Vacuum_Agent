@@ -295,6 +295,10 @@ def test_s7_exposes_water_control(s7_config):
     assert s7_config["display_name"] == "Roborock S7"
     # Settable mop -> water control on + the water picker appears (canonical values).
     assert s7_config["capabilities"]["supports_water_control"] is True
+    # A settable model has fan + mode + water per room, so a reusable room profile is
+    # meaningful (not a degenerate named fan speed) -> the profiles section appears.
+    # The S6 (fan-only) keeps supports_room_profiles False (see test_no_dock).
+    assert s7_config["capabilities"]["supports_room_profiles"] is True
     vocab = s7_config["vocabulary"]
     assert [o["value"] for o in vocab["water_level_options"]] == ["off", "low", "medium", "high"]
     # clean_mode is the logical mop switch (vacuum/mop/vacuum_mop) — it gates water +

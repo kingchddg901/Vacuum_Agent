@@ -533,11 +533,13 @@ def register_roborock_adapter_for_vacuum(
             # Conservative defaults pending a live segment-clean run (Wave 2).
             "position_lock_reliable": False,
             "rooms_unique_per_job": False,
-            # Reusable room PROFILES bundle multiple per-room settings (mode,
-            # water, intensity, passes, edge). The S6 exposes only per-room fan
-            # (everything else is global/unsettable), so a "profile" would be a
-            # degenerate named fan speed — hide the profiles section entirely.
-            "supports_room_profiles": False,
+            # Reusable room PROFILES bundle multiple per-room settings (mode, water,
+            # intensity, passes, edge). Gated on mop_settable: the S6 exposes only
+            # per-room fan (mode/water global/unsettable), so a "profile" would be a
+            # degenerate named fan speed — hidden. A settable-mop model (S7/S8) also
+            # exposes clean_mode + water_level per room, so a bundle is meaningful —
+            # the profiles section appears, same as Eufy.
+            "supports_room_profiles": mop_settable,
             # app_segment_clean path-optimizes and IGNORES the dispatched order
             # (confirmed on-device): order is honored only when set as a Sequence
             # in the Roborock app. So the card's queue order is advisory — surfaced

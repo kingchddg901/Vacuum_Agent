@@ -9,9 +9,11 @@ There are two independent profile systems in eufy_vacuum: **room profiles** and 
 
 ## Room Profiles
 
-!!! note "Roborock: use Run Profiles — the room-level presets in this section are Eufy-oriented"
+!!! note "Roborock: Run Profiles work everywhere; room-level presets depend on the model"
 
-    This does **not** mean Roborock lacks profiles. **Run Profiles** (the [next section](#run-profiles)) are fully supported on Roborock — including the charge / wait step sequences and the exposed profile buttons — and are the main way to save and recall a setup. The only thing specific to this *Room Profiles* section is the room-level **Cleaning Profile** presets: because a Roborock room has a small settable surface (fan speed, plus cleaning mode and water level on settable-mop S7/S8 models), a reusable preset *bundle* would be redundant, so that one row is hidden from the Roborock room editor — you set those per-room fields directly instead. Everything else about profiles works the same as on Eufy.
+    This does **not** mean Roborock lacks profiles — **Run Profiles** (the [next section](#run-profiles)) are fully supported on every Roborock, including the charge / wait step sequences and the exposed profile buttons, and are the main way to save and recall a setup.
+
+    The room-level **Cleaning Profile** presets in *this* section depend on how much your model exposes per room. On the **S6** (fan speed is the only settable per-room field) a preset bundle would be a degenerate named fan speed, so the Cleaning Profile row is hidden — you set fan directly. On a **settable-mop model (S7/S8 and newer)**, where cleaning mode and water level are per-room too, the Cleaning Profile presets appear and work exactly as on Eufy.
 
 ### What a room profile saves
 
