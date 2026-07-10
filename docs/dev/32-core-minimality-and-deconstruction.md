@@ -108,7 +108,7 @@ The experience would be miserable — no ETA, no live map, no upkeep, no learned
 
 ## 9. Subsystem pull-checklist
 
-The map above walked the room-clean path. This is the standing worklist for walking **every** manager-constructed subsystem the same way — a living checklist, not a finished audit.
+The map above walked the room-clean path. This section walks **every** manager-constructed subsystem the same way. As of the 2026-07-11 audit it is **complete** — every ring is classified, and the result is tidy: of 14 subsystems, most are already clean rings (**LEAVE**) or atom members (**KEEP**); the entire "core stands alone" refactor reduces to **two relocations + one default** (see §10).
 
 ### How to walk one
 
@@ -128,19 +128,19 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 | Subsystem | Imp | Ctor | Reach-ins | Verdict / status |
 |---|---|---|---|---|
 | `active_job` | lazy | mgr | 36 | **KEEP** — run tracking (paused-gate + live settings). Atom member. ✅ walked |
-| `profiles` | lazy | mgr | 20 | **SPLIT** — relocate the effective-room shaper (`_protected_room_config`/`_match_profile_from_fields`) to core; leave profile CRUD as a ring. ◑ partial |
-| `themes` | lazy | data | 13 | *unwalked* — presentation-only, owns `data["theme"]`, loose ctor. Hypothesis: clean detach. ⬜ **WALK** |
+| `profiles` | lazy | mgr | 20 | **SPLIT (relocate 4 / leave 16)** — relocate the effective-room shaper (`_protected_room_config` :1251, `_match_profile_from_fields` :1254, `_finalize_room_update` :1257, `get_effective_room_details` :1219) to core; leave 15 profile/run CRUD + `start_run_profile` orchestration as the ring. Shaper is live on **two** atom paths (`build_room_payload` :2184, `run_plan.py:1284-85`) + the room-write path. ✅ walked |
+| `themes` | lazy | data | 13 | **LEAVE** — the cleanest ring; **no manager back-ref at all** (ctor `data` only), owns `data["theme"]` + its own callback list. The reference for a fully detached ring. ✅ walked |
 | `access_graph` | lazy | data+hass | 12 | **RELOCATE** — `_normalized_managed_rooms_with_automation` (room-normalizer) belongs in core; graph augments with rules/grants. ✅ walked |
 | `run_plan` | lazy | mgr | 12 | **KEEP/absorb** — *is* the input pipeline for dispatch. Atom-adjacent. ✅ walked |
 | `external_run` (learning) | lazy | mgr | 12 | **EXTRACT** — mapped in §9.3; already `if … is None`-guarded; the portable one. ✅ walked |
-| `dock` | lazy | mgr | 9 | *unwalked* — device-action dispatch/gating; latent home for maintenance-level actions (self-clean/empty/descale). ⬜ **WALK** |
+| `dock` | lazy | mgr | 9 | **LEAVE** — clean ring; reaches back into core read-only to *gate* actions (capabilities/lifecycle/active-job). Confirmed **home for maintenance-level actions**: self-clean/empty/descale slot into its generic `action_buttons` map + a `supports_*` gate, no structural change. ✅ walked |
 | `maintenance` | lazy | mgr | 7 | **LEAVE** — dead import clipped (3dc2a06); now lazy-only, detachable. 7 live reach-ins are legit upkeep delegators. ✅ walked |
-| `room_map` | lazy | mgr | 7 | *unwalked* — room↔map association; may be atom-adjacent (map_id resolution) rather than a pure ring. ⬜ **WALK** |
+| `room_map` | lazy | mgr | 7 | **LEAVE** — atom-adjacency **disproven**: active-map resolution for the atom is already core-owned (`_resolve_active_map_id` :2712 → pure `rooms.room_discovery.get_active_map_id`). A discovery/save/reconcile CRUD ring; its heavy back-reach is core *plumbing*, no trapped logic. ✅ walked |
 | `onboarding` | lazy | data+hass | 6 | **DEFAULT** — self-satisfiable VA gate (floor type is VA-owned); not a structural weld. ✅ walked |
-| `map_source` | lazy | mgr | 5 | *unwalked* — provider segmentation + live-pose (live-map backdrop); off the room-clean path. Hypothesis: clean detach. ⬜ **WALK** |
+| `map_source` | lazy | mgr | 5 | **LEAVE** — live-map backdrop reader (provider segmentation + live-pose), off the room-clean path. Reaches back via **two deliberate shared seams** (`_map_state_source_cache`, `_resolve_live_map_image_entity`) — formalize as host contract, don't dissolve the ring. ✅ walked |
 | `dispatch` | lazy | mgr | 4 | **KEEP** — the caller; reads only adapter cfg + `hass`. Ring-free. ✅ walked |
 | `phase_runner` | lazy | mgr | 3 | **KEEP (conditional)** — needed only for strict-order / charge-step runs; atomic path never enters it. ✅ walked |
-| `live_room_refresh` | lazy | mgr | 1 | *unwalked* — Lever B live current-room refresh; one reach-in, nearly detached already. ⬜ **WALK (quick)** |
+| `live_room_refresh` | lazy | mgr | 1 | **LEAVE** — the cleanest: one reach-in (`maybe_pulse` :3949), reaches back only for `hass`; all config/rate-limit/local-gate self-contained. No-op for Eufy. Already extracted from core for this reason. ✅ walked |
 
 ### Out of the ring set
 
@@ -148,9 +148,30 @@ Signals to score it on: **import** (hard = spine candidate / lazy = ring candida
 - **Atom / spine** (hard-imported, the thing that stands): `adapters`, `queue` (engine + dispatch_engines), `maps`, `models`, `rooms` (identity), `jobs`, and `core` (`storage`/`capabilities`/`charging`). Not pulled — this *is* the core.
 - **HA glue** (platform wiring, not detachment candidates): `listeners`, `services`, `sensor`, `setup`, `frontend`, `translations`, `textures`.
 
-### Walk queue
+### Result
 
-Unwalked rings, cheapest first: **`live_room_refresh`** (1) → **`map_source`** (5) → **`room_map`** (7) → **`dock`** (9) → **`themes`** (13). Then the **`profiles` split**, then the **battery/water singletons** once learning's contract is extracted.
+Audit complete. **Five of five unwalked rings came back LEAVE** — already-detachable, no trapped core logic, no dead coupling. The one suspected atom-adjacency (`room_map` / map_id) was **disproven** (core already owns active-map resolution). The **only** structural weld in the entire subsystem set is the `profiles` effective-room shaper (and its sibling, the `access_graph` room-normalizer). Two notable side-findings: `themes` is the reference fully-detached ring (no back-ref), and `dock` is confirmed as the natural home for maintenance-level device actions.
+
+## 10. B — the "core stands alone" work plan
+
+Plan now, work later. The complete walk reduces B to **two relocations + one default**; everything else is already LEAVE / KEEP or a separate extraction track. None of this is required for correctness — it buys portability (a core that boots for a rooms-only brand). Sequence behind an actual need to reuse the core.
+
+**B1 · Relocate the room-normalizer** (`access_graph` → core).
+Move `_normalized_managed_rooms_with_automation`'s body into core (or `run_plan`); core produces a plain normalized-rooms payload, `access_graph` *augments* with rules/grants only when present. `access_graph` is already loosely built (`data`+`hass`, no back-ref), so this is a clean lift. *Test:* room-payload build + a no-graph path. *Risk:* low–moderate.
+
+**B2 · Relocate the effective-room shaper** (`profiles` → core).
+Move the 4 shaper primitives (`_protected_room_config`, `_match_profile_from_fields`, `_finalize_room_update`, `get_effective_room_details`) into core; the ring *augments the catalog* (`get_room_profiles`) when present. The 15 CRUD + `start_run_profile` orchestration stay in the ring and consume the relocated shaper via core. This is the **highest-value cut** — the shaper is live on two atom paths (`build_room_payload` :2184, `run_plan.py:1284-85`) plus the room-write path (`update_room_fields` :1351). *Test:* payload-build + room-update + profile-apply suites. *Risk:* moderate (hot path + write path).
+
+> B1 and B2 are the same job — the room-definition pipeline — and should land together. After them the atom builds a plain rooms payload with `access_graph`/`profiles` absent.
+
+**B3 · Default the onboarding gate** (independent, smallest/safest first cut).
+Auto-confirm a sensible floor-type default on room discovery; gate the *requirement* on **mop capability**. A non-mopping vac passes trivially (floor type is cosmetic for it); a mopping vac still confirms (don't mop a carpet). *Test:* the mop-safety regression path. *Risk:* behavior-flip on mopping vacs → capability-gated, wants a design pass.
+
+**Not B (separate tracks):**
+- **EXTRACT learning** behind its §9.3 host contract → `battery`/`water`/`bounds` fall out as cheap siblings on the shared engine.
+- **`dock` feature growth** — add self-clean/empty/descale as `action_buttons` entries + `supports_*` gates. Independent of B; the deconstruction just confirmed dock is the right home.
+
+**Acceptance (the dumb-vac test, structural):** after B1–B3, instantiate the manager with `access_graph`/`profiles`/`onboarding`/`learning`/`maps`/`maintenance` absent, fire one `room_clean` for a rooms-only brand, and reach the wire send at `dispatch/manager.py:84`. That is the genesis re-exposed — ALFRED, generalized to any adapter.
 
 ---
 
