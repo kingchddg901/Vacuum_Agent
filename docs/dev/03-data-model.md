@@ -868,10 +868,12 @@ two embedded sample lists. So the served record is the v2 shape **minus**
   "rooms":          list[{room_id, slug, name}]   # the map's room list for the assignment UI
 ```
 
-`resegment_external_run` (`core/manager.py`, via the `resegment_external_run`
-service) loads the on-disk record **with** samples, re-runs the segmentation at a
-new room count (`expected_rooms`) XOR boundary set (`active_boundaries`) XOR the
-confident-only default, rewrites the file in place, and returns the freshly
+`resegment_external_run` (`ExternalRunManager.resegment_external_run` in
+`learning/external_run.py`, reached via the `core/manager.py` delegator and the
+`resegment_external_run` service) loads the on-disk record **with** samples,
+re-runs the segmentation at a new room count (`expected_rooms`) XOR boundary set
+(`active_boundaries`) XOR the confident-only default, rewrites the file in place,
+and returns the freshly
 `strip_samples`'d record plus a `meta` block (`mode` /
 `requested` / `available` / `capped` / `capped_at`). v1 records (no samples) are
 `not_resegmentable` and degrade the card to legacy merge-only.
@@ -926,7 +928,18 @@ Break phases are driven by `jobs/phase_runner.py` (`_run_charge_wait_phase` /
 `maybe_advance_phase` once the target battery / wait time is reached. A
 `charge_wait` phase may accumulate transient runtime keys (`charge_from_battery`,
 `charge_started_at`; `wait_started_at` for `wait`) — internal, not part of the
-persisted contract. A profile run WITH stops also forces `strict_order=True`
+persisted contract. Because a break phase's only driver is an in-memory poller
+task, a pause+resume (status flips back to `"started"` but re-arms nothing) or an
+HA restart (the task is gone) would leave a dock phase with no live driver and
+wedge the run in `"started"` — `PhaseRunner.rearm_dock_phase_if_needed` re-spawns
+the matching poller when the current phase is a dock phase and status is
+`"started"`, guarded by a `_dock_poller_active` set so a normal advance and a
+re-arm can't both spawn. It is called from resume
+(`active_job.async_resume_active_job`) and on load
+(`manager.async_initialize`, after the guard-clear loop), and re-asserts
+`_phase_dispatch_pending` (the restart cleared it) so the intentional dock isn't
+read as a completion. A
+profile run WITH stops also forces `strict_order=True`
 (`_build_effective_start_plan`) so path-optimizing brands run each group in the
 exact order shown; no-op for order-honoring brands (Eufy).
 
@@ -1287,13 +1300,26 @@ The served/enriched profile (`_enrich_saved_run_profile`, returned by the
 ```
   "steps":            list[RunProfileStep]   # normalized (back-filled for legacy)
   "has_charge_steps": bool                   # True when any step is a charge_wait
+  "has_stops":        bool                   # SEQUENCED run: any charge_wait/wait step OR >1 room_group
   "room_count":       int
   "room_ids":         list[int]
   "room_names":       list[str]
   "room_names_label": str
 ```
 
-`has_charge_steps` is the backend flag the card reads to drive the stepped-run UI.
+`room_count` / `room_ids` / `room_names` are derived from the **effective steps**
+(the flattened `room_group` rooms, same flattening `apply_run_profile` uses), not
+the top-level `rooms` — a stepped edit only rewrites `steps`, leaving
+`profile["rooms"]` holding the stale pre-steps set. For a legacy rooms-only
+profile `run_profile_steps` back-fills a single `room_group`, so the values are
+unchanged.
+
+`has_stops` is the backend flag the card reads to drive the stepped-run UI — the
+Start-routing (`pendingStepRunProfileId`) and the stepped preview / chips /
+"Runs as" summary all gate on it. It is DISTINCT from the charge-only
+`has_charge_steps`: `has_stops` is `True` for any break step (`charge_wait` /
+`wait`) OR more than one `room_group`, so a mop-then-vacuum multi-group run with
+no charge/wait step still routes as a sequenced run.
 
 ---
 

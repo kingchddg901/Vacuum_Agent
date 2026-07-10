@@ -111,7 +111,7 @@ dispatch behavior:
   capability flags.** The S6 declares neither `supports_base_station` nor
   `supports_map_bounds` in its `capabilities` block; both card signals are
   *derived at snapshot time* in `core/manager.py::get_dashboard_snapshot`
-  (lines 3648-3661). (a) `supports_base_station` resolves False because the
+  (lines 3376-3389). (a) `supports_base_station` resolves False because the
   adapter omits the `dock_events` block entirely and all of
   `supports_mop_wash` / `supports_mop_dry` / `supports_empty_dust` /
   `supports_station_water` are False. (b) `supports_map_bounds` resolves False
@@ -120,8 +120,13 @@ dispatch behavior:
   Both default to **shown** when the snapshot key is absent; only an adapter that
   resolves False hides the tab. Eufy shows both because its dock/station caps are
   True (X10 dock) and its `segmenter_engine` is a real CV engine (`eufy_cv_v1`).
-- **`supports_room_profiles: False`** — the S6 dropped per-room profile
-  templates (mop/passes aren't per-room settable, below).
+- **`supports_room_profiles: mop_settable`** — a room-profile bundle groups
+  multiple per-room settings (mode/water/intensity/passes), so it's meaningful only
+  when the mop is programmable. The S6 (`mop_settable: False`) resolves this False —
+  its only per-room setting is fan speed, so a "profile" would be a degenerate named
+  fan speed, hidden. A settable-mop model (S7/S8) also exposes per-room
+  `clean_mode` + `water_level`, so it resolves True and the room-profile section
+  appears, same as Eufy (§6b).
 - **`position_lock_reliable: False`** — same as Eufy; reserved for a future
   stable-frame brand to flip True (re-enables the bounds-veto rollover gate).
 
@@ -329,8 +334,9 @@ The adapter declares these so the UI never offers a control the firmware ignores
   on the S6. This is a PER-MODEL fact, not a brand one — see §6b.
 - **Passes are global** (`passes_is_global`) — one passes value for the run, not
   per room.
-- **No room profiles** (`supports_room_profiles: False`), **no Base Station / Map
-  Bounds tabs** (capability-gated off).
+- **No room profiles** on the S6 (`supports_room_profiles` resolves False from
+  `mop_settable: False` — a settable model flips it True, §6b), **no Base Station /
+  Map Bounds tabs** (capability-gated off).
 - **Carpet + tank caution** — starting with the tank attached over carpet warrants
   a warning (`mop_carpet_warning`).
 
@@ -349,6 +355,13 @@ all no-ops when False so the **S6 stays byte-identical**:
   (`select.<obj>_mop_intensity`, options `off/low/medium/high`), not a per-room
   `app_segment_clean` field, so it rides a pre-call — `select.select_option` pushed
   before each group's segment clean, ranked max-wins from that group's `water_level`.
+  A **single-mode** batch (all-mop or all-vacuum) uses max-wins. A **MIXED**
+  mop/vacuum atomic batch instead carries `mixed_mode_water_policy: "safest"`: because
+  the select is device-global and one atomic dispatch can't zero water per-room,
+  max-wins would wet-mop the vacuum-only rooms — "safest" drops the batch to the
+  LOWEST requested water so a dry room is never wet-mopped (under-mop is accepted over
+  wet-mop). Per-group stepped runs re-run the pre-call per phase from each group's own
+  rooms, so a single-mode group is unaffected.
 
 `clean_mode` is framework-logical here (it never reaches the wire): "vacuum" forces
 water off (a dry pass → mop intensity `off`), "mop"/"vacuum_mop" keeps the group's
@@ -379,9 +392,30 @@ the device already takes. Nothing is brand-gated:
 
 - The steps editor (`renderRunProfilesPanel`) renders for any brand; the backend
   `has_charge_steps` flag drives it, not a capability.
+- The enriched run profile also carries a **`has_stops`** flag — DISTINCT from the
+  charge-only `has_charge_steps`: it's True when the run is a *sequenced* run (any
+  `charge_wait`/`wait` break step OR more than one `room_group`), stamped in
+  `profiles/ProfileManager._enrich_saved_run_profile` (which also derives
+  `room_count`/`room_ids`/`room_names` from the effective *steps*, not the stale
+  top-level `rooms`). The **frontend** `pendingStepRunProfileId` gate — which turns a
+  plain Start on an applied stepped profile into a sequenced run and drives the
+  queue-chip stepped preview — keys off **`has_stops`**, not `has_charge_steps`, so a
+  wait-only or multi-group profile with no charge step still runs sequenced. (The
+  read-only 'Runs as' sequence summary + the editor's initial expansion still key off
+  `has_charge_steps`.)
 - Each room group is its own dispatch with the break between, and the vac→charge→vac
-  resume goes through `_dispatch_active_phase` → `_dispatch_clean_payload` like any
+  resume goes through `_dispatch_active_phase` → `_dispatch_clean_payload` (now owned
+  by the bundled `DispatchManager`, reached via the manager delegator) like any
   other phase.
+- A `charge_wait`/`wait` phase is driven ONLY by an in-memory poller, so a **pause +
+  resume** or an **HA restart** would otherwise leave a docked dock-phase run wedged
+  in `started` with no live driver. `PhaseRunner.rearm_dock_phase_if_needed`
+  re-spawns the poller when the current phase is a dock phase and status is
+  `started` — called from resume (`active_job.async_resume_active_job`) and on load
+  (`manager.async_initialize`), idempotent via the `_dock_poller_active` guard, and it
+  re-asserts the `_phase_dispatch_pending` dock guard the restart cleared (the `wait`
+  poller recomputes its deadline from `wait_started_at`, so a mid-wait restart doesn't
+  restart the timer).
 - **Stepped runs force strict order** (`_build_effective_start_plan` passes
   `strict_order=True` whenever the run has `charge_wait`/`wait` stops). A stepped
   profile is a deliberate sequence, so Roborock (which ignores order inside one

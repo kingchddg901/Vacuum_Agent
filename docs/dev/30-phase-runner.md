@@ -72,6 +72,8 @@ reads/writes the same `manager.data["active_jobs"]` store.
 |---|---|---|
 | Public advance entry point | **PhaseRunner** (manager delegates) | `maybe_advance_phase` |
 | Per-phase watchdog state machine | **PhaseRunner** | `_run_advanced_phase` |
+| Spawn a stop-phase poller, guarded against a double-spawn | **PhaseRunner** | `_spawn_dock_poller` (+ the `_dock_poller_active` set) |
+| Re-arm a dock phase whose in-memory poller was lost (pause+resume / HA restart) | **PhaseRunner** | `rearm_dock_phase_if_needed` |
 | Drive a `charge_wait` stop phase (dock + poll battery) | **PhaseRunner** | `_run_charge_wait_phase` |
 | Drive a `wait` stop phase (dock + hold minutes) | **PhaseRunner** | `_run_wait_phase` |
 | Dispatch a phase's segment + per-room fan + per-phase global pre-calls | **PhaseRunner** | `_dispatch_active_phase` |
@@ -186,11 +188,12 @@ finalize a completed phase. Behavior of `PhaseRunner.maybe_advance_phase`:
    - Returns the advanced dict → stamp `current_room_started_at`, persist it to
      `data["active_jobs"][vacuum_entity_id][map_id]`, then **spawn** the driver
      for the new phase's kind as a background task (not awaited, so the completion
-     listener returns promptly), **routing on `phases[next_idx]["phase_type"]`:**
-     `"charge_wait"` → `_run_charge_wait_phase(...)`, `"wait"` →
-     `_run_wait_phase(...)`, anything else (a `room_group` clean phase) →
-     `_run_advanced_phase(...)`. Return **`True`** (the caller skips
-     finalization).
+     listener returns promptly), **routing on `phases[next_idx]["phase_type"]`:** a
+     **stop phase** (`"charge_wait"` / `"wait"`) is spawned through
+     `_spawn_dock_poller(...)` (§6.6.1, the double-spawn-guarded entry that picks
+     `_run_charge_wait_phase` vs `_run_wait_phase`); anything else (a `room_group`
+     clean phase) is spawned as `_run_advanced_phase(...)` directly. Return
+     **`True`** (the caller skips finalization).
 
 `maybe_advance_phase` is also re-entrant *from* the stop-phase drivers: once a
 `charge_wait`/`wait` phase's condition is met, its driver calls
@@ -418,6 +421,42 @@ normally. It only clears when the job is **still on this exact phase** (a later
 advance owns its own pending flag), then best-effort persists via
 `manager._async_save_logged()`.
 
+### 6.6.1 `_spawn_dock_poller` + `rearm_dock_phase_if_needed` (stop-phase poller lifecycle)
+
+A stop phase's only driver is an in-memory `asyncio` task (`_run_charge_wait_phase`
+/ `_run_wait_phase`); unlike a `room_group` phase, no room-finish event can advance
+it. Two paths would otherwise spawn a **second** concurrent poller for the same
+phase, so both route through one guarded entry.
+
+- **`_spawn_dock_poller(*, vacuum_entity_id, map_id, phase_type, phase_index) ->
+  bool`** — the single spawn point. It keys a `(vacuum_entity_id, map_id,
+  phase_index)` tuple into the in-memory `self._dock_poller_active` set **before**
+  creating the task; if the key is already present it returns `False` without
+  spawning. It picks `_run_charge_wait_phase` vs `_run_wait_phase` on `phase_type`.
+  The chosen driver's `finally` (in its thin wrapper) `discard`s the same key, so a
+  later re-arm can spawn a fresh poller once this one has exited. The key includes
+  `phase_index` (not just vac/map) so a poller advancing to the **next** dock phase
+  can spawn that phase's poller before its own `finally` clears the old key. Both
+  `maybe_advance_phase` (§4) and `rearm_dock_phase_if_needed` call it.
+- **`rearm_dock_phase_if_needed(*, vacuum_entity_id, map_id) -> bool`** — recovers a
+  dock phase whose in-memory poller was lost. A **pause+resume** (status flips back
+  to `"started"` but re-arms nothing) or an **HA restart** (the task is gone and
+  `async_initialize` force-clears `_phase_dispatch_pending`) leaves a
+  `charge_wait`/`wait` phase with **no** live driver, so the run wedges in
+  `"started"` forever. When the active job is `"started"` **and** its current phase
+  (`current_phase_index`) is a stop phase, it **re-asserts** `_phase_dispatch_pending`
+  (the restart cleared it, so the intentional dock isn't read as a completion mid-
+  re-arm) and re-spawns the matching poller via `_spawn_dock_poller`. It is a no-op
+  for atomic / `room_group` / finalized jobs, and the double-spawn guard makes it
+  idempotent against a live poller. The re-spawned poller is idempotent by its own
+  already-at-target / deadline / `_still_ours` logic; the `wait` poller recomputes
+  its deadline from the **persisted `wait_started_at`**, so a restart mid-wait does
+  not restart the full timer. Called from two sites:
+  - `core/manager.py::async_initialize` (on load) — loops every `"started"` job
+    once `self.phase_runner` exists.
+  - `jobs/active_job.py::async_resume_active_job` (on resume) — right after
+    `resume_active_job` flips the status back to `"started"`.
+
 ### 6.7 `_run_charge_wait_phase` (the charge stop driver)
 
 ```python
@@ -542,7 +581,9 @@ See
 |---|---|---|
 | `listeners/lifecycle.py` (completion hook) | `manager.maybe_advance_phase()` → `PhaseRunner.maybe_advance_phase()` | A phase's room set finished; decide advance vs finalize |
 | `core/manager.py::start_selected_rooms` | `phase_runner._run_advanced_phase(..., initial=True)` | A sequenced job starts (verify phase 0) |
-| `PhaseRunner.maybe_advance_phase` | `phase_runner._run_advanced_phase(...)` / `_run_charge_wait_phase(...)` / `_run_wait_phase(...)` | The next phase is dispatched, routed on its `phase_type` |
+| `PhaseRunner.maybe_advance_phase` | `phase_runner._run_advanced_phase(...)` directly (clean phase) / `_spawn_dock_poller(...)` (stop phase) | The next phase is dispatched, routed on its `phase_type` |
+| `core/manager.py::async_initialize` (on load) | `phase_runner.rearm_dock_phase_if_needed(...)` | Re-arm a stop phase whose in-memory poller the restart lost |
+| `jobs/active_job.py::async_resume_active_job` (on resume) | `phase_runner.rearm_dock_phase_if_needed(...)` | Re-arm a stop phase after a pause+resume re-armed nothing |
 | `queue/dispatch_engines.py` | `build_phases(strict_order=True)` | Build the one-room-per-phase list (upstream) |
 | `planning/run_plan.py` | `_build_steps_phases(...)` | Materialize a run profile's `steps` into clean-group + stop phases (upstream) |
 | `queue/queue_engine.py` | `advance_active_job_phase()` | Swap the stored job to the next phase |
@@ -560,6 +601,13 @@ See
   by its own driver (`_run_charge_wait_phase` / `_run_wait_phase`) reaching its
   condition, never by a room-finish event; it records an empty per-phase timing
   and keeps `_phase_dispatch_pending` set so its dock is not read as a completion.
+- **A stop phase's poller survives pause+resume and HA restart.** Its driver is an
+  in-memory task with no persistent scheduler, so `rearm_dock_phase_if_needed`
+  (§6.6.1) re-spawns it on resume (`async_resume_active_job`) and on load
+  (`async_initialize`), re-asserting `_phase_dispatch_pending`. The
+  `_dock_poller_active` guard (via `_spawn_dock_poller`) makes a re-arm idempotent
+  against a live poller, so the phase is never double-driven. Without it a
+  charge/wait run wedges in `"started"` forever after a pause+resume or restart.
 - **Stops force strict order.** Any run profile whose `steps` include a stop is
   planned with `strict_order=True`; on an order-honoring brand (Eufy) that folds
   back to no intra-group reordering but the multi-phase (stop-bracketed) structure

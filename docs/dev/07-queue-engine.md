@@ -392,6 +392,31 @@ path-optimizing brand runs each group's rooms in the exact order shown rather th
 silently re-ordering them inside one batch. The `honors_clean_order` gate still
 folds it to a no-op for Eufy.
 
+### Send-side dispatch (`DispatchManager`)
+
+The dispatch engines above produce the payload **shape**; pushing that payload
+onto the wire is the **send side**, owned by `DispatchManager`
+(`dispatch/manager.py`, package `dispatch/`), constructed as
+`self.dispatch = DispatchManager(manager=self)`. It owns
+`_dispatch_clean_payload` (wraps a resolved payload in the adapter's on-wire
+service envelope and calls it), `dispatch_zone_clean` (ad-hoc free-form zone
+clean), `_resolve_live_dispatch_payload` (re-resolves segment ids to LIVE ids by
+slug), and `_run_global_pre_calls`. The core manager keeps a thin delegator for
+each of the four (`start_selected_rooms`, `jobs/phase_runner.py`, the mapping /
+job-control services, and the dispatch tests all call `manager.<method>`), so
+callers are unchanged.
+
+`_run_global_pre_calls` pushes device-**global** fan/water settings before an
+atomic dispatch for brands whose select-exposed settings aren't per-room payload
+fields (Roborock `app_segment_clean` carries passes only). Each
+`dispatch.global_pre_calls` entry picks the run value by its `rank` (max-wins).
+**Mixed-batch safe water**: an entry that opts in with
+`mixed_mode_water_policy: "safest"` flips to the SAFEST (lowest-rank) water for a
+mixed mop + vacuum-only batch (≥1 mop room AND ≥1 vacuum-only room), so a device
+that can't zero water per-room doesn't wet-mop the dry rooms — under-mop is
+accepted over wet-mop. Single-mode batches (all-mop or all-vacuum) and the
+fan-speed entry (which never carries the marker) stay max-wins.
+
 ---
 
 ## 8. `set_rooms_enabled_subset`
@@ -489,7 +514,12 @@ the active-job `phases` list 1:1:
 **Per-group settings.** The SAME room can appear in two groups with different
 settings (vacuum in one phase, mop the next). `_build_steps_phases` overlays each
 group room's own fields over the global effective-room view before building that
-group's dispatch phase — the group's fields win.
+group's dispatch phase — the group's fields win. Each group room's `room_id` is
+coerced with a `_safe_int` (drop non-positive) before use — the same discipline
+`build_room_clean_payload` uses — so a malformed `room_id` never reaches `int()`
+and crashes the dispatch. `ProfileManager.normalize_run_profile_steps`
+(`profiles/manager.py`) applies the same coercion when a `steps` list is stored,
+dropping unparseable room ids and any group left with no valid room.
 
 `_build_effective_start_plan` invokes `_build_steps_phases` only when the pending
 run steps (stashed by `start_run_profile`, popped on the real dispatch) contain a
@@ -515,7 +545,26 @@ swaps to a break phase, it reads the next phase's `phase_type` and spawns:
 Both keep `_phase_dispatch_pending` set for the duration, which the completion
 gate honours — the same guard that stops a Roborock's between-phase dock from
 finalizing — so the **intentional** charge/idle dock is never read as a
-cancel/completion.
+cancel/completion. Both phase types are also exempt from the mid-job recharge
+observer (`ActiveJobTracker.update_active_job_recharge_observation`,
+`jobs/active_job.py`, checks `phase_type in ("charge_wait", "wait")`): a `wait`
+phase docks too and the device auto-charges while parked, so a low-battery
+wait-dock would otherwise be logged as a phantom unplanned recharge.
+
+**Poller re-arm (pause+resume / HA restart).** A break-phase poller is a purely
+in-memory `asyncio` task — a pause+resume (status flips back to `started` but
+re-arms nothing) or an HA restart (the task is gone and `async_initialize`
+force-clears `_phase_dispatch_pending`) would leave the dock phase with no live
+driver and the run would wedge in `started` forever.
+`PhaseRunner.rearm_dock_phase_if_needed(vacuum_entity_id, map_id)`
+(`jobs/phase_runner.py`) re-spawns the matching charge/wait poller when the active
+job is `started` **and** its current phase is a dock phase (`charge_wait` / `wait`);
+it re-asserts `_phase_dispatch_pending` and recomputes the wait deadline from the
+persisted `wait_started_at`. It is a no-op for atomic / room-group / finalized jobs.
+It is called on resume (`ActiveJobTracker.async_resume_active_job`, `jobs/active_job.py`)
+and on load (`manager.async_initialize`, over every `started` active job), and is
+double-spawn guarded by a `_dock_poller_active` set so a normal advance and a re-arm
+can't both drive the same dock phase.
 
 ### Snapshot fields
 
@@ -542,9 +591,28 @@ display) rather than a fabricated estimate.
 - **`set_run_profile_steps`** (`services/run_profiles.py`, delegating to
   `profiles/manager.py`) writes a profile's `steps` list.
 - **`start_run_profile`** applies + starts a saved profile, running its full
-  stepped sequence.
-- The profile snapshot carries **`has_charge_steps`** (`profiles/manager.py`),
-  which drives the card's stepped-run UI.
+  stepped sequence. The orchestration (apply the profile, stash the charge/wait
+  steps, dispatch) lives on **`ProfileManager.start_run_profile`**
+  (`profiles/manager.py`, next to `apply_run_profile`); the core manager keeps a
+  thin `start_run_profile` delegator for its service + button-entity callers, and
+  `start_selected_rooms` / `build_queue` / `build_room_payload` stay on the core
+  manager (reached via `self._manager`). It only stashes `_pending_run_steps` when
+  the profile actually has a `charge_wait` / `wait` stop, and — because
+  `start_selected_rooms` pops that stash only deep in `_build_effective_start_plan`,
+  which an early return (blocked / confirmation-required without a token / vacuum
+  missing) never reaches — it deletes the leftover stash on a **non-started**
+  return, so the next plain Start on that map isn't silently turned into a
+  charge/wait run.
+- The enriched profile snapshot (`_enrich_saved_run_profile`, `profiles/manager.py`)
+  carries two distinct flags. **`has_charge_steps`** is charge-only (any
+  `charge_wait` step). **`has_stops`** means "this is a **sequenced** run, not a
+  plain queue" — any break step (`charge_wait` / `wait`) **or** more than one
+  `room_group` — and it is what the card's Start-routing gates on
+  (`pendingStepRunProfileId`, `src/state/run-profiles.js`), routing an applied
+  sequenced profile through the stepped dispatch instead of a plain Start.
+  `_enrich_saved_run_profile` also derives `room_count` / `room_ids` / `room_names`
+  from the effective `steps` (the flattened `room_group` rooms), not the stale
+  top-level `rooms`.
 
 Charge/wait steps are brand-agnostic — they ride free on Roborock as well as
 Eufy. See [29-roborock-adapter](29-roborock-adapter.md) for the Roborock

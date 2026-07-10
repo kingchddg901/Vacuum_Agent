@@ -39,8 +39,11 @@ Things that stay in `core/manager.py`:
 - `update_room_fields` (spans profiles, queue, payload, room state, and fires
   multiple notifications)
 - `build_queue` / `build_room_payload` (derived-state refresh after room changes)
-- `start_selected_rooms` / `start_run_profile` (job start — orchestrates
-  run_plan, active_job, HA service call, post-start state clear)
+- `start_selected_rooms` (job start — orchestrates run_plan, active_job, HA
+  service call, post-start state clear). `start_run_profile` is now a delegator
+  to `ProfileManager` (see below); `build_queue`/`build_room_payload`/
+  `start_selected_rooms` stay on the manager and are reached from there via
+  `self._manager`.
 - `get_job_progress_snapshot` / `get_lifecycle_state` / `get_dashboard_snapshot`
   (cross-cutting read aggregators)
 - Room history ingestion methods (see §6)
@@ -48,9 +51,17 @@ Things that stay in `core/manager.py`:
 
 Things that delegate to subsystems:
 - Room/map CRUD → `room_map` (`rooms/room_crud.py`)
-- Room profiles and run profiles → `profiles` (`profiles/`)
+- Room profiles, run profiles, and run-profile **start** orchestration →
+  `profiles` (`profiles/`) — `start_run_profile` (apply the profile, stash the
+  charge/wait steps, build queue/payload, dispatch) lives next to
+  `apply_run_profile` in `ProfileManager`
 - Active job slot CRUD → `active_job` (`jobs/active_job.py`)
 - Preflight planning and rule evaluation → `run_plan` (`planning/run_plan.py`)
+- Send-side wire dispatch → `dispatch` (`dispatch/manager.py`,
+  `DispatchManager`) — `_dispatch_clean_payload`, `dispatch_zone_clean`,
+  `_resolve_live_dispatch_payload`, `_run_global_pre_calls`
+- External (app-started) run capture / finalize / review →
+  `external_run` (`learning/external_run.py`, `ExternalRunManager`) — see §7
 - Theme library → `themes` (`themes/`)
 - Maintenance / upkeep → `maintenance` (`maintenance/`)
 - Dock actions → `dock` (`dock/`)
@@ -84,10 +95,14 @@ async_initialize()
 ├── RoomMapManager(manager=self)             → self.room_map
 ├── LiveRoomRefreshManager(manager=self)     → self.live_room_refresh
 ├── MapSourceCoordinator(manager=self)       → self.map_source
+├── DispatchManager(manager=self)            → self.dispatch
+├── ExternalRunManager(manager=self)         → self.external_run
 ├── room field backfills (setdefault loop)   → existing rooms get new fields
 ├── discovery shape migration                → old flat → per-map-id dict
 ├── _migrate_setup_progress()                → stamps existing installs complete
-└── callback lists + cache sets initialised
+├── callback lists + cache sets initialised
+└── phase_runner.rearm_dock_phase_if_needed  → re-spawn a lost charge_wait/wait
+                                               poller for any 'started' dock job
 ```
 
 All subsystem managers are constructed with a reference to the manager and are
@@ -134,6 +149,8 @@ Each subsystem receives the manager in its constructor and uses it as follows:
 | `RoomMapManager` | `(manager)` | `self._manager.data` |
 | `LiveRoomRefreshManager` | `(manager)` | `self._manager.hass`, adapter config (fire-and-forget service pulse) |
 | `MapSourceCoordinator` | `(manager)` | `self._manager.hass`, writes `_map_state_source_cache`, shares `_resolve_live_map_image_entity` |
+| `DispatchManager` | `(manager)` | `self._manager.hass`, `async_get_map_data_dict`, `map_source`, adapter registry |
+| `ExternalRunManager` | `(manager)` | `self._manager` active-job / map / save helpers; holds in-memory grace-timer + re-check state |
 
 **The subsystem/manager write boundary**: subsystem managers write directly
 to `self._manager.data[key]` for their own domain keys. They never call
@@ -141,14 +158,18 @@ to `self._manager.data[key]` for their own domain keys. They never call
 handler's) responsibility. The final `await manager.async_save()` call always
 lives at the service layer.
 
-**Delegators and shared state that stay on the manager.** For the three
-most-recently bundled-out subsystems the manager keeps thin delegators (called
-from production listeners/lifecycle, so the entry points stay stable) and the
-shared caches/helpers each subsystem reads back through `self._manager`:
+**Delegators and shared state that stay on the manager.** For the
+bundled-out subsystems the manager keeps thin delegators (called
+from production listeners/lifecycle/services, so the entry points stay stable)
+and the shared caches/helpers each subsystem reads back through `self._manager`:
 
 - `PhaseRunner` — `maybe_advance_phase()` delegates; the `_PHASE_*` constants
   and `_phase_timing()` (adapter overrides merged over the defaults) stay on
-  the manager.
+  the manager. `rearm_dock_phase_if_needed()` re-spawns a lost
+  `charge_wait`/`wait` poller when the current phase is a dock phase and
+  `status=='started'` — called on resume (`active_job.async_resume_active_job`)
+  and on load/`async_initialize`, guarded by a `_dock_poller_active` set — so a
+  charge/wait run doesn't wedge in `'started'` after a pause+resume or HA restart.
 - `LiveRoomRefreshManager` — `maybe_pulse_live_room_refresh()` delegates (the
   job-progress ticker calls it for contiguous runs only).
 - `MapSourceCoordinator` — the four async readers `async_refresh_map_state_source`,
@@ -156,6 +177,19 @@ shared caches/helpers each subsystem reads back through `self._manager`:
   `async_get_map_render_data` delegate; the `_map_state_source_cache` (read
   on-loop by the snapshot composer and the map-overlays sensor) and
   `_resolve_live_map_image_entity` stay on the manager.
+- `DispatchManager` — `_dispatch_clean_payload`, `dispatch_zone_clean`,
+  `_resolve_live_dispatch_payload`, and `_run_global_pre_calls` all delegate
+  (production callers `start_selected_rooms`, `jobs/phase_runner.py`, the
+  mapping/job-control services, and the tests reference `manager.<method>`
+  unchanged). The subsystem reads `hass` + the map/room helpers back through
+  `self._manager`.
+- `ExternalRunManager` — every external-run entry point delegates (`§7`); the
+  SHARED room-history ingestion helpers (`_ingest_*_into_room_history`, also
+  driven by the normal completed-job finalize) and `_resolve_active_map_id` /
+  `start_external_capture` stay in core and are reached via `self._manager`.
+  `learning/__init__` exposes `ExternalRunManager` through a lazy `__getattr__`
+  (its module imports two constants from `core.manager` at load time — deferring
+  the import avoids the cycle during `core.manager`'s own module load).
 
 ---
 
@@ -255,38 +289,62 @@ so a cleared field is never stored as `""`), and any other value stores the
 schema-canonicalized hex. Ref: `manager.py:1233` (param), `manager.py:55`
 (`_UNSET` sentinel), `manager.py:1291-1295` (three-way apply logic).
 
-### `start_selected_rooms` / `start_run_profile`
+### `start_selected_rooms` (and the `start_run_profile` delegator)
 
-Job start orchestrates: build effective start plan (run_plan), write active
-job state (active_job), call upstream vacuum service, clear room selections
-post-start, persist. Returns a structured start summary.
+`start_selected_rooms` orchestrates job start: build effective start plan
+(run_plan), write active job state (active_job), call upstream vacuum service
+(via the `DispatchManager` delegators — `_run_global_pre_calls` →
+`_resolve_live_dispatch_payload` → `_dispatch_clean_payload`), clear room
+selections post-start, persist. Returns a structured start summary. It stays on
+the manager and is reached from `ProfileManager` via `self._manager`.
 
-`start_run_profile` also stashes the profile's ordered `steps` sequence into
+`start_run_profile` now lives in `ProfileManager` (next to `apply_run_profile`);
+the manager keeps only a thin delegator for its service + button-entity callers.
+It applies the profile, builds queue/payload, and calls `start_selected_rooms`.
+It also stashes the profile's ordered `steps` sequence into
 `data["_pending_run_steps"]` before starting, but only when the steps carry a
 `charge_wait` or `wait` stop. The plan builder
 (`run_plan._build_effective_start_plan`) consumes that stash and materializes a
-multi-phase `[clean, charge_wait, clean, …]` job via `_build_steps_phases`;
-absent the stash it builds the single atomic phase as before. A stepped run with
-stops is a deliberate sequence, so the plan builder forces `strict_order=True`
-(a no-op for order-honoring brands like Eufy, which fold it back to `False`; on a
-path-optimizing brand like Roborock it pins each group's rooms to the shown
-order). Profiles with no stops (a plain room list) still start atomically.
+multi-phase `[clean, charge_wait, clean, …]` job via `_build_steps_phases`
+(which now `_safe_int`-coerces each `room_id`, so a bad id no longer crashes
+dispatch); absent the stash it builds the single atomic phase as before. A
+stepped run with stops is a deliberate sequence, so the plan builder forces
+`strict_order=True` (a no-op for order-honoring brands like Eufy, which fold it
+back to `False`; on a path-optimizing brand like Roborock it pins each group's
+rooms to the shown order). Profiles with no stops (a plain room list) still start
+atomically.
 
-### `_run_global_pre_calls`
+The stash is popped deep in `_build_effective_start_plan`, which an early return
+(blocked / confirmation-required-without-token / vacuum missing) never reaches —
+so `start_run_profile` deletes the leaked stash on any NON-started return, or the
+next plain Start on that map would silently pop it and become a charge/wait run.
+
+### `_run_global_pre_calls` (delegated to `DispatchManager`)
 
 Pushes a brand's device-**global** run settings — settings the adapter exposes
 only as whole-device state, not per-room payload fields — before an atomic
 dispatch. For each adapter-declared `dispatch.global_pre_calls` entry it picks
 the run value from the selected rooms' canonical field by the entry's `rank`
 (max-wins), maps it to the wire value, and calls the entry's service.
-Best-effort: a failed pre-call is logged, never aborts the run. Stays on the
-manager because it reads the adapter registry and calls HA services across a
-whole dispatch. It runs **per phase**: `start_selected_rooms` fires it for the
-first phase, and `PhaseRunner._dispatch_active_phase` re-runs it for every
-subsequent phase from that phase's own rooms — so a stepped run can vacuum one
-group then mop the next, each applying its own global setting (e.g. Roborock mop
-intensity via a `select`). No-op for adapters that declare none (Eufy, the
-Roborock S6). Detail: [22-adapter-config-reference](22-adapter-config-reference.md),
+Best-effort: a failed pre-call is logged, never aborts the run. It lives in
+`DispatchManager` (`dispatch/manager.py`) with the rest of the send side; the
+manager keeps a delegator because `start_selected_rooms` and
+`PhaseRunner._dispatch_active_phase` call `manager._run_global_pre_calls`. It
+runs **per phase**: `start_selected_rooms` fires it for the first phase, and
+`PhaseRunner._dispatch_active_phase` re-runs it for every subsequent phase from
+that phase's own rooms — so a stepped run can vacuum one group then mop the next,
+each applying its own global setting (e.g. Roborock mop intensity via a
+`select`). No-op for adapters that declare none (Eufy, the Roborock S6).
+
+**Mixed-batch safe water.** A device-global water/mop-intensity `select` can't be
+zeroed per-room, so a mixed mop + vacuum-only batch that max-wins to the
+strongest water would wet-mop the dry rooms. An entry that opts in with
+`mixed_mode_water_policy: "safest"` picks the SAFEST (lowest-rank) water for a
+mixed batch (≥1 mop room AND ≥1 vacuum-only room) so a dry room is never
+wet-mopped (under-mop accepted over wet-mop); a single-mode batch (all-mop or
+all-vacuum) keeps max-wins, and the `fan_speed` entry never carries the marker so
+suction stays max-wins. Detail:
+[22-adapter-config-reference](22-adapter-config-reference.md),
 [29-roborock-adapter](29-roborock-adapter.md).
 
 ### `get_job_progress_snapshot`
@@ -330,11 +388,18 @@ populated from disk on sensor platform startup.
 
 ---
 
-> **External-run methods.** `maybe_handle_external_run` / `_finalize_external_run`
-> (detect + capture an app-started run), `confirm_external_run` /
-> `get_external_pending_runs` / `discard_external_run` (the review-card service
-> surface), and `start_external_capture` (delegated to the active-job tracker)
-> graduate a confirmed external run into a normal `jobs/` record. See
+> **External-run methods** now live in `ExternalRunManager`
+> (`learning/external_run.py`); the manager keeps a thin delegator for each so
+> the service layer, the lifecycle listener, and the tests still call
+> `manager.<method>`. Owned there: `maybe_handle_external_run` +
+> `_finalize_external_run` (detect + capture an app-started run, then segment it
+> into a pending review record), the `_external_grace_*` timers / checks / cb /
+> finalize (defer the finalize until the robot stays docked) + the
+> `_extract_return_overhead` helper, and the review-wizard surface
+> `confirm_external_run` / `get_external_pending_runs` / `discard_external_run` /
+> `resegment_external_run`. `start_external_capture` (active-job tracker) and the
+> shared `_ingest_*_into_room_history` helpers stay in core. A confirmed run
+> graduates into a normal `jobs/` record. See
 > [28-external-run-ingestion](28-external-run-ingestion.md).
 
 ## 7. Storage

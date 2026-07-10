@@ -94,7 +94,7 @@ No third-party Python packages are required (`requirements` is empty).
 │  Subsystems (each a manager class, holds a back-reference):         │
 │  themes · maintenance · dock · onboarding · profiles                │
 │  access_graph · active_job · phase_runner · run_plan · room_map     │
-│  live_room_refresh · map_source                                     │
+│  live_room_refresh · map_source · dispatch · external_run           │
 └──┬───────────┬──────────┬────────────────────┬───────────────────┬──┘
    │           │          │                    │                   │
    ▼           ▼          ▼                    ▼                   ▼
@@ -139,7 +139,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `manager.maintenance` | `maintenance/` | Upkeep metadata, replacement discovery, reset snapshots |
 | `manager.dock` | `dock/` | Dock action dispatch and dock event recording |
 | `manager.onboarding` | `onboarding/` | `data["onboarding"]`, setup progress state machine |
-| `manager.profiles` | `profiles/` | Room profiles and run profiles CRUD |
+| `manager.profiles` | `profiles/` | Room profiles and run profiles CRUD; also owns the run-profile START orchestration (`start_run_profile` — apply the profile, stash charge/wait steps, dispatch), next to `apply_run_profile` (core keeps a `start_run_profile` delegator; `start_selected_rooms` + `build_queue`/`build_room_payload` stay on the core manager) |
 | `manager.access_graph` | `rooms/access_graph.py` | Room-to-room access graph (grants_access_to) |
 | `manager.active_job` | `jobs/active_job.py` | Active job slot CRUD and finalization handoff |
 | `manager.phase_runner` | `jobs/phase_runner.py` | Sequenced phase execution — per-phase watchdog (settle/dispatch/verify/retry) + per-phase timing + per-phase global-pre-call dispatch; also runs the `charge_wait` (`_run_charge_wait_phase` — dock, poll battery to `target_battery_percent`) and `wait` (`_run_wait_phase` — dock, hold `wait_minutes`) break phases via `maybe_advance_phase`, guarding the intentional dock with `_phase_dispatch_pending` |
@@ -147,6 +147,8 @@ module (flat file) or a subsystem package. Here is the full map:
 | `manager.room_map` | `rooms/room_crud.py` | Room and map CRUD operations |
 | `manager.live_room_refresh` | `live_refresh/manager.py` | Lever B contiguous-run live current-room refresh (rate-limit + sticky-disable + local-connection pulse) |
 | `manager.map_source` | `mapping/map_source_coordinator.py` | `map_state_source` backend dispatch (provider segmentation + live-pose reads) |
+| `manager.dispatch` | `dispatch/manager.py` | Send-side wire dispatch: `_dispatch_clean_payload`, `dispatch_zone_clean`, `_resolve_live_dispatch_payload`, `_run_global_pre_calls` (all four moved out of core; the manager keeps a thin delegator for each) |
+| `manager.external_run` | `learning/external_run.py` | External (app-started) run capture/finalize: `maybe_handle_external_run`, `_finalize_external_run`, `confirm_external_run`, `get_external_pending_runs`, `discard_external_run`, `resegment_external_run`, the `_external_grace_*` timers/checks/finalize, `_extract_return_overhead` (the manager keeps a thin delegator for each). The `_ingest_*_into_room_history` helpers STAY in core — they are shared with the normal finalize path. Exposed from `learning/__init__` via a lazy `__getattr__` to avoid an import cycle |
 
 ### Entry-point singletons (constructed in `__init__.async_setup_entry()`)
 
@@ -170,7 +172,7 @@ module (flat file) or a subsystem package. Here is the full map:
 | `rooms/` | `room_manager.py` (incl. `build_managed_rooms`), `room_discovery.py`, `rooms/utils.py` — stateless |
 | `models/` | `TypedDict` definitions (`VacuumRuntimeState`, `LiveRuleState`, etc.) |
 | `mapping/` | Trace capture, segmentation, boundary estimation, image analysis |
-| `learning/` | Job finalization pipeline, history store, ETA estimator |
+| `learning/` | Job finalization pipeline, history store, ETA estimator; also `external_run.py` — the `ExternalRunManager` subsystem (a stateful bundled subsystem, not stateless; see the subsystem-managers table above) |
 | `setup/` | Setup workflow, drift detection, protection rules |
 | `jobs/job_monitor.py` | Lifecycle state machine (pure function) |
 | `timestamp_utils.py` | `parse_timestamp`, `utc_now_iso` |
@@ -195,8 +197,13 @@ entities share the base class in `room_entities.py`.
 
 2. **`EufyVacuumManager` construction + `async_initialize()`** — loads
    `.storage`, seeds top-level keys, runs schema migrations, constructs all
-   subsystem manager objects (themes through room_map), initialises callback
-   lists.
+   subsystem manager objects (themes through `external_run` — in construction
+   order: themes, maintenance, dock, onboarding, profiles, access_graph,
+   active_job, phase_runner, run_plan, room_map, live_room_refresh, map_source,
+   dispatch, external_run), initialises callback lists. It then re-arms any
+   `charge_wait` / `wait` dock phase whose in-memory poller the restart lost
+   (`phase_runner.rearm_dock_phase_if_needed`, called for every `status=='started'`
+   active job).
 
 3. **Orphaned entity cleanup** — removes legacy `eufy_vacuum_icon_*` entities
    from the entity registry if found (silent no-op on clean installs).
