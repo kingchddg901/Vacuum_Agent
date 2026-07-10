@@ -1276,6 +1276,18 @@
     "chip_wait_label": "Attendi",
     "run_plan_title": "Questa esecuzione"
   },
+  "profile_card": {
+    "configure": "Seleziona un aspirapolvere, una mappa e un profilo nell'editor della scheda.",
+    "loading": "Caricamento…",
+    "not_found": "Profilo non trovato per questo aspirapolvere e questa mappa.",
+    "untitled": "Profilo senza nome",
+    "editor_map_label": "Mappa",
+    "editor_pick_map": "— scegli una mappa —",
+    "editor_profile_label": "Profilo",
+    "editor_pick_profile": "— scegli un profilo —",
+    "editor_no_maps": "Nessuna mappa trovata per questo aspirapolvere.",
+    "editor_no_profiles": "Nessun profilo salvato per questa mappa."
+  },
   "run_profiles": {
     "create_profile": "Crea profilo",
     "editor_title_edit": "Modifica profilo salvato",

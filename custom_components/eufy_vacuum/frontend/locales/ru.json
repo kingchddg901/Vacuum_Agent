@@ -1363,6 +1363,18 @@
     "chip_wait_label": "Ожидание",
     "run_plan_title": "Эта очистка"
   },
+  "profile_card": {
+    "configure": "Выберите пылесос, карту и профиль в редакторе карточки.",
+    "loading": "Загрузка…",
+    "not_found": "Профиль для этого пылесоса и карты не найден.",
+    "untitled": "Профиль без имени",
+    "editor_map_label": "Карта",
+    "editor_pick_map": "— выберите карту —",
+    "editor_profile_label": "Профиль",
+    "editor_pick_profile": "— выберите профиль —",
+    "editor_no_maps": "Карты для этого пылесоса не найдены.",
+    "editor_no_profiles": "Нет сохранённых профилей для этой карты."
+  },
   "run_profiles": {
     "create_profile": "Создать профиль",
     "editor_title_edit": "Изменить сохранённый профиль",

@@ -1276,6 +1276,18 @@
     "chip_wait_label": "Warten",
     "run_plan_title": "Dieser Lauf"
   },
+  "profile_card": {
+    "configure": "Wähle Saugroboter, Karte und Profil im Karteneditor aus.",
+    "loading": "Wird geladen …",
+    "not_found": "Profil für diesen Saugroboter und diese Karte nicht gefunden.",
+    "untitled": "Unbenanntes Profil",
+    "editor_map_label": "Karte",
+    "editor_pick_map": "— Karte auswählen —",
+    "editor_profile_label": "Profil",
+    "editor_pick_profile": "— Profil auswählen —",
+    "editor_no_maps": "Keine Karten für diesen Saugroboter gefunden.",
+    "editor_no_profiles": "Keine gespeicherten Profile für diese Karte."
+  },
   "run_profiles": {
     "create_profile": "Profil erstellen",
     "editor_title_edit": "Gespeichertes Profil bearbeiten",

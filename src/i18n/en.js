@@ -1296,6 +1296,18 @@ export const en = {
   "run_profiles.subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
   "run_profiles.title": "Run Profiles",  // Feature name = saved room-queue setups; 'Run'=a cleaning run, 'Profiles'=named setups
 
+  // --- standalone profile card (inspect-and-run one saved profile on a dashboard) ---
+  "profile_card.configure": "Select a vacuum, map, and profile in the card editor.",  // shown when the card has no profile picked yet
+  "profile_card.loading": "Loading…",  // shown while the saved profiles are being fetched
+  "profile_card.not_found": "Profile not found for this vacuum and map.",  // configured profile_id no longer exists
+  "profile_card.untitled": "Untitled profile",  // fallback when a saved profile has no name
+  "profile_card.editor_map_label": "Map",  // card-editor dropdown label for the map picker
+  "profile_card.editor_pick_map": "— pick a map —",  // card-editor map dropdown placeholder
+  "profile_card.editor_profile_label": "Profile",  // card-editor dropdown label for the profile picker
+  "profile_card.editor_pick_profile": "— pick a profile —",  // card-editor profile dropdown placeholder
+  "profile_card.editor_no_maps": "No maps found for this vacuum.",  // hint when the vacuum has no managed maps
+  "profile_card.editor_no_profiles": "No saved profiles for this map.",  // hint when the map has no run profiles
+
   // --- saved zones ---
   "saved_zones.area_m2": "{area} m²",  // Zone size chip; {area}=one-decimal number, m²=square metres
   "saved_zones.cancel_draw": "Cancel",  // exit draw-to-save without saving

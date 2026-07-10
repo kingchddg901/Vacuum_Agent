@@ -1290,6 +1290,18 @@
     "chip_wait_label": "Esperar",
     "run_plan_title": "Esta limpieza"
   },
+  "profile_card": {
+    "configure": "Selecciona un aspirador, un mapa y un perfil en el editor de la tarjeta.",
+    "loading": "Cargando…",
+    "not_found": "No se encontró el perfil para este aspirador y este mapa.",
+    "untitled": "Perfil sin nombre",
+    "editor_map_label": "Mapa",
+    "editor_pick_map": "— elige un mapa —",
+    "editor_profile_label": "Perfil",
+    "editor_pick_profile": "— elige un perfil —",
+    "editor_no_maps": "No se encontraron mapas para este aspirador.",
+    "editor_no_profiles": "No hay perfiles guardados para este mapa."
+  },
   "run_profiles": {
     "create_profile": "Crear perfil",
     "editor_title_edit": "Editar perfil guardado",

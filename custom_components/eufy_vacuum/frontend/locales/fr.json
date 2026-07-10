@@ -1290,6 +1290,18 @@
     "chip_wait_label": "Attendre",
     "run_plan_title": "Cette tâche"
   },
+  "profile_card": {
+    "configure": "Sélectionnez un aspirateur, une carte et un profil dans l'éditeur de la carte.",
+    "loading": "Chargement…",
+    "not_found": "Profil introuvable pour cet aspirateur et cette carte.",
+    "untitled": "Profil sans nom",
+    "editor_map_label": "Carte",
+    "editor_pick_map": "— choisir une carte —",
+    "editor_profile_label": "Profil",
+    "editor_pick_profile": "— choisir un profil —",
+    "editor_no_maps": "Aucune carte trouvée pour cet aspirateur.",
+    "editor_no_profiles": "Aucun profil enregistré pour cette carte."
+  },
   "run_profiles": {
     "create_profile": "Créer un profil",
     "editor_title_edit": "Modifier le profil enregistré",

@@ -1276,6 +1276,18 @@
     "chip_wait_label": "Wachten",
     "run_plan_title": "Deze run"
   },
+  "profile_card": {
+    "configure": "Selecteer een stofzuiger, kaart en profiel in de editor.",
+    "loading": "Laden…",
+    "not_found": "Profiel niet gevonden voor deze stofzuiger en kaart.",
+    "untitled": "Naamloos profiel",
+    "editor_map_label": "Kaart",
+    "editor_pick_map": "— kies een kaart —",
+    "editor_profile_label": "Profiel",
+    "editor_pick_profile": "— kies een profiel —",
+    "editor_no_maps": "Geen kaarten gevonden voor deze stofzuiger.",
+    "editor_no_profiles": "Geen opgeslagen profielen voor deze kaart."
+  },
   "run_profiles": {
     "create_profile": "Profiel aanmaken",
     "editor_title_edit": "Opgeslagen profiel bewerken",

@@ -1289,6 +1289,18 @@
     "chip_wait_label": "Aguardar",
     "run_plan_title": "Esta execução"
   },
+  "profile_card": {
+    "configure": "Selecione um aspirador, um mapa e um perfil no editor do cartão.",
+    "loading": "A carregar…",
+    "not_found": "Perfil não encontrado para este aspirador e mapa.",
+    "untitled": "Perfil sem nome",
+    "editor_map_label": "Mapa",
+    "editor_pick_map": "— escolher um mapa —",
+    "editor_profile_label": "Perfil",
+    "editor_pick_profile": "— escolher um perfil —",
+    "editor_no_maps": "Nenhum mapa encontrado para este aspirador.",
+    "editor_no_profiles": "Nenhum perfil guardado para este mapa."
+  },
   "run_profiles": {
     "create_profile": "Criar perfil",
     "editor_title_edit": "Editar perfil guardado",

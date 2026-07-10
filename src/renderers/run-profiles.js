@@ -9,6 +9,8 @@
  * ============================================================
  */
 
+import { renderStepsManifest } from "../state/steps-manifest.js";
+
 /**
  * Mix run profiles renderer methods onto the given prototype.
  *
@@ -284,46 +286,14 @@ export function applyRunProfilesRenderers(proto) {
    * @returns {string} HTML string.
    */
   proto._renderRunProfileStepsSummary = function (state, profile) {
-    const steps = Array.isArray(profile.steps) ? profile.steps : [];
-    if (!steps.length) return "";
     const rooms = state.getRoomsForActiveMap?.() ?? [];
     const nameById = {};
     rooms.forEach((room) => { nameById[String(room.id)] = room.name; });
-
-    const items = steps.map((step) => {
-      if (step.type === "charge_wait") {
-        const target = Number(step.target_battery_percent ?? 95);
-        return `
-          <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--charge">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⚡</span>${this.t("run_profiles.step_charge_to")} ${this.escapeHtml(String(target))}%
-          </li>`;
-      }
-      if (step.type === "wait") {
-        const mins = Number(step.wait_minutes ?? 30);
-        return `
-          <li class="evcc-run-profiles-seq-step evcc-run-profiles-seq-step--wait">
-            <span class="evcc-run-profiles-seq-icon" aria-hidden="true">⏱</span>${this.t("run_profiles.step_wait")} ${this.escapeHtml(String(mins))} ${this.t("run_profiles.minutes_unit")}
-          </li>`;
-      }
-      const groupRooms = Array.isArray(step.rooms) ? step.rooms : [];
-      const names = groupRooms
-        .map((r) => this.escapeHtml(
-          nameById[String(r.room_id)] ?? this.t("run_profiles.room_fallback", { id: this.escapeHtml(String(r.room_id)) })
-        ))
-        .join(", ");
-      const modes = new Set(groupRooms.map((r) => r.clean_mode).filter(Boolean));
-      const modeHint = modes.size === 1 ? [...modes][0] : null;
-      return `
-        <li class="evcc-run-profiles-seq-step">
-          <span class="evcc-run-profiles-seq-kind">${this.t("run_profiles.step_clean")}</span> ${names || this.t("run_profiles.step_group_empty")}${modeHint ? ` <span class="evcc-run-profiles-seq-mode">${this.escapeHtml(modeHint)}</span>` : ""}
-        </li>`;
-    }).join("");
-
-    return `
-      <div class="evcc-run-profiles-sequence">
-        <span class="evcc-run-profiles-label">${this.t("run_profiles.runs_as")}</span>
-        <ol class="evcc-run-profiles-seq-list">${items}</ol>
-      </div>
-    `;
+    return renderStepsManifest({
+      steps: profile.steps,
+      nameById,
+      t: (key, vars) => this.t(key, vars),
+      escapeHtml: (s) => this.escapeHtml(s),
+    });
   };
 }

@@ -1991,6 +1991,18 @@
     "subtitle": "Save this room setup and reapply it later without rebuilding the queue by hand.",
     "title": "Run Profiles"  // Feature name = saved room-queue setups; 'Run'=a cleaning run, 'Profiles'=named setups
   },
+  "profile_card": {
+    "configure": "Select a vacuum, map, and profile in the card editor.",  // shown when the card has no profile picked yet
+    "loading": "Loading…",  // shown while the saved profiles are being fetched
+    "not_found": "Profile not found for this vacuum and map.",  // configured profile_id no longer exists
+    "untitled": "Untitled profile",  // fallback when a saved profile has no name
+    "editor_map_label": "Map",  // card-editor dropdown label for the map picker
+    "editor_pick_map": "— pick a map —",  // card-editor map dropdown placeholder
+    "editor_profile_label": "Profile",  // card-editor dropdown label for the profile picker
+    "editor_pick_profile": "— pick a profile —",  // card-editor profile dropdown placeholder
+    "editor_no_maps": "No maps found for this vacuum.",  // hint when the vacuum has no managed maps
+    "editor_no_profiles": "No saved profiles for this map."  // hint when the map has no run profiles
+  },
   "saved_zones": {
     "area_m2": "{area} m²",  // Zone size chip; {area}=one-decimal number, m²=square metres
     "cancel_draw": "Cancel",  // exit draw-to-save without saving
